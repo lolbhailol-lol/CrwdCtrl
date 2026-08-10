@@ -88,7 +88,7 @@ function readSeedConfig(env = process.env, argv = process.argv.slice(2)) {
     argumentValue(argv, '--release-interval')
       || env.CAMPUS_HUNT_RELEASE_INTERVAL_MINUTES,
     'release interval',
-    2,
+    5,
   );
   const teamCapacity = positiveInteger(
     argumentValue(argv, '--team-capacity') || env.CAMPUS_HUNT_TEAM_CAPACITY,
@@ -112,11 +112,29 @@ function readSeedConfig(env = process.env, argv = process.argv.slice(2)) {
   );
   const locations = configuredLocations.length
     ? configuredLocations
-    : Array.from({ length: startCount }, (_, index) => ({
-      code: `START-${index + 1}`,
-      name: `Pilot Start ${index + 1}`,
-      description: 'Replace with a real staffed gathering location before production.',
-    }));
+    : Array.from({ length: startCount }, (_, index) => {
+      const code = String.fromCharCode(65 + index); // A, B, C, D
+      const names = [
+        'Library',
+        'Chanakya Porch',
+        'Design',
+        'Vyas Parking',
+      ];
+      // Shuffled first hunt stops (not waits) so parallel releases avoid crowds.
+      const firstStops = [
+        'Food Court',
+        'Amphitheatre',
+        'Main Gate',
+        'Sports Complex',
+      ];
+      return {
+        code,
+        name: names[index] || `Location ${code}`,
+        description:
+          `10 teams wait at ${names[index]}. `
+          + `Wave 1 leaves toward ${firstStops[index]} (shuffled by wait); then +5 min.`,
+      };
+    });
   if (locations.length !== startCount) {
     throw new Error(`Expected ${startCount} starting locations, received ${locations.length}`);
   }
@@ -422,7 +440,13 @@ async function main() {
       assignmentStrategy: 'route_balanced',
       scheduleStatus: 'draft',
       releasesPaused: false,
-      qualification: { topNDirectFinale: 8, nextRoundName: 'MAUT_KA_KUVA' },
+      qualification: {
+        topNDirectFinale: 8,
+        survivalTeams: 32,
+        lastChanceTeams: 12,
+        finaleTeams: 5,
+        nextRoundName: 'SURVIVAL_STAGE',
+      },
     });
     console.log('Created round 1');
   } else if (round.scheduleStatus !== 'locked') {
@@ -565,7 +589,7 @@ async function main() {
           destinationInstruction: v.clue2.destinationInstruction,
           basePoints: 0,
           maxAttempts: scoring.clue2.maxAttempts,
-          timerSeconds: 300,
+          timerSeconds: 180,
           speedBonusBands: scoring.clue2.speedBonusBands,
           hintText: 'Look near eye level on marked posts.',
           hintCost: scoring.hintCost,

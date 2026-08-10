@@ -1,10 +1,10 @@
 const STEPS = [
-  { id: 'overview', label: 'Overview', short: 'Event status' },
-  { id: 'setup', label: '1. Game setup', short: 'Routes, starts, clues' },
-  { id: 'teams', label: '2. Teams', short: 'Players and access' },
-  { id: 'schedule', label: '3. Start schedule', short: 'Assign and lock' },
-  { id: 'live', label: '4. Live event', short: 'Operate the hunt' },
-  { id: 'results', label: '5. Results', short: 'Rank and finalize' },
+  { id: 'clues', label: 'Clues', short: 'Clue 1–Final' },
+  { id: 'locations', label: 'Locations', short: '4 starts' },
+  { id: 'teams', label: 'Teams', short: '40 names & access' },
+  { id: 'schedule', label: 'Schedule', short: 'Staggered starts' },
+  { id: 'live', label: 'Live', short: 'Operate hunt' },
+  { id: 'results', label: 'Results', short: 'Leaderboard' },
 ];
 
 const STATUS_CLASS = {
@@ -17,7 +17,7 @@ const STATUS_CLASS = {
 
 export default function AdminWorkflowNav({ current, onChange, statuses = {} }) {
   return (
-    <nav aria-label="Campus Hunt setup workflow" className="overflow-x-auto pb-1">
+    <nav aria-label="Campus Hunt Round 1 workflow" className="overflow-x-auto pb-1">
       <div className="flex min-w-max gap-2 lg:grid lg:min-w-0 lg:grid-cols-6">
         {STEPS.map((step) => {
           const status = statuses[step.id] || 'Not started';
@@ -28,7 +28,7 @@ export default function AdminWorkflowNav({ current, onChange, statuses = {} }) {
               type="button"
               onClick={() => onChange(step.id)}
               aria-current={active ? 'step' : undefined}
-              className={`min-w-36 rounded-xl border px-3 py-3 text-left transition ${
+              className={`min-w-36 rounded-xl border px-3 py-3 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0ECCEE] ${
                 active
                   ? 'border-[#0ECCEE]/70 bg-[#0ECCEE]/10'
                   : 'border-white/10 bg-white/4 hover:border-white/25'

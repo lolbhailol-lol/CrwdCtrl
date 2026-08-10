@@ -37,7 +37,8 @@ function rankTeams(teams) {
   return sorted.map((team, index) => ({
     rank: index + 1,
     team,
-    qualification: index < 8 ? 'GRAND_FINALE' : 'MAUT_KA_KUVA',
+    // Top 8 go direct to Finale; ranks 9+ enter Survival Stage (32 from a 40-team Round 1).
+    qualification: index < 8 ? 'DIRECT_FINALE' : 'SURVIVAL_STAGE',
   }));
 }
 

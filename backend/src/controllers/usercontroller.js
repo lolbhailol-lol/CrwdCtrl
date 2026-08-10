@@ -7,10 +7,16 @@ const { sendPushNotification } = require('../services/pushService');
 const { getJwtSecret } = require('../config/jwtSecret');
 const { resolveFirebaseIdentity } = require('../utils/firebaseIdentity');
 
-// Generate JWT Token
-const generateToken = (userId) => {
-    return jwt.sign({ userId }, getJwtSecret(), {
-        expiresIn: process.env.USER_JWT_EXPIRES_IN || '30d',
+// Generate JWT Token (optional hunt claims survive refresh for stay-logged-in)
+const generateToken = (userId, extraClaims = {}) => {
+    const claims = { userId };
+    if (extraClaims.huntTeamId) {
+        claims.huntTeamId = String(extraClaims.huntTeamId);
+        if (extraClaims.huntEventId) claims.huntEventId = String(extraClaims.huntEventId);
+        if (extraClaims.huntRole) claims.huntRole = String(extraClaims.huntRole);
+    }
+    return jwt.sign(claims, getJwtSecret(), {
+        expiresIn: process.env.USER_JWT_EXPIRES_IN || process.env.JWT_EXPIRES_IN || '30d',
     });
 };
 
@@ -943,7 +949,11 @@ const refreshSession = async (req, res) => {
             return res.status(401).json({ success: false, message: 'User no longer exists' });
         }
 
-        const newToken = generateToken(user._id);
+        const newToken = generateToken(user._id, {
+            huntTeamId: decoded.huntTeamId,
+            huntEventId: decoded.huntEventId,
+            huntRole: decoded.huntRole,
+        });
         res.status(200).json({
             success: true,
             message: 'Session refreshed',

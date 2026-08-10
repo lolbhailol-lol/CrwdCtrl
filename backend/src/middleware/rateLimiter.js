@@ -163,10 +163,10 @@ const campusHuntVolunteerLoginLimiter = rateLimit({
   message: { success: false, message: 'Too many volunteer login attempts.' },
 });
 
-/** Campus Hunt — admin mutations */
+/** Campus Hunt — admin mutations (Clue saves touch many checkpoints/challenges). */
 const campusHuntAdminLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: isDev ? 500 : 200,
+  max: isDev ? 5000 : Number(process.env.CAMPUS_HUNT_ADMIN_RATE_LIMIT_MAX) || 1000,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: 'Too many admin requests.' },

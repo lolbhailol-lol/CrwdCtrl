@@ -123,6 +123,7 @@ export const FestOrganizerLeadsPage = lazyWithRetry(() => import('../../pages/fe
 export const CampusHuntLandingPage = lazyWithRetry(() => import('../../features/campus-hunt/pages/CampusHuntLandingPage'));
 export const CampusHuntPlayPage = lazyWithRetry(() => import('../../features/campus-hunt/pages/CampusHuntPlayPage'));
 export const CampusHuntTeamLoginPage = lazyWithRetry(() => import('../../features/campus-hunt/pages/CampusHuntTeamLoginPage'));
+export const CampusHuntLoginHubPage = lazyWithRetry(() => import('../../features/campus-hunt/pages/CampusHuntLoginHubPage'));
 export const CampusHuntLeaderboardPage = lazyWithRetry(() => import('../../features/campus-hunt/pages/CampusHuntLeaderboardPage'));
 export const VolunteerLoginPage = lazyWithRetry(() => import('../../features/campus-hunt/pages/VolunteerLoginPage'));
 export const VolunteerCheckpointPage = lazyWithRetry(() => import('../../features/campus-hunt/pages/VolunteerCheckpointPage'));

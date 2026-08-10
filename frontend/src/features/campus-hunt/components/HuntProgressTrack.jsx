@@ -1,62 +1,73 @@
 import { motion } from 'framer-motion';
 import { huntProgressFromStage } from '../types/stages';
+import { themeForProgressStepId } from '../types/stageTheme';
 
 /**
- * Visual hunt pipeline: Start → Clue 1 → Clue 2 → Clue 3 → Final → Finish
+ * Compact hunt pipeline — flat, not a heavy card.
  */
 export default function HuntProgressTrack({ stage }) {
   const { steps, index, currentLabel } = huntProgressFromStage(stage);
   const filledRatio = steps.every((s) => s.status === 'done')
     ? 1
     : index / Math.max(1, steps.length - 1);
+  const activeTheme = themeForProgressStepId(steps[index]?.id);
 
   return (
-    <div className="rounded-2xl bg-white/5 px-3 py-4 sm:px-4">
-      <div className="mb-4 flex items-baseline justify-between gap-2">
-        <p className="text-xs uppercase tracking-widest text-white/50">Hunt progress</p>
-        <p className="truncate text-right text-xs text-[#0ECCEE]">{currentLabel}</p>
+    <div className="px-0.5">
+      <div className="mb-3 flex items-baseline justify-between gap-2">
+        <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-white/35">
+          Progress
+        </p>
+        <p
+          className="truncate text-right text-[11px] font-medium"
+          style={{ color: activeTheme?.hex || '#0ECCEE' }}
+        >
+          {currentLabel}
+        </p>
       </div>
 
-      <div className="relative px-1">
-        <div className="absolute left-4 right-4 top-4 h-0.5 -translate-y-1/2 bg-white/15" />
+      <div className="relative px-1 pb-1">
+        <div className="absolute left-3 right-3 top-[14px] h-px -translate-y-1/2 bg-white/10" />
         <div
-          className="absolute left-4 top-4 h-0.5 -translate-y-1/2 bg-[#0ECCEE] transition-all duration-500"
-          style={{ width: `calc((100% - 2rem) * ${filledRatio})` }}
+          className="absolute left-3 top-[14px] h-px -translate-y-1/2 transition-all duration-500"
+          style={{
+            width: `calc((100% - 1.5rem) * ${filledRatio})`,
+            background: activeTheme?.hex || '#0ECCEE',
+          }}
         />
 
         <ol className="relative z-10 flex justify-between">
           {steps.map((step) => {
             const done = step.status === 'done';
             const active = step.status === 'active';
-            const waiting = step.status === 'waiting';
             const locked = step.status === 'locked';
+            const theme = themeForProgressStepId(step.id);
 
             return (
-              <li key={step.id} className="flex w-12 flex-col items-center sm:w-14">
+              <li key={step.id} className="flex w-11 flex-col items-center sm:w-12">
                 <motion.div
-                  layout
-                  className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${
+                  className={`flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold ${
                     done
-                      ? 'bg-[#0ECCEE] text-black'
+                      ? 'text-black'
                       : active
-                        ? 'bg-[#0b0c0d] text-[#0ECCEE] ring-2 ring-[#0ECCEE]'
-                        : waiting
-                          ? 'bg-[#0b0c0d] text-white/70 ring-1 ring-white/30'
-                          : 'bg-[#0b0c0d] text-white/30 ring-1 ring-white/10'
+                        ? 'bg-[#0b0c0d] text-white'
+                        : 'bg-[#0b0c0d] text-white/30 ring-1 ring-white/10'
                   }`}
-                  animate={active ? { scale: [1, 1.08, 1] } : { scale: 1 }}
-                  transition={active ? { repeat: Infinity, duration: 1.6 } : undefined}
+                  style={
+                    done
+                      ? { background: theme?.hex || '#0ECCEE' }
+                      : active
+                        ? { boxShadow: `0 0 0 2px ${theme?.hex || '#0ECCEE'}` }
+                        : undefined
+                  }
+                  animate={active ? { scale: [1, 1.06, 1] } : { scale: 1 }}
+                  transition={active ? { repeat: Infinity, duration: 2 } : undefined}
                 >
                   {done ? '✓' : step.short}
                 </motion.div>
-
                 <p
-                  className={`mt-2 text-center text-[10px] font-medium leading-tight sm:text-xs ${
-                    done || active
-                      ? 'text-white'
-                      : locked
-                        ? 'text-white/30'
-                        : 'text-white/60'
+                  className={`mt-1.5 text-center text-[9px] font-medium leading-tight sm:text-[10px] ${
+                    done || active ? 'text-white/80' : locked ? 'text-white/25' : 'text-white/40'
                   }`}
                 >
                   {step.label}

@@ -4,17 +4,17 @@ export const STAGE_LABELS = {
   CLUE_1_COMPLETED: 'Scan station QR (all members)',
   CHECKPOINT_1_COMPLETED: 'Checkpoint 1 done',
   CLUE_2_ACTIVE: 'Clue 2',
-  CLUE_2_COMPLETED: 'Go to next location & scan QR',
-  CLUE_2_FAILED: 'Go to next location & scan QR',
-  CLUE_2_TIMEOUT: 'Go to next location & scan QR',
-  CHECKPOINT_2_COMPLETED: 'Checkpoint 2 done',
+  CLUE_2_COMPLETED: 'Go scan green SECOND SCAN',
+  CLUE_2_FAILED: 'Go scan green SECOND SCAN',
+  CLUE_2_TIMEOUT: 'Go scan green SECOND SCAN',
+  CHECKPOINT_2_COMPLETED: 'Clue 3 unlocking…',
   CLUE_3_ACTIVE: 'Clue 3 — Decode',
-  CLUE_3_COMPLETED: 'Head to Checkpoint 3',
-  CLUE_3_FAILED: 'Clue 3 failed — continue',
+  CLUE_3_COMPLETED: 'Find blue Checkpoint 3 card & scan',
+  CLUE_3_FAILED: 'Find blue Checkpoint 3 card & scan',
   CHECKPOINT_3_COMPLETED: 'Checkpoint 3 done',
-  CLUE_4_ACTIVE: 'Clue 4 — Team puzzle',
-  CLUE_4_COMPLETED: 'Head to Finish Zone',
-  CLUE_4_FAILED: 'Clue 4 failed — go to Finish',
+  CLUE_4_ACTIVE: 'Final clue — combine 4 codes',
+  CLUE_4_COMPLETED: 'Report to your start · ask organizer',
+  CLUE_4_FAILED: 'Report to your start · ask organizer',
   FINISH_COMPLETED: 'Finished',
   SCORE_LOCKED: 'Score locked',
 };
@@ -78,9 +78,15 @@ export function huntProgressFromStage(stage) {
   });
 
   let currentLabel = STAGE_LABELS[s] || s;
-  if (s === 'CLUE_1_COMPLETED') currentLabel = 'Go scan station QR (all members)';
+  if (s === 'CLUE_1_COMPLETED') currentLabel = 'Go scan yellow FIRST SCAN card (all members)';
   if (['CLUE_2_COMPLETED', 'CLUE_2_FAILED', 'CLUE_2_TIMEOUT'].includes(s)) {
-    currentLabel = 'Go to next location & scan QR (all members)';
+    currentLabel = 'Go to next place · find your green QR · all 4 scan → Clue 3';
+  }
+  if (['CLUE_3_COMPLETED', 'CLUE_3_FAILED'].includes(s)) {
+    currentLabel = 'Go to next place · find blue Checkpoint 3 card & scan → Final';
+  }
+  if (['CLUE_4_COMPLETED', 'CLUE_4_FAILED'].includes(s)) {
+    currentLabel = 'Report to your start · ask organizer to mark reached';
   }
 
   return { index, steps, currentLabel };

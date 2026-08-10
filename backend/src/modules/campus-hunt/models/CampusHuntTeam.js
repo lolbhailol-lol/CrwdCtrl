@@ -42,6 +42,26 @@ const campusHuntTeamSchema = new mongoose.Schema(
       ref: 'CampusHuntCheckpoint',
       index: true,
     },
+    clue2ChallengeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'CampusHuntChallenge',
+      index: true,
+    },
+    secondCheckpointId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'CampusHuntCheckpoint',
+      index: true,
+    },
+    clue3ChallengeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'CampusHuntChallenge',
+      index: true,
+    },
+    thirdCheckpointId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'CampusHuntCheckpoint',
+      index: true,
+    },
     teamCode: {
       type: String,
       required: true,
@@ -93,6 +113,8 @@ const campusHuntTeamSchema = new mongoose.Schema(
       }],
       sharedScannerPassword: { type: String, default: '', select: false },
       encryptedSharedScannerPassword: { type: String, default: '', select: false },
+      /** One password for the whole team (code + this password → pick who you are). */
+      encryptedTeamPassword: { type: String, default: '', select: false },
     },
     startingScore: { type: Number, default: 100 },
     currentScore: { type: Number, default: 100 },

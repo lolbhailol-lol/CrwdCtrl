@@ -170,6 +170,17 @@ test('assigned first-checkpoint and allow-list checks reject the wrong team', ()
       team,
       { ...baseCheckpoint, _id: id('08') },
     ),
+    (error) => (
+      error.code === 'WRONG_FIRST_CHECKPOINT'
+      && /another team/i.test(error.message)
+    ),
+  );
+  // Other route's poster at the same campus spot — still a wrong team QR
+  assert.throws(
+    () => assertTeamEligibleForCheckpoint(
+      team,
+      { ...baseCheckpoint, _id: id('0a'), routeId: id('0b') },
+    ),
     (error) => error.code === 'WRONG_FIRST_CHECKPOINT',
   );
   assert.throws(

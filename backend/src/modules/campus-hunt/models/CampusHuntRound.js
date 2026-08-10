@@ -14,7 +14,7 @@ const campusHuntRoundSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
-      // THE_HUNT | MAUT_KA_KUVA | DANGER_LEVEL | FINALE
+      // THE_HUNT | SURVIVAL_STAGE | LAST_CHANCE | FINALE
     },
     status: {
       type: String,
@@ -24,7 +24,7 @@ const campusHuntRoundSchema = new mongoose.Schema(
     },
     startsAt: { type: Date },
     endsAt: { type: Date },
-    releaseIntervalMinutes: { type: Number, default: 2, min: 1 },
+    releaseIntervalMinutes: { type: Number, default: 5, min: 1 },
     assignmentStrategy: {
       type: String,
       enum: ['sequential', 'route_balanced'],
@@ -40,7 +40,10 @@ const campusHuntRoundSchema = new mongoose.Schema(
     releasesPaused: { type: Boolean, default: false },
     qualification: {
       topNDirectFinale: { type: Number, default: 8 },
-      nextRoundName: { type: String, default: 'MAUT_KA_KUVA' },
+      survivalTeams: { type: Number, default: 32 },
+      lastChanceTeams: { type: Number, default: 12 },
+      finaleTeams: { type: Number, default: 5 },
+      nextRoundName: { type: String, default: 'SURVIVAL_STAGE' },
     },
     lockedAt: { type: Date },
     finalizedAt: { type: Date },

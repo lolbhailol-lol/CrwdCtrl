@@ -43,6 +43,18 @@ const campusHuntChallengeSchema = new mongoose.Schema(
       ref: 'CampusHuntCheckpoint',
       index: true,
     },
+    /** Clue 2 variant → team-bound Checkpoint 2 (progressionKey 2). */
+    secondCheckpointId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'CampusHuntCheckpoint',
+      index: true,
+    },
+    /** Clue 3 variant → team-bound Checkpoint 3 (progressionKey 3). */
+    thirdCheckpointId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'CampusHuntCheckpoint',
+      index: true,
+    },
     difficulty: {
       type: String,
       enum: ['easy', 'medium', 'hard'],
@@ -91,5 +103,33 @@ campusHuntChallengeSchema.index(
   { unique: true },
 );
 
-module.exports = mongoose.models.CampusHuntChallenge
+const LEGACY_CHALLENGE_INDEXES = [
+  'eventId_1_routeId_1_challengeNumber_1',
+  'eventId_1_roundId_1_routeId_1_challengeNumber_1',
+];
+
+/**
+ * Old unique indexes omitted variantKey and block Clue 1 multi-variant upserts.
+ * Safe to call repeatedly (no-op when already dropped).
+ */
+async function ensureChallengeIndexes() {
+  const collection = mongoose.models.CampusHuntChallenge?.collection
+    || mongoose.connection.collection('campushuntchallenges');
+  for (const name of LEGACY_CHALLENGE_INDEXES) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      await collection.dropIndex(name);
+    } catch (error) {
+      if (error.codeName !== 'IndexNotFound' && error.code !== 27) throw error;
+    }
+  }
+  await (mongoose.models.CampusHuntChallenge || mongoose.model('CampusHuntChallenge', campusHuntChallengeSchema))
+    .syncIndexes();
+}
+
+const CampusHuntChallenge = mongoose.models.CampusHuntChallenge
   || mongoose.model('CampusHuntChallenge', campusHuntChallengeSchema);
+
+CampusHuntChallenge.ensureChallengeIndexes = ensureChallengeIndexes;
+
+module.exports = CampusHuntChallenge;

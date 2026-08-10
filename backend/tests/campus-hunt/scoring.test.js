@@ -16,39 +16,39 @@ test('clue2 time bands: 50 / 30 / 10', () => {
   assert.equal(speedBonusFromBands(60, bands), 50);
   assert.equal(speedBonusFromBands(90, bands), 30);
   assert.equal(speedBonusFromBands(120, bands), 30);
-  assert.equal(speedBonusFromBands(200, bands), 10);
-  assert.equal(speedBonusFromBands(300, bands), 10);
-  assert.equal(speedBonusFromBands(301, bands), 0);
+  assert.equal(speedBonusFromBands(150, bands), 10);
+  assert.equal(speedBonusFromBands(180, bands), 10);
+  assert.equal(speedBonusFromBands(181, bands), 0);
 });
 
-test('computeChallengeAward clue1 uses attempt bands 20 / 10 / 5', () => {
-  const bands = DEFAULT_SCORING_CONFIG.clue1.attemptBands;
+test('computeChallengeAward clue1 flat 50 from scoring config', () => {
+  const award = computeChallengeAward({
+    challengeNumber: 1,
+    basePoints: DEFAULT_SCORING_CONFIG.clue1.basePoints,
+    awardMode: 'flat_base',
+    attemptNumber: 1,
+  });
+  assert.equal(award.total, 50);
+  assert.equal(award.late, false);
+});
+
+test('stored challenge basePoints 0 must not win over flat scoring 50', () => {
+  // Mimic award resolution used in challengeService
+  const scoring = DEFAULT_SCORING_CONFIG.clue1;
+  const challengeBase = 0;
+  const awardBase = (
+    scoring.awardMode === 'flat_base'
+  )
+    ? (Number(scoring.basePoints) || Number(challengeBase) || 0)
+    : (Number(challengeBase) || Number(scoring.basePoints) || 0);
+  assert.equal(awardBase, 50);
   assert.equal(
     computeChallengeAward({
       challengeNumber: 1,
-      awardMode: 'attempt_bands',
-      attemptBands: bands,
-      attemptNumber: 1,
+      basePoints: awardBase,
+      awardMode: 'flat_base',
     }).total,
-    20,
-  );
-  assert.equal(
-    computeChallengeAward({
-      challengeNumber: 1,
-      awardMode: 'attempt_bands',
-      attemptBands: bands,
-      attemptNumber: 2,
-    }).total,
-    10,
-  );
-  assert.equal(
-    computeChallengeAward({
-      challengeNumber: 1,
-      awardMode: 'attempt_bands',
-      attemptBands: bands,
-      attemptNumber: 3,
-    }).total,
-    5,
+    50,
   );
 });
 
@@ -59,7 +59,7 @@ test('computeChallengeAward clue2 uses time-band totals', () => {
     challengeNumber: 2,
     basePoints: 0,
     awardMode: 'time_bands_total',
-    timerSeconds: 300,
+    timerSeconds: 180,
     speedBonusBands: DEFAULT_SCORING_CONFIG.clue2.speedBonusBands,
     startedAt,
     submittedAt: inOneMin,
@@ -68,13 +68,13 @@ test('computeChallengeAward clue2 uses time-band totals', () => {
   assert.equal(award.late, false);
 });
 
-test('computeChallengeAward clue2 late after 5 min is 0', () => {
+test('computeChallengeAward clue2 late after 3 min is 0', () => {
   const startedAt = new Date('2026-01-01T10:00:00Z');
-  const late = new Date('2026-01-01T10:05:01Z');
+  const late = new Date('2026-01-01T10:03:01Z');
   const award = computeChallengeAward({
     challengeNumber: 2,
     awardMode: 'time_bands_total',
-    timerSeconds: 300,
+    timerSeconds: 180,
     speedBonusBands: DEFAULT_SCORING_CONFIG.clue2.speedBonusBands,
     startedAt,
     submittedAt: late,
@@ -83,31 +83,48 @@ test('computeChallengeAward clue2 late after 5 min is 0', () => {
   assert.equal(award.late, true);
 });
 
-test('computeChallengeAward clue3 has no speed bonus', () => {
-  const startedAt = new Date('2026-01-01T10:00:00Z');
-  const submittedAt = new Date('2026-01-01T10:00:30Z');
+test('computeChallengeAward clue3 is flat 50', () => {
   const award = computeChallengeAward({
     challengeNumber: 3,
-    basePoints: 75,
-    speedBonusBands: [{ maxSeconds: 30, bonus: 99 }],
-    startedAt,
-    submittedAt,
+    basePoints: 50,
+    awardMode: 'flat_base',
   });
-  assert.equal(award.total, 75);
+  assert.equal(award.total, 50);
   assert.equal(award.speedBonus, 0);
 });
 
-test('computeChallengeAward clue4 max is 120', () => {
+test('computeChallengeAward clue4 base + speed', () => {
   const startedAt = new Date('2026-01-01T10:00:00Z');
   const submittedAt = new Date('2026-01-01T10:02:00Z');
   const award = computeChallengeAward({
     challengeNumber: 4,
-    basePoints: 100,
+    basePoints: 50,
+    awardMode: 'base_plus_speed',
+    timerSeconds: 300,
     speedBonusBands: DEFAULT_SCORING_CONFIG.clue4.speedBonusBands,
     startedAt,
     submittedAt,
   });
-  assert.equal(award.total, 120);
+  assert.equal(award.total, 75);
+  assert.equal(award.basePoints, 50);
+  assert.equal(award.speedBonus, 25);
+});
+
+test('computeChallengeAward clue4 late is 0', () => {
+  const startedAt = new Date('2026-01-01T10:00:00Z');
+  const late = new Date('2026-01-01T10:06:00Z');
+  const award = computeChallengeAward({
+    challengeNumber: 4,
+    basePoints: 50,
+    awardMode: 'base_plus_speed',
+    timerSeconds: 300,
+    allowLateSubmit: true,
+    speedBonusBands: DEFAULT_SCORING_CONFIG.clue4.speedBonusBands,
+    startedAt,
+    submittedAt: late,
+  });
+  assert.equal(award.total, 0);
+  assert.equal(award.late, true);
 });
 
 test('hint deduction floors at 0', () => {
@@ -119,6 +136,6 @@ test('applyAward adds points', () => {
   assert.equal(applyAward(100, 50), 150);
 });
 
-test('theoreticalMaxScore is 365 with clue1 max 20 + clue2 max 50', () => {
-  assert.equal(theoreticalMaxScore(DEFAULT_SCORING_CONFIG), 365);
+test('theoreticalMaxScore is 325 (100+50+50+50+75)', () => {
+  assert.equal(theoreticalMaxScore(DEFAULT_SCORING_CONFIG), 325);
 });

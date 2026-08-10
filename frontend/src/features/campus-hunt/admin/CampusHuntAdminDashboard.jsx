@@ -7,6 +7,7 @@ import {
   adminDeleteEvent,
 } from '../services/campusHunt.api';
 import { CAMPUS_HUNT_PATHS } from '../config';
+import CampusHuntStageProgress from './CampusHuntStageProgress';
 
 function slugify(text) {
   return String(text || '')
@@ -248,6 +249,11 @@ export default function CampusHuntAdminDashboard() {
         {formMsg && <p className="text-sm text-white/70">{formMsg}</p>}
       </form>
 
+      <CampusHuntStageProgress
+        teamCapacity={Number(form.teamCapacity) || 40}
+        round1Status="not_created"
+      />
+
       {loading && <p className="text-white/60">Loading…</p>}
       {error && <p className="text-red-300">{error}</p>}
 
@@ -265,6 +271,9 @@ export default function CampusHuntAdminDashboard() {
                 <p className="font-semibold">{ev.name}</p>
                 <p className="text-sm text-white/50">
                   {ev.college} · {ev.slug}
+                </p>
+                <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-white/40">
+                  Round 1 ({ev.teamCapacity || 40}) → Survival (32) → Last Chance (12) → Finale (5 · +8 direct)
                 </p>
               </Link>
               <span className="rounded-full bg-white/10 px-3 py-1 text-xs uppercase">

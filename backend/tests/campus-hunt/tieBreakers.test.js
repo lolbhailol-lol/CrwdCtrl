@@ -20,7 +20,7 @@ test('tie breakers: time then hints then fails', () => {
 
   const ranked = rankTeams([base, faster, fewerHints]);
   assert.equal(ranked[0].team.teamCode, 'A');
-  assert.equal(ranked[0].qualification, 'GRAND_FINALE');
+  assert.equal(ranked[0].qualification, 'DIRECT_FINALE');
 });
 
 test('top 8 qualify for finale', () => {
@@ -30,8 +30,8 @@ test('top 8 qualify for finale', () => {
     stats: {},
   }));
   const ranked = rankTeams(teams);
-  assert.equal(ranked[7].qualification, 'GRAND_FINALE');
-  assert.equal(ranked[8].qualification, 'MAUT_KA_KUVA');
+  assert.equal(ranked[7].qualification, 'DIRECT_FINALE');
+  assert.equal(ranked[8].qualification, 'SURVIVAL_STAGE');
 });
 
 test('answer normalize and match', () => {

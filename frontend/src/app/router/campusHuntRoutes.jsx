@@ -4,6 +4,7 @@ import {
   CampusHuntLandingPage,
   CampusHuntPlayPage,
   CampusHuntTeamLoginPage,
+  CampusHuntLoginHubPage,
   CampusHuntLeaderboardPage,
   VolunteerLoginPage,
   VolunteerCheckpointPage,
@@ -20,6 +21,7 @@ export const campusHuntRoutes = isCampusHuntEnabled() ? (
   <>
     <Route path="/campus-hunt/leaderboard" element={<CampusHuntLeaderboardPage />} />
     <Route path="/campus-hunt/:slug/team/:teamCode" element={<CampusHuntTeamLoginPage />} />
+    <Route path="/campus-hunt/:slug/login" element={<CampusHuntLoginHubPage />} />
     <Route path="/campus-hunt/:slug" element={<CampusHuntLandingPage />} />
     <Route path="/campus-hunt/:slug/play" element={<CampusHuntPlayPage />} />
     <Route path="/campus-hunt-volunteer/login" element={<VolunteerLoginPage />} />

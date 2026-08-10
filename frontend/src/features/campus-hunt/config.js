@@ -6,7 +6,10 @@ export function isCampusHuntEnabled() {
 
 export const CAMPUS_HUNT_PATHS = {
   event: (slug) => `/campus-hunt/${slug}`,
+  /** @deprecated Removed — use teamLogin(slug, teamCode). Kept as alias to event. */
+  login: (slug) => `/campus-hunt/${slug}`,
   play: (slug) => `/campus-hunt/${slug}/play`,
+  /** One shared URL per team — leader + all players use this (password + tap name) */
   teamLogin: (slug, teamCode) =>
     `/campus-hunt/${slug}/team/${String(teamCode || '').toUpperCase()}`,
   teamLoginRole: (slug, teamCode, role, slot) => {

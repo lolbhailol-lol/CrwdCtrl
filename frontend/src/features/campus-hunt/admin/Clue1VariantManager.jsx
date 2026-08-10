@@ -1,42 +1,224 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   adminListChallenges,
   adminListCheckpoints,
   adminListRoutes,
   adminListStartingPoints,
-  adminUpsertChallenge,
+  adminBulkSaveClue1,
 } from '../services/campusHunt.api';
+import {
+  CAMPUS_STARTS,
+  TEAM_SLOTS,
+  TARGET_TEAMS_PER_STATION,
+  STATION_TARGET_COUNT,
+  clue1ForPlace,
+  TEAMS_PER_WAIT,
+  buildCampusStarts,
+  firstStopArrivalPlan,
+  firstStopForLocalTeam,
+  globalTeamNumber,
+  resolveStations,
+  waitIndexForStart,
+} from './campusHuntFormat';
 
 const inputClass = 'w-full rounded-lg border border-white/15 bg-[#161718] px-3 py-2 text-sm text-white';
 
-const blankForm = {
-  routeId: '',
-  startingPointId: '',
-  firstCheckpointId: '',
-  variantKey: '',
-  difficulty: 'medium',
-  type: 'location_text',
-  prompt: '',
-  answer: '',
-  acceptedAnswers: '',
-  destinationInstruction: '',
-  basePoints: 25,
-  maxAttempts: 3,
-  active: true,
-};
+function buildCluePacks(stations) {
+  return resolveStations(stations).map((station, index) => ({
+    id: `pack-${station.code}`,
+    index,
+    title: station.name,
+    place: station.name,
+    code: station.code,
+  }));
+}
 
 function id(value) {
   return String(value?._id || value?.id || value || '');
 }
 
-export default function Clue1VariantManager({ eventId, roundId, onChanged }) {
+function startCode(pointOrCode) {
+  const raw = typeof pointOrCode === 'string'
+    ? pointOrCode
+    : String(pointOrCode?.code || pointOrCode?.routeKey || '');
+  const upper = raw.toUpperCase().trim();
+  if (!upper) {
+    const byName = typeof pointOrCode === 'object'
+      ? CAMPUS_STARTS.find((s) => (
+        s.name.toLowerCase() === String(pointOrCode?.name || '').toLowerCase()
+      ))
+      : null;
+    return byName?.code || '';
+  }
+  if (/^[A-D]$/.test(upper)) return upper;
+  const stripped = upper.replace(/^START[-_\s]?/, '');
+  if (/^[A-D]$/.test(stripped)) return stripped;
+  const match = stripped.match(/^([A-D])/);
+  if (match) return match[1];
+  const byName = CAMPUS_STARTS.find((s) => s.name.toLowerCase() === String(
+    typeof pointOrCode === 'object' ? pointOrCode?.name || '' : '',
+  ).toLowerCase());
+  return byName?.code || upper.charAt(0);
+}
+
+function campusStart(point) {
+  return CAMPUS_STARTS.find((start) => start.code === startCode(point)) || null;
+}
+
+function startLabel(point) {
+  return campusStart(point)?.name || point?.name || startCode(point) || 'Starting point';
+}
+
+function routeForStart(routes, point) {
+  const code = startCode(point);
+  return routes.find((route) => String(route.routeKey || '').toUpperCase() === code)
+    || routes.find((route) => startCode(route) === code)
+    || null;
+}
+
+function variantKeyFor(code, waveId) {
+  return `${code}-${waveId}`;
+}
+
+function packForPlace(place, packs) {
+  const list = packs?.length ? packs : buildCluePacks();
+  const needle = String(place || '').toLowerCase().trim();
+  return list.find((pack) => pack.place.toLowerCase() === needle) || list[0];
+}
+
+function packFromVariant(variant, packs) {
+  const list = packs?.length ? packs : buildCluePacks();
+  const answer = String(variant?.answer || '').toLowerCase().trim();
+  const dest = String(variant?.destinationInstruction || '').toLowerCase();
+  const byAnswer = list.find((pack) => pack.place.toLowerCase() === answer);
+  if (byAnswer) return byAnswer;
+  return list.find((pack) => dest.includes(pack.place.toLowerCase())) || null;
+}
+
+function findVariant(variants, code, waveId, startingPointId) {
+  const key = variantKeyFor(code, waveId).toUpperCase();
+  return variants.find((variant) => (
+    String(variant.variantKey || '').toUpperCase() === key
+    && (
+      !startingPointId
+      || !variant.startingPointId
+      || id(variant.startingPointId) === id(startingPointId)
+    )
+  )) || null;
+}
+
+function resolveFirstCheckpoint(checkpoints, {
+  routeId,
+  waveId,
+  startingPointId,
+  placeName,
+}) {
+  const key = `1-${waveId}`.toUpperCase();
+  const onRoute = checkpoints.filter((cp) => id(cp.routeId) === id(routeId));
+  const byStart = onRoute.find(
+    (cp) => String(cp.checkpointKey) === key && id(cp.startingPointId) === id(startingPointId),
+  );
+  if (byStart) return byStart;
+  const byWave = onRoute.find((cp) => String(cp.checkpointKey) === key);
+  if (byWave) return byWave;
+  if (placeName) {
+    const byPlace = onRoute.find(
+      (cp) => String(cp.locationName || '').toLowerCase() === placeName.toLowerCase(),
+    );
+    if (byPlace) return byPlace;
+  }
+  return onRoute.find(
+    (cp) => String(cp.checkpointKey || '').includes(waveId),
+  ) || null;
+}
+
+function expectedFirstStop(point, waveIndex, stations) {
+  const waitIndex = waitIndexForStart(startCode(point));
+  const starts = buildCampusStarts(stations);
+  const start = starts.find((item) => item.code === startCode(point));
+  return firstStopForLocalTeam(waveIndex + 1, waitIndex, stations)
+    || start?.firstStops?.[waveIndex]
+    || '';
+}
+
+function blankPackContent(place) {
+  const real = clue1ForPlace(place);
+  return {
+    prompt: real.prompt,
+    answer: real.answer,
+    destinationInstruction: real.destinationInstruction,
+  };
+}
+
+function isGenericCluePrompt(prompt) {
+  const text = String(prompt || '').trim();
+  if (!text) return true;
+  if (/^Waiting at\s+/i.test(text)) return true;
+  if (/^Look around\. Something here points/i.test(text)) return true;
+  if (/Your first stop is\s+/i.test(text)) return true;
+  return false;
+}
+
+function stripWaitBoilerplate(prompt, place) {
+  let text = String(prompt || '').trim();
+  text = text.replace(/^Waiting at\s+[^.]+?\.\s*/i, '');
+  text = text.replace(/^Your first stop is\s+[^.]+?\.\s*/i, '');
+  text = text.replace(/\s*\(teams?\s+[^)]+\)\.?/gi, '');
+  text = text.trim();
+  if (!text || isGenericCluePrompt(text)) return blankPackContent(place).prompt;
+  return text;
+}
+
+function uniqueStarts(points) {
+  const order = CAMPUS_STARTS.map((s) => s.code);
+  const byCode = new Map();
+  points.forEach((point) => {
+    let code = startCode(point);
+    if (!order.includes(code)) {
+      const byName = CAMPUS_STARTS.find((s) => (
+        s.name.toLowerCase() === String(point?.name || '').toLowerCase()
+      ));
+      if (byName) code = byName.code;
+    }
+    if (!order.includes(code)) return;
+    const existing = byCode.get(code);
+    if (!existing || String(point.code || '').toUpperCase() === code) {
+      byCode.set(code, {
+        ...point,
+        code,
+        name: CAMPUS_STARTS.find((s) => s.code === code)?.name || point.name,
+      });
+    }
+  });
+  return order.map((code) => byCode.get(code)).filter(Boolean);
+}
+
+/**
+ * Clue 1: write 10 station clues, preview who arrives where, save.
+ */
+export default function Clue1VariantManager({
+  eventId,
+  roundId,
+  onChanged,
+  campusStations,
+}) {
+  const stations = useMemo(() => resolveStations(campusStations), [campusStations]);
+  const cluePacks = useMemo(() => buildCluePacks(stations), [stations]);
+  const arrivalPlan = useMemo(() => firstStopArrivalPlan(stations), [stations]);
+
   const [variants, setVariants] = useState([]);
   const [routes, setRoutes] = useState([]);
   const [points, setPoints] = useState([]);
   const [checkpoints, setCheckpoints] = useState([]);
-  const [form, setForm] = useState(blankForm);
+  const [packContent, setPackContent] = useState(() => (
+    Object.fromEntries(buildCluePacks().map((pack) => [pack.id, blankPackContent(pack.place)]))
+  ));
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const [activeStartCode, setActiveStartCode] = useState('');
+  const [hydrated, setHydrated] = useState(false);
+  const [ready, setReady] = useState(false);
 
   const refresh = useCallback(async () => {
     const [challengeResult, routeResult, pointResult, checkpointResult] = await Promise.all([
@@ -53,372 +235,379 @@ export default function Clue1VariantManager({ eventId, roundId, onChanged }) {
     setRoutes(routeResult.data?.routes || []);
     setPoints(pointResult.data?.startingPoints || pointResult.data?.points || []);
     setCheckpoints(checkpointResult.data?.checkpoints || []);
+    setReady(true);
   }, [eventId]);
 
   useEffect(() => {
-    refresh().catch((error) => setMessage(error.message));
+    refresh().catch((err) => setError(err.message || 'Could not load clues'));
   }, [refresh]);
 
-  const fill = (variant) => {
-    setForm({
-      routeId: id(variant.routeId),
-      startingPointId: id(variant.startingPointId),
-      firstCheckpointId: id(variant.firstCheckpointId),
-      variantKey: variant.variantKey || '',
-      difficulty: variant.difficulty || 'medium',
-      type: variant.type || 'location_text',
-      prompt: variant.prompt || '',
-      answer: variant.answer || '',
-      acceptedAnswers: (variant.acceptedAnswers || []).join(', '),
-      destinationInstruction: variant.destinationInstruction || '',
-      basePoints: variant.basePoints ?? 25,
-      maxAttempts: variant.maxAttempts ?? 3,
-      active: variant.active !== false,
+  const orderedPoints = useMemo(() => uniqueStarts(points), [points]);
+
+  const activePoint = useMemo(
+    () => orderedPoints.find((p) => startCode(p) === activeStartCode) || orderedPoints[0] || null,
+    [orderedPoints, activeStartCode],
+  );
+
+  useEffect(() => {
+    if (!orderedPoints.length) return;
+    setActiveStartCode((prev) => {
+      if (prev && orderedPoints.some((p) => startCode(p) === prev)) return prev;
+      return startCode(orderedPoints[0]);
     });
+  }, [orderedPoints]);
+
+  useEffect(() => {
+    if (!ready || hydrated || !orderedPoints.length) return;
+
+    const nextPacks = Object.fromEntries(
+      cluePacks.map((pack) => [pack.id, blankPackContent(pack.place)]),
+    );
+
+    cluePacks.forEach((pack) => {
+      const real = blankPackContent(pack.place);
+      const match = variants.find((v) => packFromVariant(v, cluePacks)?.id === pack.id);
+      if (!match?.prompt || isGenericCluePrompt(match.prompt)) {
+        nextPacks[pack.id] = real;
+        return;
+      }
+      nextPacks[pack.id] = {
+        prompt: stripWaitBoilerplate(match.prompt, pack.place),
+        answer: (match.answer || pack.place).trim(),
+        destinationInstruction: (
+          match.destinationInstruction
+          || `Go to ${pack.place}. All four members scan there.`
+        ).trim(),
+      };
+    });
+
+    setPackContent(nextPacks);
+    setHydrated(true);
+  }, [ready, hydrated, orderedPoints, variants, cluePacks]);
+
+  useEffect(() => {
+    setHydrated(false);
+  }, [stations]);
+
+  const updatePack = (packId, field, value) => {
+    setPackContent((prev) => ({
+      ...prev,
+      [packId]: { ...(prev[packId] || blankPackContent('')), [field]: value },
+    }));
   };
 
-  const submit = async (event) => {
-    event.preventDefault();
-    setBusy(true);
-    setMessage('');
-    try {
-      await adminUpsertChallenge(eventId, {
-        ...form,
-        roundId,
-        challengeNumber: 1,
-        variantKey: form.variantKey.trim().toUpperCase(),
-        prompt: form.prompt.trim(),
-        answer: form.answer.trim(),
-        acceptedAnswers: form.acceptedAnswers
-          .split(',')
-          .map((answer) => answer.trim())
-          .filter(Boolean),
-        destinationInstruction: form.destinationInstruction.trim(),
-        basePoints: Number(form.basePoints),
-        maxAttempts: Number(form.maxAttempts),
+  const savedVariantCount = useMemo(() => {
+    if (!orderedPoints.length) return 0;
+    let count = 0;
+    orderedPoints.forEach((point) => {
+      const code = startCode(point);
+      TEAM_SLOTS.forEach((wave) => {
+        if (findVariant(variants, code, wave.id, id(point))) count += 1;
       });
-      setMessage('Clue 1 variant saved');
-      setForm(blankForm);
+    });
+    return count;
+  }, [orderedPoints, variants]);
+
+  const expectedVariantCount = orderedPoints.length * TEAM_SLOTS.length;
+
+  const saveAll = async () => {
+    if (!roundId) {
+      setError('Round 1 must exist before saving clues.');
+      return;
+    }
+    if (!orderedPoints.length) {
+      setError('Add the four starting points under Locations first.');
+      return;
+    }
+
+    const emptyPack = cluePacks.find((pack) => !String(packContent[pack.id]?.prompt || '').trim());
+    if (emptyPack) {
+      setError(`${emptyPack.title} needs clue text before saving.`);
+      return;
+    }
+
+    setBusy(true);
+    setMessage('Saving all Clue 1 assignments…');
+    setError('');
+
+    try {
+      const variantsPayload = [];
+      const failures = [];
+      for (const point of orderedPoints) {
+        const code = startCode(point);
+        const route = routeForStart(routes, point);
+        if (!route) {
+          failures.push(`${startLabel(point)}: no route ${code}`);
+          continue;
+        }
+        for (const wave of TEAM_SLOTS) {
+          const firstStopPlace = expectedFirstStop(point, wave.index, stations);
+          const pack = packForPlace(firstStopPlace, cluePacks);
+          const content = packContent[pack.id] || blankPackContent(pack.place);
+          const place = firstStopPlace || pack.place;
+          const prompt = stripWaitBoilerplate(content.prompt, place);
+          const answer = (content.answer || place).trim();
+          if (!prompt || !answer) {
+            failures.push(`${startLabel(point)} · ${wave.id}: needs clue text`);
+            continue;
+          }
+          variantsPayload.push({
+            startCode: code,
+            waveId: wave.id,
+            localTeamNumber: wave.localTeamNumber || wave.index + 1,
+            prompt,
+            answer,
+            destinationInstruction: (
+              content.destinationInstruction
+              || `Go to ${place}. All four members scan there.`
+            ).trim(),
+            place,
+            stationCode: pack.code,
+            hintText: `Ask staff for the way to ${place}.`,
+            routeId: id(route),
+            startingPointId: id(point),
+          });
+        }
+      }
+
+      if (!variantsPayload.length) {
+        setError(failures[0] || 'Nothing to save — Bootstrap defaults first.');
+        setMessage('');
+        return;
+      }
+
+      const result = await adminBulkSaveClue1(eventId, {
+        roundId,
+        variants: variantsPayload,
+      });
+      const saved = result.data?.saved ?? 0;
+      const bound = result.data?.teamsUpdated ?? 0;
+      const apiErrors = result.data?.errors || [];
+
       await refresh();
+      setHydrated(false);
       onChanged?.();
-    } catch (error) {
-      setMessage(error.message || 'Could not save variant');
+
+      if (saved === 0) {
+        setError(apiErrors[0]?.message || failures[0] || 'Clue 1 save failed');
+        setMessage('');
+      } else {
+        setMessage(
+          `Saved ${saved} Clue 1 assignments in one request · bound ${bound} teams.`
+          + ' Next: Schedule → lock if needed.',
+        );
+        setError(failures[0] || (apiErrors[0]?.message ? `${apiErrors.length} warnings` : ''));
+      }
+    } catch (err) {
+      setError(err.message || 'Could not save');
+      setMessage('');
     } finally {
       setBusy(false);
     }
   };
 
-  const labelFor = (items, value, fallback) => {
-    const match = items.find((item) => id(item) === id(value));
-    return match?.code || match?.routeKey || match?.checkpointKey || match?.name || fallback;
-  };
-
   return (
-    <div className="space-y-5">
-      <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div>
-            <h2 className="font-semibold">Clue 1 variants</h2>
-            <p className="text-xs text-white/50">
-              Map each starting point to a route-safe first checkpoint. Answers remain admin-only.
-            </p>
-          </div>
-          <span className="rounded-full bg-white/10 px-3 py-1 text-xs">{variants.length} variants</span>
-        </div>
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2 text-[11px]">
+        <span className={`rounded-full px-2.5 py-1 ${
+          orderedPoints.length >= 4
+            ? 'bg-emerald-500/15 text-emerald-200'
+            : 'bg-amber-500/15 text-amber-100'
+        }`}>
+          Starts {orderedPoints.length}/4
+        </span>
+        <span className="rounded-full bg-white/10 px-2.5 py-1 text-white/55">
+          {STATION_TARGET_COUNT} places · {TARGET_TEAMS_PER_STATION} QRs each · 4/4 scans → Clue 2
+        </span>
+        <span className={`rounded-full px-2.5 py-1 ${
+          savedVariantCount >= expectedVariantCount && expectedVariantCount > 0
+            ? 'bg-emerald-500/15 text-emerald-200'
+            : 'bg-amber-500/15 text-amber-100'
+        }`}>
+          Saved {savedVariantCount}/{expectedVariantCount || 40}
+        </span>
+      </div>
 
-        <div className="mt-3 grid gap-3 md:grid-cols-2">
-          {variants.map((variant) => (
-            <button
-              type="button"
-              key={id(variant)}
-              onClick={() => fill(variant)}
-              className="rounded-xl border border-white/10 bg-black/25 p-3 text-left text-sm hover:border-[#0ECCEE]/40"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <p className="font-semibold text-[#0ECCEE]">{variant.variantKey || 'DEFAULT'}</p>
-                <span className={`rounded-full px-2 py-0.5 text-[10px] ${
-                  variant.active === false ? 'bg-red-500/15 text-red-200' : 'bg-emerald-500/15 text-emerald-200'
-                }`}>
-                  {variant.active === false ? 'inactive' : 'active'}
-                </span>
+      <section className="rounded-2xl border border-white/15 bg-white/5 p-4">
+        <h2 className="text-base font-semibold text-white">1. Write clues</h2>
+        <p className="mt-1 text-xs text-white/50">
+          Leader reads the clue, types the answer, then the team scans at that place.
+          Answer is usually the place name.
+        </p>
+        <div className="mt-3 divide-y divide-white/10">
+          {cluePacks.map((pack) => {
+            const content = packContent[pack.id] || blankPackContent(pack.place);
+            return (
+              <div
+                key={pack.id}
+                className="grid gap-2 py-3 first:pt-0 last:pb-0 sm:grid-cols-[7.5rem_1fr_9rem]"
+              >
+                <div className="pt-1">
+                  <p className="text-sm font-semibold text-white">{pack.title}</p>
+                  <p className="text-[10px] text-white/40">{TARGET_TEAMS_PER_STATION} teams</p>
+                </div>
+                <textarea
+                  value={content.prompt}
+                  onChange={(e) => updatePack(pack.id, 'prompt', e.target.value)}
+                  className={`min-h-14 ${inputClass}`}
+                  placeholder={`Clue for ${pack.place}`}
+                  aria-label={`Clue for ${pack.place}`}
+                />
+                <input
+                  value={content.answer}
+                  onChange={(e) => updatePack(pack.id, 'answer', e.target.value)}
+                  className={`${inputClass} self-start`}
+                  placeholder="Answer"
+                  aria-label={`Answer for ${pack.place}`}
+                />
               </div>
-              <p className="mt-1 line-clamp-2 text-white/75">{variant.prompt || 'No prompt'}</p>
-              <p className="mt-2 text-xs text-white/45">
-                Start {labelFor(points, variant.startingPointId, '—')} → CP{' '}
-                {labelFor(checkpoints, variant.firstCheckpointId, '—')} · Route{' '}
-                {labelFor(routes, variant.routeId, '—')} · {variant.difficulty || 'medium'}
-              </p>
-            </button>
-          ))}
-          {!variants.length && (
-            <p className="text-sm text-amber-100">No Clue 1 variants yet. Create one below.</p>
-          )}
+            );
+          })}
         </div>
       </section>
 
-      {(!points.length || !routes.length || !checkpoints.some((checkpoint) => (
-        String(checkpoint.progressionKey || checkpoint.checkpointKey) === '1'
-      ))) && (
-        <section className="space-y-2 rounded-2xl border border-amber-400/25 bg-amber-500/10 p-4">
-          <h3 className="text-sm font-semibold text-amber-100">Finish the event setup first</h3>
-          {!points.length && (
-            <p className="text-xs text-amber-100/75">
-              No starting points found. Add a starting point before assigning who receives a clue.
-            </p>
-          )}
-          {!routes.length && (
-            <p className="text-xs text-amber-100/75">
-              No routes found. Create a route before making a route-specific clue.
-            </p>
-          )}
-          {!checkpoints.some((checkpoint) => (
-            String(checkpoint.progressionKey || checkpoint.checkpointKey) === '1'
-          )) && (
-            <p className="text-xs text-amber-100/75">
-              No Checkpoint 1 destinations found. Add a Checkpoint 1 before saving this clue.
-            </p>
-          )}
-        </section>
-      )}
+      <section className="rounded-2xl border border-white/15 bg-white/5 p-4">
+        <h2 className="text-base font-semibold text-white">2. Assign by starting point</h2>
 
-      <form onSubmit={submit} className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-        <div className="flex items-center justify-between gap-2">
-          <h3 className="font-semibold">Create or update variant</h3>
-          <button
-            type="button"
-            onClick={() => setForm(blankForm)}
-            className="text-xs text-white/50 underline"
-          >
-            Clear form
-          </button>
+        {!orderedPoints.length ? (
+          <p className="mt-3 rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+            No starting points yet. Add them under Locations first.
+          </p>
+        ) : (
+          <>
+            <div className="mt-3 flex flex-wrap gap-2" role="tablist" aria-label="Starting point">
+              {orderedPoints.map((point) => {
+                const code = startCode(point);
+                const waitIndex = waitIndexForStart(code);
+                const startName = campusStart(point)?.name || point.name || code;
+                const active = (activeStartCode || startCode(orderedPoints[0])) === code;
+                const startSaved = TEAM_SLOTS.every((wave) => (
+                  findVariant(variants, code, wave.id, id(point))
+                ));
+                const from = globalTeamNumber(waitIndex, 1);
+                const to = globalTeamNumber(waitIndex, TEAMS_PER_WAIT);
+                return (
+                  <button
+                    key={code}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setActiveStartCode(code)}
+                    className={`rounded-lg px-3 py-2 text-left text-sm font-semibold ${
+                      active
+                        ? 'bg-[#0ECCEE] text-black'
+                        : 'bg-white/10 text-white/70 hover:bg-white/15'
+                    }`}
+                  >
+                    <span className="block">
+                      {startName}{startSaved ? ' ✓' : ''}
+                    </span>
+                    <span className={`mt-0.5 block text-[10px] font-normal ${
+                      active ? 'text-black/60' : 'text-white/40'
+                    }`}>
+                      Team {from}–{to}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {activePoint && (
+              <div className="mt-3">
+                <p className="mb-2 text-xs text-white/45">
+                  Starting at{' '}
+                  <span className="font-semibold text-[#0ECCEE]">
+                    {campusStart(activePoint)?.name || activePoint.name}
+                  </span>
+                  {' '}— first stops:
+                </p>
+                <div className="space-y-1">
+                  {TEAM_SLOTS.map((slot) => {
+                    const waitIndex = waitIndexForStart(startCode(activePoint));
+                    const teamNumber = globalTeamNumber(waitIndex, slot.localTeamNumber);
+                    const firstStop = expectedFirstStop(activePoint, slot.index, stations) || '—';
+                    const pack = packForPlace(firstStop, cluePacks);
+                    return (
+                      <div
+                        key={`${startCode(activePoint)}-${slot.id}`}
+                        className="flex flex-wrap items-center gap-2 border-t border-white/5 py-2 first:border-0"
+                      >
+                        <p className="w-20 shrink-0 text-sm font-semibold text-white">
+                          Team {teamNumber}
+                        </p>
+                        <p className="min-w-0 flex-1 text-sm text-white/70">
+                          → <span className="font-semibold text-[#0ECCEE]">{firstStop}</span>
+                        </p>
+                        <span className="rounded-md bg-[#0ECCEE] px-2 py-1 text-[11px] font-semibold text-black">
+                          {pack.code}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </section>
+
+      <section className="rounded-2xl border border-white/15 bg-white/5 p-4">
+        <h2 className="text-base font-semibold text-white">3. Who goes where</h2>
+        <p className="mt-1 text-xs text-white/50">
+          At each place: which Team (1–40) arrives, and which starting point they left.
+        </p>
+        <div className="mt-3 grid gap-2 md:grid-cols-2">
+          {arrivalPlan.map((place) => (
+            <div
+              key={place.code}
+              className="rounded-xl border border-white/10 bg-black/20 px-3 py-3"
+            >
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="font-semibold text-white">{place.name}</p>
+                <p className="text-xs font-semibold text-[#0ECCEE]">
+                  {place.teamCount} teams
+                </p>
+              </div>
+              <div className="mt-2 space-y-1.5">
+                {place.arrivals.map((row) => (
+                  <div
+                    key={`${place.code}-${row.teamNumber}`}
+                    className="flex items-center justify-between gap-2 text-sm"
+                  >
+                    <span className="font-semibold text-white">Team {row.teamNumber}</span>
+                    <span className="text-right text-white/55">
+                      from <span className="text-emerald-300">{row.startingPointName || row.waitName}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
-        <section className="space-y-3 rounded-xl border border-white/10 bg-black/20 p-3">
-          <div>
-            <h4 className="text-sm font-semibold">1. Who gets this clue</h4>
-            <p className="mt-1 text-xs text-white/45">
-              Choose the starting group and route. The variant code is your admin label—for example,
-              NORTH_A for the north start on Route A.
-            </p>
-          </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            <label className="text-xs text-white/50">
-              Variant code
-              <input
-                required
-                value={form.variantKey}
-                onChange={(event) => setForm((value) => ({
-                  ...value,
-                  variantKey: event.target.value.toUpperCase(),
-                }))}
-                placeholder="NORTH_A"
-                className={`mt-1 ${inputClass}`}
-              />
-            </label>
-            <label className="text-xs text-white/50">
-              Starting point
-              <select
-                required
-                value={form.startingPointId}
-                onChange={(event) => setForm((value) => ({
-                  ...value,
-                  startingPointId: event.target.value,
-                }))}
-                className={`mt-1 ${inputClass}`}
-              >
-                <option value="">Select starting point</option>
-                {points.map((point) => (
-                  <option key={id(point)} value={id(point)}>
-                    {point.code} — {point.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="text-xs text-white/50 md:col-span-2">
-              Route
-              <select
-                required
-                value={form.routeId}
-                onChange={(event) => setForm((value) => ({
-                  ...value,
-                  routeId: event.target.value,
-                  firstCheckpointId: '',
-                }))}
-                className={`mt-1 ${inputClass}`}
-              >
-                <option value="">Select route</option>
-                {routes.map((route) => (
-                  <option key={id(route)} value={id(route)}>
-                    {route.routeKey} — {route.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-        </section>
+      </section>
 
-        <section className="space-y-3 rounded-xl border border-white/10 bg-black/20 p-3">
-          <div>
-            <h4 className="text-sm font-semibold">2. Clue and accepted answers</h4>
-            <p className="mt-1 text-xs text-white/45">
-              Players see the clue, but the correct and alternate answers remain admin-only.
-            </p>
-          </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            <label className="text-xs text-white/50 md:col-span-2">
-              Clue shown to the team leader
-              <textarea
-                required
-                value={form.prompt}
-                onChange={(event) => setForm((value) => ({ ...value, prompt: event.target.value }))}
-                placeholder="Write the clue exactly as the leader should see it."
-                className={`mt-1 min-h-24 ${inputClass}`}
-              />
-            </label>
-            <label className="text-xs text-white/50">
-              Correct answer (admin-only)
-              <input
-                required
-                value={form.answer}
-                onChange={(event) => setForm((value) => ({ ...value, answer: event.target.value }))}
-                className={`mt-1 ${inputClass}`}
-              />
-            </label>
-            <label className="text-xs text-white/50">
-              Other accepted answers (comma separated)
-              <input
-                value={form.acceptedAnswers}
-                onChange={(event) => setForm((value) => ({
-                  ...value,
-                  acceptedAnswers: event.target.value,
-                }))}
-                placeholder="library, central library"
-                className={`mt-1 ${inputClass}`}
-              />
-            </label>
-            <label className="text-xs text-white/50">
-              Answer type
-              <select
-                value={form.type}
-                onChange={(event) => setForm((value) => ({ ...value, type: event.target.value }))}
-                className={`mt-1 ${inputClass}`}
-              >
-                <option value="location_text">Location text</option>
-                <option value="text">Text</option>
-                <option value="number">Number</option>
-              </select>
-            </label>
-            <label className="text-xs text-white/50">
-              Difficulty
-              <select
-                value={form.difficulty}
-                onChange={(event) => setForm((value) => ({ ...value, difficulty: event.target.value }))}
-                className={`mt-1 ${inputClass}`}
-              >
-                <option value="easy">Easy</option>
-                <option value="medium">Medium</option>
-                <option value="hard">Hard</option>
-              </select>
-            </label>
-            <label className="text-xs text-white/50">
-              Base points
-              <input
-                type="number"
-                min="0"
-                value={form.basePoints}
-                onChange={(event) => setForm((value) => ({ ...value, basePoints: event.target.value }))}
-                className={`mt-1 ${inputClass}`}
-              />
-            </label>
-            <label className="text-xs text-white/50">
-              Maximum attempts
-              <input
-                type="number"
-                min="1"
-                value={form.maxAttempts}
-                onChange={(event) => setForm((value) => ({
-                  ...value,
-                  maxAttempts: event.target.value,
-                }))}
-                className={`mt-1 ${inputClass}`}
-              />
-            </label>
-          </div>
-        </section>
-
-        <section className="space-y-3 rounded-xl border border-white/10 bg-black/20 p-3">
-          <div>
-            <h4 className="text-sm font-semibold">3. Where it sends the team</h4>
-            <p className="mt-1 text-xs text-white/45">
-              Pick the first checkpoint on the selected route and tell players what to do after solving.
-            </p>
-          </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            <label className="text-xs text-white/50">
-              First checkpoint
-              <select
-                required
-                value={form.firstCheckpointId}
-                onChange={(event) => setForm((value) => ({
-                  ...value,
-                  firstCheckpointId: event.target.value,
-                }))}
-                className={`mt-1 ${inputClass}`}
-              >
-                <option value="">Select first checkpoint</option>
-                {checkpoints
-                  .filter((checkpoint) => (
-                    (!form.routeId || id(checkpoint.routeId) === form.routeId)
-                    && String(checkpoint.progressionKey || checkpoint.checkpointKey) === '1'
-                  ))
-                  .map((checkpoint) => (
-                    <option key={id(checkpoint)} value={id(checkpoint)}>
-                      {checkpoint.code || checkpoint.checkpointKey} — {checkpoint.locationName}
-                    </option>
-                  ))}
-              </select>
-              {form.routeId && !checkpoints.some((checkpoint) => (
-                id(checkpoint.routeId) === form.routeId
-                && String(checkpoint.progressionKey || checkpoint.checkpointKey) === '1'
-              )) && (
-                <span className="mt-1 block text-amber-200">
-                  This route has no Checkpoint 1 yet. Add it in Checkpoints first.
-                </span>
-              )}
-            </label>
-            <label className="text-xs text-white/50">
-              Instruction shown after a correct answer
-              <input
-                required
-                value={form.destinationInstruction}
-                onChange={(event) => setForm((value) => ({
-                  ...value,
-                  destinationInstruction: event.target.value,
-                }))}
-                placeholder="Walk there and scan the public station QR."
-                className={`mt-1 ${inputClass}`}
-              />
-            </label>
-          </div>
-        </section>
-
-        <label className="flex items-center gap-2 text-sm text-white/70">
-          <input
-            type="checkbox"
-            checked={form.active}
-            onChange={(event) => setForm((value) => ({ ...value, active: event.target.checked }))}
-          />
-          Active and available for team assignment
-        </label>
+      <div className="flex flex-wrap items-center gap-3">
         <button
-          type="submit"
-          disabled={busy || !roundId || !points.length || !routes.length}
-          className="rounded-lg bg-[#0ECCEE] px-4 py-2 text-sm font-semibold text-black disabled:opacity-40"
+          type="button"
+          disabled={busy || !roundId || !orderedPoints.length}
+          onClick={saveAll}
+          className="rounded-xl bg-[#0ECCEE] px-5 py-2.5 text-sm font-semibold text-black disabled:opacity-40"
         >
-          {busy ? 'Saving…' : 'Save Clue 1 variant'}
+          {busy ? 'Saving…' : 'Save Clue 1'}
         </button>
-        {!roundId && <p className="text-xs text-amber-200">Create Round 1 before saving variants.</p>}
-        {message && <p className="text-sm text-[#0ECCEE]">{message}</p>}
-      </form>
+        {!orderedPoints.length && (
+          <p className="text-xs text-amber-200">Add 4 starting points under Locations first.</p>
+        )}
+        {!roundId && (
+          <p className="text-xs text-amber-200">Create Round 1 first.</p>
+        )}
+      </div>
+      <p className="text-[11px] text-white/40">
+        Save binds all 40 teams. Then print team-named posters below. Lock Schedule before live release.
+        After 4 members scan their poster, Clue 2 unlocks.
+      </p>
+      {message && <p className="text-sm text-[#0ECCEE]">{message}</p>}
+      {error && <p className="text-sm text-amber-200">{error}</p>}
     </div>
   );
 }

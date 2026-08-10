@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const RESOLVED = new Set(['COMPLETED', 'FAILED', 'TIMEOUT']);
+const RESOLVED = new Set(['COMPLETED', 'FAILED', 'TIMEOUT', 'TIMED_OUT']);
 
 /**
  * Read-only review of clues the team already finished.
@@ -17,13 +17,12 @@ export default function PassedCluesPanel({ challenges = [], isLeader, currentAct
   if (!passed.length) return null;
 
   return (
-    <section className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-3">
-      <p className="mb-2 text-xs uppercase tracking-widest text-white/45">Passed clues</p>
-      <p className="mb-3 text-xs text-white/40">
-        Tap to re-read. This does not change your progress.
+    <section className="rounded-2xl border border-white/[0.06] bg-transparent px-1 py-2">
+      <p className="mb-2 text-[10px] font-medium uppercase tracking-[0.16em] text-white/30">
+        Passed clues
       </p>
 
-      <ul className="space-y-2">
+      <ul className="space-y-1.5">
         {passed.map((ch) => {
           const open = openNum === ch.challengeNumber;
           const title =
@@ -31,7 +30,7 @@ export default function PassedCluesPanel({ challenges = [], isLeader, currentAct
           const statusLabel =
             ch.state === 'COMPLETED'
               ? 'Done'
-              : ch.state === 'TIMEOUT'
+              : (ch.state === 'TIMEOUT' || ch.state === 'TIMED_OUT')
                 ? 'Timed out'
                 : 'Failed';
 
@@ -40,20 +39,14 @@ export default function PassedCluesPanel({ challenges = [], isLeader, currentAct
               <button
                 type="button"
                 onClick={() => setOpenNum(open ? null : ch.challengeNumber)}
-                className="flex w-full items-center justify-between gap-2 rounded-xl bg-white/5 px-3 py-2.5 text-left transition hover:bg-white/10"
+                className="flex w-full items-center justify-between gap-2 rounded-xl bg-white/[0.03] px-3 py-2 text-left transition hover:bg-white/[0.06]"
               >
-                <span className="text-sm font-medium text-white">{title}</span>
-                <span className="flex items-center gap-2 text-xs text-white/50">
+                <span className="text-sm text-white/80">{title}</span>
+                <span className="flex items-center gap-2 text-[11px] text-white/40">
                   {ch.awardedPoints != null && (
-                    <span className="text-[#0ECCEE]">+{ch.awardedPoints} pts</span>
+                    <span className="text-[#0ECCEE]/80">+{ch.awardedPoints}</span>
                   )}
-                  <span
-                    className={
-                      ch.state === 'COMPLETED' ? 'text-emerald-300/90' : 'text-amber-200/80'
-                    }
-                  >
-                    {statusLabel}
-                  </span>
+                  <span>{statusLabel}</span>
                   <span aria-hidden>{open ? '▾' : '▸'}</span>
                 </span>
               </button>

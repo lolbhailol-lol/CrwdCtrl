@@ -31,7 +31,7 @@ async function acquireCameraStream() {
  * Reuses the same camera + jsQR / Capacitor ML Kit approach as CheckinScannerPage,
  * without fest check-in coupling.
  */
-export default function HuntQrScanner({ onScan, onClose, active = true }) {
+export default function HuntQrScanner({ onScan, onClose, active = true, accentHex = '#0ECCEE' }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
@@ -128,10 +128,13 @@ export default function HuntQrScanner({ onScan, onClose, active = true }) {
   }, [active, startNative, startWeb, stop]);
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-white/15 bg-black">
-      <div className="flex items-center justify-between px-3 py-2">
-        <p className="flex items-center gap-2 text-sm text-white/80">
-          <Camera size={16} /> Scan team / member QR
+    <div
+      className="relative overflow-hidden rounded-2xl border bg-black"
+      style={{ borderColor: `${accentHex}88` }}
+    >
+      <div className="flex items-center justify-between px-3 py-2" style={{ background: `${accentHex}22` }}>
+        <p className="flex items-center gap-2 text-sm font-semibold" style={{ color: accentHex }}>
+          <Camera size={16} /> Scan station QR
         </p>
         {onClose && (
           <button type="button" onClick={() => { stop(); onClose(); }} className="text-white/60">
@@ -143,6 +146,10 @@ export default function HuntQrScanner({ onScan, onClose, active = true }) {
         <div className="relative aspect-[3/4] w-full bg-black">
           <video ref={videoRef} className="h-full w-full object-cover" muted playsInline />
           <canvas ref={canvasRef} className="hidden" />
+          <div
+            className="pointer-events-none absolute inset-[18%] rounded-xl border-2"
+            style={{ borderColor: accentHex, boxShadow: `0 0 0 9999px rgba(0,0,0,0.35)` }}
+          />
           {!running && !error && (
             <div className="absolute inset-0 flex items-center justify-center text-sm text-white/50">
               Starting camera…
@@ -154,7 +161,8 @@ export default function HuntQrScanner({ onScan, onClose, active = true }) {
         <button
           type="button"
           onClick={startNative}
-          className="m-3 w-[calc(100%-1.5rem)] rounded-xl bg-[#0ECCEE] py-3 font-semibold text-black"
+          className="m-3 w-[calc(100%-1.5rem)] rounded-xl py-3 font-semibold text-black"
+          style={{ background: accentHex }}
         >
           Open scanner
         </button>

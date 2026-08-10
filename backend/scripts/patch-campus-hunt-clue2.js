@@ -131,7 +131,7 @@ async function main() {
       {
         $set: {
           basePoints: 0,
-          timerSeconds: 300,
+          timerSeconds: 180,
           speedBonusBands: DEFAULT_SCORING_CONFIG.clue2.speedBonusBands,
           destinationInstruction: cfg.clue2.destinationInstruction,
         },

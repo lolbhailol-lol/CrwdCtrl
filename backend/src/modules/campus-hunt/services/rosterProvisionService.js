@@ -191,6 +191,8 @@ async function provisionTeamRoster({
       access: 'Scanner only — checkpoint QR / paste when required',
     })),
     sharedScannerPassword: sharedScannerPassword,
+    teamPassword: String(leaderPassword || sharedScannerPassword || '').trim()
+      || sharedScannerPassword,
     allMemberNames: [resolvedLeaderName, ...names],
   };
 
@@ -208,6 +210,12 @@ async function provisionTeamRoster({
       encryptedPassword: encryptCredential(s.password),
     })),
     encryptedSharedScannerPassword: encryptCredential(sharedScannerPassword),
+    // Gate password for “team code + one password” login (defaults to leader password).
+    encryptedTeamPassword: encryptCredential(
+      String(leaderPassword || sharedScannerPassword || '').trim()
+        || credentials.leader.password
+        || sharedScannerPassword,
+    ),
   };
 
   return {

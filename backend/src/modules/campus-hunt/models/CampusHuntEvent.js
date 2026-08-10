@@ -9,11 +9,25 @@ const speedBandSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const attemptBandSchema = new mongoose.Schema(
+  {
+    attempt: { type: Number, required: true },
+    points: { type: Number, required: true },
+  },
+  { _id: false },
+);
+
 const clueScoringSchema = new mongoose.Schema(
   {
     basePoints: { type: Number, required: true },
     maxAttempts: { type: Number, default: 3 },
     timerSeconds: { type: Number, default: 0 },
+    /** Clue 2: seconds to read instructions before the solve timer starts. */
+    timerStartDelaySeconds: { type: Number, default: 0 },
+    awardMode: { type: String },
+    allowLateSubmit: { type: Boolean },
+    revealOnMaxAttempts: { type: Boolean },
+    attemptBands: { type: [attemptBandSchema], default: [] },
     speedBonusBands: { type: [speedBandSchema], default: [] },
   },
   { _id: false },
@@ -23,6 +37,7 @@ const scoringConfigSchema = new mongoose.Schema(
   {
     startingScore: { type: Number, default: DEFAULT_SCORING_CONFIG.startingScore },
     hintCost: { type: Number, default: DEFAULT_SCORING_CONFIG.hintCost },
+    clue1: { type: clueScoringSchema, default: () => ({ ...DEFAULT_SCORING_CONFIG.clue1 }) },
     clue2: { type: clueScoringSchema, default: () => ({ ...DEFAULT_SCORING_CONFIG.clue2 }) },
     clue3: { type: clueScoringSchema, default: () => ({ ...DEFAULT_SCORING_CONFIG.clue3 }) },
     clue4: { type: clueScoringSchema, default: () => ({ ...DEFAULT_SCORING_CONFIG.clue4 }) },
@@ -56,6 +71,15 @@ const campusHuntEventSchema = new mongoose.Schema(
     scoringConfig: {
       type: scoringConfigSchema,
       default: () => ({ ...DEFAULT_SCORING_CONFIG }),
+    },
+    /** Custom names for the 10 hunt scan places (codes S01–S10). */
+    campusStations: {
+      type: [{
+        code: { type: String, required: true, trim: true, uppercase: true },
+        name: { type: String, required: true, trim: true },
+        _id: false,
+      }],
+      default: undefined,
     },
     featureNotes: { type: String, default: '' },
   },

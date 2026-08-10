@@ -44,8 +44,28 @@ async function getMyTeamPayload(eventId, userId) {
   };
 }
 
-function publicTeamView(team, { isLeader = false, start = null } = {}) {
+function publicTeamView(team, { isLeader = false, start = null, userId = null } = {}) {
   if (!team) return null;
+
+  let myName = '';
+  let mySlot = null;
+  if (isLeader) {
+    myName = team.leaderName
+      || team.accessPack?.leader?.name
+      || 'Leader';
+    mySlot = 0;
+  } else if (userId) {
+    const idx = (team.memberUserIds || []).findIndex((id) => String(id) === String(userId));
+    if (idx >= 0) {
+      myName = team.memberNames?.[idx]
+        || team.accessPack?.scanners?.[idx]?.name
+        || `Player ${idx + 1}`;
+      mySlot = idx + 1;
+    } else {
+      myName = 'Player';
+    }
+  }
+
   return {
     id: String(team._id),
     eventId: String(team.eventId),
@@ -59,7 +79,12 @@ function publicTeamView(team, { isLeader = false, start = null } = {}) {
     releasePaused: Boolean(start?.releasePaused),
     teamCode: team.teamCode,
     teamName: team.teamName,
+    leaderName: team.leaderName
+      || team.accessPack?.leader?.name
+      || '',
+    memberNames: Array.isArray(team.memberNames) ? team.memberNames : [],
     currentScore: team.currentScore,
+    startingScore: team.startingScore ?? 100,
     finalScore: team.finalScore ?? null,
     status: team.status,
     currentStage: team.currentStage,
@@ -72,6 +97,9 @@ function publicTeamView(team, { isLeader = false, start = null } = {}) {
     },
     lastCheckpointNumber: team.lastCheckpointNumber ?? null,
     isLeader,
+    myRole: isLeader ? 'leader' : 'player',
+    myName,
+    mySlot,
     memberCount: 1 + (team.memberUserIds?.length || 0),
   };
 }

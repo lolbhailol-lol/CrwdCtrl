@@ -18,7 +18,6 @@ function pointsFromAttemptBands(attemptNumber, bands = []) {
   if (!Number.isFinite(n) || n < 1 || !Array.isArray(bands)) return 0;
   const hit = bands.find((b) => Number(b.attempt) === n);
   if (hit) return Number(hit.points) || 0;
-  // Fallback: later attempts than listed → 0
   return 0;
 }
 
@@ -32,10 +31,9 @@ function elapsedSecondsBetween(startedAt, submittedAt) {
 
 /**
  * Compute points for a successful challenge completion.
- * Clue 1 (attempt_bands): attempt 1=20, 2=10, 3=5.
- * Clue 2 (time_bands_total): ≤1m=50, ≤2m=30, ≤5m=10, else 0 (late).
- * Clue 3: base only.
- * Clue 4: base + speed bands.
+ * Clue 1 / 3 (flat_base): 50 on correct.
+ * Clue 2 (time_bands_total): ≤1m=50, ≤2m=30, ≤3m=10, else 0 (late).
+ * Clue 4 (base_plus_speed): 50 + speed bonus; late = 0 but still advances.
  */
 function computeChallengeAward({
   challengeNumber,
@@ -47,13 +45,29 @@ function computeChallengeAward({
   submittedAt,
   awardMode,
   timerSeconds,
+  allowLateSubmit = false,
 }) {
   const n = Number(challengeNumber);
   const mode = awardMode
-    || (n === 1 ? 'attempt_bands' : n === 2 ? 'time_bands_total' : 'base_plus_speed');
+    || (n === 1 || n === 3
+      ? 'flat_base'
+      : n === 2
+        ? 'time_bands_total'
+        : 'base_plus_speed');
 
-  if (n === 1 || mode === 'attempt_bands') {
+  if (mode === 'attempt_bands') {
     const total = pointsFromAttemptBands(attemptNumber, attemptBands);
+    return {
+      basePoints: total,
+      speedBonus: 0,
+      total,
+      late: false,
+      attemptNumber: Number(attemptNumber) || null,
+    };
+  }
+
+  if (mode === 'flat_base' || n === 1 || n === 3) {
+    const total = Number(basePoints) || 0;
     return {
       basePoints: total,
       speedBonus: 0,
@@ -66,7 +80,7 @@ function computeChallengeAward({
   const elapsed = elapsedSecondsBetween(startedAt, submittedAt);
 
   if (n === 2 || mode === 'time_bands_total') {
-    const limit = Number(timerSeconds) || 300;
+    const limit = Number(timerSeconds) || 180;
     if (elapsed == null || elapsed > limit) {
       return { basePoints: 0, speedBonus: 0, total: 0, late: true, elapsedSeconds: elapsed };
     }
@@ -81,11 +95,21 @@ function computeChallengeAward({
   }
 
   const base = Number(basePoints) || 0;
+  const limit = Number(timerSeconds) || 0;
+  if (limit > 0 && (elapsed == null || elapsed > limit)) {
+    return {
+      basePoints: 0,
+      speedBonus: 0,
+      total: 0,
+      late: true,
+      elapsedSeconds: elapsed,
+      allowLateSubmit: Boolean(allowLateSubmit),
+    };
+  }
+
   let speedBonus = 0;
-  if (n === 4) {
-    if (elapsed != null) {
-      speedBonus = speedBonusFromBands(elapsed, speedBonusBands);
-    }
+  if (elapsed != null) {
+    speedBonus = speedBonusFromBands(elapsed, speedBonusBands);
   }
   return {
     basePoints: base,
@@ -114,16 +138,18 @@ function removeManualPenalty(currentScore, penalty) {
   return (Number(currentScore) || 0) + Math.abs(Number(penalty) || 0);
 }
 
-/** Max: start 100 + clue1 20 + clue2 50 + clue3 75 + clue4 120 = 365 */
+/** Max: start 100 + clue1 50 + clue2 50 + clue3 50 + clue4 75 = 325 */
 function theoreticalMaxScore(scoringConfig) {
   const start = scoringConfig?.startingScore ?? 100;
-  const c1Bands = scoringConfig?.clue1?.attemptBands || [];
-  const c1 = Math.max(0, ...c1Bands.map((b) => Number(b.points) || 0), 0);
+  const c1Mode = scoringConfig?.clue1?.awardMode || 'flat_base';
+  const c1 = c1Mode === 'attempt_bands'
+    ? Math.max(0, ...(scoringConfig?.clue1?.attemptBands || []).map((b) => Number(b.points) || 0), 0)
+    : (scoringConfig?.clue1?.basePoints ?? 50);
   const c2Bands = scoringConfig?.clue2?.speedBonusBands || [];
   const c2 = Math.max(0, ...c2Bands.map((b) => Number(b.bonus) || 0), 0);
-  const c3 = scoringConfig?.clue3?.basePoints ?? 75;
-  const c4 = (scoringConfig?.clue4?.basePoints ?? 100)
-    + Math.max(0, ...(scoringConfig?.clue4?.speedBonusBands || []).map((b) => b.bonus), 0);
+  const c3 = scoringConfig?.clue3?.basePoints ?? 50;
+  const c4 = (scoringConfig?.clue4?.basePoints ?? 50)
+    + Math.max(0, ...(scoringConfig?.clue4?.speedBonusBands || []).map((b) => Number(b.bonus) || 0), 0);
   return start + c1 + c2 + c3 + c4;
 }
 

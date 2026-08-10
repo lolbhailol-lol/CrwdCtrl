@@ -36,7 +36,10 @@ const campusHuntCheckpointSchema = new mongoose.Schema(
       type: String,
       enum: ['1', '2', '3', 'FINISH'],
       default: function defaultProgressionKey() {
-        return String(this.checkpointKey || this.checkpointNumber || '1').toUpperCase();
+        const key = String(this.checkpointKey || this.checkpointNumber || '1').toUpperCase();
+        if (key === 'FINISH' || key.startsWith('FINISH')) return 'FINISH';
+        const match = key.match(/^([123])(?:-|$)/);
+        return match ? match[1] : '1';
       },
       index: true,
     },
@@ -55,6 +58,13 @@ const campusHuntCheckpointSchema = new mongoose.Schema(
       uppercase: true,
     },
     locationName: { type: String, required: true, trim: true },
+    /** Stable hunt-station id (S01–S10) so admin renames propagate everywhere. */
+    stationCode: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      index: true,
+    },
     publicInstruction: { type: String, default: '' },
     /** Server secret for station identity — never expose to players. */
     qrSecret: {

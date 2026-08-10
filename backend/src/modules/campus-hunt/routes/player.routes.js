@@ -10,7 +10,9 @@ const {
 const {
   getEventBySlug,
   getTeamLoginCard,
+  unlockTeamRoster,
   loginTeamMember,
+  enterTeamAsMember,
   listColleges,
   getPublicLeaderboard,
   getMyTeam,
@@ -31,9 +33,19 @@ router.get('/events/:eventId/leaderboard/public', getPublicLeaderboard);
 router.get('/events/by-slug/:slug', getEventBySlug);
 router.get('/events/by-slug/:slug/teams/:teamCode', getTeamLoginCard);
 router.post(
+  '/events/by-slug/:slug/teams/:teamCode/unlock',
+  campusHuntLoginLimiter,
+  unlockTeamRoster,
+);
+router.post(
   '/events/by-slug/:slug/teams/:teamCode/login',
   campusHuntLoginLimiter,
   loginTeamMember,
+);
+router.post(
+  '/events/by-slug/:slug/teams/:teamCode/enter',
+  campusHuntLoginLimiter,
+  enterTeamAsMember,
 );
 
 router.get('/me/team', authenticateToken, getMyTeam);

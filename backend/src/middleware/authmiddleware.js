@@ -41,7 +41,14 @@ const authenticateToken = async (req, res, next) => {
             });
         }
 
-        req.user = { userId: decoded.userId, role: user.role };
+        req.user = {
+            userId: decoded.userId,
+            role: user.role,
+            // Campus Hunt session binding (optional; set on team enter)
+            huntTeamId: decoded.huntTeamId || null,
+            huntEventId: decoded.huntEventId || null,
+            huntRole: decoded.huntRole || null,
+        };
         next();
     } catch (error) {
         if (isDev) console.error('User auth error:', error.message);
@@ -113,7 +120,13 @@ const optionalAuthenticateToken = async (req, res, next) => {
         const user = await User.findById(decoded.userId).select('_id role');
         if (!user) return next();
 
-        req.user = { userId: decoded.userId, role: user.role };
+        req.user = {
+            userId: decoded.userId,
+            role: user.role,
+            huntTeamId: decoded.huntTeamId || null,
+            huntEventId: decoded.huntEventId || null,
+            huntRole: decoded.huntRole || null,
+        };
         next();
     } catch {
         next();

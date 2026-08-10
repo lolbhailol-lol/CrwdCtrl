@@ -25,10 +25,21 @@ export async function fetchEventBySlug(slug) {
   return publicFetchJSON(`${BASE}/events/by-slug/${encodeURIComponent(slug)}`);
 }
 
-/** Public team login card (names + login emails, no passwords) */
+/** Public team shell (code + name only — no roster / emails / stage) */
 export async function fetchTeamLoginCard(slug, teamCode) {
   return publicFetchJSON(
     `${BASE}/events/by-slug/${encodeURIComponent(slug)}/teams/${encodeURIComponent(teamCode)}`,
+  );
+}
+
+/** After password — reveal teammate names for tapping (no emails) */
+export async function unlockTeamRoster(slug, teamCode, password) {
+  return publicFetchJSON(
+    `${BASE}/events/by-slug/${encodeURIComponent(slug)}/teams/${encodeURIComponent(teamCode)}/unlock`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ password }),
+    },
   );
 }
 
@@ -45,6 +56,24 @@ export async function loginTeamMember(slug, teamCode, email, password) {
     isAdmin: false,
     user: response.data.user,
     token: response.data.token,
+  };
+}
+
+/** Team code + shared password + who you are (leader / player slot). */
+export async function enterTeamAsMember(slug, teamCode, { password, role, slot }) {
+  const response = await publicFetchJSON(
+    `${BASE}/events/by-slug/${encodeURIComponent(slug)}/teams/${encodeURIComponent(teamCode)}/enter`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ password, role, slot }),
+    },
+  );
+  return {
+    success: true,
+    isAdmin: false,
+    user: response.data?.user || response.user,
+    token: response.data?.token || response.token,
+    team: response.data?.team,
   };
 }
 
@@ -219,6 +248,20 @@ export async function adminGetOverview(eventId) {
   return adminFetchJSON(`${BASE}/admin/events/${eventId}/overview`);
 }
 
+export async function adminUpdateCampusStations(eventId, campusStations, reason = '') {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/campus-stations`, {
+    method: 'PATCH',
+    body: JSON.stringify({ campusStations, reason }),
+  });
+}
+
+export async function adminBootstrapRound1(eventId, body = {}) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/bootstrap-round1`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 export async function adminCreateRound(eventId, body = {}) {
   return adminFetchJSON(`${BASE}/admin/events/${eventId}/rounds`, {
     method: 'POST',
@@ -358,6 +401,34 @@ export async function adminLockStartSchedule(eventId, body) {
   });
 }
 
+export async function adminResyncClue1(eventId, body = {}) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/resync-clue1`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminBulkSaveClue2(eventId, body = {}) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/clue2/bulk-save`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminBulkSaveClue1(eventId, body = {}) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/clue1/bulk-save`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminBulkSaveClue3(eventId, body = {}) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/clue3/bulk-save`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 export async function adminGetStartDashboard(eventId) {
   return adminFetchJSON(`${BASE}/admin/events/${eventId}/start-dashboard`);
 }
@@ -386,10 +457,59 @@ export async function adminReleaseTeam(teamId, body = {}) {
   });
 }
 
+/** Organizer marks team reached at their start after Clue 4 → score locked. */
+export async function adminMarkTeamStartReached(teamId, body = {}) {
+  return adminFetchJSON(`${BASE}/admin/teams/${teamId}/mark-start-reached`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 export async function adminRevealTeamAccess(teamId) {
   return adminFetchJSON(`${BASE}/admin/teams/${teamId}/reveal-access`, {
     method: 'POST',
     body: JSON.stringify({ reason: 'Admin reveal from team manager' }),
+  });
+}
+
+export async function adminSetTeamPassword(teamId, password, reason) {
+  return adminFetchJSON(`${BASE}/admin/teams/${teamId}/team-password`, {
+    method: 'POST',
+    body: JSON.stringify({
+      password,
+      reason: reason || 'Admin set shared team password',
+    }),
+  });
+}
+
+export async function adminSetAllTeamPasswords(eventId, password, reason) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/teams/set-password`, {
+    method: 'POST',
+    body: JSON.stringify({
+      password,
+      reason: reason || 'Admin set shared password for all teams',
+    }),
+  });
+}
+
+export async function adminManualVerifyCheckpoint(teamId, body = {}) {
+  return adminFetchJSON(`${BASE}/admin/teams/${teamId}/manual-verify-checkpoint`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminPlaytestCompleteScan(teamId, body = {}) {
+  return adminFetchJSON(`${BASE}/admin/teams/${teamId}/playtest-complete-scan`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminPlaytestResetTeam(teamId, body = {}) {
+  return adminFetchJSON(`${BASE}/admin/teams/${teamId}/playtest-reset`, {
+    method: 'POST',
+    body: JSON.stringify(body),
   });
 }
 
@@ -485,6 +605,27 @@ export async function adminUpdateCheckpoint(checkpointId, body) {
 /** Station QR payloads + short paste codes (ops / production camera fallback) */
 export async function adminListStationQr(eventId) {
   return adminFetchJSON(`${BASE}/admin/events/${eventId}/station-qr`);
+}
+
+export async function adminApplyPenalty(teamId, body) {
+  return adminFetchJSON(`${BASE}/admin/teams/${teamId}/penalty`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminRemovePenalty(teamId, body = {}) {
+  return adminFetchJSON(`${BASE}/admin/teams/${teamId}/remove-penalty`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminReconcileManual(body) {
+  return adminFetchJSON(`${BASE}/admin/verifications/reconcile-manual`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
 }
 
 export async function adminLookupUser(email) {

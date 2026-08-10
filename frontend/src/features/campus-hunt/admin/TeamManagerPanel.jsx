@@ -9,9 +9,12 @@ import {
   adminUpdateRoute,
   adminAutoAssignRoutes,
   adminRevealTeamAccess,
+  adminSetAllTeamPasswords,
   adminListStartingPoints,
   adminListChallenges,
   adminListCheckpoints,
+  adminBootstrapRound1,
+  adminMarkTeamStartReached,
 } from '../services/campusHunt.api';
 
 function absoluteUrl(path) {
@@ -65,6 +68,7 @@ function TeamDetailCard({
     firstCheckpointId: id(team.firstCheckpointId),
     leaderPassword: '',
     scannerPassword: '',
+    teamPassword: '',
     reason: '',
   });
   const access = revealedAccess || team.access || {};
@@ -91,6 +95,7 @@ function TeamDetailCard({
       firstCheckpointId: id(team.firstCheckpointId),
       leaderPassword: '',
       scannerPassword: '',
+      teamPassword: '',
       reason: '',
     });
     setEditing(true);
@@ -119,8 +124,13 @@ function TeamDetailCard({
         firstCheckpointId: editForm.firstCheckpointId || null,
         confirm: true,
         reason: editForm.reason.trim() || 'Updated team assignment from team manager',
-        leaderPassword: editForm.leaderPassword.trim() || undefined,
-        scannerPassword: editForm.scannerPassword.trim() || undefined,
+        teamPassword: editForm.teamPassword.trim() || undefined,
+        leaderPassword: editForm.teamPassword.trim()
+          ? undefined
+          : (editForm.leaderPassword.trim() || undefined),
+        scannerPassword: editForm.teamPassword.trim()
+          ? undefined
+          : (editForm.scannerPassword.trim() || undefined),
       });
       setEditing(false);
       onCopied?.(`Updated ${team.teamCode}`);
@@ -153,26 +163,18 @@ function TeamDetailCard({
       onCopied?.('Reveal passwords before copying the full access pack');
       return;
     }
+    const pass = access.teamPassword || access.sharedScannerPassword || access.leader?.password || '';
     const lines = [
-      `Team ${team.teamCode} — ${team.teamName}`,
-      `Team login URL: ${teamUrl}`,
+      `Team ${team.teamCode}${team.teamName && !/^team\s*\d+$/i.test(team.teamName) ? ` — ${team.teamName}` : ''}`,
       '',
-      `All members: ${names.join(', ')}`,
+      '=== SHARE THIS LINK WITH THE WHOLE TEAM ===',
+      teamUrl,
       '',
-      'LEADER (full access)',
-      `Name: ${access.leader?.name || team.leaderName || ''}`,
-      `Login: ${access.leader?.loginEmail || ''}`,
-      access.leader?.password
-        ? `Password: ${access.leader.password}`
-        : 'Password: existing CrwdCtrl password',
-      `Leader URL: ${absoluteUrl(access.leader?.loginPath || team.teamLoginPath)}`,
+      `Password: ${pass}`,
       '',
-      'SCANNERS (same password)',
-      `Shared password: ${access.sharedScannerPassword || ''}`,
-      ...(access.scanners || []).map(
-        (s, i) =>
-          `${i + 1}. ${s.name}\n   Login: ${s.loginEmail}\n   Password: ${s.password || access.sharedScannerPassword || ''}\n   URL: ${absoluteUrl(s.loginPath)}`,
-      ),
+      'Open link → type password → tap your name:',
+      `  Leader: ${access.leader?.name || team.leaderName || ''}`,
+      ...(access.scanners || []).map((s, i) => `  Player ${i + 1}: ${s.name}`),
     ];
     copyText(lines.join('\n'));
     onCopied?.(`Copied ${team.teamCode} pack`);
@@ -188,18 +190,33 @@ function TeamDetailCard({
       onCopied?.('Allow popups to print the team slip');
       return;
     }
-    const scanners = (access.scanners || []).map((scanner) => (
-      `<li><strong>${scanner.name}</strong><br>${scanner.loginEmail}<br>Password: ${
-        scanner.password || access.sharedScannerPassword || ''
-      }</li>`
+    const pass = access.teamPassword || access.sharedScannerPassword || access.leader?.password || '';
+    const playerNames = (access.scanners || []).map((scanner) => (
+      `<li><strong>${scanner.name}</strong> — tap this name after password</li>`
     )).join('');
     popup.document.write(`<!doctype html><html><head><title>${team.teamCode} access</title>
-      <style>body{font:16px system-ui;padding:32px;line-height:1.5}code{word-break:break-all}li{margin:12px 0}</style>
-      </head><body><h1>${team.teamCode} — ${team.teamName}</h1>
-      <p><strong>Team URL:</strong><br><code>${teamUrl}</code></p>
-      <h2>Leader — full hunt</h2><p>${access.leader?.name || ''}<br>${access.leader?.loginEmail || ''}
-      <br>Password: ${access.leader?.password || ''}</p>
-      <h2>Scanners — checkpoint access</h2><ol>${scanners}</ol>
+      <style>
+        body{font:16px system-ui;padding:28px;line-height:1.45;color:#111}
+        code{word-break:break-all;background:#f3f4f6;padding:8px 10px;display:block;border-radius:8px;margin-top:8px}
+        .box{border:2px solid #0ECCEE;border-radius:12px;padding:14px;margin:16px 0}
+        h2{margin:20px 0 8px;font-size:18px}
+        li{margin:8px 0}
+        .steps{font-size:15px;margin:12px 0 0;padding-left:18px}
+      </style>
+      </head><body>
+      <h1>${team.teamCode}</h1>
+      <div class="box">
+        <strong>How to log in</strong>
+        <ol class="steps">
+          <li>Open the link below</li>
+          <li>Enter password: <strong>${pass}</strong></li>
+          <li>Tap your name</li>
+        </ol>
+        <code>${teamUrl}</code>
+      </div>
+      <h2>Who to tap</h2>
+      <p><strong>Leader:</strong> ${access.leader?.name || ''} — tap Leader</p>
+      <ol>${playerNames}</ol>
       <script>window.print()</script></body></html>`);
     popup.document.close();
   };
@@ -406,24 +423,17 @@ function TeamDetailCard({
               </details>
               <input
                 type="password"
-                value={editForm.leaderPassword}
+                value={editForm.teamPassword}
                 onChange={(e) => setEditForm((f) => ({
                   ...f,
-                  leaderPassword: e.target.value,
+                  teamPassword: e.target.value,
                 }))}
-                placeholder="New leader password (optional)"
-                className="w-full rounded-lg border border-cyan-400/30 bg-[#161718] px-3 py-2 font-mono text-sm"
+                placeholder="Shared team password (all 4 people)"
+                className="w-full rounded-lg border border-[#0ECCEE]/40 bg-[#161718] px-3 py-2 font-mono text-sm"
               />
-              <input
-                type="password"
-                value={editForm.scannerPassword}
-                onChange={(e) => setEditForm((f) => ({
-                  ...f,
-                  scannerPassword: e.target.value.toUpperCase(),
-                }))}
-                placeholder="New shared scanner password (optional)"
-                className="w-full rounded-lg border border-white/20 bg-[#161718] px-3 py-2 font-mono text-sm"
-              />
+              <p className="text-[11px] text-white/45">
+                One password for the team link. Leave blank to keep current.
+              </p>
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
@@ -466,10 +476,57 @@ function TeamDetailCard({
             </p>
           </div>
 
-          <div className="rounded-lg bg-black/30 px-3 py-2">
-            <p className="text-xs uppercase tracking-wide text-white/45">Team login URL</p>
-            <p className="break-all font-mono text-xs text-[#0ECCEE]">{teamUrl}</p>
-            <div className="mt-2 flex flex-wrap gap-2">
+          {['CLUE_4_COMPLETED', 'CLUE_4_FAILED'].includes(team.currentStage) && (
+            <div className="rounded-lg border border-red-400/40 bg-red-500/10 px-3 py-3">
+              <p className="text-sm font-semibold text-red-100">Waiting at start</p>
+              <p className="mt-1 text-xs text-white/65">
+                Team finished Clue 4. When they arrive at{' '}
+                {team.startingPoint?.name
+                  || startingPoints.find((point) => id(point) === id(team.startingPointId))?.name
+                  || 'their start'}
+                , mark them reached to lock score.
+              </p>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  try {
+                    await adminMarkTeamStartReached(id(team), {
+                      reason: 'Organizer marked reached at start',
+                    });
+                    onCopied?.(`${team.teamCode || 'Team'} marked complete`);
+                    await onChanged?.();
+                  } catch (err) {
+                    onCopied?.(err.message || 'Could not mark team');
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+                className="mt-3 w-full rounded-lg bg-red-500 px-3 py-2 text-sm font-semibold text-white disabled:opacity-40"
+              >
+                Mark reached at start · lock score
+              </button>
+            </div>
+          )}
+
+          <div className="rounded-lg border border-[#0ECCEE]/30 bg-[#0ECCEE]/10 px-3 py-3">
+            <p className="text-xs uppercase tracking-wide text-[#0ECCEE]/80">
+              Team login · {team.teamCode}
+            </p>
+            <p className="mt-2 break-all font-mono text-xs text-[#0ECCEE]">{teamUrl}</p>
+            <p className="mt-2 text-sm text-white/80">
+              Password:{' '}
+              <span className="font-mono text-[#0ECCEE]">
+                {showCredentials
+                  ? (access.teamPassword || access.sharedScannerPassword || access.leader?.password || 'not set')
+                  : '••••••••'}
+              </span>
+            </p>
+            <p className="mt-1 text-[11px] text-white/50">
+              Share this one link. All 4 people: password → tap their name.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => {
@@ -493,79 +550,38 @@ function TeamDetailCard({
                 onClick={copyTeamPack}
                 className="rounded-lg bg-emerald-500/20 px-3 py-1.5 text-xs text-emerald-200"
               >
-                Copy full access pack
+                Copy slip
               </button>
               <button
                 type="button"
                 onClick={printTeamSlip}
                 className="rounded-lg bg-white/10 px-3 py-1.5 text-xs"
               >
-                Print team slip
+                Print slip
               </button>
               <button
                 type="button"
                 onClick={toggleCredentials}
                 className="rounded-lg bg-white/10 px-3 py-1.5 text-xs"
               >
-                {showCredentials ? 'Hide passwords' : 'Reveal passwords'}
+                {showCredentials ? 'Hide password' : 'Reveal password'}
               </button>
             </div>
           </div>
 
           <div className="rounded-lg bg-black/30 px-3 py-2">
-            <p className="text-xs uppercase tracking-wide text-white/45">Leader — full hunt</p>
-            <p className="font-medium">{access.leader?.name || team.leaderName || '—'}</p>
-            <p className="font-mono text-xs text-white/70">{access.leader?.loginEmail || '—'}</p>
-            <p className="text-xs text-white/60">
-              Password:{' '}
-              {showCredentials ? (access.leader?.password || 'not set') : '••••••••'}
+            <p className="text-xs uppercase tracking-wide text-white/45">Who taps what</p>
+            <p className="mt-1 font-medium">
+              Leader · {access.leader?.name || team.leaderName || '—'}
             </p>
-            <p className="mt-1 break-all font-mono text-[11px] text-[#0ECCEE]">
-              {absoluteUrl(access.leader?.loginPath)}
-            </p>
-          </div>
-
-          <div className="rounded-lg bg-black/30 px-3 py-2">
-            <p className="text-xs uppercase tracking-wide text-white/45">
-              Scanners — shared password
-            </p>
-            <p className="mb-2 font-mono text-sm text-[#0ECCEE]">
-              {showCredentials ? (access.sharedScannerPassword || '—') : '••••••••'}
-            </p>
-            <ul className="space-y-3">
-              {(access.scanners || []).map((s) => (
-                <li key={s.loginEmail || s.name}>
-                  <p className="font-medium">{s.name}</p>
-                  <p className="font-mono text-xs text-white/70">{s.loginEmail}</p>
-                  <p className="text-xs text-white/55">
-                    Password: {showCredentials ? (s.password || access.sharedScannerPassword || '—') : '••••••••'}
-                  </p>
-                  <div className="mt-1 flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        copyText(absoluteUrl(s.loginPath));
-                        onCopied?.(`Copied ${s.name} URL`);
-                      }}
-                      className="rounded bg-white/10 px-2 py-1 text-[11px]"
-                    >
-                      Copy login URL
-                    </button>
-                    <a
-                      href={absoluteUrl(s.loginPath)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="rounded bg-white/10 px-2 py-1 text-[11px] text-[#0ECCEE]"
-                    >
-                      Open
-                    </a>
-                  </div>
+            <ul className="mt-2 space-y-1">
+              {(access.scanners || []).map((s, i) => (
+                <li key={s.loginEmail || s.name || i} className="text-sm text-white/80">
+                  Player {i + 1} · {s.name}
                 </li>
               ))}
               {!access.scanners?.length && (
-                <p className="text-xs text-white/45">
-                  No stored scanner logins (create team with names to generate access pack).
-                </p>
+                <p className="text-xs text-white/45">No players listed yet.</p>
               )}
             </ul>
           </div>
@@ -577,28 +593,20 @@ function TeamDetailCard({
 
 function CredentialsCard({ credentials, teamCode, teamLoginPath }) {
   if (!credentials) return null;
-  const { leader, scanners, sharedScannerPassword, allMemberNames } = credentials;
+  const { leader, scanners, sharedScannerPassword, teamPassword, allMemberNames } = credentials;
   const teamUrl = absoluteUrl(teamLoginPath);
+  const pass = teamPassword || sharedScannerPassword || leader?.password || '';
 
   const copyAll = () => {
     const lines = [
       `Team ${teamCode}`,
-      teamUrl ? `Team login URL: ${teamUrl}` : '',
+      teamUrl ? `Login link: ${teamUrl}` : '',
+      `Password: ${pass}`,
       '',
-      `All members: ${(allMemberNames || [leader.name, ...scanners.map((s) => s.name)]).join(', ')}`,
+      `All members: ${(allMemberNames || [leader?.name, ...(scanners || []).map((s) => s.name)]).join(', ')}`,
       '',
-      'LEADER (full access)',
-      `Name: ${leader.name}`,
-      `Login: ${leader.loginEmail}`,
-      leader.password
-        ? `Password: ${leader.password}`
-        : 'Password: (their existing CrwdCtrl password)',
-      '',
-      'SCANNERS (same password)',
-      `Shared password: ${sharedScannerPassword}`,
-      ...scanners.map(
-        (s, i) => `${i + 1}. ${s.name}\n   Login: ${s.loginEmail}\n   Password: ${s.password}`,
-      ),
+      `Leader: ${leader?.name || ''}`,
+      ...(scanners || []).map((s, i) => `Player ${i + 1}: ${s.name}`),
     ].filter(Boolean);
     copyText(lines.join('\n'));
   };
@@ -614,40 +622,21 @@ function CredentialsCard({ credentials, teamCode, teamLoginPath }) {
 
       {teamUrl && (
         <div className="rounded-lg bg-black/20 px-3 py-2">
-          <p className="text-xs uppercase tracking-wide text-white/50">Team login URL</p>
+          <p className="text-xs uppercase tracking-wide text-white/50">Login URL</p>
           <p className="break-all font-mono text-xs text-[#0ECCEE]">{teamUrl}</p>
         </div>
       )}
 
       <div className="rounded-lg bg-black/20 px-3 py-2">
+        <p className="text-xs uppercase tracking-wide text-white/50">Password</p>
+        <p className="font-mono text-sm text-white">{pass || '—'}</p>
+      </div>
+
+      <div className="rounded-lg bg-black/20 px-3 py-2">
         <p className="text-xs uppercase tracking-wide text-white/50">All 4 names</p>
         <p className="text-sm text-white/90">
-          {(allMemberNames || [leader.name, ...scanners.map((s) => s.name)]).join(' · ')}
+          {(allMemberNames || [leader?.name, ...(scanners || []).map((s) => s.name)]).join(' · ')}
         </p>
-      </div>
-
-      <div className="rounded-lg bg-black/30 px-3 py-2">
-        <p className="text-xs uppercase tracking-wide text-white/50">Leader — full hunt</p>
-        <p className="font-medium">{leader.name}</p>
-        <p className="font-mono text-xs text-[#0ECCEE]">{leader.loginEmail}</p>
-        <p className="text-xs text-white/70">
-          {leader.password
-            ? `Password: ${leader.password}`
-            : 'Password: existing CrwdCtrl account password'}
-        </p>
-      </div>
-
-      <div className="rounded-lg bg-black/30 px-3 py-2">
-        <p className="text-xs uppercase tracking-wide text-white/50">3 scanners — same password</p>
-        <p className="mb-2 font-mono text-sm text-[#0ECCEE]">Password: {sharedScannerPassword}</p>
-        <ul className="space-y-2">
-          {scanners.map((s) => (
-            <li key={s.loginEmail}>
-              <p className="font-medium">{s.name}</p>
-              <p className="font-mono text-xs text-white/70">{s.loginEmail}</p>
-            </li>
-          ))}
-        </ul>
       </div>
     </div>
   );
@@ -679,6 +668,7 @@ export default function TeamManagerPanel({
   const [leaderPassword, setLeaderPassword] = useState('');
   const [memberNames, setMemberNames] = useState(['', '', '']);
   const [scannerPassword, setScannerPassword] = useState('');
+  const [bulkTeamPassword, setBulkTeamPassword] = useState('');
   const [routeDraft, setRouteDraft] = useState({ routeKey: '', name: '', teamSlots: 10 });
 
   const refresh = async () => {
@@ -717,17 +707,14 @@ export default function TeamManagerPanel({
         setMsg('Enter the leader name');
         return;
       }
-      if (!leaderPassword.trim()) {
-        setMsg('Create a password for the leader');
-        return;
-      }
-      if (!scannerPassword.trim()) {
-        setMsg('Create the shared password for the 3 scanners');
+      const sharedPass = (leaderPassword.trim() || scannerPassword.trim());
+      if (!sharedPass) {
+        setMsg('Create the shared team password');
         return;
       }
       const names = memberNames.map((n) => n.trim()).filter(Boolean);
       if (names.length !== 3) {
-        setMsg('Enter all 3 member names (scanners)');
+        setMsg('Enter all 3 member names (players)');
         return;
       }
       const res = await adminCreateTeam(eventId, {
@@ -735,9 +722,10 @@ export default function TeamManagerPanel({
         teamName,
         leaderEmail: leaderEmail.trim(),
         leaderName: leaderName.trim(),
-        leaderPassword: leaderPassword.trim(),
+        teamPassword: sharedPass,
+        leaderPassword: sharedPass,
         memberNames: names,
-        scannerPassword: scannerPassword.trim(),
+        scannerPassword: sharedPass,
         routeId: routeId || undefined,
         roundId: roundId || undefined,
       });
@@ -757,6 +745,33 @@ export default function TeamManagerPanel({
       onChanged?.();
     } catch (err) {
       setMsg(err.message || 'Create failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const setPasswordForAllTeams = async () => {
+    const password = String(bulkTeamPassword || '').trim();
+    if (password.length < 4) {
+      setMsg('Password must be at least 4 characters');
+      return;
+    }
+    if (!window.confirm(
+      `Set password "${password}" for ALL ${teams.length} teams?\n\n`
+      + 'Share each team’s /team/CC00x link. Everyone types this password, then taps their name.',
+    )) {
+      return;
+    }
+    setBusy(true);
+    setMsg('');
+    try {
+      const res = await adminSetAllTeamPasswords(eventId, password);
+      setMsg(res.data?.message || `Updated ${res.data?.teamsUpdated || 0} teams`);
+      setBulkTeamPassword('');
+      await refresh();
+      onChanged?.();
+    } catch (err) {
+      setMsg(err.message || 'Could not set passwords');
     } finally {
       setBusy(false);
     }
@@ -809,21 +824,186 @@ export default function TeamManagerPanel({
     }
   };
 
+  const createDemoTeams = async () => {
+    const capacity = eventMeta?.teamCapacity || 40;
+    if (teams.length >= capacity) {
+      setMsg(`Already have ${teams.length}/${capacity} teams.`);
+      return;
+    }
+    const ok = window.confirm(
+      `Create demo Team 1–${capacity} (codes CC001–CC${String(capacity).padStart(3, '0')})?\n\n`
+      + 'Does NOT set one shared password for all teams.\n'
+      + 'After create: set a unique password per team (or run unique-campus-hunt-team-passwords.js).\n\n'
+      + 'Skips teams that already exist.',
+    );
+    if (!ok) return;
+
+    setBusy(true);
+    setMsg('');
+    try {
+      const result = await adminBootstrapRound1(eventId, {
+        createTeams: true,
+        enablePublicLeaderboard: true,
+      });
+      const created = result.data?.teams?.created ?? 0;
+      const skipped = result.data?.teams?.skipped ?? 0;
+      setMsg(
+        `Demo teams ready · created ${created}, already had ${skipped}. `
+        + 'Set UNIQUE passwords per team before sharing links (do not use one password for all).',
+      );
+      setLastCredentials(null);
+      setLastTeamCode('CC001');
+      setLastTeamLoginPath(
+        eventMeta?.slug ? `/campus-hunt/${eventMeta.slug}/team/CC001` : '',
+      );
+      await refresh();
+      onChanged?.();
+    } catch (err) {
+      setMsg(err.message || 'Could not create demo teams');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const capacity = eventMeta?.teamCapacity || 40;
+  const demoReady = teams.length >= capacity;
+
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
-        <p className="font-semibold text-white">Team access</p>
-        <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs text-white/55">
-          <li>Each team gets its own login URL (share with that team only)</li>
-          <li>Leader has a separate password and full hunt access</li>
-          <li>The other 3 members use scanner accounts with one shared password</li>
-          <li>Open a team below for passwords, emails, and per-person login links</li>
-        </ol>
-        {eventMeta?.slug && (
-          <p className="mt-2 font-mono text-[11px] text-white/40">
-            Pattern: /campus-hunt/{eventMeta.slug}/team/TEAMCODE
-          </p>
+      <section className="rounded-xl border border-[#0ECCEE]/30 bg-[#0ECCEE]/10 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="font-semibold text-white">Demo teams (40)</h3>
+            <p className="mt-1 text-xs text-white/60">
+              Creates CC001–CC{String(capacity).padStart(3, '0')} with placeholder names.
+              Each team gets its own login link — set a unique password per team before hunt day.
+            </p>
+            {demoReady ? (
+              <p className="mt-2 text-sm text-emerald-200">
+                {teams.length} teams ready — Copy all team URLs below.
+              </p>
+            ) : (
+              <p className="mt-2 text-sm text-amber-100/80">
+                {teams.length}/{capacity} teams — create the rest for a full dry run.
+              </p>
+            )}
+          </div>
+          <button
+            type="button"
+            disabled={busy || demoReady}
+            onClick={createDemoTeams}
+            className="rounded-xl bg-[#0ECCEE] px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-40"
+          >
+            {busy ? 'Creating…' : demoReady ? `${teams.length} teams ready` : `Create ${capacity} demo teams`}
+          </button>
+        </div>
+        {eventMeta?.slug && demoReady && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            <a
+              href={absoluteUrl(`/campus-hunt/${eventMeta.slug}/team/CC001`)}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex rounded-lg bg-black/30 px-3 py-2 text-xs font-semibold text-[#0ECCEE]"
+            >
+              Open CC001 login ↗
+            </a>
+            <button
+              type="button"
+              onClick={() => {
+                const lines = [...teams]
+                  .sort((a, b) => String(a.teamCode).localeCompare(String(b.teamCode), undefined, { numeric: true }))
+                  .map((t) => `${t.teamCode}\t${absoluteUrl(`/campus-hunt/${eventMeta.slug}/team/${t.teamCode}`)}`);
+                copyText(`One link per team — use that team’s unique password\n\n${lines.join('\n')}`);
+                setMsg('Copied all 40 team URLs');
+              }}
+              className="rounded-lg bg-[#0ECCEE]/20 px-3 py-2 text-xs font-semibold text-[#0ECCEE]"
+            >
+              Copy all 40 URLs
+            </button>
+          </div>
         )}
+      </section>
+
+      <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
+        <p className="font-semibold text-white">
+          Teams ({teams.length}/{capacity})
+        </p>
+        <p className="mt-1 text-xs text-white/55">
+          Add real teams below, or use demo teams above for a dry run.
+          Schedule assigns 10 teams per starting point.
+        </p>
+        <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs text-white/55">
+          <li>
+            Share each team&apos;s link:{' '}
+            <span className="font-mono text-white/70">
+              /campus-hunt/{eventMeta?.slug || 'EVENT'}/team/CC001
+            </span>
+          </li>
+          <li>Players open that link → type password → tap their name</li>
+          <li>Use “Set password for all teams” below so everyone has the same password</li>
+        </ol>
+        {startingPoints.length > 0 && (
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {startingPoints.map((point) => {
+              const count = teams.filter(
+                (team) => id(team.startingPointId) === id(point),
+              ).length;
+              return (
+                <div key={id(point)} className="rounded-lg bg-black/25 px-3 py-2 text-xs">
+                  <p className="font-semibold text-[#0ECCEE]">{point.code}</p>
+                  <p className="text-white/50">{count}/{point.capacity || 10} assigned</p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {eventMeta?.slug && (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                const lines = [
+                  'Share ONE link per team. Players only type the password and tap their name.',
+                  '',
+                  ...[...teams]
+                    .sort((a, b) => String(a.teamCode).localeCompare(String(b.teamCode), undefined, { numeric: true }))
+                    .map((t) => `${t.teamCode}\t${absoluteUrl(`/campus-hunt/${eventMeta.slug}/team/${t.teamCode}`)}`),
+                ];
+                copyText(lines.join('\n'));
+                setMsg('Copied all team login URLs');
+              }}
+              className="rounded-lg bg-[#0ECCEE]/20 px-3 py-1.5 text-xs font-semibold text-[#0ECCEE]"
+            >
+              Copy all team URLs
+            </button>
+          </div>
+        )}
+        <div className="mt-4 rounded-lg border border-[#0ECCEE]/25 bg-[#0ECCEE]/10 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#0ECCEE]/80">
+            Set password for all teams
+          </p>
+          <p className="mt-1 text-[11px] text-amber-100/75">
+            Dry-run only. One shared password lets anyone open any /team/CC00x link.
+            For hunt day use a different password per team.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <input
+              type="text"
+              value={bulkTeamPassword}
+              onChange={(e) => setBulkTeamPassword(e.target.value)}
+              placeholder="e.g. HUNT2026"
+              className="min-w-[12rem] flex-1 rounded-lg border border-white/20 bg-[#161718] px-3 py-2 font-mono text-sm"
+            />
+            <button
+              type="button"
+              disabled={busy || !teams.length}
+              onClick={setPasswordForAllTeams}
+              className="rounded-lg bg-[#0ECCEE] px-3 py-2 text-xs font-semibold text-black disabled:opacity-40"
+            >
+              Apply to all teams
+            </button>
+          </div>
+        </div>
       </div>
 
       {showRouteTools && <section className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-4">
@@ -901,7 +1081,7 @@ export default function TeamManagerPanel({
         <div>
           <h3 className="font-semibold">1. Add team and login access</h3>
           <p className="mt-1 text-xs text-white/50">
-            Add the four players. The leader plays the hunt; the other three receive scanner logins.
+            One shared password for the whole team. Share each team&apos;s URL — players only type the password and tap their name.
           </p>
         </div>
         <div className="grid gap-2 md:grid-cols-2">
@@ -929,7 +1109,7 @@ export default function TeamManagerPanel({
           <input
             value={leaderEmail}
             onChange={(e) => setLeaderEmail(e.target.value)}
-            placeholder="Leader email (full access)"
+            placeholder="Leader contact email"
             type="email"
             className="rounded-lg border border-white/20 bg-[#161718] px-3 py-2"
             required
@@ -937,9 +1117,12 @@ export default function TeamManagerPanel({
           <input
             type="password"
             value={leaderPassword}
-            onChange={(e) => setLeaderPassword(e.target.value)}
-            placeholder="Leader password (full access)"
-            className="rounded-lg border border-cyan-400/30 bg-[#161718] px-3 py-2 font-mono"
+            onChange={(e) => {
+              setLeaderPassword(e.target.value);
+              setScannerPassword(e.target.value);
+            }}
+            placeholder="Shared team password (all 4 people)"
+            className="rounded-lg border border-[#0ECCEE]/40 bg-[#161718] px-3 py-2 font-mono md:col-span-2"
             required
           />
           {memberNames.map((name, idx) => (
@@ -951,19 +1134,11 @@ export default function TeamManagerPanel({
                 next[idx] = e.target.value;
                 setMemberNames(next);
               }}
-              placeholder={`Member ${idx + 1} name (scanner)`}
+              placeholder={`Player ${idx + 1} name`}
               className="rounded-lg border border-white/20 bg-[#161718] px-3 py-2"
               required
             />
           ))}
-          <input
-            type="password"
-            value={scannerPassword}
-            onChange={(e) => setScannerPassword(e.target.value.toUpperCase())}
-            placeholder="Shared password for all 3 scanners"
-            className="rounded-lg border border-white/20 bg-[#161718] px-3 py-2 font-mono"
-            required
-          />
           <select
             value={routeId}
             onChange={(e) => setRouteId(e.target.value)}
@@ -981,7 +1156,7 @@ export default function TeamManagerPanel({
           disabled={busy}
           className="rounded-lg bg-[#0ECCEE] px-4 py-2 text-sm font-semibold text-black disabled:opacity-50"
         >
-          Create team + access URLs
+          Create team + access
         </button>
       </form>
 
@@ -994,13 +1169,22 @@ export default function TeamManagerPanel({
       {msg && <p className="text-sm text-[#0ECCEE]">{msg}</p>}
 
       <section className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-4">
-        <div>
-          <h3 className="font-semibold">2. Existing teams ({teams.length})</h3>
-          <p className="mt-1 text-xs text-white/50">
-            Open a team to share login access, reveal credentials, edit details, or delete it.
-          </p>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h3 className="font-semibold">2. Existing teams ({teams.length}/40)</h3>
+            <p className="mt-1 text-xs text-white/50">
+              Open a team to copy its login link, reveal password, edit names, or delete.
+            </p>
+          </div>
+          {teams.length === 40 && (
+            <span className="rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-200">
+              All 40 ready
+            </span>
+          )}
         </div>
-        {teams.map((t) => (
+        {[...teams]
+          .sort((a, b) => String(a.teamCode).localeCompare(String(b.teamCode), undefined, { numeric: true }))
+          .map((t) => (
           <TeamDetailCard
             key={t._id}
             team={t}
@@ -1014,7 +1198,7 @@ export default function TeamManagerPanel({
         ))}
         {!teams.length && (
           <p className="rounded-lg border border-dashed border-white/15 p-4 text-sm text-white/50">
-            No teams yet. Use “Add team and login access” above to create the first team.
+            No teams yet. Use “Add team and login access” above, or create 40 demo teams.
           </p>
         )}
       </section>

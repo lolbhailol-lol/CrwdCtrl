@@ -61,46 +61,51 @@ const ISSUE_CATEGORIES = [
 const DEFAULT_SCORING_CONFIG = {
   startingScore: 100,
   hintCost: 15,
-  // Clue 1: attempt bands — 1st=20, 2nd=10, 3rd=5; after 3 fails → reveal location, 0 pts
+  // Each clue: 50 pts on time. Late still unlocks next clue at 0 pts. Hints −15.
   clue1: {
-    basePoints: 0,
+    basePoints: 50,
     maxAttempts: 3,
     timerSeconds: 0,
-    awardMode: 'attempt_bands',
+    awardMode: 'flat_base',
     revealOnMaxAttempts: true,
     attemptBands: [
-      { attempt: 1, points: 20 },
-      { attempt: 2, points: 10 },
-      { attempt: 3, points: 5 },
+      { attempt: 1, points: 50 },
+      { attempt: 2, points: 50 },
+      { attempt: 3, points: 50 },
     ],
   },
-  // Clue 2: time-band TOTAL awards (not base+bonus). Late submit after 5:00 = 0 pts.
+  // Clue 2: 20s read, then 3:00. Faster = more (max 50). Late = 0 pts, still continue.
   clue2: {
     basePoints: 0,
     maxAttempts: 3,
-    timerSeconds: 300,
+    timerSeconds: 180,
+    timerStartDelaySeconds: 20,
     awardMode: 'time_bands_total',
     allowLateSubmit: true,
     speedBonusBands: [
       { maxSeconds: 60, bonus: 50 },
       { maxSeconds: 120, bonus: 30 },
-      { maxSeconds: 300, bonus: 10 },
+      { maxSeconds: 180, bonus: 10 },
     ],
   },
   clue3: {
-    basePoints: 75,
+    basePoints: 50,
     maxAttempts: 3,
     timerSeconds: 0,
+    awardMode: 'flat_base',
     speedBonusBands: [],
   },
+  // Clue 4: 50 base + speed bonus if fast. Late = 0 pts, still report to start.
   clue4: {
-    basePoints: 100,
+    basePoints: 50,
     maxAttempts: 3,
     timerSeconds: 300,
+    awardMode: 'base_plus_speed',
+    allowLateSubmit: true,
     speedBonusBands: [
-      { maxSeconds: 150, bonus: 20 },
-      { maxSeconds: 240, bonus: 10 },
-      { maxSeconds: 300, bonus: 0 },
+      { maxSeconds: 120, bonus: 25 },
+      { maxSeconds: 210, bonus: 15 },
+      { maxSeconds: 300, bonus: 5 },
     ],
   },
 };
@@ -111,36 +116,38 @@ const CLUE_HOW_TO = {
     title: 'How to play — Clue 1',
     steps: [
       'Read the sentence and type the campus location.',
-      'You have 3 attempts. Fewer tries = more points.',
-      'After 3 wrong tries the location is revealed automatically (0 points).',
-      'Then go there — all 4 members must scan the station QR.',
+      'Correct answer = 50 points (any attempt). After 3 wrong tries the location is revealed (0 points).',
+      'Go there — all 4 members scan your yellow card.',
+      'Then pick up your card and take it — leave other teams’ cards for them.',
     ],
   },
   2: {
     title: 'How to play — Clue 2',
     steps: [
-      'Find the hidden 3-digit number in the area.',
-      'A 5-minute server timer starts when Clue 2 unlocks.',
-      'Faster correct submit = more points. After 5:00 you can still submit for 0 pts.',
-      'After the correct number, go to the next location — all 4 members scan again to unlock the decode clue.',
+      'Read the instructions carefully (20 seconds).',
+      'Then a 3-minute timer starts — find the hidden 3-digit number.',
+      'Faster correct submit = more points. After 3:00 you can still submit for 0 pts.',
+      'After the correct number: go straight to your next location.',
+      'Find your green SECOND SCAN card — all 4 scan, then pick it up and take it.',
+      'Next: find your blue Checkpoint 3 card at the following place (not Clue 3 yet).',
     ],
   },
   3: {
     title: 'How to play — Clue 3',
     steps: [
-      'You unlocked a coded message — decode it.',
-      'Type the decoded word (leader submits).',
-      'You have limited attempts. Hints cost points if you use them.',
+      'Your blue Checkpoint 3 card is already scanned — decode the riddle on your phone.',
+      'Type the answer (leader submits). Limited attempts; hints cost points.',
       'Think before you submit.',
+      'After this, the Final one-word puzzle unlocks.',
     ],
   },
   4: {
     title: 'How to play — Final clue',
     steps: [
-      'Each member may see a different piece of the puzzle.',
-      'Combine all pieces as a team, then the leader submits.',
-      'Timer and speed bonus may apply — watch the countdown.',
-      'After this, head to the Finish Zone and scan.',
+      'Each teammate sees their own code fragment on their phone.',
+      'Say the four codes in order 1→4 and rebuild the one word.',
+      'Leader submits the word. Faster = bonus points; after the timer you still can submit for 0 pts.',
+      'Then report to your start location and ask the organizer to mark your team reached.',
     ],
   },
 };
@@ -155,8 +162,10 @@ const STAGE_TRANSITIONS = {
   CLUE_2_COMPLETED: ['CHECKPOINT_2_COMPLETED'],
   CLUE_2_FAILED: ['CHECKPOINT_2_COMPLETED'],
   CLUE_2_TIMEOUT: ['CHECKPOINT_2_COMPLETED'],
+  // After green SECOND SCAN → Clue 3 Caesar riddle (tells where blue is)
   CHECKPOINT_2_COMPLETED: ['CLUE_3_ACTIVE'],
   CLUE_3_ACTIVE: ['CLUE_3_COMPLETED', 'CLUE_3_FAILED'],
+  // After Clue 3 → go scan blue CP3
   CLUE_3_COMPLETED: ['CHECKPOINT_3_COMPLETED'],
   CLUE_3_FAILED: ['CHECKPOINT_3_COMPLETED'],
   CHECKPOINT_3_COMPLETED: ['CLUE_4_ACTIVE'],
@@ -195,6 +204,7 @@ const CHALLENGE_RESOLVED_STAGES = {
 const CHECKPOINT_UNLOCK_STAGE = {
   1: 'CLUE_1_COMPLETED',
   2: ['CLUE_2_COMPLETED', 'CLUE_2_FAILED', 'CLUE_2_TIMEOUT'],
+  // Blue CP3 cards unlock after Clue 3 Caesar riddle is solved
   3: ['CLUE_3_COMPLETED', 'CLUE_3_FAILED'],
   FINISH: ['CLUE_4_COMPLETED', 'CLUE_4_FAILED'],
 };
@@ -208,7 +218,9 @@ const CHECKPOINT_NEXT_STAGE = {
 
 const AUTO_ADVANCE_AFTER_CHECKPOINT = {
   CHECKPOINT_1_COMPLETED: 'CLUE_2_ACTIVE',
+  // Green 4/4 → open Clue 3 riddle immediately
   CHECKPOINT_2_COMPLETED: 'CLUE_3_ACTIVE',
+  // Blue 4/4 → open Final
   CHECKPOINT_3_COMPLETED: 'CLUE_4_ACTIVE',
   FINISH_COMPLETED: 'SCORE_LOCKED',
 };

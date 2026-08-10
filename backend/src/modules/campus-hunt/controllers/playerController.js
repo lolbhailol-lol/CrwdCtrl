@@ -126,12 +126,22 @@ async function getMyTeam(req, res, next) {
     if (!team) {
       return res.status(404).json({ success: false, message: 'No team found for this event' });
     }
+    if (
+      req.user?.huntTeamId
+      && String(req.user.huntTeamId) !== String(team._id)
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: 'This login is for a different team. Open your own team link.',
+        code: 'WRONG_TEAM_SESSION',
+      });
+    }
     const isLeader = team.isLeader(userId);
     const progress = await buildPlayerProgress(team, userId, isLeader);
     return res.json({
       success: true,
       data: {
-        team: publicTeamView(progress.team, { isLeader, start: progress.start }),
+        team: publicTeamView(progress.team, { isLeader, start: progress.start, userId }),
         challenges: progress.challenges,
         checkpointStatus: progress.checkpointStatus || null,
         serverTime: progress.serverTime,
@@ -151,7 +161,7 @@ async function getTeamProgress(req, res, next) {
     return res.json({
       success: true,
       data: {
-        team: publicTeamView(progress.team, { isLeader, start: progress.start }),
+        team: publicTeamView(progress.team, { isLeader, start: progress.start, userId }),
         challenges: progress.challenges,
         checkpointStatus: progress.checkpointStatus || null,
         serverTime: progress.serverTime,
@@ -183,10 +193,7 @@ async function scanStation(req, res, next) {
       success: true,
       data: {
         ...result,
-        team: publicTeamView(progress.team, {
-          isLeader: req.isHuntLeader,
-          start: progress.start,
-        }),
+        team: publicTeamView(progress.team, { isLeader: req.isHuntLeader, start: progress.start, userId: req.user.userId }),
         challenges: progress.challenges,
         checkpointStatus: progress.checkpointStatus,
         serverTime: progress.serverTime,
@@ -226,13 +233,16 @@ async function submitChallengeAnswer(req, res, next) {
       requestId,
     });
 
-    // Refresh team
     const team = await CampusHuntTeam.findById(req.huntTeam._id);
+    const progress = await buildPlayerProgress(team, req.user.userId, req.isHuntLeader);
     return res.json({
       success: true,
       data: {
         ...result,
-        team: publicTeamView(team, { isLeader: req.isHuntLeader }),
+        team: publicTeamView(progress.team, { isLeader: req.isHuntLeader, start: progress.start, userId: req.user.userId }),
+        challenges: progress.challenges,
+        checkpointStatus: progress.checkpointStatus || null,
+        serverTime: progress.serverTime,
       },
     });
   } catch (err) {
@@ -272,11 +282,15 @@ async function requestChallengeHint(req, res, next) {
     });
 
     const team = await CampusHuntTeam.findById(req.huntTeam._id);
+    const progress = await buildPlayerProgress(team, req.user.userId, req.isHuntLeader);
     return res.json({
       success: true,
       data: {
         ...result,
-        team: publicTeamView(team, { isLeader: req.isHuntLeader }),
+        team: publicTeamView(progress.team, { isLeader: req.isHuntLeader, start: progress.start, userId: req.user.userId }),
+        challenges: progress.challenges,
+        checkpointStatus: progress.checkpointStatus || null,
+        serverTime: progress.serverTime,
       },
     });
   } catch (err) {
@@ -325,7 +339,8 @@ async function getEventBySlug(req, res, next) {
   try {
     const event = await CampusHuntEvent.findOne({ slug: req.params.slug })
       .select('name college slug status date teamCapacity teamSize startingScore');
-    if (!event || event.status === 'draft') {
+    // Draft events stay usable for team login / playtest from the admin dashboard.
+    if (!event) {
       return res.status(404).json({ success: false, message: 'Event not found' });
     }
     return res.json({ success: true, data: { event } });
@@ -335,58 +350,33 @@ async function getEventBySlug(req, res, next) {
 }
 
 /**
- * Public team login card — names + login emails only (no passwords).
+ * Public team shell only — no emails, stage, or roster (anti-enumeration).
+ * Names unlock after password via POST …/unlock.
  * GET /events/by-slug/:slug/teams/:teamCode
  */
 async function getTeamLoginCard(req, res, next) {
   try {
-    const User = require('../../../model/usermodel');
+    const { normalizeTeamCode } = require('../utils/teamCode');
     const event = await CampusHuntEvent.findOne({ slug: req.params.slug })
       .select('name college slug status');
-    if (!event || event.status === 'draft') {
+    if (!event) {
       return res.status(404).json({ success: false, message: 'Event not found' });
+    }
+
+    const teamCode = normalizeTeamCode(req.params.teamCode);
+    if (!teamCode) {
+      return res.status(404).json({ success: false, message: 'Team not found' });
     }
 
     const teamDoc = await CampusHuntTeam.findOne({
       eventId: event._id,
-      teamCode: String(req.params.teamCode || '').trim().toUpperCase(),
-    }).lean();
+      teamCode,
+    }).select('teamCode teamName').lean();
 
     if (!teamDoc) {
-      return res.status(404).json({ success: false, message: 'Team not found' });
-    }
-
-    const pack = teamDoc.accessPack || {};
-    const rosterUsers = [];
-    for (const userId of [teamDoc.leaderUserId, ...(teamDoc.memberUserIds || [])]) {
-      // eslint-disable-next-line no-await-in-loop
-      const user = userId
-        ? await User.findById(userId).select('name email').lean()
-        : null;
-      rosterUsers.push(user);
-    }
-
-    const scanners = (teamDoc.memberNames || []).map((name, idx) => {
-      const stored = pack.scanners?.[idx] || {};
-      const rosterUser = rosterUsers[idx + 1];
-      return {
-        slot: idx + 1,
-        name: stored.name || name || rosterUser?.name || `Member ${idx + 1}`,
-        loginEmail: stored.loginEmail || rosterUser?.email || '',
-        role: 'scanner',
-      };
-    });
-
-    // Fallback when accessPack not stored (legacy teams)
-    if (!scanners.length && teamDoc.memberUserIds?.length) {
-      teamDoc.memberUserIds.forEach((userId, idx) => {
-        const rosterUser = rosterUsers[idx + 1];
-        scanners.push({
-          slot: idx + 1,
-          name: rosterUser?.name || `Member ${idx + 1}`,
-          loginEmail: rosterUser?.email || '',
-          role: 'scanner',
-        });
+      return res.status(404).json({
+        success: false,
+        message: `Team ${teamCode} not found. Use codes like CC001.`,
       });
     }
 
@@ -398,24 +388,105 @@ async function getTeamLoginCard(req, res, next) {
           name: event.name,
           college: event.college,
           slug: event.slug,
-          status: event.status,
         },
         team: {
           teamCode: teamDoc.teamCode,
           teamName: teamDoc.teamName,
-          status: teamDoc.status,
-          currentStage: teamDoc.currentStage,
           playPath: `/campus-hunt/${event.slug}/play`,
           loginPath: `/campus-hunt/${event.slug}/team/${teamDoc.teamCode}`,
-          members: [
-            {
-              slot: 0,
-              name: pack.leader?.name || teamDoc.leaderName || rosterUsers[0]?.name || 'Leader',
-              loginEmail: pack.leader?.loginEmail || rosterUsers[0]?.email || '',
-              role: 'leader',
-            },
-            ...scanners,
-          ],
+          // Roster intentionally omitted — unlock with password
+          members: [],
+          needsUnlock: true,
+        },
+      },
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+function buildPublicRosterMembers(teamDoc) {
+  const pack = teamDoc.accessPack || {};
+  const scanners = (teamDoc.memberNames || []).map((name, idx) => {
+    const stored = pack.scanners?.[idx] || {};
+    return {
+      slot: idx + 1,
+      name: stored.name || name || `Player ${idx + 1}`,
+      role: 'scanner',
+    };
+  });
+  while (scanners.length < 3) {
+    scanners.push({
+      slot: scanners.length + 1,
+      name: `Player ${scanners.length + 1}`,
+      role: 'scanner',
+    });
+  }
+  return [
+    {
+      slot: 0,
+      name: pack.leader?.name || teamDoc.leaderName || 'Leader',
+      role: 'leader',
+    },
+    ...scanners.slice(0, 3),
+  ];
+}
+
+/**
+ * Password gate → reveal teammate names only (no emails / stage).
+ * POST /events/by-slug/:slug/teams/:teamCode/unlock  { password }
+ */
+async function unlockTeamRoster(req, res, next) {
+  try {
+    const {
+      readTeamPassword,
+      passwordsMatch,
+    } = require('../services/teamGateService');
+    const { normalizeTeamCode } = require('../utils/teamCode');
+    const password = String(req.body?.password || '').trim();
+    if (!password) {
+      return res.status(400).json({ success: false, message: 'Password required' });
+    }
+
+    const event = await CampusHuntEvent.findOne({ slug: req.params.slug })
+      .select('_id slug name college');
+    if (!event) {
+      return res.status(401).json({ success: false, message: 'Wrong team or password' });
+    }
+
+    const teamCode = normalizeTeamCode(req.params.teamCode);
+    const team = await CampusHuntTeam.findOne({
+      eventId: event._id,
+      teamCode,
+    }).select(
+      '+accessPack.encryptedTeamPassword +accessPack.encryptedSharedScannerPassword '
+      + '+accessPack.sharedScannerPassword +accessPack.leader.encryptedPassword '
+      + '+accessPack.leader.password teamCode teamName leaderName memberNames '
+      + 'accessPack.leader.name accessPack.scanners',
+    );
+
+    if (!team) {
+      return res.status(401).json({ success: false, message: 'Wrong team or password' });
+    }
+
+    const expected = readTeamPassword(team);
+    if (!passwordsMatch(password, expected)) {
+      return res.status(401).json({ success: false, message: 'Wrong team or password' });
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        team: {
+          teamCode: team.teamCode,
+          teamName: team.teamName,
+          playPath: `/campus-hunt/${event.slug}/play`,
+          loginPath: `/campus-hunt/${event.slug}/team/${team.teamCode}`,
+          members: buildPublicRosterMembers(team),
+          roles: {
+            leader: 'Sees Clue 1 and submits all answers. Everyone still scans.',
+            player: 'Helps on Clue 2–4. Scans station cards. No Clue 1 text.',
+          },
         },
       },
     });
@@ -433,15 +504,16 @@ async function loginTeamMember(req, res, next) {
   try {
     const User = require('../../../model/usermodel');
     const { login } = require('../../../controllers/usercontroller');
+    const { normalizeTeamCode } = require('../utils/teamCode');
     const email = String(req.body?.email || '').trim().toLowerCase();
     const event = await CampusHuntEvent.findOne({ slug: req.params.slug }).select('_id status');
-    if (!event || event.status === 'draft') {
+    if (!event) {
       return res.status(401).json({ success: false, message: 'Invalid team credentials' });
     }
 
     const team = await CampusHuntTeam.findOne({
       eventId: event._id,
-      teamCode: String(req.params.teamCode || '').trim().toUpperCase(),
+      teamCode: normalizeTeamCode(req.params.teamCode),
     }).select('leaderUserId memberUserIds');
     const user = email ? await User.findOne({ email }).select('_id') : null;
     const rosterIds = team
@@ -458,11 +530,131 @@ async function loginTeamMember(req, res, next) {
   }
 }
 
+/**
+ * Simple team entry: team code (URL) + shared password + who you are.
+ * Admin sets the one password; leader and all players use it.
+ */
+async function enterTeamAsMember(req, res, next) {
+  try {
+    const User = require('../../../model/usermodel');
+    const jwt = require('jsonwebtoken');
+    const { getJwtSecret } = require('../../../config/jwtSecret');
+    const {
+      readTeamPassword,
+      passwordsMatch,
+      resolveRosterUserId,
+    } = require('../services/teamGateService');
+    const { normalizeTeamCode } = require('../utils/teamCode');
+
+    const password = String(req.body?.password || '').trim();
+    const role = String(req.body?.role || '').trim().toLowerCase();
+    const slot = Number(req.body?.slot || 0);
+
+    if (!password) {
+      return res.status(400).json({ success: false, message: 'Password required' });
+    }
+
+    const event = await CampusHuntEvent.findOne({ slug: req.params.slug })
+      .select('_id status name slug college');
+    if (!event) {
+      return res.status(401).json({ success: false, message: 'Invalid team credentials' });
+    }
+
+    const teamCode = normalizeTeamCode(req.params.teamCode);
+    if (!teamCode) {
+      return res.status(401).json({ success: false, message: 'Invalid team credentials' });
+    }
+
+    const team = await CampusHuntTeam.findOne({
+      eventId: event._id,
+      teamCode,
+    }).select(
+      '+accessPack.encryptedTeamPassword +accessPack.encryptedSharedScannerPassword '
+      + '+accessPack.sharedScannerPassword +accessPack.leader.encryptedPassword '
+      + '+accessPack.leader.password leaderUserId memberUserIds teamCode teamName '
+      + 'leaderName memberNames accessPack.leader.name accessPack.scanners.name '
+      + 'accessPack.scanners.loginEmail accessPack.leader.loginEmail',
+    );
+
+    if (!team) {
+      return res.status(401).json({ success: false, message: 'Invalid team credentials' });
+    }
+
+    const expected = readTeamPassword(team);
+    if (!passwordsMatch(password, expected)) {
+      return res.status(401).json({ success: false, message: 'Wrong team code or password' });
+    }
+
+    const userId = resolveRosterUserId(team, role === 'scanner' ? 'player' : role, slot);
+    const user = await User.findById(userId);
+    if (!user || user.isDeleted) {
+      return res.status(401).json({ success: false, message: 'That player account is missing' });
+    }
+
+    const token = jwt.sign({
+      userId: user._id,
+      huntTeamId: String(team._id),
+      huntEventId: String(event._id),
+      huntRole: role === 'leader' ? 'leader' : 'player',
+    }, getJwtSecret(), {
+      expiresIn: process.env.USER_JWT_EXPIRES_IN || process.env.JWT_EXPIRES_IN || '30d',
+    });
+
+    const safeUser = {
+      _id: user._id,
+      id: String(user._id),
+      name: user.name || '',
+      email: user.email || '',
+      role: user.role || 'user',
+    };
+
+    const teamPayload = {
+      id: String(team._id),
+      teamCode: team.teamCode,
+      teamName: team.teamName,
+      role: role === 'leader' ? 'leader' : 'player',
+      isLeader: role === 'leader',
+      myName: role === 'leader'
+        ? (team.leaderName || team.accessPack?.leader?.name || 'Leader')
+        : (
+          team.memberNames?.[Math.max(0, slot - 1)]
+          || team.accessPack?.scanners?.[Math.max(0, slot - 1)]?.name
+          || `Player ${slot}`
+        ),
+      playPath: `/campus-hunt/${event.slug}/play`,
+      sees: role === 'leader'
+        ? 'Clue 1 + submit answers + scan'
+        : 'Scan + help on Clue 2–4 (no Clue 1 text)',
+    };
+
+    return res.json({
+      success: true,
+      isAdmin: false,
+      message: 'Login successful',
+      data: {
+        user: safeUser,
+        token,
+        team: teamPayload,
+      },
+      user: safeUser,
+      token,
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, message: err.message, code: err.code });
+    }
+    return next(err);
+  }
+}
+
 /** Local/dev only: force current pending checkpoint — requires 4 distinct members. */
 async function forceUnlockClue2(req, res, next) {
   try {
-    // Never available in production (even with CAMPUS_HUNT_DEV_CHEATS)
-    if (process.env.NODE_ENV === 'production') {
+    // Never in production. Staging/local also need CAMPUS_HUNT_DEV_CHEATS=1.
+    if (
+      process.env.NODE_ENV === 'production'
+      || String(process.env.CAMPUS_HUNT_DEV_CHEATS || '') !== '1'
+    ) {
       return res.status(404).json({ success: false, message: 'Not found' });
     }
     const {
@@ -515,10 +707,7 @@ async function forceUnlockClue2(req, res, next) {
       data: {
         forced: true,
         checkpointKey: checkpoint.checkpointKey,
-        team: publicTeamView(progress.team, {
-          isLeader: req.isHuntLeader,
-          start: progress.start,
-        }),
+        team: publicTeamView(progress.team, { isLeader: req.isHuntLeader, start: progress.start, userId: req.user.userId }),
         challenges: progress.challenges,
         checkpointStatus: progress.checkpointStatus,
         serverTime: progress.serverTime,
@@ -549,7 +738,7 @@ async function rewindStep(req, res, next) {
       success: true,
       data: {
         ...result,
-        team: publicTeamView(progress.team, { isLeader: true }),
+        team: publicTeamView(progress.team, { isLeader: true, userId: req.user.userId }),
         challenges: progress.challenges,
         checkpointStatus: progress.checkpointStatus || null,
         serverTime: progress.serverTime,
@@ -579,7 +768,9 @@ module.exports = {
   getLeaderboard,
   getEventBySlug,
   getTeamLoginCard,
+  unlockTeamRoster,
   loginTeamMember,
+  enterTeamAsMember,
   scanStation,
   rewindStep,
   forceUnlockClue2,

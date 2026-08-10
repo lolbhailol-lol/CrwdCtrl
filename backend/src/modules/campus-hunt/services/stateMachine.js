@@ -29,7 +29,13 @@ function requiredStageForChallenge(challengeNumber) {
 function resolvedStageForChallenge(challengeNumber, outcome) {
   const map = CHALLENGE_RESOLVED_STAGES[challengeNumber];
   if (!map) return null;
-  return map[outcome] || null;
+  let stage = map[outcome] || null;
+  // Clue 3 resolves to CLUE_3_* then player scans blue (no auto-jump to Final).
+  const auto = stage ? AUTO_ADVANCE_AFTER_CHECKPOINT[stage] : null;
+  if (auto && canTransition(stage, auto)) {
+    stage = auto;
+  }
+  return stage;
 }
 
 function stagesAllowingCheckpoint(checkpointKey) {

@@ -4,10 +4,18 @@
 import { resolveUrl } from './client.js';
 import { resolveAuthToken, getBearerAuthHeaders, isTokenExpired, isBackendUserJwt, isAuthFailureMessage, clearStoredAuthSession } from '../../utils/authToken.js';
 import { clearAuthSession, persistAuthSession } from '../../utils/authStorage.js';
+import { redirectCampusHuntAuthLoss } from '../../features/campus-hunt/utils/huntSession.js';
 
 /** @deprecated Implementation lives in utils/api.js — migrate callers gradually */
 export { authAPI, handleApiError, ApiError } from '../../utils/api.js';
 
+function forceLoginRedirect() {
+  if (typeof window === 'undefined') return;
+  if (redirectCampusHuntAuthLoss()) return;
+  if (!window.location.pathname.startsWith('/login')) {
+    window.location.href = '/login';
+  }
+}
 export function getUserAuthHeaders(token) {
   const resolved = resolveAuthToken(token);
   if (resolved) {
@@ -56,9 +64,7 @@ export async function userApiCall(url, options = {}) {
 
     if (response.status === 401) {
       clearAuthSession();
-      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-        window.location.href = '/login';
-      }
+      forceLoginRedirect();
       return response;
     }
 

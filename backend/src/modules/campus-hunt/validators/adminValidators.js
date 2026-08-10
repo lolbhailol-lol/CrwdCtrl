@@ -67,9 +67,9 @@ function validateIssueBody(body = {}) {
 }
 
 function validateStartingPoint(body = {}, { partial = false } = {}) {
-  if (!partial) requireFields(body, ['roundId', 'name', 'code']);
+  if (!partial) requireFields(body, ['name', 'code']);
   const output = {};
-  if (body.roundId != null) output.roundId = body.roundId;
+  if (body.roundId != null && body.roundId !== '') output.roundId = body.roundId;
   if (body.name != null) output.name = String(body.name).trim();
   if (body.code != null) output.code = String(body.code).trim().toUpperCase();
   if (body.description != null) output.description = String(body.description).trim();

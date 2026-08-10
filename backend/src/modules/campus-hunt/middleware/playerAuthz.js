@@ -24,6 +24,18 @@ async function requireTeamMember(req, res, next) {
       return res.status(403).json({ success: false, message: 'You are not a member of this team' });
     }
 
+    // Session bound at enter — block swapping :teamId to another team's hunt
+    if (
+      req.user?.huntTeamId
+      && String(req.user.huntTeamId) !== String(team._id)
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: 'This login is for a different team. Open your own team link.',
+        code: 'WRONG_TEAM_SESSION',
+      });
+    }
+
     req.huntTeam = team;
     req.isHuntLeader = team.isLeader(userId);
     return next();

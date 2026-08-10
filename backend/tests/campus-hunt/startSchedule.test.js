@@ -11,7 +11,7 @@ function fixtures(teamCount, pointCount, pointCapacity) {
   }));
   const startingPoints = Array.from({ length: pointCount }, (_, index) => ({
     _id: `start-${index + 1}`,
-    code: `START-${index + 1}`,
+    code: String.fromCharCode(65 + index), // A, B, C, D…
     displayOrder: index,
     capacity: pointCapacity,
     active: true,

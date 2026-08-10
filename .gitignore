@@ -56,6 +56,10 @@ reports/
 # Local MCP / IDE config
 mcp.json
 
+# Campus Hunt generated team password sheets (secrets)
+backend/unique-team-passwords.tsv
+**/unique-team-passwords.tsv
+
 # Local-only media / renders / videos — never push
 local/
 media/
