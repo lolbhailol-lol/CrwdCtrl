@@ -1,7 +1,16 @@
 import { FEATURES } from '../../config/env';
 
+/** Public player / volunteer routes (landing, play, leaderboard). */
 export function isCampusHuntEnabled() {
   return FEATURES.CAMPUS_HUNT === true;
+}
+
+/**
+ * Admin control room — always on so organizers are not blocked by a missing
+ * VITE_ENABLE_CAMPUS_HUNT on a deploy. Player-facing routes stay gated above.
+ */
+export function isCampusHuntAdminEnabled() {
+  return true;
 }
 
 export const CAMPUS_HUNT_PATHS = {

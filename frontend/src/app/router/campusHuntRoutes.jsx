@@ -1,5 +1,5 @@
 import { Route } from 'react-router-dom';
-import { isCampusHuntEnabled } from '../../features/campus-hunt/config';
+import { isCampusHuntEnabled, isCampusHuntAdminEnabled } from '../../features/campus-hunt/config';
 import {
   CampusHuntLandingPage,
   CampusHuntPlayPage,
@@ -13,9 +13,8 @@ import {
 } from './lazyPages';
 
 /**
- * Campus Hunt routes — only registered when VITE_ENABLE_CAMPUS_HUNT=true.
- * Admin child routes are composed into adminRoutes separately when enabled.
- * Leaderboard / team login registered before :slug catch-alls.
+ * Campus Hunt player routes — only when VITE_ENABLE_CAMPUS_HUNT=true.
+ * Admin child routes stay available so the control room is never hidden by env.
  */
 export const campusHuntRoutes = isCampusHuntEnabled() ? (
   <>
@@ -30,7 +29,7 @@ export const campusHuntRoutes = isCampusHuntEnabled() ? (
 ) : null;
 
 export function campusHuntAdminChildRoutes() {
-  if (!isCampusHuntEnabled()) return null;
+  if (!isCampusHuntAdminEnabled()) return null;
   return (
     <>
       <Route path="campus-hunt" element={<CampusHuntAdminDashboard />} />

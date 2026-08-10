@@ -23,7 +23,7 @@ import {
   Bell,
   MapPinned,
 } from 'lucide-react';
-import { isCampusHuntEnabled } from '../../features/campus-hunt/config';
+import { isCampusHuntAdminEnabled } from '../../features/campus-hunt/config';
 
 export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(() =>
@@ -51,7 +51,7 @@ export default function AdminLayout() {
     { icon: LayoutDashboard, label: 'Dashboard', path: '/admin', exact: true },
     { icon: Calendar, label: 'Fests', path: '/admin/fests' },
     { icon: Trophy, label: 'Competitions', path: '/admin/competitions' },
-    ...(isCampusHuntEnabled()
+    ...(isCampusHuntAdminEnabled()
       ? [{ icon: MapPinned, label: 'Campus Hunt', path: '/admin/campus-hunt' }]
       : []),
     { icon: Dumbbell, label: 'Run Clubs', path: '/admin/sports' },

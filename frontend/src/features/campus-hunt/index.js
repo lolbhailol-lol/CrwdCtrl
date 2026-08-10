@@ -1,4 +1,4 @@
-export { isCampusHuntEnabled, CAMPUS_HUNT_PATHS } from './config';
+export { isCampusHuntEnabled, isCampusHuntAdminEnabled, CAMPUS_HUNT_PATHS } from './config';
 export { default as CampusHuntLandingPage } from './pages/CampusHuntLandingPage';
 export { default as CampusHuntPlayPage } from './pages/CampusHuntPlayPage';
 export { default as CampusHuntTeamLoginPage } from './pages/CampusHuntTeamLoginPage';
