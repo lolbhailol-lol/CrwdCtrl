@@ -1199,12 +1199,22 @@ function buildTeamAccessView(team, event, { revealSecrets = false } = {}) {
 
 async function revealTeamAccess(req, res, next) {
   try {
+    const { isCredentialVaultUnreadable } = require('../services/teamGateService');
     const team = await CampusHuntTeam.findById(req.params.teamId)
       .select('+accessPack.leader.encryptedPassword +accessPack.scanners.encryptedPassword '
         + '+accessPack.encryptedSharedScannerPassword +accessPack.encryptedTeamPassword')
       .lean();
     if (!team) return res.status(404).json({ success: false, message: 'Team not found' });
     const event = await CampusHuntEvent.findById(team.eventId).select('slug name college');
+
+    if (isCredentialVaultUnreadable(team)) {
+      return res.status(409).json({
+        success: false,
+        message: 'Password vault unreadable (credential key changed). Set a new team password, then reveal again.',
+        code: 'CREDENTIAL_VAULT_RESET_REQUIRED',
+      });
+    }
+
     await writeAudit({
       eventId: team.eventId,
       ...adminActor(req),

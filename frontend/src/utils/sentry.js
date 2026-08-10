@@ -23,11 +23,22 @@ function shouldDropSentryEvent(event, hint) {
   if (/messaging\/unsupported-browser/i.test(message)) return true;
   if (/firebaseinstallations\.googleapis\.com/i.test(message)) return true;
   if (/Failed to fetch.*firebase|Load failed.*firebase/i.test(message)) return true;
+  if (/Pending promise was never set/i.test(message)) return true;
 
   // Capacitor / WebView bridge teardown (Instagram, Android WebView)
   if (/webkit\.messageHandlers/i.test(message)) return true;
   if (/Java object is gone/i.test(message)) return true;
   if (/postMessage/i.test(message) && /Java object/i.test(message)) return true;
+  if (/not implemented on this platform/i.test(message)) return true;
+  if (/^Error:\s*not implemented$/im.test(message) || /\bnot implemented\b/i.test(message) && /capacitor|webview|cordova/i.test(message)) return true;
+  if (/Error invoking postMessage/i.test(message)) return true;
+  if (/AbortError/i.test(message)) return true;
+
+  // Private mode / restricted storage (Safari ITP, iframes)
+  if (/SecurityError/i.test(message) && /insecure|localStorage|sessionStorage|Access is denied/i.test(message)) return true;
+
+  // Minified WebView / third-party bridge garbage (e.g. "Error: oa")
+  if (/^Error:\s*oa$/im.test(message)) return true;
 
   // IndexedDB / private mode / user cleared site data
   if (/IDBDatabase|Indexed Database|database connection is closing/i.test(message)) return true;
@@ -63,6 +74,11 @@ export function initSentry() {
       /IDBDatabase/i,
       /Indexed Database/i,
       /Database deleted by request of the user/i,
+      /not implemented on this platform/i,
+      /^Error:\s*not implemented$/i,
+      /SecurityError.*insecure/i,
+      /Error invoking postMessage/i,
+      /^Error:\s*oa$/i,
     ],
     beforeSend(event, hint) {
       if (event.request?.headers?.Authorization) {

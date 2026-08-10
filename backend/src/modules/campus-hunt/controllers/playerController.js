@@ -441,6 +441,7 @@ async function unlockTeamRoster(req, res, next) {
     const {
       readTeamPassword,
       passwordsMatch,
+      isCredentialVaultUnreadable,
     } = require('../services/teamGateService');
     const { normalizeTeamCode } = require('../utils/teamCode');
     const password = String(req.body?.password || '').trim();
@@ -467,6 +468,14 @@ async function unlockTeamRoster(req, res, next) {
 
     if (!team) {
       return res.status(401).json({ success: false, message: 'Wrong team or password' });
+    }
+
+    if (isCredentialVaultUnreadable(team)) {
+      return res.status(409).json({
+        success: false,
+        message: 'Team password vault needs reset. Organizer: set this team’s password again in Admin → Teams.',
+        code: 'CREDENTIAL_VAULT_RESET_REQUIRED',
+      });
     }
 
     const expected = readTeamPassword(team);
@@ -543,6 +552,7 @@ async function enterTeamAsMember(req, res, next) {
       readTeamPassword,
       passwordsMatch,
       resolveRosterUserId,
+      isCredentialVaultUnreadable,
     } = require('../services/teamGateService');
     const { normalizeTeamCode } = require('../utils/teamCode');
 
@@ -578,6 +588,14 @@ async function enterTeamAsMember(req, res, next) {
 
     if (!team) {
       return res.status(401).json({ success: false, message: 'Invalid team credentials' });
+    }
+
+    if (isCredentialVaultUnreadable(team)) {
+      return res.status(409).json({
+        success: false,
+        message: 'Team password vault needs reset. Organizer: set this team’s password again in Admin → Teams.',
+        code: 'CREDENTIAL_VAULT_RESET_REQUIRED',
+      });
     }
 
     const expected = readTeamPassword(team);

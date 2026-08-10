@@ -18,6 +18,19 @@ function readTeamPassword(team) {
   return '';
 }
 
+/** True when ciphertext exists but no key can decrypt it (key rotation / wrong env). */
+function isCredentialVaultUnreadable(team) {
+  const pack = team?.accessPack || {};
+  const blobs = [
+    pack.encryptedTeamPassword,
+    pack.leader?.encryptedPassword,
+    pack.encryptedSharedScannerPassword,
+  ];
+  const hasCiphertext = blobs.some((v) => String(v || '').startsWith('v1.'));
+  if (!hasCiphertext) return false;
+  return !readTeamPassword(team);
+}
+
 function passwordsMatch(provided, expected) {
   const a = String(provided || '').trim();
   const b = String(expected || '').trim();
@@ -104,6 +117,7 @@ function resolveRosterUserId(team, role, slot) {
 module.exports = {
   readTeamPassword,
   passwordsMatch,
+  isCredentialVaultUnreadable,
   setTeamSharedPassword,
   resolveRosterUserId,
 };
