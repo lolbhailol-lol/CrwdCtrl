@@ -404,7 +404,8 @@ export default function Clue2VariantManager({
         <h2 className="text-base font-semibold text-white">3. Who goes where · 3-digit codes</h2>
         <p className="mt-1 text-xs text-white/50">
           Second stop = next campus place after Clue 1. Assign each team’s code here.
-          After they crack it they scan the SECOND SCAN poster at that place.
+          After they crack it they scan the shared green SECOND SCAN QR at that place,
+          then enter their team code.
         </p>
         <div className="mt-3 grid gap-2 md:grid-cols-2">
           {arrivalPlan.map((place) => (
@@ -470,8 +471,8 @@ export default function Clue2VariantManager({
       {message && <p className="text-xs text-[#0ECCEE]">{message}</p>}
       {error && <p className="text-xs text-amber-200">{error}</p>}
       <p className="text-[11px] text-white/40">
-        Same flow as Clue 1: update/create SECOND SCAN posters, save each team’s code, then bind dashboards.
-        Early SECOND QR scans stay rejected until Clue 2 is solved.
+        Same flow as Clue 1: keep shared SECOND SCAN QRs linked, save each team’s code, then bind dashboards.
+        Early SECOND QR scans stay rejected until Clue 2 is solved; unlock needs team code after 4/4.
       </p>
     </div>
   );

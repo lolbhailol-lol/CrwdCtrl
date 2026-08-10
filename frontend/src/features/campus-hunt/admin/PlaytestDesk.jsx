@@ -28,11 +28,11 @@ function stationForTeam(stations, teamCode, keyPrefix) {
 const SCAN_CARDS = [
   {
     id: '1',
-    label: 'Yellow',
+    label: 'Orange',
     next: '→ Clue 2',
-    color: 'border-yellow-400/50 bg-yellow-500/15',
-    btn: 'bg-yellow-400 text-black',
-    codeClass: 'text-yellow-200',
+    color: 'border-orange-400/50 bg-orange-500/15',
+    btn: 'bg-orange-500 text-white',
+    codeClass: 'text-orange-200',
   },
   {
     id: '2',
@@ -76,10 +76,10 @@ export default function PlaytestDesk({
   }, [sorted, teamId]);
 
   const team = sorted.find((t) => String(t._id) === String(teamId)) || null;
-  const yellow = stationForTeam(stations, team?.teamCode, '1');
+  const Orange = stationForTeam(stations, team?.teamCode, '1');
   const green = stationForTeam(stations, team?.teamCode, '2');
   const blue = stationForTeam(stations, team?.teamCode, '3');
-  const stationByScan = { 1: yellow, 2: green, 3: blue };
+  const stationByScan = { 1: Orange, 2: green, 3: blue };
 
   const playPath = eventSlug ? CAMPUS_HUNT_PATHS.play(eventSlug) : '';
   const teamLoginPath = eventSlug && team?.teamCode
@@ -156,7 +156,7 @@ export default function PlaytestDesk({
       });
       const labels = (res.data?.scans || []).map((row) => row.label).join(', ');
       const tips = {
-        1: 'Yellow done → solve Clue 2 on phone (or tap Green next)',
+        1: 'Orange done → solve Clue 2 on phone (or tap Green next)',
         2: 'Green done → solve Clue 3 Caesar on phone, then Blue',
         3: 'Blue done → solve Final on phone, then Mark finish',
         all: 'All scans forced. Refresh player · do any missing clues · Mark finish',
@@ -227,7 +227,7 @@ export default function PlaytestDesk({
           </p>
           <h2 className="mt-1 text-lg font-bold text-white">One team · tap in order</h2>
           <p className="mt-1 text-sm text-white/55">
-            Release → Yellow → Green → Clue 3 on phone → Blue → Final on phone → Finish
+            Release → Orange → Green → Clue 3 on phone → Blue → Final on phone → Finish
           </p>
         </div>
         {roundStatus && (
@@ -412,7 +412,7 @@ export default function PlaytestDesk({
             onClick={() => completeScan('all')}
             className="rounded-lg bg-amber-400/90 px-2.5 py-1 text-[11px] font-bold text-black disabled:opacity-40"
           >
-            {busy === 'scan-all' ? '…' : 'Do ALL yellow+green+blue'}
+            {busy === 'scan-all' ? '…' : 'Do ALL Orange+green+blue'}
           </button>
         </div>
         <div className="grid gap-3 sm:grid-cols-3">

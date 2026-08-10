@@ -149,35 +149,45 @@ async function bulkSaveClue2({
 
       const station = stationForLocalTeam(localTeamNumber, waitIndex, stations, 1);
       const place = row.place || station.name;
-      const stationCode = row.stationCode || station.code;
-      const checkpointKey = `2-${waveId}`;
-      const code = `R${startCode}-${checkpointKey}`;
+      const stationCode = String(row.stationCode || station.code || '').toUpperCase().trim();
+      const sharedCode = `ST-${stationCode}-2`;
 
       const secondCheckpoint = await CampusHuntCheckpoint.findOneAndUpdate(
-        { eventId, routeId: route._id, checkpointKey },
+        { eventId, code: sharedCode },
         {
           $set: {
             eventId,
             roundId: round._id,
             routeId: route._id,
             startingPointId: point._id,
-            code,
+            code: sharedCode,
             progressionKey: '2',
             checkpointNumber: 2,
-            checkpointKey,
+            checkpointKey: `2-${stationCode}`,
             locationName: place,
             stationCode,
             publicInstruction:
-              `SECOND SCAN at ${place} (team ${localTeamNumber}). `
-              + 'Scan only after Clue 2. This poster is for your team only. '
-              + 'All 4 members scan to unlock Clue 3. '
-              + 'Then pick up your green card and take it.',
+              `Green SECOND SCAN at ${place}. One shared QR for this place. `
+              + 'All 4 team members scan, then enter your team code to unlock Clue 3.',
             sequence: 2,
             active: true,
             compensationPolicyKey: 'skip_and_continue',
+            capacityGuidance: 4,
+            concurrencyGuidance: 'Shared station QR — about 4 teams visit across the event.',
           },
         },
         { upsert: true, new: true, setDefaultsOnInsert: true },
+      );
+
+      await CampusHuntCheckpoint.updateMany(
+        {
+          eventId,
+          progressionKey: '2',
+          stationCode,
+          code: { $not: /^ST-/i },
+          active: true,
+        },
+        { $set: { active: false } },
       );
 
       const variantKey = `${startCode}-${waveId}`;
@@ -201,8 +211,8 @@ async function bulkSaveClue2({
             answer,
             acceptedAnswers: [answer],
             destinationInstruction:
-              `Go to ${place} now. Find your team’s green SECOND SCAN QR. `
-              + 'All 4 members scan to unlock Clue 3.',
+              `Go to ${place} now. Find the shared green SECOND SCAN QR. `
+              + 'All 4 members scan, then enter your team code to unlock Clue 3.',
             hintText: 'Check posts, pillars, and notice boards at eye level.',
             basePoints: 0,
             maxAttempts: clue2Scoring.maxAttempts,

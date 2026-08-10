@@ -603,8 +603,8 @@ export default function Clue1VariantManager({
         )}
       </div>
       <p className="text-[11px] text-white/40">
-        Save binds all 40 teams. Then print team-named posters below. Lock Schedule before live release.
-        After 4 members scan their poster, Clue 2 unlocks.
+        Save binds all 40 teams. Then print the 10 shared Orange QRs below. Lock Schedule before live release.
+        After 4 members scan and enter the team code, Clue 2 unlocks.
       </p>
       {message && <p className="text-sm text-[#0ECCEE]">{message}</p>}
       {error && <p className="text-sm text-amber-200">{error}</p>}

@@ -16,6 +16,7 @@ import {
   submitChallengeAnswer,
   requestChallengeHint,
   scanStationCheckpoint,
+  confirmStationCheckpoint,
   forceUnlockClue2,
 } from '../services/campusHunt.api';
 import PlayerInstructionBox from './PlayerInstructionBox';
@@ -77,6 +78,7 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
   const [successText, setSuccessText] = useState('');
   const [showScanner, setShowScanner] = useState(false);
   const [showPaste, setShowPaste] = useState(false);
+  const [claimCode, setClaimCode] = useState('');
   const [awardedFlash, setAwardedFlash] = useState(null);
   const prevStageRef = useRef(team?.currentStage);
 
@@ -129,7 +131,7 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
     : atStartReport
       ? '#EF4444'
       : waitingForRelease
-        ? '#F59E0B'
+        ? '#F97316'
         : activeNum
           ? clueTheme.hex
           : '#0ECCEE';
@@ -169,7 +171,7 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
         setAnswer('');
         const pts = res.data.awardedPoints ?? 0;
         if (activeNum === 1) {
-          celebrate(pts > 0 ? `Correct! +${pts} pts` : 'Correct! Head to yellow scan');
+          celebrate(pts > 0 ? `Correct! +${pts} pts` : 'Correct! Head to Orange scan');
           setAwardedFlash(pts > 0 ? pts : null);
         } else if (activeNum === 2) {
           celebrate(
@@ -246,20 +248,50 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
     setFeedback('');
     try {
       const res = await scanStationCheckpoint(team.id, raw);
+      const awaiting = Boolean(res.data?.awaitingTeamCodeConfirm || res.data?.verifiedCount >= 4);
       const unlocked = Boolean(
         res.data?.unlockedNext
         || res.data?.unlockedClue2
-        || res.data?.unlockedClue3
-        || res.data?.verifiedCount >= 4,
+        || res.data?.unlockedClue3,
       );
       setFeedback(res.data?.message || 'Scanned');
+      if (unlocked || awaiting) {
+        setShowScanner(false);
+      }
       if (unlocked) {
         celebrate(res.data?.message || 'All set — next step unlocked!');
-        setShowScanner(false);
       }
       applyResult(res.data);
     } catch (err) {
       setFeedback(err.message || 'Scan failed — use the station poster QR');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onStationClaim = async (e) => {
+    e?.preventDefault?.();
+    if (busy) return;
+    const code = String(claimCode || team?.teamCode || '').trim();
+    if (!code) {
+      setFeedback('Enter your team code');
+      return;
+    }
+    setBusy(true);
+    setFeedback('');
+    try {
+      const res = await confirmStationCheckpoint(team.id, {
+        teamCode: code,
+        checkpointId: checkpointStatus?.checkpointId,
+      });
+      setFeedback(res.data?.message || 'Confirmed');
+      if (res.data?.unlockedNext) {
+        celebrate(res.data?.message || 'Clue unlocked!');
+        setClaimCode('');
+      }
+      applyResult(res.data);
+    } catch (err) {
+      setFeedback(err.message || 'Team code confirm failed');
     } finally {
       setBusy(false);
     }
@@ -360,7 +392,7 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
           )}
 
           {waitingForRelease && (
-            <section className={`${panel} space-y-4 text-center`} style={{ borderColor: '#F59E0B55' }}>
+            <section className={`${panel} space-y-4 text-center`} style={{ borderColor: '#F9731655' }}>
               {team.scheduledStartAt ? (
                 <>
                   <div>
@@ -440,30 +472,22 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
                 </div>
               </div>
 
-              {(checkpointStatus.posterLabel || team.teamCode || team.teamName) && (
-                <div className="rounded-xl bg-black/25 px-3 py-3 text-center">
-                  <p className="text-[10px] uppercase tracking-wide text-white/40">Your card</p>
-                  <p className="mt-0.5 font-mono text-lg font-semibold">
-                    {teamPrimaryLabel({
-                      teamCode: checkpointStatus.posterLabel?.teamCode || team.teamCode,
-                      teamName: checkpointStatus.posterLabel?.teamName || team.teamName,
-                    })}
-                  </p>
-                  {teamSecondaryName({
-                    teamCode: checkpointStatus.posterLabel?.teamCode || team.teamCode,
-                    teamName: checkpointStatus.posterLabel?.teamName || team.teamName,
-                  }) ? (
-                    <p className="text-sm" style={{ color: checkpointTheme.hex }}>
-                      {teamSecondaryName({
-                        teamCode: checkpointStatus.posterLabel?.teamCode || team.teamCode,
-                        teamName: checkpointStatus.posterLabel?.teamName || team.teamName,
-                      })}
-                    </p>
-                  ) : null}
-                </div>
-              )}
+              <div className="rounded-xl bg-black/25 px-3 py-3 text-center">
+                <p className="text-[10px] uppercase tracking-wide text-white/40">Shared station QR</p>
+                <p className="mt-0.5 font-mono text-lg font-semibold">
+                  {teamPrimaryLabel({
+                    teamCode: team.teamCode,
+                    teamName: team.teamName,
+                  })}
+                </p>
+                <p className="mt-1 text-xs text-white/50">
+                  All 4 scan the same poster, then enter team code
+                </p>
+              </div>
 
-              {!checkpointStatus.youScanned && (
+              {!checkpointStatus.youScanned
+                && !checkpointStatus.awaitingTeamCodeConfirm
+                && checkpointStatus.verifiedCount < 4 && (
                 <>
                   <button
                     type="button"
@@ -544,10 +568,37 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
                 </ul>
               )}
 
-              {checkpointStatus.youScanned && checkpointStatus.verifiedCount < 4 && (
+              {checkpointStatus.youScanned
+                && checkpointStatus.verifiedCount < 4
+                && !checkpointStatus.awaitingTeamCodeConfirm && (
                 <p className="text-center text-sm text-emerald-300/90">
                   You scanned · waiting for {checkpointStatus.membersNeeded} more
                 </p>
+              )}
+
+              {(checkpointStatus.awaitingTeamCodeConfirm
+                || (checkpointStatus.verifiedCount >= 4
+                  && checkpointStatus.status !== 'complete')) && (
+                <form onSubmit={onStationClaim} className="space-y-2 rounded-xl border border-white/10 bg-black/30 p-3">
+                  <p className="text-center text-sm text-emerald-200/90">
+                    All 4 scanned — enter your team code to unlock your clue
+                  </p>
+                  <input
+                    value={claimCode}
+                    onChange={(e) => setClaimCode(e.target.value.toUpperCase())}
+                    placeholder={team.teamCode || 'CC001'}
+                    autoComplete="off"
+                    className="w-full rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-center font-mono text-lg tracking-wider uppercase outline-none focus:border-white/25"
+                  />
+                  <button
+                    type="submit"
+                    disabled={busy}
+                    className="w-full rounded-2xl py-3.5 text-sm font-bold text-black disabled:opacity-50"
+                    style={{ background: checkpointTheme.hex }}
+                  >
+                    Confirm team code
+                  </button>
+                </form>
               )}
 
               {import.meta.env.DEV && import.meta.env.VITE_CAMPUS_HUNT_DEV_CHEATS === '1' && (
@@ -625,10 +676,10 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
               <h3 className="text-lg font-semibold text-white">Stay with your leader</h3>
               <p className="text-sm text-white/65">
                 Only the Team Leader types the answer on their phone.
-                You&apos;ll scan the yellow card together next.
+                You&apos;ll scan the Orange card together next.
               </p>
               <p className="rounded-xl bg-black/25 px-3 py-2 text-xs text-white/45">
-                Keep this screen open — it unlocks the yellow scan automatically.
+                Keep this screen open — it unlocks the Orange scan automatically.
               </p>
             </motion.section>
           )}
@@ -799,7 +850,7 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
                 {(team.currentStage === 'CLUE_1_COMPLETED'
                   ? clue1?.destinationInstruction
                   : challenges.find((c) => c.challengeNumber === 2)?.destinationInstruction)
-                  || 'Go to the next place. All 4 members must scan your team card.'}
+                  || 'Go to the next place. All 4 members scan the shared QR, then enter your team code.'}
               </p>
             </section>
           )}

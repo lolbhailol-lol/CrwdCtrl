@@ -1,5 +1,5 @@
 const STEPS = [
-  ['1 · Clues', 'Bootstrap, save Clue 1→Final, print yellow/green/blue cards'],
+  ['1 · Clues', 'Bootstrap, save Clue 1→Final, print 10 Orange / 10 green / 10 blue shared QRs'],
   ['2 · Locations', 'Confirm 4 starting points (Library · Chanakya · Design · Vyas)'],
   ['3 · Teams', '40 teams · one login link each · shared password · leader + 3 players'],
   ['4 · Schedule', 'Preview → Generate → Lock (needs CP1+CP2+CP3 on every team)'],
@@ -9,8 +9,9 @@ const STEPS = [
 
 const TERMS = [
   ['Starting point', 'Gather here (Library · Chanakya · Design · Vyas). Not a hunt scan stop.'],
-  ['Campus place', 'One of 10 hunt scan spots. Exactly 4 teams; print 4 team-named QR cards.'],
-  ['Yellow → Green → Blue → Red', 'Clue 1 scan → Clue 2 → green scan → Clue 3 riddle → blue scan → Final → report to start.'],
+  ['Campus place', 'One of 10 hunt scan spots. ~4 teams visit; print 1 shared QR per place × color.'],
+  ['Shared QR + team code', 'All 4 scan the place QR → enter your team code → get your allotted clue.'],
+  ['Orange → Green → Blue → Red', 'Orange scan → Clue 2 → green scan → Clue 3 riddle → blue scan → Final → report to start.'],
   ['Scoring', '≈50 per clue · hints −15 · late still advances at 0 · ties broken by time/hints/fails.'],
   ['Finish', 'Players report to their start with team number. Organizer marks reached on Live (not a player QR).'],
   ['Team login', 'Share /team/CC001 + that team’s unique password. Names unlock after password. No hopping teams.'],
@@ -18,12 +19,12 @@ const TERMS = [
 
 const TEST_FLOW = [
   ['Prep', 'Clues saved · Locations A–D · Teams ready · Schedule Preview → Generate → Lock · Start with 90+ min'],
-  ['Playtest desk', 'Live tab → pick team → Release → Yellow/Green/Blue 4/4 → Mark finish'],
+  ['Playtest desk', 'Live tab → pick team → Release → Orange/Green/Blue 4/4 + team code → Mark finish'],
   ['Team login', 'Open /team/CC001 → that team’s password → tap Leader / Player'],
-  ['Clue 1', 'Leader only sees Clue 1 · Players wait · then all 4 scan yellow'],
-  ['Yellow scan', 'Copy yellow CH- from Playtest · paste on all 4 member phones'],
-  ['Clue 2 → Green', 'Leader solves Clue 2 → paste green code ×4'],
-  ['Blue → Final', 'Clue 3 Caesar → Blue scan ×4 → Final word → Mark finish on Playtest'],
+  ['Clue 1', 'Leader only sees Clue 1 · Players wait · then all 4 scan Orange'],
+  ['Orange scan', 'Paste shared Orange CH- on all 4 phones → enter team code → Clue 2'],
+  ['Clue 2 → Green', 'Leader solves Clue 2 → paste green code ×4 → team code → Clue 3'],
+  ['Blue → Final', 'Clue 3 Caesar → Blue scan ×4 → team code → Final word → Mark finish'],
 ];
 
 const RESET_STEPS = [
@@ -35,8 +36,8 @@ const RESET_STEPS = [
 ];
 
 const SCAN_TIPS = [
-  ['Paste codes', 'Live → Emergency · station codes → Copy CH-… → player “Submit station code”'],
-  ['Camera', 'Player: Open camera to scan station QR on the printed card'],
+  ['Paste codes', 'Live → Emergency · station codes → Copy CH-… → player “Submit station code” → enter team code'],
+  ['Camera', 'Player: scan the shared station QR on the printed poster, then enter team code'],
   ['Dev cheat', 'Local only: VITE_CAMPUS_HUNT_DEV_CHEATS=1 + CAMPUS_HUNT_DEV_CHEATS=1 → “Dev: scan all 4 & continue”'],
 ];
 

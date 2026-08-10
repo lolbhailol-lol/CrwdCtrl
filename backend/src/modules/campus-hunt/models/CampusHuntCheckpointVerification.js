@@ -28,7 +28,7 @@ const campusHuntCheckpointVerificationSchema = new mongoose.Schema(
     volunteerLabel: { type: String },
     status: {
       type: String,
-      enum: ['in_progress', 'complete', 'manual_reconciled'],
+      enum: ['in_progress', 'awaiting_claim', 'complete', 'manual_reconciled'],
       default: 'in_progress',
       index: true,
     },

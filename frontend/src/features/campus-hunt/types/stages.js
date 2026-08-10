@@ -1,7 +1,7 @@
 export const STAGE_LABELS = {
   WAITING: 'Waiting to start',
   CLUE_1_ACTIVE: 'Clue 1',
-  CLUE_1_COMPLETED: 'Scan station QR (all members)',
+  CLUE_1_COMPLETED: 'Scan Orange shared QR (all members)',
   CHECKPOINT_1_COMPLETED: 'Checkpoint 1 done',
   CLUE_2_ACTIVE: 'Clue 2',
   CLUE_2_COMPLETED: 'Go scan green SECOND SCAN',
@@ -9,8 +9,8 @@ export const STAGE_LABELS = {
   CLUE_2_TIMEOUT: 'Go scan green SECOND SCAN',
   CHECKPOINT_2_COMPLETED: 'Clue 3 unlocking…',
   CLUE_3_ACTIVE: 'Clue 3 — Decode',
-  CLUE_3_COMPLETED: 'Find blue Checkpoint 3 card & scan',
-  CLUE_3_FAILED: 'Find blue Checkpoint 3 card & scan',
+  CLUE_3_COMPLETED: 'Find blue shared QR & scan',
+  CLUE_3_FAILED: 'Find blue shared QR & scan',
   CHECKPOINT_3_COMPLETED: 'Checkpoint 3 done',
   CLUE_4_ACTIVE: 'Final clue — combine 4 codes',
   CLUE_4_COMPLETED: 'Report to your start · ask organizer',
@@ -78,12 +78,14 @@ export function huntProgressFromStage(stage) {
   });
 
   let currentLabel = STAGE_LABELS[s] || s;
-  if (s === 'CLUE_1_COMPLETED') currentLabel = 'Go scan yellow FIRST SCAN card (all members)';
+  if (s === 'CLUE_1_COMPLETED') {
+    currentLabel = 'Go scan Orange shared QR · all 4 · then enter team code';
+  }
   if (['CLUE_2_COMPLETED', 'CLUE_2_FAILED', 'CLUE_2_TIMEOUT'].includes(s)) {
-    currentLabel = 'Go to next place · find your green QR · all 4 scan → Clue 3';
+    currentLabel = 'Go scan green shared QR · all 4 · then enter team code → Clue 3';
   }
   if (['CLUE_3_COMPLETED', 'CLUE_3_FAILED'].includes(s)) {
-    currentLabel = 'Go to next place · find blue Checkpoint 3 card & scan → Final';
+    currentLabel = 'Go scan blue shared QR · all 4 · then enter team code → Final';
   }
   if (['CLUE_4_COMPLETED', 'CLUE_4_FAILED'].includes(s)) {
     currentLabel = 'Report to your start · ask organizer to mark reached';

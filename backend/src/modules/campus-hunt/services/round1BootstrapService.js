@@ -4,9 +4,9 @@
  *
  * Starting points (Library / Chanakya / Design / Vyas) are HOLD points only.
  * Hunt scans use a separate list of ~10 campus stations.
- * Clue 1: first stops are shuffled by starting point so simultaneous releases
- * do not pile into one place (Library T1 → Food Court, Chanakya T1 →
- * Amphitheatre, …). Each station still gets 4 teams total across waves.
+ * Each station has ONE shared QR per progression (CP1 / CP2 / CP3).
+ * ~4 teams arrive per station across waves; all scan the same poster,
+ * then confirm team code to unlock their allotted clue.
  */
 
 const CampusHuntEvent = require('../models/CampusHuntEvent');
@@ -73,7 +73,8 @@ function clue1ForPlace(place) {
       `Your first scan is waiting on campus. Read the marks, follow the crowd of clues, `
       + `and name the place: ${name}.`,
     answer: name,
-    destinationInstruction: `Go to ${name}. All four members scan there.`,
+    destinationInstruction:
+      `Go to ${name}. All four members scan the shared QR, then enter your team code.`,
     hintText: `Ask staff for the way to ${name}.`,
   };
 }
@@ -90,8 +91,8 @@ function routeClueDefaults(challengeNumber, destination) {
       answer: '',
       hintText: 'Check posts, pillars, and notice boards at eye level.',
       destinationInstruction:
-        'Go to your next location now. Find your team’s green SECOND SCAN QR — '
-        + 'all 4 members scan to unlock Clue 3.',
+        'Go to your next location now. Find the shared green SECOND SCAN QR — '
+        + 'all 4 members scan, then enter your team code to unlock Clue 3.',
       memberPrompts: ['', '', '', ''],
     };
   }
@@ -104,8 +105,8 @@ function routeClueDefaults(challengeNumber, destination) {
       answer: place,
       hintText: 'Caesar shift of 3 — A becomes D, B becomes E… Spaces stay spaces.',
       destinationInstruction:
-        'Riddle solved — go find your blue Checkpoint 3 card at that place. '
-        + 'All 4 members scan to unlock Final.',
+        'Riddle solved — go find the shared blue THIRD SCAN QR at that place. '
+        + 'All 4 members scan, then enter your team code to unlock Final.',
       memberPrompts: ['', '', '', ''],
     };
   }
@@ -163,21 +164,6 @@ function caesarShift(text, shift = 3) {
   });
 }
 
-/** @deprecated */
-function alternatingFirstPair(waitIndex = 0, stations = HUNT_STATIONS) {
-  const stops = rotatingFirstStops(waitIndex, stations);
-  return [stops[0], stops[1]];
-}
-
-/** Clues 2–4 path for a wait (offset across the 10 stations). */
-function visitOrderForStart(startIndex, stations = HUNT_STATIONS) {
-  const list = stations?.length ? stations : HUNT_STATIONS;
-  const base = (Number(startIndex) || 0) * 2;
-  return [0, 1, 2, 3].map((offset) => (
-    list[(base + offset + 1) % list.length]
-  ));
-}
-
 function padTeam(n) {
   return `CC${String(n).padStart(3, '0')}`;
 }
@@ -194,10 +180,10 @@ async function ensureRound(event) {
       assignmentStrategy: 'route_balanced',
       scheduleStatus: 'draft',
       qualification: {
-        topNDirectFinale: 8,
-        survivalTeams: 32,
-        lastChanceTeams: 12,
-        finaleTeams: 5,
+        topNDirectFinale: 5,
+        survivalTeams: 35,
+        lastChanceTeams: 0,
+        finaleTeams: 12,
         nextRoundName: 'SURVIVAL_STAGE',
       },
     });
@@ -208,10 +194,10 @@ async function ensureRound(event) {
     if (!round.assignmentStrategy) round.assignmentStrategy = 'route_balanced';
     round.qualification = {
       ...(round.qualification?.toObject?.() || round.qualification || {}),
-      topNDirectFinale: 8,
-      survivalTeams: 32,
-      lastChanceTeams: 12,
-      finaleTeams: 5,
+      topNDirectFinale: 5,
+      survivalTeams: 35,
+      lastChanceTeams: 0,
+      finaleTeams: 12,
       nextRoundName: 'SURVIVAL_STAGE',
     };
     await round.save();
@@ -278,6 +264,74 @@ async function ensureRoutes(event, teamCapacity = 40) {
   return routes;
 }
 
+/**
+ * One shared checkpoint QR per campus station × progression (1/2/3).
+ * Anchored on the first route for schema routeId; eligibility ignores route for these.
+ */
+async function ensureSharedStationCheckpoints(event, round, anchorRoute, stations, capacity) {
+  const map = new Map();
+  let created = 0;
+  const stages = [
+    { key: '1', num: 1, seq: 1, label: 'orange FIRST SCAN' },
+    { key: '2', num: 2, seq: 2, label: 'green SECOND SCAN' },
+    { key: '3', num: 3, seq: 3, label: 'blue THIRD SCAN' },
+  ];
+  for (const station of stations) {
+    for (const prog of stages) {
+      const checkpointKey = `${prog.key}-${station.code}`;
+      const code = `ST-${station.code}-${prog.key}`;
+      // eslint-disable-next-line no-await-in-loop
+      const cp = await CampusHuntCheckpoint.findOneAndUpdate(
+        { eventId: event._id, code },
+        {
+          $set: {
+            eventId: event._id,
+            roundId: round._id,
+            routeId: anchorRoute._id,
+            code,
+            progressionKey: prog.key,
+            checkpointNumber: prog.num,
+            checkpointKey,
+            locationName: station.name,
+            stationCode: station.code,
+            publicInstruction:
+              `${prog.label} at ${station.name}. One shared QR for this place. `
+              + 'All 4 team members scan, then enter your team code to unlock your allotted clue.',
+            sequence: prog.seq,
+            capacityGuidance: capacity,
+            concurrencyGuidance:
+              `Shared station QR — about ${TARGET_TEAMS_PER_STATION} teams visit this place across the event.`,
+            active: true,
+            compensationPolicyKey: 'skip_and_continue',
+            allowedTeamIds: [],
+          },
+        },
+        { upsert: true, new: true },
+      );
+      map.set(`${prog.key}:${station.code}`, cp);
+      created += 1;
+    }
+  }
+
+  // Retire legacy team-bound wave posters (R{A}-1-T1, etc.)
+  const retired = await CampusHuntCheckpoint.updateMany(
+    {
+      eventId: event._id,
+      roundId: round._id,
+      progressionKey: { $in: ['1', '2', '3'] },
+      code: { $not: /^ST-/i },
+    },
+    {
+      $set: {
+        active: false,
+        concurrencyGuidance: 'Retired — replaced by one shared ST-{station}-N QR per place.',
+      },
+    },
+  );
+
+  return { map, created, retired: retired.modifiedCount || 0 };
+}
+
 async function ensureCheckpointsAndClues(
   event,
   round,
@@ -293,6 +347,19 @@ async function ensureCheckpointsAndClues(
   const pointsByCode = new Map(
     startingPoints.map((point) => [String(point.code || '').toUpperCase(), point]),
   );
+
+  if (!routes.length) {
+    return { checkpointCount: 0, clueCount: 0, retiredWaitNamedCheckpoints: 0 };
+  }
+
+  const shared = await ensureSharedStationCheckpoints(
+    event,
+    round,
+    routes[0],
+    stations,
+    capacity,
+  );
+  checkpointCount += shared.created;
 
   for (let routeIndex = 0; routeIndex < routes.length; routeIndex += 1) {
     const route = routes[routeIndex];
@@ -345,169 +412,106 @@ async function ensureCheckpointsAndClues(
     ];
 
     for (const first of firstStopDefs) {
+      const firstCheckpoint = shared.map.get(`1:${first.station.code}`);
+      if (!startingPoint || !firstCheckpoint) {
+        // eslint-disable-next-line no-continue
+        continue;
+      }
+
+      const variantKey = `${startStation.code}-${first.wave}`;
+      const clue1 = clue1ForPlace(first.station.name);
       // eslint-disable-next-line no-await-in-loop
-      const firstCheckpoint = await CampusHuntCheckpoint.findOneAndUpdate(
-        { eventId: event._id, routeId: route._id, checkpointKey: first.key },
+      await CampusHuntChallenge.findOneAndUpdate(
+        {
+          eventId: event._id,
+          roundId: round._id,
+          routeId: route._id,
+          challengeNumber: 1,
+          variantKey,
+        },
         {
           $set: {
             eventId: event._id,
             roundId: round._id,
             routeId: route._id,
-            startingPointId: startingPoint?._id,
-            code: `R${key}-${first.key}`,
-            progressionKey: '1',
-            checkpointNumber: 1,
-            checkpointKey: first.key,
-            locationName: first.station.name,
-            stationCode: first.station.code,
-            publicInstruction:
-              `FIRST SCAN at ${first.station.name} (${first.teamLabel}). `
-              + 'This card is for your team only — other QRs at this spot will not work. '
-              + 'All 4 members scan to unlock Clue 2. '
-              + 'Then pick up your card and take it so the next teams only find theirs.',
-            sequence: 1,
-            capacityGuidance: capacity,
-            concurrencyGuidance:
-              `Target ${TARGET_TEAMS_PER_STATION} teams per campus station across the event. `
-              + 'First stops are shuffled by starting point so parallel releases do not pile up. '
-              + 'Starting points (Library/Chanakya/Design/Vyas) are gather spots only.',
-            active: true,
-            compensationPolicyKey: 'skip_and_continue',
-          },
-        },
-        { upsert: true, new: true },
-      );
-      checkpointCount += 1;
-
-      if (startingPoint && firstCheckpoint) {
-        const variantKey = `${startStation.code}-${first.wave}`;
-        const clue1 = clue1ForPlace(first.station.name);
-        // eslint-disable-next-line no-await-in-loop
-        await CampusHuntChallenge.findOneAndUpdate(
-          {
-            eventId: event._id,
-            roundId: round._id,
-            routeId: route._id,
+            startingPointId: startingPoint._id,
+            firstCheckpointId: firstCheckpoint._id,
             challengeNumber: 1,
+            type: 'navigation',
+            prompt: clue1.prompt,
+            answer: clue1.answer,
+            acceptedAnswers: [
+              first.station.code.toLowerCase(),
+              first.station.name.toLowerCase(),
+            ],
+            destinationInstruction:
+              `Go to ${first.station.name}. All four members scan the shared orange QR, `
+              + 'then enter your team code to unlock Clue 2.',
+            basePoints: scoring.clue1?.basePoints ?? DEFAULT_SCORING_CONFIG.clue1.basePoints ?? 50,
+            maxAttempts: scoring.clue1?.maxAttempts || 3,
+            timerSeconds: 0,
+            hintText: clue1.hintText,
+            hintCost: scoring.hintCost || 15,
+            difficulty: 'medium',
             variantKey,
+            active: true,
           },
-          {
-            $set: {
-              eventId: event._id,
-              roundId: round._id,
-              routeId: route._id,
-              startingPointId: startingPoint._id,
-              firstCheckpointId: firstCheckpoint._id,
-              challengeNumber: 1,
-              type: 'navigation',
-              prompt: clue1.prompt,
-              answer: clue1.answer,
-              acceptedAnswers: [
-                first.station.code.toLowerCase(),
-                first.station.name.toLowerCase(),
-              ],
-              destinationInstruction: clue1.destinationInstruction,
-              basePoints: scoring.clue1?.basePoints ?? DEFAULT_SCORING_CONFIG.clue1.basePoints ?? 50,
-              maxAttempts: scoring.clue1?.maxAttempts || 3,
-              timerSeconds: 0,
-              hintText: clue1.hintText,
-              hintCost: scoring.hintCost || 15,
-              difficulty: 'medium',
-              variantKey,
-              active: true,
-            },
-          },
-          { upsert: true },
-        );
-        clueCount += 1;
-      }
+        },
+        { upsert: true },
+      );
+      clueCount += 1;
     }
 
-    // Checkpoint 2 + Clue 2 variants (10 waves × team-bound SECOND SCAN)
+    // Clue 2 variants → shared green SECOND SCAN QR at next station
     for (const second of secondStopDefs) {
+      const secondCheckpoint = shared.map.get(`2:${second.station.code}`);
+      if (!startingPoint || !secondCheckpoint) {
+        // eslint-disable-next-line no-continue
+        continue;
+      }
+
+      const variantKey = `${startStation.code}-${second.wave}`;
+      const clue2Defaults = routeClueDefaults(2, second.station.name);
       // eslint-disable-next-line no-await-in-loop
-      const secondCheckpoint = await CampusHuntCheckpoint.findOneAndUpdate(
-        { eventId: event._id, routeId: route._id, checkpointKey: second.key },
+      await CampusHuntChallenge.findOneAndUpdate(
+        {
+          eventId: event._id,
+          roundId: round._id,
+          routeId: route._id,
+          challengeNumber: 2,
+          variantKey,
+        },
         {
           $set: {
             eventId: event._id,
             roundId: round._id,
             routeId: route._id,
-            startingPointId: startingPoint?._id,
-            code: `R${key}-${second.key}`,
-            progressionKey: '2',
-            checkpointNumber: 2,
-            checkpointKey: second.key,
-            locationName: second.station.name,
-            stationCode: second.station.code,
-            publicInstruction:
-              `SECOND SCAN at ${second.station.name} (${second.teamLabel}). `
-              + 'Scan only after Clue 2. This card is for your team only. '
-              + 'All 4 members scan to unlock Clue 3. '
-              + 'Pick up this green card when you leave.',
-            sequence: 2,
-            capacityGuidance: capacity,
-            concurrencyGuidance:
-              `Target ${TARGET_TEAMS_PER_STATION} teams per campus station for Checkpoint 2. `
-              + 'SECOND SCAN posters sit at the next place after each team’s first stop.',
+            startingPointId: startingPoint._id,
+            secondCheckpointId: secondCheckpoint._id,
+            challengeNumber: 2,
+            type: 'timed_search',
+            prompt: clue2Defaults.prompt,
+            answer: second.code,
+            acceptedAnswers: [second.code],
+            destinationInstruction:
+              `Go to ${second.station.name} now. Find the shared green SECOND SCAN QR. `
+              + 'All 4 members scan, then enter your team code to unlock Clue 3.',
+            basePoints: 0,
+            maxAttempts: scoring.clue2?.maxAttempts || 3,
+            timerSeconds: scoring.clue2?.timerSeconds || 180,
+            speedBonusBands: scoring.clue2?.speedBonusBands || [],
+            hintText: clue2Defaults.hintText,
+            hintCost: scoring.hintCost || 15,
+            difficulty: 'medium',
+            variantKey,
             active: true,
-            compensationPolicyKey: 'skip_and_continue',
           },
         },
-        { upsert: true, new: true },
+        { upsert: true },
       );
-      checkpointCount += 1;
-
-      if (startingPoint && secondCheckpoint) {
-        const variantKey = `${startStation.code}-${second.wave}`;
-        const clue2Defaults = routeClueDefaults(2, second.station.name);
-        // eslint-disable-next-line no-await-in-loop
-        await CampusHuntChallenge.findOneAndUpdate(
-          {
-            eventId: event._id,
-            roundId: round._id,
-            routeId: route._id,
-            challengeNumber: 2,
-            variantKey,
-          },
-          {
-            $set: {
-              eventId: event._id,
-              roundId: round._id,
-              routeId: route._id,
-              startingPointId: startingPoint._id,
-              secondCheckpointId: secondCheckpoint._id,
-              challengeNumber: 2,
-              type: 'timed_search',
-              prompt: clue2Defaults.prompt,
-              answer: second.code,
-              acceptedAnswers: [second.code],
-              destinationInstruction:
-                `Go to ${second.station.name} now. Find your team’s green SECOND SCAN QR. `
-                + 'All 4 members scan to unlock Clue 3.',
-              basePoints: 0,
-              maxAttempts: scoring.clue2?.maxAttempts || 3,
-              timerSeconds: scoring.clue2?.timerSeconds || 180,
-              speedBonusBands: scoring.clue2?.speedBonusBands || [],
-              hintText: clue2Defaults.hintText,
-              hintCost: scoring.hintCost || 15,
-              difficulty: 'medium',
-              variantKey,
-              active: true,
-            },
-          },
-          { upsert: true },
-        );
-        clueCount += 1;
-      }
+      clueCount += 1;
     }
 
-    // Hide legacy shared CP2 (pre–fan-out) so teams only see team posters.
-    // eslint-disable-next-line no-await-in-loop
-    await CampusHuntCheckpoint.updateMany(
-      { eventId: event._id, routeId: route._id, checkpointKey: '2', progressionKey: '2' },
-      { $set: { active: false } },
-    );
     // eslint-disable-next-line no-await-in-loop
     await CampusHuntChallenge.updateMany(
       {
@@ -519,88 +523,53 @@ async function ensureCheckpointsAndClues(
       { $set: { active: false } },
     );
 
-    // Checkpoint 3 + Clue 3 variants (10 waves × team-bound blue THIRD SCAN)
+    // Clue 3 variants → shared blue THIRD SCAN QR
     for (const third of thirdStopDefs) {
+      const thirdCheckpoint = shared.map.get(`3:${third.station.code}`);
+      if (!startingPoint || !thirdCheckpoint) {
+        // eslint-disable-next-line no-continue
+        continue;
+      }
+
+      const variantKey = `${startStation.code}-${third.wave}`;
+      const clue3Defaults = routeClueDefaults(3, third.station.name);
       // eslint-disable-next-line no-await-in-loop
-      const thirdCheckpoint = await CampusHuntCheckpoint.findOneAndUpdate(
-        { eventId: event._id, routeId: route._id, checkpointKey: third.key },
+      await CampusHuntChallenge.findOneAndUpdate(
+        {
+          eventId: event._id,
+          roundId: round._id,
+          routeId: route._id,
+          challengeNumber: 3,
+          variantKey,
+        },
         {
           $set: {
             eventId: event._id,
             roundId: round._id,
             routeId: route._id,
-            startingPointId: startingPoint?._id,
-            code: `R${key}-${third.key}`,
-            progressionKey: '3',
-            checkpointNumber: 3,
-            checkpointKey: third.key,
-            locationName: third.station.name,
-            stationCode: third.station.code,
-            publicInstruction:
-              `THIRD SCAN (blue) at ${third.station.name} (${third.teamLabel}). `
-              + 'Scan only after the Clue 3 riddle. This card is for your team only. '
-              + 'All 4 members scan to unlock the Final clue. '
-              + 'Then pick up your blue card and take it.',
-            sequence: 3,
-            capacityGuidance: capacity,
-            concurrencyGuidance:
-              `Target ${TARGET_TEAMS_PER_STATION} teams per campus station for Checkpoint 3. `
-              + 'Blue cards sit two stops after each team’s first stop.',
+            startingPointId: startingPoint._id,
+            thirdCheckpointId: thirdCheckpoint._id,
+            challengeNumber: 3,
+            type: 'decode',
+            prompt: clue3Defaults.prompt,
+            answer: clue3Defaults.answer,
+            acceptedAnswers: [clue3Defaults.answer].filter(Boolean),
+            destinationInstruction: clue3Defaults.destinationInstruction,
+            basePoints: scoring.clue3?.basePoints ?? DEFAULT_SCORING_CONFIG.clue3.basePoints ?? 50,
+            maxAttempts: scoring.clue3?.maxAttempts || 3,
+            timerSeconds: 0,
+            hintText: clue3Defaults.hintText,
+            hintCost: scoring.hintCost || 15,
+            difficulty: 'medium',
+            variantKey,
             active: true,
-            compensationPolicyKey: 'skip_and_continue',
           },
         },
-        { upsert: true, new: true },
+        { upsert: true },
       );
-      checkpointCount += 1;
-
-      if (startingPoint && thirdCheckpoint) {
-        const variantKey = `${startStation.code}-${third.wave}`;
-        const clue3Defaults = routeClueDefaults(3, third.station.name);
-        // eslint-disable-next-line no-await-in-loop
-        await CampusHuntChallenge.findOneAndUpdate(
-          {
-            eventId: event._id,
-            roundId: round._id,
-            routeId: route._id,
-            challengeNumber: 3,
-            variantKey,
-          },
-          {
-            $set: {
-              eventId: event._id,
-              roundId: round._id,
-              routeId: route._id,
-              startingPointId: startingPoint._id,
-              thirdCheckpointId: thirdCheckpoint._id,
-              challengeNumber: 3,
-              type: 'decode',
-              prompt: clue3Defaults.prompt,
-              answer: clue3Defaults.answer,
-              acceptedAnswers: [clue3Defaults.answer].filter(Boolean),
-              destinationInstruction: clue3Defaults.destinationInstruction,
-              basePoints: scoring.clue3?.basePoints ?? DEFAULT_SCORING_CONFIG.clue3.basePoints ?? 50,
-              maxAttempts: scoring.clue3?.maxAttempts || 3,
-              timerSeconds: 0,
-              hintText: clue3Defaults.hintText,
-              hintCost: scoring.hintCost || 15,
-              difficulty: 'medium',
-              variantKey,
-              active: true,
-            },
-          },
-          { upsert: true },
-        );
-        clueCount += 1;
-      }
+      clueCount += 1;
     }
 
-    // Hide legacy shared CP3 / DEFAULT clue3
-    // eslint-disable-next-line no-await-in-loop
-    await CampusHuntCheckpoint.updateMany(
-      { eventId: event._id, routeId: route._id, checkpointKey: '3', progressionKey: '3' },
-      { $set: { active: false } },
-    );
     // eslint-disable-next-line no-await-in-loop
     await CampusHuntChallenge.updateMany(
       {
@@ -705,6 +674,7 @@ async function ensureCheckpointsAndClues(
     checkpointCount,
     clueCount,
     retiredWaitNamedCheckpoints: retired.modifiedCount || 0,
+    retiredTeamBoundCheckpoints: shared.retired || 0,
   };
 }
 
@@ -911,9 +881,9 @@ async function bootstrapRound1Defaults({
     scheduleHint: {
       releaseIntervalMinutes: 5,
       model:
-        '4 starting points (gather only). 10 campus checkpoints. '
-        + 'First stops shuffled by starting point (Library→Food Court, Chanakya→Amphitheatre, …) '
-        + 'so simultaneous releases avoid crowds; 4 teams/station across the event. '
+        '4 starting points (gather only). 10 campus stations with 1 shared QR each (per scan stage). '
+        + 'First stops shuffled by starting point so simultaneous releases avoid crowds; '
+        + '~4 teams/station across the event. All 4 members scan, then enter team code. '
         + 'Team 1 @ first release, Team 2 +5 min, … Team 10.',
     },
   };
@@ -928,12 +898,10 @@ module.exports = {
   ROUTE_KEYS,
   TEAM_GROUPS,
   TARGET_TEAMS_PER_STATION,
-  visitOrderForStart,
   rotatingFirstStops,
   rotatingSecondStops,
   rotatingThirdStops,
   caesarShift,
   threeDigitCodeForTeam,
-  alternatingFirstPair,
   stationForLocalTeam,
 };

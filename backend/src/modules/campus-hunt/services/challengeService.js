@@ -690,13 +690,14 @@ async function submitAnswer({
   const nextInstruction = Number(challengeNumber) === 2
     ? (
       challenge.destinationInstruction
-      || 'Go to your next location now. Find your team’s green SECOND SCAN QR. '
-        + 'All 4 scan to unlock Clue 3.'
+      || 'Go to your next location now. Find the shared green SECOND SCAN QR. '
+        + 'All 4 scan, then enter your team code to unlock Clue 3.'
     )
     : Number(challengeNumber) === 3
       ? (
         challenge.destinationInstruction
-        || 'Riddle solved — go find your blue Checkpoint 3 card. All 4 members scan to unlock Final.'
+        || 'Riddle solved — go find the shared blue THIRD SCAN QR. '
+          + 'All 4 scan, then enter your team code to unlock Final.'
       )
     : Number(challengeNumber) === 4
       ? (
@@ -718,8 +719,8 @@ async function submitAnswer({
     message: Number(challengeNumber) === 2
       ? (
         award.late
-          ? 'Correct (0 pts — time up). Go scan green SECOND SCAN to unlock Clue 3.'
-          : 'Correct! Go to next place · find green SECOND SCAN · all 4 scan → Clue 3.'
+          ? 'Correct (0 pts — time up). Go scan green SECOND SCAN, then enter team code → Clue 3.'
+          : 'Correct! Go to next place · shared green QR · 4 scan + team code → Clue 3.'
       )
       : Number(challengeNumber) === 4
         ? (

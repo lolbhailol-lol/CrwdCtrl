@@ -307,8 +307,7 @@ async function previewSchedule({
 }
 
 /**
- * Bind each Clue 1 / first-stop QR to exactly the team assigned to it.
- * At each campus spot there are ~4 posters; only the matching team can scan theirs.
+ * Bind visiting teams onto each shared Checkpoint 1 / FIRST SCAN QR (~4 teams per place).
  */
 async function syncFirstCheckpointAllowLists({ eventId, roundId, assignments }) {
   await CampusHuntCheckpoint.updateMany(
@@ -333,7 +332,7 @@ async function syncFirstCheckpointAllowLists({ eventId, roundId, assignments }) 
   return byCheckpoint.size;
 }
 
-/** Bind each Checkpoint 2 / SECOND SCAN poster to exactly one team. */
+/** Bind visiting teams onto each shared Checkpoint 2 / SECOND SCAN QR (~4 teams per place). */
 async function syncSecondCheckpointAllowLists({ eventId, roundId, assignments }) {
   await CampusHuntCheckpoint.updateMany(
     { eventId, roundId, progressionKey: '2' },
@@ -357,7 +356,7 @@ async function syncSecondCheckpointAllowLists({ eventId, roundId, assignments })
   return byCheckpoint.size;
 }
 
-/** Bind each Checkpoint 3 / blue THIRD SCAN card to exactly one team. */
+/** Bind visiting teams onto each shared Checkpoint 3 / THIRD SCAN QR (~4 teams per place). */
 async function syncThirdCheckpointAllowLists({ eventId, roundId, assignments }) {
   await CampusHuntCheckpoint.updateMany(
     { eventId, roundId, progressionKey: '3' },

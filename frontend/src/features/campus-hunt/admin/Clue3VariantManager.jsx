@@ -63,7 +63,7 @@ function resolveThirdCheckpoint(checkpoints, { routeId, waveId, startingPointId 
 }
 
 /**
- * Clue 3: 10 places × 4 teams — edit Caesar riddles, bind blue CP3 cards.
+ * Clue 3: 10 places × ~4 teams — edit Caesar riddles; shared blue CP3 QR per place.
  */
 export default function Clue3VariantManager({
   eventId,
@@ -235,8 +235,9 @@ export default function Clue3VariantManager({
       </div>
 
       <p className="text-xs text-white/50">
-        After green SECOND SCAN, teams get this Caesar riddle on their phone.
-        Decoding it reveals the third place — then they scan the blue card there to unlock Final.
+        After green SECOND SCAN + team code, teams get this Caesar riddle on their phone.
+        Decoding it reveals the third place — then they scan the shared blue QR and enter
+        their team code to unlock Final.
       </p>
 
       <div className="grid gap-3 md:grid-cols-2">

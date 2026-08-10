@@ -43,13 +43,13 @@ const campusHuntChallengeSchema = new mongoose.Schema(
       ref: 'CampusHuntCheckpoint',
       index: true,
     },
-    /** Clue 2 variant → team-bound Checkpoint 2 (progressionKey 2). */
+    /** Clue 2 variant → shared station Checkpoint 2 (ST-*-2). */
     secondCheckpointId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'CampusHuntCheckpoint',
       index: true,
     },
-    /** Clue 3 variant → team-bound Checkpoint 3 (progressionKey 3). */
+    /** Clue 3 variant → shared station Checkpoint 3 (ST-*-3). */
     thirdCheckpointId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'CampusHuntCheckpoint',

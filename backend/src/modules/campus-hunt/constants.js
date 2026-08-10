@@ -117,8 +117,8 @@ const CLUE_HOW_TO = {
     steps: [
       'Read the sentence and type the campus location.',
       'Correct answer = 50 points (any attempt). After 3 wrong tries the location is revealed (0 points).',
-      'Go there — all 4 members scan your yellow card.',
-      'Then pick up your card and take it — leave other teams’ cards for them.',
+      'Go there — all 4 members scan the shared orange QR.',
+      'Then enter your team code to unlock your allotted clue.',
     ],
   },
   2: {
@@ -128,17 +128,17 @@ const CLUE_HOW_TO = {
       'Then a 3-minute timer starts — find the hidden 3-digit number.',
       'Faster correct submit = more points. After 3:00 you can still submit for 0 pts.',
       'After the correct number: go straight to your next location.',
-      'Find your green SECOND SCAN card — all 4 scan, then pick it up and take it.',
-      'Next: find your blue Checkpoint 3 card at the following place (not Clue 3 yet).',
+      'Find the shared green SECOND SCAN QR — all 4 scan, then enter your team code.',
+      'That unlocks Clue 3 (Caesar riddle) on your phone.',
     ],
   },
   3: {
     title: 'How to play — Clue 3',
     steps: [
-      'Your blue Checkpoint 3 card is already scanned — decode the riddle on your phone.',
-      'Type the answer (leader submits). Limited attempts; hints cost points.',
-      'Think before you submit.',
-      'After this, the Final one-word puzzle unlocks.',
+      'Decode the Caesar riddle on your phone (leader submits).',
+      'Limited attempts; hints cost points. Think before you submit.',
+      'Then go to that place — find the shared blue THIRD SCAN QR.',
+      'All 4 scan, enter your team code, then Final unlocks.',
     ],
   },
   4: {

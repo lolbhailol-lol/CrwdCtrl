@@ -32,13 +32,18 @@ function compareTeamsForLeaderboard(a, b) {
   return String(a.teamCode || '').localeCompare(String(b.teamCode || ''));
 }
 
-function rankTeams(teams) {
+/**
+ * @param {object[]} teams
+ * @param {{ topNDirectFinale?: number } | null} [qualification]
+ */
+function rankTeams(teams, qualification = null) {
+  const topN = Math.max(1, Number(qualification?.topNDirectFinale) || 5);
   const sorted = [...teams].sort(compareTeamsForLeaderboard);
   return sorted.map((team, index) => ({
     rank: index + 1,
     team,
-    // Top 8 go direct to Finale; ranks 9+ enter Survival Stage (32 from a 40-team Round 1).
-    qualification: index < 8 ? 'DIRECT_FINALE' : 'SURVIVAL_STAGE',
+    // Top N go direct to Finale; remaining enter Survival Stage.
+    qualification: index < topN ? 'DIRECT_FINALE' : 'SURVIVAL_STAGE',
   }));
 }
 

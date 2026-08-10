@@ -5,12 +5,12 @@
  *   Library · Chanakya Porch · Design · Vyas Parking
  *
  * CHECKPOINTS (10) — hunt scan places on campus (not the starting points).
- *   Target: 4 teams reach each station (40 ÷ 10) across the event.
+ *   One shared QR per place per scan stage. About 4 teams visit each station
+ *   (40 ÷ 10) across waves; all scan the same poster, then enter team code.
  *
  * Clue 1: first stops are shuffled by starting point so simultaneous releases
  * do not pile into one place (e.g. Library T1 → Food Court,
  * Chanakya T1 → Amphitheatre, Design T1 → Main Gate, …).
- * Each station still gets 4 teams total, staggered across waves.
  */
 
 /** 4 starting points only — never used as hunt destinations by default. */
@@ -59,8 +59,6 @@ export const TARGET_TEAMS_PER_STATION = 4; // 40 teams ÷ 10 stations
 export const TEAMS_PER_WAIT = 10;
 
 /** @deprecated use WAIT_POINTS — kept so older imports keep compiling */
-export const CAMPUS_BUILDINGS = WAIT_POINTS.map((w) => w.name);
-
 /** Merge event overrides onto the default S01–S10 catalog. */
 export function resolveStations(stations) {
   if (!Array.isArray(stations) || !stations.length) return CAMPUS_STATIONS.map((s) => ({ ...s }));
@@ -238,17 +236,6 @@ export const TEAM_SLOTS = Array.from({ length: TEAMS_PER_WAIT }, (_, i) => ({
   station: stationForLocalTeam(i + 1, 0),
 }));
 
-/**
- * @deprecated Prefer TEAM_SLOTS. Legacy 4-wave grouping (teams 1,5,9 / 2,6,10…).
- * Kept for any remaining UI that groups by old waves.
- */
-export const TEAM_WAVES = [
-  { id: 'T1', label: 'Teams 1, 5, 9', short: 'Slot 1', index: 0 },
-  { id: 'T2', label: 'Teams 2, 6, 10', short: 'Slot 2', index: 1 },
-  { id: 'T3', label: 'Teams 3, 7', short: 'Slot 3', index: 2 },
-  { id: 'T4', label: 'Teams 4, 8', short: 'Slot 4', index: 3 },
-];
-
 /** Generic Clue 1 riddle for any campus station name. */
 export function clue1ForPlace(place) {
   const station = CAMPUS_STATIONS.find(
@@ -260,7 +247,8 @@ export function clue1ForPlace(place) {
       `Your first scan is waiting on campus. Read the marks, follow the crowd of clues, `
       + `and name the place: ${name}.`,
     answer: name,
-    destinationInstruction: `Go to ${name}. All four members scan there.`,
+    destinationInstruction:
+      `Go to ${name}. All four members scan the shared QR, then enter your team code.`,
     hintText: `Ask staff for the way to ${name}.`,
   };
 }
@@ -278,8 +266,8 @@ export function routeClueDefaults(challengeNumber, destination) {
       answer: '',
       hintText: 'Check posts, pillars, and notice boards at eye level.',
       destinationInstruction:
-        'Go to your next location now. Find your team’s green SECOND SCAN QR — '
-        + 'all 4 members scan to unlock Clue 3.',
+        'Go to your next location now. Find the shared green SECOND SCAN QR — '
+        + 'all 4 members scan, then enter your team code to unlock Clue 3.',
       memberPrompts: ['', '', '', ''],
     };
   }
@@ -295,7 +283,8 @@ export function routeClueDefaults(challengeNumber, destination) {
       answer: place,
       hintText: 'Caesar shift of 3 — A becomes D, B becomes E… Spaces stay spaces.',
       destinationInstruction:
-        'Riddle solved — go find your blue Checkpoint 3 card at that place. All 4 members scan to unlock Final.',
+        'Riddle solved — go find the shared blue Checkpoint 3 QR at that place. '
+        + 'All 4 members scan, then enter your team code to unlock Final.',
       memberPrompts: ['', '', '', ''],
     };
   }

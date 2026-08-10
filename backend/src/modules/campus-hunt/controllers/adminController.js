@@ -78,10 +78,10 @@ async function createEvent(req, res, next) {
       releaseIntervalMinutes: 5,
       assignmentStrategy: 'route_balanced',
       qualification: {
-        topNDirectFinale: 8,
-        survivalTeams: 32,
-        lastChanceTeams: 12,
-        finaleTeams: 5,
+        topNDirectFinale: 5,
+        survivalTeams: 35,
+        lastChanceTeams: 0,
+        finaleTeams: 12,
         nextRoundName: 'SURVIVAL_STAGE',
       },
     });
@@ -2215,6 +2215,92 @@ async function updateCheckpoint(req, res, next) {
 }
 
 /** Station QR payloads for printing posters (includes secret). */
+/**
+ * Build 1 shared QR print pack per campus place for a progression (1|2|3).
+ * Prefer ST-* checkpoints over legacy team-bound posters.
+ */
+function buildSharedPrintPacks({
+  stations,
+  huntStations,
+  waitNameSet,
+  progressionKey,
+  targetPosters = 1,
+}) {
+  const packsByCode = new Map(
+    huntStations.map((station) => [station.code, {
+      code: station.code,
+      locationName: station.name,
+      posters: [],
+    }]),
+  );
+  let skipped = 0;
+  const want = String(progressionKey).toUpperCase();
+
+  for (const station of stations) {
+    const key = String(station.progressionKey || '').toUpperCase();
+    if (key !== want) continue;
+    if (station.active === false) {
+      skipped += 1;
+      continue;
+    }
+    const place = String(station.locationName || '').trim();
+    if (!place || waitNameSet.has(place.toLowerCase())) {
+      skipped += 1;
+      continue;
+    }
+
+    let pack = null;
+    const stationCode = String(station.stationCode || '').toUpperCase().trim();
+    if (stationCode && packsByCode.has(stationCode)) {
+      pack = packsByCode.get(stationCode);
+    } else {
+      const matched = huntStations.find(
+        (row) => row.name.toLowerCase() === place.toLowerCase(),
+      );
+      if (matched) pack = packsByCode.get(matched.code);
+    }
+    if (!pack) {
+      skipped += 1;
+      continue;
+    }
+
+    const isShared = /^ST-/i.test(String(station.code || ''));
+    if (!isShared && !station.teamBound) {
+      skipped += 1;
+      continue;
+    }
+
+    const already = pack.posters.some((row) => (
+      row.checkpointId === station.checkpointId
+      || (isShared && /^ST-/i.test(String(row.code || '')))
+    ));
+    if (already) {
+      skipped += 1;
+      continue;
+    }
+    if (pack.posters.length >= targetPosters) {
+      if (isShared) pack.posters = [station];
+      else skipped += 1;
+      continue;
+    }
+    pack.posters.push(station);
+  }
+
+  const printPacks = huntStations.map((station) => {
+    const pack = packsByCode.get(station.code);
+    const posters = [...(pack?.posters || [])];
+    return {
+      code: station.code,
+      locationName: station.name,
+      posterCount: posters.length,
+      targetPosters,
+      posters,
+    };
+  });
+
+  return { printPacks, skipped };
+}
+
 async function listStationQr(req, res, next) {
   try {
     const {
@@ -2304,6 +2390,7 @@ async function listStationQr(req, res, next) {
         checkpointId: String(c._id),
         routeId: String(c.routeId),
         routeKey: route?.routeKey || primary?.startingPointCode || null,
+        code: c.code || null,
         checkpointKey: c.checkpointKey,
         progressionKey: c.progressionKey || c.checkpointKey,
         locationName: c.locationName,
@@ -2330,212 +2417,36 @@ async function listStationQr(req, res, next) {
       WAIT_POINTS.map((w) => String(w.name || '').trim().toLowerCase()),
     );
     const huntStations = event ? resolveCampusStations(event) : HUNT_STATIONS;
-    const TARGET_POSTERS = 4;
+    const TARGET_POSTERS = 1;
 
-    /**
-     * Final Clue 1 print set: exactly 10 places × 4 team-bound posters = 40.
-     * Drop starting-point-named rows, inactive, unlabeled duplicates, and extras over 4/place.
-     */
-    const packsByCode = new Map(
-      huntStations.map((station) => [station.code, {
-        code: station.code,
-        locationName: station.name,
-        posters: [],
-      }]),
-    );
-
-    let skippedUnwanted = 0;
-    for (const station of stations) {
-      const key = String(station.progressionKey || '').toUpperCase();
-      if (key !== '1') continue;
-      if (station.active === false) {
-        skippedUnwanted += 1;
-        continue;
-      }
-      const place = String(station.locationName || '').trim();
-      if (!place || waitNameSet.has(place.toLowerCase())) {
-        skippedUnwanted += 1;
-        continue;
-      }
-
-      let pack = null;
-      const code = String(station.stationCode || '').toUpperCase().trim();
-      if (code && packsByCode.has(code)) {
-        pack = packsByCode.get(code);
-      } else {
-        const matched = huntStations.find(
-          (row) => row.name.toLowerCase() === place.toLowerCase(),
-        );
-        if (matched) pack = packsByCode.get(matched.code);
-      }
-      if (!pack) {
-        skippedUnwanted += 1;
-        continue;
-      }
-
-      // Only keep posters bound to a real team (the 40 printable sheets)
-      if (!station.teamBound || !(station.teamCode || station.teamName)) {
-        skippedUnwanted += 1;
-        continue;
-      }
-
-      const already = pack.posters.some((row) => (
-        (station.teamId && row.teamId === station.teamId)
-        || (station.teamCode && row.teamCode === station.teamCode)
-        || row.checkpointId === station.checkpointId
-      ));
-      if (already) {
-        skippedUnwanted += 1;
-        continue;
-      }
-      if (pack.posters.length >= TARGET_POSTERS) {
-        skippedUnwanted += 1;
-        continue;
-      }
-      pack.posters.push(station);
-    }
-
-    const firstStopPrintPacks = huntStations.map((station) => {
-      const pack = packsByCode.get(station.code);
-      const posters = [...(pack?.posters || [])].sort((a, b) => (
-        String(a.teamCode || '').localeCompare(String(b.teamCode || ''), undefined, { numeric: true })
-      ));
-      return {
-        code: station.code,
-        locationName: station.name,
-        posterCount: posters.length,
-        targetPosters: TARGET_POSTERS,
-        posters,
-      };
+    const first = buildSharedPrintPacks({
+      stations,
+      huntStations,
+      waitNameSet,
+      progressionKey: '1',
+      targetPosters: TARGET_POSTERS,
+    });
+    const second = buildSharedPrintPacks({
+      stations,
+      huntStations,
+      waitNameSet,
+      progressionKey: '2',
+      targetPosters: TARGET_POSTERS,
+    });
+    const third = buildSharedPrintPacks({
+      stations,
+      huntStations,
+      waitNameSet,
+      progressionKey: '3',
+      targetPosters: TARGET_POSTERS,
     });
 
-    const secondPacksByCode = new Map(
-      huntStations.map((station) => [station.code, {
-        code: station.code,
-        locationName: station.name,
-        posters: [],
-      }]),
-    );
-    let skippedSecond = 0;
-    for (const station of stations) {
-      const key = String(station.progressionKey || '').toUpperCase();
-      if (key !== '2') continue;
-      if (station.active === false) {
-        skippedSecond += 1;
-        continue;
-      }
-      const place = String(station.locationName || '').trim();
-      if (!place || waitNameSet.has(place.toLowerCase())) {
-        skippedSecond += 1;
-        continue;
-      }
-      let pack = null;
-      const code = String(station.stationCode || '').toUpperCase().trim();
-      if (code && secondPacksByCode.has(code)) {
-        pack = secondPacksByCode.get(code);
-      } else {
-        const matched = huntStations.find(
-          (row) => row.name.toLowerCase() === place.toLowerCase(),
-        );
-        if (matched) pack = secondPacksByCode.get(matched.code);
-      }
-      if (!pack) {
-        skippedSecond += 1;
-        continue;
-      }
-      if (!station.teamBound || !(station.teamCode || station.teamName)) {
-        skippedSecond += 1;
-        continue;
-      }
-      const already = pack.posters.some((row) => (
-        (station.teamId && row.teamId === station.teamId)
-        || (station.teamCode && row.teamCode === station.teamCode)
-        || row.checkpointId === station.checkpointId
-      ));
-      if (already || pack.posters.length >= TARGET_POSTERS) {
-        skippedSecond += 1;
-        continue;
-      }
-      pack.posters.push(station);
-    }
-
-    const secondStopPrintPacks = huntStations.map((station) => {
-      const pack = secondPacksByCode.get(station.code);
-      const posters = [...(pack?.posters || [])].sort((a, b) => (
-        String(a.teamCode || '').localeCompare(String(b.teamCode || ''), undefined, { numeric: true })
-      ));
-      return {
-        code: station.code,
-        locationName: station.name,
-        posterCount: posters.length,
-        targetPosters: TARGET_POSTERS,
-        posters,
-      };
-    });
-
-    const thirdPacksByCode = new Map(
-      huntStations.map((station) => [station.code, {
-        code: station.code,
-        locationName: station.name,
-        posters: [],
-      }]),
-    );
-    let skippedThird = 0;
-    for (const station of stations) {
-      const key = String(station.progressionKey || '').toUpperCase();
-      if (key !== '3') continue;
-      if (station.active === false) {
-        skippedThird += 1;
-        continue;
-      }
-      const place = String(station.locationName || '').trim();
-      if (!place || waitNameSet.has(place.toLowerCase())) {
-        skippedThird += 1;
-        continue;
-      }
-      let pack = null;
-      const code = String(station.stationCode || '').toUpperCase().trim();
-      if (code && thirdPacksByCode.has(code)) {
-        pack = thirdPacksByCode.get(code);
-      } else {
-        const matched = huntStations.find(
-          (row) => row.name.toLowerCase() === place.toLowerCase(),
-        );
-        if (matched) pack = thirdPacksByCode.get(matched.code);
-      }
-      if (!pack) {
-        skippedThird += 1;
-        continue;
-      }
-      if (!station.teamBound || !(station.teamCode || station.teamName)) {
-        skippedThird += 1;
-        continue;
-      }
-      const already = pack.posters.some((row) => (
-        (station.teamId && row.teamId === station.teamId)
-        || (station.teamCode && row.teamCode === station.teamCode)
-        || row.checkpointId === station.checkpointId
-      ));
-      if (already || pack.posters.length >= TARGET_POSTERS) {
-        skippedThird += 1;
-        continue;
-      }
-      pack.posters.push(station);
-    }
-
-    const thirdStopPrintPacks = huntStations.map((station) => {
-      const pack = thirdPacksByCode.get(station.code);
-      const posters = [...(pack?.posters || [])].sort((a, b) => (
-        String(a.teamCode || '').localeCompare(String(b.teamCode || ''), undefined, { numeric: true })
-      ));
-      return {
-        code: station.code,
-        locationName: station.name,
-        posterCount: posters.length,
-        targetPosters: TARGET_POSTERS,
-        posters,
-      };
-    });
+    const firstStopPrintPacks = first.printPacks;
+    const secondStopPrintPacks = second.printPacks;
+    const thirdStopPrintPacks = third.printPacks;
+    const skippedUnwanted = first.skipped;
+    const skippedSecond = second.skipped;
+    const skippedThird = third.skipped;
 
     const totalPosters = firstStopPrintPacks.reduce((sum, pack) => sum + pack.posterCount, 0);
     const totalSecondPosters = secondStopPrintPacks.reduce((sum, pack) => sum + pack.posterCount, 0);
@@ -2562,8 +2473,8 @@ async function listStationQr(req, res, next) {
           thirdSkipped: skippedThird,
         },
         hint:
-          'Clue 1: 40 yellow cards. Clue 2: 40 green cards. '
-          + 'Clue 3: 40 blue Checkpoint 3 cards (two stops after first).',
+          'Clue 1: 10 orange shared QRs. Clue 2: 10 green shared QRs. '
+          + 'Clue 3: 10 blue shared QRs. After 4/4 scans, teams enter their team code.',
       },
     });
   } catch (err) {
@@ -2872,7 +2783,7 @@ async function manualVerifyCheckpoint(req, res, next) {
 }
 
 /**
- * Playtest helper: force team onto the scan stage for yellow/green/blue, then complete 4/4.
+ * Playtest helper: force team onto the scan stage for orange/green/blue, then complete 4/4.
  * scan: '1' | '2' | '3' | 'all'
  */
 async function playtestCompleteScan(req, res, next) {
@@ -2882,7 +2793,7 @@ async function playtestCompleteScan(req, res, next) {
     if (!scans.every((s) => ['1', '2', '3'].includes(s))) {
       return res.status(400).json({
         success: false,
-        message: 'scan must be 1 (yellow), 2 (green), 3 (blue), or all',
+        message: 'scan must be 1 (orange), 2 (green), 3 (blue), or all',
       });
     }
 
@@ -2900,7 +2811,7 @@ async function playtestCompleteScan(req, res, next) {
       2: 'secondCheckpointId',
       3: 'thirdCheckpointId',
     };
-    const labelFor = { 1: 'Yellow', 2: 'Green', 3: 'Blue' };
+    const labelFor = { 1: 'Orange', 2: 'Green', 3: 'Blue' };
     const done = [];
 
     for (const scan of scans) {

@@ -35,8 +35,8 @@ export default function PlayerInstructionBox({ guide, themeHex, roleLabel }) {
         <p
           className="mt-2 rounded-xl px-3 py-2.5 text-center text-sm font-semibold"
           style={{
-            background: `${themeHex || '#F59E0B'}18`,
-            color: themeHex || '#F59E0B',
+            background: `${themeHex || '#F97316'}18`,
+            color: themeHex || '#F97316',
           }}
         >
           {guide.unlockAt}

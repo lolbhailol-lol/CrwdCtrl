@@ -125,7 +125,7 @@ async function bulkSaveClue1({
       const waitIndex = waitIndexFromCode(startCode);
       const station = stationForLocalTeam(localTeamNumber, waitIndex, ctx.stations, 0);
       const place = String(row.place || station.name).trim();
-      const stationCode = row.stationCode || station.code;
+      const stationCode = String(row.stationCode || station.code || '').toUpperCase().trim();
       const prompt = String(row.prompt || '').trim();
       const answer = String(row.answer || place).trim();
       if (!prompt || !answer) {
@@ -133,33 +133,45 @@ async function bulkSaveClue1({
         continue;
       }
 
-      const checkpointKey = `1-${waveId}`;
+      // Shared station QR (one per place) — do not recreate team-bound R*-1-T* posters
+      const sharedCode = `ST-${stationCode}-1`;
       const firstCheckpoint = await CampusHuntCheckpoint.findOneAndUpdate(
-        { eventId, routeId: route._id, checkpointKey },
+        { eventId, code: sharedCode },
         {
           $set: {
             eventId,
             roundId: round._id,
             routeId: route._id,
             startingPointId: point._id,
-            code: `R${startCode}-${checkpointKey}`,
+            code: sharedCode,
             progressionKey: '1',
             checkpointNumber: 1,
-            checkpointKey,
+            checkpointKey: `1-${stationCode}`,
             locationName: place,
             stationCode,
             publicInstruction:
-              `First scan at ${place}. Poster is labeled with the team name `
-              + `(Team ${localTeamNumber} from ${point.name || startCode}). `
-              + 'Scan only your team QR. All 4 members scan to unlock Clue 2. '
-              + 'Then pick up your card and take it so the next teams only find theirs.',
+              `Orange FIRST SCAN at ${place}. One shared QR for this place. `
+              + 'All 4 team members scan, then enter your team code to unlock Clue 2.',
             sequence: 1,
             active: true,
             compensationPolicyKey: 'skip_and_continue',
             capacityGuidance: 4,
+            concurrencyGuidance: 'Shared station QR — about 4 teams visit across the event.',
           },
         },
         { upsert: true, new: true, setDefaultsOnInsert: true },
+      );
+
+      // Keep legacy wave posters retired if they reappear
+      await CampusHuntCheckpoint.updateMany(
+        {
+          eventId,
+          progressionKey: '1',
+          stationCode,
+          code: { $not: /^ST-/i },
+          active: true,
+        },
+        { $set: { active: false } },
       );
 
       const variantKey = `${startCode}-${waveId}`;
@@ -184,7 +196,8 @@ async function bulkSaveClue1({
             acceptedAnswers: [answer, stationCode].filter(Boolean),
             destinationInstruction:
               String(row.destinationInstruction || '').trim()
-              || `Go to ${place}. All four members scan there.`,
+              || `Go to ${place}. Find the shared orange FIRST SCAN QR. `
+                + 'All 4 members scan, then enter your team code to unlock Clue 2.',
             hintText: String(row.hintText || '').trim() || `Ask staff for the way to ${place}.`,
             basePoints: 50,
             maxAttempts: 3,
@@ -275,7 +288,7 @@ async function bulkSaveClue3({
       const waitIndex = waitIndexFromCode(startCode);
       const station = stationForLocalTeam(localTeamNumber, waitIndex, ctx.stations, 2);
       const place = String(row.place || station.name).trim();
-      const stationCode = row.stationCode || station.code;
+      const stationCode = String(row.stationCode || station.code || '').toUpperCase().trim();
       const prompt = String(row.prompt || '').trim();
       const answer = String(row.answer || place).trim();
       if (!prompt || !answer) {
@@ -283,33 +296,43 @@ async function bulkSaveClue3({
         continue;
       }
 
-      const checkpointKey = `3-${waveId}`;
+      const sharedCode = `ST-${stationCode}-3`;
       const thirdCheckpoint = await CampusHuntCheckpoint.findOneAndUpdate(
-        { eventId, routeId: route._id, checkpointKey },
+        { eventId, code: sharedCode },
         {
           $set: {
             eventId,
             roundId: round._id,
             routeId: route._id,
             startingPointId: point._id,
-            code: `R${startCode}-${checkpointKey}`,
+            code: sharedCode,
             progressionKey: '3',
             checkpointNumber: 3,
-            checkpointKey,
+            checkpointKey: `3-${stationCode}`,
             locationName: place,
             stationCode,
             publicInstruction:
-              `THIRD SCAN (blue) at ${place} (team ${localTeamNumber}). `
-              + 'Scan only after Clue 3 riddle. This card is for your team only. '
-              + 'All 4 members scan to unlock the Final clue. '
-              + 'Then pick up your blue card and take it.',
+              `Blue THIRD SCAN at ${place}. One shared QR for this place. `
+              + 'All 4 team members scan, then enter your team code to unlock Final.',
             sequence: 3,
             active: true,
             compensationPolicyKey: 'skip_and_continue',
             capacityGuidance: 4,
+            concurrencyGuidance: 'Shared station QR — about 4 teams visit across the event.',
           },
         },
         { upsert: true, new: true, setDefaultsOnInsert: true },
+      );
+
+      await CampusHuntCheckpoint.updateMany(
+        {
+          eventId,
+          progressionKey: '3',
+          stationCode,
+          code: { $not: /^ST-/i },
+          active: true,
+        },
+        { $set: { active: false } },
       );
 
       const variantKey = `${startCode}-${waveId}`;
@@ -333,8 +356,8 @@ async function bulkSaveClue3({
             answer,
             acceptedAnswers: [answer],
             destinationInstruction:
-              'Riddle solved — go find your blue Checkpoint 3 card at that place. '
-              + 'All 4 members scan to unlock Final.',
+              `Riddle solved — go to ${place}. Find the shared blue THIRD SCAN QR. `
+              + 'All 4 members scan, then enter your team code to unlock Final.',
             hintText:
               String(row.hintText || '').trim()
               || 'Caesar shift of 3 — A becomes D, B becomes E… Spaces stay spaces.',

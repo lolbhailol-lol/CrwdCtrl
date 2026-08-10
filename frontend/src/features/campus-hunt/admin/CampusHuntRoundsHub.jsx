@@ -7,15 +7,11 @@ const ROUND_META = {
   },
   survival: {
     opensWhen: 'Opens after Round 1 is locked / finalized.',
-    lockedHint: 'Survival Stage is not opened yet. Finish Round 1 first (top 32 advance; top 8 go direct to Finale).',
-  },
-  lastChance: {
-    opensWhen: 'Opens after Survival Stage.',
-    lockedHint: 'Last Chance is not opened yet. It runs after Survival Stage with 12 teams.',
+    lockedHint: 'Survival Stage is not opened yet. Finish Round 1 first (top 35 advance; top 5 go direct to Finale).',
   },
   finale: {
-    opensWhen: 'Opens after Last Chance (plus 8 Round 1 directs).',
-    lockedHint: 'Finale is not opened yet. Field of 5 = Last Chance advances + 8 direct from Round 1.',
+    opensWhen: 'Opens after Survival (plus 5 Round 1 directs).',
+    lockedHint: 'Finale is not opened yet. Field of 12 = Survival top 7 + 5 direct from Round 1.',
   },
 };
 
@@ -53,7 +49,7 @@ export default function CampusHuntRoundsHub({
       <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
         <h2 className="text-lg font-bold uppercase tracking-wide">Overall format</h2>
         <p className="mt-1 max-w-2xl text-sm text-white/55">
-          Campus Hunt runs in four rounds. Open a round below to manage everything for that
+          Campus Hunt runs in three rounds. Open a round below to manage everything for that
           stage. Later rounds stay closed until the previous stage is done.
         </p>
         <div className="mt-4 flex flex-wrap items-center gap-2 text-sm font-semibold uppercase tracking-wide text-white/70">
@@ -62,16 +58,12 @@ export default function CampusHuntRoundsHub({
           </span>
           <span className="text-white/30">→</span>
           <span className="rounded-lg bg-black/30 px-3 py-1.5">
-            <strong className="text-[#0ECCEE]">32</strong> Survival
+            <strong className="text-[#0ECCEE]">35</strong> Survival
           </span>
           <span className="text-white/30">→</span>
           <span className="rounded-lg bg-black/30 px-3 py-1.5">
-            <strong className="text-[#0ECCEE]">12</strong> Last Chance
-          </span>
-          <span className="text-white/30">→</span>
-          <span className="rounded-lg bg-black/30 px-3 py-1.5">
-            <strong className="text-[#0ECCEE]">5</strong> Finale
-            <span className="ml-1 text-[11px] normal-case tracking-normal text-white/40">(+8 direct)</span>
+            <strong className="text-[#0ECCEE]">12</strong> Finale
+            <span className="ml-1 text-[11px] normal-case tracking-normal text-white/40">(+5 direct)</span>
           </span>
         </div>
         <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -93,7 +85,7 @@ export default function CampusHuntRoundsHub({
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-white/45">
           All rounds
         </h2>
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid gap-3 md:grid-cols-3">
           {CAMPUS_HUNT_STAGES.map((stage, index) => {
             const openState = roundOpenState(stage.id, round1Status);
             const badge = BADGE[openState];
@@ -134,7 +126,7 @@ export default function CampusHuntRoundsHub({
                 <p className="mt-2 text-xs leading-relaxed text-white/50">{stage.detail}</p>
                 {stage.id === 'finale' && (
                   <p className="mt-2 text-[11px] text-white/40">
-                    Path A: 8 direct from Round 1 · Path B: Last Chance advances
+                    Path A: 5 direct from Round 1 · Path B: Survival top 7
                   </p>
                 )}
                 <p className="mt-3 text-xs font-medium text-white/70">

@@ -46,7 +46,7 @@ export default function CampusHuntEventControl() {
   const [issues, setIssues] = useState([]);
   const [audit, setAudit] = useState([]);
   const [stations, setStations] = useState([]);
-  /** null = overall format hub; 'round1' | 'survival' | 'lastChance' | 'finale' */
+  /** null = overall format hub; 'round1' | 'survival' | 'finale' */
   const [activeRound, setActiveRound] = useState(null);
   const [tab, setTab] = useState('clues');
   const [msg, setMsg] = useState('');
@@ -161,11 +161,11 @@ export default function CampusHuntEventControl() {
           name: 'THE_HUNT',
           status: 'scheduled',
           qualification: {
-            topNDirectFinale: 8,
+            topNDirectFinale: 5,
             nextRoundName: 'SURVIVAL_STAGE',
-            lastChanceTeams: 12,
-            finaleTeams: 5,
-            survivalTeams: 32,
+            lastChanceTeams: 0,
+            finaleTeams: 12,
+            survivalTeams: 35,
           },
         });
         targetRound = created.data?.round;
@@ -418,11 +418,11 @@ export default function CampusHuntEventControl() {
                           name: 'THE_HUNT',
                           status: 'scheduled',
                           qualification: {
-                            topNDirectFinale: 8,
+                            topNDirectFinale: 5,
                             nextRoundName: 'SURVIVAL_STAGE',
-                            lastChanceTeams: 12,
-                            finaleTeams: 5,
-                            survivalTeams: 32,
+                            lastChanceTeams: 0,
+                            finaleTeams: 12,
+                            survivalTeams: 35,
                           },
                         });
                       },
@@ -824,7 +824,7 @@ export default function CampusHuntEventControl() {
               <section className="rounded-2xl border border-white/10 bg-white/3 p-4">
                 <h3 className="mb-1 font-semibold">Leaderboard</h3>
                 <p className="mb-3 text-xs text-white/45">
-                  Top 8 → Finale · ranks 9–40 → Survival
+                  Top 5 → Finale · ranks 6–40 → Survival
                 </p>
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[640px] text-left text-sm">

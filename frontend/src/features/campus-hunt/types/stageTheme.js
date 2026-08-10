@@ -1,6 +1,6 @@
 /**
  * Campus Hunt stage colors — same palette on posters, admin, player, scanners.
- * Clue 1 / FIRST SCAN = yellow · Clue 2 = green · Clue 3 = blue · Final = red
+ * Clue 1 / FIRST SCAN = orange · Clue 2 = green · Clue 3 = blue · Final = red
  */
 
 export const STAGE_THEMES = {
@@ -8,19 +8,19 @@ export const STAGE_THEMES = {
     id: 'clue1',
     label: 'Clue 1',
     scanLabel: 'FIRST SCAN',
-    colorName: 'Yellow',
-    hex: '#F5C518',
-    ink: '#1A1500',
-    muted: '#A88900',
-    softBg: 'rgba(245, 197, 24, 0.16)',
-    borderClass: 'border-yellow-400/55',
-    bgClass: 'bg-yellow-500/15',
-    textClass: 'text-yellow-200',
-    softTextClass: 'text-yellow-100/80',
-    solidClass: 'bg-yellow-400',
-    solidTextClass: 'text-black',
-    ringClass: 'ring-yellow-400',
-    buttonClass: 'bg-yellow-400 text-black',
+    colorName: 'Orange',
+    hex: '#F97316',
+    ink: '#1C0A00',
+    muted: '#C2410C',
+    softBg: 'rgba(249, 115, 22, 0.16)',
+    borderClass: 'border-orange-400/55',
+    bgClass: 'bg-orange-500/15',
+    textClass: 'text-orange-200',
+    softTextClass: 'text-orange-100/80',
+    solidClass: 'bg-orange-500',
+    solidTextClass: 'text-white',
+    ringClass: 'ring-orange-400',
+    buttonClass: 'bg-orange-500 text-white',
   },
   clue2: {
     id: 'clue2',

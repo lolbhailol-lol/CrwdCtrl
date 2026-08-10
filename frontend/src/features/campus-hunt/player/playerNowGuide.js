@@ -62,19 +62,37 @@ export function buildPlayerNowGuide({
       ? 'green'
       : checkpointStatus?.checkpointKey?.startsWith('3')
         ? 'blue'
-        : 'yellow';
-    const cardName = checkpointStatus?.posterLabel?.teamName || team?.teamName || 'your team';
+        : 'Orange';
     const scanned = Boolean(checkpointStatus?.youScanned);
-    const done = Number(checkpointStatus?.verifiedCount || 0)
-      >= Number(checkpointStatus?.requiredCount || 4);
+    const awaitingClaim = Boolean(checkpointStatus?.awaitingTeamCodeConfirm)
+      || (
+        Number(checkpointStatus?.verifiedCount || 0)
+        >= Number(checkpointStatus?.requiredCount || 4)
+        && checkpointStatus?.status !== 'complete'
+      );
+    const done = checkpointStatus?.status === 'complete';
 
     if (done) {
       return {
         tone: 'scan',
         eyebrow: `${color} scan complete`,
-        title: 'All 4 members scanned',
-        body: 'Pick up your card and take it with you.',
-        steps: ['Take your team card', 'Continue to the next clue'],
+        title: 'Station cleared',
+        body: 'Your allotted clue is unlocked — keep going.',
+        steps: ['Continue to the next clue'],
+      };
+    }
+
+    if (awaitingClaim) {
+      return {
+        tone: 'scan',
+        eyebrow: `${color} · team code`,
+        title: 'Enter your team code',
+        body: `All 4 scanned at ${place}. Confirm ${team?.teamCode || 'your code'} to unlock your allotted clue.`,
+        steps: [
+          'Type your team code',
+          'Tap Confirm',
+          'Read the clue you were allotted',
+        ],
       };
     }
 
@@ -87,21 +105,21 @@ export function buildPlayerNowGuide({
         steps: [
           'You already scanned',
           `Need ${checkpointStatus.membersNeeded} more`,
-          'After 4/4, pick up the card',
+          'Then enter your team code',
         ],
       };
     }
 
     return {
       tone: 'scan',
-      eyebrow: `${color} card`,
+      eyebrow: `${color} shared QR`,
       title: `Scan at ${place}`,
-      body: `Find the ${color} card labeled ${cardName}. Other teams’ cards will not work.`,
+      body: `Find the shared ${color} QR at this place. All teams use the same poster.`,
       steps: [
         `Go to ${place}`,
-        `Find ${cardName}'s ${color} card`,
-        'Tap Scan QR',
-        'All 4 must scan, then take the card',
+        `Scan the shared ${color} QR`,
+        'All 4 must scan',
+        'Enter your team code for your clue',
       ],
     };
   }
@@ -112,11 +130,11 @@ export function buildPlayerNowGuide({
         tone: 'clue',
         eyebrow: 'Clue 1',
         title: 'Stay with your leader',
-        body: 'They solve Clue 1 on their phone. You scan yellow together next — keep this screen open.',
+        body: 'They solve Clue 1 on their phone. You scan Orange together next — keep this screen open.',
         steps: [
           'Stay together',
           'Leader submits the place name',
-          'Then everyone scans the yellow card',
+          'Then everyone scans the shared Orange QR',
         ],
       };
     }
@@ -125,7 +143,7 @@ export function buildPlayerNowGuide({
       eyebrow: 'Clue 1',
       title: 'Name the place',
       body: 'Read the clue below, type the campus place, then submit.',
-      steps: ['Read the clue', 'Type the place name', 'Submit, then scan yellow'],
+      steps: ['Read the clue', 'Type the place name', 'Submit, then scan the shared Orange QR'],
     };
   }
 

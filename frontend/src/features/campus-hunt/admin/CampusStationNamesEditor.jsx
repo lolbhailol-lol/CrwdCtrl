@@ -65,7 +65,7 @@ export default function CampusStationNamesEditor({
           <h2 className="text-base font-semibold text-white">Campus place names</h2>
           <p className="mt-1 text-xs text-white/50">
             Change all 10 hunt locations here. Applies in Clue 1, posters, checkpoints, and player screens.
-            Each place still gets 4 team-named QRs.
+            Each place gets 1 shared QR (all teams scan the same poster).
           </p>
         </div>
         <button

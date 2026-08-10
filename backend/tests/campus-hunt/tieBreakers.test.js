@@ -23,15 +23,26 @@ test('tie breakers: time then hints then fails', () => {
   assert.equal(ranked[0].qualification, 'DIRECT_FINALE');
 });
 
-test('top 8 qualify for finale', () => {
+test('top 5 qualify for finale', () => {
   const teams = Array.from({ length: 10 }, (_, i) => ({
     currentScore: 100 - i,
     teamCode: `CC${String(i + 1).padStart(3, '0')}`,
     stats: {},
   }));
   const ranked = rankTeams(teams);
-  assert.equal(ranked[7].qualification, 'DIRECT_FINALE');
-  assert.equal(ranked[8].qualification, 'SURVIVAL_STAGE');
+  assert.equal(ranked[4].qualification, 'DIRECT_FINALE');
+  assert.equal(ranked[5].qualification, 'SURVIVAL_STAGE');
+});
+
+test('qualification.topNDirectFinale overrides default', () => {
+  const teams = Array.from({ length: 10 }, (_, i) => ({
+    currentScore: 100 - i,
+    teamCode: `CC${String(i + 1).padStart(3, '0')}`,
+    stats: {},
+  }));
+  const ranked = rankTeams(teams, { topNDirectFinale: 3 });
+  assert.equal(ranked[2].qualification, 'DIRECT_FINALE');
+  assert.equal(ranked[3].qualification, 'SURVIVAL_STAGE');
 });
 
 test('answer normalize and match', () => {

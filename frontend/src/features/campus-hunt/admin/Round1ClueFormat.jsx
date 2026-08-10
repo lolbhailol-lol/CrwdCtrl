@@ -18,10 +18,8 @@ import { adminBootstrapRound1 } from '../services/campusHunt.api';
 import { STAGE_THEME_LIST, themeForChallengeNumber } from '../types/stageTheme';
 
 export {
-  CAMPUS_BUILDINGS,
   CAMPUS_STARTS,
   CAMPUS_STATIONS,
-  TEAM_WAVES,
   TEAM_SLOTS,
   WAIT_POINTS,
 } from './campusHuntFormat';
@@ -31,12 +29,9 @@ export const ROUND1_CLUES = [
     id: 'clue1',
     number: 1,
     label: 'CLUE 1 · First stop',
-    short: 'FIRST STOP · YELLOW',
-    detail: `${STATION_TARGET_COUNT} places · ${TARGET_TEAMS_PER_STATION} teams each · 4 labeled QRs · all 4 members scan → Clue 2`,
-    checkpointKeys: [
-      '1',
-      ...Array.from({ length: 10 }, (_, i) => `1-T${i + 1}`),
-    ],
+    short: 'FIRST STOP · Orange',
+    detail: `${STATION_TARGET_COUNT} places · ${TARGET_TEAMS_PER_STATION} teams each · 1 shared QR · all 4 scan → team code → Clue 2`,
+    checkpointKeys: ['1'],
     checkpointLabel: 'FIRST SCAN',
     type: 'navigation',
     showCheckpoints: false,
@@ -48,11 +43,8 @@ export const ROUND1_CLUES = [
     short: 'SECOND STOP · GREEN',
     detail:
       `${STATION_TARGET_COUNT} places · ${TARGET_TEAMS_PER_STATION} teams each · `
-      + 'unlock after Clue 1 scans · 20s read · then 3:00 timer',
-    checkpointKeys: [
-      '2',
-      ...Array.from({ length: 10 }, (_, i) => `2-T${i + 1}`),
-    ],
+      + 'unlock after Orange 4/4 + team code · 20s read · then 3:00 timer · green shared QR',
+    checkpointKeys: ['2'],
     checkpointLabel: 'SECOND SCAN',
     takesToSummary: destinationsSummary(2),
     type: 'timed_search',
@@ -65,11 +57,8 @@ export const ROUND1_CLUES = [
     short: 'THIRD STOP · BLUE',
     detail:
       `${STATION_TARGET_COUNT} places · ${TARGET_TEAMS_PER_STATION} teams each · `
-      + 'after green scan → Caesar riddle → then blue CP3 card → Final',
-    checkpointKeys: [
-      '3',
-      ...Array.from({ length: 10 }, (_, i) => `3-T${i + 1}`),
-    ],
+      + 'after green scan + team code → Caesar riddle → blue shared QR + team code → Final',
+    checkpointKeys: ['3'],
     checkpointLabel: 'THIRD SCAN',
     takesToSummary: destinationsSummary(3),
     type: 'decode',
@@ -89,10 +78,6 @@ export const ROUND1_CLUES = [
     showCheckpoints: false,
   },
 ];
-
-export function getRound1Clue(clueId) {
-  return ROUND1_CLUES.find((clue) => clue.id === clueId) || null;
-}
 
 function ClueBox({
   clue,
@@ -285,7 +270,7 @@ export default function Round1ClueFormat({
             {TARGET_TEAMS_PER_STATION} teams per place
           </p>
           <p className="mt-0.5 text-[11px] text-white/40">
-            Work top to bottom: Bootstrap → edit each clue → print pocket cards → place on campus.
+            Work top to bottom: Bootstrap → edit each clue → print shared QRs (10×3) → place on campus.
             After all 4 members scan a card, they pick it up so the next team only finds theirs.
           </p>
         </div>

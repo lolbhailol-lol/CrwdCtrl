@@ -22,6 +22,7 @@ const {
   requestChallengeHint,
   getLeaderboard,
   scanStation,
+  confirmStation,
   rewindStep,
   forceUnlockClue2,
 } = require('../controllers/playerController');
@@ -85,6 +86,13 @@ router.post(
   requireTeamMember,
   campusHuntVerifyLimiter,
   scanStation,
+);
+router.post(
+  '/teams/:teamId/checkpoints/confirm',
+  authenticateToken,
+  requireTeamMember,
+  campusHuntVerifyLimiter,
+  confirmStation,
 );
 router.post(
   '/teams/:teamId/rewind',

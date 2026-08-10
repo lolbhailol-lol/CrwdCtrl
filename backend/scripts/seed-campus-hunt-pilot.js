@@ -441,10 +441,10 @@ async function main() {
       scheduleStatus: 'draft',
       releasesPaused: false,
       qualification: {
-        topNDirectFinale: 8,
-        survivalTeams: 32,
-        lastChanceTeams: 12,
-        finaleTeams: 5,
+        topNDirectFinale: 5,
+        survivalTeams: 35,
+        lastChanceTeams: 0,
+        finaleTeams: 12,
         nextRoundName: 'SURVIVAL_STAGE',
       },
     });

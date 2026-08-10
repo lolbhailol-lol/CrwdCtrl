@@ -211,6 +211,63 @@ async function scanStation(req, res, next) {
   }
 }
 
+async function confirmStation(req, res, next) {
+  try {
+    const { confirmStationClaim } = require('../services/checkpointService');
+    const teamCode = req.body?.teamCode;
+    const stage = String(req.huntTeam.currentStage || '');
+    let checkpointId = req.body?.checkpointId;
+    if (!checkpointId) {
+      if (stage === 'CLUE_1_COMPLETED') checkpointId = req.huntTeam.firstCheckpointId;
+      else if (['CLUE_2_COMPLETED', 'CLUE_2_FAILED', 'CLUE_2_TIMEOUT'].includes(stage)) {
+        checkpointId = req.huntTeam.secondCheckpointId;
+      } else if (['CLUE_3_COMPLETED', 'CLUE_3_FAILED'].includes(stage)) {
+        checkpointId = req.huntTeam.thirdCheckpointId;
+      }
+    }
+    if (!checkpointId) {
+      return res.status(400).json({
+        success: false,
+        message: 'No station to claim for this stage — scan the QR first.',
+        code: 'CHECKPOINT_REQUIRED',
+      });
+    }
+    if (!teamCode) {
+      return res.status(400).json({ success: false, message: 'Team code required' });
+    }
+    const result = await confirmStationClaim({
+      team: req.huntTeam,
+      userId: req.user.userId,
+      teamCode,
+      checkpointId,
+    });
+    const progress = await buildPlayerProgress(
+      await require('../models/CampusHuntTeam').findById(req.huntTeam._id),
+      req.user.userId,
+      req.isHuntLeader,
+    );
+    return res.json({
+      success: true,
+      data: {
+        ...result,
+        team: publicTeamView(progress.team, { isLeader: req.isHuntLeader, start: progress.start, userId: req.user.userId }),
+        challenges: progress.challenges,
+        checkpointStatus: progress.checkpointStatus,
+        serverTime: progress.serverTime,
+      },
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({
+        success: false,
+        message: err.message,
+        code: err.code,
+      });
+    }
+    return next(err);
+  }
+}
+
 async function submitChallengeAnswer(req, res, next) {
   try {
     const challengeNumber = parseChallengeNumber(
@@ -790,6 +847,7 @@ module.exports = {
   loginTeamMember,
   enterTeamAsMember,
   scanStation,
+  confirmStation,
   rewindStep,
   forceUnlockClue2,
 };

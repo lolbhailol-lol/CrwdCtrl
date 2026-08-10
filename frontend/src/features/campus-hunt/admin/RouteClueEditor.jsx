@@ -52,10 +52,12 @@ function blankForm(number, takesTo) {
     hintText: defaults.hintText || '',
     destinationInstruction: number === 2
       ? (defaults.destinationInstruction
-        || 'Go to your next location now. Find your team’s green SECOND SCAN QR — '
-          + 'all 4 members scan to unlock Clue 3.')
+        || 'Go to your next location now. Find the shared green SECOND SCAN QR — '
+          + 'all 4 members scan, then enter your team code to unlock Clue 3.')
       : (defaults.destinationInstruction
-        || (takesTo ? `Go to ${takesTo}. All four members scan there.` : '')),
+        || (takesTo
+          ? `Go to ${takesTo}. Find the shared QR. All 4 scan, then enter your team code.`
+          : '')),
     basePoints: number === 2 || number === 3 || number === 4 ? 50 : 0,
     maxAttempts: 3,
     timerSeconds: number === 2 ? 180 : number === 4 ? 300 : 0,
@@ -186,19 +188,19 @@ export default function RouteClueEditor({
         existing.destinationInstruction
         || (number === 2
           ? (
-            'Go to your next location now. Find your team’s green SECOND SCAN QR — '
-            + 'all 4 members scan to unlock Clue 3.'
+            'Go to your next location now. Find the shared green SECOND SCAN QR — '
+            + 'all 4 members scan, then enter your team code to unlock Clue 3.'
           )
           : number === 3
             ? (
               defaults.destinationInstruction
-              || 'Riddle solved — go find your blue Checkpoint 3 card at that place. '
-                + 'All 4 members scan to unlock Final.'
+              || 'Riddle solved — go find the shared blue THIRD SCAN QR at that place. '
+                + 'All 4 members scan, then enter your team code to unlock Final.'
             )
           : number === 4
             ? `Report to your start — ${takesTo}. Ask the organizer to mark your team reached.`
             : defaults.destinationInstruction
-              || `Go to ${place}. All four members scan there.`),
+              || `Go to ${place}. Find the shared QR. All 4 scan, then enter your team code.`),
       basePoints: existing.basePoints ?? (number === 2 || number === 3 || number === 4 ? 50 : 0),
       maxAttempts: existing.maxAttempts ?? 3,
       timerSeconds: existing.timerSeconds ?? (number === 2 ? 180 : number === 4 ? 300 : 0),
@@ -507,7 +509,7 @@ export default function RouteClueEditor({
             />
             {number === 2 && (
               <span className="mt-1 block text-[11px] text-white/40">
-                Team-specific place is shown in the boards above (10 places × 4 teams).
+                Team-specific place is shown in the boards above (10 places · shared QR each).
               </span>
             )}
           </label>

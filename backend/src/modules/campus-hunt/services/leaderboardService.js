@@ -1,4 +1,5 @@
 const CampusHuntTeam = require('../models/CampusHuntTeam');
+const CampusHuntRound = require('../models/CampusHuntRound');
 const { rankTeams } = require('../utils/tieBreakers');
 
 async function buildLeaderboard(eventId, { includeUnfinished = true } = {}) {
@@ -7,13 +8,16 @@ async function buildLeaderboard(eventId, { includeUnfinished = true } = {}) {
     query.currentStage = 'SCORE_LOCKED';
   }
 
-  const teams = await CampusHuntTeam.find(query)
-    .select(
-      'teamCode teamName currentScore finalScore currentStage startStatus scheduledStartAt actualStartAt finishedAt stats suddenDeathRank routeId status scoreLockedAt',
-    )
-    .lean();
+  const [teams, round] = await Promise.all([
+    CampusHuntTeam.find(query)
+      .select(
+        'teamCode teamName currentScore finalScore currentStage startStatus scheduledStartAt actualStartAt finishedAt stats suddenDeathRank routeId status scoreLockedAt',
+      )
+      .lean(),
+    CampusHuntRound.findOne({ eventId, roundNumber: 1 }).select('qualification').lean(),
+  ]);
 
-  const ranked = rankTeams(teams);
+  const ranked = rankTeams(teams, round?.qualification);
   return ranked.map((row) => ({
     rank: row.rank,
     teamId: String(row.team._id),

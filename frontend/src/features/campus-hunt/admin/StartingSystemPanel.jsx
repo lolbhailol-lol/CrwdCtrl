@@ -692,8 +692,8 @@ export default function StartingSystemPanel({
                   {' '}— clock time their Clue 1 unlocks.
                 </li>
                 <li>
-                  <span className="font-semibold text-amber-100">Yellow place</span>
-                  {' '}— campus spot for their yellow QR card (after solving Clue 1).
+                  <span className="font-semibold text-amber-100">Orange place</span>
+                  {' '}— campus spot for their Orange QR card (after solving Clue 1).
                 </li>
                 <li>
                   <span className="font-semibold text-emerald-200">Green place</span>
@@ -706,7 +706,7 @@ export default function StartingSystemPanel({
               </ul>
               {previewRows.some((r) => !r.firstStopName || !r.secondStopName || !r.thirdStopName) && (
                 <p className="mt-2 rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-                  Yellow/green/blue places below are the <strong>planned path</strong>.
+                  Orange/green/blue places below are the <strong>planned path</strong>.
                   To bind real QR cards, open <strong>Clues</strong>, save Clue 1 / 2 / 3, then Preview again.
                 </p>
               )}
@@ -719,7 +719,7 @@ export default function StartingSystemPanel({
                     <th>Meet here</th>
                     <th>Leave turn</th>
                     <th>Leave time</th>
-                    <th>Yellow place</th>
+                    <th>Orange place</th>
                     <th>Green place</th>
                     <th>Blue place</th>
                   </tr>
@@ -774,7 +774,7 @@ export default function StartingSystemPanel({
                       const teamCode = row.teamCode || row.team?.teamCode || '';
                       const waitIdx = row._waitIdx;
                       const waveNum = wave || 1;
-                      const yellowPlace = row.firstStopName
+                      const OrangePlace = row.firstStopName
                         || firstStopForLocalTeam(waveNum, waitIdx);
                       const greenPlace = row.secondStopName
                         || secondStopForLocalTeam(waveNum, waitIdx);
@@ -816,7 +816,7 @@ export default function StartingSystemPanel({
                             {release ? formatLeaveDateTime(release) : '—'}
                           </td>
                           <td className="text-amber-100">
-                            {yellowPlace}
+                            {OrangePlace}
                             {!row.firstStopName && (
                               <span className="mt-0.5 block text-[10px] text-white/40">
                                 {fromClues ? '' : 'planned path · save Clues to lock cards'}

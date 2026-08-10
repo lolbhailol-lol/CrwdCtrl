@@ -110,6 +110,14 @@ export async function scanStationCheckpoint(teamId, raw) {
   });
 }
 
+/** After 4/4 shared-station scans — confirm team code to unlock allotted clue. */
+export async function confirmStationCheckpoint(teamId, { teamCode, checkpointId }) {
+  return userJson(`${BASE}/teams/${teamId}/checkpoints/confirm`, {
+    method: 'POST',
+    body: JSON.stringify({ teamCode, checkpointId }),
+  });
+}
+
 /** Local/dev only — requires 4 distinct roster members. Not available in production. */
 export async function forceUnlockClue2(teamId) {
   if (!import.meta.env.DEV) {

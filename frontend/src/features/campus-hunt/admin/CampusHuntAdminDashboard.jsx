@@ -273,7 +273,7 @@ export default function CampusHuntAdminDashboard() {
                   {ev.college} · {ev.slug}
                 </p>
                 <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-white/40">
-                  Round 1 ({ev.teamCapacity || 40}) → Survival (32) → Last Chance (12) → Finale (5 · +8 direct)
+                  Round 1 ({ev.teamCapacity || 40}) → Survival (35) → Finale (12 · +5 direct)
                 </p>
               </Link>
               <span className="rounded-full bg-white/10 px-3 py-1 text-xs uppercase">
