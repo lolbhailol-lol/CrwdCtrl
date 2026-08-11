@@ -8,7 +8,6 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import MobileBottomNav from './MobileBottomNav';
 import ProfileAvatarUpload from '../ProfileAvatarUpload';
 import ProfileSidebarLoadingSkeleton from '../ProfileSidebarLoadingSkeleton';
-import { SKELETON_LOADING_MS } from '../../constants/skeletonLoading';
 import { usePageTransition } from './PageTransition';
 import {
     fetchClubManagerProfileEligible,
@@ -25,6 +24,10 @@ import {
 import { resolveAuthToken, hasUsableAuthToken } from '../../utils/authToken';
 import { prepareLogin } from '../../utils/loginFlow';
 
+/** Session caches so reopening Profile does not wait on the network again */
+let campusHuntProfileCache = null;
+let organizerEligibilityCache = null;
+
 export default function ProfileSidebar({
     isOpen,
     onClose,
@@ -37,45 +40,56 @@ export default function ProfileSidebar({
     const { user, logout, isAuthenticated, isLoading, isAuthProcessing, isRedirectProcessing, token } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
-    const { prepareRouteNavigation, startOverlayTransition } = usePageTransition();
-    const [sidebarRevealReady, setSidebarRevealReady] = useState(false);
-    const [clubManagerEligible, setClubManagerEligible] = useState(false);
-    const [trekCommunityEligible, setTrekCommunityEligible] = useState(false);
-    const [eventOrganizerEligible, setEventOrganizerEligible] = useState(false);
-    const [organizerAccessLoading, setOrganizerAccessLoading] = useState(false);
-    const [campusHuntLoginLive, setCampusHuntLoginLive] = useState(false);
-    const [campusHuntLeaderboardLive, setCampusHuntLeaderboardLive] = useState(false);
+    const { prepareRouteNavigation } = usePageTransition();
+    const [clubManagerEligible, setClubManagerEligible] = useState(
+        () => Boolean(organizerEligibilityCache?.club),
+    );
+    const [trekCommunityEligible, setTrekCommunityEligible] = useState(
+        () => Boolean(organizerEligibilityCache?.trek),
+    );
+    const [eventOrganizerEligible, setEventOrganizerEligible] = useState(
+        () => Boolean(organizerEligibilityCache?.event),
+    );
+    const [campusHuntLoginLive, setCampusHuntLoginLive] = useState(
+        () => Boolean(campusHuntProfileCache?.showLogin),
+    );
+    const [campusHuntLeaderboardLive, setCampusHuntLeaderboardLive] = useState(
+        () => Boolean(campusHuntProfileCache?.showLeaderboard),
+    );
 
     const authPending = isLoading || isAuthProcessing || isRedirectProcessing;
-
-    useEffect(() => {
-        if (!isOpen) {
-            setSidebarRevealReady(false);
-            return undefined;
-        }
-
-        setSidebarRevealReady(false);
-        const revealTimer = window.setTimeout(() => setSidebarRevealReady(true), SKELETON_LOADING_MS);
-        return () => window.clearTimeout(revealTimer);
-    }, [isOpen]);
+    // Only skeleton on cold auth bootstrap — never block on organizer / hunt API calls
+    const isProfileLoading = isOpen && authPending && !isAuthenticated && !user;
 
     // Campus Hunt Profile entries — admin toggles login / leaderboard separately
     useEffect(() => {
         if (!isOpen || !isCampusHuntEnabled()) {
-            setCampusHuntLoginLive(false);
-            setCampusHuntLeaderboardLive(false);
+            if (!isCampusHuntEnabled()) {
+                setCampusHuntLoginLive(false);
+                setCampusHuntLeaderboardLive(false);
+            }
             return undefined;
         }
+
+        if (campusHuntProfileCache) {
+            setCampusHuntLoginLive(Boolean(campusHuntProfileCache.showLogin));
+            setCampusHuntLeaderboardLive(Boolean(campusHuntProfileCache.showLeaderboard));
+        }
+
         let cancelled = false;
         (async () => {
             try {
                 const res = await fetchCampusHuntProfileEntries();
-                if (!cancelled) {
-                    setCampusHuntLoginLive(Boolean(res.data?.showLogin));
-                    setCampusHuntLeaderboardLive(Boolean(res.data?.showLeaderboard));
-                }
+                if (cancelled) return;
+                const next = {
+                    showLogin: Boolean(res.data?.showLogin),
+                    showLeaderboard: Boolean(res.data?.showLeaderboard),
+                };
+                campusHuntProfileCache = next;
+                setCampusHuntLoginLive(next.showLogin);
+                setCampusHuntLeaderboardLive(next.showLeaderboard);
             } catch {
-                if (!cancelled) {
+                if (!cancelled && !campusHuntProfileCache) {
                     setCampusHuntLoginLive(false);
                     setCampusHuntLeaderboardLive(false);
                 }
@@ -84,7 +98,7 @@ export default function ProfileSidebar({
         return () => { cancelled = true; };
     }, [isOpen, isAuthenticated]);
 
-    // Only admin-approved emails / approved organizers see Club manager / Trek community in Profile
+    // Organizer rows load in the background; menu is usable immediately
     useEffect(() => {
         if (!isOpen) return undefined;
         let cancelled = false;
@@ -93,58 +107,48 @@ export default function ProfileSidebar({
             setClubManagerEligible(false);
             setTrekCommunityEligible(false);
             setEventOrganizerEligible(false);
-            setOrganizerAccessLoading(false);
+            organizerEligibilityCache = null;
             return undefined;
         }
 
-        // Wait for auth bootstrap (common on iPhone Safari/Chrome) so we don't
-        // mark ineligible before the JWT is ready.
-        if (authPending) {
-            setOrganizerAccessLoading(true);
-            return undefined;
-        }
+        if (authPending) return undefined;
 
         const authToken = resolveAuthToken(token);
-        if (!hasUsableAuthToken(authToken)) {
-            setOrganizerAccessLoading(true);
+        if (!hasUsableAuthToken(authToken)) return undefined;
+
+        const cacheKey = String(user?.email || authToken).toLowerCase();
+        if (organizerEligibilityCache?.key === cacheKey) {
+            setClubManagerEligible(Boolean(organizerEligibilityCache.club));
+            setTrekCommunityEligible(Boolean(organizerEligibilityCache.trek));
+            setEventOrganizerEligible(Boolean(organizerEligibilityCache.event));
             return undefined;
         }
 
-        setOrganizerAccessLoading(true);
         (async () => {
             try {
                 const [clubData, trekData, eventData] = await Promise.all([
-                    fetchClubManagerProfileEligible(authToken).catch((err) => {
-                        console.warn('[ProfileSidebar] Club manager eligibility check failed', err?.message || err);
-                        return { eligible: false };
-                    }),
-                    fetchTrekCommunityProfileEligible(authToken).catch((err) => {
-                        console.warn('[ProfileSidebar] Trek community eligibility check failed', err?.message || err);
-                        return { eligible: false };
-                    }),
-                    fetchEventOrganizerProfileEligible(authToken).catch((err) => {
-                        console.warn('[ProfileSidebar] Event organizer eligibility check failed', err?.message || err);
-                        return { eligible: false };
-                    }),
+                    fetchClubManagerProfileEligible(authToken).catch(() => ({ eligible: false })),
+                    fetchTrekCommunityProfileEligible(authToken).catch(() => ({ eligible: false })),
+                    fetchEventOrganizerProfileEligible(authToken).catch(() => ({ eligible: false })),
                 ]);
-                if (!cancelled) {
-                    setClubManagerEligible(Boolean(clubData?.eligible));
-                    setTrekCommunityEligible(Boolean(trekData?.eligible));
-                    setEventOrganizerEligible(Boolean(eventData?.eligible));
-                }
-            } finally {
-                if (!cancelled) setOrganizerAccessLoading(false);
+                if (cancelled) return;
+                const next = {
+                    key: cacheKey,
+                    club: Boolean(clubData?.eligible),
+                    trek: Boolean(trekData?.eligible),
+                    event: Boolean(eventData?.eligible),
+                };
+                organizerEligibilityCache = next;
+                setClubManagerEligible(next.club);
+                setTrekCommunityEligible(next.trek);
+                setEventOrganizerEligible(next.event);
+            } catch {
+                /* keep prior / empty */
             }
         })();
 
         return () => { cancelled = true; };
     }, [isOpen, isAuthenticated, authPending, user?.email, token]);
-
-    const isProfileLoading = isOpen && (
-        !sidebarRevealReady
-        || authPending
-        || (isAuthenticated && organizerAccessLoading)
-    );
 
     useEffect(() => {
         if (!isOpen) return undefined;
@@ -160,6 +164,7 @@ export default function ProfileSidebar({
 
     const handleLogout = () => {
         logout();
+        organizerEligibilityCache = null;
         onClose();
         navigate('/');
     };
@@ -169,6 +174,16 @@ export default function ProfileSidebar({
         'Help Center': '/help-center',
         'Campus Hunt login': CAMPUS_HUNT_PATHS.profileLogin,
         'Campus Hunt leaderboard': CAMPUS_HUNT_PATHS.leaderboard,
+    };
+
+    const goToPath = (path) => {
+        if (location.pathname === path) {
+            onClose();
+            return;
+        }
+        prepareRouteNavigation(path);
+        navigate(path);
+        onClose();
     };
 
     const handleMenuItemClick = async (label) => {
@@ -189,78 +204,50 @@ export default function ProfileSidebar({
                 onClose();
                 return;
             }
-            prepareRouteNavigation(CAMPUS_HUNT_PATHS.profileLogin);
-            navigate(CAMPUS_HUNT_PATHS.profileLogin);
-            onClose();
+            goToPath(CAMPUS_HUNT_PATHS.profileLogin);
             return;
         }
 
         if (label === 'Club manager') {
             try {
                 const booted = await tryRunClubOrganizerAppSession(token);
-                const path = booted?.token ? '/run-club-organizer' : '/run-club-organizer/login';
-                prepareRouteNavigation(path);
-                navigate(path);
+                goToPath(booted?.token ? '/run-club-organizer' : '/run-club-organizer/login');
             } catch (err) {
                 // Profile-email invite without organizer account → signup, not a failed login loop
-                const path = err?.code === 'no_organizer_account'
+                goToPath(err?.code === 'no_organizer_account'
                     ? '/run-club-organizer/signup'
-                    : '/run-club-organizer/login';
-                prepareRouteNavigation(path);
-                navigate(path);
+                    : '/run-club-organizer/login');
             }
-            onClose();
             return;
         }
 
         if (label === 'Trek community') {
             try {
                 const booted = await tryTrekOrganizerAppSession(token);
-                const path = booted?.token ? '/trek-organizer' : '/trek-organizer/login';
-                prepareRouteNavigation(path);
-                navigate(path);
+                goToPath(booted?.token ? '/trek-organizer' : '/trek-organizer/login');
             } catch (err) {
-                const path = err?.code === 'no_organizer_account'
+                goToPath(err?.code === 'no_organizer_account'
                     ? '/trek-organizer/signup'
-                    : '/trek-organizer/login';
-                prepareRouteNavigation(path);
-                navigate(path);
+                    : '/trek-organizer/login');
             }
-            onClose();
             return;
         }
 
         if (label === 'Event organizer') {
             try {
                 const booted = await tryEventOrganizerAppSession(token);
-                const path = booted?.token ? '/event-organizer' : '/event-organizer/login';
-                prepareRouteNavigation(path);
-                navigate(path);
+                goToPath(booted?.token ? '/event-organizer' : '/event-organizer/login');
             } catch (err) {
-                const path = err?.code === 'no_organizer_account'
+                goToPath(err?.code === 'no_organizer_account'
                     ? '/event-organizer/signup'
-                    : '/event-organizer/login';
-                prepareRouteNavigation(path);
-                navigate(path);
+                    : '/event-organizer/login');
             }
-            onClose();
             return;
         }
 
         const path = MENU_ROUTES[label];
         if (!path) return;
-
-        // Already on the destination — just close, briefly showing its skeleton.
-        if (location.pathname === path) {
-            startOverlayTransition(path, onClose);
-            return;
-        }
-
-        // Show the destination skeleton immediately so the home/previous page
-        // doesn't flash ("peep") during the route change, then navigate + close.
-        prepareRouteNavigation(path);
-        navigate(path);
-        onClose();
+        goToPath(path);
     };
 
     const campusHuntItems = [

@@ -22,9 +22,13 @@ function resetScrollToTop() {
 function shouldSkipPageTransition(pathname) {
     return (
         pathname === '/profile'
+        || pathname === '/edit-profile'
+        || pathname === '/help-center'
+        || pathname.startsWith('/campus-hunt')
         || pathname.startsWith('/admin')
         || pathname.startsWith('/trek-organizer')
         || pathname.startsWith('/fest-organizer')
+        || pathname.startsWith('/event-organizer')
         || pathname.startsWith('/stall')
         || pathname.startsWith('/s/')
         || pathname.startsWith('/run-club-organizer')
@@ -110,6 +114,9 @@ export function PageTransitionProvider({ children }) {
 
     /** Show skeleton immediately — e.g. profile drawer → home/bookings before route updates */
     const prepareRouteNavigation = useCallback((pathname) => {
+        if (shouldSkipPageTransition(pathname) || visitedRoutes.has(pathname)) {
+            return;
+        }
         clearTimers();
         setSkeletonPath(pathname);
         setIsTransitioning(true);
