@@ -191,13 +191,45 @@ export default function FieldTerminalMission({
           </div>
         )}
 
+        <div className={`mt-3 rounded-xl border px-4 py-3 ${theme.borderClass} bg-black/25`}>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-200/80">
+            Open on a laptop
+          </p>
+          <p className="mt-1 text-[11px] text-white/50">
+            Copy this link and open it in a laptop browser — phones are blocked.
+          </p>
+          <p className="mt-2 break-all font-mono text-xs text-white/80">
+            {gameFullUrl}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => copyText(gameFullUrl, () => {
+                setCopied('url');
+                setTimeout(() => setCopied(''), 1500);
+              })}
+              className={`flex-1 rounded-xl px-3 py-2.5 text-xs font-bold uppercase tracking-wide ${theme.solidClass} ${theme.solidTextClass}`}
+            >
+              {copied === 'url' ? 'Link copied!' : 'Copy grid link'}
+            </button>
+            <a
+              href={gameFullUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="flex-1 rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-center text-xs font-bold uppercase tracking-wide text-white/80"
+            >
+              Open (laptop)
+            </a>
+          </div>
+        </div>
+
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
           <div className="min-w-0 flex-1">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-200/75">
               Laptop only · phones against the rules
             </p>
             <p className="mt-0.5 text-[11px] text-white/45">
-              Open the channel on a real computer — not your phone. Desktop site is cheating.
+              On the laptop: paste device key → clear 3 levels → bring GRID code back here.
             </p>
           </div>
           <button
@@ -215,22 +247,10 @@ export default function FieldTerminalMission({
 
         {opsOpen && (
           <div className="mt-3 space-y-2 rounded-xl border border-white/10 bg-black/25 px-3 py-3 text-xs text-white/55">
-            <p>Copy this link onto a laptop browser (phones are banned for this mission):</p>
-            <p className="break-all font-mono text-white/70">{gameFullUrl}</p>
-            <button
-              type="button"
-              onClick={() => copyText(gameFullUrl, () => {
-                setCopied('url');
-                setTimeout(() => setCopied(''), 1500);
-              })}
-              className="underline hover:text-white"
-            >
-              {copied === 'url' ? 'Link copied!' : 'Copy laptop link'}
-            </button>
-            <p className="pt-2 text-white/40">
-              Enter device key on that laptop. Clear three stages. Miss a timer → 0 for that stage.
-              Hints cost. Bring the final code back to your leader.
-            </p>
+            <p>1. Copy the grid link above onto a laptop.</p>
+            <p>2. Enter the device key.</p>
+            <p>3. Clear three stages. Miss a timer → 0 for that stage. Hints cost points.</p>
+            <p>4. Bring the final GRID-XXXX code back to your leader on this phone.</p>
           </div>
         )}
 
