@@ -60,9 +60,10 @@ export default function ProfileSidebar({
     const authPending = isLoading || isAuthProcessing || isRedirectProcessing;
     // Only skeleton on cold auth bootstrap — never block on organizer / hunt API calls
     const isProfileLoading = isOpen && authPending && !isAuthenticated && !user;
-    const campusHuntCacheKey = isAuthenticated
-        ? `u:${String(user?.uid || user?.id || user?.email || 'auth').toLowerCase()}`
-        : 'guest';
+    // Primitive identity for effect deps (strings compare by value — not by reference)
+    const campusHuntIdentity = isAuthenticated
+        ? String(user?.uid || user?.id || user?.email || '').toLowerCase()
+        : '';
 
     // Drop profile caches on confirmed logout (skip cold auth bootstrap)
     useEffect(() => {
@@ -87,11 +88,19 @@ export default function ProfileSidebar({
             return undefined;
         }
 
-        // Only reuse cache for the same auth identity
-        if (campusHuntProfileCache?.key === campusHuntCacheKey) {
+        // Avoid a throwaway fetch as `u:auth` before user fields hydrate after login
+        if (isAuthenticated && !campusHuntIdentity) return undefined;
+
+        const cacheKey = isAuthenticated ? `u:${campusHuntIdentity}` : 'guest';
+
+        // Cache hit for this identity → apply UI state, skip network
+        if (campusHuntProfileCache?.key === cacheKey) {
             setCampusHuntLoginLive(Boolean(campusHuntProfileCache.showLogin));
             setCampusHuntLeaderboardLive(Boolean(campusHuntProfileCache.showLeaderboard));
-        } else if (campusHuntProfileCache) {
+            return undefined;
+        }
+
+        if (campusHuntProfileCache) {
             campusHuntProfileCache = null;
         }
 
@@ -101,7 +110,7 @@ export default function ProfileSidebar({
                 const res = await fetchCampusHuntProfileEntries();
                 if (cancelled) return;
                 const next = {
-                    key: campusHuntCacheKey,
+                    key: cacheKey,
                     showLogin: Boolean(res.data?.showLogin),
                     showLeaderboard: Boolean(res.data?.showLeaderboard),
                 };
@@ -116,7 +125,7 @@ export default function ProfileSidebar({
             }
         })();
         return () => { cancelled = true; };
-    }, [isOpen, isAuthenticated, campusHuntCacheKey]);
+    }, [isOpen, isAuthenticated, campusHuntIdentity]);
 
     // Organizer rows load in the background; menu is usable immediately
     useEffect(() => {
