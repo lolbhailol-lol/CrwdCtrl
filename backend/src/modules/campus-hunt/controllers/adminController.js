@@ -119,12 +119,20 @@ async function updateEvent(req, res, next) {
       'featureNotes',
       'scoringConfig',
       'publicLeaderboardLive',
+      'publicLoginLive',
+      'publicFinaleLeaderboardLive',
     ];
     for (const key of fields) {
       if (req.body[key] !== undefined) allowed[key] = req.body[key];
     }
     if (allowed.publicLeaderboardLive !== undefined) {
       allowed.publicLeaderboardLive = allowed.publicLeaderboardLive === true;
+    }
+    if (allowed.publicLoginLive !== undefined) {
+      allowed.publicLoginLive = allowed.publicLoginLive === true;
+    }
+    if (allowed.publicFinaleLeaderboardLive !== undefined) {
+      allowed.publicFinaleLeaderboardLive = allowed.publicFinaleLeaderboardLive === true;
     }
     const event = await CampusHuntEvent.findByIdAndUpdate(
       req.params.eventId,

@@ -4,12 +4,14 @@ import { Moon, Sun } from 'lucide-react';
 import {
   fetchCampusHuntColleges,
   fetchPublicLeaderboard,
+  fetchPublicFinaleLeaderboard,
   fetchMyTeam,
 } from '../services/campusHunt.api';
 import { useAuth } from '../../../context/AuthContext';
 import { useDarkMode } from '../../../context/DarkModeContext';
 import { stageLabel } from '../types/stages';
 import { formatDurationMs } from '../utils/format';
+import CampusHuntBackLink from '../components/CampusHuntBackLink';
 
 export default function CampusHuntLeaderboardPage() {
   const { isAuthenticated } = useAuth();
@@ -26,6 +28,7 @@ export default function CampusHuntLeaderboardPage() {
   const [error, setError] = useState('');
   const [updatedAt, setUpdatedAt] = useState('');
   const [liveOn, setLiveOn] = useState(false);
+  const [boardMode, setBoardMode] = useState('round1');
 
   const selectedCollege = useMemo(
     () => colleges.find((c) => c.college === college) || null,
@@ -65,14 +68,21 @@ export default function CampusHuntLeaderboardPage() {
       return;
     }
     try {
-      const res = await fetchPublicLeaderboard(eventId);
+      const res = boardMode === 'finale'
+        ? await fetchPublicFinaleLeaderboard(eventId)
+        : await fetchPublicLeaderboard(eventId);
       setBoard(res.data);
       setUpdatedAt(new Date().toLocaleTimeString());
       setError('');
     } catch (err) {
-      setError(err.message || 'Failed to load leaderboard');
+      if (boardMode === 'finale' && err.status === 403) {
+        setBoard(null);
+        setError('Finale leaderboard is not public yet.');
+      } else {
+        setError(err.message || 'Failed to load leaderboard');
+      }
     }
-  }, [eventId]);
+  }, [eventId, boardMode]);
 
   useEffect(() => {
     loadBoard();
@@ -107,6 +117,7 @@ export default function CampusHuntLeaderboardPage() {
 
   const rows = board?.leaderboard || [];
   const selectedEvent = events.find((e) => e.id === eventId) || board?.event;
+  const isFinaleBoard = boardMode === 'finale';
 
   const pageBg = isDark ? 'bg-[#0b0c0d] text-white' : 'bg-[#F5F6FA] text-gray-900';
   const muted = isDark ? 'text-white/50' : 'text-gray-500';
@@ -125,12 +136,19 @@ export default function CampusHuntLeaderboardPage() {
   return (
     <div className={`min-h-screen px-4 py-6 transition-colors duration-300 ${pageBg}`}>
       <div className="mx-auto max-w-lg space-y-5">
+        <CampusHuntBackLink
+          to="/"
+          label="Back"
+          className={isDark ? '' : '!text-gray-400 hover:!text-gray-700'}
+        />
         <header className="flex items-start justify-between gap-3">
           <div className="space-y-1">
             <p className={`text-xs uppercase tracking-widest ${accent}`}>Campus Hunt</p>
             <h1 className="text-2xl font-bold">Live leaderboard</h1>
             <p className={`text-sm ${muted}`}>
-              Profile-only live scores by college. Updates every ~12s.
+              {isFinaleBoard
+                ? 'Finale scores — separate from Round 1.'
+                : 'Profile-only live scores by college. Updates every ~12s.'}
             </p>
           </div>
           <button
@@ -202,6 +220,25 @@ export default function CampusHuntLeaderboardPage() {
         )}
 
         {eventId && (
+          <>
+            <div className={`flex rounded-xl border p-1 ${card}`}>
+              {[
+                ['round1', 'Round 1'],
+                ['finale', 'Finale'],
+              ].map(([mode, label]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setBoardMode(mode)}
+                  className={`flex-1 rounded-lg py-2 text-xs font-semibold uppercase tracking-wide ${
+                    boardMode === mode ? 'bg-[#0ECCEE] text-black' : muted
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
           <section className={`overflow-hidden rounded-2xl border ${card}`}>
             <div className={`flex items-center justify-between px-4 py-2 text-xs ${rowHeader}`}>
               <span className="inline-flex items-center gap-1.5">
@@ -245,21 +282,31 @@ export default function CampusHuntLeaderboardPage() {
                         {mine ? ' · you' : ''}
                       </p>
                       <p className={`truncate text-xs ${mutedSoft}`}>
-                        {row.teamCode} ·{' '}
-                        {['WAITING', 'READY'].includes(row.startStatus)
-                          ? `Starts ${
-                            row.scheduledStartAt
-                              ? new Date(row.scheduledStartAt).toLocaleTimeString([], {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })
-                              : 'soon'
-                          }`
-                          : stageLabel(row.currentStage)}
+                        {row.teamCode}
+                        {!isFinaleBoard && (
+                          <>
+                            {' · '}
+                            {['WAITING', 'READY'].includes(row.startStatus)
+                              ? `Starts ${
+                                row.scheduledStartAt
+                                  ? new Date(row.scheduledStartAt).toLocaleTimeString([], {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })
+                                  : 'soon'
+                              }`
+                              : stageLabel(row.currentStage)}
+                          </>
+                        )}
+                        {isFinaleBoard && row.completedMissionIds?.length > 0 && (
+                          <> · {row.completedMissionIds.length} missions</>
+                        )}
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold tabular-nums">{row.score}</p>
+                      <p className="font-bold tabular-nums">
+                        {isFinaleBoard ? (row.finaleScore ?? row.finalScore) : row.score}
+                      </p>
                       {(row.elapsedMs != null || row.totalCompletionMs != null) && (
                         <p className={`text-[10px] tabular-nums ${mutedSoft}`}>
                           {formatDurationMs(row.elapsedMs ?? row.totalCompletionMs)}
@@ -276,6 +323,7 @@ export default function CampusHuntLeaderboardPage() {
               )}
             </div>
           </section>
+          </>
         )}
 
         <Link

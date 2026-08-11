@@ -27,6 +27,7 @@ function validateEventCreate(body = {}) {
     teamSize: body.teamSize != null ? Number(body.teamSize) : 4,
     startingScore: body.startingScore != null ? Number(body.startingScore) : 100,
     publicLeaderboardLive: body.publicLeaderboardLive === true,
+    publicLoginLive: body.publicLoginLive === true,
     featureNotes: body.featureNotes || '',
     scoringConfig: body.scoringConfig,
   };

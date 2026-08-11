@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import ScoreChip from '../components/ScoreChip';
 import CountdownTimer from '../components/CountdownTimer';
@@ -12,6 +11,7 @@ import {
   themeForPlayerContext,
 } from '../types/stageTheme';
 import { CAMPUS_HUNT_PATHS } from '../config';
+import CampusHuntBackLink from '../components/CampusHuntBackLink';
 import {
   submitChallengeAnswer,
   requestChallengeHint,
@@ -345,14 +345,11 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
       <div className="relative mx-auto max-w-lg px-4 pb-10 pt-4">
         {/* Top bar — one clean team strip */}
         <header className="mb-5">
-          {eventSlug && (
-            <Link
-              to={CAMPUS_HUNT_PATHS.event(eventSlug)}
-              className="mb-3 inline-block text-[11px] text-white/35 transition hover:text-white/65"
-            >
-              ← Event
-            </Link>
-          )}
+          <CampusHuntBackLink
+            to={eventSlug ? CAMPUS_HUNT_PATHS.event(eventSlug) : '/'}
+            label="Back"
+            className="mb-3"
+          />
 
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">

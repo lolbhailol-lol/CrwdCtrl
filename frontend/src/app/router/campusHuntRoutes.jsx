@@ -2,7 +2,9 @@ import { Route } from 'react-router-dom';
 import { isCampusHuntEnabled, isCampusHuntAdminEnabled } from '../../features/campus-hunt/config';
 import {
   CampusHuntLandingPage,
+  CampusHuntEnterPage,
   CampusHuntPlayPage,
+  CampusHuntGridPage,
   CampusHuntTeamLoginPage,
   CampusHuntLoginHubPage,
   CampusHuntLeaderboardPage,
@@ -19,6 +21,8 @@ import {
 export const campusHuntRoutes = isCampusHuntEnabled() ? (
   <>
     <Route path="/campus-hunt/leaderboard" element={<CampusHuntLeaderboardPage />} />
+    <Route path="/campus-hunt/enter" element={<CampusHuntEnterPage />} />
+    <Route path="/campus-hunt/grid" element={<CampusHuntGridPage />} />
     <Route path="/campus-hunt/:slug/team/:teamCode" element={<CampusHuntTeamLoginPage />} />
     <Route path="/campus-hunt/:slug/login" element={<CampusHuntLoginHubPage />} />
     <Route path="/campus-hunt/:slug" element={<CampusHuntLandingPage />} />

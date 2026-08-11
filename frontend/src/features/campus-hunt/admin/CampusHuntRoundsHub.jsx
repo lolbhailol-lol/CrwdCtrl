@@ -10,17 +10,28 @@ const ROUND_META = {
     lockedHint: 'Survival Stage is not opened yet. Finish Round 1 first (top 35 advance; top 5 go direct to Finale).',
   },
   finale: {
-    opensWhen: 'Opens after Survival (plus 5 Round 1 directs).',
-    lockedHint: 'Finale is not opened yet. Field of 12 = Survival top 7 + 5 direct from Round 1.',
+    opensWhen: 'Opens after Round 1 is finalized. Promote 12 finalists, configure missions, start 45-min timer.',
+    lockedHint: 'Finale opens after Round 1 is finalized. Bootstrap the Finale round from Setup.',
   },
 };
 
-function roundOpenState(stageId, round1Status) {
+function roundOpenState(stageId, round1Status, finaleStatus) {
   const status = String(round1Status || 'not_created').toLowerCase();
+  const finale = String(finaleStatus || 'not_created').toLowerCase();
   if (stageId === 'round1') {
     if (status === 'finalized' || status === 'locked') return 'complete';
     if (status === 'live') return 'live';
     if (status === 'scheduled') return 'ready';
+    return 'ready';
+  }
+  if (stageId === 'survival') {
+    return 'not_opened';
+  }
+  if (stageId === 'finale') {
+    const r1Done = status === 'finalized' || status === 'locked';
+    if (!r1Done && (!finale || finale === 'not_created')) return 'not_opened';
+    if (finale === 'finalized' || finale === 'locked') return 'complete';
+    if (finale === 'live') return 'live';
     return 'ready';
   }
   return 'not_opened';
@@ -38,6 +49,7 @@ const BADGE = {
  */
 export default function CampusHuntRoundsHub({
   round1Status,
+  finaleStatus,
   teamCapacity = 40,
   counts = {},
   onOpenRound,
@@ -63,7 +75,7 @@ export default function CampusHuntRoundsHub({
           <span className="text-white/30">→</span>
           <span className="rounded-lg bg-black/30 px-3 py-1.5">
             <strong className="text-[#0ECCEE]">12</strong> Finale
-            <span className="ml-1 text-[11px] normal-case tracking-normal text-white/40">(+5 direct)</span>
+            <span className="ml-1 text-[11px] tracking-wide text-white/40">(+5 direct)</span>
           </span>
         </div>
         <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -87,7 +99,7 @@ export default function CampusHuntRoundsHub({
         </h2>
         <div className="grid gap-3 md:grid-cols-3">
           {CAMPUS_HUNT_STAGES.map((stage, index) => {
-            const openState = roundOpenState(stage.id, round1Status);
+            const openState = roundOpenState(stage.id, round1Status, finaleStatus);
             const badge = BADGE[openState];
             const meta = ROUND_META[stage.id];
             const teamCount = stage.id === 'round1' ? capacity : stage.teams;

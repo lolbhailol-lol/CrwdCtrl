@@ -18,6 +18,7 @@ export const CAMPUS_HUNT_PATHS = {
   /** @deprecated Removed — use teamLogin(slug, teamCode). Kept as alias to event. */
   login: (slug) => `/campus-hunt/${slug}`,
   play: (slug) => `/campus-hunt/${slug}/play`,
+  grid: '/campus-hunt/grid',
   /** One shared URL per team — leader + all players use this (password + tap name) */
   teamLogin: (slug, teamCode) =>
     `/campus-hunt/${slug}/team/${String(teamCode || '').toUpperCase()}`,
@@ -30,6 +31,8 @@ export const CAMPUS_HUNT_PATHS = {
   leaderboard: '/campus-hunt/leaderboard',
   leaderboardCollege: (college) =>
     `/campus-hunt/leaderboard?college=${encodeURIComponent(college)}`,
+  /** Profile → Campus Hunt login (Google session required) */
+  profileLogin: '/campus-hunt/enter',
   volunteerLogin: '/campus-hunt-volunteer/login',
   volunteerCheckpoint: '/campus-hunt-volunteer/checkpoint',
   admin: '/admin/campus-hunt',

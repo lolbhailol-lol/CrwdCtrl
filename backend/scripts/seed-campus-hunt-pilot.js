@@ -863,6 +863,16 @@ async function main() {
   );
   console.log('Checkpoint-bound volunteer credentials:', volunteerCredentials);
   console.log(`Capacity: ${config.teamCapacity} teams. Preview, generate, then lock in Admin.`);
+
+  try {
+    const { bootstrapFinale } = require('../src/modules/campus-hunt/services/finale/finaleBootstrapService');
+    const { round: finaleRound, config: finaleConfig } = await bootstrapFinale({ eventId: event._id });
+    console.log('Finale round bootstrapped:', finaleRound._id.toString());
+    console.log('Finale starting score:', finaleConfig.startingScore);
+  } catch (finaleErr) {
+    console.warn('Finale bootstrap skipped:', finaleErr.message);
+  }
+
   await mongoose.disconnect();
 }
 

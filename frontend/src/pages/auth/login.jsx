@@ -1,4 +1,5 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Eye, EyeOff, X, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
@@ -329,13 +330,11 @@ export default function CrwdCtrlLogin({
         }
     };
 
-    return (
-        <>
-            {googleOnly && isModal ? (
+    const googleOnlySheet = googleOnly && isModal ? (
                 <AnimatePresence>
                     <motion.div
                         key="google-login-overlay"
-                        className="fixed inset-0 z-[80] flex items-end sm:items-end justify-center"
+                        className="fixed inset-0 z-[100050] flex items-end justify-center"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
@@ -344,7 +343,7 @@ export default function CrwdCtrlLogin({
                         <motion.button
                             type="button"
                             aria-label="Close"
-                            className={`absolute inset-0 ${isDark ? 'bg-black/70' : 'bg-black/45'} backdrop-blur-[2px]`}
+                            className={`absolute inset-0 ${isDark ? 'bg-black/55' : 'bg-black/35'} backdrop-blur-[3px]`}
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
@@ -358,7 +357,7 @@ export default function CrwdCtrlLogin({
                             animate={{ y: 0, opacity: 1 }}
                             exit={reduceMotion ? { opacity: 0 } : { y: '100%', opacity: 0.96 }}
                             transition={{ type: 'spring', stiffness: 380, damping: 34, mass: 0.85 }}
-                            className={`relative w-full max-w-md mx-0 sm:mx-4 rounded-t-[28px] sm:rounded-[28px] border shadow-2xl px-5 pt-3 pb-[max(1.25rem,var(--safe-bottom))] ${
+                            className={`relative w-full max-w-md mx-0 sm:mx-4 rounded-t-[28px] sm:rounded-[28px] border shadow-2xl px-5 pt-3 pb-[max(1.5rem,calc(var(--safe-bottom)+0.75rem))] ${
                                 isDark ? 'bg-[#111213] border-white/10 text-white' : 'bg-white border-gray-100 text-gray-900'
                             }`}
                             onClick={(e) => e.stopPropagation()}
@@ -434,8 +433,16 @@ export default function CrwdCtrlLogin({
                         </motion.div>
                     </motion.div>
                 </AnimatePresence>
-            ) : (
-            <>
+    ) : null;
+
+    if (googleOnly && isModal) {
+        return typeof document !== 'undefined'
+            ? createPortal(googleOnlySheet, document.body)
+            : googleOnlySheet;
+    }
+
+    return (
+        <>
             {/* Background overlay with blur - only show for modal */}
             {isModal && (
                 <div className={`fixed inset-0 backdrop-blur-sm ${isDark ? 'bg-black/85' : 'bg-white/85'}`} onClick={handleClose}></div>
@@ -705,8 +712,6 @@ export default function CrwdCtrlLogin({
                     </>
                 </div>
             </div>
-            </>
-            )}
         </>
     );
 }

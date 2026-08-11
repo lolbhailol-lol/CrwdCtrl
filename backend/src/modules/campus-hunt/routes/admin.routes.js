@@ -2,6 +2,7 @@ const express = require('express');
 const adminAuth = require('../../../middleware/adminAuth');
 const { campusHuntAdminLimiter } = require('../../../middleware/rateLimiter');
 const adminController = require('../controllers/adminController');
+const finaleController = require('../controllers/finaleController');
 
 const router = express.Router();
 
@@ -87,5 +88,34 @@ router.post('/teams/:teamId/transfer-leader', adminController.transferLeader);
 router.post('/teams/:teamId/penalty', adminController.applyPenalty);
 router.post('/teams/:teamId/remove-penalty', adminController.removePenalty);
 router.post('/verifications/reconcile-manual', adminController.reconcileManual);
+
+router.post('/events/:eventId/finale/bootstrap', finaleController.bootstrap);
+router.get('/events/:eventId/finale/config', finaleController.getConfig);
+router.patch('/events/:eventId/finale/config', finaleController.patchConfig);
+router.post('/events/:eventId/finale/promote/auto', finaleController.promoteAuto);
+router.post('/events/:eventId/finale/promote/manual', finaleController.promoteManual);
+router.post('/events/:eventId/finale/promote/demo', finaleController.promoteDemo);
+router.get('/events/:eventId/finale/entries', finaleController.getEntries);
+router.get('/events/:eventId/finale/candidates', finaleController.getCandidates);
+router.get('/events/:eventId/finale/grid-sessions', finaleController.getGridSessions);
+router.get('/events/:eventId/finale/mission-assignments', finaleController.getMissionAssignments);
+router.post('/events/:eventId/finale/schedule/preview', finaleController.previewSchedule);
+router.post('/events/:eventId/finale/schedule/generate', finaleController.generateSchedule);
+router.post('/events/:eventId/finale/schedule/lock', finaleController.lockSchedule);
+router.get('/events/:eventId/finale/live-dashboard', finaleController.getLiveDashboard);
+router.post('/events/:eventId/finale/releases/sync', finaleController.syncReleases);
+router.post('/events/:eventId/finale/releases/pause', finaleController.setReleasesPaused);
+router.post('/events/:eventId/finale/releases/resume', finaleController.setReleasesPaused);
+router.post('/events/:eventId/finale/meet/:meetCode/pause', finaleController.setMeetPaused);
+router.post('/events/:eventId/finale/meet/:meetCode/resume', finaleController.setMeetPaused);
+router.post('/events/:eventId/finale/teams/:teamId/release', finaleController.releaseTeam);
+router.post('/events/:eventId/finale/teams/:teamId/stop', finaleController.adminStopFinaleTeam);
+router.post('/events/:eventId/finale/teams/:teamId/resume', finaleController.adminResumeFinaleTeam);
+router.post('/events/:eventId/finale/teams/:teamId/playtest-complete-mission', finaleController.adminPlaytestCompleteFinaleMission);
+router.post('/events/:eventId/finale/teams/:teamId/playtest-reset', finaleController.adminPlaytestResetFinaleTeam);
+router.get('/events/:eventId/finale/leaderboard', finaleController.getFinaleLeaderboardAdmin);
+router.post('/rounds/:roundId/finale/start', finaleController.startFinale);
+router.post('/rounds/:roundId/finale/lock', finaleController.lockFinale);
+router.post('/rounds/:roundId/finale/finalize-leaderboard', finaleController.finalizeFinale);
 
 module.exports = router;

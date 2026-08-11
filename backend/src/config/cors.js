@@ -108,6 +108,9 @@ const corsOptions = {
     'Origin',
     'Accept',
     'Expires',
+    // Campus Hunt Zip Grid — laptop-only device signals
+    'X-Campus-Hunt-Client',
+    'X-Campus-Hunt-Device',
   ],
   exposedHeaders: ['Content-Length', 'Content-Range', 'X-Total-Count'],
   maxAge: 86400,

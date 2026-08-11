@@ -79,6 +79,51 @@ async function listColleges(req, res, next) {
 }
 
 /**
+ * Profile sidebar — separate on/off for login vs leaderboard.
+ */
+async function listProfileEntries(req, res, next) {
+  try {
+    const events = await CampusHuntEvent.find({
+      status: { $nin: ['draft'] },
+      $or: [
+        { publicLoginLive: true },
+        { publicLeaderboardLive: true },
+      ],
+    })
+      .select('name college slug status date publicLoginLive publicLeaderboardLive')
+      .sort({ college: 1, date: -1 })
+      .lean();
+
+    const login = [];
+    const leaderboard = [];
+    for (const ev of events) {
+      const row = {
+        id: String(ev._id),
+        name: ev.name,
+        college: ev.college,
+        slug: ev.slug,
+        status: ev.status,
+        date: ev.date,
+      };
+      if (ev.publicLoginLive) login.push(row);
+      if (ev.publicLeaderboardLive) leaderboard.push(row);
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        login,
+        leaderboard,
+        showLogin: login.length > 0,
+        showLeaderboard: leaderboard.length > 0,
+      },
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+/**
  * Public live leaderboard — only when admin enabled Profile live display.
  */
 async function getPublicLeaderboard(req, res, next) {
@@ -428,7 +473,7 @@ async function getTeamLoginCard(req, res, next) {
     const teamDoc = await CampusHuntTeam.findOne({
       eventId: event._id,
       teamCode,
-    }).select('teamCode teamName').lean();
+    }).select('teamCode teamName competitionPhase').lean();
 
     if (!teamDoc) {
       return res.status(404).json({
@@ -436,6 +481,8 @@ async function getTeamLoginCard(req, res, next) {
         message: `Team ${teamCode} not found. Use codes like CC001.`,
       });
     }
+
+    const isFinale = teamDoc.competitionPhase === 'finale';
 
     return res.json({
       success: true,
@@ -449,6 +496,11 @@ async function getTeamLoginCard(req, res, next) {
         team: {
           teamCode: teamDoc.teamCode,
           teamName: teamDoc.teamName,
+          competitionPhase: teamDoc.competitionPhase || 'round1',
+          roundLabel: isFinale ? 'Finals round' : 'Round 1',
+          phaseGreeting: isFinale
+            ? 'Congratulations — your team is in the Finals.'
+            : null,
           playPath: `/campus-hunt/${event.slug}/play`,
           loginPath: `/campus-hunt/${event.slug}/team/${teamDoc.teamCode}`,
           // Roster intentionally omitted — unlock with password
@@ -834,6 +886,7 @@ async function rewindStep(req, res, next) {
 module.exports = {
   getStatus,
   listColleges,
+  listProfileEntries,
   getPublicLeaderboard,
   getMyTeam,
   getTeamProgress,

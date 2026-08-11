@@ -1,9 +1,19 @@
 import { userApiCall } from '../../../services/api/auth.api';
 import { adminFetchJSON } from '../../../services/api/admin.api';
 import { publicFetchJSON, resolveUrl } from '../../../services/api/client';
+import { gridClientHeaders } from '../grid/laptopOnly';
 
 const BASE = '/campus-hunt';
 
+function withGridClientHeaders(options = {}) {
+  return {
+    ...options,
+    headers: {
+      ...gridClientHeaders(),
+      ...(options.headers || {}),
+    },
+  };
+}
 async function userJson(url, options = {}) {
   const response = await userApiCall(url, options);
   const data = await response.json().catch(() => ({}));
@@ -138,9 +148,94 @@ export async function fetchCampusHuntColleges() {
   return publicFetchJSON(`${BASE}/colleges`);
 }
 
+/** Profile sidebar: which Campus Hunt login / leaderboard entries are live */
+export async function fetchCampusHuntProfileEntries() {
+  return publicFetchJSON(`${BASE}/profile-entries`);
+}
+
 /** Public live leaderboard (no login required) */
 export async function fetchPublicLeaderboard(eventId) {
   return publicFetchJSON(`${BASE}/events/${encodeURIComponent(eventId)}/leaderboard/public`);
+}
+
+export async function fetchPublicFinaleLeaderboard(eventId) {
+  return publicFetchJSON(`${BASE}/events/${encodeURIComponent(eventId)}/finale/leaderboard`);
+}
+
+export async function fetchFinaleMe(eventId) {
+  return userJson(`${BASE}/events/${encodeURIComponent(eventId)}/finale/me`);
+}
+
+export async function startFinaleMission(teamId, missionId) {
+  return userJson(`${BASE}/teams/${teamId}/finale/missions/${encodeURIComponent(missionId)}/start`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export async function submitFinaleMission(teamId, missionId, answer) {
+  return userJson(`${BASE}/teams/${teamId}/finale/missions/${encodeURIComponent(missionId)}/submit`, {
+    method: 'POST',
+    body: JSON.stringify({ answer }),
+  });
+}
+
+export async function abandonFinaleMission(teamId) {
+  return userJson(`${BASE}/teams/${teamId}/finale/missions/abandon`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export async function stopFinaleTeam(teamId) {
+  return userJson(`${BASE}/teams/${teamId}/finale/stop`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export async function joinGridGame(accessCode) {
+  return publicFetchJSON(`${BASE}/grid/join`, withGridClientHeaders({
+    method: 'POST',
+    body: JSON.stringify({ accessCode }),
+  }));
+}
+
+export async function fetchGridSession(sessionToken) {
+  return publicFetchJSON(
+    `${BASE}/grid/session/${encodeURIComponent(sessionToken)}`,
+    withGridClientHeaders(),
+  );
+}
+
+export async function submitGridLevel(sessionToken, path) {
+  return publicFetchJSON(
+    `${BASE}/grid/session/${encodeURIComponent(sessionToken)}/submit`,
+    withGridClientHeaders({
+      method: 'POST',
+      body: JSON.stringify({ path }),
+    }),
+  );
+}
+
+export async function timeoutGridLevel(sessionToken) {
+  return publicFetchJSON(
+    `${BASE}/grid/session/${encodeURIComponent(sessionToken)}/timeout`,
+    withGridClientHeaders({
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+  );
+}
+
+export async function useGridHint(sessionToken, path = []) {
+  return publicFetchJSON(
+    `${BASE}/grid/session/${encodeURIComponent(sessionToken)}/hint`,
+    withGridClientHeaders({
+      method: 'POST',
+      body: JSON.stringify({ path }),
+    }),
+  );
 }
 
 /* Volunteer */
@@ -633,6 +728,183 @@ export async function adminReconcileManual(body) {
   return adminFetchJSON(`${BASE}/admin/verifications/reconcile-manual`, {
     method: 'POST',
     body: JSON.stringify(body),
+  });
+}
+
+export async function adminBootstrapFinale(eventId) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/finale/bootstrap`, { method: 'POST' });
+}
+
+export async function adminGetFinaleConfig(eventId) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/finale/config`);
+}
+
+export async function adminPatchFinaleConfig(eventId, body) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/finale/config`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminPromoteFinaleAuto(eventId) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/finale/promote/auto`, { method: 'POST' });
+}
+
+export async function adminPromoteFinaleManual(eventId, teamIds) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/finale/promote/manual`, {
+    method: 'POST',
+    body: JSON.stringify({ teamIds }),
+  });
+}
+
+export async function adminGetFinaleEntries(eventId) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/finale/entries`);
+}
+
+export async function adminGetFinaleCandidates(eventId) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/finale/candidates`);
+}
+
+export async function adminGetFinaleLeaderboard(eventId) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/finale/leaderboard`);
+}
+
+export async function adminStartFinaleRound(roundId) {
+  return adminFetchJSON(`${BASE}/admin/rounds/${roundId}/finale/start`, { method: 'POST' });
+}
+
+export async function adminLockFinaleRound(roundId) {
+  return adminFetchJSON(`${BASE}/admin/rounds/${roundId}/finale/lock`, { method: 'POST' });
+}
+
+export async function adminStartFinaleMission(teamId, missionId) {
+  return adminFetchJSON(
+    `${BASE}/teams/${teamId}/finale/missions/${encodeURIComponent(missionId)}/start`,
+    {
+      method: 'POST',
+      body: JSON.stringify({}),
+    },
+  );
+}
+
+export async function adminGetFinaleGridSessions(eventId) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/finale/grid-sessions`);
+}
+
+export async function adminPromoteFinaleDemo(eventId) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/finale/promote/demo`, { method: 'POST' });
+}
+
+export async function adminGetFinaleMissionAssignments(eventId) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/finale/mission-assignments`);
+}
+
+export async function adminPreviewFinaleSchedule(eventId, body) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/finale/schedule/preview`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminGenerateFinaleSchedule(eventId, body) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/finale/schedule/generate`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminLockFinaleSchedule(eventId) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/finale/schedule/lock`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export async function adminGetFinaleLiveDashboard(eventId) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/finale/live-dashboard`);
+}
+
+export async function adminSyncFinaleReleases(eventId) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/finale/releases/sync`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export async function adminSetFinaleReleasesPaused(eventId, paused) {
+  return adminFetchJSON(
+    `${BASE}/admin/events/${eventId}/finale/releases/${paused ? 'pause' : 'resume'}`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ paused }),
+    },
+  );
+}
+
+export async function adminSetFinaleMeetPaused(eventId, meetCode, paused) {
+  return adminFetchJSON(
+    `${BASE}/admin/events/${eventId}/finale/meet/${encodeURIComponent(meetCode)}/${paused ? 'pause' : 'resume'}`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ paused }),
+    },
+  );
+}
+
+export async function adminReleaseFinaleTeam(eventId, teamId) {
+  return adminFetchJSON(
+    `${BASE}/admin/events/${eventId}/finale/teams/${teamId}/release`,
+    {
+      method: 'POST',
+      body: JSON.stringify({}),
+    },
+  );
+}
+
+export async function adminStopFinaleTeam(eventId, teamId) {
+  return adminFetchJSON(
+    `${BASE}/admin/events/${eventId}/finale/teams/${teamId}/stop`,
+    {
+      method: 'POST',
+      body: JSON.stringify({}),
+    },
+  );
+}
+
+export async function adminResumeFinaleTeam(eventId, teamId) {
+  return adminFetchJSON(
+    `${BASE}/admin/events/${eventId}/finale/teams/${teamId}/resume`,
+    {
+      method: 'POST',
+      body: JSON.stringify({}),
+    },
+  );
+}
+
+export async function adminPlaytestCompleteFinaleMission(eventId, teamId, missionId) {
+  return adminFetchJSON(
+    `${BASE}/admin/events/${eventId}/finale/teams/${teamId}/playtest-complete-mission`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ missionId }),
+    },
+  );
+}
+
+export async function adminPlaytestResetFinaleTeam(eventId, teamId) {
+  return adminFetchJSON(
+    `${BASE}/admin/events/${eventId}/finale/teams/${teamId}/playtest-reset`,
+    {
+      method: 'POST',
+      body: JSON.stringify({}),
+    },
+  );
+}
+
+export async function adminFinalizeFinaleLeaderboard(roundId, confirmLock = false) {
+  return adminFetchJSON(`${BASE}/admin/rounds/${roundId}/finale/finalize-leaderboard`, {
+    method: 'POST',
+    body: JSON.stringify({ confirmLock }),
   });
 }
 

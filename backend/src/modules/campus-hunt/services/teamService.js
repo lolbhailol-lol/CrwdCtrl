@@ -88,6 +88,8 @@ function publicTeamView(team, { isLeader = false, start = null, userId = null } 
     finalScore: team.finalScore ?? null,
     status: team.status,
     currentStage: team.currentStage,
+    competitionPhase: team.competitionPhase || 'round1',
+    finaleEntryId: team.finaleEntryId ? String(team.finaleEntryId) : null,
     scoreLockedAt: team.scoreLockedAt,
     finishedAt: team.finishedAt,
     stats: {

@@ -14,6 +14,10 @@ function registerModels() {
   require('./CampusHuntIssueReport');
   require('./CampusHuntAuditLog');
   require('./CampusHuntVolunteerAccess');
+  require('./CampusHuntFinaleEntry');
+  require('./CampusHuntFinaleMissionRun');
+  require('./CampusHuntFinaleMissionConfig');
+  require('./CampusHuntGridSession');
 }
 
 module.exports = {

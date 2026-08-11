@@ -66,8 +66,12 @@ const campusHuntEventSchema = new mongoose.Schema(
     teamCapacity: { type: Number, default: 40 },
     teamSize: { type: Number, default: 4 },
     startingScore: { type: Number, default: 100 },
-    /** When true, college appears in Profile → Campus Hunt live leaderboard only */
+    /** When true, college appears in Profile → Campus Hunt leaderboard */
     publicLeaderboardLive: { type: Boolean, default: false, index: true },
+    /** When true, Profile shows Campus Hunt login (Google session required) */
+    publicLoginLive: { type: Boolean, default: false, index: true },
+    /** When true, finale leaderboard visible while finale round is live */
+    publicFinaleLeaderboardLive: { type: Boolean, default: false, index: true },
     scoringConfig: {
       type: scoringConfigSchema,
       default: () => ({ ...DEFAULT_SCORING_CONFIG }),
@@ -88,6 +92,7 @@ const campusHuntEventSchema = new mongoose.Schema(
 
 campusHuntEventSchema.index({ college: 1, status: 1 });
 campusHuntEventSchema.index({ publicLeaderboardLive: 1, status: 1 });
+campusHuntEventSchema.index({ publicLoginLive: 1, status: 1 });
 
 module.exports = mongoose.models.CampusHuntEvent
   || mongoose.model('CampusHuntEvent', campusHuntEventSchema);

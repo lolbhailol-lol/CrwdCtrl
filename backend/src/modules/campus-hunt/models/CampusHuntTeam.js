@@ -141,6 +141,17 @@ const campusHuntTeamSchema = new mongoose.Schema(
     },
     suddenDeathRank: { type: Number },
     lastCheckpointNumber: { type: Number },
+    competitionPhase: {
+      type: String,
+      enum: ['round1', 'finale'],
+      default: 'round1',
+      index: true,
+    },
+    finaleEntryId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'CampusHuntFinaleEntry',
+      index: true,
+    },
   },
   { timestamps: true },
 );

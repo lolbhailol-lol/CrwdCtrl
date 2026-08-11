@@ -2,6 +2,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import { CAMPUS_HUNT_PATHS } from '../config';
 import { readHuntSession } from '../utils/huntSession';
+import CampusHuntBackLink from '../components/CampusHuntBackLink';
 
 /**
  * Event landing — players use their shared team URL.
@@ -27,6 +28,9 @@ export default function CampusHuntLandingPage() {
             'radial-gradient(ellipse 80% 45% at 50% -5%, #0ECCEE33, transparent 55%), linear-gradient(180deg, #121416 0%, #0b0c0d 70%)',
         }}
       />
+      <div className="absolute left-4 top-[max(1rem,var(--safe-top))] z-10">
+        <CampusHuntBackLink to="/" label="Back" />
+      </div>
       <div className="relative max-w-md space-y-4">
         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#0ECCEE]">
           Campus Hunt

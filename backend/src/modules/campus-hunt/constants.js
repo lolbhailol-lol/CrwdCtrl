@@ -14,6 +14,55 @@ const EVENT_STATUSES = [
 
 const ROUND_STATUSES = ['scheduled', 'live', 'locked', 'finalized'];
 
+const COMPETITION_PHASES = ['round1', 'finale'];
+
+const FINALE_MISSION_IDS = [
+  'intel_hunt',
+  'field_terminal',
+  'mission_3',
+  'mission_4',
+];
+
+const FINALE_DEFAULTS = {
+  startingScore: 500,
+  durationMinutes: 45,
+  maxFinalists: 12,
+  directFromR1: 5,
+  manualPick: 7,
+  missionDurationMinutes: 10,
+  intelMaxAttemptsPerStep: 2,
+  fieldTerminalMaxAttempts: 3,
+  /** @deprecated use fieldTerminalMaxAttempts */
+  borrowedDeviceMaxAttempts: 3,
+};
+
+const FINALE_MISSION_BOARD = [
+  { id: 'intel_hunt', title: 'Intel Hunt', emoji: '🧠', points: 50, enabled: true },
+  { id: 'field_terminal', title: 'Field Terminal', emoji: '💻', points: 100, enabled: true },
+  { id: 'mission_3', title: 'Mission 3', emoji: '🎯', points: 0, comingSoon: true },
+  { id: 'mission_4', title: 'Mission 4', emoji: '🔥', points: 0, comingSoon: true },
+];
+
+/** Pilot pool — 12 campus locations for dynamic Intel Hunt assignment (2 per team). */
+const DEFAULT_INTEL_LOCATION_POOL = [
+  { id: 'loc_01', name: 'Central Library', instruction: 'Find the blue notice board near the entrance. Take the fragment written on the gold sticker.', acceptedAnswers: ['ARC'], fragment: 'ARC' },
+  { id: 'loc_02', name: 'Main Canteen', instruction: 'Check the menu board by the cash counter. Read the highlighted word on the left.', acceptedAnswers: ['ADE'], fragment: 'ADE' },
+  { id: 'loc_03', name: 'Sports Complex', instruction: 'Look at the trophy case. The fragment is on the plaque for the newest sport.', acceptedAnswers: ['BOLT'], fragment: 'BOLT' },
+  { id: 'loc_04', name: 'Admin Block', instruction: 'Find the campus map in the lobby. The fragment is the building code in red.', acceptedAnswers: ['GATE'], fragment: 'GATE' },
+  { id: 'loc_05', name: 'Auditorium Steps', instruction: 'Read the event poster on the left pillar. Extract the bold keyword.', acceptedAnswers: ['ECHO'], fragment: 'ECHO' },
+  { id: 'loc_06', name: 'North Garden', instruction: 'Locate the stone bench with the dedication plate. Use the first word engraved.', acceptedAnswers: ['FLUX'], fragment: 'FLUX' },
+  { id: 'loc_07', name: 'Computer Lab Wing', instruction: 'Check the lab door schedule sheet. Find today\'s highlighted code word.', acceptedAnswers: ['GRID'], fragment: 'GRID' },
+  { id: 'loc_08', name: 'Student Plaza', instruction: 'Look at the fest banner facing the fountain. Fragment is the middle word.', acceptedAnswers: ['HUNT'], fragment: 'HUNT' },
+  { id: 'loc_09', name: 'Parking Gate B', instruction: 'Read the safety sign near the barrier. Fragment is the last word in caps.', acceptedAnswers: ['IRON'], fragment: 'IRON' },
+  { id: 'loc_10', name: 'Science Block', instruction: 'Find the periodic table poster in the corridor. Use the element symbol marked in yellow.', acceptedAnswers: ['JADE'], fragment: 'JADE' },
+  { id: 'loc_11', name: 'Hostel Courtyard', instruction: 'Check the notice on the bulletin board by the gate. Fragment is underlined.', acceptedAnswers: ['KEYS'], fragment: 'KEYS' },
+  { id: 'loc_12', name: 'Open Amphitheatre', instruction: 'Look at the stage backdrop storage door. Sticker shows your fragment.', acceptedAnswers: ['LUX'], fragment: 'LUX' },
+];
+
+const FINALE_ENTRY_STATUS = ['eligible', 'playing', 'stopped', 'locked'];
+
+const FINALE_RUN_STATUS = ['active', 'completed', 'abandoned', 'failed'];
+
 const TEAM_STAGES = [
   'WAITING',
   'CLUE_1_ACTIVE',
@@ -241,4 +290,11 @@ module.exports = {
   CHECKPOINT_UNLOCK_STAGE,
   CHECKPOINT_NEXT_STAGE,
   AUTO_ADVANCE_AFTER_CHECKPOINT,
+  COMPETITION_PHASES,
+  FINALE_MISSION_IDS,
+  FINALE_DEFAULTS,
+  FINALE_ENTRY_STATUS,
+  FINALE_RUN_STATUS,
+  FINALE_MISSION_BOARD,
+  DEFAULT_INTEL_LOCATION_POOL,
 };

@@ -71,9 +71,10 @@ export default function CampusHuntAdminDashboard() {
         featureNotes: form.featureNotes.trim(),
         status: 'registration_open',
         publicLeaderboardLive: false,
+        publicLoginLive: false,
       });
       setFormMsg(
-        `Created ${res.data?.event?.name}. Turn on “Show live on Profile” when you want the leaderboard public.`,
+        `Created ${res.data?.event?.name}. Turn on Profile login / leaderboard when ready.`,
       );
       setForm({
         name: '',
@@ -94,16 +95,16 @@ export default function CampusHuntAdminDashboard() {
     }
   };
 
-  const toggleLive = async (ev) => {
+  const toggleProfileFlag = async (ev, field) => {
     setBusyId(ev._id);
     setError('');
     try {
       await adminUpdateEvent(ev._id, {
-        publicLeaderboardLive: !ev.publicLeaderboardLive,
+        [field]: !ev[field],
       });
       await reload();
     } catch (err) {
-      setError(err.message || 'Failed to update live flag');
+      setError(err.message || 'Failed to update Profile flag');
     } finally {
       setBusyId('');
     }
@@ -268,8 +269,8 @@ export default function CampusHuntAdminDashboard() {
                 to={CAMPUS_HUNT_PATHS.adminEvent(ev._id)}
                 className="min-w-0 flex-1 hover:text-[#0ECCEE]"
               >
-                <p className="font-semibold">{ev.name}</p>
-                <p className="text-sm text-white/50">
+                <p className="font-semibold uppercase tracking-wide">{ev.name}</p>
+                <p className="text-sm uppercase tracking-wide text-white/50">
                   {ev.college} · {ev.slug}
                 </p>
                 <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-white/40">
@@ -284,14 +285,26 @@ export default function CampusHuntAdminDashboard() {
               <button
                 type="button"
                 disabled={busyId === ev._id}
-                onClick={() => toggleLive(ev)}
+                onClick={() => toggleProfileFlag(ev, 'publicLoginLive')}
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-40 ${
+                  ev.publicLoginLive
+                    ? 'bg-sky-400 text-black'
+                    : 'bg-white/10 text-white'
+                }`}
+              >
+                {ev.publicLoginLive ? 'Login on Profile · ON' : 'Login on Profile · OFF'}
+              </button>
+              <button
+                type="button"
+                disabled={busyId === ev._id}
+                onClick={() => toggleProfileFlag(ev, 'publicLeaderboardLive')}
                 className={`rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-40 ${
                   ev.publicLeaderboardLive
                     ? 'bg-emerald-500 text-black'
                     : 'bg-white/10 text-white'
                 }`}
               >
-                {ev.publicLeaderboardLive ? 'Live on Profile' : 'Show live on Profile'}
+                {ev.publicLeaderboardLive ? 'Leaderboard on Profile · ON' : 'Leaderboard on Profile · OFF'}
               </button>
               {ev.publicLeaderboardLive && (
                 <Link
@@ -314,7 +327,7 @@ export default function CampusHuntAdminDashboard() {
         ))}
         {!loading && !events.length && !error && (
           <p className="text-sm text-white/50">
-            No events yet. Create one above, then enable live Profile leaderboard when ready.
+            No events yet. Create one above, then enable Login / Leaderboard on Profile when ready.
           </p>
         )}
       </div>

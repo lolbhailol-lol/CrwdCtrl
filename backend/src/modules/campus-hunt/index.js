@@ -4,6 +4,7 @@ const { featureEnabled, isCampusHuntEnabled } = require('./middleware/featureEna
 const playerRoutes = require('./routes/player.routes');
 const volunteerRoutes = require('./routes/volunteer.routes');
 const adminRoutes = require('./routes/admin.routes');
+const gridRoutes = require('./routes/grid.routes');
 const playerController = require('./controllers/playerController');
 
 registerModels();
@@ -15,6 +16,7 @@ router.get('/status', playerController.getStatus);
 
 /** All other Campus Hunt APIs require CAMPUS_HUNT_ENABLED=true */
 router.use(featureEnabled);
+router.use('/grid', gridRoutes);
 router.use(playerRoutes);
 router.use('/volunteer', volunteerRoutes);
 router.use('/admin', adminRoutes);

@@ -35,6 +35,7 @@ import FinishReturnBoard from './FinishReturnBoard';
 import LiveOpsTools from './LiveOpsTools';
 import { formatQualificationLabel, CAMPUS_HUNT_STAGES } from './CampusHuntStageProgress';
 import CampusHuntRoundsHub, { CampusHuntRoundLocked, ROUND_META } from './CampusHuntRoundsHub';
+import FinaleControlPanel from './FinaleControlPanel';
 
 export default function CampusHuntEventControl() {
   const { eventId } = useParams();
@@ -98,6 +99,8 @@ export default function CampusHuntEventControl() {
   }, [refresh, tab]);
 
   const round1 = overview?.rounds?.find((r) => r.roundNumber === 1) || overview?.rounds?.[0];
+  const finaleRound = overview?.rounds?.find((r) => r.name === 'FINALE');
+  const round1Finalized = round1?.status === 'finalized' || round1?.status === 'locked';
   const readiness = overview?.readiness;
   const cluesReady = Boolean(readiness?.routesReady);
   const locationsReady = Boolean(readiness?.startingPointsReady);
@@ -252,9 +255,9 @@ export default function CampusHuntEventControl() {
               <Link to={CAMPUS_HUNT_PATHS.admin} className="text-xs text-white/40 hover:text-white">
                 ← All events
               </Link>
-              <h1 className="text-2xl font-bold">{overview?.event?.name || 'Campus Hunt'}</h1>
-              <p className="text-sm text-white/50">
-                {overview?.event?.college} · {overview?.event?.status}
+              <h1 className="text-2xl font-bold uppercase tracking-wide">{overview?.event?.name || 'Campus Hunt'}</h1>
+              <p className="text-sm uppercase tracking-wide text-white/50">
+                {overview?.event?.college} · {overview?.event?.slug || overview?.event?.status}
               </p>
             </div>
             <div className="flex flex-wrap gap-2 text-xs">
@@ -286,6 +289,7 @@ export default function CampusHuntEventControl() {
       {!activeRound && (
         <CampusHuntRoundsHub
           round1Status={round1?.status}
+          finaleStatus={finaleRound?.status}
           teamCapacity={overview?.event?.teamCapacity || 40}
           counts={overview?.counts || {}}
           onOpenRound={(roundId) => {
@@ -295,7 +299,36 @@ export default function CampusHuntEventControl() {
         />
       )}
 
-      {activeRound && activeRound !== 'round1' && lockedStage && (
+      {activeRound === 'survival' && lockedStage && (
+        <CampusHuntRoundLocked
+          roundId={lockedStage.subtitle}
+          title={lockedStage.label}
+          teams={lockedStage.teams}
+          message={ROUND_META[activeRound]?.lockedHint || 'This round is not opened yet.'}
+          onBack={() => setActiveRound(null)}
+        />
+      )}
+
+      {activeRound === 'finale' && (
+        <>
+          <button
+            type="button"
+            onClick={() => setActiveRound(null)}
+            className="text-xs text-white/50 hover:text-white"
+          >
+            ← All rounds
+          </button>
+          <FinaleControlPanel
+            eventId={eventId}
+            eventSlug={overview?.event?.slug}
+            round1Finalized={round1Finalized}
+            publicFinaleLive={overview?.event?.publicFinaleLeaderboardLive}
+            onRefreshOverview={refresh}
+          />
+        </>
+      )}
+
+      {activeRound && activeRound !== 'round1' && activeRound !== 'finale' && activeRound !== 'survival' && lockedStage && (
         <CampusHuntRoundLocked
           roundId={lockedStage.subtitle}
           title={lockedStage.label}
@@ -759,7 +792,31 @@ export default function CampusHuntEventControl() {
               </div>
 
               <section className="rounded-2xl border border-white/10 bg-white/4 p-4">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-white/45">
+                  Profile visibility
+                </p>
                 <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={busy || !overview?.event}
+                    onClick={() => run(
+                      () => adminUpdateEvent(eventId, {
+                        publicLoginLive: !overview.event.publicLoginLive,
+                      }),
+                      overview.event.publicLoginLive
+                        ? 'Campus Hunt login hidden from Profile'
+                        : 'Campus Hunt login shown on Profile',
+                    )}
+                    className={`rounded-lg px-3 py-2 text-sm disabled:opacity-40 ${
+                      overview?.event?.publicLoginLive
+                        ? 'bg-sky-400 font-semibold text-black'
+                        : 'bg-white/10'
+                    }`}
+                  >
+                    {overview?.event?.publicLoginLive
+                      ? 'Login on Profile · ON'
+                      : 'Login on Profile · OFF'}
+                  </button>
                   <button
                     type="button"
                     disabled={busy || !overview?.event}
@@ -768,14 +825,18 @@ export default function CampusHuntEventControl() {
                         publicLeaderboardLive: !overview.event.publicLeaderboardLive,
                       }),
                       overview.event.publicLeaderboardLive
-                        ? 'Public live leaderboard hidden'
-                        : 'Public live leaderboard enabled',
+                        ? 'Leaderboard hidden from Profile'
+                        : 'Leaderboard shown on Profile',
                     )}
-                    className="rounded-lg bg-white/10 px-3 py-2 text-sm disabled:opacity-40"
+                    className={`rounded-lg px-3 py-2 text-sm disabled:opacity-40 ${
+                      overview?.event?.publicLeaderboardLive
+                        ? 'bg-emerald-500 font-semibold text-black'
+                        : 'bg-white/10'
+                    }`}
                   >
                     {overview?.event?.publicLeaderboardLive
-                      ? 'Hide public scores'
-                      : 'Show public scores'}
+                      ? 'Leaderboard on Profile · ON'
+                      : 'Leaderboard on Profile · OFF'}
                   </button>
                   <button
                     type="button"

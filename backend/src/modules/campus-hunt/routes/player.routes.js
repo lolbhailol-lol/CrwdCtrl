@@ -7,6 +7,7 @@ const {
   campusHuntHintLimiter,
   campusHuntVerifyLimiter,
 } = require('../../../middleware/rateLimiter');
+const finaleController = require('../controllers/finaleController');
 const {
   getEventBySlug,
   getTeamLoginCard,
@@ -14,6 +15,7 @@ const {
   loginTeamMember,
   enterTeamAsMember,
   listColleges,
+  listProfileEntries,
   getPublicLeaderboard,
   getMyTeam,
   getTeamProgress,
@@ -30,7 +32,9 @@ const {
 const router = express.Router();
 
 router.get('/colleges', listColleges);
+router.get('/profile-entries', listProfileEntries);
 router.get('/events/:eventId/leaderboard/public', getPublicLeaderboard);
+router.get('/events/:eventId/finale/leaderboard', finaleController.getFinaleLeaderboardPublic);
 router.get('/events/by-slug/:slug', getEventBySlug);
 router.get('/events/by-slug/:slug/teams/:teamCode', getTeamLoginCard);
 router.post(
@@ -111,6 +115,47 @@ router.get(
   '/events/:eventId/leaderboard',
   authenticateToken,
   getLeaderboard,
+);
+
+router.get(
+  '/events/:eventId/finale/me',
+  authenticateToken,
+  finaleController.loadHuntTeamFromEvent,
+  finaleController.requireFinaleParticipant,
+  finaleController.getFinaleMe,
+);
+router.post(
+  '/teams/:teamId/finale/missions/:missionId/start',
+  authenticateToken,
+  requireTeamMember,
+  requireTeamLeader,
+  finaleController.requireFinaleParticipant,
+  finaleController.startFinaleMission,
+);
+router.post(
+  '/teams/:teamId/finale/missions/:missionId/submit',
+  authenticateToken,
+  requireTeamMember,
+  requireTeamLeader,
+  campusHuntAnswerLimiter,
+  finaleController.requireFinaleParticipant,
+  finaleController.submitFinaleMission,
+);
+router.post(
+  '/teams/:teamId/finale/missions/abandon',
+  authenticateToken,
+  requireTeamMember,
+  requireTeamLeader,
+  finaleController.requireFinaleParticipant,
+  finaleController.abandonFinaleMission,
+);
+router.post(
+  '/teams/:teamId/finale/stop',
+  authenticateToken,
+  requireTeamMember,
+  requireTeamLeader,
+  finaleController.requireFinaleParticipant,
+  finaleController.stopFinaleTeam,
 );
 
 module.exports = router;

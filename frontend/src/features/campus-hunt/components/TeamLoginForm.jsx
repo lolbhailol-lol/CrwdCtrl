@@ -13,6 +13,7 @@ import { CAMPUS_HUNT_PATHS } from '../config';
 import { teamPrimaryLabel, teamSecondaryName } from '../utils/teamLabel';
 import { normalizeTeamCode } from '../utils/teamCode';
 import { rememberHuntSession } from '../utils/huntSession';
+import CampusHuntBackLink from './CampusHuntBackLink';
 
 /**
  * Per-team login — password unlocks names → tap who you are.
@@ -94,10 +95,17 @@ export default function TeamLoginForm({
 
   const playPath = teamCard?.team?.playPath || CAMPUS_HUNT_PATHS.play(slug);
   const eventId = teamCard?.event?.id || teamCard?.event?._id || '';
+  const roundLabel = teamCard?.team?.roundLabel
+    || (teamCard?.team?.competitionPhase === 'finale' ? 'Finals round' : 'Campus Hunt');
+  const isFinalePhase = teamCard?.team?.competitionPhase === 'finale'
+    || roundLabel === 'Finals round';
+  const phaseGreeting = teamCard?.team?.phaseGreeting
+    || (isFinalePhase ? 'Congratulations — your team is in the Finals.' : '');
   const primary = teamCard?.team
     ? teamPrimaryLabel(teamCard.team)
     : teamCode;
   const secondary = teamCard?.team ? teamSecondaryName(teamCard.team) : '';
+  const continueLabel = isFinalePhase ? 'Enter Finals →' : 'Continue hunt →';
 
   // Stay logged in: same team → offer continue OR switch person (do not force-skip)
   useEffect(() => {
@@ -302,10 +310,18 @@ export default function TeamLoginForm({
   if (sessionCheck === 'same' && currentSession) {
     return (
       <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#0b0c0d] px-5 text-center text-white">
+        <div className="absolute left-4 top-[max(1rem,var(--safe-top))] z-10">
+          <CampusHuntBackLink to={CAMPUS_HUNT_PATHS.profileLogin} label="Back" />
+        </div>
         <div className="relative max-w-md space-y-4">
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#0ECCEE]">
-            Campus Hunt
+            {roundLabel}
           </p>
+          {isFinalePhase && phaseGreeting ? (
+            <p className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+              {phaseGreeting}
+            </p>
+          ) : null}
           <h1 className="font-mono text-3xl font-bold">{primary || teamCode}</h1>
           <p className="text-sm text-white/60">
             Logged in as{' '}
@@ -320,7 +336,7 @@ export default function TeamLoginForm({
               onClick={() => navigate(playPath, { replace: true })}
               className="rounded-xl bg-[#0ECCEE] px-4 py-3 text-sm font-bold text-black"
             >
-              Continue hunt →
+              {continueLabel}
             </button>
             <button
               type="button"
@@ -339,9 +355,12 @@ export default function TeamLoginForm({
   if (sessionCheck === 'other' && otherTeamCode) {
     return (
       <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#0b0c0d] px-5 text-center text-white">
+        <div className="absolute left-4 top-[max(1rem,var(--safe-top))] z-10">
+          <CampusHuntBackLink to={CAMPUS_HUNT_PATHS.profileLogin} label="Back" />
+        </div>
         <div className="relative max-w-md space-y-4">
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#0ECCEE]">
-            Campus Hunt
+            {roundLabel}
           </p>
           <h1 className="text-2xl font-bold">Wrong team link</h1>
           <p className="text-sm text-white/60">
@@ -382,8 +401,13 @@ export default function TeamLoginForm({
         }}
       />
       <div className="relative mx-auto flex min-h-screen max-w-md flex-col justify-center px-5 py-10">
+        <CampusHuntBackLink
+          to={CAMPUS_HUNT_PATHS.profileLogin}
+          label="Back"
+          className="mb-4 self-start"
+        />
         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#0ECCEE]">
-          Campus Hunt
+          {roundLabel}
         </p>
         <h1 className="mt-2 font-mono text-4xl font-bold tracking-tight">
           {lookingUp && !teamCard ? '…' : (primary || teamCode)}
@@ -395,6 +419,17 @@ export default function TeamLoginForm({
           {eventName}
           {college ? ` · ${college}` : ''}
         </p>
+        {isFinalePhase && phaseGreeting && !lookingUp ? (
+          <div className="mt-4 rounded-2xl border border-emerald-400/35 bg-emerald-500/10 px-4 py-3 text-center">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-200/80">
+              Finalist
+            </p>
+            <p className="mt-1 text-sm font-semibold text-emerald-50">{phaseGreeting}</p>
+            <p className="mt-1 text-xs text-white/50">
+              Log in · wait for the Finals timer · then the mission board opens.
+            </p>
+          </div>
+        ) : null}
         <p className="mt-3 text-sm text-white/60">
           Enter password once — you stay logged in on this phone.
         </p>

@@ -35,6 +35,9 @@
     "dev": "nodemon src/server.js",
     "build": "echo 'No build step required'",
     "test": "node --test \"tests/**/*.test.js\"",
+    "test:finale": "node --test \"tests/campus-hunt/finale/*.test.js\"",
+    "test:finale:watch": "node --test --watch \"tests/campus-hunt/finale/*.test.js\"",
+    "test:campus-hunt": "node --test \"tests/campus-hunt/**/*.test.js\"",
     "health": "curl -f http://localhost:8080/api/health || exit 1",
     "verify-deploy": "node scripts/verify-deploy.js",
     "lint:env": "node -e \"require('./src/config/requiredEnv').assertProductionEnv()\""

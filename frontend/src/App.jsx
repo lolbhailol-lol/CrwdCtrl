@@ -181,7 +181,7 @@ function AppContent({
   setShowRegister,
   handleCloseLogin,
   handleCloseRegister,
-  handleSwitchToRegister,
+  handleSwitchToRegister: _handleSwitchToRegister,
   handleSwitchToLogin,
   openLoginFromProfile,
 }) {
@@ -221,12 +221,24 @@ function AppContent({
 
   useEffect(() => {
     const onUserLogin = () => {
+      let fromProfile = false;
+      try {
+        const raw = sessionStorage.getItem('crwdctrl_login_context');
+        if (raw) fromProfile = Boolean(JSON.parse(raw).fromProfile);
+      } catch {
+        /* ignore */
+      }
+
       setShowLogin(false);
       setShowRegister(false);
-      setIsProfileOpen(false);
 
       const destination = resolvePostLoginRedirect();
       const here = currentAppPath();
+
+      // Keep profile open after Profile-gated Google sign-in (blur lifts once authed)
+      if (!fromProfile || (destination && destination !== here && destination !== '/')) {
+        setIsProfileOpen(false);
+      }
 
       if (destination && destination !== here) {
         navigate(destination, { replace: true });
@@ -283,13 +295,16 @@ function AppContent({
       )}
 
       {showLogin && !isAuthProcessing && !isLoading && !isRedirectProcessing && (
-        <div className="fixed inset-0 z-50">
-          <CrwdCtrlLogin onClose={handleCloseLogin} onSwitchToRegister={handleSwitchToRegister} />
-        </div>
+        <CrwdCtrlLogin
+          googleOnly
+          title="Continue with Google"
+          subtitle="Sign in once — then you’re ready"
+          onClose={handleCloseLogin}
+        />
       )}
 
       {showRegister && !isAuthProcessing && !isLoading && !isRedirectProcessing && (
-        <div className="fixed inset-0 z-50">
+        <div className="fixed inset-0 z-[100050]">
           <CrwdCtrlRegister onClose={handleCloseRegister} onSwitchToLogin={handleSwitchToLogin} />
         </div>
       )}
@@ -304,6 +319,7 @@ function App() {
 
   const openLoginFromProfile = useCallback(() => {
     prepareLogin({ fromProfile: true });
+    setIsProfileOpen(true);
     setShowLogin(true);
   }, []);
 

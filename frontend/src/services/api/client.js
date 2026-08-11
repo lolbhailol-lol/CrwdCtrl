@@ -31,7 +31,11 @@ export async function publicFetchJSON(path, options = {}) {
   });
   const data = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(data?.message || data?.error || `Request failed (HTTP ${response.status})`);
+    const err = new Error(data?.message || data?.error || `Request failed (HTTP ${response.status})`);
+    err.status = response.status;
+    err.code = data?.code;
+    err.data = data?.data ?? data;
+    throw err;
   }
   return data;
 }
