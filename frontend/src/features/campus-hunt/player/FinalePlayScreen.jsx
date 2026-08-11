@@ -144,7 +144,21 @@ export default function FinalePlayScreen({
         setFeedback(payload.submitResult.message || 'Mission complete!');
       }
     } catch (err) {
-      setFeedback(err.message || 'Action failed');
+      const code = err?.code || err?.data?.code;
+      if (code === 'NOT_RELEASED') {
+        setFeedback('Not released yet — wait at your meet point, or ask an organizer to Release your team.');
+      } else if (code === 'MISSION_COMPLETED') {
+        setFeedback('This mission is already cleared. Refresh if the board looks wrong.');
+      } else if (code === 'MISSION_ACTIVE') {
+        setFeedback('Finish or abandon your current mission first.');
+      } else if (code === 'FINALE_NOT_LIVE') {
+        setFeedback('Finals are not live yet — wait for the organizer to Start Finals.');
+      } else if (code === 'ENTRY_STOPPED') {
+        setFeedback('Your team is stopped or locked. Ask an organizer to resume you.');
+      } else {
+        setFeedback(err.message || 'Action failed');
+      }
+      await onRefresh?.();
     } finally {
       setBusy(false);
     }

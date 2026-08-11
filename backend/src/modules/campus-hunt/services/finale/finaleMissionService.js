@@ -26,6 +26,41 @@ function finaleError(message, code, status = 409) {
   return err;
 }
 
+function isMissionCompleted(entry, missionId) {
+  const done = entry.completedMissionIds || [];
+  if (isFieldTerminalMission(missionId)) {
+    return done.some((id) => isFieldTerminalMission(id));
+  }
+  return done.includes(String(missionId || ''));
+}
+
+function isSameMission(a, b) {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  return isFieldTerminalMission(a) && isFieldTerminalMission(b);
+}
+
+/** Clear activeMission* when the run is missing or no longer active (common after failed starts / renames). */
+async function healStaleActiveMission(entry) {
+  if (!entry?.activeMissionId && !entry?.activeMissionRunId) {
+    return { entry, activeRun: null, healed: false };
+  }
+
+  let activeRun = null;
+  if (entry.activeMissionRunId) {
+    activeRun = await CampusHuntFinaleMissionRun.findById(entry.activeMissionRunId);
+  }
+
+  if (activeRun && activeRun.status === 'active') {
+    return { entry, activeRun, healed: false };
+  }
+
+  entry.activeMissionId = null;
+  entry.activeMissionRunId = null;
+  await entry.save();
+  return { entry, activeRun: null, healed: true };
+}
+
 async function loadEntryForTeam(eventId, teamId) {
   const entry = await CampusHuntFinaleEntry.findOne({ eventId, teamId });
   if (!entry) {
@@ -57,8 +92,9 @@ async function buildBoardPayload({ eventId, teamId, userId, isLeader }) {
   }
 
   let activeRun = null;
-  if (entry.activeMissionRunId) {
-    activeRun = await CampusHuntFinaleMissionRun.findById(entry.activeMissionRunId);
+  if (entry.activeMissionId || entry.activeMissionRunId) {
+    const healed = await healStaleActiveMission(entry);
+    activeRun = healed.activeRun;
   }
 
   const missions = (config.missions || []).map((meta) => {
@@ -89,7 +125,9 @@ async function buildBoardPayload({ eventId, teamId, userId, isLeader }) {
         ? handler.rebuildPlayerView(activeRun, config)
         : rebuildPlayerView(handler, entry, activeRun, config);
       activeMission = {
-        missionId: entry.activeMissionId,
+        missionId: isFieldTerminalMission(entry.activeMissionId)
+          ? 'field_terminal'
+          : entry.activeMissionId,
         title: meta.title,
         points: meta.points,
         runId: String(activeRun._id),
@@ -106,8 +144,12 @@ async function buildBoardPayload({ eventId, teamId, userId, isLeader }) {
       id: String(entry._id),
       finaleScore: entry.finaleScore,
       status: entry.status,
-      completedMissionIds: entry.completedMissionIds || [],
-      activeMissionId: entry.activeMissionId,
+      completedMissionIds: (entry.completedMissionIds || []).map((id) => (
+        isFieldTerminalMission(id) ? 'field_terminal' : id
+      )),
+      activeMissionId: entry.activeMissionId
+        ? (isFieldTerminalMission(entry.activeMissionId) ? 'field_terminal' : entry.activeMissionId)
+        : null,
       promotionSource: entry.promotionSource,
       stoppedAt: entry.stoppedAt,
       finaleSlot: entry.finaleSlot,
@@ -186,17 +228,28 @@ async function startMission({ eventId, teamId, missionId, userId, actor = {} }) 
   }
   if (!isEntryReleased(entry, round, config)) {
     throw finaleError(
-      'Your team is not released yet. Wait at your meet location.',
+      'Your team is not released yet. Wait at your meet location — or ask an organizer to Release your team.',
       'NOT_RELEASED',
     );
   }
   if (entry.status === 'locked' || entry.status === 'stopped') {
     throw finaleError('Your team cannot start new missions.', 'ENTRY_STOPPED');
   }
+
+  // Heal stale activeMission* then allow idempotent re-open of the same mission
+  const healed = await healStaleActiveMission(entry);
+  if (healed.activeRun && isSameMission(entry.activeMissionId, missionId)) {
+    const board = await buildBoardPayload({ eventId, teamId, userId, isLeader: true });
+    return {
+      ...board,
+      activeMission: board.activeMission,
+      resumed: true,
+    };
+  }
   if (entry.activeMissionId) {
     throw finaleError('Finish or abandon your current mission first.', 'MISSION_ACTIVE');
   }
-  if ((entry.completedMissionIds || []).includes(missionId)) {
+  if (isMissionCompleted(entry, missionId)) {
     throw finaleError('Mission already completed.', 'MISSION_COMPLETED');
   }
 
@@ -227,7 +280,7 @@ async function startMission({ eventId, teamId, missionId, userId, actor = {} }) 
     roundId: round._id,
     entryId: entry._id,
     teamId,
-    missionId,
+    missionId: isFieldTerminalMission(missionId) ? 'field_terminal' : missionId,
     status: 'active',
     state: initialState,
   });
@@ -236,29 +289,37 @@ async function startMission({ eventId, teamId, missionId, userId, actor = {} }) 
     ...playerView,
     missionExpiresAt: expiresAt.toISOString(),
   };
+  const canonicalMissionId = isFieldTerminalMission(missionId) ? 'field_terminal' : missionId;
+
   if (isFieldTerminalMission(missionId)) {
-    const gridSession = await createGridSession({
-      eventId,
-      teamId,
-      entryId: entry._id,
-      missionRunId: run._id,
-      durationMinutes: config.durationMinutes || FINALE_DEFAULTS.durationMinutes,
-    });
-    run.state = {
-      ...run.state,
-      gridSessionId: String(gridSession._id),
-      accessCode: gridSession.accessCode,
-    };
-    await run.save();
-    finalPlayerView = {
-      ...(handler.enrichPlayerView
-        ? handler.enrichPlayerView(playerView, run.state)
-        : { ...playerView, accessCode: gridSession.accessCode }),
-      missionExpiresAt: expiresAt.toISOString(),
-    };
+    try {
+      const gridSession = await createGridSession({
+        eventId,
+        teamId,
+        entryId: entry._id,
+        missionRunId: run._id,
+        durationMinutes: config.durationMinutes || FINALE_DEFAULTS.durationMinutes,
+      });
+      run.state = {
+        ...run.state,
+        gridSessionId: String(gridSession._id),
+        accessCode: gridSession.accessCode,
+      };
+      await run.save();
+      finalPlayerView = {
+        ...(handler.enrichPlayerView
+          ? handler.enrichPlayerView(playerView, run.state)
+          : { ...playerView, accessCode: gridSession.accessCode }),
+        missionExpiresAt: expiresAt.toISOString(),
+      };
+    } catch (gridErr) {
+      run.status = 'abandoned';
+      await run.save();
+      throw gridErr;
+    }
   }
 
-  entry.activeMissionId = missionId;
+  entry.activeMissionId = canonicalMissionId;
   entry.activeMissionRunId = run._id;
   entry.status = 'playing';
   await entry.save();
@@ -269,13 +330,13 @@ async function startMission({ eventId, teamId, missionId, userId, actor = {} }) 
     action: 'finale_mission_started',
     targetType: 'team',
     targetId: teamId,
-    after: { missionId },
+    after: { missionId: canonicalMissionId },
   });
 
   return buildBoardPayload({ eventId, teamId, userId, isLeader: true }).then((board) => ({
     ...board,
     activeMission: {
-      missionId,
+      missionId: canonicalMissionId,
       runId: String(run._id),
       playerView: finalPlayerView,
       missionExpiresAt: expiresAt.toISOString(),
