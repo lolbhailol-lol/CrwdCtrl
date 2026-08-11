@@ -60,6 +60,22 @@ export default function ProfileSidebar({
     const authPending = isLoading || isAuthProcessing || isRedirectProcessing;
     // Only skeleton on cold auth bootstrap — never block on organizer / hunt API calls
     const isProfileLoading = isOpen && authPending && !isAuthenticated && !user;
+    const campusHuntCacheKey = isAuthenticated
+        ? `u:${String(user?.uid || user?.id || user?.email || 'auth').toLowerCase()}`
+        : 'guest';
+
+    // Drop profile caches on confirmed logout (skip cold auth bootstrap)
+    useEffect(() => {
+        if (authPending || isAuthenticated) return undefined;
+        campusHuntProfileCache = null;
+        organizerEligibilityCache = null;
+        setCampusHuntLoginLive(false);
+        setCampusHuntLeaderboardLive(false);
+        setClubManagerEligible(false);
+        setTrekCommunityEligible(false);
+        setEventOrganizerEligible(false);
+        return undefined;
+    }, [isAuthenticated, authPending]);
 
     // Campus Hunt Profile entries — admin toggles login / leaderboard separately
     useEffect(() => {
@@ -71,9 +87,12 @@ export default function ProfileSidebar({
             return undefined;
         }
 
-        if (campusHuntProfileCache) {
+        // Only reuse cache for the same auth identity
+        if (campusHuntProfileCache?.key === campusHuntCacheKey) {
             setCampusHuntLoginLive(Boolean(campusHuntProfileCache.showLogin));
             setCampusHuntLeaderboardLive(Boolean(campusHuntProfileCache.showLeaderboard));
+        } else if (campusHuntProfileCache) {
+            campusHuntProfileCache = null;
         }
 
         let cancelled = false;
@@ -82,6 +101,7 @@ export default function ProfileSidebar({
                 const res = await fetchCampusHuntProfileEntries();
                 if (cancelled) return;
                 const next = {
+                    key: campusHuntCacheKey,
                     showLogin: Boolean(res.data?.showLogin),
                     showLeaderboard: Boolean(res.data?.showLeaderboard),
                 };
@@ -96,7 +116,7 @@ export default function ProfileSidebar({
             }
         })();
         return () => { cancelled = true; };
-    }, [isOpen, isAuthenticated]);
+    }, [isOpen, isAuthenticated, campusHuntCacheKey]);
 
     // Organizer rows load in the background; menu is usable immediately
     useEffect(() => {
@@ -163,8 +183,14 @@ export default function ProfileSidebar({
     }, [isOpen]);
 
     const handleLogout = () => {
-        logout();
+        campusHuntProfileCache = null;
         organizerEligibilityCache = null;
+        setCampusHuntLoginLive(false);
+        setCampusHuntLeaderboardLive(false);
+        setClubManagerEligible(false);
+        setTrekCommunityEligible(false);
+        setEventOrganizerEligible(false);
+        logout();
         onClose();
         navigate('/');
     };
