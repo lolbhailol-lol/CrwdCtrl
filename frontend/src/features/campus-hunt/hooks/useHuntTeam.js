@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchMyTeam, fetchTeamProgress } from '../services/campusHunt.api';
 
 function pollIntervalMs(data, burstUntil) {
-  if (burstUntil && Date.now() < burstUntil) return 900;
+  if (burstUntil && Date.now() < burstUntil) return 2500;
 
   const stage = String(data?.team?.currentStage || '');
   const scheduledAt = data?.team?.scheduledStartAt
@@ -23,9 +23,10 @@ function pollIntervalMs(data, burstUntil) {
     || stage.includes('FAILED')
     || stage.includes('TIMEOUT');
 
-  if (nearRelease || pendingFour) return 2000;
-  if (activelyPlaying && stage !== 'SCORE_LOCKED') return 4000;
-  return 12000;
+  // Soft intervals — snappy enough for 4-of-4 scan, light on the server
+  if (nearRelease || pendingFour) return 3500;
+  if (activelyPlaying && stage !== 'SCORE_LOCKED') return 6000;
+  return 15000;
 }
 
 /** Normalize mutation / progress payloads into play-screen state. */
@@ -39,15 +40,19 @@ export function progressFromActionData(payload) {
   };
 }
 
-export function useHuntTeam(eventId) {
+/**
+ * @param {string|null} eventId
+ * @param {{ enabled?: boolean }} [options] — set enabled=false to pause polling (e.g. during Finale)
+ */
+export function useHuntTeam(eventId, { enabled = true } = {}) {
   const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(Boolean(eventId) && enabled);
   const [error, setError] = useState(null);
   const [burstUntil, setBurstUntil] = useState(0);
   const teamIdRef = useRef(null);
 
   const refresh = useCallback(async () => {
-    if (!eventId) return;
+    if (!eventId || !enabled) return;
     setError(null);
     try {
       const res = await fetchMyTeam(eventId);
@@ -64,42 +69,59 @@ export function useHuntTeam(eventId) {
     } finally {
       setLoading(false);
     }
-  }, [eventId]);
+  }, [eventId, enabled]);
 
   const refreshProgress = useCallback(async () => {
+    if (!enabled) return;
     const teamId = teamIdRef.current;
     if (!teamId) return refresh();
     try {
       const res = await fetchTeamProgress(teamId);
-      setData(res.data);
+      setData((prev) => ({
+        ...res.data,
+        rounds: res.data?.rounds || prev?.rounds,
+        event: res.data?.event || prev?.event,
+      }));
       teamIdRef.current = res.data?.team?.id || teamId;
     } catch (err) {
       setError(err.message || 'Failed to refresh');
     }
-  }, [refresh]);
+  }, [refresh, enabled]);
 
   /** Instant UI update from submit/scan response — no extra wait. */
   const applyActionData = useCallback((payload) => {
     const next = progressFromActionData(payload);
     if (!next) return false;
-    setData(next);
+    setData((prev) => ({
+      ...next,
+      rounds: prev?.rounds,
+      event: prev?.event,
+    }));
     teamIdRef.current = next.team?.id || teamIdRef.current;
-    setBurstUntil(Date.now() + 8000);
+    setBurstUntil(Date.now() + 4000);
     return true;
   }, []);
 
   useEffect(() => {
+    if (!eventId || !enabled) {
+      if (!enabled) setLoading(false);
+      return undefined;
+    }
     setLoading(true);
     refresh();
-  }, [refresh]);
+    return undefined;
+  }, [refresh, eventId, enabled]);
 
   useEffect(() => {
+    if (!eventId || !enabled) return undefined;
     const pollMs = pollIntervalMs(data, burstUntil);
     const id = setInterval(() => {
       refreshProgress();
     }, pollMs);
     return () => clearInterval(id);
   }, [
+    enabled,
+    eventId,
     data?.team?.scheduledStartAt,
     data?.team?.startStatus,
     data?.team?.currentStage,

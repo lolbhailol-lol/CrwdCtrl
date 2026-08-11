@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { missionTheme } from '../../admin/finaleMissionTheme';
+import MissionBriefBox from './MissionBriefBox';
 
 export default function IntelHuntMission({
   view,
@@ -11,91 +12,97 @@ export default function IntelHuntMission({
   const [answer, setAnswer] = useState('');
   const step = view?.step || 'loc1';
   const theme = missionTheme('intel_hunt');
-  const panel = `rounded-2xl border ${theme.borderClass} ${theme.bgClass} p-4 backdrop-blur-sm`;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!answer.trim() || !isLeader) return;
-    await onSubmit(answer.trim());
-    setAnswer('');
+    const value = answer.trim();
+    if (!value || !isLeader) return;
+    const result = await onSubmit(value);
+    if (result?.ok !== false) setAnswer('');
   };
 
+  const stepTitle = step === 'combine'
+    ? 'Combine the fragments'
+    : view?.locationName || 'Go to location';
+
   return (
-    <div className="space-y-4 p-2">
-      <div className={panel}>
-        <p className={`text-xs font-semibold uppercase tracking-wide ${theme.textClass}`}>
-          Intel Hunt · Orange
-        </p>
-        {view?.locationName && (
-          <h2 className="mt-1 text-xl font-bold text-white">{view.locationName}</h2>
-        )}
-        <p className="mt-3 text-sm leading-relaxed text-white/75">
-          {view?.instruction || 'Gather Intel at this location.'}
-        </p>
+    <div className="space-y-3 p-1">
+      <MissionBriefBox
+        theme={theme}
+        eyebrow={`Intel Hunt · ${theme.colorName}`}
+        title={stepTitle}
+        body={view?.instruction || 'Gather the fragment at this spot.'}
+        requirements={[
+          'Stay together as a team',
+          'Only the Team Leader submits answers',
+          step === 'combine'
+            ? 'Type fragment₁ + fragment₂ as one word'
+            : 'Enter the fragment from the location',
+        ]}
+      >
         {(view?.intel1Fragment || view?.intel2Fragment) && (
           <div className="mt-3 flex flex-wrap gap-2">
             {view.intel1Fragment && (
-              <span className={`rounded-lg px-3 py-1 font-mono text-sm ${theme.bgClass} ${theme.textClass}`}>
+              <span className={`rounded-lg px-2.5 py-1 font-mono text-sm ${theme.bgClass} ${theme.textClass}`}>
                 {view.intel1Fragment}
               </span>
             )}
             {view.intel2Fragment && (
-              <span className={`rounded-lg px-3 py-1 font-mono text-sm ${theme.bgClass} ${theme.textClass}`}>
+              <span className={`rounded-lg px-2.5 py-1 font-mono text-sm ${theme.bgClass} ${theme.textClass}`}>
                 {view.intel2Fragment}
               </span>
             )}
           </div>
         )}
         {view?.message && (
-          <p className={`mt-3 text-sm font-medium ${view.locked ? 'text-amber-200' : 'text-emerald-300'}`}>
+          <p className={`mt-2 text-sm ${view.locked ? 'text-amber-200' : 'text-emerald-300'}`}>
             {view.message}
           </p>
         )}
         {view?.attemptsLeft != null && !view.locked && (
-          <p className="mt-2 text-xs text-white/45">{view.attemptsLeft} attempt(s) left</p>
+          <p className="mt-1 text-xs text-white/40">{view.attemptsLeft} attempt(s) left</p>
         )}
-      </div>
+      </MissionBriefBox>
 
       {!isLeader ? (
-        <p className="rounded-xl bg-white/5 px-4 py-3 text-center text-sm text-white/60">
-          Only the Team Leader can submit Intel.
+        <p className="rounded-xl bg-white/[0.04] px-3 py-2.5 text-center text-sm text-white/50">
+          Only the Team Leader can submit.
         </p>
       ) : view?.locked ? (
-        <p className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-center text-sm text-amber-100">
-          Submission locked. Ask an organizer if you need help.
+        <p className="rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2.5 text-center text-sm text-amber-100">
+          Submission locked — ask an organizer.
         </p>
       ) : (
-        <form onSubmit={handleSubmit} className={panel}>
-          <label className="block text-xs uppercase tracking-wide text-white/50">
-            {step === 'combine' ? 'Combined word' : 'Your Intel'}
-            <input
-              type="text"
-              value={answer}
-              onChange={(e) => setAnswer(e.target.value)}
-              className={`mt-2 w-full rounded-xl border border-white/15 bg-black/40 px-4 py-3 text-white outline-none ${theme.accentRing}`}
-              placeholder={step === 'combine' ? 'Enter final word…' : 'Enter fragment…'}
-              autoComplete="off"
-              disabled={busy}
-            />
-          </label>
+        <form onSubmit={handleSubmit} className="space-y-2">
+          <input
+            type="text"
+            value={answer}
+            onChange={(e) => setAnswer(e.target.value)}
+            className={`w-full rounded-xl border border-white/12 bg-black/35 px-4 py-3 text-white outline-none ${theme.accentRing}`}
+            placeholder={step === 'combine' ? 'Combined word…' : 'Fragment…'}
+            autoComplete="off"
+            disabled={busy}
+          />
           <button
             type="submit"
             disabled={busy || !answer.trim()}
-            className={`mt-3 w-full rounded-xl py-3 text-sm font-bold uppercase tracking-wide disabled:opacity-40 ${theme.solidClass} ${theme.solidTextClass}`}
+            className={`w-full rounded-xl py-3 text-sm font-bold uppercase tracking-wide disabled:opacity-40 ${theme.solidClass} ${theme.solidTextClass}`}
           >
-            {busy ? 'Submitting…' : 'Submit Intel'}
+            {busy ? 'Submitting…' : 'Submit'}
           </button>
         </form>
       )}
 
-      <button
-        type="button"
-        onClick={onAbandon}
-        disabled={busy}
-        className="w-full text-center text-xs text-white/40 underline hover:text-white/70"
-      >
-        Return to mission board
-      </button>
+      {isLeader && (
+        <button
+          type="button"
+          onClick={onAbandon}
+          disabled={busy}
+          className="w-full py-1 text-center text-xs text-white/35 underline hover:text-white/60"
+        >
+          Back to board
+        </button>
+      )}
     </div>
   );
 }

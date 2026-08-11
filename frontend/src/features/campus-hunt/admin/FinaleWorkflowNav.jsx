@@ -1,6 +1,6 @@
 const FINALE_STEPS = [
   { id: 'setup', label: 'Setup', short: 'Bootstrap & rules' },
-  { id: 'missions', label: 'Missions', short: 'Intel · Grid · M3/4' },
+  { id: 'missions', label: 'Missions', short: 'Intel · Lockbox · Terminal · Blackout' },
   { id: 'teams', label: 'Teams', short: '12 finalists' },
   { id: 'schedule', label: 'Schedule', short: 'Staggered releases' },
   { id: 'live', label: 'Live', short: 'Playtest · release' },

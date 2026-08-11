@@ -1,9 +1,10 @@
-const PLACEHOLDER_MISSIONS = ['mission_3', 'mission_4'];
+/** No coming-soon placeholders — all 4 finale missions are live. */
+const PLACEHOLDER_MISSIONS = [];
 
 function makePlaceholder(id, meta) {
   return {
     id,
-    getBoardCard(entry) {
+    getBoardCard() {
       return {
         id,
         title: meta?.title || id.toUpperCase().replace('_', ' '),

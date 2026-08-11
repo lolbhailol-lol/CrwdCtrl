@@ -90,6 +90,11 @@ function publicTeamView(team, { isLeader = false, start = null, userId = null } 
     currentStage: team.currentStage,
     competitionPhase: team.competitionPhase || 'round1',
     finaleEntryId: team.finaleEntryId ? String(team.finaleEntryId) : null,
+    playerRoundLocks: {
+      round1: Boolean(team.playerRoundLocks?.round1),
+      survival: Boolean(team.playerRoundLocks?.survival),
+      finale: Boolean(team.playerRoundLocks?.finale),
+    },
     scoreLockedAt: team.scoreLockedAt,
     finishedAt: team.finishedAt,
     stats: {

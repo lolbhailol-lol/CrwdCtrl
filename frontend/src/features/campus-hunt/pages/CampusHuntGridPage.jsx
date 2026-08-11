@@ -161,7 +161,7 @@ export default function CampusHuntGridPage() {
             Connect the numbers in order · fill every cell · 3 levels
           </p>
           <p className="mt-1 text-xs text-white/40">
-            L1 = 20 · L2 = 40 · L3 = 40 · Hint −20 · miss timer = 0 that level
+            L1 = 25 · L2 = 50 · L3 = 50 · Hint −20 · miss timer = 0 that level
           </p>
           <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-amber-200/70">
             Laptop / desktop only · phones against the rules

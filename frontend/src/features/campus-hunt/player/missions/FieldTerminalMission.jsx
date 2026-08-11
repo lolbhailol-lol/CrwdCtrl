@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { CAMPUS_HUNT_PATHS } from '../../config';
 import { missionTheme } from '../../admin/finaleMissionTheme';
 import { LAPTOP_ONLY_RULE } from '../../grid/laptopOnly';
+import MissionBriefBox from './MissionBriefBox';
 
 const CLUE_IMAGE_DEFAULT = '/campus-hunt/field-terminal-clue.jpg';
 
@@ -97,7 +98,6 @@ export default function FieldTerminalMission({
   const [showClue, setShowClue] = useState(false);
   const [opsOpen, setOpsOpen] = useState(false);
   const theme = missionTheme('field_terminal');
-  const panel = `rounded-2xl border ${theme.borderClass} ${theme.bgClass} p-4 backdrop-blur-sm`;
 
   const gamePath = view?.gameUrl || CAMPUS_HUNT_PATHS.grid;
   const gameFullUrl = typeof window !== 'undefined'
@@ -128,13 +128,14 @@ export default function FieldTerminalMission({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!code.trim() || !isLeader || view?.locked) return;
-    await onSubmit(code.trim());
-    setCode('');
+    const value = code.trim();
+    if (!value || !isLeader || view?.locked) return;
+    const result = await onSubmit(value);
+    if (result?.ok !== false) setCode('');
   };
 
   return (
-    <div className="space-y-4 p-2">
+    <div className="space-y-3 p-1">
       <CluePopup
         open={showClue}
         imageSrc={clueImage}
@@ -142,40 +143,35 @@ export default function FieldTerminalMission({
         onDismiss={markClueSeen}
       />
 
-      <div className={panel}>
-        <p className={`text-xs font-semibold uppercase tracking-wide ${theme.textClass}`}>
-          Field Terminal · Blue
-        </p>
-        <h2 className="mt-1 text-xl font-bold text-white">
-          {view?.locationName || 'Field device'}
-        </h2>
-        <p className="mt-3 text-sm leading-relaxed text-white/70">
-          {view?.instruction
-            || 'Use what the clue showed you. When the machine finishes its work, bring the code back here.'}
-        </p>
-
+      <MissionBriefBox
+        theme={theme}
+        eyebrow={`Field Terminal · ${theme.colorName}`}
+        title={view?.locationName || 'Laptop grid'}
+        body={view?.instruction || 'Clear Zip on a laptop, then bring the GRID code back here.'}
+        requirements={[
+          'Laptop only — phones / Desktop site = DQ',
+          'Paste device key on the laptop browser',
+          'Leader submits GRID-XXXX on this phone',
+        ]}
+      >
         <button
           type="button"
           onClick={() => setShowClue(true)}
-          className="mt-4 flex w-full items-stretch overflow-hidden rounded-2xl border border-white/10 bg-black/30 text-left transition hover:border-white/25"
+          className="mt-3 flex w-full items-stretch overflow-hidden rounded-xl border border-white/10 bg-black/30 text-left"
         >
-          <img
-            src={clueImage}
-            alt=""
-            className="h-20 w-24 shrink-0 object-cover"
-          />
+          <img src={clueImage} alt="" className="h-16 w-20 shrink-0 object-cover" />
           <div className="flex flex-1 flex-col justify-center px-3 py-2">
             <p className={`text-[10px] font-bold uppercase tracking-wide ${theme.textClass}`}>
               Mission clue
             </p>
-            <p className="text-xs text-white/55">Tap to view again</p>
+            <p className="text-xs text-white/50">Tap to view</p>
           </div>
         </button>
 
         {accessCode && (
-          <div className={`mt-4 rounded-xl border px-4 py-3 text-center ${theme.borderClass} bg-black/25`}>
-            <p className="text-[10px] uppercase tracking-wide text-white/45">Device key</p>
-            <p className={`mt-1 font-mono text-2xl font-bold tracking-[0.35em] ${theme.textClass}`}>
+          <div className="mt-3 rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-center">
+            <p className="text-[10px] uppercase tracking-wide text-white/40">Device key</p>
+            <p className={`mt-1 font-mono text-xl font-bold tracking-[0.3em] ${theme.textClass}`}>
               {accessCode}
             </p>
             <button
@@ -184,126 +180,109 @@ export default function FieldTerminalMission({
                 setCopied('access');
                 setTimeout(() => setCopied(''), 1500);
               })}
-              className="mt-2 text-xs text-white/50 underline hover:text-white"
+              className="mt-1.5 text-xs text-white/45 underline"
             >
-              {copied === 'access' ? 'Copied!' : 'Copy'}
+              {copied === 'access' ? 'Copied!' : 'Copy key'}
             </button>
           </div>
         )}
 
-        <div className={`mt-3 rounded-xl border px-4 py-3 ${theme.borderClass} bg-black/25`}>
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-200/80">
-            Open on a laptop
+        <div className="mt-2.5 rounded-xl border border-white/10 bg-black/30 px-3 py-2.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-white/45">
+            Grid link · laptop
           </p>
-          <p className="mt-1 text-[11px] text-white/50">
-            Copy this link and open it in a laptop browser — phones are blocked.
-          </p>
-          <p className="mt-2 break-all font-mono text-xs text-white/80">
-            {gameFullUrl}
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <p className="mt-1 break-all font-mono text-[11px] text-white/70">{gameFullUrl}</p>
+          <div className="mt-2 flex gap-2">
             <button
               type="button"
               onClick={() => copyText(gameFullUrl, () => {
                 setCopied('url');
                 setTimeout(() => setCopied(''), 1500);
               })}
-              className={`flex-1 rounded-xl px-3 py-2.5 text-xs font-bold uppercase tracking-wide ${theme.solidClass} ${theme.solidTextClass}`}
+              className={`flex-1 rounded-lg px-3 py-2 text-xs font-bold uppercase ${theme.solidClass} ${theme.solidTextClass}`}
             >
-              {copied === 'url' ? 'Link copied!' : 'Copy grid link'}
+              {copied === 'url' ? 'Copied!' : 'Copy link'}
             </button>
             <a
               href={gameFullUrl}
               target="_blank"
               rel="noreferrer"
-              className="flex-1 rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-center text-xs font-bold uppercase tracking-wide text-white/80"
+              className="flex-1 rounded-lg border border-white/12 bg-white/5 px-3 py-2 text-center text-xs font-bold uppercase text-white/75"
             >
-              Open (laptop)
+              Open
             </a>
           </div>
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-200/75">
-              Laptop only · phones against the rules
-            </p>
-            <p className="mt-0.5 text-[11px] text-white/45">
-              On the laptop: paste device key → clear 3 levels → bring GRID code back here.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setOpsOpen((v) => !v)}
-            className="text-xs text-white/40 underline hover:text-white/70"
-          >
-            {opsOpen ? 'Hide details' : 'Need a nudge?'}
-          </button>
-        </div>
-
-        <p className="mt-3 rounded-xl border border-red-400/25 bg-red-500/10 px-3 py-2 text-[11px] leading-relaxed text-red-100/85">
+        <p className="mt-2 text-[11px] leading-relaxed text-red-100/75">
           {LAPTOP_ONLY_RULE}
         </p>
 
+        <button
+          type="button"
+          onClick={() => setOpsOpen((v) => !v)}
+          className="mt-1 text-xs text-white/35 underline"
+        >
+          {opsOpen ? 'Hide steps' : 'Need steps?'}
+        </button>
         {opsOpen && (
-          <div className="mt-3 space-y-2 rounded-xl border border-white/10 bg-black/25 px-3 py-3 text-xs text-white/55">
-            <p>1. Copy the grid link above onto a laptop.</p>
-            <p>2. Enter the device key.</p>
-            <p>3. Clear three stages. Miss a timer → 0 for that stage. Hints cost points.</p>
-            <p>4. Bring the final GRID-XXXX code back to your leader on this phone.</p>
-          </div>
+          <ol className="mt-2 list-decimal space-y-1 pl-4 text-xs text-white/50">
+            <li>Open grid link on a laptop</li>
+            <li>Enter device key</li>
+            <li>Clear 3 levels (hints cost points)</li>
+            <li>Bring GRID code back to this phone</li>
+          </ol>
         )}
 
         {view?.message && (
-          <p className={`mt-3 text-sm font-medium ${view.message.includes('!') ? 'text-emerald-300' : 'text-amber-200'}`}>
+          <p className={`mt-2 text-sm ${view.message.includes('!') ? 'text-emerald-300' : 'text-amber-200'}`}>
             {view.message}
           </p>
         )}
         {view?.attemptsLeft != null && !view.locked && (
-          <p className="mt-2 text-xs text-white/45">{view.attemptsLeft} attempt(s) left</p>
+          <p className="mt-1 text-xs text-white/40">{view.attemptsLeft} attempt(s) left</p>
         )}
-      </div>
+      </MissionBriefBox>
 
       {!isLeader ? (
-        <p className="rounded-xl bg-white/5 px-4 py-3 text-center text-sm text-white/60">
-          Only the Team Leader can return the final code.
+        <p className="rounded-xl bg-white/[0.04] px-3 py-2.5 text-center text-sm text-white/50">
+          Only the Team Leader submits the GRID code.
         </p>
       ) : view?.locked ? (
-        <p className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-center text-sm text-amber-100">
-          Too many wrong codes. Ask an organizer for help.
+        <p className="rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2.5 text-center text-sm text-amber-100">
+          Submission locked — ask an organizer.
         </p>
       ) : (
-        <form onSubmit={handleSubmit} className={panel}>
-          <label className="block text-xs uppercase tracking-wide text-white/50">
-            Return code
-            <input
-              type="text"
-              value={code}
-              onChange={(e) => setCode(e.target.value.toUpperCase().replace(/\s/g, '').slice(0, 12))}
-              className={`mt-2 w-full rounded-xl border border-white/15 bg-black/40 px-4 py-3 text-center font-mono text-xl tracking-widest text-white outline-none ${theme.accentRing}`}
-              placeholder="GRID-XXXX"
-              autoComplete="off"
-              disabled={busy}
-            />
-          </label>
+        <form onSubmit={handleSubmit} className="space-y-2">
+          <input
+            type="text"
+            value={code}
+            onChange={(e) => setCode(e.target.value.toUpperCase())}
+            className={`w-full rounded-xl border border-white/12 bg-black/35 px-4 py-3 font-mono text-white outline-none ${theme.accentRing}`}
+            placeholder="GRID-XXXX"
+            autoComplete="off"
+            disabled={busy}
+          />
           <button
             type="submit"
             disabled={busy || code.length < 6}
-            className={`mt-3 w-full rounded-xl py-3 text-sm font-bold uppercase tracking-wide disabled:opacity-40 ${theme.solidClass} ${theme.solidTextClass}`}
+            className={`w-full rounded-xl py-3 text-sm font-bold uppercase tracking-wide disabled:opacity-40 ${theme.solidClass} ${theme.solidTextClass}`}
           >
             {busy ? 'Checking…' : 'Submit code'}
           </button>
         </form>
       )}
 
-      <button
-        type="button"
-        onClick={onAbandon}
-        disabled={busy}
-        className="w-full text-center text-xs text-white/40 underline hover:text-white/70"
-      >
-        Return to mission board
-      </button>
+      {isLeader && (
+        <button
+          type="button"
+          onClick={onAbandon}
+          disabled={busy}
+          className="w-full py-1 text-center text-xs text-white/35 underline hover:text-white/60"
+        >
+          Back to board
+        </button>
+      )}
     </div>
   );
 }

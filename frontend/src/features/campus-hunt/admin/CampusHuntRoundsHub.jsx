@@ -46,6 +46,7 @@ const BADGE = {
 
 /**
  * Event hub: overall competition format, then clickable rounds.
+ * Includes player-facing open/lock toggles for the post-login hub.
  */
 export default function CampusHuntRoundsHub({
   round1Status,
@@ -53,8 +54,16 @@ export default function CampusHuntRoundsHub({
   teamCapacity = 40,
   counts = {},
   onOpenRound,
+  playerRoundAccess,
+  onTogglePlayerRound,
+  busy = false,
 }) {
   const capacity = Number(teamCapacity) || 40;
+  const access = {
+    round1: playerRoundAccess?.round1 !== false,
+    survival: playerRoundAccess?.survival === true,
+    finale: playerRoundAccess?.finale === true,
+  };
 
   return (
     <div className="space-y-5">
@@ -62,7 +71,7 @@ export default function CampusHuntRoundsHub({
         <h2 className="text-lg font-bold uppercase tracking-wide">Overall format</h2>
         <p className="mt-1 max-w-2xl text-sm text-white/55">
           Campus Hunt runs in three rounds. Open a round below to manage everything for that
-          stage. Later rounds stay closed until the previous stage is done.
+          stage. Use player locks so teams see Round 1 / Survival / Finals but cannot enter until you open them.
         </p>
         <div className="mt-4 flex flex-wrap items-center gap-2 text-sm font-semibold uppercase tracking-wide text-white/70">
           <span className="rounded-lg bg-black/30 px-3 py-1.5">
@@ -92,6 +101,41 @@ export default function CampusHuntRoundsHub({
           ))}
         </div>
       </section>
+
+      {typeof onTogglePlayerRound === 'function' && (
+        <section className="rounded-2xl border border-[#0ECCEE]/25 bg-[#0ECCEE]/5 p-4">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-[#0ECCEE]">
+            Player round locks
+          </h2>
+          <p className="mt-1 text-xs text-white/55">
+            After login, teams see all three rounds. Locked = visible but cannot open.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {[
+              ['round1', 'Round 1'],
+              ['survival', 'Survival'],
+              ['finale', 'Finals'],
+            ].map(([id, label]) => {
+              const open = access[id];
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onTogglePlayerRound(id, !open)}
+                  className={`rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-40 ${
+                    open
+                      ? 'bg-emerald-400 text-black'
+                      : 'bg-white/10 text-white/70'
+                  }`}
+                >
+                  {label} · {open ? 'OPEN' : 'LOCKED'}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       <section>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-white/45">
@@ -141,6 +185,9 @@ export default function CampusHuntRoundsHub({
                     Path A: 5 direct from Round 1 · Path B: Survival top 7
                   </p>
                 )}
+                <p className="mt-2 text-[11px] font-medium text-white/55">
+                  Players: {access[stage.id] ? 'can open' : 'locked on hub'}
+                </p>
                 <p className="mt-3 text-xs font-medium text-white/70">
                   {canEnter && stage.id === 'round1'
                     ? 'Open Round 1 →'

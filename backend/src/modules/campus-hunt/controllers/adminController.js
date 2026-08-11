@@ -121,6 +121,7 @@ async function updateEvent(req, res, next) {
       'publicLeaderboardLive',
       'publicLoginLive',
       'publicFinaleLeaderboardLive',
+      'playerRoundAccess',
     ];
     for (const key of fields) {
       if (req.body[key] !== undefined) allowed[key] = req.body[key];
@@ -133,6 +134,10 @@ async function updateEvent(req, res, next) {
     }
     if (allowed.publicFinaleLeaderboardLive !== undefined) {
       allowed.publicFinaleLeaderboardLive = allowed.publicFinaleLeaderboardLive === true;
+    }
+    if (allowed.playerRoundAccess && typeof allowed.playerRoundAccess === 'object') {
+      const { normalizeAccess } = require('../services/playerRoundAccess');
+      allowed.playerRoundAccess = normalizeAccess(allowed.playerRoundAccess);
     }
     const event = await CampusHuntEvent.findByIdAndUpdate(
       req.params.eventId,
@@ -1628,6 +1633,16 @@ async function updateTeam(req, res, next) {
       team.firstCheckpointId = req.body.firstCheckpointId || undefined;
     }
     if (req.body.status != null) team.status = req.body.status;
+
+    if (req.body.playerRoundLocks && typeof req.body.playerRoundLocks === 'object') {
+      const { normalizeTeamLocks } = require('../services/playerRoundAccess');
+      const locks = normalizeTeamLocks(req.body.playerRoundLocks);
+      team.playerRoundLocks = {
+        round1: Boolean(locks.round1),
+        survival: Boolean(locks.survival),
+        finale: Boolean(locks.finale),
+      };
+    }
 
     if (Array.isArray(req.body.memberNames)) {
       const names = req.body.memberNames.map((n) => String(n || '').trim()).filter(Boolean);

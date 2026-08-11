@@ -15,6 +15,7 @@ import {
   adminLockFinaleRound,
   adminFinalizeFinaleLeaderboard,
   adminUpdateEvent,
+  adminResetFinaleForRetest,
 } from '../services/campusHunt.api';
 import { CAMPUS_HUNT_PATHS } from '../config';
 import { formatQualificationLabel } from './CampusHuntStageProgress';
@@ -287,7 +288,18 @@ export default function FinaleControlPanel({
   const directCount = entries.filter((e) => e.promotionSource === 'direct_r1').length;
   const manualCount = entries.filter((e) => e.promotionSource === 'manual_pick').length;
   const teamsReady = entries.length >= 12;
-  const missionsReady = locationPool.length >= 12 && locationPool.every((l) => l.name && l.fragment);
+  const missionsReady = locationPool.length >= 12
+    && locationPool.every((l) => l.name && l.fragment)
+    && Boolean(String(config?.lockbox?.clue || '').trim())
+    && (
+      (Array.isArray(config?.lockbox?.codePool) && config.lockbox.codePool.length >= 12)
+      || (Array.isArray(config?.lockbox?.acceptedCodes) && config.lockbox.acceptedCodes.some(Boolean))
+    )
+    && Array.isArray(config?.lockbox?.keyPool)
+    && config.lockbox.keyPool.length >= 12
+    && Boolean(String(config?.blackout?.scout?.clue || '').trim())
+    && Array.isArray(config?.blackout?.scout?.acceptedAnswers)
+    && config.blackout.scout.acceptedAnswers.some(Boolean);
   const scheduleReady = round?.status === 'scheduled' || round?.status === 'live' || round?.status === 'locked';
 
   const directTeamSlots = useMemo(
@@ -334,10 +346,31 @@ export default function FinaleControlPanel({
     () => adminPatchFinaleConfig(eventId, {
       missionDurationMinutes: config.missionDurationMinutes,
       intelHunt: config.intelHunt,
+      lockbox: config.lockbox,
       fieldTerminal: config.fieldTerminal || config.borrowedDevice,
+      blackout: config.blackout,
+      missions: config.missions,
     }),
     'Mission config saved',
   );
+
+  const toggleMissionEnabled = (missionId, enabled) => {
+    const existing = Array.isArray(config?.missions) ? [...config.missions] : [];
+    const idx = existing.findIndex((m) => (
+      m.id === missionId
+      || (missionId === 'field_terminal' && m.id === 'borrowed_device')
+    ));
+    if (idx >= 0) {
+      existing[idx] = { ...existing[idx], id: missionId, enabled };
+    } else {
+      existing.push({ id: missionId, enabled });
+    }
+    setConfig((prev) => ({ ...prev, missions: existing }));
+    return run(
+      () => adminPatchFinaleConfig(eventId, { missions: existing }),
+      enabled ? `${missionId} turned ON` : `${missionId} turned OFF`,
+    );
+  };
 
   const fillDemoFinalists = async () => {
     let entRes = await adminGetFinaleEntries(eventId);
@@ -458,6 +491,7 @@ export default function FinaleControlPanel({
           busy={busy}
           hasRound={Boolean(round)}
           demoBusy={busy}
+          onToggleMissionEnabled={toggleMissionEnabled}
           onPromoteDemo={() => run(
             () => adminPromoteFinaleDemo(eventId),
             'Demo finalists ready — CC001 to CC012',
@@ -527,7 +561,18 @@ export default function FinaleControlPanel({
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              disabled={busy || !round1Finalized || !round}
+              disabled={busy || !round}
+              onClick={() => run(
+                () => adminPromoteFinaleDemo(eventId),
+                'Demo finalists ready — CC001 to CC012 (no R1 finalize needed)',
+              )}
+              className="rounded-xl bg-emerald-500/25 px-4 py-2 text-sm font-bold text-emerald-100 disabled:opacity-40"
+            >
+              Testing: make CC001–CC012 finalists
+            </button>
+            <button
+              type="button"
+              disabled={busy || !round}
               onClick={() => run(fillDemoFinalists, 'Demo: all 12 finalists promoted')}
               className="rounded-xl bg-emerald-500/20 px-4 py-2 text-sm font-bold text-emerald-100 disabled:opacity-40"
             >
@@ -553,6 +598,9 @@ export default function FinaleControlPanel({
               Manual pick selected ({manualCount}/7)
             </button>
           </div>
+          <p className="text-[11px] text-white/40">
+            Testing shortcut does not need Round 1 finalized. Auto / Manual picks do.
+          </p>
 
           <p className="text-xs text-white/50">
             {entries.length}/12 finalists · Direct: {directCount} · Manual: {manualCount}
@@ -695,6 +743,42 @@ export default function FinaleControlPanel({
                   Force lock Finals now
                 </button>
               )}
+              {round.status === 'live' && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    if (!window.confirm(
+                      'Wipe ALL finalists?\n\nScores → start · missions cleared · Finals stays LIVE · Release again',
+                    )) return;
+                    run(
+                      () => adminResetFinaleForRetest(eventId, { keepLive: true }),
+                      'All teams wiped — Finals still live',
+                    );
+                  }}
+                  className="rounded-xl bg-rose-500 px-4 py-2 text-sm font-semibold text-white"
+                >
+                  Reset all teams (keep live)
+                </button>
+              )}
+              {round.status !== 'finalized' && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    if (!window.confirm(
+                      'Reset Finals for retest?\n\n• Round → scheduled (off)\n• All team progress cleared\n• Keep the 12 finalists\n• Re-generate schedule & Start again',
+                    )) return;
+                    run(
+                      () => adminResetFinaleForRetest(eventId, { keepLive: false }),
+                      'Finals reset — Schedule → Generate → Lock → Start',
+                    );
+                  }}
+                  className="rounded-xl border border-rose-400/40 bg-rose-500/15 px-4 py-2 text-sm font-semibold text-rose-100"
+                >
+                  Reset entire Finals round
+                </button>
+              )}
             </div>
 
             {gridSessions.length > 0 && (
@@ -767,6 +851,24 @@ export default function FinaleControlPanel({
             >
               {publicFinaleLive ? 'Hide public finale board' : 'Show public finale board'}
             </button>
+            {round.status !== 'finalized' && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  if (!window.confirm(
+                    'Reset Finals for retest?\n\nKeeps finalists, clears progress, turns round off.',
+                  )) return;
+                  run(
+                    () => adminResetFinaleForRetest(eventId, { keepLive: false }),
+                    'Finals reset — ready to schedule again',
+                  );
+                }}
+                className="rounded-xl border border-rose-400/40 bg-rose-500/15 px-4 py-2 text-sm font-semibold text-rose-100"
+              >
+                Reset Finals for retest
+              </button>
+            )}
           </div>
 
           {leaderboard[0] && (

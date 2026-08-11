@@ -51,7 +51,7 @@ function getBoardCard(entry, config, meta) {
   const completed = (entry.completedMissionIds || []).includes('intel_hunt');
   const active = entry.activeMissionId === 'intel_hunt';
   let status = 'available';
-  if (meta?.comingSoon) status = 'coming_soon';
+  if (meta?.comingSoon || meta?.enabled === false) status = 'coming_soon';
   else if (completed) status = 'completed';
   else if (active) status = 'active';
   else if (entry.status === 'locked' || entry.status === 'stopped') status = 'locked';
@@ -61,6 +61,7 @@ function getBoardCard(entry, config, meta) {
     emoji: meta?.emoji || '🧠',
     points: meta?.points || 50,
     status,
+    enabled: meta?.enabled !== false,
   };
 }
 

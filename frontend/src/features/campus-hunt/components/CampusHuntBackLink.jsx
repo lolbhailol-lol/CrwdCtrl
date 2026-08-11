@@ -2,16 +2,21 @@ import { useNavigate } from 'react-router-dom';
 
 /**
  * Consistent back control for Campus Hunt player screens.
- * Prefers browser history; falls back to `to` when there’s nowhere to go.
+ * @param {boolean} [forceTo] — always go to `to` (use for “All rounds” / hub exits)
  */
 export default function CampusHuntBackLink({
   to = '/',
   label = 'Back',
   className = '',
+  forceTo = false,
 }) {
   const navigate = useNavigate();
 
   const onBack = () => {
+    if (forceTo && to) {
+      navigate(to);
+      return;
+    }
     if (typeof window !== 'undefined' && window.history.length > 1) {
       navigate(-1);
       return;

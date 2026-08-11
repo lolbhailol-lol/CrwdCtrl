@@ -4,22 +4,24 @@ import { CAMPUS_HUNT_PATHS } from '../config';
 
 const ADMIN_STEPS = [
   ['1 · Bootstrap', 'Finale → Setup → Bootstrap Finale round. Saves default Intel + Device config (500 pts, 45 min).'],
-  ['2 · Configure', 'Edit Intel loc1/loc2/combined answer. Save mission config (Field Terminal uses CrwdCtrl Grid — no admin code).'],
+  ['2 · Configure', 'Edit Intel pool, Lockbox clue/pieces/code, Field Terminal copy. Save mission config.'],
   ['3 · Finalize R1', 'Round 1 → Results → Stop & lock → Finalize leaderboard (required before promotion).'],
   ['4 · Promote 12', 'Finalists → Auto-promote top 5 → manually pick 7 from Survival pool.'],
   ['5 · Start timer', 'Schedule → Lock → Start Finals. Live → release waves (or Playtest desk → Release one team).'],
-  ['6 · Playtest', 'Live → pick team → Release → Open team link → Complete Intel/Device cheats → Mark finish.'],
+  ['6 · Playtest', 'Live → pick team → Release → Open team link → Pass one task (Intel/Lockbox/Blackout) or Complete whole mission → Mark finish.'],
   ['7 · Close', 'Live → Force lock at end → Results → Finalize → toggle public finale board.'],
 ];
 
 const PLAYER_FLOW = [
   ['Login', 'Open /team/CC001 with team password → tap Leader or Player. Finalists see Mission Board, not Round 1 clues.'],
-  ['Board', 'Header shows 500+ score + countdown from server endsAt. Five mission cards; 3–5 show Coming Soon.'],
-  ['Intel Hunt', 'Leader starts mission → loc1 answer → loc2 unlocks → combine word → +50, mission locked on board.'],
-  ['Field Terminal', 'Leader starts → device key → Zip Grid on a real laptop only (phones / Desktop site banned; DQ if caught) → GRID-XXXX on phone for score.'],
+  ['Board', 'Header shows 500+ score + countdown. Exactly 4 missions: Intel (50) → Lockbox (75) → Field Terminal (125) → Blackout (200). No Mission 5.'],
+  ['Intel Hunt', 'Leader starts → loc1 → loc2 → combine word → +50.'],
+  ['Lockbox', 'Leader starts → physical key ID → 4 seat pieces → leader submits code → +75.'],
+  ['Field Terminal', 'Leader starts → Zip Grid on a real laptop only → GRID-XXXX on phone (up to +125).'],
+  ['Blackout', '4 roles (seat-mapped). Scout → Cracker → Navigator → Controller. Members may submit their own role step → +200.'],
   ['Abandon', 'Return to board mid-mission — mission stays available; no points awarded.'],
   ['Stop', 'Leader “Stop for now” — no new missions until organizer reopens (team status stopped).'],
-  ['Leader-only', 'Players see “Only the Team Leader can submit” on Intel + Device. Submit as player → 403.'],
+  ['Leader-only', 'Intel / Lockbox / Field Terminal: only leader starts & submits. Blackout: each role seat can submit.'],
   ['Laptop rule', 'Announce at brief: Field Terminal is laptop-only. Phones against the rules; Desktop site = cheating.'],
   ['Timer lock', 'After lock or 45:00, board disables new starts; completed scores stay on finale leaderboard.'],
 ];
@@ -34,13 +36,23 @@ const UNIT_TESTS = [
 
 const QA_CHECKS = [
   'Finale round bootstrapped; config saved with known test answers',
-  'R1 finalized; auto-promote created 5 direct entries',
+  'Testing: Make CC001–CC012 finalists (no R1 finalize needed)',
+  'Each mission can be turned On/Off from Missions tab',
+  'Schedule Preview → Generate → Lock → Start Finals',
+  'Live playtest: pass one task or complete whole mission',
+  'Reset Finals for retest clears progress and turns round off',
+  'Live desk: Reset all teams (keep live) wipes scores without turning Finals off',
+  'Player hub shows Round 1 / Survival / Finals — use Player round locks on event hub',
+  'Open Finals for players before finalists can enter (Player round locks → Finals OPEN)',
+  'R1 finalized; auto-promote created 5 direct entries (production path)',
   'Manual pick added 7 teams; total entries = 12; teams have competitionPhase finale',
   'Promoted team play page shows Mission Board (not Round 1)',
   'Intel loc2 hidden until loc1 correct; combine needs both fragments',
-  'Field Terminal: grid Zip score (20/40/40 − hints) claimed via completion code',
+  'Field Terminal: grid Zip score (25/50/50 − hints) claimed via completion code',
   'Completed mission cannot be started again',
-  'Non-leader submit returns 403 LEADER_ONLY',
+  'Non-leader submit returns 403 on Intel/Lockbox/Terminal; Blackout allows role seat submit',
+  'Board shows exactly 4 missions (no Mission 5 / Coming Soon placeholders)',
+  '12 finalists: Intel 12 locations, Lockbox 12 keys + 12 codes',
   'Finale leaderboard tab shows finaleScore separate from Round 1',
   'Lock freezes entries; finalize persists winner order',
 ];

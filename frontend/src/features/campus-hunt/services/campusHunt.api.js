@@ -148,9 +148,21 @@ export async function fetchCampusHuntColleges() {
   return publicFetchJSON(`${BASE}/colleges`);
 }
 
-/** Profile sidebar: which Campus Hunt login / leaderboard entries are live */
+/** Profile sidebar: login / leaderboard flags + my team codes when authenticated */
 export async function fetchCampusHuntProfileEntries() {
-  return publicFetchJSON(`${BASE}/profile-entries`);
+  try {
+    return await userJson(`${BASE}/profile-entries`);
+  } catch (err) {
+    if (err?.status === 401 || err?.status === 403) {
+      return publicFetchJSON(`${BASE}/profile-entries`);
+    }
+    // No session — still load public flags
+    try {
+      return await publicFetchJSON(`${BASE}/profile-entries`);
+    } catch {
+      throw err;
+    }
+  }
 }
 
 /** Public live leaderboard (no login required) */
@@ -891,12 +903,34 @@ export async function adminPlaytestCompleteFinaleMission(eventId, teamId, missio
   );
 }
 
+/** Force-pass one mission task (Intel loc / Lockbox key|code / Blackout roles). */
+export async function adminPlaytestAdvanceFinaleMission(eventId, teamId, missionId, task = 'next') {
+  return adminFetchJSON(
+    `${BASE}/admin/events/${eventId}/finale/teams/${teamId}/playtest-advance-mission`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ missionId, task }),
+    },
+  );
+}
+
 export async function adminPlaytestResetFinaleTeam(eventId, teamId) {
   return adminFetchJSON(
     `${BASE}/admin/events/${eventId}/finale/teams/${teamId}/playtest-reset`,
     {
       method: 'POST',
       body: JSON.stringify({}),
+    },
+  );
+}
+
+/** Turn Finals off, clear all team progress, keep the 12 finalists (for retesting). */
+export async function adminResetFinaleForRetest(eventId, { keepLive = false } = {}) {
+  return adminFetchJSON(
+    `${BASE}/admin/events/${eventId}/finale/playtest-reset-round`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ keepLive: Boolean(keepLive) }),
     },
   );
 }

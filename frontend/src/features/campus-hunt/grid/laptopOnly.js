@@ -1,5 +1,5 @@
 /**
- * Mission 2 (Zip Grid) is laptop / desktop only.
+ * Mission 3 Field Terminal (Zip Grid) is laptop / desktop only.
  * Event-day barrier — not cryptographic. Pairs with ops DQ rules.
  *
  * “Request Desktop Site” spoofs User-Agent but usually keeps:

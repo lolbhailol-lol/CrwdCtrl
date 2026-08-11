@@ -80,6 +80,7 @@ async function listColleges(req, res, next) {
 
 /**
  * Profile sidebar — separate on/off for login vs leaderboard.
+ * When authenticated, also returns this user's team login codes.
  */
 async function listProfileEntries(req, res, next) {
   try {
@@ -109,12 +110,44 @@ async function listProfileEntries(req, res, next) {
       if (ev.publicLeaderboardLive) leaderboard.push(row);
     }
 
+    let myTeams = [];
+    const userId = req.user?.userId || req.user?._id || req.user?.id;
+    if (userId) {
+      const teams = await CampusHuntTeam.find({
+        $or: [{ leaderUserId: userId }, { memberUserIds: userId }],
+      })
+        .select('teamCode teamName eventId competitionPhase')
+        .lean();
+      if (teams.length) {
+        const eventIds = [...new Set(teams.map((t) => String(t.eventId)))];
+        const teamEvents = await CampusHuntEvent.find({ _id: { $in: eventIds } })
+          .select('slug name college publicLoginLive status')
+          .lean();
+        const byId = new Map(teamEvents.map((e) => [String(e._id), e]));
+        myTeams = teams.map((t) => {
+          const ev = byId.get(String(t.eventId));
+          if (!ev || ev.status === 'draft') return null;
+          return {
+            teamCode: t.teamCode,
+            teamName: t.teamName,
+            eventName: ev.name,
+            college: ev.college,
+            slug: ev.slug,
+            competitionPhase: t.competitionPhase || 'round1',
+            loginPath: `/campus-hunt/${ev.slug}/team/${t.teamCode}`,
+            playPath: `/campus-hunt/${ev.slug}/play`,
+          };
+        }).filter(Boolean);
+      }
+    }
+
     return res.json({
       success: true,
       data: {
         login,
         leaderboard,
-        showLogin: login.length > 0,
+        myTeams,
+        showLogin: login.length > 0 || myTeams.length > 0,
         showLeaderboard: leaderboard.length > 0,
       },
     });
@@ -183,6 +216,27 @@ async function getMyTeam(req, res, next) {
     }
     const isLeader = team.isLeader(userId);
     const progress = await buildPlayerProgress(team, userId, isLeader);
+
+    const event = await CampusHuntEvent.findById(eventId)
+      .select('slug name college playerRoundAccess')
+      .lean();
+    const rounds = await CampusHuntRound.find({ eventId })
+      .select('name roundNumber status')
+      .lean();
+    const round1Doc = rounds.find((r) => Number(r.roundNumber) === 1)
+      || rounds.find((r) => /hunt|round\s*1/i.test(String(r.name || '')));
+    const finaleRound = rounds.find((r) => /finale/i.test(String(r.name || '')))
+      || rounds.find((r) => Number(r.roundNumber) >= 4);
+
+    const { buildPlayerRoundsHub } = require('../services/playerRoundAccess');
+    const roundsHub = buildPlayerRoundsHub({
+      event,
+      team,
+      round1Status: round1Doc?.status,
+      finaleStatus: finaleRound?.status,
+      hasFinaleEntry: Boolean(team.finaleEntryId),
+    });
+
     return res.json({
       success: true,
       data: {
@@ -190,6 +244,14 @@ async function getMyTeam(req, res, next) {
         challenges: progress.challenges,
         checkpointStatus: progress.checkpointStatus || null,
         serverTime: progress.serverTime,
+        event: event ? {
+          id: String(event._id || eventId),
+          slug: event.slug,
+          name: event.name,
+          college: event.college,
+          playerRoundAccess: roundsHub.access,
+        } : null,
+        rounds: roundsHub.cards,
       },
     });
   } catch (err) {
@@ -482,8 +544,6 @@ async function getTeamLoginCard(req, res, next) {
       });
     }
 
-    const isFinale = teamDoc.competitionPhase === 'finale';
-
     return res.json({
       success: true,
       data: {
@@ -497,10 +557,8 @@ async function getTeamLoginCard(req, res, next) {
           teamCode: teamDoc.teamCode,
           teamName: teamDoc.teamName,
           competitionPhase: teamDoc.competitionPhase || 'round1',
-          roundLabel: isFinale ? 'Finals round' : 'Round 1',
-          phaseGreeting: isFinale
-            ? 'Congratulations — your team is in the Finals.'
-            : null,
+          roundLabel: 'Campus Hunt',
+          phaseGreeting: null,
           playPath: `/campus-hunt/${event.slug}/play`,
           loginPath: `/campus-hunt/${event.slug}/team/${teamDoc.teamCode}`,
           // Roster intentionally omitted — unlock with password

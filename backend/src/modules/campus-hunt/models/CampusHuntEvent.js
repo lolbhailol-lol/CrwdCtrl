@@ -72,6 +72,15 @@ const campusHuntEventSchema = new mongoose.Schema(
     publicLoginLive: { type: Boolean, default: false, index: true },
     /** When true, finale leaderboard visible while finale round is live */
     publicFinaleLeaderboardLive: { type: Boolean, default: false, index: true },
+    /**
+     * Player hub — which rounds players may open.
+     * Locked rounds stay visible but cannot be entered.
+     */
+    playerRoundAccess: {
+      round1: { type: Boolean, default: true },
+      survival: { type: Boolean, default: false },
+      finale: { type: Boolean, default: false },
+    },
     scoringConfig: {
       type: scoringConfigSchema,
       default: () => ({ ...DEFAULT_SCORING_CONFIG }),

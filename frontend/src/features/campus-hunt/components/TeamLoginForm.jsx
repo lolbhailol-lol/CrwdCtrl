@@ -95,17 +95,12 @@ export default function TeamLoginForm({
 
   const playPath = teamCard?.team?.playPath || CAMPUS_HUNT_PATHS.play(slug);
   const eventId = teamCard?.event?.id || teamCard?.event?._id || '';
-  const roundLabel = teamCard?.team?.roundLabel
-    || (teamCard?.team?.competitionPhase === 'finale' ? 'Finals round' : 'Campus Hunt');
-  const isFinalePhase = teamCard?.team?.competitionPhase === 'finale'
-    || roundLabel === 'Finals round';
-  const phaseGreeting = teamCard?.team?.phaseGreeting
-    || (isFinalePhase ? 'Congratulations — your team is in the Finals.' : '');
+  const roundLabel = 'Campus Hunt';
   const primary = teamCard?.team
     ? teamPrimaryLabel(teamCard.team)
     : teamCode;
   const secondary = teamCard?.team ? teamSecondaryName(teamCard.team) : '';
-  const continueLabel = isFinalePhase ? 'Enter Finals →' : 'Continue hunt →';
+  const continueLabel = 'Continue →';
 
   // Stay logged in: same team → offer continue OR switch person (do not force-skip)
   useEffect(() => {
@@ -317,11 +312,6 @@ export default function TeamLoginForm({
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#0ECCEE]">
             {roundLabel}
           </p>
-          {isFinalePhase && phaseGreeting ? (
-            <p className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
-              {phaseGreeting}
-            </p>
-          ) : null}
           <h1 className="font-mono text-3xl font-bold">{primary || teamCode}</h1>
           <p className="text-sm text-white/60">
             Logged in as{' '}
@@ -419,17 +409,6 @@ export default function TeamLoginForm({
           {eventName}
           {college ? ` · ${college}` : ''}
         </p>
-        {isFinalePhase && phaseGreeting && !lookingUp ? (
-          <div className="mt-4 rounded-2xl border border-emerald-400/35 bg-emerald-500/10 px-4 py-3 text-center">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-200/80">
-              Finalist
-            </p>
-            <p className="mt-1 text-sm font-semibold text-emerald-50">{phaseGreeting}</p>
-            <p className="mt-1 text-xs text-white/50">
-              Log in · wait for the Finals timer · then the mission board opens.
-            </p>
-          </div>
-        ) : null}
         <p className="mt-3 text-sm text-white/60">
           Enter password once — you stay logged in on this phone.
         </p>
@@ -502,7 +481,7 @@ export default function TeamLoginForm({
                     {leader.name || 'Team Leader'}
                   </p>
                   <p className="mt-1 text-[11px] text-white/45">
-                    {roleTips?.leader || 'Clue 1 + submits answers · also scans'}
+                    {roleTips?.leader || 'Starts missions · submits answers · also scans'}
                   </p>
                 </div>
                 <span className="shrink-0 rounded-lg bg-amber-300 px-3 py-1.5 text-xs font-bold text-black">
@@ -531,7 +510,7 @@ export default function TeamLoginForm({
                     {m.name || `Player ${m.slot}`}
                   </p>
                   <p className="mt-1 text-[11px] text-white/45">
-                    {roleTips?.player || 'Scan cards · help on Clue 2–4'}
+                    {roleTips?.player || 'Help your leader · scan when Round 1 asks'}
                   </p>
                 </div>
                 <span className="text-xs font-semibold text-[#0ECCEE]">
@@ -547,7 +526,8 @@ export default function TeamLoginForm({
           <ul className="mt-2 list-disc space-y-1.5 pl-4">
             <li>Password → tap your name → done</li>
             <li>Refresh or reopen the app — still logged in</li>
-            <li>Leader: Clue 1 + answers · Players: scan + later clues</li>
+            <li>After login, pick a round from the list</li>
+            <li>Leader starts timed steps · players help as instructed</li>
           </ul>
         </div>
 

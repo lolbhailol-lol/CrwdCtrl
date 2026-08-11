@@ -98,6 +98,26 @@ function deviceStatusForEntry(entry, run) {
   return 'not_started';
 }
 
+function lockboxStatusForEntry(entry, run) {
+  const done = entry.completedMissionIds || [];
+  if (done.includes('lockbox')) return 'completed';
+  if (entry.activeMissionId === 'lockbox') return 'active';
+  if (run?.status === 'completed') return 'completed';
+  if (run?.status === 'active') return 'active';
+  if (run?.status === 'abandoned') return 'abandoned';
+  return 'not_started';
+}
+
+function blackoutStatusForEntry(entry, run) {
+  const done = entry.completedMissionIds || [];
+  if (done.includes('operation_blackout')) return 'completed';
+  if (entry.activeMissionId === 'operation_blackout') return 'active';
+  if (run?.status === 'completed') return 'completed';
+  if (run?.status === 'active') return 'active';
+  if (run?.status === 'abandoned') return 'abandoned';
+  return 'not_started';
+}
+
 function mapIntelFromRun(run) {
   const assignment = run?.state?.assignment;
   if (!assignment?.location1 || !assignment?.location2) return null;
@@ -179,11 +199,15 @@ async function listMissionAssignments(eventId) {
 
   const teams = sortedEntries.map((entry) => {
     const intelRun = runByTeamMission.get(`${entry.teamId}:intel_hunt`);
+    const lockboxRun = runByTeamMission.get(`${entry.teamId}:lockbox`);
+    const blackoutRun = runByTeamMission.get(`${entry.teamId}:operation_blackout`);
     const deviceRun = runByTeamMission.get(`${entry.teamId}:field_terminal`)
       || runByTeamMission.get(`${entry.teamId}:borrowed_device`);
     const grid = gridByTeamCode.get(entry.teamCode);
 
     const intelStatus = intelStatusForEntry(entry, intelRun);
+    const lockboxStatus = lockboxStatusForEntry(entry, lockboxRun);
+    const blackoutStatus = blackoutStatusForEntry(entry, blackoutRun);
     const deviceStatus = deviceStatusForEntry(entry, deviceRun);
 
     let intel = mapIntelFromRun(intelRun);
@@ -193,6 +217,29 @@ async function listMissionAssignments(eventId) {
         intel = mapIntelPreview(loc1, loc2);
       }
     }
+
+    const lockbox = {
+      status: lockboxStatus,
+      step: lockboxRun?.state?.step || null,
+      assignedKeyId: lockboxRun?.state?.assignedKeyId || null,
+      assignedKeyLabel: lockboxRun?.state?.assignedKey?.label || null,
+      attempts: lockboxRun?.state?.attempts || null,
+      startedAt: lockboxRun?.startedAt || null,
+      completedAt: lockboxRun?.completedAt || null,
+    };
+
+    const blackout = {
+      status: blackoutStatus,
+      step: blackoutRun?.state?.step || null,
+      roleBySeat: blackoutRun?.state?.roleBySeat || null,
+      accessToken: blackoutRun?.state?.accessToken || null,
+      route: blackoutRun?.state?.route || null,
+      frequency: blackoutRun?.state?.frequency || null,
+      penaltiesIncurred: blackoutRun?.state?.penaltiesIncurred ?? null,
+      attempts: blackoutRun?.state?.attempts || null,
+      startedAt: blackoutRun?.startedAt || null,
+      completedAt: blackoutRun?.completedAt || null,
+    };
 
     const device = {
       status: deviceStatus,
@@ -226,6 +273,8 @@ async function listMissionAssignments(eventId) {
         status: intelStatus,
         ...(intel || {}),
       },
+      lockbox,
+      blackout,
       fieldTerminal: device,
       borrowedDevice: device, // legacy alias
     };

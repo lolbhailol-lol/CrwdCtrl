@@ -59,7 +59,7 @@ function gridGameView(device, state, { message, locked = false, attemptsLeft = n
     locked,
     message,
     attemptsLeft,
-    scoringNote: 'L1 = 20 · L2 = 40 · L3 = 40 · Hint = −20 · Missed timer = 0 for that level',
+    scoringNote: 'L1 = 25 · L2 = 50 · L3 = 50 · Hint = −20 · Missed timer = 0 for that level',
   };
 }
 
@@ -67,7 +67,7 @@ function getBoardCard(entry, config, meta) {
   const completed = missionCompleted(entry);
   const active = missionActive(entry);
   let status = 'available';
-  if (meta?.comingSoon) status = 'coming_soon';
+  if (meta?.comingSoon || meta?.enabled === false) status = 'coming_soon';
   else if (completed) status = 'completed';
   else if (active) status = 'active';
   else if (entry.status === 'locked' || entry.status === 'stopped') status = 'locked';
@@ -77,6 +77,7 @@ function getBoardCard(entry, config, meta) {
     emoji: meta?.emoji || '💻',
     points: missionMaxPoints(config, meta),
     status,
+    enabled: meta?.enabled !== false,
   };
 }
 
@@ -99,7 +100,7 @@ function startRun(entry, config) {
       showCluePopup: true,
       leaderOnly: true,
       hint: 'Only the Team Leader can submit the return code.',
-      scoringNote: 'L1 = 20 · L2 = 40 · L3 = 40 · Hint = −20',
+      scoringNote: 'L1 = 25 · L2 = 50 · L3 = 50 · Hint = −20',
     },
   };
 }
@@ -173,7 +174,7 @@ function enrichPlayerView(playerView, runState) {
     accessCode: runState?.accessCode || null,
     gameUrl: playerView.gameUrl || '/campus-hunt/grid',
     clueImageUrl: playerView.clueImageUrl || '/campus-hunt/field-terminal-clue.jpg',
-    scoringNote: playerView.scoringNote || 'L1 = 20 · L2 = 40 · L3 = 40 · Hint = −20',
+    scoringNote: playerView.scoringNote || 'L1 = 25 · L2 = 50 · L3 = 50 · Hint = −20',
   };
 }
 

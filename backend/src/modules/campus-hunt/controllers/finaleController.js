@@ -3,6 +3,7 @@ const {
   bootstrapFinale,
   getFinaleRound,
   getOrCreateMissionConfig,
+  resetFinaleForRetest,
 } = require('../services/finale/finaleBootstrapService');
 const {
   promoteTop5FromR1,
@@ -37,9 +38,12 @@ const {
   stopTeam,
   resumeTeam,
   playtestCompleteMission,
+  playtestAdvanceMissionStep,
   playtestResetFinaleTeam,
   loadEntryForTeam,
 } = require('../services/finale/finaleMissionService');
+const CampusHuntEvent = require('../models/CampusHuntEvent');
+const { buildPlayerRoundsHub, assertRoundPlayable } = require('../services/playerRoundAccess');
 
 function actorFromReq(req) {
   return {
@@ -106,6 +110,48 @@ async function patchConfig(req, res, next) {
       config.borrowedDevice = merged; // keep legacy field in sync
       config.markModified('fieldTerminal');
       config.markModified('borrowedDevice');
+    }
+    if (body.lockbox) {
+      config.lockbox = {
+        ...(config.lockbox?.toObject?.() || config.lockbox || {}),
+        ...body.lockbox,
+      };
+      config.markModified('lockbox');
+    }
+    if (body.blackout) {
+      config.blackout = {
+        ...(config.blackout?.toObject?.() || config.blackout || {}),
+        ...body.blackout,
+      };
+      config.markModified('blackout');
+    }
+    if (Array.isArray(body.missions)) {
+      const byId = new Map(
+        (config.missions || []).map((m) => [m.id === 'borrowed_device' ? 'field_terminal' : m.id, m]),
+      );
+      for (const row of body.missions) {
+        if (!row?.id) continue;
+        const id = row.id === 'borrowed_device' ? 'field_terminal' : row.id;
+        const prev = byId.get(id) || { id };
+        byId.set(id, {
+          ...(prev.toObject?.() || prev),
+          ...row,
+          id,
+        });
+      }
+      // Keep board order from FINALE_MISSION_BOARD / existing synced order
+      const ordered = (config.missions || []).map((m) => {
+        const id = m.id === 'borrowed_device' ? 'field_terminal' : m.id;
+        return byId.get(id) || m;
+      });
+      // Append any new ids not already present
+      for (const [id, row] of byId) {
+        if (!ordered.some((m) => (m.id === 'borrowed_device' ? 'field_terminal' : m.id) === id)) {
+          ordered.push(row);
+        }
+      }
+      config.missions = ordered;
+      config.markModified('missions');
     }
     await config.save();
     return res.json({ success: true, data: { config } });
@@ -369,6 +415,26 @@ async function adminPlaytestCompleteFinaleMission(req, res, next) {
   }
 }
 
+async function adminPlaytestAdvanceFinaleMission(req, res, next) {
+  try {
+    const missionId = req.body?.missionId || req.params.missionId;
+    const task = req.body?.task || 'next';
+    const data = await playtestAdvanceMissionStep({
+      eventId: req.params.eventId,
+      teamId: req.params.teamId,
+      missionId,
+      task,
+      actor: actorFromReq(req),
+    });
+    return res.json({ success: true, data });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, message: err.message, code: err.code });
+    }
+    return next(err);
+  }
+}
+
 async function adminPlaytestResetFinaleTeam(req, res, next) {
   try {
     const data = await playtestResetFinaleTeam({
@@ -377,6 +443,29 @@ async function adminPlaytestResetFinaleTeam(req, res, next) {
       actor: actorFromReq(req),
     });
     return res.json({ success: true, data });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, message: err.message, code: err.code });
+    }
+    return next(err);
+  }
+}
+
+async function adminResetFinaleForRetest(req, res, next) {
+  try {
+    const keepLive = Boolean(req.body?.keepLive);
+    const data = await resetFinaleForRetest({
+      eventId: req.params.eventId,
+      actor: actorFromReq(req),
+      keepLive,
+    });
+    return res.json({
+      success: true,
+      data,
+      message: data.keepLive
+        ? 'All finalists wiped — Finals still live. Release teams again.'
+        : 'Finals reset — Schedule → Generate → Lock → Start again.',
+    });
   } catch (err) {
     if (err.status) {
       return res.status(err.status).json({ success: false, message: err.message, code: err.code });
@@ -454,6 +543,16 @@ async function getFinaleLeaderboardAdmin(req, res, next) {
 async function getFinaleMe(req, res, next) {
   try {
     const team = req.huntTeam;
+    const event = await CampusHuntEvent.findById(team.eventId)
+      .select('playerRoundAccess')
+      .lean();
+    const hub = buildPlayerRoundsHub({
+      event,
+      team,
+      hasFinaleEntry: Boolean(team.finaleEntryId),
+    });
+    assertRoundPlayable(hub, 'finale');
+
     const data = await buildBoardPayload({
       eventId: team.eventId,
       teamId: team._id,
@@ -472,6 +571,16 @@ async function getFinaleMe(req, res, next) {
 async function startFinaleMission(req, res, next) {
   try {
     const team = req.huntTeam;
+    const event = await CampusHuntEvent.findById(team.eventId)
+      .select('playerRoundAccess')
+      .lean();
+    const hub = buildPlayerRoundsHub({
+      event,
+      team,
+      hasFinaleEntry: Boolean(team.finaleEntryId),
+    });
+    assertRoundPlayable(hub, 'finale');
+
     const data = await startMission({
       eventId: team.eventId,
       teamId: team._id,
@@ -491,13 +600,16 @@ async function startFinaleMission(req, res, next) {
 async function submitFinaleMission(req, res, next) {
   try {
     const team = req.huntTeam;
+    const userId = req.user.userId;
+    // Recompute from roster (requireTeamMember also sets this — double-check)
+    const isLeader = Boolean(team?.isLeader?.(userId) ?? req.isHuntLeader);
     const data = await submitMissionStep({
       eventId: team.eventId,
       teamId: team._id,
       missionId: req.params.missionId,
       answer: req.body?.answer,
-      userId: req.user.userId,
-      isLeader: req.isHuntLeader,
+      userId,
+      isLeader,
       actor: playerActor(req),
     });
     return res.json({ success: true, data });
@@ -638,7 +750,9 @@ module.exports = {
   adminStopFinaleTeam,
   adminResumeFinaleTeam,
   adminPlaytestCompleteFinaleMission,
+  adminPlaytestAdvanceFinaleMission,
   adminPlaytestResetFinaleTeam,
+  adminResetFinaleForRetest,
   setReleasesPaused,
   setMeetPaused,
   syncReleases,

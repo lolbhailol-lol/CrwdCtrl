@@ -252,6 +252,220 @@ function DeviceContentEditor({ config, setConfig, theme }) {
   );
 }
 
+function LockboxTeamRow({ team, theme }) {
+  const lb = team.lockbox || {};
+  return (
+    <tr className="border-t border-white/5 text-sm text-white/80">
+      <td className="px-3 py-2 text-white/45">{team.finaleSlotLabel}</td>
+      <td className="pr-2 font-mono font-semibold" style={{ color: theme.hex }}>{team.teamCode}</td>
+      <td className="pr-2 font-mono text-xs">{lb.assignedKeyLabel || lb.assignedKeyId || '—'}</td>
+      <td className="pr-2 text-xs uppercase text-white/55">{lb.step || '—'}</td>
+      <td className="pr-3 text-xs uppercase">{STATUS_LABEL[lb.status] || lb.status || '—'}</td>
+    </tr>
+  );
+}
+
+function LockboxContentEditor({ config, setConfig, theme }) {
+  const lb = config?.lockbox || {};
+  const pieces = lb.playerPieces || [];
+  const codes = Array.isArray(lb.acceptedCodes) ? lb.acceptedCodes.join(', ') : '';
+
+  const patch = (patchObj) => setConfig((p) => ({
+    ...p,
+    lockbox: { ...(p.lockbox || {}), ...patchObj },
+  }));
+
+  const patchPiece = (index, field, value) => {
+    const next = pieces.map((row, i) => (i === index ? { ...row, [field]: value } : row));
+    while (next.length < 4) {
+      next.push({ seat: next.length, label: `Player ${next.length + 1}`, info: '' });
+    }
+    patch({ playerPieces: next.slice(0, 4).map((row, i) => ({ ...row, seat: i })) });
+  };
+
+  return (
+    <div className="space-y-3">
+      <p className={`text-xs font-semibold uppercase tracking-wide ${theme.textClass}`}>
+        Task 1 — campus clue + physical key
+      </p>
+      <Field
+        label="Campus clue (riddle)"
+        value={lb.clue || ''}
+        onChange={(v) => patch({ clue: v })}
+        multiline
+      />
+      <Field
+        label="Location name (ops)"
+        value={lb.locationName || ''}
+        onChange={(v) => patch({ locationName: v })}
+      />
+      <Field
+        label="Location hint (shown to players)"
+        value={lb.locationHint || ''}
+        onChange={(v) => patch({ locationHint: v })}
+        multiline
+      />
+      <div className={`rounded-xl border px-3 py-2 text-xs ${theme.borderClass} ${theme.bgClass}`}>
+        <p className={`font-semibold ${theme.textClass}`}>Physical keys</p>
+        <p className="mt-1 text-white/60">
+          {(lb.keyPool || []).length || 0} keys in pool (default KEY — 01…12). Assigned per team at start.
+        </p>
+        <p className="mt-1 text-white/45">Players enter the engraved ID — not a QR / scanner.</p>
+      </div>
+      <Field
+        label="Max wrong key attempts"
+        value={String(lb.maxAttemptsKey ?? 3)}
+        onChange={(v) => patch({ maxAttemptsKey: Number(v) || 3 })}
+      />
+
+      <p className={`pt-2 text-xs font-semibold uppercase tracking-wide ${theme.textClass}`}>
+        Task 2 — digital lockbox (4 pieces)
+      </p>
+      <div className={`rounded-xl border px-3 py-2 text-xs ${theme.borderClass} ${theme.bgClass}`}>
+        <p className={`font-semibold ${theme.textClass}`}>Code pool</p>
+        <p className="mt-1 text-white/60">
+          {(lb.codePool || []).length || 0} team code sets (default 12). Each team gets a unique code at start.
+        </p>
+        <p className="mt-1 text-white/45">
+          Legacy fallback pieces/codes below apply only if the code pool is empty.
+        </p>
+      </div>
+      <Field
+        label="Task 2 instruction"
+        value={lb.lockboxInstruction || ''}
+        onChange={(v) => patch({ lockboxInstruction: v })}
+        multiline
+      />
+      {[0, 1, 2, 3].map((seat) => {
+        const piece = pieces[seat] || { seat, label: seat === 0 ? 'Team Leader' : `Player ${seat + 1}`, info: '' };
+        return (
+          <div key={seat} className="grid gap-2 sm:grid-cols-2">
+            <Field
+              label={`Seat ${seat + 1} label`}
+              value={piece.label || ''}
+              onChange={(v) => patchPiece(seat, 'label', v)}
+            />
+            <Field
+              label={`Seat ${seat + 1} info (private)`}
+              value={piece.info || ''}
+              onChange={(v) => patchPiece(seat, 'info', v)}
+            />
+          </div>
+        );
+      })}
+      <Field
+        label="Accepted final codes (comma-separated)"
+        value={codes}
+        onChange={(v) => patch({
+          acceptedCodes: v.split(',').map((s) => s.trim()).filter(Boolean),
+        })}
+      />
+      <Field
+        label="Max wrong code attempts"
+        value={String(lb.maxAttemptsCode ?? 3)}
+        onChange={(v) => patch({ maxAttemptsCode: Number(v) || 3 })}
+      />
+    </div>
+  );
+}
+
+function BlackoutTeamRow({ team, theme }) {
+  const b = team.blackout || {};
+  const roles = b.roleBySeat
+    ? Object.entries(b.roleBySeat).map(([seat, role]) => `S${Number(seat) + 1}:${role}`).join(' · ')
+    : '—';
+  return (
+    <tr className="border-t border-white/5 text-sm text-white/80">
+      <td className="px-3 py-2 text-white/45">{team.finaleSlotLabel}</td>
+      <td className="pr-2 font-mono font-semibold" style={{ color: theme.hex }}>{team.teamCode}</td>
+      <td className="pr-2 text-xs uppercase text-white/55">{b.step || '—'}</td>
+      <td className="pr-2 font-mono text-[10px] text-white/60">{roles}</td>
+      <td className="pr-2 font-mono text-xs">{b.accessToken || '—'}</td>
+      <td className="pr-3 text-xs uppercase">{STATUS_LABEL[b.status] || b.status || '—'}</td>
+    </tr>
+  );
+}
+
+function BlackoutContentEditor({ config, setConfig, theme }) {
+  const b = config?.blackout || {};
+  const patch = (patchObj) => setConfig((p) => ({
+    ...p,
+    blackout: { ...(p.blackout || {}), ...patchObj },
+  }));
+  const patchTask = (task, field, value) => {
+    patch({
+      [task]: {
+        ...(b[task] || {}),
+        [field]: value,
+      },
+    });
+  };
+
+  return (
+    <div className="space-y-3">
+      <p className={`text-xs font-semibold uppercase tracking-wide ${theme.textClass}`}>
+        OPERATION: BLACKOUT · config
+      </p>
+      <Field
+        label="Duration (minutes)"
+        value={String(b.durationMinutes ?? 15)}
+        onChange={(v) => patch({ durationMinutes: Number(v) || 15 })}
+      />
+      <Field
+        label="Max total penalty"
+        value={String(b.maxPenaltyTotal ?? 100)}
+        onChange={(v) => patch({ maxPenaltyTotal: Number(v) || 100 })}
+      />
+      {['scout', 'cracker', 'navigator', 'controller'].map((task) => {
+        const t = b[task] || {};
+        const promptKey = task === 'scout' ? 'clue' : task === 'cracker' ? 'puzzlePrompt' : 'challengePrompt';
+        return (
+          <div key={task} className={`rounded-xl border px-3 py-3 ${theme.borderClass} ${theme.bgClass}`}>
+            <p className={`text-xs font-bold uppercase ${theme.textClass}`}>{task}</p>
+            <Field
+              label={promptKey}
+              value={t[promptKey] || ''}
+              onChange={(v) => patchTask(task, promptKey, v)}
+              multiline
+            />
+            {task === 'scout' && (
+              <Field
+                label="Location hint"
+                value={t.locationHint || ''}
+                onChange={(v) => patchTask(task, 'locationHint', v)}
+              />
+            )}
+            <Field
+              label="Accepted answers (comma-separated)"
+              value={Array.isArray(t.acceptedAnswers) ? t.acceptedAnswers.join(', ') : ''}
+              onChange={(v) => patchTask(
+                task,
+                'acceptedAnswers',
+                v.split(',').map((s) => s.trim()).filter(Boolean),
+              )}
+            />
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              <Field
+                label="Max attempts"
+                value={String(t.maxAttempts ?? 3)}
+                onChange={(v) => patchTask(task, 'maxAttempts', Number(v) || 3)}
+              />
+              <Field
+                label="Penalty"
+                value={String(t.penalty ?? 10)}
+                onChange={(v) => patchTask(task, 'penalty', Number(v) || 0)}
+              />
+            </div>
+          </div>
+        );
+      })}
+      <p className="text-[11px] text-white/45">
+        Controller: leave accepted answers empty to use derived code TOKEN-ROUTEINITIALS-FREQDIGITS.
+      </p>
+    </div>
+  );
+}
+
 function MissionBoard({
   mission,
   teams,
@@ -261,27 +475,36 @@ function MissionBoard({
   onSave,
   busy,
   defaultOpen = true,
+  onToggleEnabled,
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const theme = mission;
+  const missionCfg = (config?.missions || []).find((m) => (
+    m.id === mission.id || (mission.id === 'field_terminal' && m.id === 'borrowed_device')
+  ));
+  const enabled = missionCfg?.enabled !== false;
 
   const allottedCount = useMemo(() => {
     if (mission.id === 'intel_hunt') return teams.filter((t) => t.intel?.location1).length;
+    if (mission.id === 'lockbox') return teams.filter((t) => t.lockbox?.assignedKeyId || t.lockbox?.status === 'completed').length;
     if (mission.id === 'field_terminal') return teams.length;
+    if (mission.id === 'operation_blackout') {
+      return teams.filter((t) => t.blackout?.status === 'active' || t.blackout?.status === 'completed').length;
+    }
     return 0;
   }, [mission.id, teams]);
 
   return (
     <section
-      className={`overflow-hidden rounded-2xl border bg-white/5 ${theme.borderClass}`}
+      className={`overflow-hidden rounded-2xl border bg-white/5 ${theme.borderClass} ${enabled ? '' : 'opacity-70'}`}
       style={{ boxShadow: open ? `inset 4px 0 0 ${theme.hex}` : undefined }}
     >
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-start justify-between gap-3 px-4 py-4 text-left"
-      >
-        <div className="min-w-0">
+      <div className="flex w-full items-start justify-between gap-3 px-4 py-4">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="min-w-0 flex-1 text-left"
+        >
           <div className="flex flex-wrap items-center gap-2">
             <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${theme.solidClass} ${theme.solidTextClass}`}>
               {theme.colorName}
@@ -292,13 +515,41 @@ function MissionBoard({
             {theme.points > 0 && (
               <span className="text-xs text-white/45">+{theme.points} pts</span>
             )}
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+              enabled ? 'bg-emerald-500/20 text-emerald-100' : 'bg-white/10 text-white/45'
+            }`}
+            >
+              {enabled ? 'On' : 'Off'}
+            </span>
           </div>
           <h3 className="mt-1 text-lg font-bold uppercase tracking-wide text-white">{theme.label}</h3>
           <p className="mt-1 text-xs text-white/50">{theme.detail}</p>
           <p className="mt-2 text-xs text-white/40">{allottedCount} teams allotted</p>
+        </button>
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          {onToggleEnabled && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => onToggleEnabled(mission.id, !enabled)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-wide disabled:opacity-40 ${
+                enabled
+                  ? 'bg-emerald-500/25 text-emerald-100'
+                  : 'bg-white/10 text-white/55'
+              }`}
+            >
+              {busy ? '…' : enabled ? 'Turn off' : 'Turn on'}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="text-sm text-white/50"
+          >
+            {open ? 'Hide' : 'Edit'}
+          </button>
         </div>
-        <span className="shrink-0 text-sm text-white/50">{open ? 'Hide' : 'Edit'}</span>
-      </button>
+      </div>
 
       {open && (
         <div className="space-y-5 border-t border-white/10 px-4 py-4">
@@ -335,6 +586,27 @@ function MissionBoard({
                 </div>
               )}
 
+              {mission.id === 'lockbox' && (
+                <div className="overflow-x-auto rounded-xl border border-white/10 bg-black/15">
+                  <table className="w-full min-w-[640px] text-left">
+                    <thead>
+                      <tr className="text-[10px] uppercase tracking-wide text-white/45">
+                        <th className="px-3 pb-2 pt-2">Slot</th>
+                        <th className="pb-2 pr-2">Team</th>
+                        <th className="pb-2 pr-2">Assigned key</th>
+                        <th className="pb-2 pr-2">Step</th>
+                        <th className="pb-2 pr-3">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {teams.map((team) => (
+                        <LockboxTeamRow key={team.teamId || team.teamCode} team={team} theme={theme} />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
               {mission.id === 'field_terminal' && (
                 <div className="overflow-x-auto rounded-xl border border-white/10 bg-black/15">
                   <table className="w-full min-w-[640px] text-left">
@@ -356,6 +628,28 @@ function MissionBoard({
                   </table>
                 </div>
               )}
+
+              {mission.id === 'operation_blackout' && (
+                <div className="overflow-x-auto rounded-xl border border-white/10 bg-black/15">
+                  <table className="w-full min-w-[720px] text-left">
+                    <thead>
+                      <tr className="text-[10px] uppercase tracking-wide text-white/45">
+                        <th className="px-3 pb-2 pt-2">Slot</th>
+                        <th className="pb-2 pr-2">Team</th>
+                        <th className="pb-2 pr-2">Step</th>
+                        <th className="pb-2 pr-2">Roles</th>
+                        <th className="pb-2 pr-2">Token</th>
+                        <th className="pb-2 pr-3">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {teams.map((team) => (
+                        <BlackoutTeamRow key={team.teamId || team.teamCode} team={team} theme={theme} />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </>
           )}
 
@@ -363,8 +657,16 @@ function MissionBoard({
             <IntelContentEditor config={config} setConfig={setConfig} theme={theme} />
           )}
 
+          {config && setConfig && mission.id === 'lockbox' && (
+            <LockboxContentEditor config={config} setConfig={setConfig} theme={theme} />
+          )}
+
           {config && setConfig && mission.id === 'field_terminal' && (
             <DeviceContentEditor config={config} setConfig={setConfig} theme={theme} />
+          )}
+
+          {config && setConfig && mission.id === 'operation_blackout' && (
+            <BlackoutContentEditor config={config} setConfig={setConfig} theme={theme} />
           )}
 
           {onSave && (
@@ -394,6 +696,7 @@ export default function FinaleMissionAssignments({
   onPromoteDemo,
   demoBusy,
   hasRound,
+  onToggleMissionEnabled,
 }) {
   const teams = assignments?.teams || [];
 
@@ -407,6 +710,9 @@ export default function FinaleMissionAssignments({
 
   return (
     <div className="space-y-4">
+      <p className="text-xs text-white/45">
+        Turn missions On/Off for testing. Off missions stay on the board as locked for players.
+      </p>
       {onPromoteDemo && teams.some((t) => t.isDemoRow) && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-3">
           <p className="text-sm text-emerald-100">Demo teams showing as preview — promote to make them real finalists.</p>
@@ -437,6 +743,7 @@ export default function FinaleMissionAssignments({
             onSave={onSave}
             busy={busy}
             defaultOpen={index === 0}
+            onToggleEnabled={onToggleMissionEnabled}
           />
         ))
       )}

@@ -59,9 +59,9 @@ export function buildPlayerNowGuide({
   if (atCheckpoint) {
     const place = checkpointStatus?.locationName || 'the campus spot';
     const color = checkpointStatus?.checkpointKey?.startsWith('2')
-      ? 'green'
+      ? 'Green'
       : checkpointStatus?.checkpointKey?.startsWith('3')
-        ? 'blue'
+        ? 'Blue'
         : 'Orange';
     const scanned = Boolean(checkpointStatus?.youScanned);
     const awaitingClaim = Boolean(checkpointStatus?.awaitingTeamCodeConfirm)

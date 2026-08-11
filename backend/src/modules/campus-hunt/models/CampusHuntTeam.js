@@ -147,6 +147,12 @@ const campusHuntTeamSchema = new mongoose.Schema(
       default: 'round1',
       index: true,
     },
+    /** Per-team force-lock on player hub rounds (true = locked for this team). */
+    playerRoundLocks: {
+      round1: { type: Boolean, default: false },
+      survival: { type: Boolean, default: false },
+      finale: { type: Boolean, default: false },
+    },
     finaleEntryId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'CampusHuntFinaleEntry',

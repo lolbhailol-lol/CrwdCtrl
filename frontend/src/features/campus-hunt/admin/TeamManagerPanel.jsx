@@ -569,6 +569,61 @@ function TeamDetailCard({
             </div>
           </div>
 
+          <div className="rounded-lg border border-white/10 bg-black/25 px-3 py-3">
+            <p className="text-xs uppercase tracking-wide text-white/45">
+              This team · hub locks
+            </p>
+            <p className="mt-1 text-[11px] text-white/40">
+              Force-lock a round for this team only (even if overall is open).
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {[
+                ['round1', 'R1'],
+                ['survival', 'Surv'],
+                ['finale', 'Finals'],
+              ].map(([key, label]) => {
+                const locked = Boolean(team.playerRoundLocks?.[key]);
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    disabled={busy}
+                    onClick={async () => {
+                      setBusy(true);
+                      try {
+                        await adminUpdateTeam(id(team), {
+                          playerRoundLocks: {
+                            round1: Boolean(team.playerRoundLocks?.round1),
+                            survival: Boolean(team.playerRoundLocks?.survival),
+                            finale: Boolean(team.playerRoundLocks?.finale),
+                            [key]: !locked,
+                          },
+                        });
+                        onCopied?.(
+                          !locked
+                            ? `${team.teamCode} · ${label} locked`
+                            : `${team.teamCode} · ${label} unlocked`,
+                        );
+                        await onChanged?.();
+                      } catch (err) {
+                        onCopied?.(err.message || 'Could not update locks');
+                      } finally {
+                        setBusy(false);
+                      }
+                    }}
+                    className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold disabled:opacity-40 ${
+                      locked
+                        ? 'bg-rose-500/25 text-rose-100'
+                        : 'bg-white/10 text-white/70'
+                    }`}
+                  >
+                    {label} · {locked ? 'LOCKED' : 'ok'}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="rounded-lg bg-black/30 px-3 py-2">
             <p className="text-xs uppercase tracking-wide text-white/45">Who taps what</p>
             <p className="mt-1 font-medium">

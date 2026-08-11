@@ -116,7 +116,7 @@ test('Intel Hunt: max attempts never leaks accepted answers', () => {
 test('Field Terminal: awards grid session score (capped by mission max)', () => {
   const run = { state: { step: 'grid_game', attempts: 0, accessCode: 'ABC123' } };
   const config = {
-    missions: [{ id: 'field_terminal', points: 100 }],
+    missions: [{ id: 'field_terminal', points: 125 }],
     fieldTerminal: {},
   };
 
@@ -133,9 +133,9 @@ test('Field Terminal: awards grid session score (capped by mission max)', () => 
   assert.equal(good.points, 60);
 
   const capped = fieldTerminal.submitStep(entry, run, { answer: 'GRID-ABCD' }, config, {
-    gridValidation: { ok: true, score: 140 },
+    gridValidation: { ok: true, score: 200 },
   });
-  assert.equal(capped.points, 100);
+  assert.equal(capped.points, 125);
 });
 
 test('Field Terminal: board + award respect admin max below grid max (e.g. 75)', () => {

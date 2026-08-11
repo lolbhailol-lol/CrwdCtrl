@@ -11,7 +11,7 @@ const LEVEL_TEMPLATES = [
     wallCount: 0,
     numberCount: 5,
     timeSeconds: 90,
-    points: 20,
+    points: 25,
   },
   {
     level: 2,
@@ -21,7 +21,7 @@ const LEVEL_TEMPLATES = [
     wallCount: 2,
     numberCount: 7,
     timeSeconds: 120,
-    points: 40,
+    points: 50,
   },
   {
     level: 3,
@@ -31,7 +31,7 @@ const LEVEL_TEMPLATES = [
     wallCount: 4,
     numberCount: 9,
     timeSeconds: 150,
-    points: 40,
+    points: 50,
   },
 ];
 

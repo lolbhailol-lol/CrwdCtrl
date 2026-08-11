@@ -12,6 +12,7 @@ import {
 } from '../types/stageTheme';
 import { CAMPUS_HUNT_PATHS } from '../config';
 import CampusHuntBackLink from '../components/CampusHuntBackLink';
+import UnlockHoldingCard from '../components/UnlockHoldingCard';
 import {
   submitChallengeAnswer,
   requestChallengeHint,
@@ -21,8 +22,8 @@ import {
 } from '../services/campusHunt.api';
 import PlayerInstructionBox from './PlayerInstructionBox';
 import { buildPlayerNowGuide } from './playerNowGuide';
-import { formatUnlockDateTime } from '../utils/format';
 import { teamPrimaryLabel, teamSecondaryName } from '../utils/teamLabel';
+import { STAGE_THEMES } from '../types/stageTheme';
 
 function activeChallengeNumber(stage) {
   const m = String(stage || '').match(/^CLUE_(\d)_ACTIVE$/);
@@ -343,17 +344,21 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
       </AnimatePresence>
 
       <div className="relative mx-auto max-w-lg px-4 pb-10 pt-4">
-        {/* Top bar — one clean team strip */}
+        {/* Top bar — stage + team + score */}
         <header className="mb-5">
           <CampusHuntBackLink
-            to={eventSlug ? CAMPUS_HUNT_PATHS.event(eventSlug) : '/'}
-            label="Back"
+            to={eventSlug ? CAMPUS_HUNT_PATHS.play(eventSlug) : '/'}
+            label="← All rounds"
+            forceTo
             className="mb-3"
           />
 
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <h1 className="truncate text-[1.35rem] font-semibold tracking-tight text-white">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#0ECCEE]">
+                Round 1 · 40 teams
+              </p>
+              <h1 className="mt-1 truncate text-[1.35rem] font-semibold tracking-tight text-white">
                 {teamPrimaryLabel(team)}
               </h1>
               <p className="mt-1 truncate text-sm text-white/50">
@@ -367,7 +372,7 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
                 ].filter(Boolean).join(' · ')}
               </p>
             </div>
-            <ScoreChip score={team.currentScore} />
+            <ScoreChip score={team.currentScore} label="Score" />
           </div>
         </header>
 
@@ -376,7 +381,7 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
             <HuntProgressTrack stage={team.currentStage} />
           )}
 
-          {!waitingForRelease && (
+          {!waitingForRelease && !locked && (
             <PlayerInstructionBox
               guide={nowGuide}
               themeHex={nowThemeHex}
@@ -389,49 +394,39 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
           )}
 
           {waitingForRelease && (
-            <section className={`${panel} space-y-4 text-center`} style={{ borderColor: '#F9731655' }}>
-              {team.scheduledStartAt ? (
-                <>
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-200/80">
-                      {isLeader ? 'Clue 1 unlocks on' : 'Your team starts on'}
-                    </p>
-                    <p className="mt-2 text-xl font-semibold leading-snug text-white sm:text-2xl">
-                      {formatUnlockDateTime(team.scheduledStartAt)}
-                    </p>
-                    {team.startingPoint?.name && (
-                      <p className="mt-2 text-sm text-white/55">
-                        Meet at{' '}
-                        <span className="font-medium text-white/85">
-                          {team.startingPoint.name}
-                        </span>
-                        {isLeader ? ' · keep your team together' : ' · stay with your leader'}
-                      </p>
-                    )}
-                  </div>
-                  <CountdownTimer
-                    expiresAt={team.scheduledStartAt}
-                    serverTime={serverTime}
-                    label="Time remaining"
-                    expiredLabel="READY"
-                    onComplete={onRefresh}
-                    longForm
-                    className="mx-auto w-full"
-                  />
-                </>
-              ) : (
-                <p className="text-sm text-white/60">
-                  Waiting for organizers to set your unlock day and time.
-                </p>
-              )}
-              {team.startingPoint?.description && (
+            <UnlockHoldingCard
+              accentHex={STAGE_THEMES.clue1.hex}
+              eyebrow={isLeader ? 'Clue 1 unlocks on' : 'Your team starts on'}
+              unlockAt={team.scheduledStartAt}
+              meetLabel={team.startingPoint?.name}
+              meetHint={isLeader ? 'keep your team together' : 'stay with your leader'}
+              steps={nowGuide?.steps || [
+                'Stay at your start point',
+                'Wait for the countdown',
+                isLeader ? 'Then solve Clue 1 here' : 'Help after your leader solves Clue 1',
+              ]}
+              paused={Boolean(team.releasePaused)}
+              pausedText="Releases paused — stay at your start."
+              emptyText="Waiting for organizers to set your unlock day and time."
+              serverTime={serverTime}
+              onReady={onRefresh}
+              footer={team.startingPoint?.description ? (
                 <p className="text-sm text-white/45">{team.startingPoint.description}</p>
-              )}
-              {team.releasePaused && (
-                <p className="rounded-xl bg-red-500/10 px-3 py-2 text-sm text-red-100">
-                  Releases paused — stay at your start.
-                </p>
-              )}
+              ) : null}
+            />
+          )}
+
+          {locked && (
+            <section className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-5 text-center">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-200/80">
+                Round 1 complete
+              </p>
+              <p className="mt-2 text-lg font-semibold text-white">
+                Score locked · {team.finalScore ?? team.currentScore ?? 0} pts
+              </p>
+              <p className="mt-2 text-sm text-white/60">
+                Top finishers move toward Finals (12 teams). Organizers handle Survival picks — stay tuned on the leaderboard.
+              </p>
             </section>
           )}
 
@@ -643,15 +638,6 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
                 <span className="font-medium text-white">
                   {team.startingPoint?.name || team.startingPoint?.code || 'your starting point'}
                 </span>
-              </p>
-            </section>
-          )}
-
-          {locked && (
-            <section className={`${panel} text-center`}>
-              <p className="text-xl font-semibold">Score locked</p>
-              <p className="mt-2 text-2xl font-semibold text-[#0ECCEE]">
-                {team.finalScore ?? team.currentScore}
               </p>
             </section>
           )}

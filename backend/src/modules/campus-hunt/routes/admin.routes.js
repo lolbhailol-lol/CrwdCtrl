@@ -112,7 +112,9 @@ router.post('/events/:eventId/finale/teams/:teamId/release', finaleController.re
 router.post('/events/:eventId/finale/teams/:teamId/stop', finaleController.adminStopFinaleTeam);
 router.post('/events/:eventId/finale/teams/:teamId/resume', finaleController.adminResumeFinaleTeam);
 router.post('/events/:eventId/finale/teams/:teamId/playtest-complete-mission', finaleController.adminPlaytestCompleteFinaleMission);
+router.post('/events/:eventId/finale/teams/:teamId/playtest-advance-mission', finaleController.adminPlaytestAdvanceFinaleMission);
 router.post('/events/:eventId/finale/teams/:teamId/playtest-reset', finaleController.adminPlaytestResetFinaleTeam);
+router.post('/events/:eventId/finale/playtest-reset-round', finaleController.adminResetFinaleForRetest);
 router.get('/events/:eventId/finale/leaderboard', finaleController.getFinaleLeaderboardAdmin);
 router.post('/rounds/:roundId/finale/start', finaleController.startFinale);
 router.post('/rounds/:roundId/finale/lock', finaleController.lockFinale);

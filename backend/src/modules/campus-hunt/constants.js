@@ -18,9 +18,9 @@ const COMPETITION_PHASES = ['round1', 'finale'];
 
 const FINALE_MISSION_IDS = [
   'intel_hunt',
+  'lockbox',
   'field_terminal',
-  'mission_3',
-  'mission_4',
+  'operation_blackout',
 ];
 
 const FINALE_DEFAULTS = {
@@ -30,7 +30,9 @@ const FINALE_DEFAULTS = {
   directFromR1: 5,
   manualPick: 7,
   missionDurationMinutes: 10,
+  blackoutDurationMinutes: 15,
   intelMaxAttemptsPerStep: 2,
+  lockboxMaxAttemptsPerStep: 3,
   fieldTerminalMaxAttempts: 3,
   /** @deprecated use fieldTerminalMaxAttempts */
   borrowedDeviceMaxAttempts: 3,
@@ -38,10 +40,123 @@ const FINALE_DEFAULTS = {
 
 const FINALE_MISSION_BOARD = [
   { id: 'intel_hunt', title: 'Intel Hunt', emoji: '🧠', points: 50, enabled: true },
-  { id: 'field_terminal', title: 'Field Terminal', emoji: '💻', points: 100, enabled: true },
-  { id: 'mission_3', title: 'Mission 3', emoji: '🎯', points: 0, comingSoon: true },
-  { id: 'mission_4', title: 'Mission 4', emoji: '🔥', points: 0, comingSoon: true },
+  { id: 'lockbox', title: 'The Lockbox', emoji: '🔐', points: 75, enabled: true },
+  { id: 'field_terminal', title: 'Field Terminal', emoji: '💻', points: 125, enabled: true },
+  {
+    id: 'operation_blackout',
+    title: 'OPERATION: BLACKOUT',
+    emoji: '⚡',
+    points: 200,
+    enabled: true,
+  },
 ];
+
+const BLACKOUT_ROLES = ['scout', 'cracker', 'navigator', 'controller'];
+
+const DEFAULT_BLACKOUT_ROUTE_POOL = [
+  'BLUE → RED → GREEN',
+  'RED → GREEN → BLUE',
+  'GREEN → BLUE → RED',
+  'BLUE → GREEN → RED',
+  'RED → BLUE → GREEN',
+  'GREEN → RED → BLUE',
+];
+
+const DEFAULT_BLACKOUT_CONFIG = {
+  durationMinutes: 15,
+  maxPenaltyTotal: 100,
+  scout: {
+    clue: 'The target is:\n- not near the library\n- east of the auditorium\n- closer to the sports ground than the canteen.',
+    locationHint: 'All 4 players travel together to the Scout Station marker.',
+    acceptedAnswers: ['ORBIT'],
+    maxAttempts: 3,
+    penalty: 10,
+  },
+  cracker: {
+    puzzlePrompt: 'Decode:\n12 — 15 — 3 — 11\n\nA = 1, B = 2, … Z = 26',
+    acceptedAnswers: ['LOCK'],
+    maxAttempts: 3,
+    penalty: 15,
+  },
+  navigator: {
+    challengePrompt:
+      'Follow the unlocked route together (do not split up). At the final BLACKOUT marker, enter the frequency code.',
+    acceptedAnswers: ['88.1', '881', '88.1 FM'],
+    maxAttempts: 3,
+    penalty: 15,
+  },
+  controller: {
+    challengePrompt:
+      'Build the activation code as: ACCESS TOKEN − ROUTE INITIALS − FREQUENCY DIGITS\nExample format: AB-BRG-881',
+    acceptedAnswers: [],
+    useDerivedActivation: true,
+    maxAttempts: 3,
+    penalty: 20,
+  },
+  routePool: DEFAULT_BLACKOUT_ROUTE_POOL,
+};
+
+/** 12 physical keys for Lockbox Task 1 (one per finalist team). */
+const DEFAULT_LOCKBOX_KEY_POOL = Array.from({ length: 12 }, (_, i) => {
+  const n = String(i + 1).padStart(2, '0');
+  return {
+    id: `key_${n}`,
+    label: `CRWDCtrl KEY — ${n}`,
+    acceptedAnswers: [n, `KEY-${n}`, `KEY ${n}`, `CRWDCTRL KEY — ${n}`, `CRWDCTRL KEY-${n}`],
+  };
+});
+
+/** Default Task 2 pieces — each of 4 players sees only their own info. */
+const DEFAULT_LOCKBOX_PLAYER_PIECES = [
+  { seat: 0, label: 'Team Leader', info: 'The first digit is 9' },
+  { seat: 1, label: 'Player 2', info: 'The second digit is 4' },
+  { seat: 2, label: 'Player 3', info: 'The third digit is 0' },
+  { seat: 3, label: 'Player 4', info: 'The fourth digit is 7' },
+];
+
+function makeLockboxCodeEntry(id, digits) {
+  const code = String(digits);
+  return {
+    id,
+    acceptedCodes: [code],
+    playerPieces: [
+      { seat: 0, label: 'Team Leader', info: `The first digit is ${code[0]}` },
+      { seat: 1, label: 'Player 2', info: `The second digit is ${code[1]}` },
+      { seat: 2, label: 'Player 3', info: `The third digit is ${code[2]}` },
+      { seat: 3, label: 'Player 4', info: `The fourth digit is ${code[3]}` },
+    ],
+  };
+}
+
+/** 12 Task-2 code sets (one per finalist) so teams do not share a single answer. */
+const DEFAULT_LOCKBOX_CODE_POOL = [
+  makeLockboxCodeEntry('code_01', '9407'),
+  makeLockboxCodeEntry('code_02', '3815'),
+  makeLockboxCodeEntry('code_03', '7264'),
+  makeLockboxCodeEntry('code_04', '1598'),
+  makeLockboxCodeEntry('code_05', '6032'),
+  makeLockboxCodeEntry('code_06', '8471'),
+  makeLockboxCodeEntry('code_07', '2956'),
+  makeLockboxCodeEntry('code_08', '4713'),
+  makeLockboxCodeEntry('code_09', '5180'),
+  makeLockboxCodeEntry('code_10', '0629'),
+  makeLockboxCodeEntry('code_11', '7346'),
+  makeLockboxCodeEntry('code_12', '1864'),
+];
+
+const DEFAULT_LOCKBOX_CONFIG = {
+  clue: 'Thousands of stories live here,\nbut none can speak.',
+  locationName: 'Library',
+  locationHint: 'Go to this spot together. The physical key is waiting there.',
+  keyPool: DEFAULT_LOCKBOX_KEY_POOL,
+  codePool: DEFAULT_LOCKBOX_CODE_POOL,
+  maxAttemptsKey: 3,
+  maxAttemptsCode: 3,
+  playerPieces: DEFAULT_LOCKBOX_PLAYER_PIECES,
+  acceptedCodes: ['9407'],
+  lockboxInstruction:
+    'Each teammate sees a different piece of the Digital Lockbox. Talk it out. Only the Team Leader submits the final code.',
+};
 
 /** Pilot pool — 12 campus locations for dynamic Intel Hunt assignment (2 per team). */
 const DEFAULT_INTEL_LOCATION_POOL = [
@@ -297,4 +412,11 @@ module.exports = {
   FINALE_RUN_STATUS,
   FINALE_MISSION_BOARD,
   DEFAULT_INTEL_LOCATION_POOL,
+  DEFAULT_LOCKBOX_KEY_POOL,
+  DEFAULT_LOCKBOX_PLAYER_PIECES,
+  DEFAULT_LOCKBOX_CODE_POOL,
+  DEFAULT_LOCKBOX_CONFIG,
+  BLACKOUT_ROLES,
+  DEFAULT_BLACKOUT_ROUTE_POOL,
+  DEFAULT_BLACKOUT_CONFIG,
 };

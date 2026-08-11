@@ -102,6 +102,12 @@ async function assignIntelLocations({ eventId, config }) {
 }
 
 function missionDurationMs(config, missionId) {
+  if (missionId === 'operation_blackout') {
+    const mins = Number(config?.blackout?.durationMinutes)
+      || FINALE_DEFAULTS.blackoutDurationMinutes
+      || 15;
+    return mins * 60 * 1000;
+  }
   const minutes = Number(config?.missionDurationMinutes)
     || FINALE_DEFAULTS.missionDurationMinutes
     || 10;

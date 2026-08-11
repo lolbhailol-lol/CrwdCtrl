@@ -1,13 +1,17 @@
 const intelHunt = require('./intelHunt');
+const lockbox = require('./lockbox');
 const fieldTerminal = require('./fieldTerminal');
+const blackout = require('./blackout');
 const { PLACEHOLDER_MISSIONS, makePlaceholder } = require('./placeholders');
 const { FINALE_MISSION_BOARD } = require('../../constants');
 
 const HANDLERS = new Map([
   [intelHunt.id, intelHunt],
+  [lockbox.id, lockbox],
   [fieldTerminal.id, fieldTerminal],
   // Legacy alias — old runs / configs may still store borrowed_device
   [fieldTerminal.legacyId, fieldTerminal],
+  [blackout.id, blackout],
 ]);
 
 for (const id of PLACEHOLDER_MISSIONS) {
@@ -20,7 +24,6 @@ function getHandler(missionId) {
 }
 
 function listHandlers() {
-  // Unique by canonical id (skip legacy alias duplicate)
   const seen = new Set();
   const out = [];
   for (const handler of HANDLERS.values()) {
@@ -43,8 +46,17 @@ function missionMeta(config, missionId) {
   return { ...fromDefault, ...fromConfig, id: normalized };
 }
 
+/** Admin can turn missions off for testing without deleting them. */
+function isMissionPlayable(meta) {
+  if (!meta) return false;
+  if (meta.comingSoon) return false;
+  if (meta.enabled === false) return false;
+  return true;
+}
+
 module.exports = {
   getHandler,
   listHandlers,
   missionMeta,
+  isMissionPlayable,
 };

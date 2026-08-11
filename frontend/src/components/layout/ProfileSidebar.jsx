@@ -56,6 +56,9 @@ export default function ProfileSidebar({
     const [campusHuntLeaderboardLive, setCampusHuntLeaderboardLive] = useState(
         () => Boolean(campusHuntProfileCache?.showLeaderboard),
     );
+    const [campusHuntMyTeams, setCampusHuntMyTeams] = useState(
+        () => campusHuntProfileCache?.myTeams || [],
+    );
 
     const authPending = isLoading || isAuthProcessing || isRedirectProcessing;
     // Only skeleton on cold auth bootstrap — never block on organizer / hunt API calls
@@ -72,6 +75,7 @@ export default function ProfileSidebar({
         organizerEligibilityCache = null;
         setCampusHuntLoginLive(false);
         setCampusHuntLeaderboardLive(false);
+        setCampusHuntMyTeams([]);
         setClubManagerEligible(false);
         setTrekCommunityEligible(false);
         setEventOrganizerEligible(false);
@@ -84,6 +88,7 @@ export default function ProfileSidebar({
             if (!isCampusHuntEnabled()) {
                 setCampusHuntLoginLive(false);
                 setCampusHuntLeaderboardLive(false);
+                setCampusHuntMyTeams([]);
             }
             return undefined;
         }
@@ -97,6 +102,7 @@ export default function ProfileSidebar({
         if (campusHuntProfileCache?.key === cacheKey) {
             setCampusHuntLoginLive(Boolean(campusHuntProfileCache.showLogin));
             setCampusHuntLeaderboardLive(Boolean(campusHuntProfileCache.showLeaderboard));
+            setCampusHuntMyTeams(campusHuntProfileCache.myTeams || []);
             return undefined;
         }
 
@@ -113,14 +119,17 @@ export default function ProfileSidebar({
                     key: cacheKey,
                     showLogin: Boolean(res.data?.showLogin),
                     showLeaderboard: Boolean(res.data?.showLeaderboard),
+                    myTeams: Array.isArray(res.data?.myTeams) ? res.data.myTeams : [],
                 };
                 campusHuntProfileCache = next;
                 setCampusHuntLoginLive(next.showLogin);
                 setCampusHuntLeaderboardLive(next.showLeaderboard);
+                setCampusHuntMyTeams(next.myTeams);
             } catch {
                 if (!cancelled && !campusHuntProfileCache) {
                     setCampusHuntLoginLive(false);
                     setCampusHuntLeaderboardLive(false);
+                    setCampusHuntMyTeams([]);
                 }
             }
         })();
@@ -196,6 +205,7 @@ export default function ProfileSidebar({
         organizerEligibilityCache = null;
         setCampusHuntLoginLive(false);
         setCampusHuntLeaderboardLive(false);
+        setCampusHuntMyTeams([]);
         setClubManagerEligible(false);
         setTrekCommunityEligible(false);
         setEventOrganizerEligible(false);
@@ -222,6 +232,14 @@ export default function ProfileSidebar({
     };
 
     const handleMenuItemClick = async (label) => {
+        const teamEntry = campusHuntMyTeams.find(
+            (t) => label === `Team ${t.teamCode}` || label === t.teamCode,
+        );
+        if (teamEntry?.loginPath) {
+            goToPath(teamEntry.loginPath);
+            return;
+        }
+
         if (label === 'Campus Hunt login') {
             if (!isAuthenticated) {
                 // Same bottom Google sheet as Profile icon (Runs / Treks style)
@@ -285,9 +303,19 @@ export default function ProfileSidebar({
         goToPath(path);
     };
 
+    const campusHuntTeamItems = (campusHuntMyTeams || []).map((t) => ({
+        icon: KeyRound,
+        label: `Team ${t.teamCode}`,
+        hint: t.teamName || t.college || 'Open team login',
+    }));
+
     const campusHuntItems = [
-        ...(campusHuntLoginLive
+        ...campusHuntTeamItems,
+        ...(campusHuntLoginLive && campusHuntTeamItems.length === 0
             ? [{ icon: KeyRound, label: 'Campus Hunt login', hint: 'Google sign-in · enter team code' }]
+            : []),
+        ...(campusHuntLoginLive && campusHuntTeamItems.length > 0
+            ? [{ icon: KeyRound, label: 'Campus Hunt login', hint: 'Enter another team code' }]
             : []),
         ...(campusHuntLeaderboardLive
             ? [{ icon: MapPinned, label: 'Campus Hunt leaderboard', hint: 'Live college scores' }]
@@ -315,6 +343,7 @@ export default function ProfileSidebar({
     // Mobile menu items - filtered based on authentication status
     const allMobileMenuItems = [
         { icon: User, label: 'Edit profile', requiresAuth: true },
+        ...campusHuntTeamItems.map((item) => ({ ...item, requiresAuth: false })),
         ...(campusHuntLoginLive
             ? [{ icon: KeyRound, label: 'Campus Hunt login', requiresAuth: false, hint: 'Google sign-in · enter team code' }]
             : []),

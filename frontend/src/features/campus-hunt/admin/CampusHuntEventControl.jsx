@@ -292,6 +292,23 @@ export default function CampusHuntEventControl() {
           finaleStatus={finaleRound?.status}
           teamCapacity={overview?.event?.teamCapacity || 40}
           counts={overview?.counts || {}}
+          playerRoundAccess={overview?.event?.playerRoundAccess}
+          busy={busy}
+          onTogglePlayerRound={(roundId, open) => {
+            const current = {
+              round1: overview?.event?.playerRoundAccess?.round1 !== false,
+              survival: overview?.event?.playerRoundAccess?.survival === true,
+              finale: overview?.event?.playerRoundAccess?.finale === true,
+            };
+            run(
+              () => adminUpdateEvent(eventId, {
+                playerRoundAccess: { ...current, [roundId]: open },
+              }),
+              open
+                ? `Players can open ${roundId}`
+                : `Players locked out of ${roundId}`,
+            );
+          }}
           onOpenRound={(roundId) => {
             setActiveRound(roundId);
             if (roundId === 'round1') setTab('clues');

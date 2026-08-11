@@ -178,13 +178,13 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
         setLevelFlash({ kind: 'win', text: `+${payload.pointsAwarded || 0} · Done!` });
         setFeedback(`All levels finished! Score ${payload.score}`);
         onComplete?.(payload.completionCode, payload.score);
-        await refresh();
+        if (!payload.view) void refresh();
       } else if (payload.levelComplete) {
         setLevelFlash({ kind: 'win', text: `Level clear · +${payload.pointsAwarded || 0}` });
         setFeedback(`Level cleared! +${payload.pointsAwarded || 0} pts · Total ${payload.score}`);
         setPath([]);
         setHintCell(null);
-        await refresh();
+        if (!payload.view) void refresh();
       } else {
         setFeedback(res.message || 'Try again.');
       }
@@ -195,7 +195,7 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
       if (err.data?.timedOut || err.data?.advanced) {
         setPath([]);
         setHintCell(null);
-        await refresh().catch(() => {});
+        if (!err.data?.view) void refresh().catch(() => {});
       }
     } finally {
       setBusy(false);
