@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Share2, Heart, Calendar, MapPin,
@@ -18,57 +18,21 @@ import { EVENT_TYPE_LABELS, formatEventShowDate } from '../../constants/eventsPa
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { eventShowPath } from '../../utils/slugRoutes';
-import { trackBookNowClick } from '../../services/analyticsService';
-import { getEventShowTiers, isEventShowTiersPricing, formatInr } from '../../utils/eventShowTiers';
-import DetailPageLoader from '../../components/DetailPageLoader';
-import PrizePoolPodium from '../../components/PrizePoolPodium';
-import { getSuggestedCouponCode, getSuggestedCouponLabel } from '../../utils/suggestedCoupon';
 import { openLoginSheet } from '../../utils/loginFlow';
-
-function ordinalDay(n) {
-  const d = Number(n);
-  const j = d % 10;
-  const k = d % 100;
-  if (j === 1 && k !== 11) return `${d}st`;
-  if (j === 2 && k !== 12) return `${d}nd`;
-  if (j === 3 && k !== 13) return `${d}rd`;
-  return `${d}th`;
-}
+import { trackBookNowClick } from '../../services/analyticsService';
+import { getEventShowTiers, isEventShowTiersPricing, minEventShowFee, formatInr } from '../../utils/eventShowTiers';
 
 function formatEventDateTime(showTimings) {
   if (!showTimings?.length) return 'Date & time TBA';
-  const dates = showTimings
-    .filter((s) => s.date)
-    .map((s) => new Date(s.date))
-    .filter((d) => !Number.isNaN(d.getTime()))
-    .sort((a, b) => a - b);
-  if (!dates.length) return 'Date & time TBA';
-
-  // Two+ days in same month → "22nd and 23rd Aug"
-  if (dates.length >= 2) {
-    const first = dates[0];
-    const last = dates[dates.length - 1];
-    const sameMonth =
-      first.getFullYear() === last.getFullYear()
-      && first.getMonth() === last.getMonth();
-    if (sameMonth) {
-      const month = first.toLocaleDateString('en-IN', { month: 'short' });
-      if (dates.length === 2) {
-        return `${ordinalDay(first.getDate())} and ${ordinalDay(last.getDate())} ${month}`;
-      }
-      const days = dates.map((d) => ordinalDay(d.getDate())).join(', ');
-      return `${days} ${month}`;
-    }
-  }
-
-  const firstTiming = showTimings.find((s) => s.date) || showTimings[0];
+  const first = showTimings.find((s) => s.date) || showTimings[0];
   const dateStr = formatEventShowDate(showTimings);
-  const time = String(firstTiming?.time || '').trim();
-  // Skip placeholder day labels like "Day 1"
-  if (time && !/^day\s*\d+$/i.test(time)) {
-    return `${dateStr} · ${time}`;
-  }
-  return dateStr;
+  return first?.time ? `${dateStr} · ${first.time}` : dateStr;
+}
+
+function formatPrice(price) {
+  const n = Number(price);
+  if (!n || n <= 0) return 'Free';
+  return `₹${n.toLocaleString('en-IN')}`;
 }
 
 function mapEventDetail(raw) {
@@ -84,14 +48,6 @@ function mapEventDetail(raw) {
     dateTime: formatEventDateTime(raw.showTimings),
     venue: raw.venue || raw.city || 'Venue TBA',
     mapUrl: (raw.mapUrl || '').trim(),
-    meetingPoints: Array.isArray(raw.meetingPoints)
-      ? raw.meetingPoints
-        .map((p) => ({
-          label: String(p?.label || p?.name || '').trim(),
-          mapUrl: String(p?.mapUrl || p?.url || '').trim(),
-        }))
-        .filter((p) => p.label)
-      : [],
     ticketPrice: raw.ticketPrice,
     priceLabel: raw.priceLabel || '',
     pricingMode: raw.pricingMode === 'tiers' ? 'tiers' : 'single',
@@ -115,7 +71,6 @@ function mapEventDetail(raw) {
     poster,
     banner: raw.banner || '',
     registration: raw.registration || {},
-    raw,
   };
 }
 
@@ -126,81 +81,6 @@ function toLines(text) {
     .filter(Boolean);
 }
 
-/** Strip leading "1. " / "1) " so Terms-style UI can number cleanly */
-function toNumberedLines(text) {
-  return String(text || '')
-    .split('\n')
-    .map((l) => l.replace(/^\d+[.)]\s*/, '').replace(/^[-•*]\s*/, '').trim())
-    .filter(Boolean);
-}
-
-const RULE_SECTION_HEADINGS = [
-  'eligibility',
-  'registration',
-  'match rules',
-  'fair play',
-  'internet & technical',
-  'internet and technical',
-  'prizes',
-  'organizer rights',
-  'general rules',
-  'rules',
-  'prize pool',
-  'process',
-  "what's included",
-  'whats included',
-  'benefits',
-  'how to register',
-];
-
-function isRuleHeading(line) {
-  const trimmed = String(line || '').trim();
-  if (!trimmed) return false;
-  if (/:\s*$/.test(trimmed)) return true;
-  return RULE_SECTION_HEADINGS.includes(trimmed.replace(/:\s*$/, '').toLowerCase());
-}
-
-/** Split general rules text into { title, lines } sections by headings. */
-function splitRuleSections(text) {
-  const lines = toLines(text);
-  if (!lines.length) return [];
-  const sections = [];
-  let current = null;
-  for (const line of lines) {
-    if (isRuleHeading(line)) {
-      current = { title: line.replace(/:\s*$/, '').trim(), lines: [] };
-      sections.push(current);
-      continue;
-    }
-    if (!current) {
-      current = { title: 'General', lines: [] };
-      sections.push(current);
-    }
-    current.lines.push(line);
-  }
-  return sections.filter((s) => s.lines.length > 0 || s.title);
-}
-
-/** Keep exactly 4 general boxes — merge leftovers into the last card. */
-function toFourRuleBoxes(sections) {
-  if (!sections.length) return [];
-  if (sections.length <= 4) return sections.slice(0, 4);
-  const firstThree = sections.slice(0, 3);
-  const rest = sections.slice(3);
-  return [
-    ...firstThree,
-    {
-      title: rest[0]?.title || 'More Rules',
-      lines: rest.flatMap((s, i) => (i === 0 ? s.lines : [s.title, ...s.lines])),
-    },
-  ];
-}
-
-function isTermsStyleRound(title = '') {
-  const t = String(title).toLowerCase();
-  return t.includes('safety') || t.includes('indemnity') || t.includes('terms');
-}
-
 export default function EventDetailsPage() {
   const { isDark } = useDarkMode();
   const { toast } = useDialog();
@@ -209,25 +89,9 @@ export default function EventDetailsPage() {
   const { eventId } = useParams();
   const navigate = useNavigate();
   const [showLogin, setShowLogin] = useState(false);
+  const pendingRegisterAfterLoginRef = useRef(false);
 
   const isLoggedIn = () => isAuthenticated || !!localStorage.getItem('crwdctrl_token');
-
-  const openRegisterLogin = useCallback(() => {
-    if (!event) return;
-    openLoginSheet({ returnPath: `${eventShowPath(event)}/register` });
-    setShowLogin(true);
-  }, [event]);
-
-  useEffect(() => {
-    if (!isAuthenticated || !showLogin || !event) return;
-    setShowLogin(false);
-    navigate(`${eventShowPath(event)}/register`, {
-      state: {
-        event: event.raw || event,
-        suggestedCoupon: getSuggestedCouponCode(event),
-      },
-    });
-  }, [isAuthenticated, showLogin, event, navigate]);
 
   const handleBack = () => {
     // If the user navigated here within the app, go back normally.
@@ -249,7 +113,6 @@ export default function EventDetailsPage() {
   const [tierSheetOpen, setTierSheetOpen] = useState(false);
   const [expandedTierId, setExpandedTierId] = useState(null);
   const [selectingTierId, setSelectingTierId] = useState(null);
-  const [openInfoRound, setOpenInfoRound] = useState({});
 
   useEffect(() => {
     let active = true;
@@ -285,29 +148,15 @@ export default function EventDetailsPage() {
     }
   }, [event, eventId, navigate]);
 
-  const competitionRounds = event
-    ? event.rounds.filter((r) => !isTermsStyleRound(r.title))
-    : [];
-  const termsRounds = event
-    ? event.rounds.filter((r) => isTermsStyleRound(r.title))
-    : [];
-  const hasCompetitionRounds = competitionRounds.length > 0;
-
-  // Competition-style events: Prize Pool replaces About; General Rules shown as 4 boxes
-  const tabs = event && !hasCompetitionRounds
+  const tabs = event
     ? [
         { key: 'general', label: 'General Rules', content: event.generalRules, type: 'list' },
-        { key: 'process', label: 'Process', content: event.process, type: 'list' },
+        { key: 'process', label: 'Process', content: event.process, type: 'text' },
         { key: 'prize', label: 'Prize Pool', content: event.prizePool, type: 'list' },
         { key: 'included', label: "What's Included", content: event.whatsIncluded, type: 'list' },
         { key: 'eligibility', label: 'Eligibility', content: event.eligibility, type: 'list' },
-      ].filter((t) => Boolean(t.content && String(t.content).trim()))
+      ].filter((t) => Boolean(t.content && t.content.trim()))
     : [];
-
-  const generalRuleBoxes = event && hasCompetitionRounds
-    ? toFourRuleBoxes(splitRuleSections(event.generalRules))
-    : [];
-  const hasPrizePool = event && hasCompetitionRounds && Boolean(String(event.prizePool || '').trim());
 
   useEffect(() => {
     if (tabs.length > 0 && !tabs.some((t) => t.key === activeTab)) {
@@ -315,19 +164,34 @@ export default function EventDetailsPage() {
     }
   }, [tabs, activeTab]);
 
+  const openRegisterLogin = useCallback(() => {
+    if (!event) return;
+    pendingRegisterAfterLoginRef.current = true;
+    openLoginSheet({ returnPath: `${eventShowPath(event)}/register` });
+    setShowLogin(true);
+  }, [event]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !event || !pendingRegisterAfterLoginRef.current) return;
+    pendingRegisterAfterLoginRef.current = false;
+    setShowLogin(false);
+    navigate(`${eventShowPath(event)}/register`, {
+      state: { event: event.raw || event },
+    });
+  }, [isAuthenticated, event, navigate]);
+
+  const handleCloseRegisterLogin = useCallback(() => {
+    if (!isAuthenticated) {
+      pendingRegisterAfterLoginRef.current = false;
+    }
+    setShowLogin(false);
+  }, [isAuthenticated]);
+
   const handleShare = async () => {
-    const shareImage =
-      getCoverImageUrl(event, 'eventPage')
-      || getCoverImageUrl(event, 'hero')
-      || getCoverImageUrl(event, 'portrait')
-      || getImageUrl(event?.image, { preset: 'eventPage' })
-      || event?.image
-      || '';
     const result = await shareContent({
       title: event?.title,
       text: event?.about?.slice(0, 120),
       url: window.location.href,
-      imageUrl: shareImage,
     });
     if (result === 'copied') toast('Event link copied to clipboard!');
   };
@@ -347,7 +211,7 @@ export default function EventDetailsPage() {
 
   const handleRegister = () => {
     const r = event?.registration || {};
-    if (['internal_form', 'organizer_qr'].includes(r.mode)) {
+    if (r.mode === 'internal_form') {
       if (r.status !== 'open') {
         toast('Registration is currently closed');
         return;
@@ -357,17 +221,8 @@ export default function EventDetailsPage() {
         openRegisterLogin();
         return;
       }
-      const formFields = [
-        ...(Array.isArray(r.formSchema) ? r.formSchema : []),
-        ...((Array.isArray(r.steps) ? r.steps : []).flatMap((s) => s.fields || [])),
-      ];
-      const asksDriveFirst = formFields.some((f) =>
-        /join_drive|independence_day_drive/i.test(String(f?.fieldName || ''))
-        || /independence day drive/i.test(String(f?.label || '')),
-      );
       const tiers = isEventShowTiersPricing(event) ? getEventShowTiers(event) : [];
-      // Drive Yes/No must come before package — skip the package sheet
-      if (tiers.length && !asksDriveFirst) {
+      if (tiers.length) {
         trackBookNowClick({
           entityType: 'events',
           entityId: event?.id || '',
@@ -385,36 +240,31 @@ export default function EventDetailsPage() {
         mode: 'internal_form',
         destination: 'internal_register_page',
       });
-      navigate(`${eventShowPath(event)}/register`, {
-        state: {
-          event: event.raw || event,
-          suggestedCoupon: getSuggestedCouponCode(event),
-        },
-      });
+      navigate(`${eventShowPath(event)}/register`, { state: { event: event.raw || event } });
       return;
     }
     const link = event?.registrationLink || event?.bookingLink;
     if (link) {
-      const trimmed = String(link).trim();
-      const isInternalPath = trimmed.startsWith('/') && !trimmed.startsWith('//');
       trackBookNowClick({
         entityType: 'events',
         entityId: event?.id || '',
         mode: 'external_link',
-        destination: isInternalPath ? 'internal_app_path' : 'external',
+        destination: 'external',
       });
-      // Competition-backed event listings use in-app paths (e.g. /competition-registration/:id)
-      if (isInternalPath) {
-        navigate(trimmed);
-        return;
-      }
-      openExternalUrl(trimmed);
+      openExternalUrl(link);
     }
     else toast('Registration link not available yet');
   };
 
   if (loading) {
-    return <DetailPageLoader />;
+    return (
+      <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500 mx-auto mb-4" />
+          <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Loading event…</h2>
+        </div>
+      </div>
+    );
   }
 
   if (error || !event) {
@@ -439,38 +289,29 @@ export default function EventDetailsPage() {
   const activeTabObj = tabs.find((t) => t.key === activeTab);
   const tiersPricing = isEventShowTiersPricing(event);
   const packageTiers = tiersPricing ? getEventShowTiers(event) : [];
+  const fromFee = minEventShowFee(event);
+  // Run-club style: sticky bar shows "From" + amount for tiers (ignore long priceLabel)
+  const hasPrice = tiersPricing
+    ? fromFee >= 0
+    : (Boolean(event.priceLabel) || event.ticketPrice > 0);
   const aboutLong = event.about.length > 180;
   const benefitsList = toLines(event.benefits);
   const hasRegistrationInfo = event.slots || event.registrationProcess;
 
   const reg = event.registration || {};
-  const registrationClosed = ['internal_form', 'organizer_qr'].includes(reg.mode)
+  const registrationClosed = reg.mode === 'internal_form'
     ? reg.status !== 'open'
     : !(event.registrationLink || event.bookingLink);
 
-  const suggestedCoupon = getSuggestedCouponCode(event);
-  const suggestedCouponLabel = getSuggestedCouponLabel(suggestedCoupon);
-
-  const cardBg = isDark ? 'bg-[#111213]' : 'bg-white border border-gray-100 shadow-md';
-  const sheetBg = isDark ? 'bg-[#161718]' : 'bg-white';
-  const factCard = isDark ? 'bg-[#111213]' : 'bg-white border border-gray-100 shadow-md';
-  const sectionCard = isDark ? 'bg-[#111213]' : 'bg-white border border-gray-100 shadow-md';
+  const cardBg = isDark ? 'bg-[#111213]' : 'bg-white';
+  const sheetBg = isDark ? 'bg-[#161718]' : 'bg-slate-100';
 
   // Prefer organizer-pasted Maps pin; fall back to Google search on venue text
   const hasVenue = Boolean(event.venue) && event.venue !== 'Venue TBA';
-  const isOnlineOrDiscordVenue = /discord|online/i.test(String(event.venue || ''));
-  const discordInvite =
-    event.meetingPoints?.map((p) => p.mapUrl).find((u) => /discord\.(gg|com)/i.test(u || ''))
-    || (/discord\.(gg|com)/i.test(event.bookingLink || '') ? event.bookingLink : '')
-    || (/discord\.(gg|com)/i.test(event.registrationLink || '') ? event.registrationLink : '')
-    || '';
-  const directionsUrl = discordInvite || isOnlineOrDiscordVenue
-    ? null
-    : (event.mapUrl
-      || (hasVenue
-        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.venue)}`
-        : null));
-  const showEventType = Boolean(event.type) && !/^other$/i.test(String(event.type).trim());
+  const directionsUrl = event.mapUrl
+    || (hasVenue
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.venue)}`
+      : null);
 
   return (
     <div className="crwdctrl-page min-h-screen pb-28">
@@ -478,12 +319,7 @@ export default function EventDetailsPage() {
         title={event.title}
         description={event.about ? event.about.slice(0, 160) : `${event.title} — ${event.type}`}
         canonical={eventShowPath(event)}
-        image={
-          event.coverImages?.page
-          || event.coverImages?.hero
-          || event.coverImages?.portrait
-          || event.image
-        }
+        image={event.image}
         type="article"
         jsonLd={[
           breadcrumbSchema([
@@ -495,11 +331,7 @@ export default function EventDetailsPage() {
             name: event.title,
             description: event.about,
             url: eventShowPath(event),
-            image:
-              event.coverImages?.page
-              || event.coverImages?.hero
-              || event.coverImages?.portrait
-              || event.image,
+            image: event.image,
             location: event.venue !== 'Venue TBA' ? event.venue : undefined,
             price: event.ticketPrice,
             organizerName: event.organizer || undefined,
@@ -508,18 +340,14 @@ export default function EventDetailsPage() {
       />
 
       <div className="mx-auto w-full md:max-w-2xl">
-        {/* Hero — 5:4 matches admin “Event page top image” crop / Adjust */}
-        <div className="relative w-full aspect-5/4 max-h-112">
+        {/* Hero — full-width on phones, aligned with content on desktop */}
+        <div className="relative h-80 sm:h-96 w-full">
           {event.image ? (
             <img
-              src={
-                getCoverImageUrl(event, 'eventPage')
-                || getCoverImageUrl(event, 'hero')
-                || getImageUrl(event.image, { preset: 'eventPage' })
-              }
+              src={getCoverImageUrl(event, 'hero') || getImageUrl(event.image, { preset: 'hero' })}
               alt={event.title}
               className="absolute inset-0 w-full h-full object-cover"
-              onError={(e) => handleImageErrorWithFallback(e, 400, 320, '#2A2B2E', event.title)}
+              onError={(e) => handleImageErrorWithFallback(e, 400, 384, '#2A2B2E', event.title)}
             />
           ) : (
             <div className="absolute inset-0 bg-linear-to-br from-purple-800 to-indigo-600 flex items-center justify-center">
@@ -527,7 +355,7 @@ export default function EventDetailsPage() {
             </div>
           )}
 
-          <div className="absolute inset-x-0 top-0 flex items-center justify-between px-4 pt-[max(0.75rem,var(--safe-top))] pb-3 bg-linear-to-b from-black/35 to-transparent">
+          <div className="absolute inset-x-0 top-0 flex items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 bg-linear-to-b from-black/35 to-transparent">
             <button
               type="button"
               onClick={handleBack}
@@ -570,12 +398,12 @@ export default function EventDetailsPage() {
           <h1 className={`text-2xl font-semibold leading-8 ${isDark ? 'text-white' : 'text-gray-900'}`}>
             {event.title}
           </h1>
-          {event.displayName && event.displayName.toLowerCase() !== event.title.toLowerCase() && (
+          {event.displayName && (
             <p className={`text-sm font-semibold mt-1 ${isDark ? 'text-gray-300' : 'text-gray-800'}`}>
               {event.displayName}
             </p>
           )}
-          {showEventType && (
+          {event.type && (
             <span className="block mt-2 text-sm font-semibold uppercase tracking-wide text-[#0ECCEE]">
               {event.type}
             </span>
@@ -587,113 +415,30 @@ export default function EventDetailsPage() {
           )}
 
           {/* Quick facts */}
-          <div className="mt-4 space-y-2.5">
-            <div className={`flex items-center gap-2.5 rounded-xl px-3 py-2 ${factCard}`}>
-              <Calendar size={18} className="text-[#0ECCEE] shrink-0" />
-              <span className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{event.dateTime}</span>
+          <div className="mt-5 space-y-3">
+            <div className="flex items-center gap-3">
+              <Calendar size={32} className="text-[#0ECCEE] shrink-0" />
+              <span className={`text-base font-medium ${isDark ? 'text-gray-200' : 'text-black'}`}>{event.dateTime}</span>
             </div>
-            {discordInvite ? (
-              <>
+            <div className="flex items-center gap-3">
+              <MapPin size={32} className="text-[#0ECCEE] shrink-0" />
+              {directionsUrl ? (
                 <button
                   type="button"
-                  onClick={() => openExternalUrl(discordInvite)}
-                  className={`w-full flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition active:opacity-80 ${factCard}`}
+                  onClick={() => openExternalUrl(directionsUrl)}
+                  className="text-base font-medium text-left text-[#0ECCEE] underline-offset-2 hover:underline active:opacity-80"
                 >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="shrink-0 text-[#5865F2]">
-                    <path
-                      fill="currentColor"
-                      d="M20.317 4.37a19.8 19.8 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.3 18.3 0 0 0-5.487 0 12.6 12.6 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.7 19.7 0 0 0 3.677 4.37a.09.09 0 0 0-.041.027C.533 9.046-.32 13.58.099 18.057a.08.08 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.1 13.1 0 0 1-1.872-.892.077.077 0 0 1-.008-.128c.126-.094.252-.192.373-.292a.074.074 0 0 1 .078-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .079.01c.12.098.247.198.373.292a.077.077 0 0 1-.006.127 12.3 12.3 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.8 19.8 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.06.06 0 0 0-.041-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"
-                    />
-                  </svg>
-                  <span className={`flex-1 text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    Join Discord
-                  </span>
-                  <span className="text-xs font-semibold text-[#5865F2]">Open</span>
+                  {event.venue}
                 </button>
-                {event.venue && event.venue !== 'Venue TBA' ? (
-                  <div className={`flex items-center gap-2.5 rounded-xl px-3 py-2 ${factCard}`}>
-                    <MapPin size={18} className="text-[#0ECCEE] shrink-0" />
-                    <span className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{event.venue}</span>
-                  </div>
-                ) : null}
-              </>
-            ) : event.meetingPoints?.length > 0 ? (
-              <div className={`rounded-xl px-3 py-2.5 ${factCard}`}>
-                <div className="flex items-center gap-2.5 mb-2">
-                  <MapPin size={18} className="text-[#0ECCEE] shrink-0" />
-                  <p className={`text-sm font-semibold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
-                    Meeting points
-                  </p>
-                </div>
-                <div className="space-y-1.5">
-                  {event.meetingPoints.map((point, idx) => {
-                    const canOpen = Boolean(point.mapUrl);
-                    const RowTag = canOpen ? 'button' : 'div';
-                    return (
-                      <RowTag
-                        key={`${point.label}-${idx}`}
-                        type={canOpen ? 'button' : undefined}
-                        onClick={canOpen ? () => openExternalUrl(point.mapUrl) : undefined}
-                        className={`w-full flex items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left ${
-                          isDark ? 'hover:bg-white/5' : 'hover:bg-gray-50'
-                        } ${canOpen ? 'cursor-pointer' : ''}`}
-                      >
-                        <p className={`min-w-0 flex-1 truncate text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                          <span className={`mr-1.5 font-semibold ${isDark ? 'text-[#0ECCEE]' : 'text-cyan-700'}`}>{idx + 1}.</span>
-                          {point.label}
-                        </p>
-                        {canOpen ? (
-                          <span className="shrink-0 text-[11px] font-semibold text-[#0ECCEE]">
-                            Open map
-                          </span>
-                        ) : null}
-                      </RowTag>
-                    );
-                  })}
-                </div>
-
-                {event.venue && event.venue !== 'Venue TBA' ? (
-                  <div className={`flex items-start gap-2.5 pt-2 mt-1 border-t ${isDark ? 'border-white/10 text-gray-400' : 'border-gray-200 text-gray-600'}`}>
-                    <MapPin size={14} className="shrink-0 mt-0.5 opacity-70" />
-                    {directionsUrl ? (
-                      <button
-                        type="button"
-                        onClick={() => openExternalUrl(directionsUrl)}
-                        className="text-xs font-medium text-left underline-offset-2 hover:underline hover:text-[#0ECCEE]"
-                      >
-                        Venue: {event.venue}
-                      </button>
-                    ) : (
-                      <span className="text-xs font-medium">Venue: {event.venue}</span>
-                    )}
-                  </div>
-                ) : null}
-              </div>
-            ) : (
-              <div className={`flex items-center gap-2.5 rounded-xl px-3 py-2 ${factCard}`}>
-                <MapPin size={18} className="text-[#0ECCEE] shrink-0" />
-                {directionsUrl ? (
-                  <button
-                    type="button"
-                    onClick={() => openExternalUrl(directionsUrl)}
-                    className="text-sm font-medium text-left text-[#0ECCEE] underline-offset-2 hover:underline active:opacity-80"
-                  >
-                    {event.venue}
-                  </button>
-                ) : (
-                  <span className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{event.venue}</span>
-                )}
-              </div>
-            )}
+              ) : (
+                <span className={`text-base font-medium ${isDark ? 'text-gray-200' : 'text-black'}`}>{event.venue}</span>
+              )}
+            </div>
           </div>
 
-          {/* Prize Pool (competition-style) OR About */}
-          {hasPrizePool ? (
+          {/* About */}
+          {event.about && (
             <div className="mt-6">
-              <PrizePoolPodium prizeText={event.prizePool} isDark={isDark} />
-            </div>
-          ) : event.about ? (
-            <div className={`mt-6 rounded-2xl p-4 ${sectionCard}`}>
               <h2 className={`text-lg font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>About</h2>
               <p className={`text-sm font-medium leading-5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                 {showFullAbout || !aboutLong ? event.about : `${event.about.slice(0, 180)}...`}
@@ -708,94 +453,12 @@ export default function EventDetailsPage() {
                 )}
               </p>
             </div>
-          ) : null}
-
-          {/* Competition-style stage boxes (Stage 1 / 2 / 3 / …) */}
-          {hasCompetitionRounds && (
-            <div className="mt-6">
-              <div>
-                <h2 className={`text-lg font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  Tournament Stages
-                </h2>
-
-                <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                  <section className={`min-w-0 rounded-2xl border p-3 ${
-                    isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-sm'
-                  }`}>
-                    <div className={`rounded-xl px-3 py-2.5 mb-2 ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-100'}`}>
-                      <h3 className={`text-xs font-semibold sm:text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        Packages
-                      </h3>
-                    </div>
-                    <div className="space-y-3 px-1 pt-1">
-                      {competitionRounds.map((round, idx) => {
-                        const lines = toLines(round.content);
-                        const roundTitle = round.title || `Stage ${idx + 1}`;
-                        const showRoundTitle = !/^info$/i.test(String(roundTitle).trim());
-                        return (
-                          <div key={idx}>
-                            {showRoundTitle ? (
-                              <h4 className={`text-xs font-semibold mb-1.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                {roundTitle}
-                              </h4>
-                            ) : null}
-                            {lines.length > 0 ? (
-                              <ul className="space-y-1.5">
-                                {lines.map((item, i) => (
-                                  <li key={i} className={`flex items-start gap-1.5 text-xs leading-snug ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                                    <span className="mt-1 size-1 rounded-full bg-[#0ECCEE] shrink-0" />
-                                    {item}
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : (
-                              <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Details coming soon</p>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </section>
-
-                  {generalRuleBoxes.length > 0 && (
-                  <aside className={`min-w-0 rounded-2xl border p-3 ${
-                    isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-sm'
-                  }`}>
-                    <div className={`rounded-xl px-3 py-2.5 mb-2 ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-100'}`}>
-                      <h3 className={`text-xs font-semibold sm:text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        Instructions
-                      </h3>
-                    </div>
-                    <div className="space-y-3 px-1 pt-1">
-                    {generalRuleBoxes.map((box, idx) => (
-                      <div key={idx}>
-                        {!/^general(?: instructions?)?$/i.test(String(box.title || '').trim()) ? (
-                          <h4 className={`text-xs font-semibold mb-1.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                            {box.title}
-                          </h4>
-                        ) : null}
-                        <ul className="space-y-1.5">
-                          {box.lines.map((item, i) => (
-                            <li key={i} className={`flex items-start gap-1.5 text-xs leading-snug ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                              <span className="mt-1 size-1 rounded-full bg-[#0ECCEE] shrink-0" />
-                              {item}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ))}
-                    </div>
-                  </aside>
-                  )}
-                </div>
-              </div>
-            </div>
           )}
 
-          {/* Tab box — non-competition events only */}
+          {/* Tab box (trek-style): General Rules / Process / Prize Pool / What's Included */}
           {tabs.length > 0 && (
             <div className="mt-6">
-              <div className={`rounded-2xl p-1 mb-4 border ${isDark ? 'bg-[#111213] border-transparent' : 'bg-white border-gray-100 shadow-md'}`}>
+              <div className={`rounded-2xl p-1 mb-4 ${isDark ? 'bg-[#111213]' : 'bg-white shadow-sm'}`}>
                 <div className="flex justify-center gap-1 overflow-x-auto scrollbar-hide rounded-xl p-1">
                   {tabs.map((t) => (
                     <button
@@ -804,7 +467,7 @@ export default function EventDetailsPage() {
                       onClick={() => setActiveTab(t.key)}
                       className={`relative shrink-0 whitespace-nowrap py-2 px-4 text-xs font-semibold rounded-xl transition-all duration-200 ${
                         activeTab === t.key
-                          ? isDark ? 'bg-[#1D1E20] text-white shadow-sm' : 'bg-gray-50 text-gray-900 shadow-sm'
+                          ? isDark ? 'bg-[#1D1E20] text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm'
                           : isDark ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'
                       }`}
                     >
@@ -817,12 +480,16 @@ export default function EventDetailsPage() {
                 </div>
               </div>
 
-              <div className={`rounded-2xl p-4 ${sectionCard}`}>
+              <div className={`rounded-2xl p-4 ${isDark ? 'bg-[#111213]' : 'bg-white shadow-sm'}`}>
                 {activeTabObj?.type === 'list' ? (
                   <ul className="space-y-2">
                     {toLines(activeTabObj.content).map((item, idx) => {
+                      // A line is a bold heading (no bullet dot) if it ends with ":"
+                      // or matches a known section word like "Eligibility".
                       const trimmed = item.trim();
-                      const isHeading = isRuleHeading(trimmed);
+                      const HEADING_WORDS = ['eligibility', 'general rules', 'rules', 'prize pool', 'process', "what's included", 'whats included', 'benefits', 'registration', 'how to register'];
+                      const isHeading = /:\s*$/.test(trimmed)
+                        || HEADING_WORDS.includes(trimmed.replace(/:\s*$/, '').toLowerCase());
                       if (isHeading) {
                         return (
                           <li key={idx} className={`text-sm font-bold ${idx > 0 ? 'mt-3' : ''} ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -847,72 +514,38 @@ export default function EventDetailsPage() {
             </div>
           )}
 
-          {/* Terms / safety info rounds only */}
-          {termsRounds.length > 0 && (
+          {/* Competition Rounds — separate box per round */}
+          {event.rounds.length > 0 && (
             <div className="mt-6">
               <h2 className={`text-lg font-semibold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                Important information
+                {event.rounds.length > 1 ? 'Competition Rounds' : 'Rounds'}
               </h2>
+
               <div className="space-y-3">
-                {termsRounds.map((r, idx) => {
-                  const lines = toNumberedLines(r.content);
-                  const open = Boolean(openInfoRound[idx]);
-                  return (
-                    <div key={idx}>
-                      <button
-                        type="button"
-                        onClick={() => setOpenInfoRound((prev) => ({ ...prev, [idx]: !prev[idx] }))}
-                        className={`w-full rounded-2xl border flex items-center justify-between px-4 py-3.5 transition-colors ${
-                          isDark
-                            ? 'bg-[#111213] border-white/5 hover:bg-[#1D1E20]'
-                            : 'bg-white border-gray-100 shadow-md hover:bg-gray-50'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3 min-w-0 text-left">
-                          <div className={`size-9 rounded-xl flex items-center justify-center shrink-0 ${isDark ? 'bg-[#1D1E20]' : 'bg-amber-50'}`}>
-                            <span className={`text-sm font-bold ${isDark ? 'text-amber-300' : 'text-amber-600'}`}>
-                              {idx + 1}
-                            </span>
-                          </div>
-                          <div className="min-w-0">
-                            <p className={`text-sm font-semibold ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
-                              {r.title || `Section ${idx + 1}`}
-                            </p>
-                            <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                              {lines.length} points — tap to {open ? 'collapse' : 'read'}
-                            </p>
-                          </div>
-                        </div>
-                        <ChevronRight
-                          size={16}
-                          className={`transition-transform duration-200 shrink-0 ${open ? 'rotate-90' : ''} ${isDark ? 'text-gray-500' : 'text-gray-400'}`}
-                        />
-                      </button>
-                      {open ? (
-                        <div className={`mt-2 rounded-2xl border overflow-hidden ${isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-md'}`}>
-                          {lines.map((line, i) => (
-                            <div
-                              key={i}
-                              className={`flex gap-3 px-4 py-3 ${i < lines.length - 1 ? `border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}` : ''}`}
-                            >
-                              <span className={`text-xs font-bold mt-0.5 shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${isDark ? 'bg-[#1D1E20] text-amber-300' : 'bg-amber-50 text-amber-600'}`}>
-                                {i + 1}
-                              </span>
-                              <p className={`text-sm leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{line}</p>
-                            </div>
-                          ))}
-                        </div>
-                      ) : null}
-                    </div>
-                  );
-                })}
+                {event.rounds.map((r, idx) => (
+                  <div key={idx} className={`rounded-2xl p-4 ${isDark ? 'bg-[#111213]' : 'bg-white shadow-sm'}`}>
+                    <h3 className={`font-bold text-lg mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                      {r.title || `Round ${idx + 1}`}
+                    </h3>
+                    {r.content && (
+                      <ul className="space-y-2">
+                        {toLines(r.content).map((item, i) => (
+                          <li key={i} className={`flex items-start gap-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                            <span className="mt-1.5 size-1.5 rounded-full bg-[#0ECCEE] shrink-0" />
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           )}
 
           {/* Benefits */}
           {benefitsList.length > 0 && (
-            <div className={`mt-6 rounded-2xl p-4 ${sectionCard}`}>
+            <div className="mt-6">
               <h2 className={`text-lg font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Benefits</h2>
               <ul className="space-y-1.5">
                 {benefitsList.map((item, idx) => (
@@ -1063,47 +696,37 @@ export default function EventDetailsPage() {
         </div>
       </div>
 
-      {/* Sticky bottom bar — coupon chip + Register */}
+      {/* Sticky bottom bar: From + Register (run-club style for tiers) */}
       <div
         className="fixed bottom-0 left-0 right-0 z-40 px-2"
-        style={{ paddingBottom: 'max(var(--safe-bottom), 6px)' }}
+        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 6px)' }}
       >
-        <div className={`mx-auto w-full max-w-md md:max-w-2xl rounded-[30px] px-5 py-3 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'}`}>
-          {suggestedCoupon && !registrationClosed ? (
-            <div className="mb-2 flex items-center justify-center">
-              <button
-                type="button"
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(suggestedCoupon);
-                    toast(`Copied ${suggestedCoupon}`);
-                  } catch {
-                    toast(`Use ${suggestedCoupon} at checkout`);
-                  }
-                }}
-                className={`inline-flex items-center gap-2 rounded-full pl-2.5 pr-2 py-1 text-[11px] font-bold ${
-                  isDark ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                }`}
-              >
-                <span className="tracking-wide">{suggestedCoupon}</span>
-                {suggestedCouponLabel ? (
-                  <span className={`font-semibold ${isDark ? 'text-emerald-200/80' : 'text-emerald-600'}`}>
-                    {suggestedCouponLabel}
-                  </span>
-                ) : null}
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                  isDark ? 'bg-emerald-400/20 text-emerald-200' : 'bg-white text-emerald-700'
-                }`}>
-                  Copy
-                </span>
-              </button>
+        <div className={`mx-auto w-full max-w-md md:max-w-2xl flex items-center justify-between gap-4 rounded-[30px] px-5 py-3.5 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'}`}>
+          {hasPrice && (
+            <div className="min-w-0 shrink-0">
+              <p className={`text-xs font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                {tiersPricing ? 'From' : 'Registration Fee'}
+              </p>
+              {tiersPricing ? (
+                fromFee > 0 ? (
+                  <p className={`mt-0.5 text-2xl font-bold leading-none truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {formatInr(fromFee)}
+                  </p>
+                ) : (
+                  <p className="mt-0.5 text-2xl font-bold leading-none text-green-500">Free</p>
+                )
+              ) : (
+                <p className={`mt-0.5 text-2xl font-bold leading-none truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                  {event.priceLabel || formatPrice(event.ticketPrice)}
+                </p>
+              )}
             </div>
-          ) : null}
+          )}
           <button
             type="button"
             onClick={handleRegister}
             disabled={registrationClosed}
-            className={`flex w-full items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg transition ${
+            className={`flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg transition ${
               registrationClosed
                 ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
                 : 'bg-[#0ECCEE] text-black active:opacity-90'
@@ -1129,7 +752,7 @@ export default function EventDetailsPage() {
             }}
           />
           <div
-            className={`relative w-full max-w-md md:max-w-2xl max-h-[85vh] overflow-y-auto rounded-t-3xl px-4 pt-3 pb-[max(1.5rem,var(--safe-bottom))] ${
+            className={`relative w-full max-w-md md:max-w-2xl max-h-[85vh] overflow-y-auto rounded-t-3xl px-4 pt-3 pb-[max(1.5rem,env(safe-area-inset-bottom))] ${
               isDark ? 'bg-[#161718]' : 'bg-white'
             }`}
           >
@@ -1169,7 +792,7 @@ export default function EventDetailsPage() {
                         ? 'border-[#0ECCEE] ring-2 ring-[#0ECCEE]/35 scale-[0.985]'
                         : isDark
                           ? 'bg-[#111213] border-white/10 hover:border-[#0ECCEE]/45'
-                          : 'bg-white border-gray-100 hover:border-[#0ECCEE]/55 shadow-md'
+                          : 'bg-white border-gray-200 hover:border-[#0ECCEE]/55 shadow-sm'
                     }`}
                   >
                     <button
@@ -1182,11 +805,7 @@ export default function EventDetailsPage() {
                           setExpandedTierId(null);
                           setSelectingTierId(null);
                           navigate(`${eventShowPath(event)}/register?tier=${encodeURIComponent(tier.id)}`, {
-                            state: {
-                              tierId: tier.id,
-                              event: event.raw || event,
-                              suggestedCoupon: getSuggestedCouponCode(event),
-                            },
+                            state: { tierId: tier.id },
                           });
                         }, 320);
                       }}
@@ -1270,7 +889,7 @@ export default function EventDetailsPage() {
             type="button"
             onClick={() => setLightboxIndex(null)}
             className="absolute right-4 p-2 rounded-full bg-white/15 text-white backdrop-blur-sm"
-            style={{ top: 'max(1rem, var(--safe-top))' }}
+            style={{ top: 'max(1rem, env(safe-area-inset-top))' }}
             aria-label="Close"
           >
             <X size={24} />
@@ -1315,7 +934,7 @@ export default function EventDetailsPage() {
             googleOnly
             title="Sign in to register"
             subtitle="One tap with Google — then finish registration"
-            onClose={() => setShowLogin(false)}
+            onClose={handleCloseRegisterLogin}
           />
         </div>
       )}
