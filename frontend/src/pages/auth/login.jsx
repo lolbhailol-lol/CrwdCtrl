@@ -10,9 +10,7 @@ import { storage } from '../../utils/storage';
 import {
     prepareLogin,
     resolvePostLoginRedirect,
-    consumeAutoGoogleOnce,
     markLoginModalOpen,
-    clearAutoGoogleOnce,
 } from '../../utils/loginFlow';
 import { showRecaptchaBadge, hideRecaptchaBadge } from '../../utils/recaptcha';
 
@@ -57,7 +55,6 @@ export default function CrwdCtrlLogin({
     const isAdminLogin = location.pathname === '/admin/login';
 
     const googleAuthInFlightRef = useRef(false);
-    const autoGoogleStartedRef = useRef(false);
 
     // Show the reCAPTCHA badge only while the login screen is on-screen.
     useEffect(() => {
@@ -183,7 +180,6 @@ export default function CrwdCtrlLogin({
     };
 
     const handleClose = () => {
-        clearAutoGoogleOnce();
         if (isModal && onClose) {
             onClose();
         } else {
@@ -344,21 +340,6 @@ export default function CrwdCtrlLogin({
             setIsLoading(false);
         }
     };
-
-    const googleAuthFnRef = useRef(handleGoogleAuth);
-    googleAuthFnRef.current = handleGoogleAuth;
-
-    // Profile-only: auto-open Google once after tapping Continue with Google (not on Register/book flows).
-    useEffect(() => {
-        if (!googleOnly || !isModal || autoGoogleStartedRef.current || isAuthenticated) return undefined;
-        if (!consumeAutoGoogleOnce()) return undefined;
-        autoGoogleStartedRef.current = true;
-        const delay = reduceMotion ? 0 : 220;
-        const timer = window.setTimeout(() => {
-            googleAuthFnRef.current?.();
-        }, delay);
-        return () => window.clearTimeout(timer);
-    }, [googleOnly, isModal, isAuthenticated, reduceMotion]);
 
     const googleOnlySheet = googleOnly && isModal ? (
                 <AnimatePresence>

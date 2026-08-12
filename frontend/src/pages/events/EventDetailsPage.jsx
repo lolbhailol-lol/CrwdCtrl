@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Share2, Heart, Calendar, MapPin,
@@ -18,7 +18,6 @@ import { EVENT_TYPE_LABELS, formatEventShowDate } from '../../constants/eventsPa
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { eventShowPath } from '../../utils/slugRoutes';
-import { openLoginSheet } from '../../utils/loginFlow';
 import { trackBookNowClick } from '../../services/analyticsService';
 import { getEventShowTiers, isEventShowTiersPricing, minEventShowFee, formatInr } from '../../utils/eventShowTiers';
 
@@ -81,6 +80,10 @@ function toLines(text) {
     .filter(Boolean);
 }
 
+function usesInAppEventRegistration(reg = {}) {
+  return ['internal_form', 'organizer_qr'].includes(reg.mode);
+}
+
 export default function EventDetailsPage() {
   const { isDark } = useDarkMode();
   const { toast } = useDialog();
@@ -89,7 +92,6 @@ export default function EventDetailsPage() {
   const { eventId } = useParams();
   const navigate = useNavigate();
   const [showLogin, setShowLogin] = useState(false);
-  const pendingRegisterAfterLoginRef = useRef(false);
 
   const isLoggedIn = () => isAuthenticated || !!localStorage.getItem('crwdctrl_token');
 
@@ -164,29 +166,6 @@ export default function EventDetailsPage() {
     }
   }, [tabs, activeTab]);
 
-  const openRegisterLogin = useCallback(() => {
-    if (!event) return;
-    pendingRegisterAfterLoginRef.current = true;
-    openLoginSheet({ returnPath: `${eventShowPath(event)}/register` });
-    setShowLogin(true);
-  }, [event]);
-
-  useEffect(() => {
-    if (!isAuthenticated || !event || !pendingRegisterAfterLoginRef.current) return;
-    pendingRegisterAfterLoginRef.current = false;
-    setShowLogin(false);
-    navigate(`${eventShowPath(event)}/register`, {
-      state: { event: event.raw || event },
-    });
-  }, [isAuthenticated, event, navigate]);
-
-  const handleCloseRegisterLogin = useCallback(() => {
-    if (!isAuthenticated) {
-      pendingRegisterAfterLoginRef.current = false;
-    }
-    setShowLogin(false);
-  }, [isAuthenticated]);
-
   const handleShare = async () => {
     const result = await shareContent({
       title: event?.title,
@@ -211,14 +190,14 @@ export default function EventDetailsPage() {
 
   const handleRegister = () => {
     const r = event?.registration || {};
-    if (r.mode === 'internal_form') {
+    if (usesInAppEventRegistration(r)) {
       if (r.status !== 'open') {
         toast('Registration is currently closed');
         return;
       }
       if (!isLoggedIn()) {
         toast('Please log in to register');
-        openRegisterLogin();
+        setShowLogin(true);
         return;
       }
       const tiers = isEventShowTiersPricing(event) ? getEventShowTiers(event) : [];
@@ -226,7 +205,7 @@ export default function EventDetailsPage() {
         trackBookNowClick({
           entityType: 'events',
           entityId: event?.id || '',
-          mode: 'internal_form',
+          mode: r.mode,
           destination: 'tier_selection',
         });
         setExpandedTierId(null);
@@ -237,7 +216,7 @@ export default function EventDetailsPage() {
       trackBookNowClick({
         entityType: 'events',
         entityId: event?.id || '',
-        mode: 'internal_form',
+        mode: r.mode,
         destination: 'internal_register_page',
       });
       navigate(`${eventShowPath(event)}/register`, { state: { event: event.raw || event } });
@@ -299,7 +278,7 @@ export default function EventDetailsPage() {
   const hasRegistrationInfo = event.slots || event.registrationProcess;
 
   const reg = event.registration || {};
-  const registrationClosed = reg.mode === 'internal_form'
+  const registrationClosed = usesInAppEventRegistration(reg)
     ? reg.status !== 'open'
     : !(event.registrationLink || event.bookingLink);
 
@@ -934,7 +913,10 @@ export default function EventDetailsPage() {
             googleOnly
             title="Sign in to register"
             subtitle="One tap with Google — then finish registration"
-            onClose={handleCloseRegisterLogin}
+            onClose={() => {
+              setShowLogin(false);
+              if (isLoggedIn()) navigate(`${eventShowPath(event)}/register`);
+            }}
           />
         </div>
       )}
