@@ -19,7 +19,7 @@ import Seo from '../../components/Seo';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { eventShowPath } from '../../utils/slugRoutes';
 import { trackBookNowClick } from '../../services/analyticsService';
-import { getEventShowTiers, isEventShowTiersPricing, minEventShowFee, formatInr } from '../../utils/eventShowTiers';
+import { getEventShowTiers, isEventShowTiersPricing, formatInr } from '../../utils/eventShowTiers';
 
 function formatEventDateTime(showTimings) {
   if (!showTimings?.length) return 'Date & time TBA';
@@ -28,18 +28,13 @@ function formatEventDateTime(showTimings) {
   return first?.time ? `${dateStr} · ${first.time}` : dateStr;
 }
 
-function formatPrice(price) {
-  const n = Number(price);
-  if (!n || n <= 0) return 'Free';
-  return `₹${n.toLocaleString('en-IN')}`;
-}
-
 function mapEventDetail(raw) {
   if (!raw) return null;
   const coverImages = normalizeCoverImages(raw.coverImages);
   const poster = primaryCoverUrl(coverImages, raw.poster);
   return {
     id: raw._id,
+    _id: raw._id,
     title: raw.title || 'Event',
     displayName: raw.displayName || '',
     organizer: raw.organizer || '',
@@ -51,6 +46,8 @@ function mapEventDetail(raw) {
     priceLabel: raw.priceLabel || '',
     pricingMode: raw.pricingMode === 'tiers' ? 'tiers' : 'single',
     tiers: Array.isArray(raw.tiers) ? raw.tiers : [],
+    addOns: Array.isArray(raw.addOns) ? raw.addOns : [],
+    platformFeePercent: raw.platformFeePercent,
     about: raw.description || '',
     whatsIncluded: raw.whatsIncluded || '',
     benefits: raw.benefits || '',
@@ -70,6 +67,7 @@ function mapEventDetail(raw) {
     poster,
     banner: raw.banner || '',
     registration: raw.registration || {},
+    raw,
   };
 }
 
@@ -81,7 +79,22 @@ function toLines(text) {
 }
 
 function usesInAppEventRegistration(reg = {}) {
-  return ['internal_form', 'organizer_qr'].includes(reg.mode);
+  const mode = String(reg?.mode || '').toLowerCase();
+  if (['internal_form', 'organizer_qr'].includes(mode)) return true;
+  // Partial payloads sometimes omit mode but still carry the in-app form
+  if (reg?.formType === 'MULTI_STEP' && Array.isArray(reg?.steps) && reg.steps.length > 0) return true;
+  if (Array.isArray(reg?.formSchema) && reg.formSchema.length > 0) return true;
+  return false;
+}
+
+function isEventRegistrationExplicitlyClosed(reg = {}) {
+  return String(reg?.status || '').trim().toLowerCase() === 'closed';
+}
+
+function eventHasGuidedRegistrationForm(reg = {}) {
+  if (reg?.formType === 'MULTI_STEP' && Array.isArray(reg?.steps) && reg.steps.length > 0) return true;
+  if (Array.isArray(reg?.formSchema) && reg.formSchema.length > 0) return true;
+  return false;
 }
 
 export default function EventDetailsPage() {
@@ -191,10 +204,37 @@ export default function EventDetailsPage() {
   const handleRegister = () => {
     const r = event?.registration || {};
     if (usesInAppEventRegistration(r)) {
-      if (r.status !== 'open') {
+      if (isEventRegistrationExplicitlyClosed(r)) {
         toast('Registration is currently closed');
         return;
       }
+
+      const goToForm = ({ openLoginAfter = false } = {}) => {
+        trackBookNowClick({
+          entityType: 'events',
+          entityId: event?.id || '',
+          mode: r.mode || 'internal_form',
+          destination: 'internal_register_page',
+        });
+        navigate(`${eventShowPath(event)}/register`, {
+          state: {
+            event: event.raw || event,
+            openLogin: openLoginAfter,
+          },
+        });
+      };
+
+      // Multi-step forms (Independence Day Drive, etc.): open form page 1 first
+      // so users pick Drive / Spectators / Trackday — not a package sheet that skips step 1.
+      if (eventHasGuidedRegistrationForm(r)) {
+        if (!isLoggedIn()) {
+          goToForm({ openLoginAfter: true });
+          return;
+        }
+        goToForm();
+        return;
+      }
+
       if (!isLoggedIn()) {
         toast('Please log in to register');
         setShowLogin(true);
@@ -213,13 +253,7 @@ export default function EventDetailsPage() {
         setTierSheetOpen(true);
         return;
       }
-      trackBookNowClick({
-        entityType: 'events',
-        entityId: event?.id || '',
-        mode: r.mode,
-        destination: 'internal_register_page',
-      });
-      navigate(`${eventShowPath(event)}/register`, { state: { event: event.raw || event } });
+      goToForm();
       return;
     }
     const link = event?.registrationLink || event?.bookingLink;
@@ -268,18 +302,13 @@ export default function EventDetailsPage() {
   const activeTabObj = tabs.find((t) => t.key === activeTab);
   const tiersPricing = isEventShowTiersPricing(event);
   const packageTiers = tiersPricing ? getEventShowTiers(event) : [];
-  const fromFee = minEventShowFee(event);
-  // Run-club style: sticky bar shows "From" + amount for tiers (ignore long priceLabel)
-  const hasPrice = tiersPricing
-    ? fromFee >= 0
-    : (Boolean(event.priceLabel) || event.ticketPrice > 0);
   const aboutLong = event.about.length > 180;
   const benefitsList = toLines(event.benefits);
   const hasRegistrationInfo = event.slots || event.registrationProcess;
 
   const reg = event.registration || {};
   const registrationClosed = usesInAppEventRegistration(reg)
-    ? reg.status !== 'open'
+    ? isEventRegistrationExplicitlyClosed(reg)
     : !(event.registrationLink || event.bookingLink);
 
   const cardBg = isDark ? 'bg-[#111213]' : 'bg-white';
@@ -675,37 +704,17 @@ export default function EventDetailsPage() {
         </div>
       </div>
 
-      {/* Sticky bottom bar: From + Register (run-club style for tiers) */}
+      {/* Sticky bottom bar: Register only */}
       <div
         className="fixed bottom-0 left-0 right-0 z-40 px-2"
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 6px)' }}
       >
-        <div className={`mx-auto w-full max-w-md md:max-w-2xl flex items-center justify-between gap-4 rounded-[30px] px-5 py-3.5 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'}`}>
-          {hasPrice && (
-            <div className="min-w-0 shrink-0">
-              <p className={`text-xs font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                {tiersPricing ? 'From' : 'Registration Fee'}
-              </p>
-              {tiersPricing ? (
-                fromFee > 0 ? (
-                  <p className={`mt-0.5 text-2xl font-bold leading-none truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    {formatInr(fromFee)}
-                  </p>
-                ) : (
-                  <p className="mt-0.5 text-2xl font-bold leading-none text-green-500">Free</p>
-                )
-              ) : (
-                <p className={`mt-0.5 text-2xl font-bold leading-none truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  {event.priceLabel || formatPrice(event.ticketPrice)}
-                </p>
-              )}
-            </div>
-          )}
+        <div className={`mx-auto w-full max-w-md md:max-w-2xl rounded-[30px] px-5 py-3.5 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'}`}>
           <button
             type="button"
             onClick={handleRegister}
             disabled={registrationClosed}
-            className={`flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg transition ${
+            className={`flex w-full items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg transition ${
               registrationClosed
                 ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
                 : 'bg-[#0ECCEE] text-black active:opacity-90'
@@ -912,10 +921,14 @@ export default function EventDetailsPage() {
           <CrwdCtrlLogin
             googleOnly
             title="Sign in to register"
-            subtitle="One tap with Google — then finish registration"
+            subtitle="Tap Sign in with Google — then finish registration"
             onClose={() => {
               setShowLogin(false);
-              if (isLoggedIn()) navigate(`${eventShowPath(event)}/register`);
+              if (isLoggedIn()) {
+                navigate(`${eventShowPath(event)}/register`, {
+                  state: { event: event.raw || event },
+                });
+              }
             }}
           />
         </div>

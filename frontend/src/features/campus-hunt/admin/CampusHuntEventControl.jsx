@@ -23,6 +23,14 @@ import {
 import { stageLabel } from '../types/stages';
 import { formatDurationMs } from '../utils/format';
 import { CAMPUS_HUNT_PATHS } from '../config';
+
+/** Playtest/dry-run: schedule locked + at least one roster + one full binding. */
+function canStartRoundOnePlaytest(readiness) {
+  if (!readiness?.scheduleLocked) return false;
+  if ((readiness.teamsReady || 0) < 1) return false;
+  if ((readiness.startAssignmentsReady || 0) < 1) return false;
+  return true;
+}
 import TeamManagerPanel from './TeamManagerPanel';
 import StartingSystemPanel from './StartingSystemPanel';
 import AdminWorkflowNav from './AdminWorkflowNav';
@@ -132,12 +140,20 @@ export default function CampusHuntEventControl() {
     }
   };
 
+  const playtestStartOk = canStartRoundOnePlaytest(readiness);
+
   const startRoundOne = async () => {
-    if (round1?.status !== 'live' && readiness && !readiness.ready) {
+    if (
+      round1?.status !== 'live'
+      && readiness
+      && !readiness.ready
+      && !playtestStartOk
+    ) {
       setMsg(
         `Cannot launch: ${readiness.teamsReady}/${readiness.teamsTotal} rosters ready, `
         + `${readiness.startAssignmentsReady || 0}/${readiness.teamsTotal} starts assigned, `
-        + `schedule ${readiness.scheduleLocked ? 'locked' : 'not locked'}.`,
+        + `schedule ${readiness.scheduleLocked ? 'locked' : 'not locked'}. `
+        + 'Repair at least one team roster on the Teams tab.',
       );
       return;
     }
@@ -551,8 +567,11 @@ export default function CampusHuntEventControl() {
                       <>
                         {' '}Teams tab → <strong>Repair rosters</strong> — demo teams need leader + 3 player accounts.
                       </>
+                    ) : null}
+                    {playtestStartOk ? (
+                      <> Playtest OK: you can start with {readiness.teamsReady} ready roster(s) for a dry run.</>
                     ) : (
-                      <> Start may still be blocked — finish Clues + Teams first.</>
+                      <> Repair at least one team roster before starting.</>
                     )}
                   </p>
                 )}
@@ -573,6 +592,7 @@ export default function CampusHuntEventControl() {
               </div>
 
               <PlaytestDesk
+                eventId={eventId}
                 eventSlug={overview?.event?.slug}
                 teams={teams}
                 stations={stations}

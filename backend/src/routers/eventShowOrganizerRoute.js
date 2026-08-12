@@ -24,6 +24,7 @@ router.post(
 
 router.get('/events/:eventId/dashboard', authenticateEventShowOrganizer, requireEventShowAccess, ctrl.getDashboard);
 router.get('/events/:eventId/participants/export', authenticateEventShowOrganizer, requireEventShowAccess, ctrl.exportParticipants);
+router.post('/events/:eventId/participants', authenticateEventShowOrganizer, requireEventShowAccess, ctrl.createManualParticipant);
 router.get('/events/:eventId/participants/:registrationId', authenticateEventShowOrganizer, requireEventShowAccess, ctrl.getParticipant);
 router.patch('/events/:eventId/participants/:registrationId/status', authenticateEventShowOrganizer, requireEventShowAccess, ctrl.updateParticipantStatus);
 router.delete('/events/:eventId/participants/:registrationId', authenticateEventShowOrganizer, requireEventShowAccess, ctrl.deleteParticipant);

@@ -197,10 +197,34 @@ export default function EventRegistrationPage() {
         setShowLogin(true);
     }, [event]);
 
+    const loginPromptedRef = useRef(false);
+
     useEffect(() => {
         if (isAuthenticated && showLogin) setShowLogin(false);
         if (isAuthenticated && showRegister) setShowRegister(false);
     }, [isAuthenticated, showLogin, showRegister]);
+
+    // After Register Now: open Google sheet if not signed in (user can tap Sign in with Google)
+    useEffect(() => {
+        if (authLoading || isAuthProcessing || isRedirectProcessing) return;
+        if (loading && !event) return;
+        if (isAuthed() || loginPromptedRef.current) return;
+        if (done || paying) return;
+        loginPromptedRef.current = true;
+        openLogin();
+    }, [
+        authLoading,
+        isAuthProcessing,
+        isRedirectProcessing,
+        loading,
+        event,
+        isAuthenticated,
+        authToken,
+        done,
+        paying,
+        openLogin,
+        isAuthed,
+    ]);
 
     useEffect(() => {
         if (!eventId) { setLoading(false); return; }
@@ -1317,7 +1341,12 @@ export default function EventRegistrationPage() {
         );
     }
 
-    if (reg.status !== 'open' || !['internal_form', 'organizer_qr'].includes(reg.mode)) {
+    const regStatus = String(reg.status || '').trim().toLowerCase();
+    const regMode = String(reg.mode || '').toLowerCase();
+    const hasInAppForm = (reg.formType === 'MULTI_STEP' && Array.isArray(reg.steps) && reg.steps.length > 0)
+        || (Array.isArray(reg.formSchema) && reg.formSchema.length > 0);
+    const registrationModeOk = ['internal_form', 'organizer_qr'].includes(regMode) || hasInAppForm;
+    if (regStatus === 'closed' || !registrationModeOk) {
         return (
             <div className="crwdctrl-page crwdctrl-page--content min-h-dvh flex flex-col items-center justify-center gap-3 px-6">
                 <p className={`text-sm text-center ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Registration is not open for this event.</p>
@@ -1417,8 +1446,12 @@ export default function EventRegistrationPage() {
 
                 {!isAuthed() && (
                     <div className={`rounded-2xl p-4 mb-4 border text-center ${isDark ? 'bg-[#111213] border-gray-700' : 'bg-white border-gray-100 shadow-md'}`}>
-                        <p className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Log in to register for this event.</p>
-                        <button type="button" onClick={() => openLogin()} className="px-5 py-2.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition">Log in to continue</button>
+                        <p className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                            Sign in with Google to continue registration.
+                        </p>
+                        <button type="button" onClick={() => openLogin()} className="px-5 py-2.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition">
+                            Sign in with Google
+                        </button>
                     </div>
                 )}
 
@@ -1995,7 +2028,7 @@ export default function EventRegistrationPage() {
                     <CrwdCtrlLogin
                         googleOnly
                         title="Sign in to register"
-                        subtitle="One tap with Google — then finish registration"
+                        subtitle="Tap Sign in with Google — then pick your package"
                         onClose={() => setShowLogin(false)}
                     />
                 </div>

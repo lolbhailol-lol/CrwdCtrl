@@ -6,6 +6,7 @@ import {
   adminMarkTeamStartReached,
   adminPlaytestCompleteScan,
   adminPlaytestResetTeam,
+  adminRepairTeamRosters,
 } from '../services/campusHunt.api';
 import { CAMPUS_HUNT_PATHS } from '../config';
 import { stageLabel } from '../types/stages';
@@ -52,10 +53,22 @@ const SCAN_CARDS = [
   },
 ];
 
+function teamRosterLooksReady(team) {
+  return Boolean(
+    team?.leaderUserId
+    && Array.isArray(team?.memberUserIds)
+    && team.memberUserIds.length === 3
+    && team.accessPack?.leader?.loginEmail
+    && Array.isArray(team.accessPack?.scanners)
+    && team.accessPack.scanners.length === 3,
+  );
+}
+
 /**
  * Cheat desk: pick a team, tap steps in order, skip phone scans.
  */
 export default function PlaytestDesk({
+  eventId,
   eventSlug,
   teams = [],
   stations = [],
@@ -68,6 +81,8 @@ export default function PlaytestDesk({
   );
   const [teamId, setTeamId] = useState('');
   const [access, setAccess] = useState(null);
+  const [accessLoaded, setAccessLoaded] = useState(false);
+  const [revealError, setRevealError] = useState('');
   const [busy, setBusy] = useState('');
   const [note, setNote] = useState('');
 
@@ -92,7 +107,7 @@ export default function PlaytestDesk({
   const paste = (station) => station?.pasteHint || (station?.pasteCode ? `CH-${station.pasteCode}` : '');
 
   const reveal = async (silent = false) => {
-    if (!teamId) return;
+    if (!teamId) return false;
     setBusy('reveal');
     if (!silent) setNote('');
     try {
@@ -102,9 +117,43 @@ export default function PlaytestDesk({
         pack.allMemberNames = res.data.team.allMemberNames;
       }
       setAccess(pack);
+      setRevealError('');
       if (!silent) setNote('Logins ready — copy leader below');
+      return Boolean(
+        pack?.teamPassword
+        || pack?.sharedScannerPassword
+        || pack?.leader?.password,
+      );
     } catch (err) {
-      setNote(err.message || 'Could not reveal logins');
+      setAccess(null);
+      setRevealError(err.message || 'Could not reveal logins');
+      if (!silent) setNote(err.message || 'Could not reveal logins');
+      return false;
+    } finally {
+      setBusy('');
+      setAccessLoaded(true);
+    }
+  };
+
+  const repairRoster = async () => {
+    if (!eventId) {
+      setNote('Missing event id — refresh the admin page');
+      return;
+    }
+    setBusy('repair');
+    setNote('');
+    setRevealError('');
+    try {
+      await adminRepairTeamRosters(eventId);
+      await onChanged?.();
+      const ok = await reveal(true);
+      setNote(
+        ok
+          ? `${team?.teamCode || 'Team'} roster repaired — password ready below`
+          : 'Repair finished but password still missing — tap Refresh password',
+      );
+    } catch (err) {
+      setNote(err.message || 'Could not repair roster');
     } finally {
       setBusy('');
     }
@@ -114,15 +163,23 @@ export default function PlaytestDesk({
   useEffect(() => {
     if (!teamId) return undefined;
     setAccess(null);
+    setAccessLoaded(false);
+    setRevealError('');
     let cancelled = false;
     (async () => {
       try {
         const res = await adminRevealTeamAccess(teamId);
         if (!cancelled) {
           setAccess(res.data?.access || res.data?.team?.access || null);
+          setRevealError('');
         }
-      } catch {
-        /* ignore — user can tap Reveal */
+      } catch (err) {
+        if (!cancelled) {
+          setAccess(null);
+          setRevealError(err.message || 'Could not reveal logins');
+        }
+      } finally {
+        if (!cancelled) setAccessLoaded(true);
       }
     })();
     return () => { cancelled = true; };
@@ -211,6 +268,8 @@ export default function PlaytestDesk({
     || access?.sharedScannerPassword
     || access?.leader?.password
     || '';
+  const rosterIncomplete = team && !teamRosterLooksReady(team);
+  const needsRepair = accessLoaded && !teamPass && (rosterIncomplete || Boolean(revealError));
   const memberNames = access?.allMemberNames?.length
     ? access.allMemberNames
     : [
@@ -394,6 +453,23 @@ export default function PlaytestDesk({
                 Tap names: {memberNames.join(' · ')}
               </p>
             )}
+          </div>
+        ) : needsRepair ? (
+          <div className="mt-3 space-y-2 border-t border-white/10 pt-3">
+            <p className="text-xs text-amber-100">
+              {revealError || 'No team password — roster accounts are missing or incomplete.'}
+            </p>
+            <button
+              type="button"
+              disabled={Boolean(busy) || !eventId}
+              onClick={repairRoster}
+              className="rounded-lg bg-amber-400 px-3 py-2 text-xs font-bold text-black disabled:opacity-40"
+            >
+              {busy === 'repair' ? 'Repairing…' : 'Repair this team roster'}
+            </button>
+            <p className="text-[11px] text-white/40">
+              Provisions leader + 3 player logins, then reveals the shared password here.
+            </p>
           </div>
         ) : (
           <p className="mt-2 text-xs text-white/40">Loading password…</p>

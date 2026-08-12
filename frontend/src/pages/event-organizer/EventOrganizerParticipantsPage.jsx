@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { ChevronRight, Download, Loader, Search, Trash2 } from 'lucide-react';
+import { ChevronRight, Download, Loader, Plus, Search, Trash2 } from 'lucide-react';
 import {
     fetchEventOrganizerParticipants,
     updateEventOrganizerParticipantStatus,
@@ -8,6 +8,7 @@ import {
     downloadEventOrganizerExport,
 } from '../../services/api/eventShowOrganizer.api';
 import { useDialog } from '../../context/DialogContext';
+import EventOrganizerManualAddModal from './EventOrganizerManualAddModal';
 
 /** Keys already shown in structured Drivers / summary — hide from raw dump */
 const HIDDEN_RESPONSE_KEYS = new Set([
@@ -93,6 +94,7 @@ export default function EventOrganizerParticipantsPage() {
     const [exporting, setExporting] = useState(false);
     const [search, setSearch] = useState(searchParams.get('search') || '');
     const [expandedId, setExpandedId] = useState(null);
+    const [showManualAdd, setShowManualAdd] = useState(false);
     const status = searchParams.get('status') || '';
     const paymentStatus = searchParams.get('paymentStatus') || '';
     const checkInStatus = searchParams.get('checkInStatus') || '';
@@ -172,6 +174,14 @@ export default function EventOrganizerParticipantsPage() {
                     <p className="text-sm text-gray-500">{pagination.total} guests</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                    <button
+                        type="button"
+                        onClick={() => setShowManualAdd(true)}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#0ECCEE]/40 text-[#0ECCEE] text-sm font-bold hover:bg-[#0ECCEE]/10"
+                    >
+                        <Plus size={14} />
+                        Add guest
+                    </button>
                     <button
                         type="button"
                         onClick={() => onExport('xlsx')}
@@ -509,6 +519,16 @@ export default function EventOrganizerParticipantsPage() {
                     </button>
                 </div>
             ) : null}
+
+            <EventOrganizerManualAddModal
+                eventId={eventId}
+                open={showManualAdd}
+                onClose={() => setShowManualAdd(false)}
+                onCreated={() => {
+                    toast('Guest added');
+                    load();
+                }}
+            />
         </div>
     );
 }

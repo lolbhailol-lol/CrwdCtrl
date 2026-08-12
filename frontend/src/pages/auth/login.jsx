@@ -435,7 +435,7 @@ export default function CrwdCtrlLogin({
                                 }`}
                             >
                                 <GoogleIcon />
-                                {isLoading ? 'Opening Google…' : 'Continue with Google'}
+                                {isLoading ? 'Opening Google…' : 'Sign in with Google'}
                             </motion.button>
 
                             <p className={`mt-3 mb-1 text-center text-[11px] ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>

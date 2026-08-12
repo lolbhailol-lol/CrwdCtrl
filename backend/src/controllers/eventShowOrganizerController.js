@@ -246,6 +246,8 @@ function formatParticipant(reg) {
         payment_gateway: reg.payment_gateway || null,
         paymentScreenshotUrl: reg.paymentScreenshotUrl || '',
         transactionId: reg.transactionId || '',
+        selectedAddOns: Array.isArray(reg.selectedAddOns) ? reg.selectedAddOns : [],
+        manualEntry: /^(yes|true|1)$/i.test(String(responses.manual_entry || responses.added_by_organizer || '')),
         responses,
     };
 }
@@ -1062,6 +1064,253 @@ exports.deleteParticipant = async (req, res) => {
     } catch (error) {
         console.error('[eventShowOrganizer.deleteParticipant]', error);
         res.status(500).json({ success: false, message: 'Failed to delete registration' });
+    }
+};
+
+/**
+ * Walk-in / desk entry: organizer fills the same registration form fields manually.
+ */
+exports.createManualParticipant = async (req, res) => {
+    try {
+        const crypto = require('crypto');
+        const User = require('../model/usermodel');
+        const {
+            resolveSportsPerPersonFee,
+            resolveEventAddOns,
+            getSportsTiers,
+        } = require('../utils/sportsPricing');
+
+        const event = await EventShow.findById(req.eventShowId);
+        if (!event) return res.status(404).json({ success: false, message: 'Event not found' });
+
+        let responses = req.body.responses;
+        if (typeof responses === 'string') {
+            try {
+                responses = JSON.parse(responses);
+            } catch {
+                return res.status(400).json({ success: false, message: 'Invalid responses' });
+            }
+        }
+        if (!responses || typeof responses !== 'object' || Array.isArray(responses)) {
+            responses = {};
+        }
+
+        const cleanResponses = {};
+        Object.entries(responses).forEach(([key, value]) => {
+            const k = String(key || '').trim();
+            if (!k || k.startsWith('_')) return;
+            if (value == null) return;
+            if (typeof value === 'string') {
+                const trimmed = value.trim();
+                if (trimmed) cleanResponses[k] = trimmed;
+                return;
+            }
+            if (typeof value === 'number' || typeof value === 'boolean') {
+                cleanResponses[k] = value;
+                return;
+            }
+            if (Array.isArray(value)) {
+                cleanResponses[k] = value;
+            }
+        });
+
+        const name = String(
+            cleanResponses.name
+            || cleanResponses.full_name
+            || cleanResponses.leader_name
+            || req.body.name
+            || '',
+        ).trim();
+        const email = String(cleanResponses.email || req.body.email || '').trim().toLowerCase();
+        const phone = String(
+            cleanResponses.phone
+            || cleanResponses.contact_no
+            || cleanResponses.mobile
+            || req.body.phone
+            || '',
+        ).trim().replace(/\s+/g, '');
+
+        if (!name) {
+            return res.status(400).json({ success: false, message: 'Name is required' });
+        }
+        if (!email && !phone) {
+            return res.status(400).json({ success: false, message: 'Email or phone is required' });
+        }
+
+        let tierId = String(req.body.tierId || cleanResponses.tier_id || '').trim();
+        const selectedAddOnIds = Array.isArray(req.body.selectedAddOnIds)
+            ? req.body.selectedAddOnIds
+            : (Array.isArray(req.body.addOnIds) ? req.body.addOnIds : []);
+
+        let selectedTier = null;
+        let packageFee = Math.max(0, Number(event.ticketPrice) || 0);
+        if (event.pricingMode === 'tiers' || (Array.isArray(event.tiers) && event.tiers.length > 0)) {
+            const tiers = getSportsTiers({ ...event.toObject?.() || event, pricingMode: 'tiers' });
+            if (!tierId) {
+                // Free drive / spectator from join_drive answer when no package picked
+                const join = String(cleanResponses.join_drive || '').toLowerCase();
+                if (/spectator/i.test(join)) {
+                    const spectator = tiers.find((t) => /tier_spectator/i.test(t.id) || /\bspectator/i.test(t.name));
+                    if (spectator) tierId = spectator.id;
+                } else if (/drive only/i.test(join) || (/^yes/i.test(join) && /free/i.test(join))) {
+                    const drive = tiers.find((t) => /tier_drive_only/i.test(t.id) || /drive only/i.test(t.name));
+                    if (drive) tierId = drive.id;
+                }
+            }
+            if (!tierId) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Select a package (or Drive only / Spectators).',
+                });
+            }
+            try {
+                const priced = resolveSportsPerPersonFee(
+                    { ...event.toObject?.() || event, pricingMode: 'tiers', registrationFee: event.ticketPrice },
+                    tierId,
+                );
+                selectedTier = priced.tier;
+                packageFee = Math.max(0, Number(priced.fee) || 0);
+            } catch (tierErr) {
+                return res.status(400).json({
+                    success: false,
+                    message: tierErr.message || 'Invalid package',
+                });
+            }
+        }
+
+        let addOns = { selected: [], total: 0 };
+        try {
+            addOns = resolveEventAddOns(event, selectedAddOnIds);
+        } catch (addOnErr) {
+            return res.status(400).json({
+                success: false,
+                message: addOnErr.message || 'Invalid add-on selection',
+            });
+        }
+
+        // Spectators don't get race-car add-ons
+        if (isSpectatorTier({ tierId, tierName: selectedTier?.name })) {
+            addOns = { selected: [], total: 0 };
+        }
+
+        const computedTotal = packageFee + addOns.total;
+        const amountOverride = req.body.amountPaid;
+        const amountPaid = amountOverride != null && amountOverride !== ''
+            ? Math.max(0, Number(amountOverride) || 0)
+            : computedTotal;
+
+        let paymentStatus = String(req.body.paymentStatus || '').trim().toLowerCase();
+        if (!['free', 'pending', 'paid', 'failed'].includes(paymentStatus)) {
+            paymentStatus = amountPaid > 0 ? 'paid' : 'free';
+        }
+        if (amountPaid <= 0) paymentStatus = 'free';
+
+        let status = String(req.body.status || 'approved').trim().toLowerCase();
+        if (!['pending', 'approved', 'rejected'].includes(status)) status = 'approved';
+
+        cleanResponses.name = name;
+        if (email) cleanResponses.email = email;
+        if (phone) cleanResponses.phone = phone;
+        cleanResponses.manual_entry = 'yes';
+        cleanResponses.added_by_organizer = 'yes';
+        if (req.body.note) {
+            cleanResponses.organizer_note = String(req.body.note).trim().slice(0, 500);
+        }
+
+        let user = null;
+        if (email) {
+            user = await User.findOne({ email });
+        }
+        if (!user && phone) {
+            user = await User.findOne({ phoneNumber: phone });
+        }
+        if (!user) {
+            user = new User({
+                name,
+                ...(email ? { email } : {}),
+                ...(phone ? { phoneNumber: phone } : {}),
+                password: crypto.randomBytes(24).toString('hex'),
+                isVerified: true,
+                signupMethod: 'password',
+            });
+            await user.save();
+        }
+
+        const now = new Date();
+        const escapeRegex = (s) => String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const orClauses = [{ user: user._id }];
+        if (email) {
+            orClauses.push({ 'responses.email': new RegExp(`^${escapeRegex(email)}$`, 'i') });
+        }
+        const existing = await EventShowRegistration.findOne({
+            eventShow: event._id,
+            $or: orClauses,
+        }).sort({ submittedAt: 1, createdAt: 1 });
+
+        let registration;
+        let addedToExisting = false;
+
+        if (existing) {
+            existing.additionalEntries = existing.additionalEntries || [];
+            existing.additionalEntries.push({
+                tierId: selectedTier?.id || tierId || null,
+                tierName: selectedTier?.name || null,
+                selectedAddOns: addOns.selected,
+                amountPaid,
+                paymentStatus,
+                payment_gateway: 'manual_organizer',
+                responses: { ...cleanResponses },
+                status,
+                submittedAt: now,
+            });
+            existing.reRegistrationCount = existing.additionalEntries.length;
+            existing.amountPaid = Number(existing.amountPaid || 0) + amountPaid;
+            if (status === 'approved' && existing.status !== 'approved') {
+                existing.status = 'approved';
+            }
+            await existing.save();
+            registration = existing;
+            addedToExisting = true;
+        } else {
+            registration = new EventShowRegistration({
+                eventShow: event._id,
+                user: user._id,
+                responses: cleanResponses,
+                status,
+                payment_gateway: 'manual_organizer',
+                paymentStatus,
+                amountPaid,
+                tierId: selectedTier?.id || tierId || null,
+                tierName: selectedTier?.name || null,
+                selectedAddOns: addOns.selected,
+                additionalEntries: [],
+                reRegistrationCount: 0,
+                submittedAt: now,
+            });
+            await registration.save();
+        }
+
+        const populated = await EventShowRegistration.findById(registration._id)
+            .populate('user', 'name email phone phoneNumber')
+            .lean();
+
+        res.status(addedToExisting ? 200 : 201).json({
+            success: true,
+            message: addedToExisting
+                ? 'Added package to existing guest'
+                : 'Guest added manually',
+            participant: formatParticipant(populated),
+            addedToExisting,
+        });
+    } catch (error) {
+        console.error('[eventShowOrganizer.createManualParticipant]', error);
+        if (error?.code === 11000) {
+            return res.status(400).json({
+                success: false,
+                message: 'A user with this email or phone already exists — try matching details.',
+            });
+        }
+        res.status(500).json({ success: false, message: error.message || 'Failed to add guest' });
     }
 };
 

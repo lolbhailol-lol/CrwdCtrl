@@ -178,6 +178,13 @@ export async function deleteEventOrganizerParticipant(eventId, registrationId) {
     });
 }
 
+export async function createEventOrganizerManualParticipant(eventId, payload) {
+    return eventOrganizerFetch(`/event-organizer/events/${eventId}/participants`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+    });
+}
+
 export function eventOrganizerExportUrl(eventId, format = 'xlsx') {
     const qs = new URLSearchParams({ format: format === 'csv' ? 'csv' : 'xlsx' });
     return `${API}/event-organizer/events/${eventId}/participants/export?${qs}`;
