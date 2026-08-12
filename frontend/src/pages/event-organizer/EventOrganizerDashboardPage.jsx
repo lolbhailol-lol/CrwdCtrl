@@ -228,6 +228,8 @@ export default function EventOrganizerDashboardPage() {
                             Trackday only: {segments.trackdayOnly || 0}
                             {' · '}
                             With Drive: {segments.driveAndTrackday || 0}
+                            {' · '}
+                            Spectators: {segments.spectator || 0}
                         </p>
                         <button
                             type="button"

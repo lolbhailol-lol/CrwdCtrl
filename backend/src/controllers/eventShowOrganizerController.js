@@ -44,12 +44,20 @@ function isDriveOnlyTierName(name) {
     return /drive\s*only|independence\s*day\s*drive\s*only/i.test(String(name || ''));
 }
 
+function isSpectatorTier(reg = {}) {
+    if (/tier_spectator/i.test(String(reg.tierId || ''))) return true;
+    return /\bspectator/i.test(String(reg.tierName || ''));
+}
+
 function resolveRegistrationCategory(reg, responses = {}) {
     const explicit = String(
         responses.registration_type
         || reg.registrationType
         || '',
     ).trim().toLowerCase();
+    if (explicit === 'spectator' || isSpectatorTier(reg)) {
+        return 'spectator';
+    }
     if (['drive_only', 'drive_and_trackday', 'trackday_only'].includes(explicit)) {
         return explicit;
     }
@@ -80,6 +88,7 @@ function categoryLabel(category) {
     if (category === 'drive_only') return 'Independence Day Drive only';
     if (category === 'drive_and_trackday') return 'Drive + Trackday';
     if (category === 'trackday_only') return 'Trackday only';
+    if (category === 'spectator') return 'Spectator';
     return 'Other';
 }
 
@@ -212,8 +221,16 @@ function formatParticipant(reg) {
         registrationType: String(responses.registration_type || category || '').trim(),
         category,
         categoryLabel: categoryLabel(category),
-        joinsIndependenceDrive: category === 'drive_only' || category === 'drive_and_trackday',
+        joinsIndependenceDrive: category === 'drive_only'
+            || category === 'drive_and_trackday'
+            || (category === 'spectator' && /^yes$/i.test(String(
+                responses.join_drive
+                || responses.join_independence_day_drive
+                || responses.independence_day_drive
+                || '',
+            ))),
         hasTrackday: category === 'drive_and_trackday' || category === 'trackday_only',
+        isSpectator: category === 'spectator',
         bloodGroup: String(responses.blood_group || '').trim(),
         vehicleDetails: String(responses.vehicle_details || responses.vehicle || '').trim(),
         driverCount: responses.driver_count != null && responses.driver_count !== ''
@@ -778,6 +795,7 @@ exports.getDashboard = async (req, res) => {
             driveOnly: 0,
             driveAndTrackday: 0,
             trackdayOnly: 0,
+            spectator: 0,
             unknown: 0,
             independenceDriveTotal: 0,
             trackdayTotal: 0,
@@ -787,6 +805,7 @@ exports.getDashboard = async (req, res) => {
             if (p.category === 'drive_only') segments.driveOnly += 1;
             else if (p.category === 'drive_and_trackday') segments.driveAndTrackday += 1;
             else if (p.category === 'trackday_only') segments.trackdayOnly += 1;
+            else if (p.category === 'spectator') segments.spectator += 1;
             else segments.unknown += 1;
             if (p.joinsIndependenceDrive) segments.independenceDriveTotal += 1;
             if (p.hasTrackday) segments.trackdayTotal += 1;
@@ -890,7 +909,7 @@ exports.listParticipants = async (req, res) => {
             .lean();
 
         let formatted = regs.map(formatParticipant);
-        if (['drive_only', 'drive_and_trackday', 'trackday_only', 'independence_drive', 'trackday'].includes(category)) {
+        if (['drive_only', 'drive_and_trackday', 'trackday_only', 'independence_drive', 'trackday', 'spectator'].includes(category)) {
             formatted = formatted.filter((p) => {
                 if (category === 'independence_drive') return p.joinsIndependenceDrive;
                 if (category === 'trackday') return p.hasTrackday;

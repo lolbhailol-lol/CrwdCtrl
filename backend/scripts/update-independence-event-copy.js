@@ -20,7 +20,7 @@ Race car Trackday packages are available on request — contact the team for det
 
 Basic necessities and facilities are available at the track.
 
-Drive and flag hoisting are free; fees apply only for Trackday competitors.`);
+Drive and flag hoisting are free; fees apply only for Trackday competitors. Spectators are welcome at Trackday for free.`);
 
   const processText = `Meeting points (choose one)
 1. Irani Cafe Chandni Chowk
@@ -35,6 +35,7 @@ Flag hoisting ceremony at the track (9:00 AM)
 Trackday session for own vehicles (Trackday fee applies)
 Basic necessities and facilities at the track
 Drive + flag hoisting only — no fee
+Spectators welcome at Trackday — no fee
 Race car Trackday packages available on request (contact)`);
 
   const eligibility = clean('Own vehicles welcome. Trackday competitors pay applicable fees. Drive and flag hoisting are free. Race car packages via phone/email.');
@@ -78,6 +79,15 @@ Race car Trackday packages available on request (contact)`);
       participantCount: 1,
       inclusions: ['Independence Day convoy', 'Flag hoisting at 9:00 AM'],
       order: 0,
+    },
+    {
+      id: 'tier_spectator',
+      name: 'Spectators',
+      description: 'Watch Trackday from the sidelines — no track time',
+      fee: 0,
+      participantCount: 1,
+      inclusions: ['Spectate Trackday', 'Access to track facilities'],
+      order: 1,
     },
     {
       id: 'tier_solo_1',

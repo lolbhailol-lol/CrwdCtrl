@@ -218,6 +218,7 @@ export default function EventOrganizerParticipantsPage() {
                     { key: 'status', value: 'pending', label: 'Pending' },
                     { key: 'category', value: 'independence_drive', label: 'Drive' },
                     { key: 'category', value: 'trackday', label: 'Trackday' },
+                    { key: 'category', value: 'spectator', label: 'Spectators' },
                     { key: 'paymentStatus', value: 'paid', label: 'Paid' },
                     { key: 'paymentStatus', value: 'pending', label: 'Pay pending' },
                     { key: 'checkInStatus', value: 'checked_in', label: 'Checked in' },

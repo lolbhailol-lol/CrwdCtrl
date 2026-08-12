@@ -56,6 +56,7 @@ const DRIVE_FIELD_NAMES = new Set(['join_drive', 'join_independence_day_drive', 
 const DRIVE_ONLY_OPTION = 'Drive only (Free)';
 const DRIVE_AND_TRACKDAY_OPTION = 'Drive + Trackday';
 const TRACKDAY_ONLY_OPTION = 'Trackday only';
+const SPECTATOR_OPTION = 'Spectators (Free)';
 
 function getInitialEventRegistrationUi(eventId, search) {
     if (!eventId) return { paying: false, step: 0 };
@@ -72,9 +73,17 @@ function isDriveOnlyTier(tier) {
     return /drive only|no trackday/.test(blob);
 }
 
+function isSpectatorTier(tier) {
+    if (!tier) return false;
+    if (String(tier.id || '') === 'tier_spectator') return true;
+    const blob = `${tier.name || ''} ${tier.description || ''}`.toLowerCase();
+    return /\bspectator/.test(blob);
+}
+
 function normalizeDriveChoice(raw) {
     const v = String(raw || '').trim();
     if (!v) return '';
+    if (/spectator/i.test(v)) return SPECTATOR_OPTION;
     if (/drive only/i.test(v) || (/^yes/i.test(v) && /free/i.test(v) && !/trackday/i.test(v))) {
         return DRIVE_ONLY_OPTION;
     }
@@ -90,6 +99,10 @@ function isDriveOnlyChoice(choice) {
 
 function isTrackdayOnlyChoice(choice) {
     return normalizeDriveChoice(choice) === TRACKDAY_ONLY_OPTION;
+}
+
+function isSpectatorChoice(choice) {
+    return normalizeDriveChoice(choice) === SPECTATOR_OPTION;
 }
 
 function pickCustomer(values) {
@@ -244,7 +257,16 @@ export default function EventRegistrationPage() {
         () => addOns.filter((addOn) => selectedAddOnIds.includes(addOn.id)),
         [addOns, selectedAddOnIds],
     );
-    const addOnTotal = selectedAddOns.reduce((sum, addOn) => sum + addOn.fee, 0);
+    const joinDriveRaw = String(
+        values.join_drive || values.join_independence_day_drive || values.independence_day_drive || '',
+    ).trim();
+    const driveChoice = normalizeDriveChoice(joinDriveRaw);
+    const driveOnlyPath = isDriveOnlyChoice(driveChoice);
+    const skippingDrive = isTrackdayOnlyChoice(driveChoice);
+    const spectatorPath = isSpectatorChoice(driveChoice);
+    const addOnTotal = spectatorPath
+        ? 0
+        : selectedAddOns.reduce((sum, addOn) => sum + addOn.fee, 0);
     const ticketPrice = packagePrice + addOnTotal;
     const platformFeePercent = isOrganizerQr ? 0 : resolveTrekPlatformFeePercent(event?.platformFeePercent, 2.5);
     const breakdown = useMemo(
@@ -255,37 +277,40 @@ export default function EventRegistrationPage() {
         ? Number(couponInfo.amountAfterDiscount)
         : breakdown.totalAmount;
     const title = event?.displayName || event?.title || 'Event';
-    const joinDriveRaw = String(
-        values.join_drive || values.join_independence_day_drive || values.independence_day_drive || '',
-    ).trim();
-    const driveChoice = normalizeDriveChoice(joinDriveRaw);
-    const driveOnlyPath = isDriveOnlyChoice(driveChoice);
-    const skippingDrive = isTrackdayOnlyChoice(driveChoice);
     const driveOnlyTier = useMemo(
         () => packages.find((t) => isDriveOnlyTier(t)) || null,
         [packages],
     );
+    const spectatorTier = useMemo(
+        () => packages.find((t) => isSpectatorTier(t)) || null,
+        [packages],
+    );
 
     const visiblePackages = useMemo(() => {
-        // Drive-only path skips package picker; otherwise hide free drive-only tier
-        return packages.filter((tier) => !isDriveOnlyTier(tier));
+        // Free first-step options skip the package picker
+        return packages.filter((tier) => !isDriveOnlyTier(tier) && !isSpectatorTier(tier));
     }, [packages]);
 
-    // Auto-select free Drive-only package so user can skip Trackday and register free
+    // Auto-select free Drive-only / Spectators so they can register without a Trackday package
     useEffect(() => {
-        if (!driveOnlyPath || !driveOnlyTier) return;
-        if (selectedTierId !== driveOnlyTier.id) {
+        if (driveOnlyPath && driveOnlyTier && selectedTierId !== driveOnlyTier.id) {
             setSelectedTierId(driveOnlyTier.id);
+            setSelectedAddOnIds([]);
+            return;
         }
-    }, [driveOnlyPath, driveOnlyTier, selectedTierId]);
+        if (spectatorPath && spectatorTier && selectedTierId !== spectatorTier.id) {
+            setSelectedTierId(spectatorTier.id);
+            setSelectedAddOnIds([]);
+        }
+    }, [driveOnlyPath, spectatorPath, driveOnlyTier, spectatorTier, selectedTierId]);
 
-    // If they leave Drive-only path, clear a free drive tier so they must pick Trackday
+    // If they leave a free first-step path, clear that package so they must pick Trackday
     useEffect(() => {
-        if (driveOnlyPath) return;
-        if (selectedTierId && isDriveOnlyTier(selectedTier)) {
+        if (driveOnlyPath || spectatorPath) return;
+        if (selectedTierId && (isDriveOnlyTier(selectedTier) || isSpectatorTier(selectedTier))) {
             setSelectedTierId('');
         }
-    }, [driveOnlyPath, selectedTierId, selectedTier]);
+    }, [driveOnlyPath, spectatorPath, selectedTierId, selectedTier]);
 
     useBookingSuccessPopup(done, {
         name: title,
@@ -320,20 +345,20 @@ export default function EventRegistrationPage() {
         if (driveFields.length) {
             steps.push({
                 title: 'What are you joining?',
-                description: 'Independence Day Drive is free. Pick Drive only to skip Trackday and register instantly, or add a Trackday package.',
+                description: 'Independence Day Drive and Spectators are free. Pick either to register instantly, or add a Trackday package.',
                 fields: driveFields.map((f) => {
                     if (!DRIVE_FIELD_NAMES.has(String(f.fieldName || ''))) return f;
                     return {
                         ...f,
                         label: 'Choose your registration',
-                        options: [DRIVE_ONLY_OPTION, DRIVE_AND_TRACKDAY_OPTION, TRACKDAY_ONLY_OPTION],
+                        options: [DRIVE_ONLY_OPTION, DRIVE_AND_TRACKDAY_OPTION, TRACKDAY_ONLY_OPTION, SPECTATOR_OPTION],
                     };
                 }),
             });
         }
 
-        // Trackday packages only when they want Trackday (skip entirely for Drive-only free path)
-        if (tiersMode && !driveOnlyPath) {
+        // Trackday packages only when they want Trackday (skip for Drive-only / Spectators)
+        if (tiersMode && !driveOnlyPath && !spectatorPath) {
             steps.push({
                 title: 'Trackday package',
                 description: skippingDrive
@@ -344,7 +369,7 @@ export default function EventRegistrationPage() {
             });
         }
 
-        if (addOns.length > 0) {
+        if (addOns.length > 0 && !spectatorPath) {
             steps.push({
                 title: 'Add experiences',
                 description: 'Optional — choose any experiences you want to add to this booking.',
@@ -353,21 +378,30 @@ export default function EventRegistrationPage() {
             });
         }
 
-        const count = Math.max(1, driverCount || 1);
-        const isGroupPackage = count > 1 && !driveOnlyPath;
+        const count = Math.max(1, spectatorPath ? 1 : (driverCount || 1));
+        const isGroupPackage = count > 1 && !driveOnlyPath && !spectatorPath;
 
-        const baseDetailFields = (detailFields.length
-            ? detailFields
-            : [
-                { id: 'f_name', label: 'Full Name', fieldName: 'name', type: 'text', required: true, placeholder: 'Your full name', options: [] },
-                { id: 'f_email', label: 'Email', fieldName: 'email', type: 'email', required: true, placeholder: 'you@email.com', options: [] },
-                { id: 'f_phone', label: 'Phone', fieldName: 'phone', type: 'tel', required: true, placeholder: '10-digit mobile', options: [] },
-                { id: 'f_blood', label: 'Blood Group', fieldName: 'blood_group', type: 'select', required: true, placeholder: '', options: BLOOD_OPTIONS },
-                { id: 'f_vehicle', label: 'Vehicle details', fieldName: 'vehicle_details', type: 'text', required: false, placeholder: 'Make / model (optional)', options: [] },
-            ]
+        const defaultDetailFields = [
+            { id: 'f_name', label: 'Full Name', fieldName: 'name', type: 'text', required: true, placeholder: 'Your full name', options: [] },
+            { id: 'f_email', label: 'Email', fieldName: 'email', type: 'email', required: true, placeholder: 'you@email.com', options: [] },
+            { id: 'f_phone', label: 'Phone', fieldName: 'phone', type: 'tel', required: true, placeholder: '10-digit mobile', options: [] },
+            { id: 'f_blood', label: 'Blood Group', fieldName: 'blood_group', type: 'select', required: true, placeholder: '', options: BLOOD_OPTIONS },
+            { id: 'f_vehicle', label: 'Vehicle details', fieldName: 'vehicle_details', type: 'text', required: false, placeholder: 'Make / model (optional)', options: [] },
+        ];
+        const isSpectatorContactField = (f) => {
+            const key = String(f.fieldName || '').toLowerCase();
+            if (f.type === 'section' || /^driver_/.test(key)) return false;
+            return key === 'name' || key === 'full_name' || key === 'leader_name'
+                || key === 'email'
+                || key === 'phone' || key === 'contact_no' || key === 'mobile';
+        };
+        const baseDetailFields = (spectatorPath
+            ? (detailFields.filter(isSpectatorContactField).length
+                ? detailFields.filter(isSpectatorContactField)
+                : defaultDetailFields.filter(isSpectatorContactField))
+            : (detailFields.length ? detailFields : defaultDetailFields)
         ).map((f) => {
             const key = String(f.fieldName || '').toLowerCase();
-            // Drive-only: make blood group optional (convoy, not track)
             if (driveOnlyPath && key === 'blood_group') {
                 return { ...f, required: false };
             }
@@ -464,17 +498,19 @@ export default function EventRegistrationPage() {
         }
 
         steps.push({
-            title: driveOnlyPath ? 'Your details' : (isGroupPackage ? 'Driver details' : 'Your Details'),
+            title: driveOnlyPath || spectatorPath ? 'Your details' : (isGroupPackage ? 'Driver details' : 'Your Details'),
             description: driveOnlyPath
                 ? 'Free Independence Day Drive registration — no Trackday fee.'
-                : (isGroupPackage
-                    ? `Group package for ${count} drivers — name, phone, email & blood group are required for all ${count} drivers.`
-                    : ''),
+                : spectatorPath
+                    ? 'Just your name and contact — then register free.'
+                    : (isGroupPackage
+                        ? `Group package for ${count} drivers — name, phone, email & blood group are required for all ${count} drivers.`
+                        : ''),
             fields: labeledDetailFields,
         });
 
         return steps;
-    }, [reg.formType, reg.steps, reg.formSchema, tiersMode, driverCount, driveOnlyPath, skippingDrive, addOns.length]);
+    }, [reg.formType, reg.steps, reg.formSchema, tiersMode, driverCount, driveOnlyPath, spectatorPath, skippingDrive, addOns.length]);
 
     // Sync tier from query; clear drive-only if they answered No
     useEffect(() => {
@@ -483,6 +519,12 @@ export default function EventRegistrationPage() {
             const fromQuery = new URLSearchParams(window.location.search).get('tier') || '';
             if (fromQuery && findEventShowTier(pricedEvent, fromQuery) && fromQuery !== selectedTierId) {
                 setSelectedTierId(fromQuery);
+                const queriedTier = findEventShowTier(pricedEvent, fromQuery);
+                if (isSpectatorTier(queriedTier)) {
+                    setValues((prev) => (
+                        prev.join_drive === SPECTATOR_OPTION ? prev : { ...prev, join_drive: SPECTATOR_OPTION }
+                    ));
+                }
                 return;
             }
         } catch { /* ignore */ }
@@ -509,11 +551,13 @@ export default function EventRegistrationPage() {
     }, [selectedTierId, selectedAddOnIds]);
 
     const allSteps = useMemo(
-        () => [...formSteps, {
-            title: ticketPrice > 0 ? 'Confirm & Pay' : 'Confirm registration',
-            payment: true,
-        }],
-        [formSteps, ticketPrice],
+        () => (spectatorPath
+            ? formSteps
+            : [...formSteps, {
+                title: ticketPrice > 0 ? 'Confirm & Pay' : 'Confirm registration',
+                payment: true,
+            }]),
+        [formSteps, ticketPrice, spectatorPath],
     );
     const allFields = useMemo(() => formSteps.flatMap((s) => s.fields || []), [formSteps]);
 
@@ -737,11 +781,14 @@ export default function EventRegistrationPage() {
         } else if (choice === TRACKDAY_ONLY_OPTION) {
             submissionValues.join_drive = 'No';
             submissionValues.registration_type = 'trackday_only';
+        } else if (choice === SPECTATOR_OPTION || isSpectatorTier(tierToUse)) {
+            submissionValues.join_drive = 'No';
+            submissionValues.registration_type = 'spectator';
         } else if (driveRaw) {
             submissionValues.join_drive = driveRaw;
         }
 
-        if (driverCount > 1 && !isDriveOnlyTier(tierToUse)) {
+        if (driverCount > 1 && !isDriveOnlyTier(tierToUse) && !isSpectatorTier(tierToUse)) {
             submissionValues.driver_count = String(driverCount);
             submissionValues.leader_name = submissionValues.name || submissionValues.leader_name || '';
         }
@@ -948,23 +995,36 @@ export default function EventRegistrationPage() {
         if (tiersMode && !findEventShowTier(pricedEvent, selectedTierId)) {
             if (driveOnlyPath && driveOnlyTier?.id) {
                 setSelectedTierId(driveOnlyTier.id);
+            } else if (spectatorPath && spectatorTier?.id) {
+                setSelectedTierId(spectatorTier.id);
             } else {
-                setError(driveOnlyPath ? 'Drive-only package is missing. Please refresh.' : 'Please select a Trackday package.');
+                setError(
+                    driveOnlyPath || spectatorPath
+                        ? 'Free package is missing. Please refresh.'
+                        : 'Please select a Trackday package.',
+                );
                 const pkgIdx = allSteps.findIndex((s) => s.packageSelect);
                 if (pkgIdx >= 0) setStep(pkgIdx);
                 return;
             }
         }
 
-        // Drive-only / free package — submit directly (no Cashfree)
-        const feeNow = Math.max(0, Number(resolveEventShowFee(pricedEvent, selectedTierId || driveOnlyTier?.id).fee) || 0)
-            + addOnTotal;
+        // Drive-only / Spectators / free package — submit directly (no Cashfree)
+        const feeNow = Math.max(0, Number(resolveEventShowFee(
+            pricedEvent,
+            selectedTierId || (spectatorPath ? spectatorTier?.id : driveOnlyTier?.id),
+        ).fee) || 0)
+            + (spectatorPath ? 0 : addOnTotal);
         if (feeNow <= 0) {
             setPaying(true);
             try {
-                const tierForSubmit = selectedTierId || driveOnlyTier?.id || '';
+                const tierForSubmit = selectedTierId || (spectatorPath ? spectatorTier?.id : driveOnlyTier?.id) || '';
                 if (tierForSubmit && tierForSubmit !== selectedTierId) setSelectedTierId(tierForSubmit);
-                await submitRegistration({ amountPaid: 0, tierIdOverride: tierForSubmit });
+                await submitRegistration({
+                    amountPaid: 0,
+                    tierIdOverride: tierForSubmit,
+                    selectedAddOnIdsOverride: spectatorPath ? [] : undefined,
+                });
                 setDone(true);
             } catch (e) {
                 setError(e.message || 'Registration failed');
@@ -1408,7 +1468,7 @@ export default function EventRegistrationPage() {
                                         </p>
                                     ) : null}
                                 </div>
-                                {tiersMode ? (
+                                {tiersMode && !spectatorPath ? (
                                 <div className={`flex justify-between text-sm py-2 border-t ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
                                     <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Drivers</span>
                                     <span className={`font-semibold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
@@ -1895,15 +1955,27 @@ export default function EventRegistrationPage() {
                         <button type="button" onClick={back} disabled={paying} className={`px-4 sm:px-6 py-3 rounded-xl border font-medium text-sm ${isDark ? 'border-gray-700 text-white hover:bg-gray-800/60' : 'border-gray-300 text-gray-900 hover:bg-gray-100'}`}>
                             {step === 0 ? 'Cancel' : 'Previous'}
                         </button>
-                        {isPaymentStep ? (
-                            <button type="button" onClick={handleFinalSubmit} disabled={paying} className="flex-1 px-4 sm:px-6 py-3 rounded-xl bg-[#0ECCEE] text-black font-bold hover:opacity-90 active:scale-[0.98] transition-all text-sm flex items-center justify-center gap-2 disabled:opacity-60">
+                        {isPaymentStep || (spectatorPath && step === allSteps.length - 1) ? (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (spectatorPath && !isPaymentStep) {
+                                        setError('');
+                                        if (!isAuthed()) { setShowLogin(true); setError('Please log in to register.'); return; }
+                                        if (!validateStep(step)) return;
+                                    }
+                                    handleFinalSubmit();
+                                }}
+                                disabled={paying}
+                                className="flex-1 px-4 sm:px-6 py-3 rounded-xl bg-[#0ECCEE] text-black font-bold hover:opacity-90 active:scale-[0.98] transition-all text-sm flex items-center justify-center gap-2 disabled:opacity-60"
+                            >
                                 {paying ? (<><Loader className="w-4 h-4 animate-spin" /> Processing...</>) : ticketPrice > 0
                                     ? (isOrganizerQr
                                         ? (payableAmount <= 0
                                             ? 'Confirm Registration'
                                             : (reg.qrAutoConfirm ? 'Submit Payment Proof & Register' : 'Submit Proof for Approval'))
                                         : `Pay ₹${payableAmount.toLocaleString('en-IN')} & Register`)
-                                    : 'Confirm Registration'}
+                                    : 'Register'}
                             </button>
                         ) : (
                             <button type="button" onClick={next} disabled={paying} className="flex-1 px-4 sm:px-6 py-3 rounded-xl bg-[#0ECCEE] text-black font-bold hover:opacity-90 active:scale-[0.98] transition-all text-sm">
