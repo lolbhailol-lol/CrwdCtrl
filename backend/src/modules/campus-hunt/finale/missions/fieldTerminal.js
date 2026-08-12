@@ -38,9 +38,10 @@ function defaultDeviceConfig(config) {
   const device = config?.fieldTerminal || config?.borrowedDevice || {};
   return {
     locationName: device.locationName || 'Field terminal',
+    // Keep player copy cryptic — the clue image carries the discovery beat.
     instruction: device.instruction
-      || 'Borrow a real laptop (phones are against the rules — Desktop site is cheating). '
-        + 'Open CrwdCtrl Grid, enter your device key, clear all 3 levels, then bring the completion code back here.',
+      || 'Study the clue. When you know what you need — use it. '
+        + 'Open the terminal link, enter your device key, clear all 3 levels, then bring the GRID code back here.',
     maxAttempts: Number(device.maxAttempts) || 3,
     gameUrl: '/campus-hunt/grid',
     clueImageUrl: device.clueImageUrl || '/campus-hunt/field-terminal-clue.jpg',

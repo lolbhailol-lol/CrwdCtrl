@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { CAMPUS_HUNT_PATHS } from '../../config';
 import { missionTheme } from '../../admin/finaleMissionTheme';
-import { LAPTOP_ONLY_RULE } from '../../grid/laptopOnly';
 import MissionBriefBox from './MissionBriefBox';
 
 const CLUE_IMAGE_DEFAULT = '/campus-hunt/field-terminal-clue.jpg';
@@ -15,6 +14,27 @@ function copyText(text, onDone) {
   navigator.clipboard?.writeText(String(text)).then(() => onDone?.()).catch(() => {});
 }
 
+/** Soften spoiler-y admin/default copy so Mission 3 stays a discovery beat. */
+function playerFacingCopy(view) {
+  const raw = String(view?.instruction || '').trim();
+  const spoilers = /borrow|laptop|desktop site|phones? (are )?against|find a (real )?laptop/i;
+  const softBody = 'Study the clue. When you know what you need — use it. Bring the GRID code back here.';
+  const titleRaw = String(view?.locationName || '').trim();
+  const softTitle = titleRaw && !/laptop|borrow/i.test(titleRaw)
+    ? titleRaw
+    : 'Field Terminal';
+
+  return {
+    title: softTitle,
+    body: !raw || spoilers.test(raw) ? softBody : raw,
+    requirements: [
+      'Follow the clue — don’t force it on this phone',
+      'Copy the device key · open the link where it works',
+      'Leader submits GRID-XXXX on this phone',
+    ],
+  };
+}
+
 function CluePopup({ open, imageSrc, onContinue, onDismiss }) {
   const theme = missionTheme('field_terminal');
   if (!open) return null;
@@ -25,7 +45,7 @@ function CluePopup({ open, imageSrc, onContinue, onDismiss }) {
         className={`w-full max-w-md overflow-hidden rounded-3xl border shadow-2xl ${theme.borderClass}`}
         style={{
           background: 'linear-gradient(180deg, #0d121a 0%, #080a0e 100%)',
-          animation: 'deviceClueIn 0.45s ease-out',
+          animation: 'deviceClueIn 0.35s ease-out',
         }}
       >
         <div className="relative aspect-[4/3] overflow-hidden bg-black">
@@ -33,6 +53,8 @@ function CluePopup({ open, imageSrc, onContinue, onDismiss }) {
             src={imageSrc}
             alt="Mission clue"
             className="h-full w-full object-cover"
+            decoding="async"
+            fetchPriority="high"
           />
           <div
             className="pointer-events-none absolute inset-0"
@@ -42,7 +64,7 @@ function CluePopup({ open, imageSrc, onContinue, onDismiss }) {
             }}
           />
           <p className={`absolute left-4 top-4 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] ${theme.bgClass} ${theme.textClass}`}>
-            Clue received
+            Clue
           </p>
         </div>
 
@@ -55,8 +77,6 @@ function CluePopup({ open, imageSrc, onContinue, onDismiss }) {
           </h2>
           <p className="text-sm leading-relaxed text-white/65">
             Something on campus can run what your phone cannot.
-            <br />
-            Find a laptop. Borrow it. Phones are against the rules.
           </p>
           <div className="flex flex-col gap-2 pt-1">
             <button
@@ -64,21 +84,21 @@ function CluePopup({ open, imageSrc, onContinue, onDismiss }) {
               onClick={onContinue}
               className={`w-full rounded-xl py-3 text-sm font-bold uppercase tracking-wide ${theme.solidClass} ${theme.solidTextClass}`}
             >
-              I see it
+              Got it
             </button>
             <button
               type="button"
               onClick={onDismiss}
               className="w-full py-2 text-xs text-white/40 underline hover:text-white/70"
             >
-              Skip clue
+              Close
             </button>
           </div>
         </div>
       </div>
       <style>{`
         @keyframes deviceClueIn {
-          from { opacity: 0; transform: translateY(18px) scale(0.97); }
+          from { opacity: 0; transform: translateY(12px) scale(0.98); }
           to { opacity: 1; transform: translateY(0) scale(1); }
         }
       `}</style>
@@ -98,6 +118,7 @@ export default function FieldTerminalMission({
   const [showClue, setShowClue] = useState(false);
   const [opsOpen, setOpsOpen] = useState(false);
   const theme = missionTheme('field_terminal');
+  const copy = playerFacingCopy(view);
 
   const gamePath = view?.gameUrl || CAMPUS_HUNT_PATHS.grid;
   const gameFullUrl = typeof window !== 'undefined'
@@ -146,25 +167,26 @@ export default function FieldTerminalMission({
       <MissionBriefBox
         theme={theme}
         eyebrow={`Field Terminal · ${theme.colorName}`}
-        title={view?.locationName || 'Laptop grid'}
-        body={view?.instruction || 'Clear Zip on a laptop, then bring the GRID code back here.'}
-        requirements={[
-          'Laptop only — phones / Desktop site = DQ',
-          'Paste device key on the laptop browser',
-          'Leader submits GRID-XXXX on this phone',
-        ]}
+        title={copy.title}
+        body={copy.body}
+        requirements={copy.requirements}
       >
         <button
           type="button"
           onClick={() => setShowClue(true)}
           className="mt-3 flex w-full items-stretch overflow-hidden rounded-xl border border-white/10 bg-black/30 text-left"
         >
-          <img src={clueImage} alt="" className="h-16 w-20 shrink-0 object-cover" />
+          <img
+            src={clueImage}
+            alt=""
+            className="h-20 w-24 shrink-0 object-cover"
+            decoding="async"
+          />
           <div className="flex flex-1 flex-col justify-center px-3 py-2">
             <p className={`text-[10px] font-bold uppercase tracking-wide ${theme.textClass}`}>
               Mission clue
             </p>
-            <p className="text-xs text-white/50">Tap to view</p>
+            <p className="text-xs text-white/50">Tap to view image</p>
           </div>
         </button>
 
@@ -189,7 +211,7 @@ export default function FieldTerminalMission({
 
         <div className="mt-2.5 rounded-xl border border-white/10 bg-black/30 px-3 py-2.5">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-white/45">
-            Grid link · laptop
+            Terminal link
           </p>
           <p className="mt-1 break-all font-mono text-[11px] text-white/70">{gameFullUrl}</p>
           <div className="mt-2 flex gap-2">
@@ -214,23 +236,19 @@ export default function FieldTerminalMission({
           </div>
         </div>
 
-        <p className="mt-2 text-[11px] leading-relaxed text-red-100/75">
-          {LAPTOP_ONLY_RULE}
-        </p>
-
         <button
           type="button"
           onClick={() => setOpsOpen((v) => !v)}
-          className="mt-1 text-xs text-white/35 underline"
+          className="mt-2 text-xs text-white/35 underline"
         >
-          {opsOpen ? 'Hide steps' : 'Need steps?'}
+          {opsOpen ? 'Hide steps' : 'Need a nudge?'}
         </button>
         {opsOpen && (
           <ol className="mt-2 list-decimal space-y-1 pl-4 text-xs text-white/50">
-            <li>Open grid link on a laptop</li>
-            <li>Enter device key</li>
-            <li>Clear 3 levels (hints cost points)</li>
-            <li>Bring GRID code back to this phone</li>
+            <li>Open the clue image again if you need it</li>
+            <li>Use the device key on the terminal link</li>
+            <li>Clear the three levels</li>
+            <li>Bring the GRID code back to this phone</li>
           </ol>
         )}
 

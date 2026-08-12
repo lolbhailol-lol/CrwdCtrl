@@ -199,8 +199,18 @@ export default function CampusHuntPlayPage() {
   if (activeRound === 'finale') {
     if (finale.loading && !finale.data) {
       return (
-        <div className="flex min-h-screen items-center justify-center bg-[#0b0c0d] text-white">
-          Loading Finals…
+        <div className="min-h-screen bg-[#0b0c0d] text-white">
+          <div className="mx-auto max-w-lg animate-pulse px-4 pb-10 pt-8">
+            <div className="h-3 w-24 rounded bg-white/10" />
+            <div className="mt-3 h-7 w-40 rounded bg-white/15" />
+            <div className="mt-2 h-4 w-56 rounded bg-white/10" />
+            <div className="mt-8 grid gap-3 sm:grid-cols-2">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="h-28 rounded-2xl border border-white/10 bg-white/[0.04]" />
+              ))}
+            </div>
+            <p className="mt-8 text-center text-xs text-white/35">Opening Finals…</p>
+          </div>
         </div>
       );
     }

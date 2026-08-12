@@ -16,14 +16,14 @@ function LaptopOnlyGate() {
   return (
     <div className="rounded-3xl border border-amber-400/35 bg-amber-500/10 px-5 py-8 text-center">
       <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-amber-200/85">
-        Laptop required
+        Field Terminal
       </p>
       <h2 className="mt-3 text-2xl font-black uppercase tracking-wide text-white">
-        Phone blocked
+        Wrong screen
       </h2>
       <p className="mt-3 text-sm leading-relaxed text-white/65">
         This puzzle only runs on a laptop or desktop.
-        Borrow a device on campus, then open this same link there and enter your device key.
+        Open this same link there and enter your device key.
       </p>
       <p className="mt-4 rounded-2xl border border-red-400/30 bg-red-500/10 px-3 py-3 text-left text-xs leading-relaxed text-red-100/90">
         {LAPTOP_ONLY_RULE}
@@ -164,7 +164,7 @@ export default function CampusHuntGridPage() {
             L1 = 25 · L2 = 50 · L3 = 50 · Hint −20 · miss timer = 0 that level
           </p>
           <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-amber-200/70">
-            Laptop / desktop only · phones against the rules
+            Computer required · phones blocked
           </p>
         </header>
 

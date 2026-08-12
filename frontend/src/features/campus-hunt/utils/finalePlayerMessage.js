@@ -38,6 +38,18 @@ export function finalePlayerMessage(err) {
   if (code === 'WRONG_MISSION' || code === 'NO_ACTIVE_RUN') {
     return 'Open the live mission on this screen and try again.';
   }
+  if (code === 'WRONG_ANSWER' || code === 'INVALID_CODE' || code === 'BAD_CODE') {
+    return raw || 'Not quite — try again.';
+  }
+  if (code === 'ATTEMPTS_EXHAUSTED' || code === 'LOCKED') {
+    return raw || 'No attempts left — ask an organizer.';
+  }
+  if (code === 'MISSION_TIME_UP' || code === 'TIME_UP') {
+    return 'Mission timer ran out — back to the board.';
+  }
+  if (code === 'LAPTOP_ONLY') {
+    return 'Open the terminal link on a computer — this phone can’t run it.';
+  }
   if (code === 'VERSION_CONFLICT' || status >= 500) {
     return 'Server hiccup — keep this screen open and try once more.';
   }

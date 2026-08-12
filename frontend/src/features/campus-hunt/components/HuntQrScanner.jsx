@@ -60,7 +60,7 @@ export default function HuntQrScanner({ onScan, onClose, active = true, accentHe
       onScan?.(value);
       setTimeout(() => {
         if (lastPayloadRef.current === value) lastPayloadRef.current = '';
-      }, 2500);
+      }, 1600);
     },
     [onScan],
   );

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchMyTeam, fetchTeamProgress } from '../services/campusHunt.api';
 
 function pollIntervalMs(data, burstUntil) {
-  if (burstUntil && Date.now() < burstUntil) return 2500;
+  if (burstUntil && Date.now() < burstUntil) return 1000;
 
   const stage = String(data?.team?.currentStage || '');
   const scheduledAt = data?.team?.scheduledStartAt
@@ -16,6 +16,7 @@ function pollIntervalMs(data, burstUntil) {
     cp
     && cp.checkpointId
     && Number(cp.verifiedCount || 0) < Number(cp.requiredCount || 4);
+  const awaitingClaim = Boolean(cp?.awaitingTeamCodeConfirm);
 
   const activelyPlaying =
     stage.includes('ACTIVE')
@@ -23,9 +24,10 @@ function pollIntervalMs(data, burstUntil) {
     || stage.includes('FAILED')
     || stage.includes('TIMEOUT');
 
-  // Soft intervals — snappy enough for 4-of-4 scan, light on the server
-  if (nearRelease || pendingFour) return 3500;
-  if (activelyPlaying && stage !== 'SCORE_LOCKED') return 6000;
+  // 4-of-4 scanning needs near-live teammate updates
+  if (pendingFour || awaitingClaim) return 1200;
+  if (nearRelease) return 2000;
+  if (activelyPlaying && stage !== 'SCORE_LOCKED') return 5000;
   return 15000;
 }
 
@@ -52,6 +54,11 @@ export function useHuntTeam(eventId, { enabled = true } = {}) {
   const teamIdRef = useRef(null);
   const fetchGenRef = useRef(0);
   const pausePollUntilRef = useRef(0);
+  const dataRef = useRef(null);
+
+  useEffect(() => {
+    dataRef.current = data;
+  }, [data]);
 
   const refresh = useCallback(async ({ soft = false } = {}) => {
     if (!eventId || !enabled) return;
@@ -105,14 +112,20 @@ export function useHuntTeam(eventId, { enabled = true } = {}) {
     const next = progressFromActionData(payload);
     if (!next) return false;
     fetchGenRef.current += 1;
-    pausePollUntilRef.current = Date.now() + 2500;
+    const cp = next.checkpointStatus;
+    const pendingFour = Boolean(
+      cp?.checkpointId
+      && Number(cp.verifiedCount || 0) < Number(cp.requiredCount || 4),
+    );
+    // Keep polls almost live while teammates are still scanning
+    pausePollUntilRef.current = Date.now() + (pendingFour ? 350 : 1200);
     setData((prev) => ({
       ...next,
       rounds: prev?.rounds,
       event: prev?.event,
     }));
     teamIdRef.current = next.team?.id || teamIdRef.current;
-    setBurstUntil(Date.now() + 4000);
+    setBurstUntil(Date.now() + (pendingFour ? 8000 : 4000));
     setError(null);
     return true;
   }, []);
@@ -144,9 +157,34 @@ export function useHuntTeam(eventId, { enabled = true } = {}) {
     data?.checkpointStatus?.verifiedCount,
     data?.checkpointStatus?.requiredCount,
     data?.checkpointStatus?.checkpointId,
+    data?.checkpointStatus?.awaitingTeamCodeConfirm,
     burstUntil,
     refreshProgress,
   ]);
+
+  // Resume / focus — pull teammate scans immediately
+  useEffect(() => {
+    if (!eventId || !enabled) return undefined;
+    const kick = () => {
+      const cp = dataRef.current?.checkpointStatus;
+      const pending = Boolean(
+        cp?.checkpointId
+        && Number(cp.verifiedCount || 0) < Number(cp.requiredCount || 4),
+      );
+      if (!pending && !cp?.awaitingTeamCodeConfirm) return;
+      pausePollUntilRef.current = 0;
+      void refreshProgress();
+    };
+    const onVis = () => {
+      if (document.visibilityState === 'visible') kick();
+    };
+    window.addEventListener('focus', kick);
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      window.removeEventListener('focus', kick);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, [eventId, enabled, refreshProgress]);
 
   return {
     data,

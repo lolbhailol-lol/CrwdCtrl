@@ -238,7 +238,9 @@ function DeviceContentEditor({ config, setConfig, theme }) {
         <p className={`font-semibold ${theme.textClass}`}>Grid game</p>
         <p className="mt-1 text-white/60">Shared URL: <code className="text-white/80">/campus-hunt/grid</code></p>
         <p className="mt-1 text-white/45">Access codes auto-generate per team at mission start.</p>
-        <p className="mt-1 text-amber-200/70">Announce: phones banned for Zip Grid; Desktop site = cheating / DQ.</p>
+        <p className="mt-1 text-amber-200/70">
+          Player phone copy stays cryptic (clue image). Enforce laptop-only on the grid page + ops brief.
+        </p>
       </div>
       <Field
         label="Max wrong completion codes"

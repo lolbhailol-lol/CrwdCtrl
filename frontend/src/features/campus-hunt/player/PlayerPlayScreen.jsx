@@ -74,7 +74,9 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
   const [answer, setAnswer] = useState('');
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
+  const lastScanRawRef = useRef('');
   const [feedback, setFeedback] = useState('');
+  const [feedbackTone, setFeedbackTone] = useState('neutral');
   const [hintPreview, setHintPreview] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
   const [successText, setSuccessText] = useState('');
@@ -112,6 +114,13 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
     setShowScanner(true);
   }, [atCheckpoint, checkpointStatus?.checkpointId, checkpointStatus?.youScanned]);
 
+  // Prefill team code as soon as 4/4 is ready
+  useEffect(() => {
+    if (!checkpointStatus?.awaitingTeamCodeConfirm) return;
+    if (claimCode) return;
+    if (team?.teamCode) setClaimCode(String(team.teamCode).toUpperCase());
+  }, [checkpointStatus?.awaitingTeamCodeConfirm, team?.teamCode, claimCode]);
+
   const applyResult = (resData) => {
     const applied = onActionResult?.(resData);
     if (!applied) {
@@ -125,6 +134,7 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
     'ALREADY_RESOLVED',
     'ROUND_CLOSED',
     'SCORE_LOCKED',
+    'ROSTER_INCOMPLETE',
   ]);
 
   const runAction = async (fn) => {
@@ -132,6 +142,7 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
     busyRef.current = true;
     setBusy(true);
     setFeedback('');
+    setFeedbackTone('neutral');
     try {
       const res = await fn();
       applyResult(res.data);
@@ -139,6 +150,7 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
     } catch (err) {
       const code = err?.code || err?.data?.code;
       setFeedback(err.message || 'Action failed');
+      setFeedbackTone('err');
       if (HEAL_CODES.has(code) || err?.status === 409) {
         void onRefresh?.();
       }
@@ -261,23 +273,44 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
   };
 
   const onStationScan = async (raw) => {
-    const result = await runAction(() => scanStationCheckpoint(team.id, raw));
+    const value = String(raw || '').trim();
+    if (!value) return;
+    if (value === lastScanRawRef.current && busyRef.current) return;
+    lastScanRawRef.current = value;
+    const result = await runAction(() => scanStationCheckpoint(team.id, value));
     if (!result.ok) {
       if (result.error) {
         setFeedback(result.error.message || 'Scan failed — use the station poster QR');
+        setFeedbackTone('err');
       }
+      // Allow retry of the same QR after a miss
+      setTimeout(() => {
+        if (lastScanRawRef.current === value) lastScanRawRef.current = '';
+      }, 1200);
       return;
     }
     const resData = result.payload;
-    const awaiting = Boolean(resData?.awaitingTeamCodeConfirm || resData?.verifiedCount >= 4);
+    const count = Number(resData?.verifiedCount || resData?.checkpointStatus?.verifiedCount || 0);
+    const required = Number(resData?.requiredCount || resData?.checkpointStatus?.requiredCount || 4);
+    const awaiting = Boolean(
+      resData?.awaitingTeamCodeConfirm
+      || resData?.checkpointStatus?.awaitingTeamCodeConfirm
+      || count >= required,
+    );
     const unlocked = Boolean(
       resData?.unlockedNext
       || resData?.unlockedClue2
       || resData?.unlockedClue3,
     );
-    setFeedback(resData?.message || 'Scanned');
-    if (unlocked || awaiting) {
-      setShowScanner(false);
+    setShowScanner(false);
+    setShowPaste(false);
+    setFeedbackTone('ok');
+    setFeedback(resData?.message || `Scanned (${count}/${required})`);
+    if (awaiting && !unlocked) {
+      celebrate('All 4 scanned — confirm team code');
+      if (team?.teamCode) setClaimCode(String(team.teamCode).toUpperCase());
+    } else if (!unlocked) {
+      celebrate(`You're in · ${count}/${required}`);
     }
     if (unlocked) {
       celebrate(resData?.message || 'All set — next step unlocked!');
@@ -438,7 +471,15 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
           )}
 
           {feedback ? (
-            <p className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2.5 text-center text-sm text-white/80">
+            <p
+              className={`rounded-xl px-3 py-2.5 text-center text-sm ${
+                feedbackTone === 'err'
+                  ? 'border border-amber-400/30 bg-amber-500/10 text-amber-100'
+                  : feedbackTone === 'ok'
+                    ? 'border border-emerald-400/25 bg-emerald-500/10 text-emerald-100'
+                    : 'border border-white/[0.08] bg-white/[0.03] text-white/80'
+              }`}
+            >
               {feedback}
             </p>
           ) : null}
@@ -471,6 +512,20 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
                 </div>
               </div>
 
+              <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full transition-[width] duration-300 ease-out"
+                  style={{
+                    width: `${Math.min(
+                      100,
+                      (Number(checkpointStatus.verifiedCount || 0)
+                        / Math.max(1, Number(checkpointStatus.requiredCount || 4))) * 100,
+                    )}%`,
+                    background: checkpointTheme.hex,
+                  }}
+                />
+              </div>
+
               <div className="rounded-xl bg-black/25 px-3 py-3 text-center">
                 <p className="text-[10px] uppercase tracking-wide text-white/40">Shared station QR</p>
                 <p className="mt-0.5 font-mono text-lg font-semibold">
@@ -480,7 +535,7 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
                   })}
                 </p>
                 <p className="mt-1 text-xs text-white/50">
-                  All 4 scan the same poster, then enter team code
+                  All 4 scan the same poster · phones update live
                 </p>
               </div>
 
@@ -570,8 +625,16 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
               {checkpointStatus.youScanned
                 && checkpointStatus.verifiedCount < 4
                 && !checkpointStatus.awaitingTeamCodeConfirm && (
-                <p className="text-center text-sm text-emerald-300/90">
+                <p className="animate-pulse text-center text-sm text-emerald-300/90">
                   You scanned · waiting for {checkpointStatus.membersNeeded} more
+                  {' · '}
+                  <button
+                    type="button"
+                    className="underline"
+                    onClick={() => onRefresh?.()}
+                  >
+                    Refresh
+                  </button>
                 </p>
               )}
 
@@ -580,7 +643,7 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
                   && checkpointStatus.status !== 'complete')) && (
                 <form onSubmit={onStationClaim} className="space-y-2 rounded-xl border border-white/10 bg-black/30 p-3">
                   <p className="text-center text-sm text-emerald-200/90">
-                    All 4 scanned — enter your team code to unlock your clue
+                    All 4 scanned — confirm team code to unlock
                   </p>
                   <input
                     value={claimCode}
@@ -591,11 +654,11 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
                   />
                   <button
                     type="submit"
-                    disabled={busy}
+                    disabled={busy || !String(claimCode || '').trim()}
                     className="w-full rounded-2xl py-3.5 text-sm font-bold text-black disabled:opacity-50"
                     style={{ background: checkpointTheme.hex }}
                   >
-                    Confirm team code
+                    {busy ? 'Confirming…' : 'Confirm team code'}
                   </button>
                 </form>
               )}

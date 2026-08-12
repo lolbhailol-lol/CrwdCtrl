@@ -213,10 +213,10 @@ export default function PlaytestDesk({
       });
       const labels = (res.data?.scans || []).map((row) => row.label).join(', ');
       const tips = {
-        1: 'Orange done → solve Clue 2 on phone (or tap Green next)',
-        2: 'Green done → solve Clue 3 Caesar on phone, then Blue',
-        3: 'Blue done → solve Final on phone, then Mark finish',
-        all: 'All scans forced. Refresh player · do any missing clues · Mark finish',
+        1: 'Orange 4/4 forced — player phones refresh ~1s. Solve Clue 2 on phone (or tap Green next)',
+        2: 'Green 4/4 forced — player phones refresh ~1s. Solve Clue 3 on phone, then Blue',
+        3: 'Blue 4/4 forced — player phones refresh ~1s. Solve Final, then Mark finish',
+        all: 'All scans forced. Keep player screens open — they update fast. Finish missing clues · Mark finish',
       };
       setNote(tips[scan] || `${labels} done`);
       await onChanged?.();

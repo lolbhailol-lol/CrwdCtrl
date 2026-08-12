@@ -29,7 +29,7 @@ const STATUS_LABEL = {
 
 const ACCENT = '#F97316';
 
-function MissionCard({ mission, disabled, busy, onStart, isLeader }) {
+function MissionCard({ mission, disabled, busy, starting, onStart, isLeader }) {
   const isDone = mission.status === 'completed';
   const isSoon = mission.status === 'coming_soon';
   const canStart = mission.status === 'available' && !disabled && isLeader;
@@ -37,9 +37,10 @@ function MissionCard({ mission, disabled, busy, onStart, isLeader }) {
   const shortTitle = (theme.label || mission.title || '')
     .replace(/^MISSION\s*\d+\s*·\s*/i, '')
     .trim();
+  const isStarting = Boolean(starting);
 
   return (
-    <div className={`rounded-2xl border p-3.5 ${shell}`}>
+    <div className={`rounded-2xl border p-3.5 transition-[opacity,transform] duration-150 ${shell} ${isStarting ? 'scale-[0.99] opacity-90' : ''}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -76,9 +77,9 @@ function MissionCard({ mission, disabled, busy, onStart, isLeader }) {
           type="button"
           disabled={busy}
           onClick={() => onStart(mission.id)}
-          className={`mt-3 w-full rounded-xl py-2.5 text-xs font-bold uppercase tracking-wide disabled:opacity-40 ${cta}`}
+          className={`mt-3 w-full rounded-xl py-2.5 text-xs font-bold uppercase tracking-wide disabled:opacity-40 active:scale-[0.98] ${cta}`}
         >
-          Start
+          {isStarting ? 'Opening…' : 'Start'}
         </button>
       )}
       {mission.status === 'available' && !disabled && !isLeader && (
@@ -109,7 +110,9 @@ export default function FinalePlayScreen({
   pollError,
 }) {
   const [busy, setBusy] = useState(false);
+  const [startingId, setStartingId] = useState('');
   const [feedback, setFeedback] = useState('');
+  const [feedbackTone, setFeedbackTone] = useState('neutral');
   const busyRef = useRef(false);
 
   const entry = data?.entry;
@@ -148,11 +151,13 @@ export default function FinalePlayScreen({
   const missionExpiresAt = activeMission?.missionExpiresAt
     || activeMission?.playerView?.missionExpiresAt;
 
-  const runAction = async (fn) => {
+  const runAction = async (fn, { startingMissionId = '' } = {}) => {
     if (busyRef.current) return { ok: false, busy: true };
     busyRef.current = true;
     setBusy(true);
+    if (startingMissionId) setStartingId(startingMissionId);
     setFeedback('');
+    setFeedbackTone('neutral');
     try {
       const res = await fn();
       const payload = res.data;
@@ -163,14 +168,17 @@ export default function FinalePlayScreen({
         || payload?.activeMission?.playerView?.message;
       if (payload?.submitResult?.complete) {
         setFeedback(payload.submitResult.message || 'Mission complete!');
+        setFeedbackTone('ok');
       } else if (msg) {
         setFeedback(msg);
+        setFeedbackTone('ok');
       }
       return { ok: true, payload };
     } catch (err) {
       const code = err?.code || err?.data?.code;
       const status = Number(err?.status || err?.data?.status || 0);
       setFeedback(finalePlayerMessage(err));
+      setFeedbackTone('err');
       // Only heal when server state may be ahead of the UI — never on 500/network
       if (['MISSION_ACTIVE', 'MISSION_COMPLETED', 'NOT_RELEASED', 'WRONG_MISSION', 'NO_ACTIVE_RUN'].includes(code)
         && status < 500) {
@@ -180,10 +188,14 @@ export default function FinalePlayScreen({
     } finally {
       busyRef.current = false;
       setBusy(false);
+      setStartingId('');
     }
   };
 
-  const handleStart = (missionId) => runAction(() => startFinaleMission(teamId, missionId));
+  const handleStart = (missionId) => runAction(
+    () => startFinaleMission(teamId, missionId),
+    { startingMissionId: missionId },
+  );
 
   const handleSubmit = async (answer) => {
     const result = await runAction(() =>
@@ -267,33 +279,33 @@ export default function FinalePlayScreen({
               accentHex={ACCENT}
               eyebrow={
                 round?.status === 'live'
-                  ? (isLeader ? 'Mission board unlocks on' : 'Your team starts on')
-                  : 'Finals begins on'
+                  ? (isLeader ? 'Board unlocks' : 'Your team unlocks')
+                  : 'Finals begins'
               }
               unlockAt={entry?.scheduledStartAt}
               meetLabel={entry?.meetLocationName}
-              meetHint={isLeader ? 'keep your team together' : 'stay with your leader'}
+              meetHint={isLeader ? 'keep the team together' : 'stay with your leader'}
               steps={[
                 entry?.meetLocationName
-                  ? `Stay at ${entry.meetLocationName}`
+                  ? `Meet at ${entry.meetLocationName}`
                   : 'Stay at your meet point',
-                'Wait for the countdown',
+                'Wait for READY',
                 isLeader
-                  ? 'When READY, open Mission 1 (Intel Hunt)'
-                  : 'Only the Team Leader starts missions',
+                  ? 'Tap Start on Mission 1'
+                  : 'Leader starts missions — stay ready',
               ]}
               paused={Boolean(round?.releasesPaused)}
               pausedText="Releases paused — stay at your meet location."
               emptyText={
                 round?.status === 'live'
                   ? 'Waiting for organizers to release your wave.'
-                  : 'Finals not live yet. Stay at your meet point — your unlock timer appears after Start Finals.'
+                  : 'Finals not live yet. Stay put — your timer appears after Start Finals.'
               }
               onReady={onRefresh}
               footer={
                 isLeader && round?.status === 'live' ? (
                   <p className="rounded-xl border border-[#0ECCEE]/35 bg-[#0ECCEE]/10 px-3 py-2 text-xs font-semibold text-[#0ECCEE]">
-                    You’re the leader — stay ready to start
+                    You’re the leader — Start appears when READY
                   </p>
                 ) : null
               }
@@ -343,7 +355,15 @@ export default function FinalePlayScreen({
           )}
 
           {feedback && (
-            <p className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2.5 text-center text-sm text-white/80">
+            <p
+              className={`rounded-xl px-3 py-2.5 text-center text-sm ${
+                feedbackTone === 'err'
+                  ? 'border border-amber-400/30 bg-amber-500/10 text-amber-100'
+                  : feedbackTone === 'ok'
+                    ? 'border border-emerald-400/25 bg-emerald-500/10 text-emerald-100'
+                    : 'border border-white/[0.08] bg-white/[0.03] text-white/80'
+              }`}
+            >
               {feedback}
             </p>
           )}
@@ -419,6 +439,7 @@ export default function FinalePlayScreen({
                     isLeader={isLeader}
                     disabled={!data?.canStartMission || roundClosed || entry?.status === 'stopped'}
                     busy={busy}
+                    starting={startingId === m.id}
                     onStart={handleStart}
                   />
                 ))}
