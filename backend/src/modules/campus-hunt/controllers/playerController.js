@@ -781,6 +781,8 @@ async function enterTeamAsMember(req, res, next) {
       huntTeamId: String(team._id),
       huntEventId: String(event._id),
       huntRole: role === 'leader' ? 'leader' : 'player',
+      tokenType: 'hunt',
+      aud: 'campus-hunt',
     }, getJwtSecret(), {
       expiresIn: process.env.USER_JWT_EXPIRES_IN || process.env.JWT_EXPIRES_IN || '30d',
     });

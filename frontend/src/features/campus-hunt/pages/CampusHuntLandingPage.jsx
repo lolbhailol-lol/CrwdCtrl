@@ -1,16 +1,16 @@
 import { Link, useParams } from 'react-router-dom';
-import { useAuth } from '../../../context/AuthContext';
 import { CAMPUS_HUNT_PATHS } from '../config';
+import useHuntAuth from '../hooks/useHuntAuth';
 import { readHuntSession } from '../utils/huntSession';
 import CampusHuntBackLink from '../components/CampusHuntBackLink';
 
 /**
  * Event landing — players use their shared team URL.
- * If already logged in, offer continue to play.
+ * If already enrolled, offer continue to play.
  */
 export default function CampusHuntLandingPage() {
   const { slug } = useParams();
-  const { isAuthenticated } = useAuth();
+  const { isHuntAuthenticated } = useHuntAuth();
   const saved = readHuntSession();
   const sameEvent = saved?.slug && slug && saved.slug === slug;
   const continuePlay = CAMPUS_HUNT_PATHS.play(slug);
@@ -36,9 +36,9 @@ export default function CampusHuntLandingPage() {
           Campus Hunt
         </p>
         <h1 className="text-3xl font-bold tracking-tight">
-          {isAuthenticated && sameEvent ? 'You\'re still logged in' : 'Open your team link'}
+          {isHuntAuthenticated && sameEvent ? 'You\'re still in' : 'Open your team link'}
         </h1>
-        {isAuthenticated && sameEvent ? (
+        {isHuntAuthenticated && sameEvent ? (
           <>
             <p className="text-sm text-white/60">
               Team{' '}
@@ -64,7 +64,7 @@ export default function CampusHuntLandingPage() {
           <p className="text-sm text-white/60">
             Your organizer shared a link like{' '}
             <span className="font-mono text-white/80">…/team/CC001</span>.
-            Open that — enter the password and tap your name. Stay logged in after that.
+            Open that — enter the password and tap your name. Stay in after that.
           </p>
         )}
       </div>

@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../../context/AuthContext';
-import { prepareLogin } from '../../../utils/loginFlow';
 import {
   enterTeamAsMember,
   fetchEventBySlug,
@@ -10,6 +8,7 @@ import {
   unlockTeamRoster,
 } from '../services/campusHunt.api';
 import { CAMPUS_HUNT_PATHS } from '../config';
+import useHuntAuth from '../hooks/useHuntAuth';
 import { teamPrimaryLabel, teamSecondaryName } from '../utils/teamLabel';
 import { normalizeTeamCode } from '../utils/teamCode';
 import { rememberHuntSession } from '../utils/huntSession';
@@ -17,7 +16,7 @@ import CampusHuntBackLink from './CampusHuntBackLink';
 
 /**
  * Per-team login — password unlocks names → tap who you are.
- * Already logged in as this team → go straight to play (no re-login).
+ * Already enrolled on this team → go straight to play (no re-login).
  */
 export default function TeamLoginForm({
   slug,
@@ -26,12 +25,7 @@ export default function TeamLoginForm({
   preselectSlot = 0,
 }) {
   const navigate = useNavigate();
-  const {
-    login,
-    logout,
-    isAuthenticated,
-    isLoading: authLoading,
-  } = useAuth();
+  const { isHuntAuthenticated, persistHuntAuth, clearHuntAuth } = useHuntAuth();
 
   const teamCode = normalizeTeamCode(initialCode);
   const [eventName, setEventName] = useState('');
@@ -99,11 +93,12 @@ export default function TeamLoginForm({
     ? teamPrimaryLabel(teamCard.team)
     : teamCode;
   const secondary = teamCard?.team ? teamSecondaryName(teamCard.team) : '';
-  // Stay logged in: same team → go straight to play (JWT already restored).
+  const eventBackPath = CAMPUS_HUNT_PATHS.event(slug);
+
+  // Stay enrolled: same team → go straight to play (hunt token already stored).
   useEffect(() => {
     if (lookingUp || !teamCode || !eventId) return;
-    if (!isAuthenticated) {
-      if (authLoading) return;
+    if (!isHuntAuthenticated) {
       setSessionCheck('ready');
       setOtherTeamCode('');
       return;
@@ -115,7 +110,6 @@ export default function TeamLoginForm({
         const res = await fetchMyTeam(eventId);
         if (cancelled) return;
         const myCode = normalizeTeamCode(res.data?.team?.teamCode);
-        const team = res.data?.team;
         if (myCode && myCode === teamCode) {
           rememberHuntSession({
             slug,
@@ -134,20 +128,21 @@ export default function TeamLoginForm({
         setSessionCheck('ready');
       } catch {
         if (!cancelled) {
+          clearHuntAuth();
           setSessionCheck('ready');
         }
       }
     })();
     return () => { cancelled = true; };
   }, [
-    authLoading,
-    isAuthenticated,
+    isHuntAuthenticated,
     lookingUp,
     eventId,
     teamCode,
     playPath,
     slug,
     navigate,
+    clearHuntAuth,
   ]);
 
   const leader = useMemo(
@@ -216,9 +211,6 @@ export default function TeamLoginForm({
     setError('');
     setSelected(member);
     try {
-      if (isAuthenticated) await logout();
-      prepareLogin({ returnPath: playPath });
-
       const role = member.role === 'leader' ? 'leader' : 'player';
       const slot = member.role === 'leader' ? 0 : Number(member.slot || 0);
       const result = await enterTeamAsMember(slug, teamCode, {
@@ -239,17 +231,19 @@ export default function TeamLoginForm({
         throw new Error('Login mismatched — try again as leader');
       }
 
+      const myName = result.team?.myName || result.user?.name || member.name || '';
       rememberHuntSession({
         slug,
         teamCode,
         playPath: result.team?.playPath || playPath,
         teamLoginPath: CAMPUS_HUNT_PATHS.teamLogin(slug, teamCode),
       });
-      login({
-        ...result.user,
-        name: result.team?.myName || result.user?.name,
-        huntRole: enteredRole,
-        token: result.token,
+      persistHuntAuth(result.token, {
+        slug,
+        teamCode,
+        myName,
+        role: enteredRole,
+        userId: result.user?.id || result.user?._id || '',
       });
       navigate(result.team?.playPath || playPath, { replace: true });
     } catch (err) {
@@ -259,19 +253,14 @@ export default function TeamLoginForm({
     }
   };
 
-  const switchToThisTeam = async () => {
-    setBusy(true);
-    try {
-      await logout();
-      setOtherTeamCode('');
-      setSessionCheck('ready');
-      setUnlocked(false);
-      setMembers([]);
-      setPassword('');
-      setError('');
-    } finally {
-      setBusy(false);
-    }
+  const switchToThisTeam = () => {
+    clearHuntAuth();
+    setOtherTeamCode('');
+    setSessionCheck('ready');
+    setUnlocked(false);
+    setMembers([]);
+    setPassword('');
+    setError('');
   };
 
   if (!teamCode) {
@@ -279,16 +268,15 @@ export default function TeamLoginForm({
       <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-[#0b0c0d] px-4 text-center text-white">
         <h1 className="text-2xl font-bold">Invalid team link</h1>
         <p className="text-white/55">Ask your organizer for your team URL.</p>
-        <Link to="/" className="text-[#0ECCEE] underline">CrwdCtrl home</Link>
+        <Link to={eventBackPath} className="text-[#0ECCEE] underline">Campus Hunt</Link>
       </div>
     );
   }
 
-  const waitingUnknownAuth = authLoading && !isAuthenticated;
-  if (waitingUnknownAuth || sessionCheck === 'checking' || (isAuthenticated && sessionCheck === 'idle')) {
+  if (sessionCheck === 'checking') {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#0b0c0d] text-white">
-        Checking login…
+        Checking hunt access…
       </div>
     );
   }
@@ -297,7 +285,7 @@ export default function TeamLoginForm({
     return (
       <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#0b0c0d] px-5 text-center text-white">
         <div className="absolute left-4 top-[max(1rem,var(--safe-top))] z-10">
-          <CampusHuntBackLink to={CAMPUS_HUNT_PATHS.profileLogin} label="Back" />
+          <CampusHuntBackLink to={eventBackPath} label="Back" forceTo />
         </div>
         <div className="relative max-w-md space-y-4">
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#0ECCEE]">
@@ -305,7 +293,7 @@ export default function TeamLoginForm({
           </p>
           <h1 className="text-2xl font-bold">Wrong team link</h1>
           <p className="text-sm text-white/60">
-            You&apos;re logged in as{' '}
+            This phone is on team{' '}
             <span className="font-mono text-white">{otherTeamCode}</span>.
             This link is{' '}
             <span className="font-mono text-white">{teamCode}</span>.
@@ -320,10 +308,10 @@ export default function TeamLoginForm({
             <button
               type="button"
               disabled={busy}
-              onClick={() => void switchToThisTeam()}
+              onClick={switchToThisTeam}
               className="rounded-xl border border-white/20 px-4 py-3 text-sm text-white/80 disabled:opacity-40"
             >
-              {busy ? '…' : `Log out · join ${teamCode}`}
+              Switch person · join {teamCode}
             </button>
           </div>
         </div>
@@ -343,12 +331,13 @@ export default function TeamLoginForm({
       />
       <div className="relative mx-auto flex min-h-screen max-w-md flex-col justify-center px-5 py-10">
         <CampusHuntBackLink
-          to={CAMPUS_HUNT_PATHS.profileLogin}
+          to={eventBackPath}
           label="Back"
           className="mb-4 self-start"
+          forceTo
         />
         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#0ECCEE]">
-          {roundLabel}
+          Campus Hunt access
         </p>
         <h1 className="mt-2 font-mono text-4xl font-bold tracking-tight">
           {lookingUp && !teamCard ? '…' : (primary || teamCode)}
@@ -361,7 +350,7 @@ export default function TeamLoginForm({
           {college ? ` · ${college}` : ''}
         </p>
         <p className="mt-3 text-sm text-white/60">
-          Enter password once — you stay logged in on this phone.
+          Enter your team password — you stay in on this phone.
         </p>
 
         <div className="mt-8">
@@ -476,18 +465,11 @@ export default function TeamLoginForm({
           <p className="font-semibold text-white">Once · stay in</p>
           <ul className="mt-2 list-disc space-y-1.5 pl-4">
             <li>Password → tap your name → done</li>
-            <li>Refresh or reopen the app — still logged in</li>
+            <li>Refresh or reopen — still in the hunt</li>
             <li>After login, pick a round from the list</li>
             <li>Leader starts timed steps · players help as instructed</li>
           </ul>
         </div>
-
-        <Link
-          to="/"
-          className="mt-6 text-center text-sm text-white/40 underline hover:text-white/70"
-        >
-          CrwdCtrl home
-        </Link>
       </div>
     </div>
   );

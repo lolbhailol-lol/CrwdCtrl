@@ -86,10 +86,23 @@ function hasDistinctVerifiedRoster(verifiedIds, rosterIds, required = 4) {
   return verified.length >= required;
 }
 
+/** True when team has 4 provisioned hunt accounts (leader + 3 scanners with login emails). */
+function isTeamRosterReady(team) {
+  return Boolean(
+    team?.leaderUserId
+    && Array.isArray(team.memberUserIds)
+    && team.memberUserIds.length === 3
+    && team.accessPack?.leader?.loginEmail
+    && Array.isArray(team.accessPack?.scanners)
+    && team.accessPack.scanners.length === 3,
+  );
+}
+
 module.exports = {
   uniqueIdStrings,
   assertValidTeamRoster,
   uniqueRosterFromTeam,
   assertOnlineRosterReady,
   hasDistinctVerifiedRoster,
+  isTeamRosterReady,
 };

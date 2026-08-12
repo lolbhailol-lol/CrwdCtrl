@@ -1,3 +1,5 @@
+import { clearHuntAuth } from './huntAuth';
+
 const KEY = 'campus_hunt_last_session';
 const VALID_LAST_ROUNDS = new Set(['round1', 'finale']);
 
@@ -74,11 +76,12 @@ export function clearHuntSession() {
   }
 }
 
-/** On auth loss inside /campus-hunt/*, send players back to event (not CrwdCtrl /login). */
+/** On auth loss inside /campus-hunt/*, send players back to team login (not CrwdCtrl /login). */
 export function redirectCampusHuntAuthLoss() {
   if (typeof window === 'undefined') return false;
   const path = window.location.pathname || '';
   if (!path.startsWith('/campus-hunt')) return false;
+  clearHuntAuth();
   const session = readHuntSession();
   if (session?.teamLoginPath) {
     window.location.assign(session.teamLoginPath);

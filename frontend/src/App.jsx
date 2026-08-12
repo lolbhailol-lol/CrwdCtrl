@@ -319,7 +319,7 @@ function App() {
 
   const openLoginFromProfile = useCallback(() => {
     prepareLogin({ fromProfile: true });
-    setIsProfileOpen(true);
+    setIsProfileOpen(false);
     setShowLogin(true);
   }, []);
 

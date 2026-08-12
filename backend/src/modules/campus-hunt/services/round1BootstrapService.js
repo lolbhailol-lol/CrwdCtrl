@@ -17,7 +17,7 @@ const CampusHuntCheckpoint = require('../models/CampusHuntCheckpoint');
 const CampusHuntChallenge = require('../models/CampusHuntChallenge');
 const CampusHuntTeam = require('../models/CampusHuntTeam');
 const { DEFAULT_SCORING_CONFIG } = require('../constants');
-const { provisionTeamRoster } = require('./rosterProvisionService');
+const { provisionTeamRoster, repairAllTeamRostersForEvent } = require('./rosterProvisionService');
 const { assertValidTeamRoster } = require('../utils/roster');
 const { assertCapacityCounts } = require('./capacityService');
 const { writeAudit } = require('./auditService');
@@ -745,7 +745,17 @@ async function ensurePlaceholderTeams(event, round, routes, {
     created.push({ id: String(team._id), teamCode, teamName: team.teamName });
   }
 
-  return { created: created.length, skipped, teams: created };
+  const rosterRepair = await repairAllTeamRostersForEvent(event._id, {
+    leaderPassword,
+    scannerPassword,
+  });
+
+  return {
+    created: created.length,
+    skipped,
+    teams: created,
+    rosterRepair,
+  };
 }
 
 /**

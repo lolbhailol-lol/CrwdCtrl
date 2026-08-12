@@ -5,10 +5,19 @@ const USER_KEY = 'crwdctrl_user';
 
 /** Resolve a usable backend JWT for API calls (skips expired / firebase fallback tokens). */
 
-function isJwtLike(value) {
+export function isJwtLike(value) {
   if (!value || typeof value !== 'string') return false;
   if (value.startsWith('firebase_')) return false;
   return value.split('.').length === 3;
+}
+
+/** Hunt team enrollment JWT — must not be used as platform session. */
+export function isHuntEnrollmentJwt(token) {
+  if (!isJwtLike(token)) return false;
+  const payload = decodeJwtPayload(token);
+  if (!payload?.userId) return false;
+  if (payload.tokenType === 'hunt' || payload.aud === 'campus-hunt') return true;
+  return !!(payload.huntEventId && payload.huntTeamId);
 }
 
 export function decodeJwtPayload(token) {
@@ -27,15 +36,17 @@ export function getHuntJwtClaims(token) {
   const payload = decodeJwtPayload(token);
   if (!payload?.userId || !payload?.huntEventId) return null;
   return {
+    userId: String(payload.userId),
     huntEventId: String(payload.huntEventId),
     huntTeamId: payload.huntTeamId ? String(payload.huntTeamId) : '',
     huntRole: payload.huntRole || '',
   };
 }
 
-/** CrwdCtrl user session JWT — must carry userId (not organizer/admin/scanner tokens). */
+/** CrwdCtrl user session JWT — must carry userId (not hunt enrollment or special tokens). */
 export function isBackendUserJwt(token) {
   if (!isJwtLike(token)) return false;
+  if (isHuntEnrollmentJwt(token)) return false;
   const payload = decodeJwtPayload(token);
   return !!payload?.userId;
 }
@@ -76,8 +87,9 @@ function collectUserJwtCandidates(contextToken = null) {
 }
 
 /**
- * Best available user JWT — context first, then storage.
+ * Best available platform user JWT — context first, then storage.
  * Prefers non-expired tokens; falls back to expired user JWT for silent refresh.
+ * Hunt enrollment tokens are excluded — use huntAuth.resolveHuntToken() for hunt APIs.
  */
 export function resolveAuthToken(contextToken = null) {
   const seen = new Set();
@@ -86,6 +98,7 @@ export function resolveAuthToken(contextToken = null) {
   for (const token of collectUserJwtCandidates(contextToken)) {
     if (seen.has(token)) continue;
     seen.add(token);
+    if (isHuntEnrollmentJwt(token)) continue;
     if (!isTokenExpired(token)) return token;
     if (!expiredFallback) expiredFallback = token;
   }

@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { useAuth } from '../../../context/AuthContext';
-import { getHuntJwtClaims } from '../../../utils/authToken';
 import { fetchEventBySlug } from '../services/campusHunt.api';
 import { useHuntTeam } from '../hooks/useHuntTeam';
 import { useFinaleTeam } from '../hooks/useFinaleTeam';
+import useHuntAuth from '../hooks/useHuntAuth';
 import PlayerPlayScreen from '../player/PlayerPlayScreen';
 import FinalePlayScreen from '../player/FinalePlayScreen';
 import PlayerRoundsHub from '../player/PlayerRoundsHub';
@@ -22,8 +21,12 @@ export default function CampusHuntPlayPage() {
   const { slug } = useParams();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { isAuthenticated, isLoading: authLoading, user, token, logout } = useAuth();
-  const huntClaims = useMemo(() => getHuntJwtClaims(token), [token]);
+  const {
+    isHuntAuthenticated,
+    claims: huntClaims,
+    meta: huntMeta,
+    clearHuntAuth,
+  } = useHuntAuth();
   const [eventId, setEventId] = useState(() => huntClaims?.huntEventId || null);
   const [bootError, setBootError] = useState('');
   const saved = readHuntSession();
@@ -56,13 +59,13 @@ export default function CampusHuntPlayPage() {
     };
   }, [slug, eventId]);
 
-  const hunt = useHuntTeam(isAuthenticated ? eventId : null, {
-    enabled: Boolean(isAuthenticated && eventId),
+  const hunt = useHuntTeam(isHuntAuthenticated ? eventId : null, {
+    enabled: Boolean(isHuntAuthenticated && eventId),
   });
   const wantFinale = urlRound === 'finale'
     || (!urlRound && saved?.lastRound === 'finale');
   const finale = useFinaleTeam(
-    isAuthenticated && eventId && wantFinale ? eventId : null,
+    isHuntAuthenticated && eventId && wantFinale ? eventId : null,
   );
 
   useEffect(() => {
@@ -85,9 +88,9 @@ export default function CampusHuntPlayPage() {
     setSearchParams({}, { replace: false });
   };
 
-  const switchPerson = async () => {
+  const switchPerson = () => {
     clearHuntLastRound();
-    await logout();
+    clearHuntAuth();
     navigate(teamLoginFallback, { replace: true });
   };
 
@@ -113,15 +116,12 @@ export default function CampusHuntPlayPage() {
     setSearchParams({ round: resumeRound }, { replace: true });
   }, [resumeRound, urlRound, setSearchParams]);
 
-  if (authLoading && !isAuthenticated) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0b0c0d] text-white">
-        Checking login…
-      </div>
-    );
-  }
+  const playerUserId = useMemo(
+    () => huntMeta?.userId || huntClaims?.userId || hunt.data?.team?.myUserId || null,
+    [huntMeta?.userId, huntClaims?.userId, hunt.data?.team?.myUserId],
+  );
 
-  if (!isAuthenticated) {
+  if (!isHuntAuthenticated) {
     return <Navigate to={teamLoginFallback} replace />;
   }
 
@@ -149,7 +149,7 @@ export default function CampusHuntPlayPage() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-[#0b0c0d] px-4 text-center text-white">
         <p className="text-lg font-semibold">
-          {sessionGone ? 'Session expired' : 'No team assigned'}
+          {sessionGone ? 'Hunt session expired' : 'No team assigned'}
         </p>
         <p className="text-sm text-white/60">{error}</p>
         <Link
@@ -267,7 +267,7 @@ export default function CampusHuntPlayPage() {
           data={hunt.data}
           onRefresh={hunt.refreshProgress}
           onActionResult={hunt.applyActionData}
-          userId={user?._id || user?.id}
+          userId={playerUserId}
           eventSlug={slug}
           onLeaveRound={clearHuntLastRound}
         />

@@ -14,6 +14,7 @@ import {
   adminListChallenges,
   adminListCheckpoints,
   adminBootstrapRound1,
+  adminRepairTeamRosters,
   adminMarkTeamStartReached,
 } from '../services/campusHunt.api';
 
@@ -702,6 +703,7 @@ export default function TeamManagerPanel({
   roundId,
   onChanged,
   showRouteTools = false,
+  readiness = null,
 }) {
   const [teams, setTeams] = useState([]);
   const [eventMeta, setEventMeta] = useState(null);
@@ -879,6 +881,46 @@ export default function TeamManagerPanel({
     }
   };
 
+  const repairAllRosters = async () => {
+    if (!teams.length) {
+      setMsg('Create teams first');
+      return;
+    }
+    const incomplete = readiness?.rostersIncomplete
+      ?? teams.filter((t) => !(
+        t.access?.leader?.loginEmail
+        && Array.isArray(t.access?.scanners)
+        && t.access.scanners.length === 3
+        && t.access.scanners.every((s) => s.loginEmail)
+      )).length;
+    if (incomplete <= 0) {
+      setMsg('All team rosters already have player accounts');
+      return;
+    }
+    const ok = window.confirm(
+      `Create leader + 3 player accounts for ${incomplete} team(s)?\n\n`
+      + 'Required before Round 1 can start. Safe to re-run.',
+    );
+    if (!ok) return;
+
+    setBusy(true);
+    setMsg('');
+    try {
+      const result = await adminRepairTeamRosters(eventId);
+      const d = result.data || {};
+      setMsg(
+        `Rosters repaired · ${d.repaired ?? 0} fixed, ${d.alreadyReady ?? 0} already OK`
+        + (d.stillIncomplete ? ` · ${d.stillIncomplete} still incomplete` : ''),
+      );
+      await refresh();
+      onChanged?.();
+    } catch (err) {
+      setMsg(err.message || 'Roster repair failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const createDemoTeams = async () => {
     const capacity = eventMeta?.teamCapacity || 40;
     if (teams.length >= capacity) {
@@ -902,10 +944,15 @@ export default function TeamManagerPanel({
       });
       const created = result.data?.teams?.created ?? 0;
       const skipped = result.data?.teams?.skipped ?? 0;
-      setMsg(
-        `Demo teams ready · created ${created}, already had ${skipped}. `
-        + 'Set UNIQUE passwords per team before sharing links (do not use one password for all).',
-      );
+      const rosterRepair = result.data?.teams?.rosterRepair;
+      let successMsg = `Demo teams ready · created ${created}, already had ${skipped}.`;
+      if (rosterRepair?.repaired) {
+        successMsg += ` Repaired ${rosterRepair.repaired} rosters.`;
+      } else if (rosterRepair?.stillIncomplete) {
+        successMsg += ` ${rosterRepair.stillIncomplete} rosters still need repair — tap Repair rosters below.`;
+      }
+      successMsg += ' Set UNIQUE passwords per team before sharing links (do not use one password for all).';
+      setMsg(successMsg);
       setLastCredentials(null);
       setLastTeamCode('CC001');
       setLastTeamLoginPath(
@@ -922,6 +969,13 @@ export default function TeamManagerPanel({
 
   const capacity = eventMeta?.teamCapacity || 40;
   const demoReady = teams.length >= capacity;
+  const localRostersReady = teams.filter((t) => (
+    t.access?.leader?.loginEmail
+    && Array.isArray(t.access?.scanners)
+    && t.access.scanners.length === 3
+    && t.access.scanners.every((s) => s.loginEmail)
+  )).length;
+  const rostersIncomplete = readiness?.rostersIncomplete ?? (teams.length - localRostersReady);
 
   return (
     <div className="space-y-6">
@@ -942,15 +996,32 @@ export default function TeamManagerPanel({
                 {teams.length}/{capacity} teams — create the rest for a full dry run.
               </p>
             )}
+            {teams.length > 0 && rostersIncomplete > 0 && (
+              <p className="mt-2 text-sm text-amber-100">
+                {rostersIncomplete} team(s) missing player accounts — repair rosters before start.
+              </p>
+            )}
           </div>
-          <button
-            type="button"
-            disabled={busy || demoReady}
-            onClick={createDemoTeams}
-            className="rounded-xl bg-[#0ECCEE] px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-40"
-          >
-            {busy ? 'Creating…' : demoReady ? `${teams.length} teams ready` : `Create ${capacity} demo teams`}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={busy || demoReady}
+              onClick={createDemoTeams}
+              className="rounded-xl bg-[#0ECCEE] px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-40"
+            >
+              {busy ? 'Creating…' : demoReady ? `${teams.length} teams ready` : `Create ${capacity} demo teams`}
+            </button>
+            {teams.length > 0 && rostersIncomplete > 0 && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={repairAllRosters}
+                className="rounded-xl border border-amber-300/50 bg-amber-500/15 px-4 py-2.5 text-sm font-semibold text-amber-100 disabled:opacity-40"
+              >
+                {busy ? 'Repairing…' : `Repair rosters (${rostersIncomplete})`}
+              </button>
+            )}
+          </div>
         </div>
         {eventMeta?.slug && demoReady && (
           <div className="mt-3 flex flex-wrap gap-2">

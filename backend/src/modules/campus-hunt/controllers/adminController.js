@@ -250,12 +250,9 @@ async function getEventOverview(req, res, next) {
           && placeholderLocations === 0,
       };
     });
+    const { isTeamRosterReady } = require('../utils/roster');
     const teamsReady = teams.filter((team) => (
-      team.routeId
-      && team.leaderUserId
-      && team.memberUserIds?.length === 3
-      && team.accessPack?.leader?.loginEmail
-      && team.accessPack?.scanners?.length === 3
+      team.routeId && isTeamRosterReady(team)
     )).length;
     const roundOne = rounds.find((round) => Number(round.roundNumber) === 1);
     const startAssignmentsReady = teams.filter((team) => (
@@ -280,6 +277,7 @@ async function getEventOverview(req, res, next) {
         && startingPointsReady,
       teamsReady,
       teamsTotal: teams.length,
+      rostersIncomplete: teams.length - teamsReady,
       startAssignmentsReady,
       scheduleLocked: roundOne?.scheduleStatus === 'locked',
       unassignedTeams: teams.filter((team) => !team.routeId).length,
@@ -3526,6 +3524,30 @@ async function bootstrapRound1(req, res, next) {
   }
 }
 
+async function repairTeamRosters(req, res, next) {
+  try {
+    const { repairAllTeamRostersForEvent } = require('../services/rosterProvisionService');
+    const data = await repairAllTeamRostersForEvent(req.params.eventId, {
+      leaderPassword: req.body?.leaderPassword || 'HUNT2026',
+      scannerPassword: req.body?.scannerPassword || 'HUNT2026',
+    });
+    await writeAudit({
+      eventId: req.params.eventId,
+      ...adminActor(req),
+      action: 'repair_team_rosters',
+      targetType: 'event',
+      targetId: req.params.eventId,
+      after: data,
+    });
+    return res.json({ success: true, data });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, message: err.message });
+    }
+    return next(err);
+  }
+}
+
 async function updateEventCampusStations(req, res, next) {
   try {
     const result = await updateCampusStations({
@@ -3634,4 +3656,5 @@ module.exports = {
   updateIssue,
   listAudit,
   bootstrapRound1,
+  repairTeamRosters,
 };

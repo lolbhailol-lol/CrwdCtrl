@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Eye, EyeOff, X, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
@@ -330,6 +330,21 @@ export default function CrwdCtrlLogin({
         }
     };
 
+    const autoGoogleRef = useRef(false);
+    const googleAuthFnRef = useRef(handleGoogleAuth);
+    googleAuthFnRef.current = handleGoogleAuth;
+
+    // googleOnly sheet: one tap from Profile → Google picker opens automatically
+    useEffect(() => {
+        if (!googleOnly || !isModal || autoGoogleRef.current || isAuthenticated) return undefined;
+        autoGoogleRef.current = true;
+        const delay = reduceMotion ? 0 : 220;
+        const timer = window.setTimeout(() => {
+            googleAuthFnRef.current?.();
+        }, delay);
+        return () => window.clearTimeout(timer);
+    }, [googleOnly, isModal, isAuthenticated, reduceMotion]);
+
     const googleOnlySheet = googleOnly && isModal ? (
                 <AnimatePresence>
                     <motion.div
@@ -343,7 +358,7 @@ export default function CrwdCtrlLogin({
                         <motion.button
                             type="button"
                             aria-label="Close"
-                            className={`absolute inset-0 ${isDark ? 'bg-black/55' : 'bg-black/35'} backdrop-blur-[3px]`}
+                            className={`absolute inset-0 ${isDark ? 'bg-black/50' : 'bg-black/30'}`}
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
@@ -424,7 +439,7 @@ export default function CrwdCtrlLogin({
                                 }`}
                             >
                                 <GoogleIcon />
-                                {isLoading ? 'Connecting…' : 'Continue with Google'}
+                                {isLoading ? 'Opening Google…' : 'Continue with Google'}
                             </motion.button>
 
                             <p className={`mt-3 mb-1 text-center text-[11px] ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
@@ -445,7 +460,7 @@ export default function CrwdCtrlLogin({
         <>
             {/* Background overlay with blur - only show for modal */}
             {isModal && (
-                <div className={`fixed inset-0 backdrop-blur-sm ${isDark ? 'bg-black/85' : 'bg-white/85'}`} onClick={handleClose}></div>
+                <div className={`fixed inset-0 ${isDark ? 'bg-black/50' : 'bg-black/30'}`} onClick={handleClose}></div>
             )}
 
             {/* Login Modal Container */}

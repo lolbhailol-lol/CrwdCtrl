@@ -230,9 +230,96 @@ async function provisionTeamRoster({
   };
 }
 
+function memberNamesForTeam(team) {
+  const fromTeam = (team.memberNames || [])
+    .map((n) => String(n || '').trim())
+    .filter(Boolean);
+  if (fromTeam.length === 3) return fromTeam;
+  const label = team.teamName || team.teamCode || 'Team';
+  return [`${label} · Player 1`, `${label} · Player 2`, `${label} · Player 3`];
+}
+
+/**
+ * Provision synthetic hunt accounts for a team missing leaderUserId / scanners.
+ * Safe to re-run — resets passwords when accounts already exist.
+ */
+async function repairTeamRoster(team, event, {
+  leaderPassword = 'HUNT2026',
+  scannerPassword = 'HUNT2026',
+} = {}) {
+  const { isTeamRosterReady } = require('../utils/roster');
+  if (isTeamRosterReady(team)) {
+    return { repaired: false, teamCode: team.teamCode };
+  }
+
+  const provisioned = await provisionTeamRoster({
+    eventId: event._id,
+    teamCode: team.teamCode,
+    teamName: team.teamName || team.teamCode,
+    leaderEmail: team.leaderContactEmail || team.accessPack?.leader?.contactEmail || '',
+    leaderName: team.leaderName || team.accessPack?.leader?.name || `${team.teamCode} Leader`,
+    leaderPassword,
+    memberNames: memberNamesForTeam(team),
+    scannerPassword,
+  });
+
+  team.leaderUserId = provisioned.leaderUserId;
+  team.memberUserIds = provisioned.memberUserIds;
+  team.leaderName = provisioned.leaderName;
+  team.leaderContactEmail = provisioned.leaderContactEmail || team.leaderContactEmail;
+  team.memberNames = provisioned.memberNames;
+  team.accessPack = provisioned.accessPack;
+  await team.save();
+
+  return { repaired: true, teamCode: team.teamCode };
+}
+
+async function repairAllTeamRostersForEvent(eventId, options = {}) {
+  const CampusHuntTeam = require('../models/CampusHuntTeam');
+  const CampusHuntEvent = require('../models/CampusHuntEvent');
+  const { isTeamRosterReady } = require('../utils/roster');
+
+  const event = await CampusHuntEvent.findById(eventId);
+  if (!event) {
+    const err = new Error('Event not found');
+    err.status = 404;
+    throw err;
+  }
+
+  const teams = await CampusHuntTeam.find({ eventId: event._id }).sort({ teamCode: 1 });
+  let repaired = 0;
+  let alreadyReady = 0;
+  const errors = [];
+
+  for (const team of teams) {
+    if (isTeamRosterReady(team)) {
+      alreadyReady += 1;
+      // eslint-disable-next-line no-continue
+      continue;
+    }
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      const result = await repairTeamRoster(team, event, options);
+      if (result.repaired) repaired += 1;
+    } catch (err) {
+      errors.push({ teamCode: team.teamCode, message: err.message || 'Repair failed' });
+    }
+  }
+
+  return {
+    total: teams.length,
+    repaired,
+    alreadyReady,
+    stillIncomplete: teams.length - alreadyReady - repaired,
+    errors,
+  };
+}
+
 module.exports = {
   generatePassword,
   provisionTeamRoster,
   ensureLeaderUser,
   ensureScannerUser,
+  repairTeamRoster,
+  repairAllTeamRostersForEvent,
 };

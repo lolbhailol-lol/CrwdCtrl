@@ -4,6 +4,12 @@ const { getJwtSecret } = require('../config/jwtSecret');
 
 const isDev = process.env.NODE_ENV === 'development';
 
+function isHuntEnrollmentDecoded(decoded) {
+  if (!decoded?.userId) return false;
+  if (decoded.tokenType === 'hunt' || decoded.aud === 'campus-hunt') return true;
+  return !!(decoded.huntEventId && decoded.huntTeamId);
+}
+
 const authenticateToken = async (req, res, next) => {
     try {
         const authHeader = req.headers.authorization;
@@ -30,6 +36,16 @@ const authenticateToken = async (req, res, next) => {
             return res.status(401).json({
                 success: false,
                 message: 'Token has expired',
+            });
+        }
+
+        const requestPath = String(req.originalUrl || req.url || '');
+        const isCampusHuntRoute = requestPath.includes('/campus-hunt');
+        if (isHuntEnrollmentDecoded(decoded) && !isCampusHuntRoute) {
+            return res.status(403).json({
+                success: false,
+                message: 'Hunt session cannot access this part of CrwdCtrl. Sign in with Google for the main app.',
+                code: 'HUNT_SESSION_ONLY',
             });
         }
 

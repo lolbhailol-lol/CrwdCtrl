@@ -435,6 +435,7 @@ export default function CampusHuntEventControl() {
               <TeamManagerPanel
                 eventId={eventId}
                 roundId={round1?._id}
+                readiness={readiness}
                 onChanged={() => refresh().catch(() => {})}
               />
             </div>
@@ -546,7 +547,13 @@ export default function CampusHuntEventControl() {
                   <p className="mt-2 text-xs text-amber-100">
                     Setup still incomplete ({readiness.teamsReady}/{readiness.teamsTotal} rosters,
                     {' '}{readiness.startAssignmentsReady || 0}/{readiness.teamsTotal} full bindings).
-                    Start may still be blocked — finish Clues + Teams first.
+                    {readiness.rostersIncomplete > 0 ? (
+                      <>
+                        {' '}Teams tab → <strong>Repair rosters</strong> — demo teams need leader + 3 player accounts.
+                      </>
+                    ) : (
+                      <> Start may still be blocked — finish Clues + Teams first.</>
+                    )}
                   </p>
                 )}
               </section>

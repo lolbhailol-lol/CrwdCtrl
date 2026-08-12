@@ -2,6 +2,12 @@ import { userApiCall } from '../../../services/api/auth.api';
 import { adminFetchJSON } from '../../../services/api/admin.api';
 import { publicFetchJSON, resolveUrl } from '../../../services/api/client';
 import { gridClientHeaders } from '../grid/laptopOnly';
+import {
+  clearHuntAuth,
+  isHuntTokenExpired,
+  resolveHuntToken,
+} from '../utils/huntAuth';
+import { redirectCampusHuntAuthLoss } from '../utils/huntSession';
 
 const BASE = '/campus-hunt';
 
@@ -14,6 +20,52 @@ function withGridClientHeaders(options = {}) {
     },
   };
 }
+
+/** Authenticated hunt player API — uses campus_hunt_player_token only. */
+async function huntJson(url, options = {}) {
+  let token = resolveHuntToken();
+  if (!token || isHuntTokenExpired(token)) {
+    clearHuntAuth();
+    const err = new Error('Hunt session expired — open your team link again');
+    err.status = 401;
+    err.code = 'AUTH_401';
+    throw err;
+  }
+
+  const doFetch = (bearerToken) => fetch(resolveUrl(url), {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(bearerToken ? { Authorization: `Bearer ${bearerToken}` } : {}),
+      ...(options.headers || {}),
+    },
+    credentials: options.credentials ?? 'include',
+    mode: options.mode ?? 'cors',
+  });
+
+  let response = await doFetch(token);
+  let data = await response.json().catch(() => ({}));
+
+  if (response.status === 401) {
+    clearHuntAuth();
+    redirectCampusHuntAuthLoss();
+    const err = new Error(data.message || 'Hunt session expired — open your team link again');
+    err.status = 401;
+    err.code = data.code || 'AUTH_401';
+    err.data = data;
+    throw err;
+  }
+
+  if (!response.ok) {
+    const err = new Error(data.message || data.error || 'Request failed');
+    err.status = response.status;
+    err.code = data.code;
+    err.data = data;
+    throw err;
+  }
+  return data;
+}
+
 async function userJson(url, options = {}) {
   const response = await userApiCall(url, options);
   const data = await response.json().catch(() => ({}));
@@ -88,11 +140,11 @@ export async function enterTeamAsMember(slug, teamCode, { password, role, slot }
 }
 
 export async function fetchMyTeam(eventId) {
-  return userJson(`${BASE}/me/team?eventId=${encodeURIComponent(eventId)}`);
+  return huntJson(`${BASE}/me/team?eventId=${encodeURIComponent(eventId)}`);
 }
 
 export async function fetchTeamProgress(teamId) {
-  return userJson(`${BASE}/teams/${teamId}/progress`);
+  return huntJson(`${BASE}/teams/${teamId}/progress`);
 }
 
 export async function submitChallengeAnswer(teamId, challengeNumber, answer, requestId) {
@@ -100,21 +152,21 @@ export async function submitChallengeAnswer(teamId, challengeNumber, answer, req
     Number(challengeNumber) === 1
       ? `${BASE}/teams/${teamId}/challenges/1/submit`
       : `${BASE}/teams/${teamId}/challenges/${challengeNumber}/submit`;
-  return userJson(path, {
+  return huntJson(path, {
     method: 'POST',
     body: JSON.stringify({ answer, requestId }),
   });
 }
 
 export async function requestChallengeHint(teamId, challengeNumber, requestId) {
-  return userJson(`${BASE}/teams/${teamId}/challenges/${challengeNumber}/hint`, {
+  return huntJson(`${BASE}/teams/${teamId}/challenges/${challengeNumber}/hint`, {
     method: 'POST',
     body: JSON.stringify({ confirm: true, requestId }),
   });
 }
 
 export async function scanStationCheckpoint(teamId, raw) {
-  return userJson(`${BASE}/teams/${teamId}/checkpoints/scan`, {
+  return huntJson(`${BASE}/teams/${teamId}/checkpoints/scan`, {
     method: 'POST',
     body: JSON.stringify({ raw }),
   });
@@ -122,7 +174,7 @@ export async function scanStationCheckpoint(teamId, raw) {
 
 /** After 4/4 shared-station scans — confirm team code to unlock allotted clue. */
 export async function confirmStationCheckpoint(teamId, { teamCode, checkpointId }) {
-  return userJson(`${BASE}/teams/${teamId}/checkpoints/confirm`, {
+  return huntJson(`${BASE}/teams/${teamId}/checkpoints/confirm`, {
     method: 'POST',
     body: JSON.stringify({ teamCode, checkpointId }),
   });
@@ -133,14 +185,14 @@ export async function forceUnlockClue2(teamId) {
   if (!import.meta.env.DEV) {
     throw new Error('Dev unlock is not available');
   }
-  return userJson(`${BASE}/teams/${teamId}/dev/force-clue2`, {
+  return huntJson(`${BASE}/teams/${teamId}/dev/force-clue2`, {
     method: 'POST',
     body: JSON.stringify({}),
   });
 }
 
 export async function fetchLeaderboard(eventId) {
-  return userJson(`${BASE}/events/${eventId}/leaderboard`);
+  return huntJson(`${BASE}/events/${eventId}/leaderboard`);
 }
 
 /** Public colleges + events for profile picker */
@@ -175,32 +227,32 @@ export async function fetchPublicFinaleLeaderboard(eventId) {
 }
 
 export async function fetchFinaleMe(eventId) {
-  return userJson(`${BASE}/events/${encodeURIComponent(eventId)}/finale/me`);
+  return huntJson(`${BASE}/events/${encodeURIComponent(eventId)}/finale/me`);
 }
 
 export async function startFinaleMission(teamId, missionId) {
-  return userJson(`${BASE}/teams/${teamId}/finale/missions/${encodeURIComponent(missionId)}/start`, {
+  return huntJson(`${BASE}/teams/${teamId}/finale/missions/${encodeURIComponent(missionId)}/start`, {
     method: 'POST',
     body: JSON.stringify({}),
   });
 }
 
 export async function submitFinaleMission(teamId, missionId, answer) {
-  return userJson(`${BASE}/teams/${teamId}/finale/missions/${encodeURIComponent(missionId)}/submit`, {
+  return huntJson(`${BASE}/teams/${teamId}/finale/missions/${encodeURIComponent(missionId)}/submit`, {
     method: 'POST',
     body: JSON.stringify({ answer }),
   });
 }
 
 export async function abandonFinaleMission(teamId) {
-  return userJson(`${BASE}/teams/${teamId}/finale/missions/abandon`, {
+  return huntJson(`${BASE}/teams/${teamId}/finale/missions/abandon`, {
     method: 'POST',
     body: JSON.stringify({}),
   });
 }
 
 export async function stopFinaleTeam(teamId) {
-  return userJson(`${BASE}/teams/${teamId}/finale/stop`, {
+  return huntJson(`${BASE}/teams/${teamId}/finale/stop`, {
     method: 'POST',
     body: JSON.stringify({}),
   });
@@ -372,6 +424,13 @@ export async function adminUpdateCampusStations(eventId, campusStations, reason 
 
 export async function adminBootstrapRound1(eventId, body = {}) {
   return adminFetchJSON(`${BASE}/admin/events/${eventId}/bootstrap-round1`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminRepairTeamRosters(eventId, body = {}) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/teams/repair-rosters`, {
     method: 'POST',
     body: JSON.stringify(body),
   });
