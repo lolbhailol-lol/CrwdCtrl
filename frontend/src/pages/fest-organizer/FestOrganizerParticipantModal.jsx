@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { X, Loader, Check, Ban, RotateCcw } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { X, Loader, Check, Ban, RotateCcw, MessageCircle, Phone } from 'lucide-react';
 import {
     fetchFestOrganizerParticipant,
     updateFestOrganizerParticipantStatus,
@@ -37,6 +38,18 @@ function statusTone(status) {
     if (status === 'pending') return 'warning';
     if (status === 'rejected') return 'danger';
     return 'neutral';
+}
+
+function waLink(phone) {
+    const digits = String(phone || '').replace(/\D/g, '');
+    if (!digits) return null;
+    const withCountry = digits.length === 10 ? `91${digits}` : digits;
+    return `https://wa.me/${withCountry}`;
+}
+
+function telLink(phone) {
+    const digits = String(phone || '').replace(/\D/g, '');
+    return digits ? `tel:${digits}` : null;
 }
 
 export default function FestOrganizerParticipantModal({ festId, registrationId, onClose, onUpdated }) {
@@ -88,6 +101,12 @@ export default function FestOrganizerParticipantModal({ festId, registrationId, 
         ? Object.entries(participant.responses).filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '')
         : [];
 
+    const wa = participant ? waLink(participant.userPhone) : null;
+    const tel = participant ? telLink(participant.userPhone) : null;
+    const metaBits = participant
+        ? [participant.college, participant.city, participant.year, participant.course].filter(Boolean)
+        : [];
+
     return (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
             <button type="button" className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" onClick={onClose} aria-label="Close" />
@@ -115,15 +134,44 @@ export default function FestOrganizerParticipantModal({ festId, registrationId, 
                         <div className="flex flex-wrap items-start justify-between gap-2">
                             <div className="min-w-0">
                                 <p className="text-lg font-semibold text-white truncate">{participant.userName || '—'}</p>
-                                <p className="text-sm text-gray-400 truncate">{participant.userEmail || '—'}</p>
+                                {participant.teamName ? (
+                                    <p className="text-sm text-gray-400 mt-0.5">Team · {participant.teamName}</p>
+                                ) : null}
+                                <p className="text-sm text-gray-500 truncate mt-0.5">{participant.userEmail || '—'}</p>
                                 {participant.userPhone ? (
-                                    <p className="text-sm text-gray-500 mt-0.5">{participant.userPhone}</p>
+                                    <p className="text-sm text-gray-500 mt-0.5 tabular-nums">{participant.userPhone}</p>
+                                ) : null}
+                                {metaBits.length ? (
+                                    <p className="text-xs text-gray-600 mt-1">{metaBits.join(' · ')}</p>
                                 ) : null}
                             </div>
-                            <div className="flex flex-wrap gap-1.5">
-                                <Badge tone={statusTone(participant.status)}>{participant.status}</Badge>
-                                <Badge tone="info">{participant.paymentStatus}</Badge>
-                                {participant.checkedIn ? <Badge tone="success">Checked in</Badge> : null}
+                            <div className="flex flex-col items-end gap-2">
+                                <div className="flex flex-wrap gap-1.5 justify-end">
+                                    <Badge tone={statusTone(participant.status)}>{participant.status}</Badge>
+                                    <Badge tone="info">{participant.paymentStatus}</Badge>
+                                    {participant.checkedIn ? <Badge tone="success">Checked in</Badge> : null}
+                                    {participant.isManual ? <Badge tone="neutral">Manual</Badge> : null}
+                                </div>
+                                {(wa || tel) ? (
+                                    <div className="flex gap-1.5">
+                                        {wa ? (
+                                            <a
+                                                href={wa}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="p-2 rounded-xl bg-emerald-500/15 text-emerald-300"
+                                                aria-label="WhatsApp"
+                                            >
+                                                <MessageCircle size={15} />
+                                            </a>
+                                        ) : null}
+                                        {tel ? (
+                                            <a href={tel} className="p-2 rounded-xl bg-white/5 text-gray-300" aria-label="Call">
+                                                <Phone size={15} />
+                                            </a>
+                                        ) : null}
+                                    </div>
+                                ) : null}
                             </div>
                         </div>
 
@@ -131,6 +179,15 @@ export default function FestOrganizerParticipantModal({ festId, registrationId, 
                             <div className="rounded-xl bg-white/3 px-3 py-2.5">
                                 <p className="text-[10px] text-gray-500 uppercase">Competition</p>
                                 <p className="text-white mt-1">{participant.competitionName || '—'}</p>
+                                {participant.competitionId && festId ? (
+                                    <Link
+                                        to={`/fest-organizer/fests/${festId}/competitions/${participant.competitionId}`}
+                                        className="text-[11px] text-[#0ECCEE] mt-1 inline-block"
+                                        onClick={onClose}
+                                    >
+                                        Open desk →
+                                    </Link>
+                                ) : null}
                             </div>
                             <div className="rounded-xl bg-white/3 px-3 py-2.5">
                                 <p className="text-[10px] text-gray-500 uppercase">Amount</p>

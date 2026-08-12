@@ -81,9 +81,70 @@ function responsesToObject(responses) {
     return { ...responses };
 }
 
+function pickResponse(responses, keys) {
+    for (const key of keys) {
+        const v = responses[key];
+        if (v == null) continue;
+        const s = String(Array.isArray(v) ? v.join(', ') : v).trim();
+        if (s) return s;
+    }
+    return '';
+}
+
+const HIDDEN_RESPONSE_KEYS = new Set([
+    'manual_entry', 'added_by_organizer', 'organizer_note',
+    'password', 'token', 'qr',
+]);
+
+function buildHighlights(responses = {}) {
+    const skip = new Set([
+        ...HIDDEN_RESPONSE_KEYS,
+        'full_name', 'name', 'leader_name', 'email', 'phone', 'contact_no', 'mobile',
+        'team_name', 'teamName', 'team', 'group_name', 'band_name',
+        'college', 'college_name', 'collegeName', 'institution',
+        'team_members', 'members', 'member_names', 'teammates',
+    ]);
+    const out = [];
+    for (const [key, value] of Object.entries(responses)) {
+        if (!key || skip.has(key) || key.startsWith('_')) continue;
+        if (value == null || value === '') continue;
+        const label = key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+        const display = Array.isArray(value)
+            ? value.map((v) => (typeof v === 'object' ? JSON.stringify(v) : String(v))).join(', ')
+            : typeof value === 'object'
+                ? JSON.stringify(value)
+                : String(value);
+        if (!display.trim()) continue;
+        out.push({ key, label, value: display.trim().slice(0, 200) });
+        if (out.length >= 8) break;
+    }
+    return out;
+}
+
 function formatParticipant(reg) {
     const responses = responsesToObject(reg.responses);
     const user = reg.user && typeof reg.user === 'object' ? reg.user : null;
+    const teamName = pickResponse(responses, ['team_name', 'teamName', 'team', 'group_name', 'band_name']);
+    const college = pickResponse(responses, ['college', 'college_name', 'collegeName', 'institution']);
+    const city = pickResponse(responses, ['city', 'location', 'hometown']);
+    const year = pickResponse(responses, ['year', 'year_of_study', 'academic_year', 'class']);
+    const course = pickResponse(responses, ['course', 'branch', 'department', 'stream']);
+    const membersRaw = responses.team_members
+        || responses.members
+        || responses.member_names
+        || responses.teammates
+        || '';
+    let members = [];
+    if (Array.isArray(membersRaw)) {
+        members = membersRaw.map((m) => (typeof m === 'string' ? m : m?.name || '')).filter(Boolean);
+    } else if (typeof membersRaw === 'string' && membersRaw.trim()) {
+        members = membersRaw.split(/[,;\n]+/).map((s) => s.trim()).filter(Boolean);
+    }
+    const userName = user?.name || pickResponse(responses, ['full_name', 'name', 'leader_name']) || '';
+    const userPhone = user?.phone || user?.phoneNumber
+        || pickResponse(responses, ['contact_no', 'phone', 'mobile']) || '';
+    const userEmail = user?.email || pickResponse(responses, ['email']) || '';
+
     return {
         id: reg._id,
         status: reg.status,
@@ -93,9 +154,19 @@ function formatParticipant(reg) {
         checkedInAt: reg.checkedInAt || null,
         competitionId: reg.competitionId?._id || reg.competitionId || null,
         competitionName: reg.competitionId?.competitionName || reg.competitionId?.name || '',
-        userName: user?.name || responses.full_name || responses.name || '',
-        userEmail: user?.email || responses.email || '',
-        userPhone: user?.phone || user?.phoneNumber || responses.contact_no || responses.phone || '',
+        userName,
+        userEmail,
+        userPhone,
+        teamName,
+        college,
+        city,
+        year,
+        course,
+        members,
+        memberCount: members.length || (userName ? 1 : 0),
+        highlights: buildHighlights(responses),
+        note: pickResponse(responses, ['organizer_note', 'note', 'remarks']),
+        isManual: /^(yes|true|1)$/i.test(String(responses.manual_entry || responses.added_by_organizer || '')),
         submittedAt: reg.submittedAt || reg.createdAt,
         createdAt: reg.createdAt,
         updatedAt: reg.updatedAt,
@@ -105,6 +176,100 @@ function formatParticipant(reg) {
         payment_gateway: reg.payment_gateway || null,
         responses,
     };
+}
+
+function groupParticipantsIntoTeams(participants) {
+    const teams = [];
+    const solo = [];
+    const byKey = new Map();
+
+    for (const p of participants) {
+        const key = String(p.teamName || '').trim().toLowerCase();
+        if (!key) {
+            solo.push(p);
+            continue;
+        }
+        if (!byKey.has(key)) {
+            byKey.set(key, {
+                id: key,
+                teamName: p.teamName,
+                college: p.college || '',
+                city: p.city || '',
+                year: p.year || '',
+                course: p.course || '',
+                memberNames: [],
+                registrations: [],
+                registrationIds: [],
+                status: p.status,
+                paymentStatus: p.paymentStatus,
+                amountPaid: 0,
+                checkedInCount: 0,
+                pendingCount: 0,
+                approvedCount: 0,
+                captainName: p.userName,
+                captainPhone: p.userPhone,
+                captainEmail: p.userEmail,
+                captainId: p.id,
+                submittedAt: p.submittedAt || p.createdAt,
+                highlights: p.highlights || [],
+                isManual: Boolean(p.isManual),
+            });
+        }
+        const t = byKey.get(key);
+        t.registrations.push(p);
+        t.registrationIds.push(p.id);
+        t.amountPaid += Number(p.amountPaid) || 0;
+        if (!t.college && p.college) t.college = p.college;
+        if (!t.city && p.city) t.city = p.city;
+        if (!t.year && p.year) t.year = p.year;
+        if (!t.course && p.course) t.course = p.course;
+        if (p.status === 'pending') {
+            t.status = 'pending';
+            t.pendingCount += 1;
+        } else if (p.status === 'approved') {
+            t.approvedCount += 1;
+            if (t.status !== 'pending') t.status = 'approved';
+        } else if (p.status === 'rejected' && t.status !== 'pending' && t.status !== 'approved') {
+            t.status = 'rejected';
+        }
+        if (p.paymentStatus === 'paid') t.paymentStatus = 'paid';
+        else if (p.paymentStatus === 'pending' && t.paymentStatus !== 'paid') t.paymentStatus = 'pending';
+        if (p.checkedIn) t.checkedInCount += 1;
+        if (p.userName && !t.memberNames.includes(p.userName)) t.memberNames.push(p.userName);
+        if (Array.isArray(p.members)) {
+            for (const m of p.members) {
+                if (m && !t.memberNames.includes(m)) t.memberNames.push(m);
+            }
+        }
+        if (p.highlights?.length && (!t.highlights || t.highlights.length < p.highlights.length)) {
+            t.highlights = p.highlights;
+        }
+        if (p.isManual) t.isManual = true;
+        const submitted = p.submittedAt || p.createdAt;
+        if (submitted && (!t.submittedAt || new Date(submitted) < new Date(t.submittedAt))) {
+            t.submittedAt = submitted;
+        }
+        // Prefer registration that looks like captain (has phone) as contact
+        if (p.userPhone && !t.captainPhone) {
+            t.captainName = p.userName;
+            t.captainPhone = p.userPhone;
+            t.captainEmail = p.userEmail;
+            t.captainId = p.id;
+        }
+    }
+
+    for (const t of byKey.values()) {
+        t.memberCount = t.memberNames.length || t.registrations.length;
+        t.checkedIn = t.checkedInCount > 0 && t.checkedInCount >= t.registrations.length;
+        t.members = t.memberNames;
+        teams.push(t);
+    }
+    teams.sort((a, b) => {
+        const pd = (b.pendingCount || 0) - (a.pendingCount || 0);
+        if (pd !== 0) return pd;
+        return a.teamName.localeCompare(b.teamName);
+    });
+    return { teams, solo };
 }
 
 async function buildOrganizerAuthResponse(organizer, { displayName } = {}) {
@@ -345,7 +510,8 @@ exports.getDashboard = async (req, res) => {
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
 
-        const baseApproved = { fest: festId, status: 'approved' };
+        const baseApproved = { fest: festId, status: 'approved', isProShow: { $ne: true } };
+        const notProShow = { fest: festId, isProShow: { $ne: true } };
 
         const [
             totalRegistrations,
@@ -361,21 +527,21 @@ exports.getDashboard = async (req, res) => {
             recentRegs,
         ] = await Promise.all([
             Registration.countDocuments(baseApproved),
-            Registration.countDocuments({ fest: festId, status: 'pending' }),
-            Registration.countDocuments({ fest: festId, status: 'rejected' }),
+            Registration.countDocuments({ ...notProShow, status: 'pending' }),
+            Registration.countDocuments({ ...notProShow, status: 'rejected' }),
             Registration.countDocuments({ ...baseApproved, checkedIn: true }),
             Registration.find(baseApproved).select('amountPaid paymentStatus').lean(),
             Registration.countDocuments({
-                fest: festId,
+                ...notProShow,
                 createdAt: { $gte: today, $lt: tomorrow },
             }),
-            Registration.countDocuments({ fest: festId, status: { $in: ['pending', 'approved'] } }),
+            Registration.countDocuments({ ...notProShow, status: { $in: ['pending', 'approved'] } }),
             Competition.find({ fest: festId })
-                .select('name competitionType')
+                .select('name competitionType category coverImage subtitle feeAmount registrationFee slotsAllotted')
                 .sort({ name: 1 })
                 .lean(),
             Registration.aggregate([
-                { $match: { fest: festOid } },
+                { $match: { fest: festOid, isProShow: { $ne: true } } },
                 {
                     $group: {
                         _id: '$competitionId',
@@ -416,7 +582,7 @@ exports.getDashboard = async (req, res) => {
                 },
             ]),
             Registration.aggregate([
-                { $match: { fest: festOid, status: { $in: ['pending', 'approved'] } } },
+                { $match: { fest: festOid, status: { $in: ['pending', 'approved'] }, isProShow: { $ne: true } } },
                 {
                     $group: {
                         _id: { $ifNull: ['$paymentStatus', 'unknown'] },
@@ -425,7 +591,7 @@ exports.getDashboard = async (req, res) => {
                     },
                 },
             ]),
-            Registration.find({ fest: festId, status: { $in: ['pending', 'approved'] } })
+            Registration.find({ fest: festId, status: { $in: ['pending', 'approved'] }, isProShow: { $ne: true } })
                 .populate('user', 'name email')
                 .populate('competitionId', 'name')
                 .sort({ createdAt: -1 })
@@ -443,10 +609,21 @@ exports.getDashboard = async (req, res) => {
             const row = statsById.get(String(c._id)) || {};
             const approved = Number(row.approved) || 0;
             const checked = Number(row.checkedIn) || 0;
+            const feeAmount = Number(c.feeAmount ?? c.registrationFee) || 0;
+            const slotsAllotted = Math.max(0, Number(c.slotsAllotted) || 0);
+            const slotsFilled = approved;
+            const slotsLeft = slotsAllotted > 0 ? Math.max(0, slotsAllotted - slotsFilled) : null;
             return {
                 id: c._id,
                 name: c.name || 'Competition',
                 competitionType: c.competitionType || '',
+                category: c.category || 'OTHER',
+                subtitle: c.subtitle || '',
+                coverImage: c.coverImage || '',
+                feeAmount,
+                slotsAllotted,
+                slotsFilled,
+                slotsLeft,
                 total: Number(row.total) || 0,
                 approved,
                 pending: Number(row.pending) || 0,
@@ -492,6 +669,13 @@ exports.getDashboard = async (req, res) => {
                 id: null,
                 name: 'Other / unassigned',
                 competitionType: '',
+                category: 'OTHER',
+                subtitle: '',
+                coverImage: '',
+                feeAmount: 0,
+                slotsAllotted: 0,
+                slotsFilled: 0,
+                slotsLeft: null,
                 ...other,
             });
         }
@@ -595,27 +779,45 @@ exports.listParticipants = async (req, res) => {
         const skip = (page - 1) * limit;
         const search = String(req.query.search || '').trim();
         const status = String(req.query.status || '').trim();
-        const checkInStatus = req.query.checkInStatus;
+        const checkInStatus = String(req.query.checkInStatus || '').trim();
+        const paymentStatus = String(req.query.paymentStatus || '').trim();
         const competitionId = req.query.competitionId;
 
-        const filter = { fest: festId };
+        const filter = { fest: festId, isProShow: { $ne: true } };
 
         if (['pending', 'approved', 'rejected'].includes(status)) {
             filter.status = status;
+        } else if (status === 'all') {
+            filter.status = { $in: ['pending', 'approved', 'rejected'] };
         } else {
             filter.status = { $in: ['pending', 'approved'] };
         }
 
-        if (checkInStatus === 'checked_in') filter.checkedIn = true;
-        if (checkInStatus === 'pending') filter.checkedIn = { $ne: true };
+        if (checkInStatus === 'checked_in') {
+            filter.checkedIn = true;
+        } else if (checkInStatus === 'not_in') {
+            filter.checkedIn = { $ne: true };
+            // Gate view: only people who should be inside
+            if (!['pending', 'rejected'].includes(status)) {
+                filter.status = 'approved';
+            }
+        }
         if (competitionId && mongoose.Types.ObjectId.isValid(competitionId)) {
             filter.competitionId = competitionId;
+        }
+        if (['paid', 'pending', 'free', 'failed'].includes(paymentStatus)) {
+            filter.paymentStatus = paymentStatus;
         }
 
         if (search) {
             const regex = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
             const userIds = await mongoose.model('User').find({
-                $or: [{ name: regex }, { email: regex }, { phone: regex }],
+                $or: [
+                    { name: regex },
+                    { email: regex },
+                    { phone: regex },
+                    { phoneNumber: regex },
+                ],
             }).select('_id').lean();
             const ids = userIds.map((u) => u._id);
             filter.$or = [
@@ -624,8 +826,9 @@ exports.listParticipants = async (req, res) => {
             ];
         }
 
+        const festOid = new mongoose.Types.ObjectId(String(festId));
         const Competition = mongoose.model('Competition');
-        const [total, rows, competitions] = await Promise.all([
+        const [total, rows, competitions, summaryRows] = await Promise.all([
             Registration.countDocuments(filter),
             Registration.find(filter)
                 .populate('user', 'name email phone phoneNumber')
@@ -635,10 +838,61 @@ exports.listParticipants = async (req, res) => {
                 .limit(limit)
                 .lean(),
             Competition.find({ fest: festId }).select('name').sort({ name: 1 }).lean(),
+            Registration.aggregate([
+                { $match: { fest: festOid, isProShow: { $ne: true } } },
+                {
+                    $group: {
+                        _id: null,
+                        pending: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] } },
+                        approved: { $sum: { $cond: [{ $eq: ['$status', 'approved'] }, 1, 0] } },
+                        rejected: { $sum: { $cond: [{ $eq: ['$status', 'rejected'] }, 1, 0] } },
+                        checkedIn: {
+                            $sum: {
+                                $cond: [
+                                    { $and: [{ $eq: ['$status', 'approved'] }, { $eq: ['$checkedIn', true] }] },
+                                    1,
+                                    0,
+                                ],
+                            },
+                        },
+                        unpaid: {
+                            $sum: {
+                                $cond: [
+                                    {
+                                        $and: [
+                                            { $in: ['$status', ['pending', 'approved']] },
+                                            { $eq: ['$paymentStatus', 'pending'] },
+                                        ],
+                                    },
+                                    1,
+                                    0,
+                                ],
+                            },
+                        },
+                        active: {
+                            $sum: {
+                                $cond: [{ $in: ['$status', ['pending', 'approved']] }, 1, 0],
+                            },
+                        },
+                    },
+                },
+            ]),
         ]);
+
+        const s = summaryRows[0] || {};
+        const summary = {
+            pending: s.pending || 0,
+            approved: s.approved || 0,
+            rejected: s.rejected || 0,
+            checkedIn: s.checkedIn || 0,
+            notCheckedIn: Math.max(0, (s.approved || 0) - (s.checkedIn || 0)),
+            unpaid: s.unpaid || 0,
+            active: s.active || 0,
+        };
 
         res.json({
             success: true,
+            summary,
             participants: rows.map(formatParticipant),
             competitions: competitions.map((c) => ({ id: c._id, name: c.name || 'Competition' })),
             pagination: {
@@ -677,6 +931,7 @@ exports.exportParticipants = async (req, res) => {
         const filter = {
             fest: req.festId,
             status: { $in: ['pending', 'approved'] },
+            isProShow: { $ne: true },
         };
         const competitionId = String(req.query.competitionId || '').trim();
         if (competitionId && mongoose.Types.ObjectId.isValid(competitionId)) {
@@ -688,7 +943,7 @@ exports.exportParticipants = async (req, res) => {
             .sort({ createdAt: -1 })
             .lean();
 
-        const header = ['id', 'name', 'email', 'phone', 'status', 'paymentStatus', 'amountPaid', 'checkedIn', 'competition', 'submittedAt'];
+        const header = ['id', 'name', 'email', 'phone', 'team', 'college', 'status', 'paymentStatus', 'amountPaid', 'checkedIn', 'competition', 'submittedAt'];
         const lines = [header.join(',')];
         for (const reg of rows) {
             const p = formatParticipant(reg);
@@ -697,6 +952,8 @@ exports.exportParticipants = async (req, res) => {
                 JSON.stringify(p.userName || ''),
                 JSON.stringify(p.userEmail || ''),
                 JSON.stringify(p.userPhone || ''),
+                JSON.stringify(p.teamName || ''),
+                JSON.stringify(p.college || ''),
                 p.status,
                 p.paymentStatus,
                 p.amountPaid,
@@ -779,8 +1036,19 @@ exports.checkin = async (req, res) => {
             raw = JSON.stringify({ registrationId: String(raw), type: 'fest' });
         }
 
+        const competitionId = mongoose.Types.ObjectId.isValid(String(req.body.competitionId || ''))
+            ? String(req.body.competitionId)
+            : null;
+        const proShowOnly = req.body.proShowOnly === true
+            || req.body.proShowOnly === 'true'
+            || req.body.proShow === true
+            || req.body.proShow === 'true'
+            || req.body.proShow === '1';
+
         const result = await performCheckinFromRaw(raw, {
             festId: req.festId,
+            competitionId: proShowOnly ? null : competitionId,
+            proShowOnly,
             allowTrek: false,
             allowSports: false,
             scannedBy: `fest_organizer:${req.organizer.username || req.organizer.name}`,
@@ -797,14 +1065,41 @@ exports.checkin = async (req, res) => {
 exports.getCheckinStats = async (req, res) => {
     try {
         const fest = await FestOrganizer.findById(req.festId).select('festName').lean();
+        const competitionId = String(req.query.competitionId || '').trim();
+        const proShowOnly = req.query.proShow === '1'
+            || req.query.proShow === 'true'
+            || req.query.proShowOnly === '1'
+            || req.query.proShowOnly === 'true';
+        const filter = { fest: req.festId, status: 'approved' };
+        if (proShowOnly) {
+            filter.isProShow = true;
+        } else {
+            filter.isProShow = { $ne: true };
+            if (competitionId && mongoose.Types.ObjectId.isValid(competitionId)) {
+                filter.competitionId = competitionId;
+            }
+        }
         const [totalRegistered, totalCheckedIn] = await Promise.all([
-            Registration.countDocuments({ fest: req.festId, status: 'approved' }),
-            Registration.countDocuments({ fest: req.festId, status: 'approved', checkedIn: true }),
+            Registration.countDocuments(filter),
+            Registration.countDocuments({ ...filter, checkedIn: true }),
         ]);
+        let competitionName = '';
+        if (proShowOnly) {
+            competitionName = 'Pro Show';
+        } else if (filter.competitionId) {
+            const Competition = mongoose.model('Competition');
+            const comp = await Competition.findOne({ _id: filter.competitionId, fest: req.festId })
+                .select('name')
+                .lean();
+            competitionName = comp?.name || '';
+        }
         res.json({
             success: true,
             festId: req.festId,
             festName: fest?.festName || '',
+            competitionId: filter.competitionId || null,
+            competitionName,
+            proShowOnly,
             totalRegistered,
             totalCheckedIn,
             checkinRate: totalRegistered > 0
@@ -828,6 +1123,7 @@ exports.sendReminder = async (req, res) => {
         const competitionId = mongoose.Types.ObjectId.isValid(String(req.body.competitionId || ''))
             ? String(req.body.competitionId)
             : null;
+        const audience = String(req.body.audience || 'approved').trim();
 
         const stats = await notifyFestParticipants({
             festId: req.festId,
@@ -838,6 +1134,7 @@ exports.sendReminder = async (req, res) => {
             link: `/view-details/${req.festId}`,
             statusFilter: ['approved'],
             competitionId,
+            audience,
         });
 
         res.json({
@@ -862,6 +1159,7 @@ exports.broadcastAnnouncement = async (req, res) => {
         const competitionId = mongoose.Types.ObjectId.isValid(String(req.body.competitionId || ''))
             ? String(req.body.competitionId)
             : null;
+        const audience = String(req.body.audience || 'approved').trim();
 
         const fest = await FestOrganizer.findById(req.festId).select('festName').lean();
         const stats = await notifyFestParticipants({
@@ -873,6 +1171,7 @@ exports.broadcastAnnouncement = async (req, res) => {
             link: `/view-details/${req.festId}`,
             statusFilter: ['approved'],
             competitionId,
+            audience,
         });
 
         res.json({
@@ -883,5 +1182,362 @@ exports.broadcastAnnouncement = async (req, res) => {
         });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Failed to broadcast announcement' });
+    }
+};
+
+/** WhatsApp / call contact sheet for organizers */
+exports.listNotifyContacts = async (req, res) => {
+    try {
+        const { listFestContacts } = require('../utils/festParticipantOutreach');
+        const competitionId = mongoose.Types.ObjectId.isValid(String(req.query.competitionId || ''))
+            ? String(req.query.competitionId)
+            : null;
+        const audience = String(req.query.audience || 'approved').trim();
+        const data = await listFestContacts({
+            festId: req.festId,
+            competitionId,
+            audience,
+            limit: Number(req.query.limit) || 250,
+        });
+        res.json({ success: true, ...data });
+    } catch (error) {
+        console.error('[festOrganizerPortal.listNotifyContacts]', error);
+        res.status(500).json({ success: false, message: 'Failed to load contacts' });
+    }
+};
+
+/** Competition Manager workspace — one competition desk */
+exports.getCompetitionOps = async (req, res) => {
+    try {
+        const festId = req.festId;
+        const { competitionId } = req.params;
+        if (!mongoose.Types.ObjectId.isValid(competitionId)) {
+            return res.status(400).json({ success: false, message: 'Invalid competition ID' });
+        }
+
+        const Competition = mongoose.model('Competition');
+        const [fest, competition] = await Promise.all([
+            FestOrganizer.findById(festId).select('festName slug').lean(),
+            Competition.findOne({ _id: competitionId, fest: festId })
+                .select('name subtitle competitionType category feeAmount registrationFee registration description coverImage slotsAllotted')
+                .lean(),
+        ]);
+        if (!fest) return res.status(404).json({ success: false, message: 'Fest not found' });
+        if (!competition) {
+            return res.status(404).json({ success: false, message: 'Competition not found for this fest' });
+        }
+
+        const base = { fest: festId, competitionId };
+        const [pendingRows, activeRows, rejectedCount, paidApproved] = await Promise.all([
+            Registration.find({ ...base, status: 'pending' })
+                .populate('user', 'name email phone phoneNumber')
+                .populate('competitionId', 'name')
+                .sort({ createdAt: -1 })
+                .limit(100)
+                .lean(),
+            Registration.find({ ...base, status: { $in: ['pending', 'approved'] } })
+                .populate('user', 'name email phone phoneNumber')
+                .populate('competitionId', 'name')
+                .sort({ createdAt: -1 })
+                .limit(500)
+                .lean(),
+            Registration.countDocuments({ ...base, status: 'rejected' }),
+            Registration.find({ ...base, status: 'approved' }).select('amountPaid checkedIn').lean(),
+        ]);
+
+        const participants = activeRows.map(formatParticipant);
+        const pending = pendingRows.map(formatParticipant);
+        const { teams, solo } = groupParticipantsIntoTeams(participants);
+
+        const approved = paidApproved.length;
+        const checkedIn = paidApproved.filter((r) => r.checkedIn).length;
+        const revenue = paidApproved.reduce((s, r) => s + (Number(r.amountPaid) || 0), 0);
+        const pendingCount = pending.length;
+        const slotsAllotted = Math.max(0, Number(competition.slotsAllotted) || 0);
+        const slotsFilled = approved;
+        const slotsLeft = slotsAllotted > 0 ? Math.max(0, slotsAllotted - slotsFilled) : null;
+
+        res.json({
+            success: true,
+            fest: { id: fest._id, festName: fest.festName, slug: fest.slug || '' },
+            competition: {
+                id: competition._id,
+                name: competition.name,
+                subtitle: competition.subtitle || '',
+                competitionType: competition.competitionType || '',
+                category: competition.category || '',
+                coverImage: competition.coverImage || '',
+                feeAmount: Number(competition.feeAmount ?? competition.registrationFee) || 0,
+                slotsAllotted,
+                slotsFilled,
+                slotsLeft,
+                registrationStatus: competition.registration?.status || '',
+                description: competition.description || '',
+            },
+            stats: {
+                total: participants.length,
+                pending: pendingCount,
+                approved,
+                rejected: rejectedCount,
+                checkedIn,
+                pendingCheckIn: Math.max(0, approved - checkedIn),
+                checkInRate: approved > 0 ? Math.round((checkedIn / approved) * 100) : 0,
+                revenue,
+                teamCount: teams.length,
+                soloCount: solo.length,
+                slotsAllotted,
+                slotsFilled,
+                slotsLeft,
+            },
+            pending,
+            participants,
+            teams,
+            solo,
+        });
+    } catch (error) {
+        console.error('[festOrganizerPortal.getCompetitionOps]', error);
+        res.status(500).json({ success: false, message: 'Failed to load competition workspace' });
+    }
+};
+
+/** Set allotted slots for a competition (0 = unlimited / not set) */
+exports.updateCompetitionSlots = async (req, res) => {
+    try {
+        const { competitionId } = req.params;
+        if (!mongoose.Types.ObjectId.isValid(competitionId)) {
+            return res.status(400).json({ success: false, message: 'Invalid competition ID' });
+        }
+        let slots = Number(req.body.slotsAllotted ?? req.body.slots);
+        if (!Number.isFinite(slots) || slots < 0) {
+            return res.status(400).json({ success: false, message: 'slotsAllotted must be 0 or a positive number' });
+        }
+        slots = Math.floor(slots);
+
+        const Competition = mongoose.model('Competition');
+        const competition = await Competition.findOne({ _id: competitionId, fest: req.festId });
+        if (!competition) {
+            return res.status(404).json({ success: false, message: 'Competition not found for this fest' });
+        }
+
+        competition.slotsAllotted = slots;
+        if (!competition.registration) competition.registration = {};
+        competition.registration.maxRegistrations = slots > 0 ? slots : null;
+        await competition.save();
+
+        const approved = await Registration.countDocuments({
+            fest: req.festId,
+            competitionId,
+            status: 'approved',
+        });
+        const slotsLeft = slots > 0 ? Math.max(0, slots - approved) : null;
+
+        res.json({
+            success: true,
+            message: slots > 0 ? `Allotted ${slots} slots` : 'Slots cleared (open)',
+            competition: {
+                id: competition._id,
+                slotsAllotted: slots,
+                slotsFilled: approved,
+                slotsLeft,
+            },
+        });
+    } catch (error) {
+        console.error('[festOrganizerPortal.updateCompetitionSlots]', error);
+        res.status(500).json({ success: false, message: 'Failed to update slots' });
+    }
+};
+
+exports.bulkUpdateParticipantStatus = async (req, res) => {
+    try {
+        const status = String(req.body.status || '').trim().toLowerCase();
+        const ids = Array.isArray(req.body.registrationIds) ? req.body.registrationIds : [];
+        if (!['pending', 'approved', 'rejected'].includes(status)) {
+            return res.status(400).json({ success: false, message: 'Status must be pending, approved, or rejected' });
+        }
+        const validIds = ids
+            .map((id) => String(id || '').trim())
+            .filter((id) => mongoose.Types.ObjectId.isValid(id));
+        if (!validIds.length) {
+            return res.status(400).json({ success: false, message: 'No valid registration IDs' });
+        }
+
+        const result = await Registration.updateMany(
+            { _id: { $in: validIds }, fest: req.festId },
+            { $set: { status } },
+        );
+
+        res.json({
+            success: true,
+            message: `Updated ${result.modifiedCount || 0} registration(s) to ${status}`,
+            modifiedCount: result.modifiedCount || 0,
+        });
+    } catch (error) {
+        console.error('[festOrganizerPortal.bulkUpdateParticipantStatus]', error);
+        res.status(500).json({ success: false, message: 'Failed to bulk update' });
+    }
+};
+
+/**
+ * Walk-in / VIP / desk entry for a competition (or general fest if no competitionId).
+ */
+exports.createManualParticipant = async (req, res) => {
+    try {
+        const crypto = require('crypto');
+        const User = require('../model/usermodel');
+
+        const competitionIdRaw = String(req.body.competitionId || '').trim();
+        let competition = null;
+        if (competitionIdRaw) {
+            if (!mongoose.Types.ObjectId.isValid(competitionIdRaw)) {
+                return res.status(400).json({ success: false, message: 'Invalid competition ID' });
+            }
+            const Competition = mongoose.model('Competition');
+            competition = await Competition.findOne({ _id: competitionIdRaw, fest: req.festId })
+                .select('name feeAmount registrationFee')
+                .lean();
+            if (!competition) {
+                return res.status(404).json({ success: false, message: 'Competition not found for this fest' });
+            }
+        }
+
+        let responses = req.body.responses;
+        if (typeof responses === 'string') {
+            try {
+                responses = JSON.parse(responses);
+            } catch {
+                return res.status(400).json({ success: false, message: 'Invalid responses' });
+            }
+        }
+        if (!responses || typeof responses !== 'object' || Array.isArray(responses)) {
+            responses = {};
+        }
+
+        const cleanResponses = {};
+        Object.entries(responses).forEach(([key, value]) => {
+            const k = String(key || '').trim();
+            if (!k || k.startsWith('_')) return;
+            if (value == null) return;
+            if (typeof value === 'string') {
+                const trimmed = value.trim();
+                if (trimmed) cleanResponses[k] = trimmed;
+                return;
+            }
+            if (typeof value === 'number' || typeof value === 'boolean') {
+                cleanResponses[k] = value;
+                return;
+            }
+            if (Array.isArray(value)) cleanResponses[k] = value;
+        });
+
+        const name = String(
+            req.body.name
+            || cleanResponses.full_name
+            || cleanResponses.name
+            || cleanResponses.leader_name
+            || '',
+        ).trim();
+        const email = String(req.body.email || cleanResponses.email || '').trim().toLowerCase();
+        const phone = String(
+            req.body.phone
+            || cleanResponses.phone
+            || cleanResponses.contact_no
+            || cleanResponses.mobile
+            || '',
+        ).trim().replace(/\s+/g, '');
+        const teamName = String(req.body.teamName || cleanResponses.team_name || cleanResponses.teamName || '').trim();
+        const college = String(req.body.college || cleanResponses.college || cleanResponses.college_name || '').trim();
+        const members = Array.isArray(req.body.members)
+            ? req.body.members.map((m) => String(m || '').trim()).filter(Boolean)
+            : String(req.body.membersText || '')
+                .split(/[,;\n]+/)
+                .map((s) => s.trim())
+                .filter(Boolean);
+
+        if (!name) {
+            return res.status(400).json({ success: false, message: 'Name is required' });
+        }
+        if (!email && !phone) {
+            return res.status(400).json({ success: false, message: 'Email or phone is required' });
+        }
+
+        if (teamName) cleanResponses.team_name = teamName;
+        if (college) cleanResponses.college = college;
+        if (members.length) cleanResponses.team_members = members.join(', ');
+        if (!cleanResponses.full_name && !cleanResponses.name) cleanResponses.full_name = name;
+        if (email && !cleanResponses.email) cleanResponses.email = email;
+        if (phone && !cleanResponses.phone) cleanResponses.phone = phone;
+        cleanResponses.manual_entry = 'yes';
+        cleanResponses.added_by_organizer = 'yes';
+        if (req.body.note) cleanResponses.organizer_note = String(req.body.note).trim().slice(0, 500);
+
+        let user = null;
+        if (email) {
+            user = await User.findOne({ email });
+        }
+        if (!user && phone) {
+            user = await User.findOne({
+                $or: [{ phone }, { phoneNumber: phone }],
+            });
+        }
+        if (!user) {
+            const placeholderEmail = email
+                || `fest-manual+${crypto.randomBytes(6).toString('hex')}@crwdctrl.local`;
+            user = new User({
+                name,
+                ...(email ? { email } : { email: placeholderEmail }),
+                ...(phone ? { phoneNumber: phone } : {}),
+                password: crypto.randomBytes(24).toString('hex'),
+                isVerified: true,
+                signupMethod: 'password',
+            });
+            await user.save();
+        } else if (name && (!user.name || user.name === 'User')) {
+            user.name = name;
+            if (phone && !user.phoneNumber) user.phoneNumber = phone;
+            await user.save();
+        }
+
+        const paymentStatusRaw = String(req.body.paymentStatus || 'paid').trim().toLowerCase();
+        const paymentStatus = ['free', 'pending', 'paid', 'failed'].includes(paymentStatusRaw)
+            ? paymentStatusRaw
+            : 'paid';
+        const feeDefault = Number(competition?.feeAmount ?? competition?.registrationFee) || 0;
+        let amountPaid = Number(req.body.amountPaid);
+        if (!Number.isFinite(amountPaid)) {
+            amountPaid = paymentStatus === 'paid' ? feeDefault : 0;
+        }
+        amountPaid = Math.max(0, amountPaid);
+
+        const statusRaw = String(req.body.status || 'approved').trim().toLowerCase();
+        const status = ['pending', 'approved', 'rejected'].includes(statusRaw) ? statusRaw : 'approved';
+
+        const reg = await Registration.create({
+            fest: req.festId,
+            user: user._id,
+            competitionId: competition?._id || undefined,
+            responses: cleanResponses,
+            status,
+            paymentStatus,
+            amountPaid,
+            payment_gateway: 'manual_organizer',
+            submittedAt: new Date(),
+        });
+
+        const populated = await Registration.findById(reg._id)
+            .populate('user', 'name email phone phoneNumber')
+            .populate('competitionId', 'competitionName name')
+            .lean();
+
+        res.status(201).json({
+            success: true,
+            message: 'Participant added',
+            participant: formatParticipant(populated),
+        });
+    } catch (error) {
+        console.error('[festOrganizerPortal.createManualParticipant]', error);
+        if (error?.code === 11000) {
+            return res.status(409).json({ success: false, message: 'Duplicate registration conflict' });
+        }
+        res.status(500).json({ success: false, message: 'Failed to add participant' });
     }
 };

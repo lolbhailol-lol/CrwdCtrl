@@ -90,6 +90,9 @@ export default function CheckinScannerPage({
   showSheetStatus = true,
   sessionExpiredMessage = null,
   authErrorMessage = null,
+  /** Scope fest check-in to one competition (wrong-comp QR rejected) */
+  competitionId = null,
+  checkinExtraBody = null,
 }) {
   const isVolunteerScanner =
     mode === 'scanner' || mode === 'trek_scanner' || mode === 'sport_scanner';
@@ -298,7 +301,11 @@ export default function CheckinScannerPage({
           Authorization: `Bearer ${token}`,
         },
         credentials: 'include',
-        body: JSON.stringify({ qrData: trimmed }),
+        body: JSON.stringify({
+          qrData: trimmed,
+          ...(competitionId ? { competitionId } : {}),
+          ...(checkinExtraBody && typeof checkinExtraBody === 'object' ? checkinExtraBody : {}),
+        }),
       });
 
       const data = await res.json().catch(() => ({}));
@@ -331,7 +338,7 @@ export default function CheckinScannerPage({
       setIsProcessing(false);
       scanLockRef.current = false;
     }
-  }, [resolvedGetToken, resolvedCheckinUrl, mode, fetchCheckinStats]);
+  }, [resolvedGetToken, resolvedCheckinUrl, mode, fetchCheckinStats, competitionId, checkinExtraBody]);
 
   const handleQRData = useCallback(async (rawData) => {
     if (scanLockRef.current) return;

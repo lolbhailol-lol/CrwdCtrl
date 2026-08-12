@@ -282,6 +282,36 @@ const festOrganizerSchema = new mongoose.Schema(
     trim: true,
   },
 
+  /**
+   * Pro Show / Pro Night ticket ops (separate from competitions).
+   * Lineup stays in artists[]; this is capacity, tiers, and gate.
+   */
+  proShow: {
+    enabled: { type: Boolean, default: false },
+    title: { type: String, trim: true, default: 'Pro Show' },
+    venue: { type: String, trim: true, default: '' },
+    showAt: { type: Date, default: null },
+    capacity: { type: Number, default: 0, min: 0 },
+    salesOpen: { type: Boolean, default: true },
+    notes: { type: String, trim: true, default: '' },
+    tiers: [{
+      id: { type: String, trim: true, default: '' },
+      name: { type: String, trim: true, default: '' },
+      kind: {
+        type: String,
+        enum: ['early_bird', 'ga', 'vip', 'other'],
+        default: 'ga',
+      },
+      price: { type: Number, default: 0, min: 0 },
+      /** Soft cap for this tier (0 = unlimited within venue capacity) */
+      quota: { type: Number, default: 0, min: 0 },
+      /** Early bird ends at this time (optional) */
+      endsAt: { type: Date, default: null },
+      order: { type: Number, default: 0 },
+      active: { type: Boolean, default: true },
+    }],
+  },
+
   contacts: [
     {
       name: String,

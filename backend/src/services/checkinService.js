@@ -93,6 +93,10 @@ async function performCheckinFromRaw(raw, options = {}) {
     trekId = null,
     sportEventId = null,
     eventShowId = null,
+    /** When set with festId, reject tickets for a different competition */
+    competitionId = null,
+    /** When true with festId, only accept Pro Show tickets */
+    proShowOnly = false,
     allowTrek = true,
     allowSports = true,
     scannedBy = 'Admin',
@@ -623,9 +627,51 @@ async function performCheckinFromRaw(raw, options = {}) {
     };
   }
 
-  const ticketType = registration.competitionId ? 'competition' : 'fest';
+  const ticketType = registration.isProShow
+    ? 'pro_show'
+    : (registration.competitionId ? 'competition' : 'fest');
   const festName = registration.fest?.festName || 'Event';
   const competitionName = registration.competitionId?.name || null;
+
+  if (proShowOnly) {
+    if (!registration.isProShow) {
+      return {
+        status: 403,
+        body: {
+          success: false,
+          status: 'invalid',
+          message: competitionName
+            ? `This is a ${competitionName} competition ticket — use the Pro Show gate scanner for night passes.`
+            : 'This ticket is not a Pro Show pass. Use the Pro Show gate scanner.',
+        },
+      };
+    }
+  } else if (competitionId) {
+    if (registration.isProShow) {
+      return {
+        status: 403,
+        body: {
+          success: false,
+          status: 'invalid',
+          message: 'This is a Pro Show pass — use the Pro Show gate scanner.',
+        },
+      };
+    }
+    const expected = String(competitionId);
+    const regCompId = registration.competitionId?._id || registration.competitionId;
+    if (!regCompId || String(regCompId) !== expected) {
+      return {
+        status: 403,
+        body: {
+          success: false,
+          status: 'invalid',
+          message: competitionName
+            ? `This ticket is for ${competitionName}, not this competition room.`
+            : 'This ticket is not for this competition. Use the correct competition scanner.',
+        },
+      };
+    }
+  }
 
   if (registration.checkedIn) {
     return {

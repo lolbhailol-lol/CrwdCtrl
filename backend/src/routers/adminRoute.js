@@ -113,6 +113,9 @@ const {
 router.get('/fests/:festId/scanner-access', adminAuth, getAdminScannerAccess);
 router.put('/fests/:festId/scanner-access', adminAuth, setAdminScannerAccess);
 
+const liveUpdateCtrl = require('../controllers/festLiveUpdateController');
+router.get('/fests/:festId/live-updates', adminAuth, liveUpdateCtrl.adminListLiveUpdates);
+
 // Generic ID routes at the bottom of the section
 router.put('/fests/:id', (req, res, next) => {
   console.log('🟡 Generic PUT route matched! ID:', req.params.id);

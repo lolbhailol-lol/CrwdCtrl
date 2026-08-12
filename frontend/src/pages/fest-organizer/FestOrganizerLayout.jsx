@@ -2,18 +2,20 @@ import { useState } from 'react';
 import { Outlet, useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
     LayoutDashboard, Users, QrCode, LogOut, PartyPopper, Bell, Menu, Home,
-    Trophy, IndianRupee, Info, ClipboardList,
+    Trophy, IndianRupee, Info, ClipboardList, Mic2, Radio,
 } from 'lucide-react';
 import { clearFestOrganizerSession, getFestOrganizerSession } from '../../utils/festOrganizerSession';
 
 const navForFest = (festId) => [
     { label: 'Overview', path: `/fest-organizer/fests/${festId}`, icon: LayoutDashboard, end: true, short: 'Home', group: 'primary' },
+    { label: 'Live', path: `/fest-organizer/fests/${festId}/live`, icon: Radio, short: 'Live', group: 'primary' },
     { label: 'Stall / Leads', path: `/fest-organizer/fests/${festId}/leads`, icon: ClipboardList, short: 'Leads', group: 'primary' },
     { label: 'Competitions', path: `/fest-organizer/fests/${festId}/competitions`, icon: Trophy, short: 'Comps', group: 'primary' },
-    { label: 'Participants', path: `/fest-organizer/fests/${festId}/participants`, icon: Users, short: 'Guests', group: 'primary' },
+    { label: 'Pro Show', path: `/fest-organizer/fests/${festId}/pro-show`, icon: Mic2, short: 'Pro', group: 'primary' },
+    { label: 'Participants', path: `/fest-organizer/fests/${festId}/participants`, icon: Users, short: 'Guests', group: 'more' },
     { label: 'Check-in', path: `/fest-organizer/fests/${festId}/scan`, icon: QrCode, short: 'Scan', group: 'more' },
     { label: 'Revenue', path: `/fest-organizer/fests/${festId}/revenue`, icon: IndianRupee, short: '₹', group: 'more' },
-    { label: 'Notify', path: `/fest-organizer/fests/${festId}/notifications`, icon: Bell, short: 'Notify', group: 'more' },
+    { label: 'Connect', path: `/fest-organizer/fests/${festId}/notifications`, icon: Bell, short: 'Msg', group: 'more' },
     { label: 'Fest info', path: `/fest-organizer/fests/${festId}/info`, icon: Info, short: 'Info', group: 'more' },
 ];
 

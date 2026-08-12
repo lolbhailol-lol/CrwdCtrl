@@ -169,6 +169,141 @@ export async function fetchFestOrganizerDashboard(festId) {
     return festOrganizerFetch(`/fest-organizer/fests/${festId}/dashboard`);
 }
 
+export async function fetchFestOrganizerProShow(festId) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/pro-show`);
+}
+
+export async function fetchFestOrganizerLiveUpdateMeta(festId) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/live-updates/meta`);
+}
+
+export async function fetchFestOrganizerLiveUpdates(festId, params = {}) {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== '') qs.set(k, v);
+    });
+    const q = qs.toString();
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/live-updates${q ? `?${q}` : ''}`);
+}
+
+export async function createFestOrganizerLiveUpdate(festId, body) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/live-updates`, {
+        method: 'POST',
+        body,
+    });
+}
+
+export async function updateFestOrganizerLiveUpdate(festId, updateId, body) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/live-updates/${updateId}`, {
+        method: 'PATCH',
+        body,
+    });
+}
+
+export async function publishFestOrganizerLiveUpdate(festId, updateId, body = {}) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/live-updates/${updateId}/publish`, {
+        method: 'POST',
+        body,
+    });
+}
+
+export async function archiveFestOrganizerLiveUpdate(festId, updateId) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/live-updates/${updateId}/archive`, {
+        method: 'POST',
+        body: {},
+    });
+}
+
+export async function deleteFestOrganizerLiveUpdate(festId, updateId) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/live-updates/${updateId}`, {
+        method: 'DELETE',
+    });
+}
+
+export async function updateFestOrganizerProShow(festId, body) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/pro-show`, {
+        method: 'PATCH',
+        body,
+    });
+}
+
+export async function fetchFestOrganizerProShowTickets(festId, params = {}) {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== '') qs.set(k, v);
+    });
+    const q = qs.toString();
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/pro-show/tickets${q ? `?${q}` : ''}`);
+}
+
+export async function issueFestOrganizerProShowPass(festId, body) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/pro-show/passes`, {
+        method: 'POST',
+        body,
+    });
+}
+
+export async function fetchFestOrganizerCompetitionOps(festId, competitionId) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/competitions/${competitionId}/ops`);
+}
+
+export async function updateFestOrganizerCompetitionSlots(festId, competitionId, slotsAllotted) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/competitions/${competitionId}/slots`, {
+        method: 'PATCH',
+        body: { slotsAllotted },
+    });
+}
+
+export async function fetchFestOrganizerProbables(festId, params = {}) {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== '') qs.set(k, v);
+    });
+    const q = qs.toString();
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/competitions/probables${q ? `?${q}` : ''}`);
+}
+
+export async function createFestOrganizerProbable(festId, body) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/competitions/probables`, {
+        method: 'POST',
+        body,
+    });
+}
+
+export async function updateFestOrganizerProbable(festId, probableId, body) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/competitions/probables/${probableId}`, {
+        method: 'PATCH',
+        body,
+    });
+}
+
+export async function deleteFestOrganizerProbable(festId, probableId) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/competitions/probables/${probableId}`, {
+        method: 'DELETE',
+    });
+}
+
+export async function convertFestOrganizerProbable(festId, probableId, body = {}) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/competitions/probables/${probableId}/convert`, {
+        method: 'POST',
+        body,
+    });
+}
+
+export async function createFestOrganizerManualParticipant(festId, body) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/participants/manual`, {
+        method: 'POST',
+        body,
+    });
+}
+
+export async function bulkUpdateFestOrganizerParticipantStatus(festId, registrationIds, status) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/participants/bulk-status`, {
+        method: 'PATCH',
+        body: { registrationIds, status },
+    });
+}
+
 export async function fetchFestOrganizerParticipants(festId, params = {}) {
     const qs = new URLSearchParams(params).toString();
     return festOrganizerFetch(`/fest-organizer/fests/${festId}/participants${qs ? `?${qs}` : ''}`);
@@ -212,8 +347,11 @@ export async function festOrganizerCheckin(festId, payload) {
     });
 }
 
-export async function fetchFestOrganizerCheckinStats(festId) {
-    return festOrganizerFetch(`/fest-organizer/fests/${festId}/checkin/stats`);
+export async function fetchFestOrganizerCheckinStats(festId, params = {}) {
+    const qs = new URLSearchParams();
+    if (params.competitionId) qs.set('competitionId', params.competitionId);
+    const q = qs.toString();
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/checkin/stats${q ? `?${q}` : ''}`);
 }
 
 export async function sendFestOrganizerReminder(festId, body) {
@@ -228,6 +366,15 @@ export async function sendFestOrganizerBroadcast(festId, body) {
         method: 'POST',
         body,
     });
+}
+
+export async function fetchFestOrganizerNotifyContacts(festId, params = {}) {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== '') qs.set(k, v);
+    });
+    const q = qs.toString();
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/notifications/contacts${q ? `?${q}` : ''}`);
 }
 
 export async function fetchFestOrganizerLeads(festId, params = {}) {

@@ -1,40 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     Users, UserCheck, Clock, IndianRupee, Loader, Bell, QrCode, ExternalLink, RefreshCw,
-    Trophy, Calendar, MapPin, Building2, ArrowRight,
+    Trophy, Calendar, MapPin, Building2, ArrowRight, AlertCircle, CheckCircle2, Mic2, Radio,
 } from 'lucide-react';
 import { fetchFestOrganizerDashboard } from '../../services/api/festOrganizer.api';
-
-function StatTile({ label, value, sub, tone = 'default', icon: Icon, to }) {
-    const navigate = useNavigate();
-    const tones = {
-        default: 'border-white/10 from-[#1a1b1d] to-[#141516]',
-        accent: 'border-[#0ECCEE]/25 from-[#0ECCEE]/15 to-[#0ECCEE]/5',
-        ok: 'border-emerald-500/20 from-emerald-500/15 to-emerald-500/5',
-        warn: 'border-amber-500/20 from-amber-500/15 to-amber-500/5',
-        money: 'border-emerald-500/20 from-emerald-500/10 to-[#141516]',
-    };
-    const className = `rounded-2xl border bg-linear-to-br p-4 min-h-[100px] text-left ${tones[tone] || tones.default} ${to ? 'hover:border-[#0ECCEE]/45 cursor-pointer' : ''}`;
-    const inner = (
-        <div className="flex items-start justify-between gap-3">
-            <div>
-                <p className="text-[11px] uppercase tracking-wider text-gray-500">{label}</p>
-                <p className="text-[1.65rem] font-semibold mt-2 tabular-nums text-white">{value}</p>
-                {sub ? <p className="text-[11px] text-gray-500 mt-1">{sub}</p> : null}
-            </div>
-            {Icon ? (
-                <div className="size-9 rounded-xl bg-white/5 flex items-center justify-center text-gray-300">
-                    <Icon size={16} />
-                </div>
-            ) : null}
-        </div>
-    );
-    if (to) {
-        return <button type="button" onClick={() => navigate(to)} className={className}>{inner}</button>;
-    }
-    return <div className={className}>{inner}</div>;
-}
+import { getImageUrl } from '../../utils/imageImports';
+import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 
 function formatWhen(d) {
     if (!d) return '';
@@ -45,6 +17,23 @@ function formatWhen(d) {
     } catch {
         return '';
     }
+}
+
+function ProgressBar({ value, max, tone = 'cyan' }) {
+    const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
+    const colors = {
+        cyan: 'bg-[#0ECCEE]',
+        amber: 'bg-amber-400',
+        emerald: 'bg-emerald-400',
+    };
+    return (
+        <div className="h-1.5 rounded-full bg-white/8 overflow-hidden">
+            <div
+                className={`h-full rounded-full transition-all duration-500 ${colors[tone] || colors.cyan}`}
+                style={{ width: `${pct}%` }}
+            />
+        </div>
+    );
 }
 
 export default function FestOrganizerDashboardPage() {
@@ -70,6 +59,18 @@ export default function FestOrganizerDashboardPage() {
         load();
     }, [festId]);
 
+    const comps = useMemo(
+        () => (data?.competitions || []).filter((c) => c.id),
+        [data],
+    );
+
+    const needsAttention = useMemo(() => {
+        return [...comps]
+            .filter((c) => Number(c.pending) > 0)
+            .sort((a, b) => (b.pending || 0) - (a.pending || 0))
+            .slice(0, 4);
+    }, [comps]);
+
     if (loading) {
         return (
             <div className="flex items-center justify-center py-20 text-gray-400 gap-2">
@@ -89,139 +90,310 @@ export default function FestOrganizerDashboardPage() {
         );
     }
 
-    const { fest, stats, competitions = [], recent = [] } = data;
+    const { fest, stats, recent = [] } = data;
     const payments = stats.payments || {};
     const publicUrl = fest.slug
         ? `${window.location.origin}/view-details/${fest.slug}`
         : `${window.location.origin}/view-details/${fest.id}`;
-    const topComps = competitions.filter((c) => c.id).slice(0, 5);
+
+    const totalPending = Number(stats.pendingRegistrations) || 0;
+    const totalApproved = Number(stats.totalRegistrations) || 0;
+    const checkedIn = Number(stats.checkedIn) || 0;
+    const pendingCheckIn = Number(stats.pendingCheckIn) || 0;
+    const checkInRate = Number(stats.checkInRate) || 0;
 
     return (
-        <div className="max-w-5xl mx-auto space-y-6">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                        <h1 className="text-2xl font-bold">{fest.festName}</h1>
-                        {fest.status ? (
-                            <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-white/5 text-gray-400">
-                                {fest.status}
-                            </span>
+        <div className="max-w-5xl mx-auto space-y-5">
+            {/* Hero */}
+            <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#121314]">
+                {fest.coverImage ? (
+                    <img
+                        src={getImageUrl(fest.coverImage, { preset: 'card' })}
+                        alt=""
+                        className="absolute inset-0 w-full h-full object-cover opacity-35"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                ) : null}
+                <div className="absolute inset-0 bg-linear-to-br from-[#0ECCEE]/20 via-transparent to-[#053780]/30" />
+                <div className="relative p-5 sm:p-6 flex flex-wrap items-start justify-between gap-4">
+                    <div className="min-w-0">
+                        <p className="text-[11px] uppercase tracking-[0.14em] text-[#0ECCEE] font-semibold mb-1">
+                            Fest overview
+                        </p>
+                        <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+                            {fest.festName}
+                        </h1>
+                        <p className="text-sm text-gray-300/90 mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                            {fest.collegeName ? (
+                                <span className="inline-flex items-center gap-1"><Building2 size={12} />{fest.collegeName}</span>
+                            ) : null}
+                            {fest.city ? (
+                                <span className="inline-flex items-center gap-1"><MapPin size={12} />{fest.city}</span>
+                            ) : null}
+                            {(fest.festDate || fest.venue) ? (
+                                <span className="inline-flex items-center gap-1">
+                                    <Calendar size={12} />
+                                    {[fest.festDate, fest.venue].filter(Boolean).join(' · ')}
+                                </span>
+                            ) : null}
+                        </p>
+                    </div>
+                    <div className="flex gap-2">
+                        <a
+                            href={publicUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/10 backdrop-blur border border-white/15 text-sm text-white hover:bg-white/15"
+                        >
+                            <ExternalLink size={14} /> Public
+                        </a>
+                        <button
+                            type="button"
+                            onClick={load}
+                            className="p-2 rounded-xl bg-white/10 border border-white/15 text-white hover:bg-white/15"
+                        >
+                            <RefreshCw size={16} />
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            {/* Pulse stats */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <button
+                    type="button"
+                    onClick={() => navigate(`/fest-organizer/fests/${festId}/participants?status=pending`)}
+                    className="rounded-2xl border border-amber-400/30 bg-linear-to-br from-amber-500/20 to-[#161718] p-4 text-left hover:scale-[1.01] active:scale-[0.99] transition"
+                >
+                    <div className="flex items-center justify-between mb-2">
+                        <Clock size={16} className="text-amber-300" />
+                        {totalPending > 0 ? (
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-400 text-black">Action</span>
                         ) : null}
                     </div>
-                    <p className="text-sm text-gray-500 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-                        {fest.collegeName ? (
-                            <span className="inline-flex items-center gap-1"><Building2 size={12} />{fest.collegeName}</span>
-                        ) : null}
-                        {fest.city ? (
-                            <span className="inline-flex items-center gap-1"><MapPin size={12} />{fest.city}</span>
-                        ) : null}
-                        {(fest.festDate || fest.venue) ? (
-                            <span className="inline-flex items-center gap-1">
-                                <Calendar size={12} />
-                                {[fest.festDate, fest.venue].filter(Boolean).join(' · ')}
-                            </span>
-                        ) : null}
+                    <p className="text-2xl font-bold tabular-nums text-white">{totalPending}</p>
+                    <p className="text-xs text-amber-200/80 mt-1">Need review</p>
+                    <p className="text-[11px] text-gray-500 mt-1">{stats.todayRegistrations || 0} new today</p>
+                </button>
+
+                <button
+                    type="button"
+                    onClick={() => navigate(`/fest-organizer/fests/${festId}/participants?status=approved`)}
+                    className="rounded-2xl border border-[#0ECCEE]/30 bg-linear-to-br from-[#0ECCEE]/20 to-[#161718] p-4 text-left hover:scale-[1.01] active:scale-[0.99] transition"
+                >
+                    <Users size={16} className="text-[#0ECCEE] mb-2" />
+                    <p className="text-2xl font-bold tabular-nums text-white">{totalApproved}</p>
+                    <p className="text-xs text-[#0ECCEE]/90 mt-1">Participants in</p>
+                    <p className="text-[11px] text-gray-500 mt-1">{stats.allActive || 0} active total</p>
+                </button>
+
+                <button
+                    type="button"
+                    onClick={() => navigate(`/fest-organizer/fests/${festId}/scan`)}
+                    className="rounded-2xl border border-emerald-400/30 bg-linear-to-br from-emerald-500/20 to-[#161718] p-4 text-left hover:scale-[1.01] active:scale-[0.99] transition"
+                >
+                    <UserCheck size={16} className="text-emerald-300 mb-2" />
+                    <p className="text-2xl font-bold tabular-nums text-white">{checkedIn}</p>
+                    <p className="text-xs text-emerald-200/80 mt-1">Checked in · {checkInRate}%</p>
+                    <div className="mt-2">
+                        <ProgressBar value={checkedIn} max={Math.max(totalApproved, 1)} tone="emerald" />
+                    </div>
+                    <p className="text-[11px] text-gray-500 mt-1.5">{pendingCheckIn} still outside</p>
+                </button>
+
+                <button
+                    type="button"
+                    onClick={() => navigate(`/fest-organizer/fests/${festId}/revenue`)}
+                    className="rounded-2xl border border-emerald-400/20 bg-linear-to-br from-emerald-500/10 to-[#161718] p-4 text-left hover:scale-[1.01] active:scale-[0.99] transition"
+                >
+                    <IndianRupee size={16} className="text-emerald-300 mb-2" />
+                    <p className="text-2xl font-bold tabular-nums text-white">
+                        ₹{Number(stats.revenue || 0).toLocaleString('en-IN')}
                     </p>
-                </div>
-                <div className="flex gap-2">
-                    <a href={publicUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/10 text-sm text-gray-300 hover:border-[#0ECCEE]/40">
-                        <ExternalLink size={14} /> Public page
-                    </a>
-                    <button type="button" onClick={load} className="p-2 rounded-xl border border-white/10 text-gray-400 hover:text-white">
-                        <RefreshCw size={16} />
-                    </button>
-                </div>
+                    <p className="text-xs text-gray-400 mt-1">Revenue</p>
+                    <p className="text-[11px] text-gray-500 mt-1">
+                        {payments.paid || 0} paid · {payments.pending || 0} unpaid
+                    </p>
+                </button>
             </div>
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <StatTile label="Approved" value={stats.totalRegistrations} sub={`${stats.allActive || 0} active total`} icon={Users} tone="accent" to={`/fest-organizer/fests/${festId}/participants?status=approved`} />
-                <StatTile label="Pending review" value={stats.pendingRegistrations} sub={`${stats.todayRegistrations || 0} new today`} icon={Clock} tone="warn" to={`/fest-organizer/fests/${festId}/participants?status=pending`} />
-                <StatTile label="Checked in" value={`${stats.checkedIn} (${stats.checkInRate}%)`} sub={`${stats.pendingCheckIn} still pending`} icon={UserCheck} tone="ok" to={`/fest-organizer/fests/${festId}/scan`} />
-                <StatTile label="Revenue" value={`₹${Number(stats.revenue || 0).toLocaleString('en-IN')}`} sub={`${payments.paid || 0} paid · ${payments.pending || 0} unpaid`} icon={IndianRupee} tone="money" to={`/fest-organizer/fests/${festId}/revenue`} />
-            </div>
-
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Quick ops */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {[
-                    { label: 'Competitions', desc: `${stats.competitionCount || competitions.length} events`, to: 'competitions', icon: Trophy },
-                    { label: 'Participants', desc: 'Filter & export', to: 'participants', icon: Users },
-                    { label: 'Scan QR', desc: `${stats.pendingCheckIn} left`, to: 'scan', icon: QrCode },
-                    { label: 'Notify', desc: 'Remind / broadcast', to: 'notifications', icon: Bell },
+                    { label: 'Live feed', desc: 'Fest day updates', to: 'live', icon: Radio, glow: 'from-red-500/15' },
+                    { label: 'Competitions', desc: `${stats.competitionCount || comps.length} live`, to: 'competitions', icon: Trophy, glow: 'from-[#0ECCEE]/15' },
+                    { label: 'Pro Show', desc: 'Sold · passes · gate', to: 'pro-show', icon: Mic2, glow: 'from-fuchsia-500/10' },
+                    { label: 'Connect', desc: 'WA · call · push', to: 'notifications', icon: Bell, glow: 'from-amber-500/10' },
                 ].map((item) => (
                     <button
                         key={item.to}
                         type="button"
-                        onClick={() => navigate(`/fest-organizer/fests/${festId}/${item.to === 'scan' ? 'scan' : item.to}`)}
-                        className="rounded-2xl border border-white/10 bg-[#161718] p-4 text-left hover:border-[#0ECCEE]/40"
+                        onClick={() => navigate(`/fest-organizer/fests/${festId}/${item.to}`)}
+                        className={`rounded-2xl border border-white/10 bg-linear-to-b ${item.glow} to-[#161718] p-3.5 text-left hover:border-[#0ECCEE]/40 active:scale-[0.98] transition`}
                     >
                         <item.icon className="text-[#0ECCEE] mb-2" size={18} />
-                        <p className="font-medium">{item.label}</p>
-                        <p className="text-xs text-gray-500 mt-1">{item.desc}</p>
+                        <p className="text-sm font-semibold text-white">{item.label}</p>
+                        <p className="text-[11px] text-gray-500 mt-0.5">{item.desc}</p>
                     </button>
                 ))}
             </div>
 
-            <div className="grid lg:grid-cols-2 gap-4">
-                <section className="rounded-2xl border border-white/10 bg-[#161718] p-4 space-y-3">
-                    <div className="flex items-center justify-between gap-2">
-                        <h2 className="text-sm font-semibold flex items-center gap-2">
-                            <Trophy className="text-[#0ECCEE]" size={14} /> Top competitions
-                        </h2>
-                        <button type="button" onClick={() => navigate(`/fest-organizer/fests/${festId}/competitions`)} className="text-xs text-[#0ECCEE] inline-flex items-center gap-1">
-                            View all <ArrowRight size={12} />
-                        </button>
+            {/* Needs attention */}
+            {needsAttention.length > 0 ? (
+                <section className="rounded-2xl border border-amber-400/25 bg-amber-500/8 p-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                        <AlertCircle size={16} className="text-amber-300" />
+                        <h2 className="text-sm font-semibold text-amber-100">Needs review</h2>
                     </div>
-                    {topComps.length ? (
-                        <div className="space-y-2">
-                            {topComps.map((c) => (
+                    <div className="grid sm:grid-cols-2 gap-2">
+                        {needsAttention.map((c) => (
+                            <button
+                                key={String(c.id)}
+                                type="button"
+                                onClick={() => navigate(`/fest-organizer/fests/${festId}/competitions/${c.id}?tab=pending`)}
+                                className="flex items-center gap-3 rounded-xl bg-black/25 border border-amber-400/15 px-3 py-2.5 text-left hover:border-amber-400/40 transition"
+                            >
+                                <div className="relative w-12 h-12 rounded-lg overflow-hidden shrink-0 bg-[#1a1b1d]">
+                                    <img
+                                        src={getImageUrl(c.coverImage, { preset: 'cardSm' })}
+                                        alt=""
+                                        className="absolute inset-0 w-full h-full object-cover"
+                                        onError={(e) => handleImageErrorWithFallback(e, 48, 48, '#0ea5e9', c.name || 'C')}
+                                    />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-sm text-white truncate font-medium">{c.name}</p>
+                                    <p className="text-xs text-amber-200/90 mt-0.5">
+                                        {c.pending} waiting · {c.approved} approved
+                                    </p>
+                                </div>
+                                <ArrowRight size={14} className="text-amber-300 shrink-0" />
+                            </button>
+                        ))}
+                    </div>
+                </section>
+            ) : (
+                <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/8 px-4 py-3 flex items-center gap-2 text-sm text-emerald-200">
+                    <CheckCircle2 size={16} /> All competitions clear — nothing pending review
+                </div>
+            )}
+
+            {/* Competition health */}
+            <section className="rounded-2xl border border-white/10 bg-[#161718] p-4 space-y-4">
+                <div className="flex items-center justify-between gap-2">
+                    <div>
+                        <h2 className="text-sm font-semibold flex items-center gap-2 text-white">
+                            <Trophy className="text-[#0ECCEE]" size={15} /> Competition health
+                        </h2>
+                        <p className="text-[11px] text-gray-500 mt-0.5">
+                            Overall regs, review queue & check-ins per event
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => navigate(`/fest-organizer/fests/${festId}/competitions`)}
+                        className="text-xs font-medium text-[#0ECCEE] inline-flex items-center gap-1"
+                    >
+                        Open hub <ArrowRight size={12} />
+                    </button>
+                </div>
+
+                {comps.length ? (
+                    <div className="space-y-2.5">
+                        {comps.slice(0, 8).map((c) => {
+                            const approved = Number(c.approved) || 0;
+                            const pending = Number(c.pending) || 0;
+                            const inCount = Number(c.checkedIn) || 0;
+                            return (
                                 <button
                                     key={String(c.id)}
                                     type="button"
-                                    onClick={() => navigate(`/fest-organizer/fests/${festId}/participants?competitionId=${c.id}`)}
-                                    className="w-full flex items-center justify-between gap-3 rounded-xl bg-white/3 px-3 py-2.5 text-left hover:bg-white/5"
+                                    onClick={() => navigate(`/fest-organizer/fests/${festId}/competitions/${c.id}`)}
+                                    className="w-full rounded-xl border border-white/8 bg-[#121314] p-3 text-left hover:border-[#0ECCEE]/35 transition group"
                                 >
-                                    <div className="min-w-0">
-                                        <p className="text-sm text-white truncate">{c.name}</p>
-                                        <p className="text-[11px] text-gray-500">
-                                            {c.approved} approved · {c.pending} pending · {c.checkInRate}% in
-                                        </p>
-                                    </div>
-                                    <p className="text-sm tabular-nums text-gray-300 shrink-0">₹{Number(c.revenue || 0).toLocaleString('en-IN')}</p>
-                                </button>
-                            ))}
-                        </div>
-                    ) : (
-                        <p className="text-sm text-gray-500 py-6 text-center">No competition data yet.</p>
-                    )}
-                </section>
-
-                <section className="rounded-2xl border border-white/10 bg-[#161718] p-4 space-y-3">
-                    <div className="flex items-center justify-between gap-2">
-                        <h2 className="text-sm font-semibold">Recent registrations</h2>
-                        <button type="button" onClick={() => navigate(`/fest-organizer/fests/${festId}/participants`)} className="text-xs text-[#0ECCEE] inline-flex items-center gap-1">
-                            All guests <ArrowRight size={12} />
-                        </button>
-                    </div>
-                    {recent.length ? (
-                        <div className="space-y-2">
-                            {recent.map((r) => (
-                                <div key={r.id} className="rounded-xl bg-white/3 px-3 py-2.5">
-                                    <div className="flex items-start justify-between gap-2">
-                                        <div className="min-w-0">
-                                            <p className="text-sm text-white truncate">{r.userName || '—'}</p>
-                                            <p className="text-[11px] text-gray-500 truncate">
-                                                {r.competitionName || 'General'} · {r.status} · {r.paymentStatus}
-                                            </p>
+                                    <div className="flex items-center gap-3">
+                                        <div className="relative w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-[#1a1b1d]">
+                                            <img
+                                                src={getImageUrl(c.coverImage, { preset: 'cardSm' })}
+                                                alt=""
+                                                className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                                                onError={(e) => handleImageErrorWithFallback(e, 56, 56, '#0ea5e9', c.name || 'C')}
+                                            />
                                         </div>
-                                        <p className="text-[10px] text-gray-600 shrink-0">{formatWhen(r.createdAt)}</p>
+                                        <div className="min-w-0 flex-1 space-y-1.5">
+                                            <div className="flex items-start justify-between gap-2">
+                                                <p className="text-sm font-semibold text-white truncate">{c.name}</p>
+                                                <p className="text-xs tabular-nums text-emerald-300 shrink-0">
+                                                    ₹{Number(c.revenue || 0).toLocaleString('en-IN')}
+                                                </p>
+                                            </div>
+                                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-gray-500">
+                                                <span><span className="text-white font-medium tabular-nums">{approved}</span> in</span>
+                                                <span className={pending ? 'text-amber-400' : ''}>
+                                                    <span className="font-medium tabular-nums">{pending}</span> review
+                                                </span>
+                                                <span className="text-emerald-400/90">
+                                                    <span className="font-medium tabular-nums">{inCount}</span> checked in
+                                                </span>
+                                            </div>
+                                            <ProgressBar value={inCount} max={Math.max(approved, 1)} tone="emerald" />
+                                        </div>
+                                        <ArrowRight size={14} className="text-gray-600 group-hover:text-[#0ECCEE] shrink-0" />
                                     </div>
+                                </button>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <p className="text-sm text-gray-500 py-8 text-center">No competitions yet</p>
+                )}
+            </section>
+
+            {/* Recent */}
+            <section className="rounded-2xl border border-white/10 bg-[#161718] p-4 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                    <div>
+                        <h2 className="text-sm font-semibold text-white">Latest participants</h2>
+                        <p className="text-[11px] text-gray-500 mt-0.5">Newest across all competitions</p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => navigate(`/fest-organizer/fests/${festId}/participants`)}
+                        className="text-xs text-[#0ECCEE] inline-flex items-center gap-1"
+                    >
+                        Full roster <ArrowRight size={12} />
+                    </button>
+                </div>
+                {recent.length ? (
+                    <div className="space-y-2">
+                        {recent.map((r) => (
+                            <button
+                                key={r.id}
+                                type="button"
+                                onClick={() => navigate(`/fest-organizer/fests/${festId}/participants?status=${r.status === 'pending' ? 'pending' : 'approved'}`)}
+                                className="w-full flex items-center justify-between gap-3 rounded-xl bg-white/3 px-3 py-2.5 border border-transparent hover:border-white/10 transition text-left"
+                            >
+                                <div className="min-w-0">
+                                    <p className="text-sm text-white truncate">{r.userName || '—'}</p>
+                                    <p className="text-[11px] text-gray-500 truncate">
+                                        {r.competitionName || 'General'}
+                                        {r.teamName ? ` · ${r.teamName}` : ''}
+                                        {' · '}
+                                        <span className={r.status === 'pending' ? 'text-amber-400' : 'text-gray-400'}>
+                                            {r.status}
+                                        </span>
+                                        {' · '}
+                                        {r.paymentStatus}
+                                    </p>
                                 </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <p className="text-sm text-gray-500 py-6 text-center">No registrations yet.</p>
-                    )}
-                </section>
-            </div>
+                                <p className="text-[10px] text-gray-600 shrink-0">{formatWhen(r.createdAt)}</p>
+                            </button>
+                        ))}
+                    </div>
+                ) : (
+                    <p className="text-sm text-gray-500 py-6 text-center">No registrations yet</p>
+                )}
+            </section>
         </div>
     );
 }

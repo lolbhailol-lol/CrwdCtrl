@@ -133,6 +133,13 @@ const competitionSchema = new mongoose.Schema(
     default: 0, // numeric INR amount for online payment; 0 means free
   },
 
+  /** Organizer-allotted seats for this competition (0 = not set / open) */
+  slotsAllotted: {
+    type: Number,
+    default: 0,
+    min: 0,
+  },
+
   registrationLink: {
     type: String, // Google Form or external registration link
   },

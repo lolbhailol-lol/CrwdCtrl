@@ -20,6 +20,24 @@ const registrationSchema = new mongoose.Schema({
     required: false, // Optional - only for competition registrations
   },
 
+  /** Pro Show / Pro Night ticket (not a competition entry) */
+  isProShow: {
+    type: Boolean,
+    default: false,
+    index: true,
+  },
+  proShowTierId: {
+    type: String,
+    trim: true,
+    default: '',
+  },
+  /** online = paid/public; offline/vip/guest/press/crew = issued at desk */
+  proShowPassType: {
+    type: String,
+    enum: ['online', 'offline', 'vip', 'guest', 'press', 'crew'],
+    default: 'online',
+  },
+
   responses: {
     type: Map,
     of: mongoose.Schema.Types.Mixed, // Can store any type of value
@@ -87,6 +105,7 @@ const registrationSchema = new mongoose.Schema({
 registrationSchema.index({ fest: 1, user: 1, competitionId: 1 });
 registrationSchema.index({ user: 1, submittedAt: -1 });
 registrationSchema.index({ fest: 1, status: 1 });
+registrationSchema.index({ fest: 1, isProShow: 1, status: 1 });
 registrationSchema.index({ reminderSent: 1, status: 1 });
 
 registrationSchema.pre('save', function assignQrCodeData(next) {
