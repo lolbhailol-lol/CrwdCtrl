@@ -1,19 +1,42 @@
 const KEY = 'campus_hunt_last_session';
+const VALID_LAST_ROUNDS = new Set(['round1', 'finale']);
 
-/** Remember which team URL this device used (stay logged in / recover after expiry). */
-export function rememberHuntSession({ slug, teamCode, playPath, teamLoginPath }) {
-  if (typeof window === 'undefined' || !slug || !teamCode) return;
+function writeSession(next) {
+  if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(KEY, JSON.stringify({
-      slug: String(slug),
-      teamCode: String(teamCode).toUpperCase(),
-      playPath: playPath || `/campus-hunt/${slug}/play`,
-      teamLoginPath: teamLoginPath || `/campus-hunt/${slug}/team/${String(teamCode).toUpperCase()}`,
+      ...next,
       savedAt: Date.now(),
     }));
   } catch {
     /* ignore quota */
   }
+}
+
+/** Remember which team URL this device used (stay logged in / recover after expiry). */
+export function rememberHuntSession({
+  slug,
+  teamCode,
+  playPath,
+  teamLoginPath,
+  lastRound,
+} = {}) {
+  if (typeof window === 'undefined' || !slug || !teamCode) return;
+  const prev = readHuntSession();
+  const sameEvent = prev?.slug === String(slug);
+  let round = null;
+  if (lastRound === undefined) {
+    round = sameEvent && VALID_LAST_ROUNDS.has(prev?.lastRound) ? prev.lastRound : null;
+  } else if (VALID_LAST_ROUNDS.has(lastRound)) {
+    round = lastRound;
+  }
+  writeSession({
+    slug: String(slug),
+    teamCode: String(teamCode).toUpperCase(),
+    playPath: playPath || `/campus-hunt/${slug}/play`,
+    teamLoginPath: teamLoginPath || `/campus-hunt/${slug}/team/${String(teamCode).toUpperCase()}`,
+    lastRound: round,
+  });
 }
 
 export function readHuntSession() {
@@ -27,6 +50,19 @@ export function readHuntSession() {
   } catch {
     return null;
   }
+}
+
+export function setHuntLastRound(roundId) {
+  const prev = readHuntSession();
+  if (!prev) return;
+  rememberHuntSession({
+    ...prev,
+    lastRound: VALID_LAST_ROUNDS.has(roundId) ? roundId : null,
+  });
+}
+
+export function clearHuntLastRound() {
+  setHuntLastRound(null);
 }
 
 export function clearHuntSession() {

@@ -42,7 +42,7 @@ export function progressFromActionData(payload) {
 
 /**
  * @param {string|null} eventId
- * @param {{ enabled?: boolean }} [options] — set enabled=false to pause polling (e.g. during Finale)
+ * @param {{ enabled?: boolean }} [options] — set enabled=false to pause polling
  */
 export function useHuntTeam(eventId, { enabled = true } = {}) {
   const [data, setData] = useState(null);
@@ -50,40 +50,52 @@ export function useHuntTeam(eventId, { enabled = true } = {}) {
   const [error, setError] = useState(null);
   const [burstUntil, setBurstUntil] = useState(0);
   const teamIdRef = useRef(null);
+  const fetchGenRef = useRef(0);
+  const pausePollUntilRef = useRef(0);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async ({ soft = false } = {}) => {
     if (!eventId || !enabled) return;
-    setError(null);
+    const gen = ++fetchGenRef.current;
+    if (!soft) setError(null);
     try {
       const res = await fetchMyTeam(eventId);
+      if (gen !== fetchGenRef.current) return;
       setData(res.data);
       teamIdRef.current = res.data?.team?.id || null;
+      setError(null);
     } catch (err) {
+      if (gen !== fetchGenRef.current) return;
       if (err?.code === 'AUTH_401' || err?.status === 401) {
         setError('Session expired — open your team link again');
+        setData(null);
+        teamIdRef.current = null;
       } else {
         setError(err.message || 'Failed to load team');
+        // Soft poll / mid-play failure: keep last board (never flash "No team")
       }
-      setData(null);
-      teamIdRef.current = null;
     } finally {
-      setLoading(false);
+      if (gen === fetchGenRef.current) setLoading(false);
     }
   }, [eventId, enabled]);
 
   const refreshProgress = useCallback(async () => {
     if (!enabled) return;
+    if (Date.now() < pausePollUntilRef.current) return;
     const teamId = teamIdRef.current;
-    if (!teamId) return refresh();
+    if (!teamId) return refresh({ soft: true });
+    const gen = ++fetchGenRef.current;
     try {
       const res = await fetchTeamProgress(teamId);
+      if (gen !== fetchGenRef.current) return;
       setData((prev) => ({
         ...res.data,
         rounds: res.data?.rounds || prev?.rounds,
         event: res.data?.event || prev?.event,
       }));
       teamIdRef.current = res.data?.team?.id || teamId;
+      setError(null);
     } catch (err) {
+      if (gen !== fetchGenRef.current) return;
       setError(err.message || 'Failed to refresh');
     }
   }, [refresh, enabled]);
@@ -92,6 +104,8 @@ export function useHuntTeam(eventId, { enabled = true } = {}) {
   const applyActionData = useCallback((payload) => {
     const next = progressFromActionData(payload);
     if (!next) return false;
+    fetchGenRef.current += 1;
+    pausePollUntilRef.current = Date.now() + 2500;
     setData((prev) => ({
       ...next,
       rounds: prev?.rounds,
@@ -99,6 +113,7 @@ export function useHuntTeam(eventId, { enabled = true } = {}) {
     }));
     teamIdRef.current = next.team?.id || teamIdRef.current;
     setBurstUntil(Date.now() + 4000);
+    setError(null);
     return true;
   }, []);
 
@@ -116,6 +131,7 @@ export function useHuntTeam(eventId, { enabled = true } = {}) {
     if (!eventId || !enabled) return undefined;
     const pollMs = pollIntervalMs(data, burstUntil);
     const id = setInterval(() => {
+      if (Date.now() < pausePollUntilRef.current) return;
       refreshProgress();
     }, pollMs);
     return () => clearInterval(id);
@@ -136,7 +152,7 @@ export function useHuntTeam(eventId, { enabled = true } = {}) {
     data,
     loading,
     error,
-    refresh,
+    refresh: () => refresh({ soft: true }),
     refreshProgress,
     applyActionData,
     setData,

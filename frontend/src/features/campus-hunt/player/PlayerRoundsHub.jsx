@@ -26,6 +26,8 @@ export default function PlayerRoundsHub({
   rounds = [],
   onOpenRound,
   eventName,
+  lastRound = null,
+  onSwitchPerson,
 }) {
   const cards = Array.isArray(rounds) ? rounds : [];
 
@@ -125,7 +127,7 @@ export default function PlayerRoundsHub({
                     className="mt-2.5 text-xs font-semibold"
                     style={{ color: look.hex }}
                   >
-                    Enter →
+                    {lastRound === card.id ? 'Continue →' : 'Enter →'}
                   </p>
                 )}
               </button>
@@ -137,6 +139,15 @@ export default function PlayerRoundsHub({
           <p className="mt-6 text-center text-xs text-white/40">
             Playing as {team.myName || 'player'} — leader starts timed releases.
           </p>
+        )}
+        {onSwitchPerson && (
+          <button
+            type="button"
+            onClick={onSwitchPerson}
+            className="mt-6 w-full py-2 text-center text-xs text-white/35 transition hover:text-white/60"
+          >
+            Not you? Switch person on this phone
+          </button>
         )}
       </div>
     </div>

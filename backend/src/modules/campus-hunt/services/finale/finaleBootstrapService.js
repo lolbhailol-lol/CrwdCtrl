@@ -34,95 +34,133 @@ const LEGACY_PLACEHOLDER_IDS = new Set([
 
 const CANONICAL_MISSION_IDS = new Set(FINALE_MISSION_BOARD.map((m) => m.id));
 
+const CONFIG_CACHE_MS = 1500;
+const normalizedAtByEvent = new Map();
+
+function cacheKey(eventId) {
+  return String(eventId || '');
+}
+
+function markNormalized(eventId) {
+  if (eventId) normalizedAtByEvent.set(cacheKey(eventId), Date.now());
+}
+
+function recentlyNormalized(eventId) {
+  const at = normalizedAtByEvent.get(cacheKey(eventId));
+  return Boolean(at && Date.now() - at < CONFIG_CACHE_MS);
+}
+
+function isVersionConflict(err) {
+  return err?.name === 'VersionError'
+    || /No matching document found for id/i.test(String(err?.message || ''));
+}
+
+function storedMission(row) {
+  if (!row) return null;
+  const raw = typeof row.toObject === 'function' ? row.toObject() : row;
+  const id = raw?.id;
+  if (!id) return null;
+  return {
+    id: String(id),
+    title: String(raw.title || ''),
+    emoji: String(raw.emoji || ''),
+    points: Number(raw.points) || 0,
+    enabled: raw.enabled !== false,
+    comingSoon: Boolean(raw.comingSoon),
+  };
+}
+
+function canonicalId(id) {
+  return id === 'borrowed_device' ? 'field_terminal' : id;
+}
+
+function missionFingerprint(rows) {
+  return JSON.stringify(
+    (Array.isArray(rows) ? rows : []).map(storedMission).filter(Boolean),
+  );
+}
+
 /**
  * Keep mission board ordered as Intel → Lockbox → Field Terminal → Blackout.
  * Drops Mission 5 / legacy placeholders — only the 4 live missions remain.
+ * Returns true only when canonical fields actually change.
  */
 function syncMissionBoardRows(config) {
   const existing = Array.isArray(config.missions) ? config.missions : [];
   const byId = new Map();
   for (const row of existing) {
-    if (!row?.id) continue;
-    const id = row.id === 'borrowed_device' ? 'field_terminal' : row.id;
+    const prev = storedMission(row);
+    if (!prev) continue;
+    const id = canonicalId(prev.id);
     if (LEGACY_PLACEHOLDER_IDS.has(id) || !CANONICAL_MISSION_IDS.has(id)) continue;
-    byId.set(id, { ...row, id });
+    byId.set(id, { ...prev, id });
   }
 
-  let dirty = false;
   const next = FINALE_MISSION_BOARD.map((def) => {
     const prev = byId.get(def.id);
-    if (!prev) {
-      dirty = true;
-      return { ...def };
+    if (!prev) return { ...def, enabled: def.enabled !== false, comingSoon: Boolean(def.comingSoon) };
+    let title = prev.title || def.title;
+    if (/borrowed/i.test(String(prev.title || '')) && def.id === 'field_terminal') {
+      title = def.title;
     }
     const merged = {
-      ...def,
-      ...prev,
       id: def.id,
       emoji: prev.emoji || def.emoji,
-      title: prev.title || def.title,
+      title,
+      points: Number(prev.points),
       enabled: prev.enabled !== false,
       comingSoon: Boolean(def.comingSoon),
     };
-    // Bump Field Terminal default 100 → 125 when still on old board default
-    if (def.id === 'field_terminal' && Number(prev.points) === 100) {
+    if (def.id === 'field_terminal' && merged.points === 100) {
       merged.points = 125;
-      dirty = true;
-    } else if (prev.points == null && def.points != null) {
-      merged.points = def.points;
-      dirty = true;
-    }
-    if (prev.id !== def.id
-      || prev.title !== merged.title
-      || Number(prev.points) !== Number(merged.points)
-      || Boolean(prev.comingSoon) !== Boolean(merged.comingSoon)) {
-      dirty = true;
+    } else if (!merged.points && def.points != null) {
+      merged.points = Number(def.points) || 0;
     }
     return merged;
   });
 
-  const prevIds = existing.map((m) => m.id).join(',');
-  const nextIds = next.map((m) => m.id).join(',');
-  if (prevIds !== nextIds) dirty = true;
-
+  const dirty = missionFingerprint(existing) !== missionFingerprint(next);
   if (dirty) {
     config.missions = next;
-    config.markModified('missions');
+    config.markModified?.('missions');
   }
   return dirty;
+}
+
+async function persistConfigPatch(config, patch) {
+  if (!config?._id || !patch || !Object.keys(patch).length) return config;
+  try {
+    await CampusHuntFinaleMissionConfig.updateOne(
+      { _id: config._id },
+      { $set: patch },
+    );
+  } catch (err) {
+    if (!isVersionConflict(err)) throw err;
+  }
+  const fresh = await CampusHuntFinaleMissionConfig.findById(config._id);
+  markNormalized(fresh?.eventId || config.eventId);
+  return fresh || config;
 }
 
 /** Migrate legacy Borrowed Device ids/fields → Field Terminal; ensure Lockbox board slot. */
 async function normalizeFinaleMissionConfig(config) {
   if (!config) return config;
-  let dirty = false;
+  const patch = {};
 
-  const missions = Array.isArray(config.missions) ? config.missions : [];
-  for (const row of missions) {
-    if (row?.id === 'borrowed_device') {
-      row.id = 'field_terminal';
-      if (!row.title || /borrowed/i.test(String(row.title))) {
-        row.title = 'Field Terminal';
-      }
-      dirty = true;
-    }
+  if (syncMissionBoardRows(config)) {
+    patch.missions = config.missions;
   }
-  if (dirty) config.markModified('missions');
-
-  if (syncMissionBoardRows(config)) dirty = true;
 
   const legacy = config.borrowedDevice?.toObject?.() || config.borrowedDevice || {};
   const current = config.fieldTerminal?.toObject?.() || config.fieldTerminal || {};
   if (deviceConfigLooksEmpty(current) && !deviceConfigLooksEmpty(legacy)) {
-    config.fieldTerminal = {
+    patch.fieldTerminal = {
       locationName: legacy.locationName || '',
       instruction: legacy.instruction || '',
       maxAttempts: Number(legacy.maxAttempts) || FINALE_DEFAULTS.fieldTerminalMaxAttempts,
     };
-    config.markModified('fieldTerminal');
-    dirty = true;
+    config.fieldTerminal = patch.fieldTerminal;
   } else if (!deviceConfigLooksEmpty(current)) {
-    // Keep legacy mirror in sync for older admin clients
     const mirror = {
       locationName: current.locationName || '',
       instruction: current.instruction || '',
@@ -132,15 +170,14 @@ async function normalizeFinaleMissionConfig(config) {
     const legacyInstr = String(legacy.instruction || '').trim();
     if (legacyLoc !== String(mirror.locationName).trim()
       || legacyInstr !== String(mirror.instruction).trim()) {
+      patch.borrowedDevice = mirror;
       config.borrowedDevice = mirror;
-      config.markModified('borrowedDevice');
-      dirty = true;
     }
   }
 
   const lb = config.lockbox?.toObject?.() || config.lockbox || {};
   if (lockboxLooksEmpty(lb)) {
-    config.lockbox = {
+    patch.lockbox = {
       clue: DEFAULT_LOCKBOX_CONFIG.clue,
       locationName: DEFAULT_LOCKBOX_CONFIG.locationName,
       locationHint: DEFAULT_LOCKBOX_CONFIG.locationHint,
@@ -156,10 +193,9 @@ async function normalizeFinaleMissionConfig(config) {
       acceptedCodes: [...DEFAULT_LOCKBOX_CONFIG.acceptedCodes],
       lockboxInstruction: DEFAULT_LOCKBOX_CONFIG.lockboxInstruction,
     };
-    config.markModified('lockbox');
-    dirty = true;
+    config.lockbox = patch.lockbox;
   } else if (!Array.isArray(lb.codePool) || lb.codePool.length === 0) {
-    config.lockbox = {
+    patch.lockbox = {
       ...lb,
       codePool: DEFAULT_LOCKBOX_CONFIG.codePool.map((c) => ({
         id: c.id,
@@ -167,13 +203,12 @@ async function normalizeFinaleMissionConfig(config) {
         playerPieces: c.playerPieces.map((p) => ({ ...p })),
       })),
     };
-    config.markModified('lockbox');
-    dirty = true;
+    config.lockbox = patch.lockbox;
   }
 
   const blackout = config.blackout?.toObject?.() || config.blackout || {};
   if (!blackout || !blackout.scout) {
-    config.blackout = {
+    patch.blackout = {
       ...DEFAULT_BLACKOUT_CONFIG,
       scout: { ...DEFAULT_BLACKOUT_CONFIG.scout },
       cracker: { ...DEFAULT_BLACKOUT_CONFIG.cracker },
@@ -181,11 +216,13 @@ async function normalizeFinaleMissionConfig(config) {
       controller: { ...DEFAULT_BLACKOUT_CONFIG.controller },
       routePool: [...DEFAULT_BLACKOUT_CONFIG.routePool],
     };
-    config.markModified('blackout');
-    dirty = true;
+    config.blackout = patch.blackout;
   }
 
-  if (dirty) await config.save();
+  if (Object.keys(patch).length) {
+    return persistConfigPatch(config, patch);
+  }
+  markNormalized(config.eventId);
   return config;
 }
 
@@ -194,39 +231,50 @@ async function getFinaleRound(eventId) {
 }
 
 async function getOrCreateMissionConfig(eventId, roundId) {
-  let config = await CampusHuntFinaleMissionConfig.findOne({ eventId });
-  if (!config) {
-    config = await CampusHuntFinaleMissionConfig.create({
-      eventId,
-      roundId,
-      startingScore: FINALE_DEFAULTS.startingScore,
-      durationMinutes: FINALE_DEFAULTS.durationMinutes,
-      missions: FINALE_MISSION_BOARD.map((m) => ({ ...m })),
-      lockbox: {
-        ...DEFAULT_LOCKBOX_CONFIG,
-        keyPool: DEFAULT_LOCKBOX_CONFIG.keyPool.map((k) => ({ ...k })),
-        codePool: DEFAULT_LOCKBOX_CONFIG.codePool.map((c) => ({
-          id: c.id,
-          acceptedCodes: [...c.acceptedCodes],
-          playerPieces: c.playerPieces.map((p) => ({ ...p })),
-        })),
-        playerPieces: DEFAULT_LOCKBOX_CONFIG.playerPieces.map((p) => ({ ...p })),
-        acceptedCodes: [...DEFAULT_LOCKBOX_CONFIG.acceptedCodes],
-      },
-      blackout: {
-        ...DEFAULT_BLACKOUT_CONFIG,
-        scout: { ...DEFAULT_BLACKOUT_CONFIG.scout },
-        cracker: { ...DEFAULT_BLACKOUT_CONFIG.cracker },
-        navigator: { ...DEFAULT_BLACKOUT_CONFIG.navigator },
-        controller: { ...DEFAULT_BLACKOUT_CONFIG.controller },
-        routePool: [...DEFAULT_BLACKOUT_CONFIG.routePool],
-      },
-    });
-  } else if (roundId && String(config.roundId || '') !== String(roundId)) {
-    config.roundId = roundId;
-    await config.save();
+  try {
+    let config = await CampusHuntFinaleMissionConfig.findOne({ eventId });
+    if (!config) {
+      config = await CampusHuntFinaleMissionConfig.create({
+        eventId,
+        roundId,
+        startingScore: FINALE_DEFAULTS.startingScore,
+        durationMinutes: FINALE_DEFAULTS.durationMinutes,
+        missions: FINALE_MISSION_BOARD.map((m) => ({ ...m })),
+        lockbox: {
+          ...DEFAULT_LOCKBOX_CONFIG,
+          keyPool: DEFAULT_LOCKBOX_CONFIG.keyPool.map((k) => ({ ...k })),
+          codePool: DEFAULT_LOCKBOX_CONFIG.codePool.map((c) => ({
+            id: c.id,
+            acceptedCodes: [...c.acceptedCodes],
+            playerPieces: c.playerPieces.map((p) => ({ ...p })),
+          })),
+          playerPieces: DEFAULT_LOCKBOX_CONFIG.playerPieces.map((p) => ({ ...p })),
+          acceptedCodes: [...DEFAULT_LOCKBOX_CONFIG.acceptedCodes],
+        },
+        blackout: {
+          ...DEFAULT_BLACKOUT_CONFIG,
+          scout: { ...DEFAULT_BLACKOUT_CONFIG.scout },
+          cracker: { ...DEFAULT_BLACKOUT_CONFIG.cracker },
+          navigator: { ...DEFAULT_BLACKOUT_CONFIG.navigator },
+          controller: { ...DEFAULT_BLACKOUT_CONFIG.controller },
+          routePool: [...DEFAULT_BLACKOUT_CONFIG.routePool],
+        },
+      });
+      markNormalized(eventId);
+      return config;
+    }
+    if (roundId && String(config.roundId || '') !== String(roundId)) {
+      config = await persistConfigPatch(config, { roundId });
+    }
+    if (recentlyNormalized(eventId)) return config;
+    return await normalizeFinaleMissionConfig(config);
+  } catch (err) {
+    if (!isVersionConflict(err) && err?.code !== 11000) throw err;
+    const fresh = await CampusHuntFinaleMissionConfig.findOne({ eventId });
+    if (!fresh) throw err;
+    markNormalized(eventId);
+    return fresh;
   }
-  return normalizeFinaleMissionConfig(config);
 }
 
 async function bootstrapFinale({ eventId, actor = {} }) {
@@ -375,4 +423,5 @@ module.exports = {
   bootstrapFinale,
   normalizeFinaleMissionConfig,
   resetFinaleForRetest,
+  syncMissionBoardRows,
 };

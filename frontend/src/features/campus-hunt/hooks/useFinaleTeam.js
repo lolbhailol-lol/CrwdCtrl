@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchFinaleMe, fetchMyTeam } from '../services/campusHunt.api';
+import { finalePlayerMessage } from '../utils/finalePlayerMessage';
 
 /** Softer polling — avoid hammering the server while playing. */
 function pollIntervalMs(data, burstUntil) {
@@ -60,20 +61,9 @@ export function useFinaleTeam(eventId) {
         setData(null);
         teamIdRef.current = null;
         teamMetaLoadedRef.current = false;
-      } else if (err?.code === 'NOT_FINALE_PARTICIPANT' || err?.code === 'ROUND_LOCKED') {
-        setError(err.message || 'Finals not available');
-        // Keep last good board if we already had one
-        if (!soft) {
-          setData((prev) => prev);
-        }
       } else {
-        setError(err.message || 'Failed to load finale');
-        // Soft poll failure: never wipe the board mid-game
-        if (!soft) {
-          setData(null);
-          teamIdRef.current = null;
-          teamMetaLoadedRef.current = false;
-        }
+        setError(finalePlayerMessage(err) || 'Failed to load finale');
+        // Keep last good board — 500 / ROUND_LOCKED should never unmount mid-play
       }
     } finally {
       if (gen === fetchGenRef.current) setLoading(false);

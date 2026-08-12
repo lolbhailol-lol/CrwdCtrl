@@ -42,6 +42,8 @@ export function isSharedContentDeepLink(pathname = '') {
     || /^\/sports\/run(\/|$)/.test(path)
     || /^\/sports\/run-club(\/|$)/.test(path)
     || /^\/events\/[^/]+/.test(path)
+    || /^\/campus-hunt(\/|$)/.test(path)
+    || /^\/campus-hunt-volunteer(\/|$)/.test(path)
   );
 }
 
@@ -90,6 +92,12 @@ export function shouldShowBootSplash() {
     const [nav] = performance.getEntriesByType?.('navigation') ?? [];
     const isReload = nav?.type === 'reload' || performance.navigation?.type === 1;
     const isBackForward = nav?.type === 'back_forward' || performance.navigation?.type === 2;
+
+    // Hunt players reopen constantly — never hold them on the logo
+    if (/^\/campus-hunt(\/|$)/.test(window.location.pathname || '')
+      || /^\/campus-hunt-volunteer(\/|$)/.test(window.location.pathname || '')) {
+      return false;
+    }
 
     // Deep-linked content: skip splash on open, keep logo on refresh
     if (isSharedContentDeepLink() && !isReload) return false;

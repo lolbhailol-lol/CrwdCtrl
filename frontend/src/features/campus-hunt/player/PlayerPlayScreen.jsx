@@ -47,7 +47,7 @@ function needsStartReport(stage) {
 
 const panel = 'rounded-2xl border border-white/[0.08] bg-[#121416]/85 p-4 backdrop-blur-sm';
 
-export default function PlayerPlayScreen({ data, onRefresh, onActionResult, eventSlug }) {
+export default function PlayerPlayScreen({ data, onRefresh, onActionResult, eventSlug, onLeaveRound }) {
   const team = data?.team;
   const challenges = data?.challenges || [];
   const serverTime = data?.serverTime || team?.serverTime;
@@ -73,6 +73,7 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
 
   const [answer, setAnswer] = useState('');
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
   const [feedback, setFeedback] = useState('');
   const [hintPreview, setHintPreview] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
@@ -115,6 +116,36 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
     const applied = onActionResult?.(resData);
     if (!applied) {
       void onRefresh?.();
+    }
+  };
+
+  const HEAL_CODES = new Set([
+    'WRONG_STAGE',
+    'STAGE_WRITE_CONFLICT',
+    'ALREADY_RESOLVED',
+    'ROUND_CLOSED',
+    'SCORE_LOCKED',
+  ]);
+
+  const runAction = async (fn) => {
+    if (busyRef.current) return { ok: false, busy: true };
+    busyRef.current = true;
+    setBusy(true);
+    setFeedback('');
+    try {
+      const res = await fn();
+      applyResult(res.data);
+      return { ok: true, payload: res.data };
+    } catch (err) {
+      const code = err?.code || err?.data?.code;
+      setFeedback(err.message || 'Action failed');
+      if (HEAL_CODES.has(code) || err?.status === 409) {
+        void onRefresh?.();
+      }
+      return { ok: false, error: err };
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
     }
   };
 
@@ -162,139 +193,114 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
       setFeedback('Read the instructions first — the 3-minute timer has not started yet.');
       return;
     }
-    setBusy(true);
-    setFeedback('');
-    try {
-      const attempts = Number(activeChallenge?.attempts || 0);
-      const requestId = `${team.id}-c${activeNum}-a${attempts}`;
-      const res = await submitChallengeAnswer(team.id, activeNum, answer, requestId);
-      if (res.data?.correct) {
-        setAnswer('');
-        const pts = res.data.awardedPoints ?? 0;
-        if (activeNum === 1) {
-          celebrate(pts > 0 ? `Correct! +${pts} pts` : 'Correct! Head to Orange scan');
-          setAwardedFlash(pts > 0 ? pts : null);
-        } else if (activeNum === 2) {
-          celebrate(
-            pts > 0
-              ? `Correct! +${pts} pts — green scan next`
-              : 'Correct — green scan next',
-          );
-          setAwardedFlash(pts > 0 ? pts : null);
-        } else if (activeNum === 3) {
-          celebrate(
-            pts > 0
-              ? `Decoded! +${pts} pts — blue scan next`
-              : 'Decoded — blue scan next',
-          );
-          setAwardedFlash(pts > 0 ? pts : null);
-        } else if (activeNum === 4) {
-          celebrate(
-            pts > 0
-              ? `Correct! +${pts} pts — report to start`
-              : 'Correct — report to your start',
-          );
-          setAwardedFlash(pts > 0 ? pts : null);
-        } else if (res.data?.late) {
-          celebrate('Correct — time up (0 points)');
-          setAwardedFlash(null);
-        } else {
-          celebrate(pts > 0 ? `Correct! +${pts} pts` : 'Correct!');
-          setAwardedFlash(pts > 0 ? pts : null);
-        }
-        setFeedback(res.data.message || res.data.destinationInstruction || '');
-      } else if (res.data?.revealed) {
-        setAnswer('');
-        celebrate('Location revealed — continue to scan');
+    const attempts = Number(activeChallenge?.attempts || 0);
+    const requestId = `${team.id}-c${activeNum}-a${attempts}`;
+    const result = await runAction(() =>
+      submitChallengeAnswer(team.id, activeNum, answer, requestId));
+    if (!result.ok) return;
+    const resData = result.payload;
+    if (resData?.correct) {
+      setAnswer('');
+      const pts = resData.awardedPoints ?? 0;
+      if (activeNum === 1) {
+        celebrate(pts > 0 ? `Correct! +${pts} pts` : 'Correct! Head to Orange scan');
+        setAwardedFlash(pts > 0 ? pts : null);
+      } else if (activeNum === 2) {
+        celebrate(
+          pts > 0
+            ? `Correct! +${pts} pts — green scan next`
+            : 'Correct — green scan next',
+        );
+        setAwardedFlash(pts > 0 ? pts : null);
+      } else if (activeNum === 3) {
+        celebrate(
+          pts > 0
+            ? `Decoded! +${pts} pts — blue scan next`
+            : 'Decoded — blue scan next',
+        );
+        setAwardedFlash(pts > 0 ? pts : null);
+      } else if (activeNum === 4) {
+        celebrate(
+          pts > 0
+            ? `Correct! +${pts} pts — report to start`
+            : 'Correct — report to your start',
+        );
+        setAwardedFlash(pts > 0 ? pts : null);
+      } else if (resData?.late) {
+        celebrate('Correct — time up (0 points)');
         setAwardedFlash(null);
-        setFeedback(
-          res.data.message
-          || `Location: ${res.data.revealedLocation}. Go scan the station QR.`,
-        );
-      } else if (res.data?.timedOut) {
-        setFeedback('Time is up. Continue when ready.');
       } else {
-        setFeedback(
-          res.data?.message
-          || `Incorrect. Attempts left: ${res.data?.attemptsLeft ?? 0}`,
-        );
+        celebrate(pts > 0 ? `Correct! +${pts} pts` : 'Correct!');
+        setAwardedFlash(pts > 0 ? pts : null);
       }
-      applyResult(res.data);
-    } catch (err) {
-      setFeedback(err.message || 'Submit failed');
-    } finally {
-      setBusy(false);
+      setFeedback(resData.message || resData.destinationInstruction || '');
+    } else if (resData?.revealed) {
+      setAnswer('');
+      celebrate('Location revealed — continue to scan');
+      setAwardedFlash(null);
+      setFeedback(
+        resData.message
+        || `Location: ${resData.revealedLocation}. Go scan the station QR.`,
+      );
+    } else if (resData?.timedOut) {
+      setFeedback('Time is up. Continue when ready.');
+    } else {
+      setFeedback(
+        resData?.message
+        || `Incorrect. Attempts left: ${resData?.attemptsLeft ?? 0}`,
+      );
     }
   };
 
   const onHint = async () => {
     if (!activeNum || !isLeader) return;
     if (!window.confirm('Use Hint? This will cost 15 points.')) return;
-    setBusy(true);
-    try {
-      const requestId = `hint-${team.id}-${activeNum}`;
-      const res = await requestChallengeHint(team.id, activeNum, requestId);
-      setHintPreview(res.data?.hint || '');
-      applyResult(res.data);
-    } catch (err) {
-      setFeedback(err.message || 'Hint failed');
-    } finally {
-      setBusy(false);
-    }
+    const result = await runAction(() =>
+      requestChallengeHint(team.id, activeNum, `hint-${team.id}-${activeNum}`));
+    if (result.ok) setHintPreview(result.payload?.hint || '');
   };
 
   const onStationScan = async (raw) => {
-    if (busy) return;
-    setBusy(true);
-    setFeedback('');
-    try {
-      const res = await scanStationCheckpoint(team.id, raw);
-      const awaiting = Boolean(res.data?.awaitingTeamCodeConfirm || res.data?.verifiedCount >= 4);
-      const unlocked = Boolean(
-        res.data?.unlockedNext
-        || res.data?.unlockedClue2
-        || res.data?.unlockedClue3,
-      );
-      setFeedback(res.data?.message || 'Scanned');
-      if (unlocked || awaiting) {
-        setShowScanner(false);
+    const result = await runAction(() => scanStationCheckpoint(team.id, raw));
+    if (!result.ok) {
+      if (result.error) {
+        setFeedback(result.error.message || 'Scan failed — use the station poster QR');
       }
-      if (unlocked) {
-        celebrate(res.data?.message || 'All set — next step unlocked!');
-      }
-      applyResult(res.data);
-    } catch (err) {
-      setFeedback(err.message || 'Scan failed — use the station poster QR');
-    } finally {
-      setBusy(false);
+      return;
+    }
+    const resData = result.payload;
+    const awaiting = Boolean(resData?.awaitingTeamCodeConfirm || resData?.verifiedCount >= 4);
+    const unlocked = Boolean(
+      resData?.unlockedNext
+      || resData?.unlockedClue2
+      || resData?.unlockedClue3,
+    );
+    setFeedback(resData?.message || 'Scanned');
+    if (unlocked || awaiting) {
+      setShowScanner(false);
+    }
+    if (unlocked) {
+      celebrate(resData?.message || 'All set — next step unlocked!');
     }
   };
 
   const onStationClaim = async (e) => {
     e?.preventDefault?.();
-    if (busy) return;
     const code = String(claimCode || team?.teamCode || '').trim();
     if (!code) {
       setFeedback('Enter your team code');
       return;
     }
-    setBusy(true);
-    setFeedback('');
-    try {
-      const res = await confirmStationCheckpoint(team.id, {
-        teamCode: code,
-        checkpointId: checkpointStatus?.checkpointId,
-      });
-      setFeedback(res.data?.message || 'Confirmed');
-      if (res.data?.unlockedNext) {
-        celebrate(res.data?.message || 'Clue unlocked!');
-        setClaimCode('');
-      }
-      applyResult(res.data);
-    } catch (err) {
-      setFeedback(err.message || 'Team code confirm failed');
-    } finally {
-      setBusy(false);
+    const result = await runAction(() => confirmStationCheckpoint(team.id, {
+      teamCode: code,
+      checkpointId: checkpointStatus?.checkpointId,
+    }));
+    if (!result.ok) return;
+    const resData = result.payload;
+    setFeedback(resData?.message || 'Confirmed');
+    if (resData?.unlockedNext) {
+      celebrate(resData?.message || 'Clue unlocked!');
+      setClaimCode('');
     }
   };
 
@@ -350,6 +356,7 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
             to={eventSlug ? CAMPUS_HUNT_PATHS.play(eventSlug) : '/'}
             label="← All rounds"
             forceTo
+            onBeforeNavigate={onLeaveRound}
             className="mb-3"
           />
 
@@ -598,23 +605,16 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
                   type="button"
                   disabled={busy}
                   onClick={async () => {
-                    setBusy(true);
-                    try {
-                      const res = await forceUnlockClue2(team.id);
-                      const key = res.data?.checkpointKey || checkpointStatus.checkpointKey;
-                      celebrate(
-                        key === '2'
-                          ? 'Dev: all scanned → Decode'
-                          : key === '1'
-                            ? 'Dev: all scanned → Clue 2'
-                            : 'Dev: checkpoint cleared',
-                      );
-                      applyResult(res.data);
-                    } catch (err) {
-                      setFeedback(err.message || 'Force unlock failed');
-                    } finally {
-                      setBusy(false);
-                    }
+                    const result = await runAction(() => forceUnlockClue2(team.id));
+                    if (!result.ok) return;
+                    const key = result.payload?.checkpointKey || checkpointStatus.checkpointKey;
+                    celebrate(
+                      key === '2'
+                        ? 'Dev: all scanned → Decode'
+                        : key === '1'
+                          ? 'Dev: all scanned → Clue 2'
+                          : 'Dev: checkpoint cleared',
+                    );
                   }}
                   className="w-full rounded-xl border border-amber-400/30 py-2 text-xs text-amber-100/80"
                 >

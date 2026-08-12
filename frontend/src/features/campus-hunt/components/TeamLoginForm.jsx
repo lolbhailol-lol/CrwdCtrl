@@ -47,7 +47,6 @@ export default function TeamLoginForm({
   const [lookingUp, setLookingUp] = useState(false);
   const [sessionCheck, setSessionCheck] = useState('idle');
   const [otherTeamCode, setOtherTeamCode] = useState('');
-  const [currentSession, setCurrentSession] = useState(null); // { myName, isLeader, myRole }
   const lookupSeq = useRef(0);
 
   useEffect(() => {
@@ -100,15 +99,13 @@ export default function TeamLoginForm({
     ? teamPrimaryLabel(teamCard.team)
     : teamCode;
   const secondary = teamCard?.team ? teamSecondaryName(teamCard.team) : '';
-  const continueLabel = 'Continue →';
-
-  // Stay logged in: same team → offer continue OR switch person (do not force-skip)
+  // Stay logged in: same team → go straight to play (JWT already restored).
   useEffect(() => {
-    if (authLoading || lookingUp || !teamCode || !eventId) return;
+    if (lookingUp || !teamCode || !eventId) return;
     if (!isAuthenticated) {
+      if (authLoading) return;
       setSessionCheck('ready');
       setOtherTeamCode('');
-      setCurrentSession(null);
       return;
     }
     let cancelled = false;
@@ -126,24 +123,17 @@ export default function TeamLoginForm({
             playPath,
             teamLoginPath: CAMPUS_HUNT_PATHS.teamLogin(slug, teamCode),
           });
-          setCurrentSession({
-            myName: team?.myName || team?.leaderName || 'You',
-            isLeader: Boolean(team?.isLeader),
-            myRole: team?.myRole || (team?.isLeader ? 'leader' : 'player'),
-          });
-          setSessionCheck('same');
+          navigate(playPath, { replace: true });
           return;
         }
         if (myCode && myCode !== teamCode) {
           setOtherTeamCode(myCode);
-          setCurrentSession(null);
           setSessionCheck('other');
           return;
         }
         setSessionCheck('ready');
       } catch {
         if (!cancelled) {
-          setCurrentSession(null);
           setSessionCheck('ready');
         }
       }
@@ -157,6 +147,7 @@ export default function TeamLoginForm({
     teamCode,
     playPath,
     slug,
+    navigate,
   ]);
 
   const leader = useMemo(
@@ -273,7 +264,6 @@ export default function TeamLoginForm({
     try {
       await logout();
       setOtherTeamCode('');
-      setCurrentSession(null);
       setSessionCheck('ready');
       setUnlocked(false);
       setMembers([]);
@@ -294,50 +284,11 @@ export default function TeamLoginForm({
     );
   }
 
-  if (authLoading || sessionCheck === 'checking' || (isAuthenticated && sessionCheck === 'idle')) {
+  const waitingUnknownAuth = authLoading && !isAuthenticated;
+  if (waitingUnknownAuth || sessionCheck === 'checking' || (isAuthenticated && sessionCheck === 'idle')) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#0b0c0d] text-white">
         Checking login…
-      </div>
-    );
-  }
-
-  if (sessionCheck === 'same' && currentSession) {
-    return (
-      <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#0b0c0d] px-5 text-center text-white">
-        <div className="absolute left-4 top-[max(1rem,var(--safe-top))] z-10">
-          <CampusHuntBackLink to={CAMPUS_HUNT_PATHS.profileLogin} label="Back" />
-        </div>
-        <div className="relative max-w-md space-y-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#0ECCEE]">
-            {roundLabel}
-          </p>
-          <h1 className="font-mono text-3xl font-bold">{primary || teamCode}</h1>
-          <p className="text-sm text-white/60">
-            Logged in as{' '}
-            <span className="font-semibold text-white">
-              {currentSession.isLeader ? 'Leader' : 'Player'}
-              {currentSession.myName ? ` · ${currentSession.myName}` : ''}
-            </span>
-          </p>
-          <div className="flex flex-col gap-2 pt-2">
-            <button
-              type="button"
-              onClick={() => navigate(playPath, { replace: true })}
-              className="rounded-xl bg-[#0ECCEE] px-4 py-3 text-sm font-bold text-black"
-            >
-              {continueLabel}
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void switchToThisTeam()}
-              className="rounded-xl border border-white/20 px-4 py-3 text-sm text-white/80 disabled:opacity-40"
-            >
-              {busy ? '…' : 'Not you? Switch person on this phone'}
-            </button>
-          </div>
-        </div>
       </div>
     );
   }

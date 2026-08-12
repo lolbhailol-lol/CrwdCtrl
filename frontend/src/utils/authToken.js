@@ -11,7 +11,7 @@ function isJwtLike(value) {
   return value.split('.').length === 3;
 }
 
-function decodeJwtPayload(token) {
+export function decodeJwtPayload(token) {
   try {
     const segment = token.split('.')[1];
     if (!segment) return null;
@@ -20,6 +20,17 @@ function decodeJwtPayload(token) {
   } catch {
     return null;
   }
+}
+
+/** Hunt player JWT claims (team login) — used to skip the event-slug waterfall. */
+export function getHuntJwtClaims(token) {
+  const payload = decodeJwtPayload(token);
+  if (!payload?.userId || !payload?.huntEventId) return null;
+  return {
+    huntEventId: String(payload.huntEventId),
+    huntTeamId: payload.huntTeamId ? String(payload.huntTeamId) : '',
+    huntRole: payload.huntRole || '',
+  };
 }
 
 /** CrwdCtrl user session JWT — must carry userId (not organizer/admin/scanner tokens). */

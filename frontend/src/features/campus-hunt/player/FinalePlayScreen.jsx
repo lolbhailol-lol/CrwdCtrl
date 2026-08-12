@@ -17,6 +17,7 @@ import BlackoutMission from './missions/BlackoutMission';
 import { teamPrimaryLabel, teamSecondaryName } from '../utils/teamLabel';
 import { FINALE_MISSIONS, missionCardShell } from '../admin/finaleMissionTheme';
 import CampusHuntBackLink from '../components/CampusHuntBackLink';
+import { finalePlayerMessage } from '../utils/finalePlayerMessage';
 
 const STATUS_LABEL = {
   available: 'Ready',
@@ -104,6 +105,8 @@ export default function FinalePlayScreen({
   onRefresh,
   onActionResult,
   eventSlug,
+  onLeaveRound,
+  pollError,
 }) {
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState('');
@@ -166,23 +169,11 @@ export default function FinalePlayScreen({
       return { ok: true, payload };
     } catch (err) {
       const code = err?.code || err?.data?.code;
-      if (code === 'NOT_RELEASED') {
-        setFeedback('Not released yet — wait at your meet point, or ask an organizer to Release your team.');
-      } else if (code === 'MISSION_COMPLETED') {
-        setFeedback('This mission is already cleared. Refresh if the board looks wrong.');
-      } else if (code === 'MISSION_ACTIVE') {
-        setFeedback('Finish or abandon your current mission first.');
-      } else if (code === 'FINALE_NOT_LIVE') {
-        setFeedback('Finals are not live yet — wait for the organizer to Start Finals.');
-      } else if (code === 'ENTRY_STOPPED') {
-        setFeedback('Your team is stopped or locked. Ask an organizer to resume you.');
-      } else if (code === 'ROUND_LOCKED') {
-        setFeedback(err.message || 'This round is locked.');
-      } else {
-        setFeedback(err.message || 'Action failed');
-      }
-      // Only heal when server state may be ahead of the UI
-      if (['MISSION_ACTIVE', 'MISSION_COMPLETED', 'NOT_RELEASED', 'WRONG_MISSION', 'NO_ACTIVE_RUN'].includes(code)) {
+      const status = Number(err?.status || err?.data?.status || 0);
+      setFeedback(finalePlayerMessage(err));
+      // Only heal when server state may be ahead of the UI — never on 500/network
+      if (['MISSION_ACTIVE', 'MISSION_COMPLETED', 'NOT_RELEASED', 'WRONG_MISSION', 'NO_ACTIVE_RUN'].includes(code)
+        && status < 500) {
         void onRefresh?.();
       }
       return { ok: false, error: err };
@@ -240,6 +231,7 @@ export default function FinalePlayScreen({
           to={eventSlug ? CAMPUS_HUNT_PATHS.play(eventSlug) : CAMPUS_HUNT_PATHS.leaderboard}
           label="← All rounds"
           forceTo
+          onBeforeNavigate={onLeaveRound}
           className="mb-3"
         />
 
@@ -265,6 +257,11 @@ export default function FinalePlayScreen({
         </header>
 
         <div className="space-y-4">
+          {pollError ? (
+            <p className="rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2.5 text-center text-sm text-amber-100">
+              {typeof pollError === 'string' ? pollError : finalePlayerMessage(pollError)}
+            </p>
+          ) : null}
           {waitingForRelease && (
             <UnlockHoldingCard
               accentHex={ACCENT}

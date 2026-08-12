@@ -27,6 +27,7 @@
         var p = location.pathname || '';
         var ua = navigator.userAgent || '';
         var inApp = /Instagram|FBAN|FBAV|FB_IAB|Messenger|WhatsApp|Line\/|Telegram|TikTok|BytedanceWebview|MicroMessenger/i.test(ua);
+        var hunt = /^\/campus-hunt(\/|$)/.test(p) || /^\/campus-hunt-volunteer(\/|$)/.test(p);
         var deep = /^\/trek(\/|$)/.test(p)
           || /^\/treks\/community(\/|$)/.test(p)
           || /^\/view-details(\/|$)/.test(p)
@@ -36,7 +37,8 @@
           || /^\/s(\/|$)/.test(p)
           || /^\/sports\/run(\/|$)/.test(p)
           || /^\/sports\/run-club(\/|$)/.test(p)
-          || /^\/events\/[^/]+/.test(p);
+          || /^\/events\/[^/]+/.test(p)
+          || hunt;
         var isReload = false;
         try {
           var nav = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
@@ -44,7 +46,8 @@
         } catch (e) {}
         // Instagram: never show boot splash — it commonly sticks as a black screen
         // Deep links: skip on first open only; keep logo splash on refresh
-        if (inApp || (deep && !isReload)) document.documentElement.classList.add('skip-boot-splash');
+        // Campus Hunt: skip even on refresh — players reopen mid-mission
+        if (inApp || hunt || (deep && !isReload)) document.documentElement.classList.add('skip-boot-splash');
       } catch (e) {}
     })();
   </script>
@@ -212,6 +215,9 @@
     }
     /* Shared content deep links — never flash the brand logo */
     html.skip-boot-splash #boot-splash {
+      display: none !important;
+    }
+    html.skip-boot-splash #boot-fallback {
       display: none !important;
     }
     .boot-splash-inner {
@@ -513,6 +519,7 @@
           hideFallback();
           return;
         }
+        if (skipSplash) return;
         showFallback();
         recoverStaleDeploy();
       }, 3200);

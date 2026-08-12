@@ -9,10 +9,12 @@ export default function CampusHuntBackLink({
   label = 'Back',
   className = '',
   forceTo = false,
+  onBeforeNavigate,
 }) {
   const navigate = useNavigate();
 
   const onBack = () => {
+    onBeforeNavigate?.();
     if (forceTo && to) {
       navigate(to);
       return;
