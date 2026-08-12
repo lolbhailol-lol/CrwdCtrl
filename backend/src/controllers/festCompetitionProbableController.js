@@ -198,6 +198,12 @@ exports.convertProbable = async (req, res) => {
 
         const name = String(req.body.name || row.name || '').trim();
         const phone = normalizePhone(req.body.phone || row.phone);
+        if (!name || name.length < 2) {
+            return res.status(400).json({ success: false, message: 'Name is required' });
+        }
+        if (!phone || phone.length < 8) {
+            return res.status(400).json({ success: false, message: 'Valid phone is required' });
+        }
         const paymentStatusRaw = String(req.body.paymentStatus || 'pending').trim().toLowerCase();
         const paymentStatus = ['free', 'pending', 'paid', 'failed'].includes(paymentStatusRaw)
             ? paymentStatusRaw
