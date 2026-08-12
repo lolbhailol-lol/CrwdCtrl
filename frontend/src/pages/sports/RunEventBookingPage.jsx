@@ -37,6 +37,7 @@ import {
     setPaymentFlowToStepTwo,
     setPaymentFlowToSuccess,
 } from '../../utils/bookingFlowShared';
+import { openLoginSheet } from '../../utils/loginFlow';
 import {
     findSportsTier,
     getSportsTiers,
@@ -124,6 +125,13 @@ export default function RunEventBookingPage() {
         handleSwitchToLogin,
     } = createAuthModalHandlers({ setShowLogin, setShowRegister });
 
+    const openLogin = useCallback(() => {
+        openLoginSheet({
+            returnPath: `${window.location.pathname}${window.location.search || ''}`,
+        });
+        setShowLogin(true);
+    }, []);
+
     useEffect(() => {
         if (isAuthenticated && showLogin) setShowLogin(false);
         if (isAuthenticated && showRegister) setShowRegister(false);
@@ -162,14 +170,8 @@ export default function RunEventBookingPage() {
     const loggedIn = isAuthed();
 
     useEffect(() => {
-        if (authLoading || isAuthProcessing || isRedirectProcessing) return;
-        if (!event || loadingEvent) return;
-        if (loggedIn) {
-            setShowLogin(false);
-            return;
-        }
-        if (requireLogin) setShowLogin(true);
-    }, [authLoading, isAuthProcessing, isRedirectProcessing, loggedIn, requireLogin, event, loadingEvent]);
+        if (loggedIn && showLogin) setShowLogin(false);
+    }, [loggedIn, showLogin]);
 
     const uploadPaymentScreenshot = useCallback(async (file) => {
         if (!file) return;
@@ -466,7 +468,7 @@ export default function RunEventBookingPage() {
         if (!evId) throw new Error('Run not found');
 
         if (requireLogin && !isAuthed()) {
-            setShowLogin(true);
+            openLogin();
             throw new Error('Please log in to complete your booking.');
         }
         const headers = isAuthed()
@@ -497,7 +499,7 @@ export default function RunEventBookingPage() {
         if (!res.ok) {
             if (res.status === 401 || isAuthFailureMessage(regData.message)) {
                 if (requireLogin || regData.requireLogin) {
-                    setShowLogin(true);
+                    openLogin();
                     throw new Error('Please log in again to complete your booking.');
                 }
             }
@@ -663,7 +665,7 @@ export default function RunEventBookingPage() {
         setError('');
         if (onePersonFreeLimit && people !== 1) setPeople(1);
         if (requireLogin && !isAuthed()) {
-            setShowLogin(true);
+            openLogin();
             setError('Please log in to book this run.');
             return;
         }
@@ -682,7 +684,7 @@ export default function RunEventBookingPage() {
             }
             if (!formData.full_name?.trim() || !formData.email?.trim()) {
                 setError('Sign in with Google so we can reserve your spot.');
-                setShowLogin(true);
+                openLogin();
                 return;
             }
             setExtraFields(formData);
@@ -826,7 +828,7 @@ export default function RunEventBookingPage() {
                 if (!res.ok) {
                     if (res.status === 401 || isAuthFailureMessage(order.message) || order.requireLogin) {
                         if (requireLogin || order.requireLogin) {
-                            setShowLogin(true);
+                            openLogin();
                             setError('Please log in to book this run.');
                             setPaying(false);
                             return;
@@ -1150,7 +1152,7 @@ export default function RunEventBookingPage() {
                         <p className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                             Log in to book this run and receive booking notifications.
                         </p>
-                        <button type="button" onClick={() => setShowLogin(true)}
+                        <button type="button" onClick={() => openLogin()}
                             className="px-5 py-2.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition">
                             Log in to continue
                         </button>
@@ -1160,7 +1162,7 @@ export default function RunEventBookingPage() {
                 {!loggedIn && !requireLogin && (
                     <div className={`rounded-xl p-3 mb-4 border text-sm ${isDark ? 'bg-[#1D1E20] border-gray-700 text-gray-300' : 'bg-white border-gray-200 text-gray-600'}`}>
                         Guest checkout is on — no account needed. Optionally{' '}
-                        <button type="button" onClick={() => setShowLogin(true)} className="text-[#0ECCEE] font-semibold underline">
+                        <button type="button" onClick={() => openLogin()} className="text-[#0ECCEE] font-semibold underline">
                             log in
                         </button>
                         {' '}to save this booking under My Bookings.

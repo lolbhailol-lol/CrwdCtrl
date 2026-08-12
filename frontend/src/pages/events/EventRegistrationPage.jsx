@@ -24,6 +24,7 @@ import { API_BASE_URL, publicFetchJSONRetry } from '../../services/api/client';
 import { resolveAuthToken, getBearerAuthHeaders, hasUsableAuthToken } from '../../utils/authToken';
 import { useBookingSuccessPopup } from '../../hooks/useSuccessPopup';
 import { eventShowPath } from '../../utils/slugRoutes';
+import { openLoginSheet, currentAppPath } from '../../utils/loginFlow';
 import { openExternalUrl } from '../../utils/externalLink';
 import {
     getEventShowTiers,
@@ -188,10 +189,13 @@ export default function EventRegistrationPage() {
         [authToken],
     );
 
-    useEffect(() => {
-        if (authLoading || isAuthProcessing || isRedirectProcessing) return;
-        if (!isAuthed()) setShowLogin(true);
-    }, [authLoading, isAuthProcessing, isRedirectProcessing, isAuthed]);
+    const openLogin = useCallback(() => {
+        const returnPath = event
+            ? `${eventShowPath(event)}/register${window.location.search || ''}`
+            : currentAppPath();
+        openLoginSheet({ returnPath });
+        setShowLogin(true);
+    }, [event]);
 
     useEffect(() => {
         if (isAuthenticated && showLogin) setShowLogin(false);
@@ -759,7 +763,7 @@ export default function EventRegistrationPage() {
         selectedAddOnIdsOverride,
     } = {}) => {
         const token = getAuthToken();
-        if (!token) { setShowLogin(true); throw new Error('Please log in to register.'); }
+        if (!token) { openLogin(); throw new Error('Please log in to register.'); }
 
         const submissionValues = { ...(valuesOverride ?? values) };
         const submissionFiles = filesOverride ?? files;
@@ -848,7 +852,7 @@ export default function EventRegistrationPage() {
     }) => {
         const token = getAuthToken();
         if (!token) {
-            setShowLogin(true);
+            openLogin();
             throw new Error('Please log in to complete registration after payment.');
         }
         const { ok, data: v } = await verifyPaymentWithRetry(API, orderId, { token, kind: 'fest' });
@@ -988,7 +992,7 @@ export default function EventRegistrationPage() {
 
     const handleFinalSubmit = async () => {
         setError('');
-        if (!isAuthed()) { setShowLogin(true); setError('Please log in to register.'); return; }
+        if (!isAuthed()) { openLogin(); setError('Please log in to register.'); return; }
 
         const showId = event?._id || event?.id || eventId;
 
@@ -1079,7 +1083,7 @@ export default function EventRegistrationPage() {
         try {
             const token = getAuthToken();
             if (!token) {
-                setShowLogin(true);
+                openLogin();
                 setError('Please log in to register.');
                 setPaying(false);
                 return;
@@ -1186,7 +1190,7 @@ export default function EventRegistrationPage() {
         try {
             const token = getAuthToken();
             if (!token) {
-                setShowLogin(true);
+                openLogin();
                 throw new Error('Please log in to upload payment screenshot.');
             }
             const fd = new FormData();
@@ -1246,7 +1250,7 @@ export default function EventRegistrationPage() {
 
     const next = () => {
         setError('');
-        if (!isAuthed()) { setShowLogin(true); setError('Please log in to register.'); return; }
+        if (!isAuthed()) { openLogin(); setError('Please log in to register.'); return; }
         if (!validateStep(step)) return;
         if (step < allSteps.length - 1) setStep((s) => s + 1);
     };
@@ -1414,7 +1418,7 @@ export default function EventRegistrationPage() {
                 {!isAuthed() && (
                     <div className={`rounded-2xl p-4 mb-4 border text-center ${isDark ? 'bg-[#111213] border-gray-700' : 'bg-white border-gray-100 shadow-md'}`}>
                         <p className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Log in to register for this event.</p>
-                        <button type="button" onClick={() => setShowLogin(true)} className="px-5 py-2.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition">Log in to continue</button>
+                        <button type="button" onClick={() => openLogin()} className="px-5 py-2.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition">Log in to continue</button>
                     </div>
                 )}
 
@@ -1961,7 +1965,7 @@ export default function EventRegistrationPage() {
                                 onClick={() => {
                                     if (spectatorPath && !isPaymentStep) {
                                         setError('');
-                                        if (!isAuthed()) { setShowLogin(true); setError('Please log in to register.'); return; }
+                                        if (!isAuthed()) { openLogin(); setError('Please log in to register.'); return; }
                                         if (!validateStep(step)) return;
                                     }
                                     handleFinalSubmit();
@@ -1998,7 +2002,7 @@ export default function EventRegistrationPage() {
             )}
             {showRegister && (
                 <div className="fixed inset-0 z-50">
-                    <CrwdCtrlRegister onClose={() => setShowRegister(false)} onSwitchToLogin={() => { setShowRegister(false); setShowLogin(true); }} />
+                    <CrwdCtrlRegister onClose={() => setShowRegister(false)} onSwitchToLogin={() => { setShowRegister(false); openLogin(); }} />
                 </div>
             )}
         </div>

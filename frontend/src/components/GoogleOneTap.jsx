@@ -4,6 +4,7 @@ import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
 import { useAuth } from '../context/AuthContext';
 import { auth } from '../firebase';
 import { isNativeApp } from '../utils/capacitorPlatform';
+import { isLoginModalOpen } from '../utils/loginFlow';
 
 /**
  * Google One Tap sign-in (optional UX).
@@ -115,6 +116,7 @@ export default function GoogleOneTap() {
       return undefined;
     }
     if (isAuthenticated || isLoading || isRedirectProcessing || isAuthProcessing) return undefined;
+    if (isLoginModalOpen()) return undefined;
     if (promptedRef.current) return undefined;
     if (auth.currentUser) return undefined;
 

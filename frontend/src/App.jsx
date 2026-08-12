@@ -317,8 +317,11 @@ function App() {
   const [showLogin, setShowLogin] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
 
-  const openLoginFromProfile = useCallback(() => {
-    prepareLogin({ fromProfile: true });
+  const openLoginFromProfile = useCallback((options = {}) => {
+    prepareLogin({
+      fromProfile: true,
+      returnPath: options.returnPath,
+    });
     setIsProfileOpen(false);
     setShowLogin(true);
   }, []);

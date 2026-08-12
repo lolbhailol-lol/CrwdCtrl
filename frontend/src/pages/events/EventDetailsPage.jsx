@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Share2, Heart, Calendar, MapPin,
@@ -23,6 +23,7 @@ import { getEventShowTiers, isEventShowTiersPricing, formatInr } from '../../uti
 import DetailPageLoader from '../../components/DetailPageLoader';
 import PrizePoolPodium from '../../components/PrizePoolPodium';
 import { getSuggestedCouponCode, getSuggestedCouponLabel } from '../../utils/suggestedCoupon';
+import { openLoginSheet } from '../../utils/loginFlow';
 
 function ordinalDay(n) {
   const d = Number(n);
@@ -211,6 +212,23 @@ export default function EventDetailsPage() {
 
   const isLoggedIn = () => isAuthenticated || !!localStorage.getItem('crwdctrl_token');
 
+  const openRegisterLogin = useCallback(() => {
+    if (!event) return;
+    openLoginSheet({ returnPath: `${eventShowPath(event)}/register` });
+    setShowLogin(true);
+  }, [event]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !showLogin || !event) return;
+    setShowLogin(false);
+    navigate(`${eventShowPath(event)}/register`, {
+      state: {
+        event: event.raw || event,
+        suggestedCoupon: getSuggestedCouponCode(event),
+      },
+    });
+  }, [isAuthenticated, showLogin, event, navigate]);
+
   const handleBack = () => {
     // If the user navigated here within the app, go back normally.
     // If they opened a shared link directly (no in-app history), send them
@@ -336,7 +354,7 @@ export default function EventDetailsPage() {
       }
       if (!isLoggedIn()) {
         toast('Please log in to register');
-        setShowLogin(true);
+        openRegisterLogin();
         return;
       }
       const formFields = [
@@ -1297,17 +1315,7 @@ export default function EventDetailsPage() {
             googleOnly
             title="Sign in to register"
             subtitle="One tap with Google — then finish registration"
-            onClose={() => {
-              setShowLogin(false);
-              if (isLoggedIn()) {
-                navigate(`${eventShowPath(event)}/register`, {
-                  state: {
-                    event: event.raw || event,
-                    suggestedCoupon: getSuggestedCouponCode(event),
-                  },
-                });
-              }
-            }}
+            onClose={() => setShowLogin(false)}
           />
         </div>
       )}

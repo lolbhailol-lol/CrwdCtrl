@@ -1,4 +1,6 @@
 const LOGIN_CONTEXT_KEY = 'crwdctrl_login_context';
+const AUTO_GOOGLE_ONCE_KEY = 'crwdctrl_auto_google_once';
+const LOGIN_MODAL_OPEN_KEY = 'crwdctrl_login_modal_open';
 
 /** Save intent before opening the login modal. */
 export function prepareLogin({ fromProfile = false, returnPath: explicitReturnPath } = {}) {
@@ -10,8 +12,54 @@ export function prepareLogin({ fromProfile = false, returnPath: explicitReturnPa
             LOGIN_CONTEXT_KEY,
             JSON.stringify({ fromProfile: Boolean(fromProfile), returnPath }),
         );
+        if (fromProfile) {
+            sessionStorage.setItem(AUTO_GOOGLE_ONCE_KEY, '1');
+        }
     } catch {
         /* storage unavailable */
+    }
+}
+
+export function clearAutoGoogleOnce() {
+    try {
+        sessionStorage.removeItem(AUTO_GOOGLE_ONCE_KEY);
+    } catch {
+        /* ignore */
+    }
+}
+
+/** Call before setShowLogin(true) on booking/register pages. */
+export function openLoginSheet({ returnPath, fromProfile = false } = {}) {
+    prepareLogin({
+        fromProfile,
+        returnPath: returnPath || currentAppPath(),
+    });
+}
+
+export function consumeAutoGoogleOnce() {
+    try {
+        if (sessionStorage.getItem(AUTO_GOOGLE_ONCE_KEY) !== '1') return false;
+        sessionStorage.removeItem(AUTO_GOOGLE_ONCE_KEY);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+export function markLoginModalOpen(isOpen) {
+    try {
+        if (isOpen) sessionStorage.setItem(LOGIN_MODAL_OPEN_KEY, '1');
+        else sessionStorage.removeItem(LOGIN_MODAL_OPEN_KEY);
+    } catch {
+        /* ignore */
+    }
+}
+
+export function isLoginModalOpen() {
+    try {
+        return sessionStorage.getItem(LOGIN_MODAL_OPEN_KEY) === '1';
+    } catch {
+        return false;
     }
 }
 

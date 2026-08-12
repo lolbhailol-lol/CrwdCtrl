@@ -7,7 +7,13 @@ import { useDarkMode } from '../../context/DarkModeContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { authService } from '../../services/authService';
 import { storage } from '../../utils/storage';
-import { prepareLogin, resolvePostLoginRedirect } from '../../utils/loginFlow';
+import {
+    prepareLogin,
+    resolvePostLoginRedirect,
+    consumeAutoGoogleOnce,
+    markLoginModalOpen,
+    clearAutoGoogleOnce,
+} from '../../utils/loginFlow';
 import { showRecaptchaBadge, hideRecaptchaBadge } from '../../utils/recaptcha';
 
 function GoogleIcon({ className = 'w-5 h-5 sm:w-6 sm:h-6' }) {
@@ -50,11 +56,25 @@ export default function CrwdCtrlLogin({
     const isModal = !!onClose;
     const isAdminLogin = location.pathname === '/admin/login';
 
+    const googleAuthInFlightRef = useRef(false);
+    const autoGoogleStartedRef = useRef(false);
+
     // Show the reCAPTCHA badge only while the login screen is on-screen.
     useEffect(() => {
         showRecaptchaBadge();
         return () => hideRecaptchaBadge();
     }, []);
+
+    useEffect(() => {
+        if (!isModal) return undefined;
+        markLoginModalOpen(true);
+        try {
+            window.google?.accounts?.id?.cancel?.();
+        } catch {
+            /* ignore */
+        }
+        return () => markLoginModalOpen(false);
+    }, [isModal]);
 
     useEffect(() => {
         // Honor ?redirect= when opened as a page (e.g. Campus Hunt deep links)
@@ -150,10 +170,6 @@ export default function CrwdCtrlLogin({
                         ...result.user,
                         token: result.token
                     });
-                    
-                    if (isModal && onClose) {
-                        onClose();
-                    }
                 }
             } else {
                 setErrors({ general: 'Login failed. Please try again.' });
@@ -167,10 +183,10 @@ export default function CrwdCtrlLogin({
     };
 
     const handleClose = () => {
+        clearAutoGoogleOnce();
         if (isModal && onClose) {
             onClose();
         } else {
-            // If not a modal, navigate back to home
             navigate('/');
         }
     };
@@ -187,6 +203,8 @@ export default function CrwdCtrlLogin({
 
     // Google Social Login Handler
     const handleGoogleAuth = async () => {
+        if (googleAuthInFlightRef.current || isLoading) return;
+        googleAuthInFlightRef.current = true;
         setIsLoading(true);
         setErrors({});
 
@@ -214,10 +232,6 @@ export default function CrwdCtrlLogin({
                     ...result.user,
                     token: result.token
                 }, result.firebaseUser);
-
-                if (isModal && onClose) {
-                    onClose();
-                }
             } else {
                 setErrors({ general: result.error || 'Google sign-in failed. Please try again.' });
             }
@@ -272,6 +286,7 @@ export default function CrwdCtrlLogin({
                 setErrors({ general: errorStr || errorMessage });
             }
         } finally {
+            googleAuthInFlightRef.current = false;
             setIsLoading(false);
         }
     };
@@ -330,14 +345,14 @@ export default function CrwdCtrlLogin({
         }
     };
 
-    const autoGoogleRef = useRef(false);
     const googleAuthFnRef = useRef(handleGoogleAuth);
     googleAuthFnRef.current = handleGoogleAuth;
 
-    // googleOnly sheet: one tap from Profile → Google picker opens automatically
+    // Profile-only: auto-open Google once after tapping Continue with Google (not on Register/book flows).
     useEffect(() => {
-        if (!googleOnly || !isModal || autoGoogleRef.current || isAuthenticated) return undefined;
-        autoGoogleRef.current = true;
+        if (!googleOnly || !isModal || autoGoogleStartedRef.current || isAuthenticated) return undefined;
+        if (!consumeAutoGoogleOnce()) return undefined;
+        autoGoogleStartedRef.current = true;
         const delay = reduceMotion ? 0 : 220;
         const timer = window.setTimeout(() => {
             googleAuthFnRef.current?.();

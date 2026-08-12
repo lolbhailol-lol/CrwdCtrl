@@ -253,13 +253,10 @@ export default function ProfileSidebar({
 
         if (label === 'Campus Hunt login') {
             if (!isAuthenticated) {
-                // Same bottom Google sheet as Profile icon (Runs / Treks style)
                 if (onShowLogin) {
-                    onShowLogin();
-                    // Set after onShowLogin so Profile's prepareLogin doesn't wipe the return path
-                    prepareLogin({ returnPath: CAMPUS_HUNT_PATHS.profileLogin });
+                    onShowLogin({ returnPath: CAMPUS_HUNT_PATHS.profileLogin });
                 } else {
-                    prepareLogin({ returnPath: CAMPUS_HUNT_PATHS.profileLogin });
+                    prepareLogin({ fromProfile: true, returnPath: CAMPUS_HUNT_PATHS.profileLogin });
                     prepareRouteNavigation('/login');
                     navigate('/login', {
                         state: { from: { pathname: CAMPUS_HUNT_PATHS.profileLogin } },

@@ -4,6 +4,7 @@ import {
     buildVerifiedPaymentFields,
     classifyCheckoutError,
 } from './useCashfree';
+import { prepareLogin, currentAppPath } from './loginFlow';
 
 function readSessionDraft(draftKey) {
     if (!draftKey) return {};
@@ -76,6 +77,7 @@ export function createAuthModalHandlers({ setShowLogin, setShowRegister }) {
         },
         handleSwitchToLogin: () => {
             setShowRegister(false);
+            prepareLogin({ returnPath: currentAppPath() });
             setShowLogin(true);
         },
     };

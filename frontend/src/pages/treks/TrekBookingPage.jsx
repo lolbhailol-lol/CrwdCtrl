@@ -45,6 +45,7 @@ import {
     setPaymentFlowToStepTwo,
     setPaymentFlowToSuccess,
 } from '../../utils/bookingFlowShared';
+import { openLoginSheet } from '../../utils/loginFlow';
 
 const API = API_BASE_URL;
 const trekDetailCache = createDetailCache('crwdctrl_trek_detail_v1_');
@@ -124,6 +125,13 @@ export default function TrekBookingPage() {
         handleSwitchToLogin,
     } = createAuthModalHandlers({ setShowLogin, setShowRegister });
 
+    const openLogin = useCallback(() => {
+        openLoginSheet({
+            returnPath: `${window.location.pathname}${window.location.search || ''}`,
+        });
+        setShowLogin(true);
+    }, []);
+
     useEffect(() => {
         // Dismiss auth modals as soon as a session exists (context or storage).
         if (isAuthed()) {
@@ -179,10 +187,10 @@ export default function TrekBookingPage() {
     const requireAuthOrLogin = useCallback((message = 'Please log in to book this trek.') => {
         if (!requireLogin) return true;
         if (isAuthed()) return true;
-        setShowLogin(true);
+        openLogin();
         setError(message);
         return false;
-    }, [isAuthed, requireLogin]);
+    }, [isAuthed, requireLogin, openLogin]);
 
     const trekName  = trek?.trekName || trek?.title || 'Trek';
     const fee       = Number(trek?.registrationFee) || 0;
@@ -196,14 +204,8 @@ export default function TrekBookingPage() {
     const loggedIn = isAuthed();
 
     useEffect(() => {
-        if (authLoading || isAuthProcessing || isRedirectProcessing) return;
-        if (!trek || loadingTrek) return;
-        if (loggedIn) {
-            setShowLogin(false);
-            return;
-        }
-        if (requireLogin) setShowLogin(true);
-    }, [authLoading, isAuthProcessing, isRedirectProcessing, loggedIn, requireLogin, trek, loadingTrek]);
+        if (loggedIn && showLogin) setShowLogin(false);
+    }, [loggedIn, showLogin]);
 
     const trekAccessQuery = bookingAccessToken
         ? `?type=trek&access=${encodeURIComponent(bookingAccessToken)}`
@@ -593,7 +595,7 @@ export default function TrekBookingPage() {
         if (!trekId) throw new Error('Trek not found');
 
         if (requireLogin && !isAuthed()) {
-            setShowLogin(true);
+            openLogin();
             throw new Error('Please log in to complete your booking.');
         }
         const headers = isAuthed()
@@ -620,7 +622,7 @@ export default function TrekBookingPage() {
         if (!regRes.ok) {
             if (regRes.status === 401 || isAuthFailureMessage(regData.message)) {
                 if (requireLogin || regData.requireLogin) {
-                    setShowLogin(true);
+                    openLogin();
                     throw new Error('Please log in again to complete your booking.');
                 }
             }
@@ -935,7 +937,7 @@ export default function TrekBookingPage() {
                 const order = await res.json().catch(() => ({}));
                 if (!res.ok) {
                     if (res.status === 401 || isAuthFailureMessage(order.message) || order.requireLogin) {
-                        setShowLogin(true);
+                        openLogin();
                         setError(order.message || 'Please log in to continue payment.');
                         setPaying(false);
                         return;
@@ -1318,7 +1320,7 @@ export default function TrekBookingPage() {
                         </p>
                         <button
                             type="button"
-                            onClick={() => setShowLogin(true)}
+                            onClick={() => openLogin()}
                             className="px-5 py-2.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition"
                         >
                             Log in to continue
@@ -1329,7 +1331,7 @@ export default function TrekBookingPage() {
                 {!loggedIn && !requireLogin && (
                     <div className={`rounded-xl p-3 mb-4 border text-sm ${isDark ? 'bg-[#1D1E20] border-gray-700 text-gray-300' : 'bg-white border-gray-200 text-gray-600'}`}>
                         Guest checkout is on — no account needed. Optionally{' '}
-                        <button type="button" onClick={() => setShowLogin(true)} className="text-[#0ECCEE] font-semibold underline">
+                        <button type="button" onClick={() => openLogin()} className="text-[#0ECCEE] font-semibold underline">
                             log in
                         </button>
                         {' '}to save this booking under My Bookings.
