@@ -648,14 +648,17 @@ function TeamDetailCard({
               Leader · {access.leader?.name || team.leaderName || '—'}
             </p>
             <ul className="mt-2 space-y-1">
-              {(access.scanners || []).map((s, i) => (
+              {(access.scanners?.length
+                ? access.scanners
+                : (team.memberNames || []).map((name) => ({ name }))
+              ).map((s, i) => (
                 <li key={s.loginEmail || s.name || i} className="text-sm text-white/80">
                   <span className="font-mono text-[#0ECCEE]">{displayPass}</span>
                   {' · '}
-                  Player {i + 1} · {s.name}
+                  Player {i + 1} · {s.name || '—'}
                 </li>
               ))}
-              {!access.scanners?.length && (
+              {!access.scanners?.length && !(team.memberNames || []).length && (
                 <p className="text-xs text-white/45">No players listed yet.</p>
               )}
             </ul>
@@ -678,10 +681,9 @@ function CredentialsCard({ credentials, teamCode, teamLoginPath }) {
       teamUrl ? `Login link: ${teamUrl}` : '',
       `Password: ${pass}`,
       '',
-      `All members: ${(allMemberNames || [leader?.name, ...(scanners || []).map((s) => s.name)]).join(', ')}`,
-      '',
-      `Leader: ${leader?.name || ''}`,
-      ...(scanners || []).map((s, i) => `Player ${i + 1}: ${s.name}`),
+      'Open link → type password → tap your name:',
+      `  ${pass} · Leader · ${leader?.name || ''}`,
+      ...(scanners || []).map((s, i) => `  ${pass} · Player ${i + 1} · ${s.name}`),
     ].filter(Boolean);
     copyText(lines.join('\n'));
   };
@@ -703,15 +705,31 @@ function CredentialsCard({ credentials, teamCode, teamLoginPath }) {
       )}
 
       <div className="rounded-lg bg-black/20 px-3 py-2">
-        <p className="text-xs uppercase tracking-wide text-white/50">Password</p>
+        <p className="text-xs uppercase tracking-wide text-white/50">Shared password</p>
         <p className="font-mono text-sm text-white">{pass || '—'}</p>
       </div>
 
       <div className="rounded-lg bg-black/20 px-3 py-2">
-        <p className="text-xs uppercase tracking-wide text-white/50">All names</p>
-        <p className="text-sm text-white/90">
-          {(allMemberNames || [leader?.name, ...(scanners || []).map((s) => s.name)]).join(' · ')}
+        <p className="text-xs uppercase tracking-wide text-white/50">Who taps what</p>
+        <p className="mt-2 font-medium">
+          <span className="font-mono text-[#0ECCEE]">{pass || '—'}</span>
+          {' · '}
+          Leader · {leader?.name || '—'}
         </p>
+        <ul className="mt-2 space-y-1">
+          {(scanners || []).map((s, i) => (
+            <li key={s.loginEmail || s.name || i} className="text-sm text-white/80">
+              <span className="font-mono text-[#0ECCEE]">{pass || '—'}</span>
+              {' · '}
+              Player {i + 1} · {s.name}
+            </li>
+          ))}
+        </ul>
+        {!scanners?.length && allMemberNames?.length > 1 && (
+          <p className="mt-2 text-sm text-white/70">
+            {(allMemberNames || []).join(' · ')}
+          </p>
+        )}
       </div>
     </div>
   );
