@@ -2,6 +2,7 @@ const CampusHuntCheckpoint = require('../models/CampusHuntCheckpoint');
 const CampusHuntCheckpointVerification = require('../models/CampusHuntCheckpointVerification');
 const CampusHuntTeam = require('../models/CampusHuntTeam');
 const CampusHuntRound = require('../models/CampusHuntRound');
+const CampusHuntEvent = require('../models/CampusHuntEvent');
 const User = require('../../../model/usermodel');
 const {
   stagesAllowingCheckpoint,

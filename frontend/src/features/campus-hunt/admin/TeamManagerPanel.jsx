@@ -53,7 +53,7 @@ function TeamDetailCard({
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [showCredentials, setShowCredentials] = useState(false);
+  const [hidePassword, setHidePassword] = useState(false);
   const [revealedAccess, setRevealedAccess] = useState(null);
   const [editForm, setEditForm] = useState({
     teamName: team.teamName || '',
@@ -71,11 +71,39 @@ function TeamDetailCard({
     reason: '',
   });
   const access = revealedAccess || team.access || {};
+  const teamPass = access.teamPassword
+    || access.sharedScannerPassword
+    || access.leader?.password
+    || '';
+  const vaultBroken = Boolean(access.vaultUnreadable);
   const teamUrl = absoluteUrl(team.teamLoginPath || team.teamLoginUrl);
   const assignedRoute = routes.find((route) => id(route) === id(team.routeId));
   const names = team.allMemberNames?.length
     ? team.allMemberNames
     : [team.leaderName, ...(team.memberNames || [])].filter(Boolean);
+
+  const displayPass = hidePassword ? '••••••••' : (teamPass || (vaultBroken ? 'needs reset' : 'not set'));
+
+  const ensurePassReady = async () => {
+    if (teamPass) return teamPass;
+    if (vaultBroken) {
+      onCopied?.('Set a team password first (vault unreadable)');
+      return '';
+    }
+    try {
+      const res = await adminRevealTeamAccess(id(team));
+      setRevealedAccess(res.data?.access || null);
+      const next = res.data?.access?.teamPassword
+        || res.data?.access?.sharedScannerPassword
+        || res.data?.access?.leader?.password
+        || '';
+      if (!next) onCopied?.('Password not set yet — edit team and add one');
+      return next;
+    } catch (err) {
+      onCopied?.(err.message || 'Could not load password');
+      return '';
+    }
+  };
 
   const startEdit = () => {
     setEditForm({
@@ -155,12 +183,9 @@ function TeamDetailCard({
     }
   };
 
-  const copyTeamPack = () => {
-    if (!revealedAccess) {
-      onCopied?.('Reveal passwords before copying the full access pack');
-      return;
-    }
-    const pass = access.teamPassword || access.sharedScannerPassword || access.leader?.password || '';
+  const copyTeamPack = async () => {
+    const pass = teamPass || await ensurePassReady();
+    if (!pass) return;
     const lines = [
       `Team ${team.teamCode}${team.teamName && !/^team\s*\d+$/i.test(team.teamName) ? ` — ${team.teamName}` : ''}`,
       '',
@@ -170,26 +195,23 @@ function TeamDetailCard({
       `Password: ${pass}`,
       '',
       'Open link → type password → tap your name:',
-      `  Leader: ${access.leader?.name || team.leaderName || ''}`,
-      ...(access.scanners || []).map((s, i) => `  Player ${i + 1}: ${s.name}`),
+      `  ${pass} · Leader · ${access.leader?.name || team.leaderName || ''}`,
+      ...(access.scanners || []).map((s, i) => `  ${pass} · Player ${i + 1} · ${s.name}`),
     ];
     copyText(lines.join('\n'));
     onCopied?.(`Copied ${team.teamCode} pack`);
   };
 
-  const printTeamSlip = () => {
-    if (!revealedAccess) {
-      onCopied?.('Reveal passwords before printing the team slip');
-      return;
-    }
+  const printTeamSlip = async () => {
+    const pass = teamPass || await ensurePassReady();
+    if (!pass) return;
     const popup = window.open('', '_blank', 'width=720,height=900');
     if (!popup) {
       onCopied?.('Allow popups to print the team slip');
       return;
     }
-    const pass = access.teamPassword || access.sharedScannerPassword || access.leader?.password || '';
     const playerNames = (access.scanners || []).map((scanner) => (
-      `<li><strong>${scanner.name}</strong> — tap this name after password</li>`
+      `<li><strong>${pass}</strong> · <strong>${scanner.name}</strong> — tap this name after password</li>`
     )).join('');
     popup.document.write(`<!doctype html><html><head><title>${team.teamCode} access</title>
       <style>
@@ -199,42 +221,24 @@ function TeamDetailCard({
         h2{margin:20px 0 8px;font-size:18px}
         li{margin:8px 0}
         .steps{font-size:15px;margin:12px 0 0;padding-left:18px}
+        .pass{font-family:ui-monospace,monospace;background:#ecfeff;padding:2px 6px;border-radius:6px}
       </style>
       </head><body>
-      <h1>${team.teamCode}</h1>
+      <h1>${team.teamCode}${team.teamName ? ` — ${team.teamName}` : ''}</h1>
       <div class="box">
         <strong>How to log in</strong>
         <ol class="steps">
           <li>Open the link below</li>
-          <li>Enter password: <strong>${pass}</strong></li>
+          <li>Enter password: <span class="pass">${pass}</span></li>
           <li>Tap your name</li>
         </ol>
         <code>${teamUrl}</code>
       </div>
-      <h2>Who to tap</h2>
-      <p><strong>Leader:</strong> ${access.leader?.name || ''} — tap Leader</p>
+      <h2>Who to tap (same password)</h2>
+      <p><span class="pass">${pass}</span> · <strong>Leader:</strong> ${access.leader?.name || team.leaderName || ''} — tap Leader</p>
       <ol>${playerNames}</ol>
       <script>window.print()</script></body></html>`);
     popup.document.close();
-  };
-
-  const toggleCredentials = async () => {
-    if (showCredentials) {
-      setShowCredentials(false);
-      setRevealedAccess(null);
-      return;
-    }
-    setBusy(true);
-    try {
-      const result = await adminRevealTeamAccess(team._id);
-      setRevealedAccess(result.data?.access || null);
-      setShowCredentials(true);
-      onCopied?.('Passwords revealed; this action was audited');
-    } catch (err) {
-      onCopied?.(err.message || 'Could not reveal passwords');
-    } finally {
-      setBusy(false);
-    }
   };
 
   return (
@@ -251,7 +255,18 @@ function TeamDetailCard({
             {team.teamName}
           </p>
           <p className="mt-1 text-xs text-white/55">
-            {names.map((n, i) => (i === 0 ? `${n} (L)` : n)).join(' · ') || '—'}
+            {names.length
+              ? names.map((n, i) => (
+                `${hidePassword || !teamPass ? '' : `${teamPass} · `}${n}${i === 0 ? ' (L)' : ''}`
+              )).join('  ·  ')
+              : '—'}
+          </p>
+          <p className="mt-1 text-xs text-white/40">
+            {teamPass
+              ? `Password ${hidePassword ? '••••••••' : teamPass} · shared by all ${teamSize}`
+              : vaultBroken
+                ? 'Password needs reset (vault key changed)'
+                : 'Password not set'}
           </p>
           <p className="mt-1 text-xs text-white/40">
             {team.currentStage} · score {team.currentScore} · route {assignedRoute?.routeKey || 'unassigned'}
@@ -513,13 +528,14 @@ function TeamDetailCard({
             </p>
             <p className="mt-2 break-all font-mono text-xs text-[#0ECCEE]">{teamUrl}</p>
             <p className="mt-2 text-sm text-white/80">
-              Password:{' '}
-              <span className="font-mono text-[#0ECCEE]">
-                {showCredentials
-                  ? (access.teamPassword || access.sharedScannerPassword || access.leader?.password || 'not set')
-                  : '••••••••'}
-              </span>
+              Shared password:{' '}
+              <span className="font-mono text-[#0ECCEE]">{displayPass}</span>
             </p>
+            {vaultBroken && (
+              <p className="mt-1 text-[11px] text-amber-200/90">
+                Vault key changed — edit this team and set a new password, or use “Set password for all teams”.
+              </p>
+            )}
             <p className="mt-1 text-[11px] text-white/50">
               Share this one link. All {teamSize} people: password → tap their name.
             </p>
@@ -558,10 +574,10 @@ function TeamDetailCard({
               </button>
               <button
                 type="button"
-                onClick={toggleCredentials}
+                onClick={() => setHidePassword((v) => !v)}
                 className="rounded-lg bg-white/10 px-3 py-1.5 text-xs"
               >
-                {showCredentials ? 'Hide password' : 'Reveal password'}
+                {hidePassword ? 'Show password' : 'Hide password'}
               </button>
             </div>
           </div>
@@ -623,12 +639,19 @@ function TeamDetailCard({
 
           <div className="rounded-lg bg-black/30 px-3 py-2">
             <p className="text-xs uppercase tracking-wide text-white/45">Who taps what</p>
-            <p className="mt-1 font-medium">
+            <p className="mt-1 text-[11px] text-white/45">
+              Same shared password for everyone — shown in front of each name for organizers.
+            </p>
+            <p className="mt-2 font-medium">
+              <span className="font-mono text-[#0ECCEE]">{displayPass}</span>
+              {' · '}
               Leader · {access.leader?.name || team.leaderName || '—'}
             </p>
             <ul className="mt-2 space-y-1">
               {(access.scanners || []).map((s, i) => (
                 <li key={s.loginEmail || s.name || i} className="text-sm text-white/80">
+                  <span className="font-mono text-[#0ECCEE]">{displayPass}</span>
+                  {' · '}
                   Player {i + 1} · {s.name}
                 </li>
               ))}

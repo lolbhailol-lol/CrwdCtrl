@@ -1407,22 +1407,28 @@ async function setAllTeamPasswords(req, res, next) {
 async function listTeams(req, res, next) {
   try {
     const User = require('../../../model/usermodel');
+    const { isCredentialVaultUnreadable } = require('../services/teamGateService');
     const event = await CampusHuntEvent.findById(req.params.eventId)
       .select('slug name college teamCapacity teamSize startCount stationCount');
     if (!event) return res.status(404).json({ success: false, message: 'Event not found' });
 
     const teams = await CampusHuntTeam.find({ eventId: req.params.eventId })
+      .select('+accessPack.leader.encryptedPassword +accessPack.scanners.encryptedPassword '
+        + '+accessPack.encryptedSharedScannerPassword +accessPack.encryptedTeamPassword '
+        + '+accessPack.sharedScannerPassword +accessPack.leader.password +accessPack.scanners.password')
       .sort({ teamCode: 1 })
       .lean();
     const withAccess = [];
     for (const team of teams) {
-      const view = buildTeamAccessView(team, event);
+      const vaultUnreadable = isCredentialVaultUnreadable(team);
+      const view = buildTeamAccessView(team, event, { revealSecrets: !vaultUnreadable });
+      view.access.vaultUnreadable = vaultUnreadable;
       if (!view.access.leader.loginEmail && team.leaderUserId) {
         // eslint-disable-next-line no-await-in-loop
         const leader = await User.findById(team.leaderUserId).select('name email').lean();
         view.access.leader.loginEmail = leader?.email || '';
         view.access.leader.name = view.access.leader.name || leader?.name || '';
-        view.access.leader.note = 'Use the existing CrwdCtrl account password';
+        view.access.leader.note = 'Same shared team password — tap Leader after entering it';
       }
       for (let idx = 0; idx < view.access.scanners.length; idx += 1) {
         if (!view.access.scanners[idx].loginEmail && team.memberUserIds?.[idx]) {
@@ -1457,13 +1463,21 @@ async function listTeams(req, res, next) {
 
 async function getTeamAdmin(req, res, next) {
   try {
-    const team = await CampusHuntTeam.findById(req.params.teamId).lean();
+    const { isCredentialVaultUnreadable } = require('../services/teamGateService');
+    const team = await CampusHuntTeam.findById(req.params.teamId)
+      .select('+accessPack.leader.encryptedPassword +accessPack.scanners.encryptedPassword '
+        + '+accessPack.encryptedSharedScannerPassword +accessPack.encryptedTeamPassword '
+        + '+accessPack.sharedScannerPassword +accessPack.leader.password +accessPack.scanners.password')
+      .lean();
     if (!team) return res.status(404).json({ success: false, message: 'Team not found' });
     const event = await CampusHuntEvent.findById(team.eventId).select('slug name college');
     if (!event) return res.status(404).json({ success: false, message: 'Event not found' });
+    const vaultUnreadable = isCredentialVaultUnreadable(team);
+    const view = buildTeamAccessView(team, event, { revealSecrets: !vaultUnreadable });
+    view.access.vaultUnreadable = vaultUnreadable;
     return res.json({
       success: true,
-      data: { team: buildTeamAccessView(team, event) },
+      data: { team: view },
     });
   } catch (err) {
     return next(err);
