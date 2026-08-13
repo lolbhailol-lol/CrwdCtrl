@@ -1,9 +1,11 @@
 const CampusHuntRound = require('../../models/CampusHuntRound');
 const CampusHuntFinaleEntry = require('../../models/CampusHuntFinaleEntry');
 const CampusHuntTeam = require('../../models/CampusHuntTeam');
+const CampusHuntEvent = require('../../models/CampusHuntEvent');
 const { buildLeaderboard } = require('../leaderboardService');
 const { getFinaleRound, getOrCreateMissionConfig } = require('./finaleBootstrapService');
 const { FINALE_DEFAULTS } = require('../../constants');
+const { deriveCompetitionFormat } = require('../../utils/competitionFormat');
 const { writeAudit } = require('../auditService');
 
 function promotionError(message, code, status = 409) {
@@ -11,6 +13,31 @@ function promotionError(message, code, status = 409) {
   err.code = code;
   err.status = status;
   return err;
+}
+
+async function resolvePromotionCaps(eventId) {
+  const [r1, finaleRound, event] = await Promise.all([
+    CampusHuntRound.findOne({ eventId, roundNumber: 1 }).lean(),
+    getFinaleRound(eventId),
+    CampusHuntEvent.findById(eventId)
+      .select('teamCapacity teamSize finaleCapacity finaleDirectFromR1')
+      .lean(),
+  ]);
+  const q = r1?.qualification || finaleRound?.qualification || {};
+  const format = deriveCompetitionFormat({
+    teamCapacity: event?.teamCapacity,
+    teamSize: event?.teamSize,
+    directFromR1: event?.finaleDirectFromR1 ?? q.topNDirectFinale,
+    finaleTeams: event?.finaleCapacity ?? q.finaleTeams,
+  });
+  return {
+    maxFinalists: format.finaleTeams || FINALE_DEFAULTS.maxFinalists,
+    directFromR1: format.directFromR1 || FINALE_DEFAULTS.directFromR1,
+    manualPick: format.manualPick != null ? format.manualPick : FINALE_DEFAULTS.manualPick,
+    format,
+    r1,
+    finaleRound,
+  };
 }
 
 async function assertR1Finalized(eventId) {
@@ -29,13 +56,14 @@ async function createEntry({
   r1Rank,
   r1Score,
   startingScore,
+  maxFinalists = FINALE_DEFAULTS.maxFinalists,
 }) {
   const existing = await CampusHuntFinaleEntry.findOne({ eventId, teamId: team._id });
   if (existing) return existing;
 
   const count = await CampusHuntFinaleEntry.countDocuments({ eventId });
-  if (count >= FINALE_DEFAULTS.maxFinalists) {
-    throw promotionError('Finale already has 12 teams.', 'FINALE_FULL');
+  if (count >= maxFinalists) {
+    throw promotionError(`Finale already has ${maxFinalists} teams.`, 'FINALE_FULL');
   }
 
   const entry = await CampusHuntFinaleEntry.create({
@@ -59,22 +87,25 @@ async function createEntry({
 
 async function promoteTop5FromR1({ eventId, actor = {} }) {
   await assertR1Finalized(eventId);
-  const finaleRound = await getFinaleRound(eventId);
+  const caps = await resolvePromotionCaps(eventId);
+  const finaleRound = caps.finaleRound;
   if (!finaleRound) {
     throw promotionError('Bootstrap Finale round first.', 'FINALE_NOT_BOOTSTRAPPED');
   }
   const config = await getOrCreateMissionConfig(eventId, finaleRound._id);
   const leaderboard = await buildLeaderboard(eventId, { includeUnfinished: false });
-  const top5 = leaderboard.filter((row) => row.qualification === 'DIRECT_FINALE').slice(0, 5);
-  if (top5.length < FINALE_DEFAULTS.directFromR1) {
+  const topDirect = leaderboard
+    .filter((row) => row.qualification === 'DIRECT_FINALE')
+    .slice(0, caps.directFromR1);
+  if (topDirect.length < caps.directFromR1) {
     throw promotionError(
-      `Need at least ${FINALE_DEFAULTS.directFromR1} direct-finale teams on the R1 leaderboard.`,
+      `Need at least ${caps.directFromR1} direct-finale teams on the R1 leaderboard.`,
       'INSUFFICIENT_DIRECT',
     );
   }
 
   const created = [];
-  for (const row of top5) {
+  for (const row of topDirect) {
     const team = await CampusHuntTeam.findById(row.teamId);
     if (!team) continue;
     // eslint-disable-next-line no-await-in-loop
@@ -86,6 +117,7 @@ async function promoteTop5FromR1({ eventId, actor = {} }) {
       r1Rank: row.rank,
       r1Score: row.score,
       startingScore: config.startingScore,
+      maxFinalists: caps.maxFinalists,
     });
     created.push(entry);
   }
@@ -96,7 +128,7 @@ async function promoteTop5FromR1({ eventId, actor = {} }) {
     action: 'finale_promote_auto',
     targetType: 'event',
     targetId: eventId,
-    after: { count: created.length },
+    after: { count: created.length, directFromR1: caps.directFromR1 },
   });
 
   return { promoted: created.length, entries: created };
@@ -104,7 +136,8 @@ async function promoteTop5FromR1({ eventId, actor = {} }) {
 
 async function promoteManualPick({ eventId, teamIds = [], actor = {} }) {
   await assertR1Finalized(eventId);
-  const finaleRound = await getFinaleRound(eventId);
+  const caps = await resolvePromotionCaps(eventId);
+  const finaleRound = caps.finaleRound;
   if (!finaleRound) {
     throw promotionError('Bootstrap Finale round first.', 'FINALE_NOT_BOOTSTRAPPED');
   }
@@ -120,22 +153,25 @@ async function promoteManualPick({ eventId, teamIds = [], actor = {} }) {
   });
   const total = await CampusHuntFinaleEntry.countDocuments({ eventId });
 
-  if (directCount < FINALE_DEFAULTS.directFromR1) {
-    throw promotionError('Run auto-promote for top 5 first.', 'DIRECT_NOT_DONE');
+  if (directCount < caps.directFromR1) {
+    throw promotionError(
+      `Run auto-promote for top ${caps.directFromR1} first.`,
+      'DIRECT_NOT_DONE',
+    );
   }
 
   const ids = [...new Set(teamIds.map(String))];
   if (ids.length === 0) {
     throw promotionError('Select at least one team.', 'NO_TEAMS', 400);
   }
-  if (manualCount + ids.length > FINALE_DEFAULTS.manualPick) {
+  if (manualCount + ids.length > caps.manualPick) {
     throw promotionError(
-      `Manual pick allows ${FINALE_DEFAULTS.manualPick} teams (${manualCount} already picked).`,
+      `Manual pick allows ${caps.manualPick} teams (${manualCount} already picked).`,
       'MANUAL_CAP',
     );
   }
-  if (total + ids.length > FINALE_DEFAULTS.maxFinalists) {
-    throw promotionError('Would exceed 12 finale teams.', 'FINALE_FULL');
+  if (total + ids.length > caps.maxFinalists) {
+    throw promotionError(`Would exceed ${caps.maxFinalists} finale teams.`, 'FINALE_FULL');
   }
 
   const leaderboard = await buildLeaderboard(eventId, { includeUnfinished: true });
@@ -163,6 +199,7 @@ async function promoteManualPick({ eventId, teamIds = [], actor = {} }) {
       r1Rank: row?.rank,
       r1Score: row?.score,
       startingScore: config.startingScore,
+      maxFinalists: caps.maxFinalists,
     });
     created.push(entry);
   }
@@ -214,11 +251,12 @@ async function listPromotionCandidates(eventId) {
 }
 
 /**
- * Demo pilot — promote CC001–CC012 as finalists without R1 finalize requirement.
- * Team 1–5 = direct_r1, Team 6–12 = manual_pick.
+ * Demo pilot — promote first N teams as finalists without R1 finalize requirement.
+ * First directFromR1 = direct_r1, remainder = manual_pick.
  */
 async function promoteDemoFinalists({ eventId, actor = {} }) {
-  const finaleRound = await getFinaleRound(eventId);
+  const caps = await resolvePromotionCaps(eventId);
+  const finaleRound = caps.finaleRound;
   if (!finaleRound) {
     throw promotionError('Bootstrap Finale round first.', 'FINALE_NOT_BOOTSTRAPPED');
   }
@@ -226,11 +264,11 @@ async function promoteDemoFinalists({ eventId, actor = {} }) {
 
   const teams = await CampusHuntTeam.find({ eventId })
     .sort({ teamCode: 1 })
-    .limit(FINALE_DEFAULTS.maxFinalists);
+    .limit(caps.maxFinalists);
 
-  if (teams.length < FINALE_DEFAULTS.maxFinalists) {
+  if (teams.length < caps.maxFinalists) {
     throw promotionError(
-      `Need ${FINALE_DEFAULTS.maxFinalists} teams (CC001–CC012). Found ${teams.length}. Create demo teams first.`,
+      `Need ${caps.maxFinalists} teams for demo finale. Found ${teams.length}. Create demo teams first.`,
       'INSUFFICIENT_TEAMS',
     );
   }
@@ -238,7 +276,7 @@ async function promoteDemoFinalists({ eventId, actor = {} }) {
   const created = [];
   for (let i = 0; i < teams.length; i += 1) {
     const team = teams[i];
-    const promotionSource = i < FINALE_DEFAULTS.directFromR1 ? 'direct_r1' : 'manual_pick';
+    const promotionSource = i < caps.directFromR1 ? 'direct_r1' : 'manual_pick';
     // eslint-disable-next-line no-await-in-loop
     const entry = await createEntry({
       eventId,
@@ -248,6 +286,7 @@ async function promoteDemoFinalists({ eventId, actor = {} }) {
       r1Rank: i + 1,
       r1Score: Math.max(100, 900 - i * 25),
       startingScore: config.startingScore,
+      maxFinalists: caps.maxFinalists,
     });
     if (entry) created.push(entry);
   }
@@ -258,13 +297,14 @@ async function promoteDemoFinalists({ eventId, actor = {} }) {
     action: 'finale_promote_demo',
     targetType: 'event',
     targetId: eventId,
-    after: { count: created.length },
+    after: { count: created.length, maxFinalists: caps.maxFinalists },
   });
 
   return { promoted: created.length, entries: created };
 }
 
 module.exports = {
+  resolvePromotionCaps,
   promoteTop5FromR1,
   promoteManualPick,
   promoteDemoFinalists,

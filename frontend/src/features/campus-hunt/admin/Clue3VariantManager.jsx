@@ -10,8 +10,10 @@ import {
   CAMPUS_STARTS,
   STATION_TARGET_COUNT,
   TARGET_TEAMS_PER_STATION,
-  TEAM_SLOTS,
+  TEAMS_PER_WAIT,
+  buildTeamSlots,
   resolveStations,
+  resolveStarts,
   routeClueDefaults,
   thirdStopArrivalPlan,
   thirdStopForLocalTeam,
@@ -69,10 +71,20 @@ export default function Clue3VariantManager({
   eventId,
   roundId,
   campusStations,
+  campusStarts,
   onChanged,
+  teamCapacity = 40,
+  teamSize = 4,
+  teamsPerWait = TEAMS_PER_WAIT,
+  teamsPerStation = TARGET_TEAMS_PER_STATION,
 }) {
   const stations = useMemo(() => resolveStations(campusStations), [campusStations]);
-  const arrivalPlan = useMemo(() => thirdStopArrivalPlan(stations), [stations]);
+  const starts = useMemo(() => resolveStarts(campusStarts), [campusStarts]);
+  const teamSlots = useMemo(() => buildTeamSlots(teamsPerWait), [teamsPerWait]);
+  const arrivalPlan = useMemo(
+    () => thirdStopArrivalPlan(stations, teamsPerWait, starts),
+    [stations, teamsPerWait, starts],
+  );
 
   const [routes, setRoutes] = useState([]);
   const [points, setPoints] = useState([]);
@@ -90,7 +102,7 @@ export default function Clue3VariantManager({
       .sort((a, b) => order.indexOf(startCode(a)) - order.indexOf(startCode(b)));
   }, [points]);
 
-  const expectedCount = orderedPoints.length * TEAM_SLOTS.length;
+  const expectedCount = orderedPoints.length * teamSlots.length;
 
   const refresh = useCallback(async () => {
     if (!eventId) return;
@@ -133,8 +145,8 @@ export default function Clue3VariantManager({
       setError('Create Round 1 first');
       return;
     }
-    if (orderedPoints.length < 4) {
-      setError('Need 4 starting points (A–D)');
+    if (orderedPoints.length < 1) {
+      setError('Need at least 1 active starting point. Save layout / bootstrap first.');
       return;
     }
 
@@ -153,7 +165,7 @@ export default function Clue3VariantManager({
           failures.push(`${startLabel(point)}: no route ${code}`);
           continue;
         }
-        for (const slot of TEAM_SLOTS) {
+        for (const slot of teamSlots) {
           const waveId = slot.id;
           const place = thirdStopForLocalTeam(slot.localTeamNumber, waitIndex, stations);
           const station = stations.find((s) => s.name === place);
@@ -223,14 +235,14 @@ export default function Clue3VariantManager({
           Blue · riddle first, then scan CP3
         </span>
         <span className="rounded-full bg-white/10 px-2.5 py-1 text-white/55">
-          {STATION_TARGET_COUNT} places · {TARGET_TEAMS_PER_STATION} teams each
+          {stations.length} places · ~{teamsPerStation} teams each
         </span>
         <span className={`rounded-full px-2.5 py-1 ${
-          savedCount >= 40
+          savedCount >= teamCapacity
             ? 'bg-emerald-500/15 text-emerald-200'
             : 'bg-amber-500/15 text-amber-100'
         }`}>
-          Saved {savedCount}/40
+          Saved {savedCount}/{teamCapacity}
         </span>
       </div>
 
@@ -287,11 +299,11 @@ export default function Clue3VariantManager({
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
-          disabled={busy || !roundId || orderedPoints.length < 4}
+          disabled={busy || !roundId || orderedPoints.length < 1}
           onClick={saveAll}
           className={`rounded-xl px-5 py-2.5 text-sm font-semibold disabled:opacity-40 ${THEME.buttonClass}`}
         >
-          {busy ? 'Saving…' : 'Save Clue 3 · bind 40 teams'}
+          {busy ? 'Saving…' : `Save Clue 3 · bind ${teamCapacity} teams`}
         </button>
       </div>
       {message && <p className={`text-xs ${THEME.textClass}`}>{message}</p>}

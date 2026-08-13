@@ -15,7 +15,7 @@ function pollIntervalMs(data, burstUntil) {
   const pendingFour =
     cp
     && cp.checkpointId
-    && Number(cp.verifiedCount || 0) < Number(cp.requiredCount || 4);
+    && Number(cp.verifiedCount || 0) < Number(cp.requiredCount || data?.team?.teamSize || 4);
   const awaitingClaim = Boolean(cp?.awaitingTeamCodeConfirm);
 
   const activelyPlaying =
@@ -24,7 +24,7 @@ function pollIntervalMs(data, burstUntil) {
     || stage.includes('FAILED')
     || stage.includes('TIMEOUT');
 
-  // 4-of-4 scanning needs near-live teammate updates
+  // Full-roster scanning needs near-live teammate updates
   if (pendingFour || awaitingClaim) return 1200;
   if (nearRelease) return 2000;
   if (activelyPlaying && stage !== 'SCORE_LOCKED') return 5000;
@@ -115,7 +115,7 @@ export function useHuntTeam(eventId, { enabled = true } = {}) {
     const cp = next.checkpointStatus;
     const pendingFour = Boolean(
       cp?.checkpointId
-      && Number(cp.verifiedCount || 0) < Number(cp.requiredCount || 4),
+      && Number(cp.verifiedCount || 0) < Number(cp.requiredCount || next.team?.teamSize || 4),
     );
     // Keep polls almost live while teammates are still scanning
     pausePollUntilRef.current = Date.now() + (pendingFour ? 350 : 1200);
@@ -169,7 +169,9 @@ export function useHuntTeam(eventId, { enabled = true } = {}) {
       const cp = dataRef.current?.checkpointStatus;
       const pending = Boolean(
         cp?.checkpointId
-        && Number(cp.verifiedCount || 0) < Number(cp.requiredCount || 4),
+        && Number(cp.verifiedCount || 0) < Number(
+          cp.requiredCount || dataRef.current?.team?.teamSize || 4,
+        ),
       );
       if (!pending && !cp?.awaitingTeamCodeConfirm) return;
       pausePollUntilRef.current = 0;

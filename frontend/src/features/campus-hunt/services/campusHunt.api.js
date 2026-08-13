@@ -415,10 +415,13 @@ export async function adminGetOverview(eventId) {
   return adminFetchJSON(`${BASE}/admin/events/${eventId}/overview`);
 }
 
-export async function adminUpdateCampusStations(eventId, campusStations, reason = '') {
+export async function adminUpdateCampusStations(eventId, campusStationsOrPayload, reason = '') {
+  const payload = Array.isArray(campusStationsOrPayload)
+    ? { campusStations: campusStationsOrPayload, reason }
+    : { ...campusStationsOrPayload, reason: campusStationsOrPayload?.reason || reason };
   return adminFetchJSON(`${BASE}/admin/events/${eventId}/campus-stations`, {
     method: 'PATCH',
-    body: JSON.stringify({ campusStations, reason }),
+    body: JSON.stringify(payload),
   });
 }
 

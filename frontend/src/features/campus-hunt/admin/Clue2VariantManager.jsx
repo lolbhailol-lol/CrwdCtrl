@@ -12,9 +12,11 @@ import {
   CAMPUS_STARTS,
   STATION_TARGET_COUNT,
   TARGET_TEAMS_PER_STATION,
-  TEAM_SLOTS,
+  TEAMS_PER_WAIT,
+  buildTeamSlots,
   globalTeamNumber,
   resolveStations,
+  resolveStarts,
   secondStopArrivalPlan,
   secondStopForLocalTeam,
   threeDigitCodeForTeam,
@@ -104,10 +106,20 @@ export default function Clue2VariantManager({
   eventId,
   roundId,
   campusStations,
+  campusStarts,
   onChanged,
+  teamCapacity = 40,
+  teamSize = 4,
+  teamsPerWait = TEAMS_PER_WAIT,
+  teamsPerStation = TARGET_TEAMS_PER_STATION,
 }) {
   const stations = useMemo(() => resolveStations(campusStations), [campusStations]);
-  const arrivalPlan = useMemo(() => secondStopArrivalPlan(stations), [stations]);
+  const starts = useMemo(() => resolveStarts(campusStarts), [campusStarts]);
+  const teamSlots = useMemo(() => buildTeamSlots(teamsPerWait), [teamsPerWait]);
+  const arrivalPlan = useMemo(
+    () => secondStopArrivalPlan(stations, teamsPerWait, starts),
+    [stations, teamsPerWait, starts],
+  );
 
   const [routes, setRoutes] = useState([]);
   const [points, setPoints] = useState([]);
@@ -127,7 +139,7 @@ export default function Clue2VariantManager({
       .sort((a, b) => order.indexOf(startCode(a)) - order.indexOf(startCode(b)));
   }, [points]);
 
-  const expectedCount = orderedPoints.length * TEAM_SLOTS.length;
+  const expectedCount = orderedPoints.length * teamSlots.length;
 
   const refresh = useCallback(async () => {
     if (!eventId) return;
@@ -164,14 +176,15 @@ export default function Clue2VariantManager({
           String(v.variantKey || '').toUpperCase()
           === variantKeyFor(row.startingPointCode, `T${row.localTeamNumber}`)
         ));
-        nextCodes[key] = existing?.answer || threeDigitCodeForTeam(wait, row.localTeamNumber);
+        nextCodes[key] = existing?.answer
+          || threeDigitCodeForTeam(wait, row.localTeamNumber, teamsPerWait);
       });
     });
     setCodes(nextCodes);
 
     const sample = list.find((row) => row.prompt)?.prompt;
     if (sample) setPrompt(sample);
-  }, [eventId, arrivalPlan]);
+  }, [eventId, arrivalPlan, teamsPerWait]);
 
   useEffect(() => {
     refresh().catch((err) => setError(err.message || 'Could not load Clue 2'));
@@ -202,7 +215,7 @@ export default function Clue2VariantManager({
           },
         },
       });
-      setMessage('Saved Clue 2 defaults for all 40 teams');
+      setMessage(`Saved Clue 2 defaults for all ${teamCapacity} teams`);
       onChanged?.();
     } catch (err) {
       setError(err.message || 'Could not save defaults');
@@ -216,14 +229,14 @@ export default function Clue2VariantManager({
       setError('Create Round 1 first');
       return;
     }
-    if (orderedPoints.length < 4) {
-      setError('Need 4 starting points (A–D)');
+    if (orderedPoints.length < 1) {
+      setError('Need at least 1 active starting point. Save layout / bootstrap first.');
       return;
     }
 
     setBusy(true);
     setError('');
-    setMessage('Saving all 40 Clue 2 codes…');
+    setMessage(`Saving all ${teamCapacity} Clue 2 codes…`);
 
     try {
       const clue2Scoring = {
@@ -244,17 +257,18 @@ export default function Clue2VariantManager({
       for (const point of orderedPoints) {
         const code = startCode(point);
         const waitIndex = waitIndexForStart(code);
-        for (const slot of TEAM_SLOTS) {
+        for (const slot of teamSlots) {
           const waveId = slot.id;
           const place = secondStopForLocalTeam(slot.localTeamNumber, waitIndex, stations);
           const stationCode = stations.find((s) => s.name === place)?.code;
           const codeKey = `${code}-${waveId}`;
           const answer = String(
-            codes[codeKey] || threeDigitCodeForTeam(waitIndex, slot.localTeamNumber),
+            codes[codeKey]
+              || threeDigitCodeForTeam(waitIndex, slot.localTeamNumber, teamsPerWait),
           ).trim();
           if (!/^\d{3}$/.test(answer)) {
             failures.push(
-              `${startLabel(point)} · ${waveId}: Team ${globalTeamNumber(waitIndex, slot.localTeamNumber)} needs a 3-digit code`,
+              `${startLabel(point)} · ${waveId}: Team ${globalTeamNumber(waitIndex, slot.localTeamNumber, teamsPerWait)} needs a 3-digit code`,
             );
             continue;
           }
@@ -316,19 +330,19 @@ export default function Clue2VariantManager({
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2 text-[11px]">
         <span className="rounded-full bg-white/10 px-2.5 py-1 text-white/55">
-          {STATION_TARGET_COUNT} places · {TARGET_TEAMS_PER_STATION} teams each · 3-digit codes
+          {stations.length} places · ~{teamsPerStation} teams each · 3-digit codes
         </span>
         <span className={`rounded-full px-2.5 py-1 ${
-          savedCount >= 40
+          savedCount >= teamCapacity
             ? 'bg-emerald-500/15 text-emerald-200'
             : 'bg-amber-500/15 text-amber-100'
         }`}>
-          Saved {savedCount}/40
+          Saved {savedCount}/{teamCapacity}
         </span>
       </div>
 
       <section className="rounded-2xl border border-white/15 bg-white/5 p-4">
-        <h2 className="text-base font-semibold text-white">1. Defaults for all 40 teams</h2>
+        <h2 className="text-base font-semibold text-white">1. Defaults for all {teamCapacity} teams</h2>
         <p className="mt-1 text-xs text-white/50">
           20s to read instructions, then the solve timer. Points by speed; late submit = 0.
         </p>
@@ -458,11 +472,11 @@ export default function Clue2VariantManager({
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
-          disabled={busy || !roundId || orderedPoints.length < 4}
+          disabled={busy || !roundId || orderedPoints.length < 1}
           onClick={saveAll}
           className="rounded-xl bg-[#0ECCEE] px-5 py-2.5 text-sm font-semibold text-black disabled:opacity-40"
         >
-          {busy ? 'Saving…' : 'Save Clue 2 · bind 40 teams'}
+          {busy ? 'Saving…' : `Save Clue 2 · bind ${teamCapacity} teams`}
         </button>
         {!orderedPoints.length && (
           <p className="text-xs text-amber-200">Add 4 starting points first.</p>

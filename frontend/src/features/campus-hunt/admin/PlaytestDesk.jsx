@@ -53,14 +53,16 @@ const SCAN_CARDS = [
   },
 ];
 
-function teamRosterLooksReady(team) {
+function teamRosterLooksReady(team, teamSize = 4) {
+  const people = Math.max(2, Math.min(8, Number(teamSize) || 4));
+  const scannersNeeded = Math.max(1, people - 1);
   return Boolean(
     team?.leaderUserId
     && Array.isArray(team?.memberUserIds)
-    && team.memberUserIds.length === 3
+    && team.memberUserIds.length >= scannersNeeded
     && team.accessPack?.leader?.loginEmail
     && Array.isArray(team.accessPack?.scanners)
-    && team.accessPack.scanners.length === 3,
+    && team.accessPack.scanners.length >= scannersNeeded,
   );
 }
 
@@ -72,6 +74,7 @@ export default function PlaytestDesk({
   eventSlug,
   teams = [],
   stations = [],
+  teamSize = 4,
   roundStatus,
   onChanged,
 }) {
@@ -209,13 +212,14 @@ export default function PlaytestDesk({
     try {
       const res = await adminPlaytestCompleteScan(teamId, {
         scan,
-        reason: 'Playtest desk cheat 4/4',
+        reason: `Playtest desk cheat ${teamSize}/${teamSize}`,
       });
       const labels = (res.data?.scans || []).map((row) => row.label).join(', ');
+      const n = teamSize;
       const tips = {
-        1: 'Orange 4/4 forced — player phones refresh ~1s. Solve Clue 2 on phone (or tap Green next)',
-        2: 'Green 4/4 forced — player phones refresh ~1s. Solve Clue 3 on phone, then Blue',
-        3: 'Blue 4/4 forced — player phones refresh ~1s. Solve Final, then Mark finish',
+        1: `Orange ${n}/${n} forced — player phones refresh ~1s. Solve Clue 2 on phone (or tap Green next)`,
+        2: `Green ${n}/${n} forced — player phones refresh ~1s. Solve Clue 3 on phone, then Blue`,
+        3: `Blue ${n}/${n} forced — player phones refresh ~1s. Solve Final, then Mark finish`,
         all: 'All scans forced. Keep player screens open — they update fast. Finish missing clues · Mark finish',
       };
       setNote(tips[scan] || `${labels} done`);
@@ -268,7 +272,7 @@ export default function PlaytestDesk({
     || access?.sharedScannerPassword
     || access?.leader?.password
     || '';
-  const rosterIncomplete = team && !teamRosterLooksReady(team);
+  const rosterIncomplete = team && !teamRosterLooksReady(team, teamSize);
   const needsRepair = accessLoaded && !teamPass && (rosterIncomplete || Boolean(revealError));
   const memberNames = access?.allMemberNames?.length
     ? access.allMemberNames
@@ -407,7 +411,7 @@ export default function PlaytestDesk({
       <div className="mt-4 rounded-xl border border-white/10 bg-black/35 p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-white/45">
-            Team login (all 4 people)
+            Team login (all {teamSize} people)
           </p>
           <button
             type="button"
@@ -520,7 +524,7 @@ export default function PlaytestDesk({
                   onClick={() => completeScan(card.id)}
                   className={`mt-2 w-full rounded-lg px-3 py-2.5 text-sm font-bold disabled:opacity-40 ${card.btn}`}
                 >
-                  {busy === `scan-${card.id}` ? '…' : `${card.label} 4/4 ✓`}
+                  {busy === `scan-${card.id}` ? '…' : `${card.label} ${teamSize}/${teamSize} ✓`}
                 </button>
               </div>
             );

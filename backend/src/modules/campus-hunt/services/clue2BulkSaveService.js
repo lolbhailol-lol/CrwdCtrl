@@ -75,7 +75,7 @@ async function bulkSaveClue2({
   let startingPoints = startingPointsRaw.filter(
     (point) => String(point.roundId) === String(round._id),
   );
-  if (startingPoints.length < 4) startingPoints = startingPointsRaw;
+  if (!startingPoints.length) startingPoints = startingPointsRaw;
   const routeByCode = new Map(
     routes.map((route) => [String(route.routeKey || '').toUpperCase(), route]),
   );
@@ -212,7 +212,7 @@ async function bulkSaveClue2({
             acceptedAnswers: [answer],
             destinationInstruction:
               `Go to ${place} now. Find the shared green SECOND SCAN QR. `
-              + 'All 4 members scan, then enter your team code to unlock Clue 3.',
+              + `All ${Math.max(2, Math.min(8, Number(event.teamSize) || 4))} members scan, then enter your team code to unlock Clue 3.`,
             hintText: 'Check posts, pillars, and notice boards at eye level.',
             basePoints: 0,
             maxAttempts: clue2Scoring.maxAttempts,

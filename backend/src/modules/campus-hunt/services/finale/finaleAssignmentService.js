@@ -1,7 +1,7 @@
 const CampusHuntFinaleMissionRun = require('../../models/CampusHuntFinaleMissionRun');
 const CampusHuntTeam = require('../../models/CampusHuntTeam');
 const { FINALE_DEFAULTS } = require('../../constants');
-const { listEntries } = require('./finalePromotionService');
+const { listEntries, resolvePromotionCaps } = require('./finalePromotionService');
 const { getOrCreateMissionConfig } = require('./finaleBootstrapService');
 const {
   getLocationPool,
@@ -22,13 +22,14 @@ function pickTwoLocationsForSlot(pool, slot) {
 }
 
 async function resolveFinaleTeamRows(eventId, entries) {
-  if (entries.length >= FINALE_DEFAULTS.maxFinalists) {
+  const caps = await resolvePromotionCaps(eventId);
+  if (entries.length >= caps.maxFinalists) {
     return sortEntriesForFinaleSlots(entries);
   }
 
   const teams = await CampusHuntTeam.find({ eventId })
     .sort({ teamCode: 1 })
-    .limit(FINALE_DEFAULTS.maxFinalists)
+    .limit(caps.maxFinalists)
     .select('teamCode teamName')
     .lean();
 
@@ -49,7 +50,7 @@ async function resolveFinaleTeamRows(eventId, entries) {
       teamId: team._id,
       teamCode: team.teamCode,
       teamName: team.teamName,
-      promotionSource: slot <= FINALE_DEFAULTS.directFromR1 ? 'direct_r1' : 'manual_pick',
+      promotionSource: slot <= caps.directFromR1 ? 'direct_r1' : 'manual_pick',
       finaleScore: FINALE_DEFAULTS.startingScore,
       completedMissionIds: [],
       activeMissionId: null,

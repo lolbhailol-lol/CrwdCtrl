@@ -79,22 +79,24 @@ function assertOnlineRosterReady(team, required = 4) {
   return unique;
 }
 
-/** True when verified IDs include 4 distinct roster members. */
+/** True when verified IDs include N distinct roster members. */
 function hasDistinctVerifiedRoster(verifiedIds, rosterIds, required = 4) {
   const roster = new Set((rosterIds || []).map(String));
   const verified = uniqueIdStrings(verifiedIds).filter((id) => roster.has(id));
   return verified.length >= required;
 }
 
-/** True when team has 4 provisioned hunt accounts (leader + 3 scanners with login emails). */
-function isTeamRosterReady(team) {
+/** True when team has provisioned hunt accounts for the required team size. */
+function isTeamRosterReady(team, teamSize = 4) {
+  const size = Math.max(2, Math.min(8, Number(teamSize) || 4));
+  const membersNeeded = size - 1;
   return Boolean(
     team?.leaderUserId
     && Array.isArray(team.memberUserIds)
-    && team.memberUserIds.length === 3
+    && team.memberUserIds.length === membersNeeded
     && team.accessPack?.leader?.loginEmail
     && Array.isArray(team.accessPack?.scanners)
-    && team.accessPack.scanners.length === 3,
+    && team.accessPack.scanners.length === membersNeeded,
   );
 }
 

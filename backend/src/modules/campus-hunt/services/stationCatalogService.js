@@ -1,6 +1,7 @@
 const CampusHuntEvent = require('../models/CampusHuntEvent');
 const CampusHuntCheckpoint = require('../models/CampusHuntCheckpoint');
 const CampusHuntChallenge = require('../models/CampusHuntChallenge');
+const CampusHuntStartingPoint = require('../models/CampusHuntStartingPoint');
 
 /** Default 10 hunt scan places (not wait holds). */
 const DEFAULT_CAMPUS_STATIONS = [
@@ -16,6 +17,19 @@ const DEFAULT_CAMPUS_STATIONS = [
   { code: 'S10', name: 'Admin Block' },
 ];
 
+const DEFAULT_CAMPUS_STARTS = [
+  { code: 'A', name: 'Library' },
+  { code: 'B', name: 'Chanakya Porch' },
+  { code: 'C', name: 'Design' },
+  { code: 'D', name: 'Vyas Parking' },
+];
+
+function clampCount(value, min, max, fallback) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, Math.round(n)));
+}
+
 function normalizeStationList(input) {
   const byCode = new Map(
     DEFAULT_CAMPUS_STATIONS.map((station) => [station.code, { ...station }]),
@@ -29,8 +43,46 @@ function normalizeStationList(input) {
   return DEFAULT_CAMPUS_STATIONS.map((station) => byCode.get(station.code));
 }
 
+function normalizeStartList(input) {
+  const byCode = new Map(
+    DEFAULT_CAMPUS_STARTS.map((start) => [start.code, { ...start }]),
+  );
+  (Array.isArray(input) ? input : []).forEach((row) => {
+    const code = String(row?.code || '').toUpperCase().trim().charAt(0);
+    const name = String(row?.name || '').trim();
+    if (!byCode.has(code) || !name) return;
+    byCode.set(code, { code, name });
+  });
+  return DEFAULT_CAMPUS_STARTS.map((start) => byCode.get(start.code));
+}
+
+function resolveStationCount(event) {
+  return clampCount(event?.stationCount, 1, DEFAULT_CAMPUS_STATIONS.length, DEFAULT_CAMPUS_STATIONS.length);
+}
+
+function resolveStartCount(event) {
+  return clampCount(event?.startCount, 1, DEFAULT_CAMPUS_STARTS.length, DEFAULT_CAMPUS_STARTS.length);
+}
+
+/** Active hunt places for this event (first stationCount). */
 function resolveCampusStations(event) {
+  const full = normalizeStationList(event?.campusStations);
+  return full.slice(0, resolveStationCount(event));
+}
+
+/** Full catalog with custom names (for admin rename UI). */
+function resolveCampusStationsCatalog(event) {
   return normalizeStationList(event?.campusStations);
+}
+
+/** Active starting points for this event (first startCount). */
+function resolveCampusStarts(event) {
+  const full = normalizeStartList(event?.campusStarts);
+  return full.slice(0, resolveStartCount(event));
+}
+
+function resolveCampusStartsCatalog(event) {
+  return normalizeStartList(event?.campusStarts);
 }
 
 function replacePlaceText(text, oldName, newName) {
@@ -40,9 +92,17 @@ function replacePlaceText(text, oldName, newName) {
 }
 
 /**
- * Save custom names on the event and rename matching checkpoints + clues everywhere.
+ * Save custom names / active counts and rename matching checkpoints + clues.
  */
-async function updateCampusStations({ eventId, stations, actor = {}, reason = '' }) {
+async function updateCampusStations({
+  eventId,
+  stations,
+  starts,
+  stationCount,
+  startCount,
+  actor = {},
+  reason = '',
+}) {
   const event = await CampusHuntEvent.findById(eventId);
   if (!event) {
     const err = new Error('Event not found');
@@ -50,8 +110,17 @@ async function updateCampusStations({ eventId, stations, actor = {}, reason = ''
     throw err;
   }
 
-  const previous = resolveCampusStations(event);
-  const next = normalizeStationList(stations);
+  const previous = resolveCampusStationsCatalog(event);
+  const next = stations != null ? normalizeStationList(stations) : previous;
+  const previousStarts = resolveCampusStartsCatalog(event);
+  const nextStarts = starts != null ? normalizeStartList(starts) : previousStarts;
+  const nextStationCount = stationCount != null
+    ? clampCount(stationCount, 1, DEFAULT_CAMPUS_STATIONS.length, previous.length)
+    : resolveStationCount(event);
+  const nextStartCount = startCount != null
+    ? clampCount(startCount, 1, DEFAULT_CAMPUS_STARTS.length, resolveStartCount(event))
+    : resolveStartCount(event);
+
   const renames = [];
   for (let i = 0; i < next.length; i += 1) {
     const oldName = previous[i].name;
@@ -62,7 +131,27 @@ async function updateCampusStations({ eventId, stations, actor = {}, reason = ''
   }
 
   event.campusStations = next;
+  event.campusStarts = nextStarts;
+  event.stationCount = nextStationCount;
+  event.startCount = nextStartCount;
   await event.save();
+
+  // Keep live starting-point docs in sync with active names / count.
+  for (let i = 0; i < DEFAULT_CAMPUS_STARTS.length; i += 1) {
+    const start = nextStarts[i];
+    const active = i < nextStartCount;
+    // eslint-disable-next-line no-await-in-loop
+    await CampusHuntStartingPoint.updateMany(
+      { eventId: event._id, code: start.code },
+      {
+        $set: {
+          name: start.name,
+          active,
+          displayOrder: i,
+        },
+      },
+    );
+  }
 
   let checkpointsUpdated = 0;
   let challengesUpdated = 0;
@@ -156,7 +245,12 @@ async function updateCampusStations({ eventId, stations, actor = {}, reason = ''
 
   return {
     event,
-    campusStations: next,
+    campusStations: resolveCampusStations(event),
+    campusStationsCatalog: next,
+    campusStarts: resolveCampusStarts(event),
+    campusStartsCatalog: nextStarts,
+    stationCount: nextStationCount,
+    startCount: nextStartCount,
     renames,
     checkpointsUpdated,
     challengesUpdated,
@@ -167,8 +261,15 @@ async function updateCampusStations({ eventId, stations, actor = {}, reason = ''
 
 module.exports = {
   DEFAULT_CAMPUS_STATIONS,
+  DEFAULT_CAMPUS_STARTS,
   normalizeStationList,
+  normalizeStartList,
+  resolveStationCount,
+  resolveStartCount,
   resolveCampusStations,
+  resolveCampusStationsCatalog,
+  resolveCampusStarts,
+  resolveCampusStartsCatalog,
   updateCampusStations,
   replacePlaceText,
 };

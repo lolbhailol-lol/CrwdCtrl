@@ -15,11 +15,16 @@ const STATUS_CLASS = {
   Complete: 'bg-emerald-500/15 text-emerald-200',
 };
 
-export default function FinaleWorkflowNav({ current, onChange, statuses = {} }) {
+export default function FinaleWorkflowNav({ current, onChange, statuses = {}, finaleTeams = 12 }) {
+  const steps = FINALE_STEPS.map((step) => (
+    step.id === 'teams'
+      ? { ...step, short: `${finaleTeams} finalists` }
+      : step
+  ));
   return (
     <nav aria-label="Finale workflow" className="overflow-x-auto pb-1">
       <div className="flex min-w-max gap-2 lg:grid lg:min-w-0 lg:grid-cols-6">
-        {FINALE_STEPS.map((step) => {
+        {steps.map((step) => {
           const status = statuses[step.id] || 'Not started';
           const active = current === step.id;
           return (

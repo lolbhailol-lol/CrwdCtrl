@@ -81,7 +81,11 @@ export default function StartingSystemPanel({
   roundId,
   onChanged,
   mode = 'all',
+  eventMeta = null,
 }) {
+  const teamCapacity = Math.max(2, Number(eventMeta?.teamCapacity) || 40);
+  const startCount = Math.max(1, Math.min(4, Number(eventMeta?.startCount) || 4));
+  const teamsPerWait = Math.max(1, Math.ceil(teamCapacity / startCount));
   const [points, setPoints] = useState([]);
   const [dashboard, setDashboard] = useState(null);
   const [preview, setPreview] = useState(null);
@@ -92,7 +96,7 @@ export default function StartingSystemPanel({
     code: '',
     name: '',
     description: '',
-    capacity: 10,
+    capacity: teamsPerWait,
     active: true,
   });
   const [schedule, setSchedule] = useState({
@@ -103,13 +107,17 @@ export default function StartingSystemPanel({
   const [liveSearch, setLiveSearch] = useState('');
   const [liveFilter, setLiveFilter] = useState('waiting'); // waiting | all | released
 
+  useEffect(() => {
+    setDraft((prev) => ({ ...prev, capacity: teamsPerWait }));
+  }, [teamsPerWait]);
+
   const ensureDefaultLocations = async () => {
     const defaults = [
-      { code: 'A', name: 'Library', description: 'Starting point — 10 teams hold here. Hunt stops are separate campus stations.' },
-      { code: 'B', name: 'Chanakya Porch', description: 'Starting point — 10 teams hold here. Hunt stops are separate campus stations.' },
-      { code: 'C', name: 'Design', description: 'Starting point — 10 teams hold here. Hunt stops are separate campus stations.' },
-      { code: 'D', name: 'Vyas Parking', description: 'Starting point — 10 teams hold here. Hunt stops are separate campus stations.' },
-    ];
+      { code: 'A', name: 'Library', description: `Starting point — ~${teamsPerWait} teams hold here. Hunt stops are separate campus stations.` },
+      { code: 'B', name: 'Chanakya Porch', description: `Starting point — ~${teamsPerWait} teams hold here. Hunt stops are separate campus stations.` },
+      { code: 'C', name: 'Design', description: `Starting point — ~${teamsPerWait} teams hold here. Hunt stops are separate campus stations.` },
+      { code: 'D', name: 'Vyas Parking', description: `Starting point — ~${teamsPerWait} teams hold here. Hunt stops are separate campus stations.` },
+    ].slice(0, startCount);
     setBusy('defaults');
     setMessage('');
     try {
@@ -132,7 +140,7 @@ export default function StartingSystemPanel({
           await adminCreateStartingPoint(eventId, {
             ...loc,
             roundId: roundId || undefined,
-            capacity: 10,
+            capacity: teamsPerWait,
             active: true,
           });
           created += 1;
@@ -151,11 +159,14 @@ export default function StartingSystemPanel({
 
       await refresh();
       onChanged?.();
-      if (created === 0 && skipped >= 4) {
-        setMessage('All 4 starting points already exist (Library · Chanakya · Design · Vyas). Ready.');
+      if (created === 0 && skipped >= startCount) {
+        setMessage(
+          `All ${startCount} starting point${startCount === 1 ? '' : 's'} already exist. Ready.`,
+        );
       } else {
         setMessage(
-          `Starting points ready: Library · Chanakya · Design · Vyas `
+          `Starting points ready for ${startCount} start(s) `
+          + `(~${teamsPerWait}/start · ${teamCapacity} teams) `
           + `(added ${created}, already had ${skipped}).`,
         );
       }
@@ -233,7 +244,7 @@ export default function StartingSystemPanel({
       'Starting point saved',
     );
     if (result) {
-      setDraft({ code: '', name: '', description: '', capacity: 10, active: true });
+      setDraft({ code: '', name: '', description: '', capacity: teamsPerWait, active: true });
     }
   };
 
@@ -264,18 +275,27 @@ export default function StartingSystemPanel({
   const showSchedule = mode === 'all' || mode === 'schedule';
   const showLive = mode === 'all' || mode === 'live';
 
+  const requiredStartLetters = useMemo(
+    () => ['A', 'B', 'C', 'D'].slice(0, startCount),
+    [startCount],
+  );
   const canonicalReadyCount = useMemo(() => {
-    const letters = new Set(points.map((p) => waitLetter(p.code)).filter(Boolean));
-    return ['A', 'B', 'C', 'D'].filter((code) => letters.has(code)).length;
-  }, [points]);
-  const locationsReady = canonicalReadyCount >= 4;
+    const letters = new Set(
+      points
+        .filter((p) => p.active !== false)
+        .map((p) => waitLetter(p.code))
+        .filter(Boolean),
+    );
+    return requiredStartLetters.filter((code) => letters.has(code)).length;
+  }, [points, requiredStartLetters]);
+  const locationsReady = canonicalReadyCount >= startCount;
 
-  /** Local team 1–10 release clock — same times at every wait. */
+  /** Local team 1–N release clock — same times at every active wait. */
   const waveTiming = useMemo(() => {
     const base = new Date(schedule.startsAt);
     const interval = Math.max(1, Number(schedule.releaseIntervalMinutes) || 5);
     if (Number.isNaN(base.getTime())) return [];
-    return Array.from({ length: 10 }, (_, index) => {
+    return Array.from({ length: teamsPerWait }, (_, index) => {
       const at = new Date(base.getTime() + index * interval * 60 * 1000);
       return {
         teamNumber: index + 1,
@@ -283,24 +303,37 @@ export default function StartingSystemPanel({
         label: formatClock(at),
       };
     });
-  }, [schedule.startsAt, schedule.releaseIntervalMinutes]);
+  }, [schedule.startsAt, schedule.releaseIntervalMinutes, teamsPerWait]);
+
+  const activePoints = useMemo(() => {
+    const order = ['A', 'B', 'C', 'D'];
+    return [...points]
+      .filter((p) => p.active !== false)
+      .sort((a, b) => (
+        order.indexOf(waitLetter(a.code) || '')
+        - order.indexOf(waitLetter(b.code) || '')
+      ))
+      .slice(0, startCount);
+  }, [points, startCount]);
 
   const startNames = useMemo(() => (
-    points.length
-      ? [...points]
-        .sort((a, b) => String(a.code || '').localeCompare(String(b.code || '')))
-        .map((point) => point.name || point.code)
-      : ['Library', 'Chanakya Porch', 'Design', 'Vyas Parking']
-  ), [points]);
+    activePoints.length
+      ? activePoints.map((point) => point.name || point.code)
+      : ['Library', 'Chanakya Porch', 'Design', 'Vyas Parking'].slice(0, startCount)
+  ), [activePoints, startCount]);
 
   return (
     <div className="space-y-5">
       {showSetup && <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="font-semibold">4 starting points</h2>
+            <h2 className="font-semibold">
+              {startCount} starting point{startCount === 1 ? '' : 's'}
+            </h2>
             <p className="text-xs text-white/50">
-              Library · Chanakya · Design · Vyas — 10 teams each. Hunt QR cards are separate (Clues tab).
+              {startNames.join(' · ') || 'Set under Clues → Starts & places'}
+              {' '}— ~{teamsPerWait} team{teamsPerWait === 1 ? '' : 's'} each
+              ({teamCapacity} overall). Hunt QR cards are separate (Clues tab).
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -317,15 +350,15 @@ export default function StartingSystemPanel({
               {busy === 'defaults'
                 ? 'Saving…'
                 : locationsReady
-                  ? 'Refresh / repair 4 starts'
-                  : 'Add 4 starting points'}
+                  ? `Refresh / repair ${startCount} start${startCount === 1 ? '' : 's'}`
+                  : `Add ${startCount} starting point${startCount === 1 ? '' : 's'}`}
             </button>
             <span className={`rounded-full px-3 py-1 text-xs self-center ${
               locationsReady
                 ? 'bg-emerald-500/20 text-emerald-100'
                 : 'bg-amber-500/20 text-amber-100'
             }`}>
-              {canonicalReadyCount}/4 ready
+              {canonicalReadyCount}/{startCount} ready
             </span>
           </div>
         </div>
@@ -344,7 +377,7 @@ export default function StartingSystemPanel({
                   <p className="font-semibold text-[#0ECCEE]">{pointLabel(point)}</p>
                   <p className="mt-1 text-xs text-white/55">{point.description || 'No description'}</p>
                   <p className="mt-1 text-xs text-white/40">
-                    Max {point.capacity ?? 10} teams ·{' '}
+                    Max {point.capacity ?? teamsPerWait} teams ·{' '}
                     {point.active === false ? 'inactive' : 'active'}
                   </p>
                 </div>
@@ -358,7 +391,7 @@ export default function StartingSystemPanel({
                       const description = window.prompt('Player-facing description', point.description || '');
                       const capacity = window.prompt(
                         'Max teams at this location',
-                        String(point.capacity ?? 10),
+                        String(point.capacity ?? teamsPerWait),
                       );
                       if (!capacity || Number(capacity) < 1) return;
                       run(
@@ -444,22 +477,26 @@ export default function StartingSystemPanel({
       </section>}
 
       {showSchedule && <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
-        <h2 className="font-semibold">Staggered start (5 min)</h2>
+        <h2 className="font-semibold">Staggered start ({schedule.releaseIntervalMinutes || 5} min)</h2>
         <p className="mt-1 text-xs text-white/50">
-          Team 1 leaves at the first release time at all 4 starting points. Team 2 leaves
-          {' '}{schedule.releaseIntervalMinutes || 5} min later, and so on through Team 10.
-          Four teams release together each wave (one per start).
+          Team 1 leaves at the first release time at all {startCount} starting point
+          {startCount === 1 ? '' : 's'}. Team 2 leaves
+          {' '}{schedule.releaseIntervalMinutes || 5} min later, and so on through Team {teamsPerWait}.
+          {startCount > 1
+            ? ` ${startCount} teams release together each wave (one per start).`
+            : ' One team releases each wave from the single start.'}
+          {' '}Overall: {teamCapacity} teams.
         </p>
 
-        {(!roundId || canonicalReadyCount < 4) && (
+        {(!roundId || canonicalReadyCount < startCount) && (
           <div className="mt-3 space-y-1 rounded-xl border border-amber-400/35 bg-amber-500/10 px-3 py-3 text-xs text-amber-100">
             <p className="font-semibold">Schedule controls are blocked until:</p>
             <ul className="list-disc space-y-0.5 pl-4">
               {!roundId && <li>Round 1 exists (use Create Round 1 below)</li>}
-              {canonicalReadyCount < 4 && (
+              {canonicalReadyCount < startCount && (
                 <li>
-                  4 starting points exist ({canonicalReadyCount}/4) — go to Locations and tap
-                  “Add 4 starting points”
+                  {startCount} starting point{startCount === 1 ? '' : 's'} exist
+                  ({canonicalReadyCount}/{startCount}) — go to Locations or Clues → Save setup
                 </li>
               )}
             </ul>
@@ -543,7 +580,7 @@ export default function StartingSystemPanel({
         {waveTiming.length > 0 && (
           <div className="mt-4 rounded-xl border border-[#0ECCEE]/25 bg-[#0ECCEE]/5 p-3">
             <p className="text-sm font-semibold text-[#0ECCEE]">
-              Release clock — same at all 4 starts
+              Release clock — same at all {startCount} start{startCount === 1 ? '' : 's'}
             </p>
             <p className="mt-1 text-[11px] text-white/50">
               {startNames.join(' · ')}
@@ -558,14 +595,16 @@ export default function StartingSystemPanel({
                     Team {wave.teamNumber}
                   </p>
                   <p className="text-sm font-bold text-white">{wave.label}</p>
-                  <p className="text-[10px] text-white/40">×4 starts</p>
+                  <p className="text-[10px] text-white/40">×{startCount} start{startCount === 1 ? '' : 's'}</p>
                 </div>
               ))}
             </div>
             <p className="mt-3 text-[11px] text-white/45">
-              Example: Team 1 @ {waveTiming[0]?.label}, Team 2 @ {waveTiming[1]?.label}, Team 3 @{' '}
-              {waveTiming[2]?.label}, Team 4 @ {waveTiming[3]?.label} — at Library, Chanakya,
-              Design, and Vyas together.
+              Example: Team 1 @ {waveTiming[0]?.label}
+              {waveTiming[1] ? `, Team 2 @ ${waveTiming[1].label}` : ''}
+              {waveTiming[2] ? `, Team 3 @ ${waveTiming[2].label}` : ''}
+              {' '}— at {startNames.join(', ')}
+              {startCount > 1 ? ' together' : ''}.
             </p>
           </div>
         )}
@@ -675,17 +714,24 @@ export default function StartingSystemPanel({
               <p className="font-semibold text-[#0ECCEE]">What this preview means</p>
               <ul className="list-disc space-y-1.5 pl-4 text-xs leading-relaxed">
                 <li>
-                  <span className="font-semibold text-white">Team 1–40</span>
-                  {' '}— Library 1–10, Chanakya 11–20, Design 21–30, Vyas 31–40 (sorted in that order).
+                  <span className="font-semibold text-white">
+                    Team 1–{teamCapacity}
+                  </span>
+                  {' '}— split across {startCount} start{startCount === 1 ? '' : 's'}
+                  (~{teamsPerWait} per start, sorted by team code).
                 </li>
                 <li>
                   <span className="font-semibold text-white">Meet here</span>
-                  {' '}— where the team gathers before the hunt (Library, Chanakya, Design, or Vyas).
+                  {' '}— where the team gathers before the hunt
+                  ({startNames.join(', ') || 'active starts'}).
                 </li>
                 <li>
                   <span className="font-semibold text-white">Leave turn</span>
-                  {' '}— which turn they leave that place. Turn 1 = first group, Turn 2 = 5 minutes later, …
-                  (same turn leaves from all 4 places together).
+                  {' '}— which turn they leave that place. Turn 1 = first group, Turn 2 ={' '}
+                  {schedule.releaseIntervalMinutes || 5} minutes later, …
+                  {startCount > 1
+                    ? ` (same turn leaves from all ${startCount} places together).`
+                    : '.'}
                 </li>
                 <li>
                   <span className="font-semibold text-white">Leave time</span>
@@ -852,7 +898,8 @@ export default function StartingSystemPanel({
             </p>
             <h2 className="mt-1 text-lg font-bold text-white">Release teams at each start</h2>
             <p className="mt-1 text-sm text-white/55">
-              Auto-releases on schedule · tap Release for early / stuck teams · refreshes ~10s
+              {teamCapacity} teams · {startCount} start{startCount === 1 ? '' : 's'}
+              {' '}· auto-releases on schedule · tap Release for early / stuck teams
             </p>
           </div>
           <button
@@ -938,12 +985,22 @@ export default function StartingSystemPanel({
         </div>
 
         <div className="mt-4 grid gap-3 lg:grid-cols-2">
-          {groups.map((group) => {
+          {groups
+            .filter((group) => {
+              const point = group.startingPoint || group.point || group;
+              const letter = waitLetter(point.code);
+              if (!letter) return activePoints.some((p) => entityId(p) === entityId(point));
+              return requiredStartLetters.includes(letter);
+            })
+            .map((group) => {
             const point = group.startingPoint || group.point || group;
             const paused = Boolean(group.releasesPaused || point.releasesPaused);
             let teamRows = ungroupedTeams.filter(
               (team) => entityId(team.startingPoint) === entityId(point),
             );
+            // Prefer teams in current capacity when leftover CC teams exist
+            teamRows = [...teamRows]
+              .sort((a, b) => String(a.teamCode || '').localeCompare(String(b.teamCode || ''), undefined, { numeric: true }));
             const q = liveSearch.trim().toLowerCase();
             if (q) {
               teamRows = teamRows.filter((team) => (

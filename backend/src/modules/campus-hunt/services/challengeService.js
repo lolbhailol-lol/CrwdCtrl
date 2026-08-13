@@ -543,7 +543,7 @@ async function submitAnswer({
         : undefined,
       nextAttemptPoints: !failed && nextPts != null ? nextPts : undefined,
       message: clue1Reveal
-        ? 'Out of attempts. Location unlocked (0 points). Go scan the station QR with all 4 members.'
+        ? `Out of attempts. Location unlocked (0 points). Go scan the station QR with all ${Math.max(2, Math.min(8, Number(event?.teamSize) || 4))} members.`
         : attemptsLeft > 0
           ? `Incorrect. ${attemptsLeft} attempt${attemptsLeft === 1 ? '' : 's'} left`
             + (nextPts != null ? ` (next correct = ${nextPts} pts)` : '')
@@ -1143,7 +1143,7 @@ async function buildPlayerProgress(team, userId, isLeader) {
 
   const { getPendingCheckpointStatus } = require('./checkpointService');
   const checkpointStatus = await getPendingCheckpointStatus(teamFresh, userId);
-  const [startingPoint, round] = await Promise.all([
+  const [startingPoint, round, eventMeta] = await Promise.all([
     teamFresh.startingPointId
       ? CampusHuntStartingPoint.findById(teamFresh.startingPointId)
         .select('code name description releasesPaused')
@@ -1152,10 +1152,14 @@ async function buildPlayerProgress(team, userId, isLeader) {
     teamFresh.roundId
       ? CampusHuntRound.findById(teamFresh.roundId).select('releasesPaused').lean()
       : null,
+    CampusHuntEvent.findById(teamFresh.eventId).select('teamSize').lean(),
   ]);
+
+  const teamSize = Math.max(2, Math.min(8, Number(eventMeta?.teamSize) || 4));
 
   return {
     team: teamFresh,
+    teamSize,
     challenges: views,
     checkpointStatus,
     serverTime: now.toISOString(),

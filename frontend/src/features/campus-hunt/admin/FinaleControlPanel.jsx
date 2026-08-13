@@ -24,16 +24,13 @@ import FinaleWorkflowNav from './FinaleWorkflowNav';
 import FinaleMissionAssignments from './FinaleMissionAssignments';
 import FinaleReleaseDesk from './FinaleReleaseDesk';
 import FinalePlaytestDesk from './FinalePlaytestDesk';
-
-const DIRECT_SLOT_COUNT = 5;
-const SURVIVAL_SLOT_COUNT = 7;
-const FINALE_SLOT_COUNT = 12;
+import { deriveCompetitionFormat } from './competitionFormat';
 
 function demoTeamCode(slot) {
   return `CC${String(slot).padStart(3, '0')}`;
 }
 
-function buildDirectTeamSlots(entries, candidates, { demoFallback = true } = {}) {
+function buildDirectTeamSlots(entries, candidates, { demoFallback = true, directCount = 5 } = {}) {
   const promoted = entries
     .filter((e) => e.promotionSource === 'direct_r1')
     .sort((a, b) => (a.r1Rank ?? 9999) - (b.r1Rank ?? 9999));
@@ -41,9 +38,9 @@ function buildDirectTeamSlots(entries, candidates, { demoFallback = true } = {})
   const preview = (candidates || [])
     .filter((c) => c.qualification === 'DIRECT_FINALE')
     .sort((a, b) => (a.rank ?? 9999) - (b.rank ?? 9999))
-    .slice(0, DIRECT_SLOT_COUNT);
+    .slice(0, directCount);
 
-  return Array.from({ length: DIRECT_SLOT_COUNT }, (_, index) => {
+  return Array.from({ length: directCount }, (_, index) => {
     const slot = index + 1;
     const team = promoted[index] || null;
     let pending = !team ? preview[index] : null;
@@ -67,7 +64,7 @@ function buildDirectTeamSlots(entries, candidates, { demoFallback = true } = {})
   });
 }
 
-function buildSurvivalTeamSlots(entries, candidates, { demoFallback = true } = {}) {
+function buildSurvivalTeamSlots(entries, candidates, { demoFallback = true, manualPick = 7, directCount = 5 } = {}) {
   const promoted = entries
     .filter((e) => e.promotionSource === 'manual_pick')
     .sort((a, b) => (a.r1Rank ?? 9999) - (b.r1Rank ?? 9999));
@@ -75,10 +72,10 @@ function buildSurvivalTeamSlots(entries, candidates, { demoFallback = true } = {
   const preview = (candidates || [])
     .filter((c) => c.qualification !== 'DIRECT_FINALE' && !c.inFinale)
     .sort((a, b) => (a.rank ?? 9999) - (b.rank ?? 9999))
-    .slice(0, SURVIVAL_SLOT_COUNT);
+    .slice(0, manualPick);
 
-  return Array.from({ length: SURVIVAL_SLOT_COUNT }, (_, index) => {
-    const slot = DIRECT_SLOT_COUNT + index + 1;
+  return Array.from({ length: manualPick }, (_, index) => {
+    const slot = directCount + index + 1;
     const team = promoted[index] || null;
     let pending = !team ? preview[index] : null;
     if (!team && !pending && demoFallback) {
@@ -183,6 +180,10 @@ export default function FinaleControlPanel({
   round1Finalized,
   publicFinaleLive,
   onRefreshOverview,
+  teamCapacity = 40,
+  teamSize = 4,
+  directFromR1,
+  finaleTeams,
 }) {
   const [tab, setTab] = useState('setup');
   const [config, setConfig] = useState(null);
@@ -287,32 +288,42 @@ export default function FinaleControlPanel({
 
   const directCount = entries.filter((e) => e.promotionSource === 'direct_r1').length;
   const manualCount = entries.filter((e) => e.promotionSource === 'manual_pick').length;
-  const teamsReady = entries.length >= 12;
-  const missionsReady = locationPool.length >= 12
+  const format = deriveCompetitionFormat({
+    teamCapacity,
+    teamSize,
+    directFromR1: directFromR1 ?? round?.qualification?.topNDirectFinale,
+    finaleTeams: finaleTeams ?? round?.qualification?.finaleTeams,
+  });
+  const slotOpts = {
+    directCount: format.directFromR1,
+    manualPick: format.manualPick,
+  };
+  const teamsReady = entries.length >= format.finaleTeams;
+  const missionsReady = locationPool.length >= Math.max(12, format.finaleTeams)
     && locationPool.every((l) => l.name && l.fragment)
     && Boolean(String(config?.lockbox?.clue || '').trim())
     && (
-      (Array.isArray(config?.lockbox?.codePool) && config.lockbox.codePool.length >= 12)
+      (Array.isArray(config?.lockbox?.codePool) && config.lockbox.codePool.length >= Math.min(12, format.finaleTeams))
       || (Array.isArray(config?.lockbox?.acceptedCodes) && config.lockbox.acceptedCodes.some(Boolean))
     )
     && Array.isArray(config?.lockbox?.keyPool)
-    && config.lockbox.keyPool.length >= 12
+    && config.lockbox.keyPool.length >= Math.min(12, format.finaleTeams)
     && Boolean(String(config?.blackout?.scout?.clue || '').trim())
     && Array.isArray(config?.blackout?.scout?.acceptedAnswers)
     && config.blackout.scout.acceptedAnswers.some(Boolean);
   const scheduleReady = round?.status === 'scheduled' || round?.status === 'live' || round?.status === 'locked';
 
   const directTeamSlots = useMemo(
-    () => buildDirectTeamSlots(entries, candidates),
-    [entries, candidates],
+    () => buildDirectTeamSlots(entries, candidates, slotOpts),
+    [entries, candidates, format.directFromR1],
   );
   const survivalTeamSlots = useMemo(
-    () => buildSurvivalTeamSlots(entries, candidates),
-    [entries, candidates],
+    () => buildSurvivalTeamSlots(entries, candidates, slotOpts),
+    [entries, candidates, format.manualPick, format.directFromR1],
   );
   const allFinaleTeamSlots = useMemo(
-    () => buildAllFinaleTeamSlots(entries, candidates),
-    [entries, candidates],
+    () => buildAllFinaleTeamSlots(entries, candidates, slotOpts),
+    [entries, candidates, format.directFromR1, format.manualPick],
   );
   const topFiveTeams = useMemo(
     () => directTeamSlots.filter((s) => s.filled).map((s) => s.team),
@@ -376,13 +387,13 @@ export default function FinaleControlPanel({
     let entRes = await adminGetFinaleEntries(eventId);
     let currentDirect = (entRes.data?.entries || [])
       .filter((e) => e.promotionSource === 'direct_r1').length;
-    if (currentDirect < 5) {
+    if (currentDirect < format.directFromR1) {
       await adminPromoteFinaleAuto(eventId);
       entRes = await adminGetFinaleEntries(eventId);
     }
     const currentManual = (entRes.data?.entries || [])
       .filter((e) => e.promotionSource === 'manual_pick').length;
-    const need = 7 - currentManual;
+    const need = format.manualPick - currentManual;
     if (need > 0) {
       const candRes = await adminGetFinaleCandidates(eventId);
       const teamIds = (candRes.data?.candidates || [])
@@ -402,6 +413,7 @@ export default function FinaleControlPanel({
         current={tab}
         onChange={setTab}
         statuses={workflowStatuses}
+        finaleTeams={format.finaleTeams}
       />
 
       {msg && (
@@ -418,7 +430,7 @@ export default function FinaleControlPanel({
             </p>
             <h2 className="mt-1 text-xl font-bold">Bootstrap & global rules</h2>
             <p className="text-sm text-white/55">
-              12 teams × 4 players · 500 start pts · 45 min free-choice mission board.
+              {format.finaleTeams} teams × {format.teamSize} players · 500 start pts · 45 min free-choice mission board.
             </p>
           </div>
 
@@ -494,7 +506,7 @@ export default function FinaleControlPanel({
           onToggleMissionEnabled={toggleMissionEnabled}
           onPromoteDemo={() => run(
             () => adminPromoteFinaleDemo(eventId),
-            'Demo finalists ready — CC001 to CC012',
+            'Demo finalists ready — first finalist slots filled',
           )}
         />
       )}
@@ -505,15 +517,16 @@ export default function FinaleControlPanel({
             <p className="text-xs font-semibold uppercase tracking-widest text-[#0ECCEE]">
               Step 2 · Teams
             </p>
-            <h2 className="mt-1 text-xl font-bold">12 finalists</h2>
+            <h2 className="mt-1 text-xl font-bold">{format.finaleTeams} finalists</h2>
             <p className="text-sm text-white/55">
-              Team 1–5 direct from R1 · Team 6–12 from Survival. Click any team to open their play link.
+              Team 1–{format.directFromR1} direct from R1 · Team {format.directFromR1 + 1}–{format.finaleTeams} from Survival.
+              Click any team to open their play link.
             </p>
           </div>
 
           {teamsReady && (
             <p className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
-              All 12 finalists are set. Click a team below to test the finale mission board.
+              All {format.finaleTeams} finalists are set. Click a team below to test the finale mission board.
             </p>
           )}
 
@@ -521,14 +534,14 @@ export default function FinaleControlPanel({
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-widest text-[#0ECCEE]">
-                  Finale field · Team 1 → Team 12
+                  Finale field · Team 1 → Team {format.finaleTeams}
                 </p>
                 <p className="mt-1 text-sm font-bold">
-                  {entries.length}/{FINALE_SLOT_COUNT} promoted
+                  {entries.length}/{format.finaleTeams} promoted
                 </p>
               </div>
               <p className="text-xs text-white/45">
-                Demo slots use CC001–CC012 until promoted
+                Demo slots use CC001–CC{String(format.finaleTeams).padStart(3, '0')} until promoted
               </p>
             </div>
             <div className="mt-3 divide-y divide-white/10 rounded-xl border border-white/10">
@@ -542,18 +555,24 @@ export default function FinaleControlPanel({
 
           <div className="grid gap-3 md:grid-cols-2">
             <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-              <p className="text-xs font-semibold uppercase tracking-widest text-[#0ECCEE]">Top 5 · Direct R1</p>
-              <p className="mt-1 text-xs text-white/45">Team 1 → Team 5</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-[#0ECCEE]">
+                Top {format.directFromR1} · Direct R1
+              </p>
+              <p className="mt-1 text-xs text-white/45">Team 1 → Team {format.directFromR1}</p>
               <div className="mt-2 text-sm font-bold">
-                {topFiveTeams.length}/5 promoted
+                {topFiveTeams.length}/{format.directFromR1} promoted
               </div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-              <p className="text-xs font-semibold uppercase tracking-widest text-[#0ECCEE]">Next 7 · Survival picks</p>
-              <p className="mt-1 text-xs text-white/45">Team 6 → Team 12</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-[#0ECCEE]">
+                Next {format.manualPick} · Survival picks
+              </p>
+              <p className="mt-1 text-xs text-white/45">
+                Team {format.directFromR1 + 1} → Team {format.finaleTeams}
+              </p>
               <div className="mt-2 text-sm font-bold">
-                {nextSevenTeams.length}/7 promoted
+                {nextSevenTeams.length}/{format.manualPick} promoted
               </div>
             </div>
           </div>
@@ -564,38 +583,41 @@ export default function FinaleControlPanel({
               disabled={busy || !round}
               onClick={() => run(
                 () => adminPromoteFinaleDemo(eventId),
-                'Demo finalists ready — CC001 to CC012 (no R1 finalize needed)',
+                `Demo finalists ready — first ${format.finaleTeams} teams (no R1 finalize needed)`,
               )}
               className="rounded-xl bg-emerald-500/25 px-4 py-2 text-sm font-bold text-emerald-100 disabled:opacity-40"
             >
-              Testing: make CC001–CC012 finalists
+              Testing: make first {format.finaleTeams} finalists
             </button>
             <button
               type="button"
               disabled={busy || !round}
-              onClick={() => run(fillDemoFinalists, 'Demo: all 12 finalists promoted')}
+              onClick={() => run(fillDemoFinalists, `Demo: all ${format.finaleTeams} finalists promoted`)}
               className="rounded-xl bg-emerald-500/20 px-4 py-2 text-sm font-bold text-emerald-100 disabled:opacity-40"
             >
-              Demo: fill all 12 ({entries.length}/12)
+              Demo: fill all {format.finaleTeams} ({entries.length}/{format.finaleTeams})
             </button>
             <button
               type="button"
               disabled={busy || !round1Finalized}
-              onClick={() => run(() => adminPromoteFinaleAuto(eventId), 'Top 5 promoted')}
+              onClick={() => run(
+                () => adminPromoteFinaleAuto(eventId),
+                `Top ${format.directFromR1} promoted`,
+              )}
               className="rounded-xl bg-[#0ECCEE] px-4 py-2 text-sm font-bold text-black disabled:opacity-40"
             >
-              Auto-promote top 5 ({directCount}/5)
+              Auto-promote top {format.directFromR1} ({directCount}/{format.directFromR1})
             </button>
             <button
               type="button"
-              disabled={busy || selected.size === 0 || directCount < 5}
+              disabled={busy || selected.size === 0 || directCount < format.directFromR1}
               onClick={() => run(
                 () => adminPromoteFinaleManual(eventId, [...selected]),
                 `Promoted ${selected.size} teams`,
               )}
               className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold disabled:opacity-40"
             >
-              Manual pick selected ({manualCount}/7)
+              Manual pick selected ({manualCount}/{format.manualPick})
             </button>
           </div>
           <p className="text-[11px] text-white/40">
@@ -603,7 +625,7 @@ export default function FinaleControlPanel({
           </p>
 
           <p className="text-xs text-white/50">
-            {entries.length}/12 finalists · Direct: {directCount} · Manual: {manualCount}
+            {entries.length}/{format.finaleTeams} finalists · Direct: {directCount} · Manual: {manualCount}
           </p>
 
           {entries.length > 0 && (
@@ -675,7 +697,7 @@ export default function FinaleControlPanel({
               {round1Finalized ? '✓' : '○'} Round 1 finalized
             </li>
             <li className={`flex items-center gap-2 ${teamsReady ? 'text-emerald-300' : 'text-white/50'}`}>
-              {teamsReady ? '✓' : '○'} 12 finalists promoted ({entries.length}/12)
+              {teamsReady ? '✓' : '○'} {format.finaleTeams} finalists promoted ({entries.length}/{format.finaleTeams})
             </li>
             <li className={`flex items-center gap-2 ${missionsReady ? 'text-emerald-300' : 'text-white/50'}`}>
               {missionsReady ? '✓' : '○'} Mission config saved ({locationPool.length}/12 locations)
@@ -686,6 +708,7 @@ export default function FinaleControlPanel({
             eventSlug={eventSlug}
             round={round}
             entriesCount={entries.length}
+            requiredFinaleTeams={format.finaleTeams}
             mode="schedule"
             onChanged={() => {
               loadConfig();
@@ -724,6 +747,7 @@ export default function FinaleControlPanel({
             eventSlug={eventSlug}
             round={round}
             entriesCount={entries.length}
+            requiredFinaleTeams={format.finaleTeams}
             mode="live"
             onChanged={() => {
               loadLive();
@@ -767,7 +791,7 @@ export default function FinaleControlPanel({
                   disabled={busy}
                   onClick={() => {
                     if (!window.confirm(
-                      'Reset Finals for retest?\n\n• Round → scheduled (off)\n• All team progress cleared\n• Keep the 12 finalists\n• Re-generate schedule & Start again',
+                      `Reset Finals for retest?\n\n• Round → scheduled (off)\n• All team progress cleared\n• Keep the ${format.finaleTeams} finalists\n• Re-generate schedule & Start again`,
                     )) return;
                     run(
                       () => adminResetFinaleForRetest(eventId, { keepLive: false }),

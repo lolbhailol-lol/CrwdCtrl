@@ -17,14 +17,28 @@ function validateEventCreate(body = {}) {
     err.status = 400;
     throw err;
   }
+  let teamCapacity = body.teamCapacity != null ? Number(body.teamCapacity) : 40;
+  let teamSize = body.teamSize != null ? Number(body.teamSize) : 4;
+  if (!Number.isFinite(teamCapacity) || teamCapacity < 4 || teamCapacity > 200) {
+    const err = new Error('teamCapacity must be between 4 and 200');
+    err.status = 400;
+    throw err;
+  }
+  if (!Number.isFinite(teamSize) || teamSize < 2 || teamSize > 8) {
+    const err = new Error('teamSize must be between 2 and 8');
+    err.status = 400;
+    throw err;
+  }
+  teamCapacity = Math.round(teamCapacity);
+  teamSize = Math.round(teamSize);
   return {
     name: String(body.name).trim(),
     college: String(body.college).trim(),
     slug: String(body.slug).trim().toLowerCase(),
     date: body.date ? new Date(body.date) : undefined,
     status: body.status || 'draft',
-    teamCapacity: body.teamCapacity != null ? Number(body.teamCapacity) : 40,
-    teamSize: body.teamSize != null ? Number(body.teamSize) : 4,
+    teamCapacity,
+    teamSize,
     startingScore: body.startingScore != null ? Number(body.startingScore) : 100,
     publicLeaderboardLive: body.publicLeaderboardLive === true,
     publicLoginLive: body.publicLoginLive === true,

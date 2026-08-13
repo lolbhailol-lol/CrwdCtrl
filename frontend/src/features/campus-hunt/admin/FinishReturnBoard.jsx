@@ -4,7 +4,6 @@ import {
   adminMarkTeamStartReached,
 } from '../services/campusHunt.api';
 import { STAGE_THEMES } from '../types/stageTheme';
-import { TEAMS_PER_WAIT } from './campusHuntFormat';
 import { isGenericTeamName } from '../utils/teamLabel';
 
 const THEME = STAGE_THEMES.final;
@@ -16,6 +15,12 @@ function id(value) {
   return String(value?._id || value?.id || value || '');
 }
 
+function waitLetter(code) {
+  const raw = String(code || '').toUpperCase().trim();
+  if (/^[A-D]$/.test(raw)) return raw;
+  return raw.match(/^START[-_\s]?([A-D])$/)?.[1] || raw.match(/^([A-D])/)?.[1] || null;
+}
+
 function stageBucket(stage) {
   const s = String(stage || '');
   if (RETURNING_STAGES.has(s)) return 'returning';
@@ -25,10 +30,20 @@ function stageBucket(stage) {
 }
 
 /**
- * Red Final board: teams coming back to each start (10 per point).
- * Shows team codes / numbers and one-tap organizer mark-reached.
+ * Red Final board: teams coming back to each active start.
+ * Sized to event teamCapacity / startCount (not fixed 40×4×10).
  */
-export default function FinishReturnBoard({ eventId, reloadKey = 0, onChanged }) {
+export default function FinishReturnBoard({
+  eventId,
+  reloadKey = 0,
+  onChanged,
+  eventMeta = null,
+}) {
+  const teamCapacity = Math.max(2, Number(eventMeta?.teamCapacity) || 40);
+  const startCount = Math.max(1, Math.min(4, Number(eventMeta?.startCount) || 4));
+  const teamSize = Math.max(2, Math.min(8, Number(eventMeta?.teamSize) || 4));
+  const teamsPerWait = Math.max(1, Math.ceil(teamCapacity / startCount));
+
   const [dashboard, setDashboard] = useState(null);
   const [busyId, setBusyId] = useState('');
   const [lookup, setLookup] = useState('');
@@ -62,31 +77,61 @@ export default function FinishReturnBoard({ eventId, reloadKey = 0, onChanged })
     return () => clearInterval(t);
   }, [eventId, refresh]);
 
-  const teams = dashboard?.teams || [];
+  const layoutTeamIds = useMemo(() => {
+    const all = [...(dashboard?.teams || [])]
+      .sort((a, b) => String(a.teamCode || '').localeCompare(String(b.teamCode || ''), undefined, { numeric: true }))
+      .slice(0, teamCapacity);
+    return new Set(all.map((t) => id(t)));
+  }, [dashboard, teamCapacity]);
+
+  const teams = useMemo(
+    () => (dashboard?.teams || []).filter((t) => layoutTeamIds.has(id(t))),
+    [dashboard, layoutTeamIds],
+  );
+
   const points = useMemo(() => {
-    const starts = dashboard?.startingPoints || [];
+    const order = ['A', 'B', 'C', 'D'];
+    const required = order.slice(0, startCount);
+    const starts = [...(dashboard?.startingPoints || [])]
+      .filter((p) => p.active !== false)
+      .sort((a, b) => (
+        order.indexOf(waitLetter(a.code) || '')
+        - order.indexOf(waitLetter(b.code) || '')
+      ))
+      .filter((p) => {
+        const letter = waitLetter(p.code);
+        return letter ? required.includes(letter) : true;
+      })
+      .slice(0, startCount);
+
     return starts.map((point) => {
       const assigned = teams.filter((team) => id(team.startingPoint) === id(point));
       const returning = assigned.filter((t) => stageBucket(t.currentStage) === 'returning');
       const done = assigned.filter((t) => stageBucket(t.currentStage) === 'done');
       const out = assigned.filter((t) => stageBucket(t.currentStage) === 'out');
+      const capacity = Math.max(
+        teamsPerWait,
+        Number(point.capacity) || 0,
+        assigned.length,
+      );
       return {
         point,
         assigned,
         returning,
         done,
         out,
-        capacity: Number(point.capacity) || TEAMS_PER_WAIT,
+        capacity,
       };
     });
-  }, [dashboard, teams]);
+  }, [dashboard, teams, startCount, teamsPerWait]);
 
   const totals = useMemo(() => ({
     returning: teams.filter((t) => stageBucket(t.currentStage) === 'returning').length,
     done: teams.filter((t) => stageBucket(t.currentStage) === 'done').length,
     out: teams.filter((t) => stageBucket(t.currentStage) === 'out').length,
     total: teams.length,
-  }), [teams]);
+    capacity: teamCapacity,
+  }), [teams, teamCapacity]);
 
   const markReached = async (team, reason = 'Organizer marked reached at start') => {
     const teamId = id(team);
@@ -119,7 +164,7 @@ export default function FinishReturnBoard({ eventId, reloadKey = 0, onChanged })
         || code.endsWith(q);
     });
     if (!match) {
-      setError(`No team found for “${lookup}”`);
+      setError(`No team found for “${lookup}” (layout is ${teamCapacity} teams)`);
       return;
     }
     if (!RETURNING_STAGES.has(String(match.currentStage || ''))) {
@@ -149,7 +194,9 @@ export default function FinishReturnBoard({ eventId, reloadKey = 0, onChanged })
           </div>
           <h3 className="mt-2 text-lg font-bold text-white">Teams coming back</h3>
           <p className="mt-1 text-sm text-white/65">
-            After the one-word Final clue, teams return to their own start.
+            After the one-word Final clue, teams return to their own start
+            ({teamCapacity} teams · {startCount} start{startCount === 1 ? '' : 's'}
+            {' '}· ~{teamsPerWait}/start · {teamSize}/team).
             Mark them by team number when they arrive — score locks.
           </p>
         </div>
@@ -168,7 +215,7 @@ export default function FinishReturnBoard({ eventId, reloadKey = 0, onChanged })
           ['At start (mark)', totals.returning, THEME.textClass],
           ['Finished', totals.done, 'text-emerald-200'],
           ['Still out', totals.out, 'text-amber-200'],
-          ['Teams', totals.total, 'text-white/70'],
+          ['Teams', `${totals.done + totals.returning + totals.out}/${totals.capacity}`, 'text-white/70'],
         ].map(([label, value, color]) => (
           <div key={label} className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-center">
             <p className="text-[10px] uppercase tracking-wide text-white/45">{label}</p>
@@ -181,7 +228,7 @@ export default function FinishReturnBoard({ eventId, reloadKey = 0, onChanged })
         <input
           value={lookup}
           onChange={(e) => setLookup(e.target.value)}
-          placeholder="Team code / number (e.g. CC012 or 012)"
+          placeholder="Team code / number (e.g. CC001 or 001)"
           className="min-w-48 flex-1 rounded-lg border border-white/15 bg-[#161718] px-3 py-2 font-mono text-sm text-white"
         />
         <button
@@ -196,7 +243,7 @@ export default function FinishReturnBoard({ eventId, reloadKey = 0, onChanged })
       {message && <p className="text-sm text-emerald-200">{message}</p>}
       {error && <p className="text-sm text-red-200">{error}</p>}
 
-      <div className="grid gap-3 lg:grid-cols-2">
+      <div className={`grid gap-3 ${points.length > 1 ? 'lg:grid-cols-2' : ''}`}>
         {points.map(({ point, assigned, returning, done, out, capacity }) => (
           <section
             key={id(point)}
@@ -233,7 +280,7 @@ export default function FinishReturnBoard({ eventId, reloadKey = 0, onChanged })
               <ul className="mt-3 space-y-2">
                 {returning
                   .slice()
-                  .sort((a, b) => String(a.teamCode || '').localeCompare(String(b.teamCode || '')))
+                  .sort((a, b) => String(a.teamCode || '').localeCompare(String(b.teamCode || ''), undefined, { numeric: true }))
                   .map((team) => (
                     <li
                       key={id(team)}
@@ -275,7 +322,7 @@ export default function FinishReturnBoard({ eventId, reloadKey = 0, onChanged })
                 <p className="mt-1 font-mono text-xs text-white/55">
                   {done
                     .slice()
-                    .sort((a, b) => String(a.teamCode || '').localeCompare(String(b.teamCode || '')))
+                    .sort((a, b) => String(a.teamCode || '').localeCompare(String(b.teamCode || ''), undefined, { numeric: true }))
                     .map((t) => t.teamCode)
                     .join(' · ')}
                 </p>
@@ -287,7 +334,7 @@ export default function FinishReturnBoard({ eventId, reloadKey = 0, onChanged })
 
       {!points.length && !loading && (
         <p className="text-sm text-white/50">
-          No starting points yet — run Bootstrap Round 1 first.
+          No active starts yet — Save setup (starts & places), then Schedule.
         </p>
       )}
     </div>

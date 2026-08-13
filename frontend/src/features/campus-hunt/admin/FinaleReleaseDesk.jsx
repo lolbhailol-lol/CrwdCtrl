@@ -39,6 +39,7 @@ export default function FinaleReleaseDesk({
   eventSlug,
   round,
   entriesCount = 0,
+  requiredFinaleTeams = 12,
   mode = 'schedule',
   onChanged,
 }) {
@@ -198,8 +199,10 @@ export default function FinaleReleaseDesk({
           </button>
         </div>
 
-        {entriesCount < 12 && (
-          <p className="text-sm text-amber-100">Need 12 finalists on Teams tab before scheduling.</p>
+        {entriesCount < requiredFinaleTeams && (
+          <p className="text-sm text-amber-100">
+            Need {requiredFinaleTeams} finalists on Teams tab before scheduling.
+          </p>
         )}
 
         {waveSummary.length > 0 && (

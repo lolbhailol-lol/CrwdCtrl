@@ -50,7 +50,14 @@ export default function CheckpointManager({
   groupFirstStopsByStation = false,
   campusStations,
   stageTheme = null,
+  teamCapacity = 40,
+  teamsPerStation = TARGET_TEAMS_PER_STATION,
+  teamsPerWait,
 }) {
+  const perWait = Math.max(
+    1,
+    Number(teamsPerWait) || Math.ceil((Number(teamCapacity) || 40) / 4),
+  );
   const accent = stageTheme;
   const [checkpoints, setCheckpoints] = useState([]);
   const [routes, setRoutes] = useState([]);
@@ -159,8 +166,8 @@ export default function CheckpointManager({
 
   /** First Scan: exactly 10 places — team count + which wait each team comes from */
   const firstStopPlan = useMemo(
-    () => (groupFirstStopsByStation ? firstStopArrivalPlan(stations) : null),
-    [groupFirstStopsByStation, stations],
+    () => (groupFirstStopsByStation ? firstStopArrivalPlan(stations, perWait) : null),
+    [groupFirstStopsByStation, stations, perWait],
   );
 
   const submit = async (event) => {
@@ -215,7 +222,7 @@ export default function CheckpointManager({
             </div>
             <p className="text-xs text-white/50">
               {groupFirstStopsByStation
-                ? `${STATION_TARGET_COUNT} campus places only · ${TARGET_TEAMS_PER_STATION} teams each`
+                ? `${STATION_TARGET_COUNT} campus places only · ~${teamsPerStation} teams each`
                 : `Campus hunt stops — not the 4 starting points. Free location names (e.g. ${exampleStations}).`}
             </p>
           </div>
@@ -229,7 +236,7 @@ export default function CheckpointManager({
                 Unique places {uniqueLocations}/{STATION_TARGET_COUNT}
               </span>
               <span className="rounded-full bg-white/10 px-3 py-1 text-xs">
-                Target {TARGET_TEAMS_PER_STATION} teams / place
+                Target ~{teamsPerStation} teams / place
               </span>
               <span className="rounded-full bg-white/10 px-3 py-1 text-xs">
                 {visibleCheckpoints.length} checkpoint rows
@@ -544,7 +551,7 @@ export default function CheckpointManager({
                 className={`mt-1 ${inputClass}`}
               />
               <span className="mt-1 block text-white/40">
-                Default {TARGET_TEAMS_PER_STATION} — 40 teams ÷ {STATION_TARGET_COUNT} stations.
+                Default {teamsPerStation || TARGET_TEAMS_PER_STATION} — {(teamCapacity || 40)} teams ÷ {STATION_TARGET_COUNT} stations.
               </span>
             </label>
             <label className="text-xs text-white/50">

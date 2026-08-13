@@ -3,7 +3,7 @@ const CampusHuntTeam = require('../../models/CampusHuntTeam');
 const CampusHuntStartingPoint = require('../../models/CampusHuntStartingPoint');
 const { getFinaleRound, getOrCreateMissionConfig } = require('./finaleBootstrapService');
 const { writeAudit } = require('../auditService');
-const { FINALE_DEFAULTS } = require('../../constants');
+const { resolvePromotionCaps } = require('./finalePromotionService');
 
 const DEFAULT_MEET_LOCATIONS = [
   { code: 'A', name: 'Library' },
@@ -44,18 +44,17 @@ async function resolveMeetLocations(eventId) {
 }
 
 /**
- * 4 meet locations × 3 waves.
- * Wave 1 (t0): one team at each location (4 teams)
- * Wave 2 (t+interval): next 4
- * Wave 3 (t+2*interval): last 4
+ * Meet locations × waves sized to finalist count.
+ * Wave N: one team at each meet location.
  */
 function buildReleaseAssignments({
   entries,
   meetLocations,
   startsAt,
   releaseIntervalMinutes,
+  maxFinalists,
 }) {
-  const sorted = sortFinalistEntries(entries).slice(0, FINALE_DEFAULTS.maxFinalists);
+  const sorted = sortFinalistEntries(entries).slice(0, maxFinalists);
   const intervalMs = Math.max(1, Number(releaseIntervalMinutes) || 5) * 60 * 1000;
   const base = new Date(startsAt);
   const locations = meetLocations.slice(0, 4);
@@ -84,7 +83,7 @@ function buildReleaseAssignments({
     releaseIntervalMinutes: Number(releaseIntervalMinutes) || 5,
     meetLocations: locations,
     assignments,
-    waves: 3,
+    waves: Math.max(1, Math.ceil(sorted.length / Math.max(1, locations.length))),
     teamsPerWave: locations.length,
   };
 }
@@ -112,10 +111,11 @@ async function previewFinaleSchedule({
   if (!round) throw releaseError('Bootstrap Finale first.', 'FINALE_NOT_BOOTSTRAPPED');
   if (!startsAt) throw releaseError('startsAt is required.', 'MISSING_STARTS_AT', 400);
 
+  const caps = await resolvePromotionCaps(eventId);
   const entries = await loadEntriesWithTeams(eventId);
-  if (entries.length < FINALE_DEFAULTS.maxFinalists) {
+  if (entries.length < caps.maxFinalists) {
     throw releaseError(
-      `Need ${FINALE_DEFAULTS.maxFinalists} finalists before scheduling (have ${entries.length}).`,
+      `Need ${caps.maxFinalists} finalists before scheduling (have ${entries.length}).`,
       'NEED_FINALISTS',
     );
   }
@@ -126,6 +126,7 @@ async function previewFinaleSchedule({
     meetLocations,
     startsAt,
     releaseIntervalMinutes,
+    maxFinalists: caps.maxFinalists,
   });
 
   const byTeam = new Map(entries.map((e) => [String(e._id), e]));

@@ -69,6 +69,13 @@ async function createEvent(req, res, next) {
     if (!payload.scoringConfig) {
       payload.scoringConfig = { ...DEFAULT_SCORING_CONFIG };
     }
+    const { deriveCompetitionFormat } = require('../utils/competitionFormat');
+    const format = deriveCompetitionFormat({
+      teamCapacity: payload.teamCapacity,
+      teamSize: payload.teamSize,
+    });
+    payload.teamCapacity = format.teamCapacity;
+    payload.teamSize = format.teamSize;
     const event = await CampusHuntEvent.create(payload);
     const round = await CampusHuntRound.create({
       eventId: event._id,
@@ -77,13 +84,7 @@ async function createEvent(req, res, next) {
       status: 'scheduled',
       releaseIntervalMinutes: 5,
       assignmentStrategy: 'route_balanced',
-      qualification: {
-        topNDirectFinale: 5,
-        survivalTeams: 35,
-        lastChanceTeams: 0,
-        finaleTeams: 12,
-        nextRoundName: 'SURVIVAL_STAGE',
-      },
+      qualification: format.qualification,
     });
     await writeAudit({
       eventId: event._id,
@@ -115,6 +116,11 @@ async function updateEvent(req, res, next) {
       'status',
       'teamCapacity',
       'teamSize',
+      'finaleCapacity',
+      'finaleDirectFromR1',
+      'startCount',
+      'stationCount',
+      'campusStarts',
       'startingScore',
       'featureNotes',
       'scoringConfig',
@@ -139,22 +145,63 @@ async function updateEvent(req, res, next) {
       const { normalizeAccess } = require('../services/playerRoundAccess');
       allowed.playerRoundAccess = normalizeAccess(allowed.playerRoundAccess);
     }
+    let syncQualification = null;
+    if (allowed.teamCapacity != null || allowed.teamSize != null
+      || allowed.finaleCapacity != null || allowed.finaleDirectFromR1 != null
+      || req.body.directFromR1 != null || req.body.finaleTeams != null) {
+      const existing = await CampusHuntEvent.findById(req.params.eventId).lean();
+      if (!existing) return res.status(404).json({ success: false, message: 'Event not found' });
+      const { deriveCompetitionFormat } = require('../utils/competitionFormat');
+      const format = deriveCompetitionFormat({
+        teamCapacity: allowed.teamCapacity != null ? allowed.teamCapacity : existing.teamCapacity,
+        teamSize: allowed.teamSize != null ? allowed.teamSize : existing.teamSize,
+        directFromR1: allowed.finaleDirectFromR1 != null
+          ? allowed.finaleDirectFromR1
+          : (req.body.directFromR1 != null ? req.body.directFromR1 : existing.finaleDirectFromR1),
+        finaleTeams: allowed.finaleCapacity != null
+          ? allowed.finaleCapacity
+          : (req.body.finaleTeams != null ? req.body.finaleTeams : existing.finaleCapacity),
+      });
+      allowed.teamCapacity = format.teamCapacity;
+      allowed.teamSize = format.teamSize;
+      allowed.finaleCapacity = format.finaleTeams;
+      allowed.finaleDirectFromR1 = format.directFromR1;
+      syncQualification = format.qualification;
+    }
     const event = await CampusHuntEvent.findByIdAndUpdate(
       req.params.eventId,
       { $set: allowed },
       { new: true, runValidators: true },
     );
     if (!event) return res.status(404).json({ success: false, message: 'Event not found' });
+    if (syncQualification) {
+      await CampusHuntRound.findOneAndUpdate(
+        { eventId: event._id, roundNumber: 1 },
+        { $set: { qualification: syncQualification } },
+      );
+      await CampusHuntRound.findOneAndUpdate(
+        { eventId: event._id, name: 'FINALE' },
+        {
+          $set: {
+            'qualification.topNDirectFinale': syncQualification.topNDirectFinale,
+            'qualification.finaleTeams': syncQualification.finaleTeams,
+          },
+        },
+      );
+    }
     await writeAudit({
       eventId: event._id,
       ...adminActor(req),
       action: 'event_updated',
       targetType: 'event',
       targetId: event._id,
-      after: allowed,
+      after: { ...allowed, qualification: syncQualification || undefined },
       reason: req.body.reason || '',
     });
-    return res.json({ success: true, data: { event } });
+    return res.json({
+      success: true,
+      data: { event, qualification: syncQualification || undefined },
+    });
   } catch (err) {
     return next(err);
   }
@@ -251,8 +298,10 @@ async function getEventOverview(req, res, next) {
       };
     });
     const { isTeamRosterReady } = require('../utils/roster');
+    const { resolveDemoScale } = require('../utils/demoScale');
+    const scale = resolveDemoScale(event);
     const teamsReady = teams.filter((team) => (
-      team.routeId && isTeamRosterReady(team)
+      team.routeId && isTeamRosterReady(team, scale.teamSize)
     )).length;
     const roundOne = rounds.find((round) => Number(round.roundNumber) === 1);
     const startAssignmentsReady = teams.filter((team) => (
@@ -267,7 +316,8 @@ async function getEventOverview(req, res, next) {
       && team.thirdCheckpointId
     )).length;
     // Player scan is primary — volunteers are optional ops help, not a go-live gate.
-    const startingPointsReady = startingPoints.length >= 4;
+    const startingPointsReady = startingPoints.filter((p) => p.active !== false).length
+      >= Math.max(1, Number(event.startCount) || 4);
     const readiness = {
       ready: teams.length > 0
         && teamsReady === teams.length
@@ -289,11 +339,22 @@ async function getEventOverview(req, res, next) {
       routeReadiness,
     };
 
+    const {
+      resolveCampusStationsCatalog,
+      resolveCampusStarts,
+      resolveStartCount,
+      resolveStationCount,
+    } = require('../services/stationCatalogService');
+
     return res.json({
       success: true,
       data: {
         event,
         campusStations: resolveCampusStations(event),
+        campusStationsCatalog: resolveCampusStationsCatalog(event),
+        campusStarts: resolveCampusStarts(event),
+        startCount: resolveStartCount(event),
+        stationCount: resolveStationCount(event),
         rounds,
         counts: {
           teams: teams.length,
@@ -1053,9 +1114,10 @@ async function createTeam(req, res, next) {
     const memberNames = Array.isArray(req.body.memberNames)
       ? req.body.memberNames.map((n) => String(n || '').trim()).filter(Boolean)
       : [];
+    const requiredMembers = Math.max(1, (Number(event.teamSize) || 4) - 1);
 
-    // Preferred ops path: leader email + 3 member names → auto scanner logins
-    if (memberNames.length === 3 && (req.body.leaderEmail || req.body.leaderUserId)) {
+    // Preferred ops path: leader email + member names → auto scanner logins
+    if (memberNames.length === requiredMembers && (req.body.leaderEmail || req.body.leaderUserId)) {
       const sharedPass = String(
         req.body.teamPassword || req.body.leaderPassword || req.body.scannerPassword || '',
       ).trim();
@@ -1068,6 +1130,7 @@ async function createTeam(req, res, next) {
         leaderPassword: sharedPass || req.body.leaderPassword,
         memberNames,
         scannerPassword: sharedPass || req.body.scannerPassword,
+        teamSize: event.teamSize || 4,
       });
       rosterPayload = validateTeamCreate({
         teamCode: req.body.teamCode,
@@ -1076,6 +1139,7 @@ async function createTeam(req, res, next) {
         memberUserIds: provisioned.memberUserIds,
         routeId: req.body.routeId,
         roundId: req.body.roundId,
+        teamSize: event.teamSize || 4,
       });
       rosterPayload.leaderName = provisioned.leaderName;
       rosterPayload.leaderContactEmail = provisioned.leaderContactEmail;
@@ -1083,7 +1147,10 @@ async function createTeam(req, res, next) {
       rosterPayload.accessPack = provisioned.accessPack;
       credentials = provisioned.credentials;
     } else {
-      rosterPayload = validateTeamCreate(req.body);
+      rosterPayload = validateTeamCreate({
+        ...req.body,
+        teamSize: req.body.teamSize != null ? req.body.teamSize : (event.teamSize || 4),
+      });
     }
 
     await assertUsersAvailableForEvent(event._id, [
@@ -1340,7 +1407,8 @@ async function setAllTeamPasswords(req, res, next) {
 async function listTeams(req, res, next) {
   try {
     const User = require('../../../model/usermodel');
-    const event = await CampusHuntEvent.findById(req.params.eventId).select('slug name college');
+    const event = await CampusHuntEvent.findById(req.params.eventId)
+      .select('slug name college teamCapacity teamSize startCount stationCount');
     if (!event) return res.status(404).json({ success: false, message: 'Event not found' });
 
     const teams = await CampusHuntTeam.find({ eventId: req.params.eventId })
@@ -1374,6 +1442,10 @@ async function listTeams(req, res, next) {
           slug: event.slug,
           name: event.name,
           college: event.college,
+          teamCapacity: event.teamCapacity,
+          teamSize: event.teamSize,
+          startCount: event.startCount,
+          stationCount: event.stationCount,
         },
         teams: withAccess,
       },
@@ -1465,9 +1537,10 @@ async function bulkCreateTeams(req, res, next) {
           ? row.memberNames.map((n) => String(n || '').trim()).filter(Boolean)
           : [];
 
+        const requiredMembers = Math.max(1, (Number(event.teamSize) || 4) - 1);
         let roster;
         let credentials = null;
-        if (memberNames.length === 3 && row.leaderEmail) {
+        if (memberNames.length === requiredMembers && row.leaderEmail) {
           const provisioned = await provisionTeamRoster({
             eventId: event._id,
             teamCode,
@@ -1476,6 +1549,7 @@ async function bulkCreateTeams(req, res, next) {
             leaderName: row.leaderName || teamName,
             memberNames,
             scannerPassword: row.scannerPassword,
+            teamSize: event.teamSize || 4,
           });
           roster = assertValidTeamRoster({
             leaderUserId: provisioned.leaderUserId,
@@ -1642,12 +1716,18 @@ async function updateTeam(req, res, next) {
       };
     }
 
+    const eventForSize = await CampusHuntEvent.findById(team.eventId)
+      .select('teamSize')
+      .lean();
+    const people = Math.max(2, Math.min(8, Number(eventForSize?.teamSize) || 4));
+    const scannersNeeded = Math.max(1, people - 1);
+
     if (Array.isArray(req.body.memberNames)) {
       const names = req.body.memberNames.map((n) => String(n || '').trim()).filter(Boolean);
-      if (names.length !== 3) {
+      if (names.length !== scannersNeeded) {
         return res.status(400).json({
           success: false,
-          message: 'Provide exactly 3 member names',
+          message: `Provide exactly ${scannersNeeded} member name(s) (${people} people/team including leader)`,
         });
       }
       team.memberNames = names;
@@ -1667,7 +1747,7 @@ async function updateTeam(req, res, next) {
         if (!scanners[idx]) scanners[idx] = { name, loginEmail: '', password: '' };
         else scanners[idx].name = name;
       });
-      team.accessPack.scanners = scanners.slice(0, 3);
+      team.accessPack.scanners = scanners.slice(0, scannersNeeded);
     }
 
     // Optional: one shared team password (code + password → pick who you are).
@@ -1679,15 +1759,14 @@ async function updateTeam(req, res, next) {
 
     // Optional: rotate shared scanner password
     if (req.body.scannerPassword && !req.body.teamPassword) {
-      const User = require('../../../model/usermodel');
       const { ensureScannerUser } = require('../services/rosterProvisionService');
       const password = String(req.body.scannerPassword).trim().toUpperCase();
       const event = await CampusHuntEvent.findById(team.eventId).select('_id');
-      const names = team.memberNames?.length === 3
+      const names = team.memberNames?.length === scannersNeeded
         ? team.memberNames
-        : ['Scanner 1', 'Scanner 2', 'Scanner 3'];
+        : Array.from({ length: scannersNeeded }, (_, i) => `Scanner ${i + 1}`);
       const scanners = [];
-      for (let i = 0; i < 3; i += 1) {
+      for (let i = 0; i < scannersNeeded; i += 1) {
         // eslint-disable-next-line no-await-in-loop
         const slot = await ensureScannerUser({
           eventId: event._id,
@@ -1705,6 +1784,7 @@ async function updateTeam(req, res, next) {
           team.memberUserIds[i] = slot.user._id;
         }
       }
+      team.memberUserIds = (team.memberUserIds || []).slice(0, scannersNeeded);
       team.accessPack.scanners = scanners;
       team.accessPack.encryptedSharedScannerPassword = encryptCredential(password);
       team.accessPack.sharedScannerPassword = undefined;
@@ -1730,11 +1810,19 @@ async function updateTeam(req, res, next) {
       team.accessPack.leader.note = leader.note;
     }
 
-    // Sync leader user display name
+    // Sync leader + scanner display names on User accounts (team login buttons)
     if (team.leaderName && team.leaderUserId) {
       const User = require('../../../model/usermodel');
       await User.updateOne({ _id: team.leaderUserId }, { $set: { name: team.leaderName } });
       if (team.accessPack.leader) team.accessPack.leader.name = team.leaderName;
+    }
+    if (Array.isArray(team.memberNames) && Array.isArray(team.memberUserIds)) {
+      const User = require('../../../model/usermodel');
+      await Promise.all(team.memberNames.map(async (name, idx) => {
+        const userId = team.memberUserIds[idx];
+        if (!userId || !name) return;
+        await User.updateOne({ _id: userId }, { $set: { name } });
+      }));
     }
 
     if (changesStartAssignment) {
@@ -2804,7 +2892,7 @@ async function manualVerifyCheckpoint(req, res, next) {
 }
 
 /**
- * Playtest helper: force team onto the scan stage for orange/green/blue, then complete 4/4.
+ * Playtest helper: force team onto the scan stage for orange/green/blue, then complete full roster scan.
  * scan: '1' | '2' | '3' | 'all'
  */
 async function playtestCompleteScan(req, res, next) {
@@ -2820,6 +2908,9 @@ async function playtestCompleteScan(req, res, next) {
 
     let team = await CampusHuntTeam.findById(req.params.teamId);
     if (!team) return res.status(404).json({ success: false, message: 'Team not found' });
+
+    const event = await CampusHuntEvent.findById(team.eventId).select('teamSize').lean();
+    const people = Math.max(2, Math.min(8, Number(event?.teamSize) || 4));
 
     const stageForScan = {
       1: 'CLUE_1_COMPLETED',
@@ -2868,7 +2959,7 @@ async function playtestCompleteScan(req, res, next) {
         checkpoint,
         volunteer: { ...adminActor(req), actorType: 'admin' },
         source: 'manual',
-        notes: `Playtest 4/4 ${labelFor[scan]}`,
+        notes: `Playtest ${people}/${people} ${labelFor[scan]}`,
         forceMemberIds: team.allMemberIds(),
       });
       done.push({
@@ -2876,6 +2967,7 @@ async function playtestCompleteScan(req, res, next) {
         label: labelFor[scan],
         teamStage: result.teamStage,
         alreadyProcessed: Boolean(result.alreadyProcessed),
+        requiredCount: people,
       });
       // eslint-disable-next-line no-await-in-loop
       team = await CampusHuntTeam.findById(team._id);
@@ -3514,6 +3606,11 @@ async function bootstrapRound1(req, res, next) {
       actor: adminActor(req),
       createTeams: req.body?.createTeams !== false,
       enablePublicLeaderboard: req.body?.enablePublicLeaderboard !== false,
+      challengeNumbers: Array.isArray(req.body?.challengeNumbers)
+        ? req.body.challengeNumbers
+        : (req.body?.challengeNumber != null
+          ? [Number(req.body.challengeNumber)]
+          : null),
     });
     return res.json({ success: true, data });
   } catch (err) {
@@ -3552,9 +3649,12 @@ async function updateEventCampusStations(req, res, next) {
   try {
     const result = await updateCampusStations({
       eventId: req.params.eventId,
-      stations: req.body?.campusStations || req.body?.stations || [],
+      stations: req.body?.campusStations || req.body?.stations,
+      starts: req.body?.campusStarts || req.body?.starts,
+      stationCount: req.body?.stationCount,
+      startCount: req.body?.startCount,
       actor: adminActor(req),
-      reason: req.body?.reason || 'Admin renamed campus stations',
+      reason: req.body?.reason || 'Admin updated hunt layout',
     });
     await writeAudit({
       eventId: req.params.eventId,
@@ -3565,6 +3665,9 @@ async function updateEventCampusStations(req, res, next) {
       reason: req.body?.reason || '',
       after: {
         campusStations: result.campusStations,
+        campusStarts: result.campusStarts,
+        stationCount: result.stationCount,
+        startCount: result.startCount,
         renames: result.renames,
         checkpointsUpdated: result.checkpointsUpdated,
         challengesUpdated: result.challengesUpdated,
@@ -3574,6 +3677,11 @@ async function updateEventCampusStations(req, res, next) {
       success: true,
       data: {
         campusStations: result.campusStations,
+        campusStationsCatalog: result.campusStationsCatalog,
+        campusStarts: result.campusStarts,
+        campusStartsCatalog: result.campusStartsCatalog,
+        stationCount: result.stationCount,
+        startCount: result.startCount,
         renames: result.renames,
         checkpointsUpdated: result.checkpointsUpdated,
         challengesUpdated: result.challengesUpdated,

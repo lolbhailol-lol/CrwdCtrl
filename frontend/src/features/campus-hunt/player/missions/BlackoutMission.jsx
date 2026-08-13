@@ -96,7 +96,7 @@ export default function BlackoutMission({
         title={view?.taskLabel || ROLE_LABEL[view?.yourRole] || 'Operation'}
         body={view?.instruction || 'Stay together. Only the active role submits.'}
         requirements={[
-          'All 4 players stay together — do not split',
+          'All players stay together — do not split',
           view?.yourRole
             ? `Your role: ${ROLE_LABEL[view.yourRole] || view.yourRole}`
             : 'Roles are seat-mapped',

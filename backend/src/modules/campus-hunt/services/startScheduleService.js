@@ -33,22 +33,24 @@ function waitCodeFromPoint(point) {
 }
 
 /**
- * Exactly 4 waits (A–D). Prefer code A over START-A so duplicate legacy
- * points do not eat half the team slots (symptom: only 20/40 bound).
+ * Canonical waits A–D (prefer code A over START-A).
+ * When startCount < 4, only the first N codes are required (demo layouts).
  */
-function selectCanonicalStartingPoints(points) {
+function selectCanonicalStartingPoints(points, startCount = 4) {
+  const required = Math.max(1, Math.min(4, Number(startCount) || 4));
+  const want = ['A', 'B', 'C', 'D'].slice(0, required);
   const byWait = new Map();
   for (const point of (points || [])) {
     if (point?.active === false) continue;
     const wait = waitCodeFromPoint(point);
-    if (!wait || !['A', 'B', 'C', 'D'].includes(wait)) continue;
+    if (!wait || !want.includes(wait)) continue;
     const existing = byWait.get(wait);
     const code = String(point.code || '').toUpperCase().trim();
     if (!existing || code === wait) {
       byWait.set(wait, point);
     }
   }
-  return ['A', 'B', 'C', 'D'].map((code) => byWait.get(code)).filter(Boolean);
+  return want.map((code) => byWait.get(code)).filter(Boolean);
 }
 
 function buildDeterministicSchedule({
@@ -61,28 +63,48 @@ function buildDeterministicSchedule({
   startsAt,
   releaseIntervalMinutes = 5,
   assignmentStrategy = 'route_balanced',
+  startCount = 4,
 }) {
   const sortedTeams = sortByCode(teams, 'teamCode');
-  // Keep A→D order so Team 1–10 = Library, 11–20 = Chanakya, 21–30 = Design, 31–40 = Vyas.
-  const points = selectCanonicalStartingPoints(startingPoints);
+  const requiredStarts = Math.max(1, Math.min(4, Number(startCount) || 4));
+  // Keep A→D order so Team 1–N = first start, next block = second start, …
+  const points = selectCanonicalStartingPoints(startingPoints, requiredStarts);
   const sortedRoutes = sortByCode(routes.filter((route) => route.active !== false), 'routeKey');
   const base = new Date(startsAt);
   if (Number.isNaN(base.getTime())) throw scheduleError('A valid event start time is required');
   if (!points.length) throw scheduleError('Create at least one active starting point');
-  if (points.length < 4) {
+  if (points.length < requiredStarts) {
+    const lastCode = ['A', 'B', 'C', 'D'][requiredStarts - 1];
     throw scheduleError(
-      `Need 4 starting points (A–D). Found ${points.length}. Remove duplicate START-* points or bootstrap again.`,
+      `Need ${requiredStarts} starting point(s) (A–${lastCode}). Found ${points.length}. `
+      + 'Save Teams/starts/places setup, then Update Clue 1 (or Bootstrap), and try again.',
       'INCOMPLETE_START_POINTS',
     );
   }
   if (!sortedRoutes.length) throw scheduleError('Create at least one active route');
-  const totalCapacity = points.reduce((sum, point) => sum + Number(point.capacity || 0), 0);
+  // Defensive: stretch start capacities if layout was resized after teams existed.
+  let totalCapacity = points.reduce((sum, point) => sum + Number(point.capacity || 0), 0);
+  if (sortedTeams.length > totalCapacity && points.length) {
+    const perWait = Math.ceil(sortedTeams.length / points.length);
+    points.forEach((point) => {
+      // eslint-disable-next-line no-param-reassign
+      point.capacity = Math.max(Number(point.capacity) || 0, perWait);
+    });
+    totalCapacity = points.reduce((sum, point) => sum + Number(point.capacity || 0), 0);
+  }
   if (sortedTeams.length > totalCapacity) {
     throw scheduleError(
-      `Starting point capacity is ${totalCapacity}, but ${sortedTeams.length} teams need assignment`,
+      `Starting point capacity is ${totalCapacity}, but ${sortedTeams.length} teams need assignment. `
+      + 'Set Overall teams to match, Save setup, then Preview again.',
       'START_CAPACITY_EXCEEDED',
     );
   }
+
+  const teamsPerWait = Math.max(
+    1,
+    ...points.map((point) => Number(point.capacity) || 0),
+    Math.ceil(sortedTeams.length / Math.max(1, points.length)),
+  );
 
   const pointSlots = [];
   for (const point of points) {
@@ -96,7 +118,7 @@ function buildDeterministicSchedule({
       || String(point.code || '').toUpperCase().trim();
     const waitIndex = Math.max(0, ['A', 'B', 'C', 'D'].indexOf(pointCode));
     const waveNumber = slot + 1;
-    const teamNumber = waitIndex * 10 + waveNumber;
+    const teamNumber = waitIndex * teamsPerWait + waveNumber;
     let route = sortedRoutes.find(
       (item) => String(item.routeKey || '').toUpperCase() === pointCode,
     );
@@ -120,7 +142,7 @@ function buildDeterministicSchedule({
     ));
     const pool = (exact.length ? exact : onRoute)
       .sort((a, b) => String(a.variantKey).localeCompare(String(b.variantKey)));
-    const waveIds = Array.from({ length: 10 }, (_, i) => `T${i + 1}`);
+    const waveIds = Array.from({ length: teamsPerWait }, (_, i) => `T${i + 1}`);
     const waveId = waveIds[slot % waveIds.length];
     const byWave = pool.find((variant) => (
       String(variant.variantKey || '').toUpperCase().endsWith(`-${waveId}`)
@@ -211,8 +233,10 @@ async function previewSchedule({
   releaseIntervalMinutes,
   assignmentStrategy,
 }) {
-  const [round, teams, startingPointsRaw, routes, variants, clue2Variants, clue3Variants] = await Promise.all([
+  const CampusHuntEvent = require('../models/CampusHuntEvent');
+  const [round, event, teams, startingPointsRaw, routes, variants, clue2Variants, clue3Variants] = await Promise.all([
     CampusHuntRound.findOne({ _id: roundId, eventId }),
+    CampusHuntEvent.findById(eventId).select('startCount teamCapacity').lean(),
     CampusHuntTeam.find({ eventId }).select('_id teamCode teamName routeId'),
     // Do NOT require roundId match — Locations may have been created under an older Round 1 id.
     CampusHuntStartingPoint.find({ eventId, active: { $ne: false } }),
@@ -222,6 +246,8 @@ async function previewSchedule({
     CampusHuntChallenge.find({ eventId, challengeNumber: 3, active: { $ne: false } }),
   ]);
   if (!round) throw scheduleError('Round not found', 'ROUND_NOT_FOUND', 404);
+  const startCount = Math.max(1, Math.min(4, Number(event?.startCount) || 4));
+  const teamCapacity = Math.max(1, Number(event?.teamCapacity) || teams.length || 40);
   const interval = Number(releaseIntervalMinutes || round.releaseIntervalMinutes || 5);
   if (!Number.isInteger(interval) || interval < 1) {
     throw scheduleError('Release interval must be at least 1 minute', 'INVALID_RELEASE_INTERVAL', 400);
@@ -231,19 +257,31 @@ async function previewSchedule({
     throw scheduleError('Invalid assignment strategy', 'INVALID_ASSIGNMENT_STRATEGY', 400);
   }
 
-  // Prefer points already on this round; otherwise use any active A–D for the event.
+  // Prefer points already on this round; otherwise use any active waits for the event.
   let startingPoints = startingPointsRaw.filter(
     (point) => String(point.roundId) === String(round._id),
   );
-  if (selectCanonicalStartingPoints(startingPoints).length < 4) {
+  if (selectCanonicalStartingPoints(startingPoints, startCount).length < startCount) {
     startingPoints = startingPointsRaw;
   }
-  // Keep Locations bound to the round used for schedule so later ops stay consistent.
-  if (startingPoints.length) {
+  const canonicalStarts = selectCanonicalStartingPoints(startingPoints, startCount);
+  // Only schedule up to Overall teams — leftover CC teams from an older 40-team bootstrap
+  // should not block a smaller layout.
+  const teamsToAssign = sortByCode(teams, 'teamCode').slice(0, teamCapacity);
+  const perWait = Math.max(
+    1,
+    Math.ceil(Math.max(teamCapacity, teamsToAssign.length) / Math.max(1, startCount)),
+  );
+  // Keep only the layout's active starts bound to this round, with capacity for this size.
+  if (canonicalStarts.length) {
     await CampusHuntStartingPoint.updateMany(
-      { _id: { $in: startingPoints.map((p) => p._id) } },
-      { $set: { roundId: round._id, active: true } },
+      { _id: { $in: canonicalStarts.map((p) => p._id) } },
+      { $set: { roundId: round._id, active: true, capacity: perWait } },
     );
+    canonicalStarts.forEach((point) => {
+      // eslint-disable-next-line no-param-reassign
+      point.capacity = perWait;
+    });
   }
 
   // Prefer challenges for this round; fall back to any active clue variants on the event.
@@ -253,8 +291,8 @@ async function previewSchedule({
   };
 
   const assignments = buildDeterministicSchedule({
-    teams,
-    startingPoints,
+    teams: teamsToAssign,
+    startingPoints: canonicalStarts,
     routes,
     variants: pickChallenges(variants),
     clue2Variants: pickChallenges(clue2Variants),
@@ -262,6 +300,7 @@ async function previewSchedule({
     startsAt: startsAt || round.startsAt,
     releaseIntervalMinutes: interval,
     assignmentStrategy: strategy,
+    startCount,
   });
 
   // Attach real campus place names for Clue 1 / 2 / 3 stops (not Route A/B).
@@ -298,10 +337,15 @@ async function previewSchedule({
     assignments: enriched,
     releaseIntervalMinutes: interval,
     assignmentStrategy: strategy,
-    startingPointsUsed: selectCanonicalStartingPoints(startingPoints).map((p) => ({
+    startCount,
+    teamCapacity,
+    teamsScheduled: teamsToAssign.length,
+    teamsSkipped: Math.max(0, teams.length - teamsToAssign.length),
+    startingPointsUsed: canonicalStarts.map((p) => ({
       id: String(p._id),
       code: p.code,
       name: p.name,
+      capacity: p.capacity,
     })),
   };
 }

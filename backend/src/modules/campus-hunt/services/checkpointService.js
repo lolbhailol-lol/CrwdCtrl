@@ -16,6 +16,13 @@ const {
   uniqueIdStrings,
 } = require('../utils/roster');
 
+
+async function scanRequiredForTeam(team) {
+  const event = await CampusHuntEvent.findById(team.eventId).select('teamSize').lean();
+  const size = Number(event?.teamSize) || 4;
+  return Math.max(2, Math.min(8, size));
+}
+
 async function getCheckpoint(checkpointId) {
   return CampusHuntCheckpoint.findById(checkpointId);
 }
@@ -210,7 +217,7 @@ async function scanTeamPreview(eventId, checkpoint, teamCode) {
     },
     members,
     verifiedCount: verification.verifiedMemberIds.length,
-    requiredCount: 4,
+    requiredCount: await scanRequiredForTeam(team),
     status: verification.status,
   };
 }
@@ -222,6 +229,7 @@ async function verifyMember({
   volunteer,
   now = new Date(),
 }) {
+  const requiredCount = await scanRequiredForTeam(team);
   assertTeamEligibleForCheckpoint(team, checkpoint);
   if (!team.includesUser(userId)) {
     const err = new Error('User is not on this team');
@@ -234,7 +242,7 @@ async function verifyMember({
     return {
       alreadyComplete: true,
       verifiedCount: verification.verifiedMemberIds.length,
-      requiredCount: 4,
+      requiredCount,
       status: verification.status,
     };
   }
@@ -257,7 +265,7 @@ async function verifyMember({
   return {
     alreadyComplete: false,
     verifiedCount: fresh.verifiedMemberIds.length,
-    requiredCount: 4,
+    requiredCount,
     status: fresh.status,
     membersVerified: fresh.verifiedMemberIds.map(String),
   };
@@ -272,6 +280,7 @@ async function completeCheckpoint({
   now = new Date(),
   forceMemberIds = null,
 }) {
+  const requiredCount = await scanRequiredForTeam(team);
   assertTeamEligibleForCheckpoint(team, checkpoint);
   const round = team.roundId ? await CampusHuntRound.findById(team.roundId) : null;
   if (round && isRoundClosed(round, now) && source === 'online') {
@@ -307,7 +316,7 @@ async function completeCheckpoint({
 
   let verification = await getOrCreateVerification(team, checkpoint);
 
-  const rosterUnique = assertOnlineRosterReady(team, 4);
+  const rosterUnique = assertOnlineRosterReady(team, requiredCount);
 
   if (forceMemberIds) {
     const ids = uniqueIdStrings(forceMemberIds);
@@ -319,8 +328,8 @@ async function completeCheckpoint({
         throw err;
       }
     }
-    if (ids.length < 4) {
-      const err = new Error('All 4 distinct members must be listed for verification');
+    if (ids.length < requiredCount) {
+      const err = new Error(`All ${requiredCount} distinct members must be listed for verification`);
       err.status = 400;
       err.code = 'ROSTER_DUPLICATE';
       throw err;
@@ -336,10 +345,10 @@ async function completeCheckpoint({
   const verifiedDistinctOk = hasDistinctVerifiedRoster(
     verification.verifiedMemberIds,
     rosterUnique,
-    4,
+    requiredCount,
   );
   if (!verifiedDistinctOk && (source === 'online' || forceMemberIds)) {
-    const err = new Error('All 4 distinct team members must be verified');
+    const err = new Error(`All ${requiredCount} distinct team members must be verified`);
     err.status = 400;
     err.code = 'INCOMPLETE_ROSTER';
     throw err;
@@ -628,21 +637,22 @@ async function playerScanStation({ team, userId, raw, now = new Date() }) {
     throw err;
   }
 
+  const requiredCount = await scanRequiredForTeam(team);
   assertTeamEligibleForCheckpoint(team, checkpoint);
   if (!team.includesUser(userId)) {
     const err = new Error('You are not on this team');
     err.status = 403;
     throw err;
   }
-  assertOnlineRosterReady(team, 4);
+  assertOnlineRosterReady(team, requiredCount);
 
   const verification = await getOrCreateVerification(team, checkpoint);
   if (verification.status === 'complete' || verification.status === 'manual_reconciled') {
     const freshTeam = await CampusHuntTeam.findById(team._id);
     return {
       alreadyComplete: true,
-      verifiedCount: 4,
-      requiredCount: 4,
+      verifiedCount: requiredCount,
+      requiredCount,
       youScanned: true,
       awaitingTeamCodeConfirm: false,
       teamStage: freshTeam?.currentStage,
@@ -668,12 +678,12 @@ async function playerScanStation({ team, userId, raw, now = new Date() }) {
     return {
       alreadyComplete: false,
       verifiedCount: distinctVerified,
-      requiredCount: 4,
+      requiredCount,
       youScanned: verification.verifiedMemberIds.some((id) => String(id) === String(userId)),
       awaitingTeamCodeConfirm: true,
       teamStage: team.currentStage,
       unlockedNext: false,
-      message: 'All 4 members scanned. Enter your team code to unlock your allotted clue.',
+      message: `All ${requiredCount} members scanned. Enter your team code to unlock your allotted clue.`,
       checkpoint: {
         id: String(checkpoint._id),
         checkpointKey: progressionKey,
@@ -703,7 +713,7 @@ async function playerScanStation({ team, userId, raw, now = new Date() }) {
     .filter((id) => rosterUnique.includes(id)).length;
 
   let awaitingTeamCodeConfirm = false;
-  if (distinctVerified >= 4) {
+  if (distinctVerified >= requiredCount) {
     await CampusHuntCheckpointVerification.findOneAndUpdate(
       { _id: fresh._id, status: 'in_progress' },
       { $set: { status: 'awaiting_claim' } },
@@ -724,7 +734,7 @@ async function playerScanStation({ team, userId, raw, now = new Date() }) {
   return {
     alreadyComplete: false,
     verifiedCount: distinctVerified,
-    requiredCount: 4,
+    requiredCount,
     youScanned,
     awaitingTeamCodeConfirm,
     teamStage,
@@ -732,8 +742,8 @@ async function playerScanStation({ team, userId, raw, now = new Date() }) {
     unlockedClue2: false,
     unlockedClue3: false,
     message: awaitingTeamCodeConfirm
-      ? 'All 4 members scanned! Enter your team code to unlock your allotted clue.'
-      : `Scanned (${distinctVerified}/4). Waiting for teammates.`,
+      ? `All ${requiredCount} members scanned! Enter your team code to unlock your allotted clue.`
+      : `Scanned (${distinctVerified}/${requiredCount}). Waiting for teammates.`,
     checkpoint: {
       id: String(checkpoint._id),
       checkpointKey: checkpointProgressionKey(checkpoint),
@@ -747,6 +757,7 @@ async function playerScanStation({ team, userId, raw, now = new Date() }) {
  * Pending checkpoint status for player UI (after Clue 1 / between stages).
  */
 async function getPendingCheckpointStatus(team, userId) {
+  const requiredCount = await scanRequiredForTeam(team);
   const stage = team.currentStage;
   let checkpointKey = null;
   if (stage === 'CLUE_1_COMPLETED') checkpointKey = '1';
@@ -768,11 +779,11 @@ async function getPendingCheckpointStatus(team, userId) {
       publicInstruction:
         'Your green SECOND SCAN station is not assigned yet. Ask an organizer to resync Clue 2 bindings.',
       verifiedCount: 0,
-      requiredCount: 4,
+      requiredCount,
       youScanned: false,
       status: 'unassigned',
       awaitingTeamCodeConfirm: false,
-      membersNeeded: 4,
+      membersNeeded: requiredCount,
     };
   }
   if (checkpointKey === '3' && !team.thirdCheckpointId) {
@@ -785,11 +796,11 @@ async function getPendingCheckpointStatus(team, userId) {
       publicInstruction:
         'Your blue Checkpoint 3 station is not assigned yet. Ask an organizer to resync Clue 3 bindings.',
       verifiedCount: 0,
-      requiredCount: 4,
+      requiredCount,
       youScanned: false,
       status: 'unassigned',
       awaitingTeamCodeConfirm: false,
-      membersNeeded: 4,
+      membersNeeded: requiredCount,
     };
   }
 
@@ -842,7 +853,7 @@ async function getPendingCheckpointStatus(team, userId) {
       : 'FIRST SCAN';
   const awaitingTeamCodeConfirm = verification?.status === 'awaiting_claim'
     || (
-      verifiedIds.length >= 4
+      verifiedIds.length >= requiredCount
       && verification?.status !== 'complete'
       && verification?.status !== 'manual_reconciled'
     );
@@ -861,15 +872,15 @@ async function getPendingCheckpointStatus(team, userId) {
       checkpoint.publicInstruction
       || (
         `At ${checkpoint.locationName}, find the shared ${scanKind} QR. `
-        + 'All 4 members scan it, then enter your team code '
+        + `All ${requiredCount} members scan it, then enter your team code `
         + `(${team.teamCode || 'CC00x'}) to unlock your allotted clue.`
       ),
     verifiedCount: verifiedIds.length,
-    requiredCount: 4,
+    requiredCount,
     youScanned: verifiedIds.includes(String(userId)),
     status: verification?.status || 'in_progress',
     awaitingTeamCodeConfirm,
-    membersNeeded: Math.max(0, 4 - verifiedIds.length),
+    membersNeeded: Math.max(0, requiredCount - verifiedIds.length),
     rosterUniqueCount: roster.length,
     scanRoster,
   };
@@ -885,6 +896,7 @@ async function confirmStationClaim({
   checkpointId,
   now = new Date(),
 }) {
+  const requiredCount = await scanRequiredForTeam(team);
   const { normalizeTeamCode } = require('../utils/teamCode');
   const expected = normalizeTeamCode(team.teamCode);
   const provided = normalizeTeamCode(teamCode);
@@ -914,7 +926,7 @@ async function confirmStationClaim({
     checkpointId: checkpoint._id,
   });
   if (!verification) {
-    const err = new Error('Scan the station QR with all 4 members first.');
+    const err = new Error(`Scan the station QR with all ${requiredCount} members first.`);
     err.status = 409;
     err.code = 'SCANS_INCOMPLETE';
     throw err;
@@ -940,8 +952,8 @@ async function confirmStationClaim({
   ]);
   const distinctVerified = uniqueIdStrings(verification.verifiedMemberIds)
     .filter((id) => rosterUnique.includes(id)).length;
-  if (distinctVerified < 4) {
-    const err = new Error(`Need all 4 members to scan first (${distinctVerified}/4).`);
+  if (distinctVerified < requiredCount) {
+    const err = new Error(`Need all ${requiredCount} members to scan first (${distinctVerified}/${requiredCount}).`);
     err.status = 409;
     err.code = 'SCANS_INCOMPLETE';
     throw err;
@@ -982,8 +994,8 @@ async function confirmStationClaim({
     unlockedClue2: stageStr.includes('CLUE_2'),
     unlockedClue3: stageStr.includes('CLUE_3'),
     teamStage: result.teamStage,
-    verifiedCount: 4,
-    requiredCount: 4,
+    verifiedCount: requiredCount,
+    requiredCount,
     message: `Team ${expected} confirmed. ${unlockLabel}.`,
     checkpoint: {
       id: String(checkpoint._id),
@@ -1010,5 +1022,6 @@ module.exports = {
   playerScanStation,
   confirmStationClaim,
   getPendingCheckpointStatus,
+  scanRequiredForTeam,
 };
 

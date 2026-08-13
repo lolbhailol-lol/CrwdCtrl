@@ -1,8 +1,16 @@
 import StationPosterPrint from './StationPosterPrint';
 import { STAGE_THEMES } from '../types/stageTheme';
 
-/** Clue 1 print: 10 Orange shared station QRs (one per place). */
-export default function FirstStopPosterPrint({ eventId, reloadKey = 0 }) {
+/** Clue 1 print: Orange shared station QRs for selected places. */
+export default function FirstStopPosterPrint({
+  eventId,
+  reloadKey = 0,
+  campusStations,
+  teamSize = 4,
+}) {
+  const placeCount = Array.isArray(campusStations) && campusStations.length
+    ? campusStations.length
+    : null;
   return (
     <StationPosterPrint
       eventId={eventId}
@@ -11,10 +19,14 @@ export default function FirstStopPosterPrint({ eventId, reloadKey = 0 }) {
       packsKey="firstStopPrintPacks"
       colorLabel="Orange"
       scanLabel="FIRST SCAN"
-      title={`Clue 1 shared QRs · 10 places`}
-      blurb="One Orange FIRST SCAN QR per place. All teams at that spot scan the same poster, then enter their team code for their allotted clue."
-      needMoreHint="re-bootstrap Round 1 station QRs, then refresh."
+      title={placeCount
+        ? `Clue 1 shared QRs · ${placeCount} place${placeCount === 1 ? '' : 's'}`
+        : undefined}
+      blurb={`One Orange FIRST SCAN QR per selected place. All ${teamSize} members at that spot scan the same poster, then enter their team code for their allotted clue.`}
+      needMoreHint="Update Clue 1 for this setup (or Bootstrap), then refresh."
       skippedSummaryKey="skippedUnwanted"
+      campusStations={campusStations}
+      teamSize={teamSize}
     />
   );
 }

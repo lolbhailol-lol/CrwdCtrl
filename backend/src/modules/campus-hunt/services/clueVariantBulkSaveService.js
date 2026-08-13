@@ -197,7 +197,7 @@ async function bulkSaveClue1({
             destinationInstruction:
               String(row.destinationInstruction || '').trim()
               || `Go to ${place}. Find the shared orange FIRST SCAN QR. `
-                + 'All 4 members scan, then enter your team code to unlock Clue 2.',
+                + `All ${Math.max(2, Math.min(8, Number(event.teamSize) || 4))} members scan, then enter your team code to unlock Clue 2.`,
             hintText: String(row.hintText || '').trim() || `Ask staff for the way to ${place}.`,
             basePoints: 50,
             maxAttempts: 3,
@@ -357,7 +357,7 @@ async function bulkSaveClue3({
             acceptedAnswers: [answer],
             destinationInstruction:
               `Riddle solved — go to ${place}. Find the shared blue THIRD SCAN QR. `
-              + 'All 4 members scan, then enter your team code to unlock Final.',
+              + `All ${Math.max(2, Math.min(8, Number(event.teamSize) || 4))} members scan, then enter your team code to unlock Final.`,
             hintText:
               String(row.hintText || '').trim()
               || 'Caesar shift of 3 — A becomes D, B becomes E… Spaces stay spaces.',

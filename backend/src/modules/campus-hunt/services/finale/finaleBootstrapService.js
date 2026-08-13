@@ -280,6 +280,16 @@ async function getOrCreateMissionConfig(eventId, roundId) {
 async function bootstrapFinale({ eventId, actor = {} }) {
   let round = await getFinaleRound(eventId);
   if (!round) {
+    const CampusHuntEvent = require('../../models/CampusHuntEvent');
+    const { deriveCompetitionFormat } = require('../../utils/competitionFormat');
+    const event = await CampusHuntEvent.findById(eventId).select('teamCapacity teamSize').lean();
+    const r1 = await CampusHuntRound.findOne({ eventId, roundNumber: 1 }).lean();
+    const format = deriveCompetitionFormat({
+      teamCapacity: event?.teamCapacity,
+      teamSize: event?.teamSize,
+      directFromR1: r1?.qualification?.topNDirectFinale,
+      finaleTeams: r1?.qualification?.finaleTeams,
+    });
     const maxRound = await CampusHuntRound.findOne({ eventId })
       .sort({ roundNumber: -1 })
       .select('roundNumber')
@@ -292,10 +302,7 @@ async function bootstrapFinale({ eventId, actor = {} }) {
       status: 'scheduled',
       scheduleStatus: 'draft',
       qualification: {
-        topNDirectFinale: FINALE_DEFAULTS.directFromR1,
-        survivalTeams: 35,
-        lastChanceTeams: 0,
-        finaleTeams: FINALE_DEFAULTS.maxFinalists,
+        ...format.qualification,
         nextRoundName: 'FINALE',
       },
     });

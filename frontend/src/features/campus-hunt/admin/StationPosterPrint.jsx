@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import QRCode from 'qrcode';
 import { adminListStationQr } from '../services/campusHunt.api';
-import { STATION_TARGET_COUNT } from './campusHuntFormat';
+import { resolveStations, STATION_TARGET_COUNT } from './campusHuntFormat';
 import { posterPrintCss } from '../types/stageTheme';
 
 const POSTERS_PER_PLACE = 1;
-const TARGET_POSTERS = STATION_TARGET_COUNT * POSTERS_PER_PLACE;
 
 function escapeHtml(value) {
   return String(value || '')
@@ -17,18 +16,6 @@ function escapeHtml(value) {
 
 /**
  * Shared print UI for Orange / Green / Blue station QRs (1 per place).
- *
- * @param {object} props
- * @param {string} props.eventId
- * @param {number} [props.reloadKey]
- * @param {object} props.theme — STAGE_THEMES.clue1|clue2|clue3
- * @param {'firstStopPrintPacks'|'secondStopPrintPacks'|'thirdStopPrintPacks'} props.packsKey
- * @param {string} props.colorLabel — Orange | Green | Blue
- * @param {string} props.scanLabel — FIRST SCAN | SECOND SCAN | THIRD SCAN
- * @param {string} props.title
- * @param {string} props.blurb
- * @param {string} props.needMoreHint
- * @param {string} [props.skippedSummaryKey] — printSummary key for skipped count
  */
 export default function StationPosterPrint({
   eventId,
@@ -41,12 +28,26 @@ export default function StationPosterPrint({
   blurb,
   needMoreHint,
   skippedSummaryKey,
+  campusStations,
+  teamSize = 4,
 }) {
   const [packs, setPacks] = useState([]);
   const [summary, setSummary] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+
+  const activeStations = useMemo(
+    () => resolveStations(campusStations),
+    [campusStations],
+  );
+  const activeCodes = useMemo(
+    () => new Set(activeStations.map((s) => String(s.code || '').toUpperCase())),
+    [activeStations],
+  );
+  const placeTarget = Math.max(1, activeStations.length || STATION_TARGET_COUNT);
+  const targetPosters = placeTarget * POSTERS_PER_PLACE;
+  const people = Math.max(2, Math.min(8, Number(teamSize) || 4));
 
   const refresh = useCallback(async () => {
     if (!eventId) return;
@@ -67,15 +68,21 @@ export default function StationPosterPrint({
     refresh().catch(() => {});
   }, [refresh, reloadKey]);
 
+  const visiblePacks = useMemo(() => {
+    if (!activeCodes.size) return packs;
+    return packs.filter((pack) => activeCodes.has(String(pack.code || '').toUpperCase()));
+  }, [packs, activeCodes]);
+
   const stats = useMemo(() => {
-    const posterCount = packs.reduce((sum, pack) => sum + (pack.posters?.length || 0), 0);
-    const readyPlaces = packs.filter(
+    const posterCount = visiblePacks.reduce((sum, pack) => sum + (pack.posters?.length || 0), 0);
+    const readyPlaces = visiblePacks.filter(
       (pack) => (pack.posters?.length || 0) >= POSTERS_PER_PLACE,
     ).length;
     return { posterCount, readyPlaces };
-  }, [packs]);
+  }, [visiblePacks]);
 
   const skippedCount = skippedSummaryKey ? Number(summary?.[skippedSummaryKey] || 0) : 0;
+  const heading = title || `${scanLabel} shared QRs · ${placeTarget} place${placeTarget === 1 ? '' : 's'}`;
 
   const printPacks = async (selectedPacks) => {
     if (!selectedPacks?.length) return;
@@ -103,7 +110,7 @@ export default function StationPosterPrint({
             <p class="code">${escapeHtml(pack.code || poster.stationCode || '')}</p>
             <img src="${qr}" alt="Station QR" width="180" height="180" />
             <p class="paste">${escapeHtml(paste)}</p>
-            <p class="note">All 4 scan → enter team code → allotted clue</p>
+            <p class="note">All ${people} scan → enter team code → allotted clue</p>
           </article>
         `;
       }));
@@ -141,7 +148,7 @@ export default function StationPosterPrint({
             <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${theme.solidClass} ${theme.solidTextClass}`}>
               {colorLabel}
             </span>
-            <h2 className="text-base font-semibold text-white">{title}</h2>
+            <h2 className="text-base font-semibold text-white">{heading}</h2>
           </div>
           <p className="mt-1 text-xs text-white/50">{blurb}</p>
         </div>
@@ -157,24 +164,24 @@ export default function StationPosterPrint({
           <button
             type="button"
             disabled={busy || stats.posterCount === 0}
-            onClick={() => printPacks(packs)}
+            onClick={() => printPacks(visiblePacks)}
             className={`rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-40 ${theme.buttonClass}`}
           >
-            Print {stats.posterCount || TARGET_POSTERS} QRs
+            Print {stats.posterCount || targetPosters} QRs
           </button>
         </div>
       </div>
 
       <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
         <span className={`rounded-full px-2.5 py-1 ${
-          stats.posterCount === TARGET_POSTERS
+          stats.posterCount === targetPosters
             ? 'bg-emerald-500/15 text-emerald-200'
             : 'bg-amber-500/15 text-amber-100'
         }`}>
-          {stats.posterCount}/{TARGET_POSTERS} shared QRs
+          {stats.posterCount}/{targetPosters} shared QRs
         </span>
         <span className="rounded-full bg-white/10 px-2.5 py-1 text-white/60">
-          {stats.readyPlaces}/{STATION_TARGET_COUNT} places ready
+          {stats.readyPlaces}/{placeTarget} places ready
         </span>
         {skippedCount > 0 && (
           <span className="rounded-full bg-white/10 px-2.5 py-1 text-white/45">
@@ -183,16 +190,16 @@ export default function StationPosterPrint({
         )}
       </div>
 
-      {stats.posterCount < TARGET_POSTERS && (
+      {stats.posterCount < targetPosters && (
         <p className="mt-2 text-xs text-amber-200">
-          Need {TARGET_POSTERS - stats.posterCount} more — {needMoreHint}
+          Need {targetPosters - stats.posterCount} more — {needMoreHint}
         </p>
       )}
       {error && <p className="mt-2 text-sm text-amber-200">{error}</p>}
       {message && <p className={`mt-2 text-sm ${theme.textClass}`}>{message}</p>}
 
       <div className="mt-4 space-y-2">
-        {packs.map((pack) => {
+        {visiblePacks.map((pack) => {
           const posters = pack.posters || [];
           const ready = posters.length >= POSTERS_PER_PLACE;
           return (

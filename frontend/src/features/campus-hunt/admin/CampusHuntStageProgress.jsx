@@ -1,32 +1,14 @@
 /**
- * Competition ladder shown after a college hunt is created.
- * Round 1: top 5 go direct to Finale; remaining 35 enter Survival Stage.
- * Survival top 7 join the 5 directs → Finale field of 12.
+ * Competition ladder — team counts derived from overall capacity / people per team.
+ * Baseline (40): top 5 direct → Finale; 35 Survival; Finale field 12 (5+7).
  */
 
-export const CAMPUS_HUNT_STAGES = [
-  {
-    id: 'round1',
-    label: 'ROUND 1',
-    subtitle: 'CAMPUS HUNT',
-    teams: 40,
-    detail: 'All registered teams compete.',
-  },
-  {
-    id: 'survival',
-    label: 'SURVIVAL STAGE',
-    subtitle: 'ROUND 2',
-    teams: 35,
-    detail: 'Teams ranked 6–40 after Round 1.',
-  },
-  {
-    id: 'finale',
-    label: 'FINALE',
-    subtitle: 'FINAL ROUND',
-    teams: 12,
-    detail: '5 direct from Round 1 + 7 from Survival.',
-  },
-];
+import {
+  buildStagesFromFormat,
+  deriveCompetitionFormat,
+} from './competitionFormat';
+
+export const CAMPUS_HUNT_STAGES = buildStagesFromFormat({ teamCapacity: 40, teamSize: 4 });
 
 function stageState(stageId, round1Status) {
   const status = String(round1Status || 'not_created').toLowerCase();
@@ -39,7 +21,6 @@ function stageState(stageId, round1Status) {
     if (status === 'scheduled') return 'ready';
     return 'upcoming';
   }
-  // Later rounds stay locked until Round 1 workflows exist for them
   return 'locked';
 }
 
@@ -62,10 +43,19 @@ const STATE_BADGE = {
 export default function CampusHuntStageProgress({
   round1Status,
   teamCapacity = 40,
+  teamSize = 4,
+  directFromR1,
+  finaleTeams,
   compact = false,
   className = '',
 }) {
-  const capacity = Number(teamCapacity) || 40;
+  const format = deriveCompetitionFormat({
+    teamCapacity,
+    teamSize,
+    directFromR1,
+    finaleTeams,
+  });
+  const stages = buildStagesFromFormat(format);
 
   return (
     <section
@@ -77,18 +67,17 @@ export default function CampusHuntStageProgress({
           <h2 className="text-sm font-semibold uppercase tracking-wide text-white">Competition format</h2>
           {!compact && (
             <p className="mt-1 max-w-2xl text-xs text-white/50">
-              After you create the college hunt, teams move through three stages.
-              Round 1 starts with {capacity} teams: top 5 go direct to Finale;
-              the other 35 enter Survival Stage. Survival top 7 join them in Finale (12 teams).
+              Round 1 starts with {format.round1Teams} teams ({format.teamSize} people each):
+              top {format.directFromR1} go direct to Finale; the other {format.survivalTeams} enter
+              Survival. Survival top {format.manualPick} join them in Finale ({format.finaleTeams} teams).
             </p>
           )}
         </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
-        {CAMPUS_HUNT_STAGES.map((stage, index) => {
+        {stages.map((stage, index) => {
           const state = stageState(stage.id, round1Status);
-          const teamCount = stage.id === 'round1' ? capacity : stage.teams;
           return (
             <article
               key={stage.id}
@@ -104,7 +93,7 @@ export default function CampusHuntStageProgress({
               </div>
               <h3 className="mt-1 text-base font-bold uppercase tracking-wide text-white">{stage.label}</h3>
               <p className="mt-1 text-2xl font-bold tabular-nums text-[#0ECCEE]">
-                {teamCount}
+                {stage.teams}
                 <span className="ml-1 text-xs font-medium text-white/45">teams</span>
               </p>
               {!compact && (
@@ -112,7 +101,8 @@ export default function CampusHuntStageProgress({
               )}
               {stage.id === 'finale' && !compact && (
                 <p className="mt-2 rounded-lg bg-black/25 px-2 py-1.5 text-[10px] leading-relaxed text-white/55">
-                  Path A: 5 direct from Round 1 · Path B: top 7 from Survival · Finale field: 12
+                  Path A: {format.directFromR1} direct from Round 1 · Path B: top {format.manualPick} from
+                  Survival · Finale field: {format.finaleTeams}
                 </p>
               )}
             </article>
@@ -124,10 +114,10 @@ export default function CampusHuntStageProgress({
 }
 
 /** Friendly Round 1 leaderboard qualify labels */
-export function formatQualificationLabel(raw) {
+export function formatQualificationLabel(raw, directFromR1 = 5) {
   const key = String(raw || '').toUpperCase();
   if (key === 'GRAND_FINALE' || key === 'DIRECT_FINALE' || key.includes('FINALE')) {
-    return 'DIRECT FINALE (top 5)';
+    return `DIRECT FINALE (top ${directFromR1})`;
   }
   if (key === 'MAUT_KA_KUVA' || key === 'SURVIVAL_STAGE' || key.includes('SURVIVAL')) {
     return 'SURVIVAL STAGE';

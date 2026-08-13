@@ -44,7 +44,7 @@ async function getMyTeamPayload(eventId, userId) {
   };
 }
 
-function publicTeamView(team, { isLeader = false, start = null, userId = null } = {}) {
+function publicTeamView(team, { isLeader = false, start = null, userId = null, teamSize = null } = {}) {
   if (!team) return null;
 
   let myName = '';
@@ -66,6 +66,11 @@ function publicTeamView(team, { isLeader = false, start = null, userId = null } 
     }
   }
 
+  const size = Math.max(
+    2,
+    Math.min(8, Number(teamSize) || (1 + (team.memberUserIds?.length || 0)) || 4),
+  );
+
   return {
     id: String(team._id),
     eventId: String(team.eventId),
@@ -79,10 +84,11 @@ function publicTeamView(team, { isLeader = false, start = null, userId = null } 
     releasePaused: Boolean(start?.releasePaused),
     teamCode: team.teamCode,
     teamName: team.teamName,
+    teamSize: size,
     leaderName: team.leaderName
       || team.accessPack?.leader?.name
       || '',
-    memberNames: Array.isArray(team.memberNames) ? team.memberNames : [],
+    memberNames: Array.isArray(team.memberNames) ? team.memberNames.slice(0, Math.max(0, size - 1)) : [],
     currentScore: team.currentScore,
     startingScore: team.startingScore ?? 100,
     finalScore: team.finalScore ?? null,
@@ -107,7 +113,7 @@ function publicTeamView(team, { isLeader = false, start = null, userId = null } 
     myRole: isLeader ? 'leader' : 'player',
     myName,
     mySlot,
-    memberCount: 1 + (team.memberUserIds?.length || 0),
+    memberCount: size,
   };
 }
 

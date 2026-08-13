@@ -40,7 +40,7 @@ function passwordsMatch(provided, expected) {
 
 /**
  * Set the one shared team password (gate + all member accounts).
- * Admin chooses this; leader + 3 players all use it with the team code.
+ * Admin chooses this; every roster person uses it with the team code.
  */
 async function setTeamSharedPassword(team, password) {
   const pass = String(password || '').trim();
@@ -50,6 +50,11 @@ async function setTeamSharedPassword(team, password) {
     err.code = 'WEAK_PASSWORD';
     throw err;
   }
+
+  const scannerSlots = Math.max(
+    1,
+    Math.min(7, (team.memberUserIds || []).length || (team.memberNames || []).length || 1),
+  );
 
   if (!team.accessPack) team.accessPack = {};
   team.accessPack.encryptedTeamPassword = encryptCredential(pass);
@@ -63,8 +68,8 @@ async function setTeamSharedPassword(team, password) {
   const scanners = Array.isArray(team.accessPack.scanners)
     ? [...team.accessPack.scanners]
     : [];
-  while (scanners.length < 3) scanners.push({});
-  team.accessPack.scanners = scanners.slice(0, 3).map((s) => ({
+  while (scanners.length < scannerSlots) scanners.push({});
+  team.accessPack.scanners = scanners.slice(0, scannerSlots).map((s) => ({
     ...(s.toObject?.() || s),
     encryptedPassword: encryptCredential(pass),
     password: undefined,

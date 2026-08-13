@@ -8,16 +8,16 @@ import {
 } from '../services/campusHunt.api';
 import {
   CAMPUS_STARTS,
-  TEAM_SLOTS,
   TARGET_TEAMS_PER_STATION,
-  STATION_TARGET_COUNT,
   clue1ForPlace,
   TEAMS_PER_WAIT,
   buildCampusStarts,
+  buildTeamSlots,
   firstStopArrivalPlan,
   firstStopForLocalTeam,
   globalTeamNumber,
   resolveStations,
+  resolveStarts,
   waitIndexForStart,
 } from './campusHuntFormat';
 
@@ -132,17 +132,17 @@ function resolveFirstCheckpoint(checkpoints, {
   ) || null;
 }
 
-function expectedFirstStop(point, waveIndex, stations) {
+function expectedFirstStop(point, waveIndex, stations, teamsPerWait = TEAMS_PER_WAIT, starts = CAMPUS_STARTS) {
   const waitIndex = waitIndexForStart(startCode(point));
-  const starts = buildCampusStarts(stations);
-  const start = starts.find((item) => item.code === startCode(point));
+  const startRows = buildCampusStarts(stations, teamsPerWait, starts);
+  const start = startRows.find((item) => item.code === startCode(point));
   return firstStopForLocalTeam(waveIndex + 1, waitIndex, stations)
     || start?.firstStops?.[waveIndex]
     || '';
 }
 
-function blankPackContent(place) {
-  const real = clue1ForPlace(place);
+function blankPackContent(place, teamSize = 4) {
+  const real = clue1ForPlace(place, teamSize);
   return {
     prompt: real.prompt,
     answer: real.answer,
@@ -169,8 +169,17 @@ function stripWaitBoilerplate(prompt, place) {
   return text;
 }
 
-function uniqueStarts(points) {
-  const order = CAMPUS_STARTS.map((s) => s.code);
+function uniqueStarts(points, allowedStarts = null) {
+  const order = (Array.isArray(allowedStarts) && allowedStarts.length
+    ? allowedStarts.map((s) => String(s.code || '').toUpperCase().charAt(0))
+    : CAMPUS_STARTS.map((s) => s.code)
+  ).filter(Boolean);
+  const nameByCode = new Map(
+    (Array.isArray(allowedStarts) ? allowedStarts : CAMPUS_STARTS).map((s) => [
+      String(s.code || '').toUpperCase().charAt(0),
+      s.name,
+    ]),
+  );
   const byCode = new Map();
   points.forEach((point) => {
     let code = startCode(point);
@@ -186,7 +195,9 @@ function uniqueStarts(points) {
       byCode.set(code, {
         ...point,
         code,
-        name: CAMPUS_STARTS.find((s) => s.code === code)?.name || point.name,
+        name: nameByCode.get(code)
+          || CAMPUS_STARTS.find((s) => s.code === code)?.name
+          || point.name,
       });
     }
   });
@@ -201,17 +212,27 @@ export default function Clue1VariantManager({
   roundId,
   onChanged,
   campusStations,
+  campusStarts,
+  teamCapacity = 40,
+  teamSize = 4,
+  teamsPerWait = TEAMS_PER_WAIT,
+  teamsPerStation = TARGET_TEAMS_PER_STATION,
 }) {
   const stations = useMemo(() => resolveStations(campusStations), [campusStations]);
+  const starts = useMemo(() => resolveStarts(campusStarts), [campusStarts]);
+  const teamSlots = useMemo(() => buildTeamSlots(teamsPerWait), [teamsPerWait]);
   const cluePacks = useMemo(() => buildCluePacks(stations), [stations]);
-  const arrivalPlan = useMemo(() => firstStopArrivalPlan(stations), [stations]);
+  const arrivalPlan = useMemo(
+    () => firstStopArrivalPlan(stations, teamsPerWait, starts),
+    [stations, teamsPerWait, starts],
+  );
 
   const [variants, setVariants] = useState([]);
   const [routes, setRoutes] = useState([]);
   const [points, setPoints] = useState([]);
   const [checkpoints, setCheckpoints] = useState([]);
   const [packContent, setPackContent] = useState(() => (
-    Object.fromEntries(buildCluePacks().map((pack) => [pack.id, blankPackContent(pack.place)]))
+    Object.fromEntries(buildCluePacks().map((pack) => [pack.id, blankPackContent(pack.place, teamSize)]))
   ));
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -242,7 +263,9 @@ export default function Clue1VariantManager({
     refresh().catch((err) => setError(err.message || 'Could not load clues'));
   }, [refresh]);
 
-  const orderedPoints = useMemo(() => uniqueStarts(points), [points]);
+  const orderedPoints = useMemo(() => (
+    uniqueStarts(points, starts).filter((p) => p.active !== false)
+  ), [points, starts]);
 
   const activePoint = useMemo(
     () => orderedPoints.find((p) => startCode(p) === activeStartCode) || orderedPoints[0] || null,
@@ -261,11 +284,11 @@ export default function Clue1VariantManager({
     if (!ready || hydrated || !orderedPoints.length) return;
 
     const nextPacks = Object.fromEntries(
-      cluePacks.map((pack) => [pack.id, blankPackContent(pack.place)]),
+      cluePacks.map((pack) => [pack.id, blankPackContent(pack.place, teamSize)]),
     );
 
     cluePacks.forEach((pack) => {
-      const real = blankPackContent(pack.place);
+      const real = blankPackContent(pack.place, teamSize);
       const match = variants.find((v) => packFromVariant(v, cluePacks)?.id === pack.id);
       if (!match?.prompt || isGenericCluePrompt(match.prompt)) {
         nextPacks[pack.id] = real;
@@ -276,18 +299,18 @@ export default function Clue1VariantManager({
         answer: (match.answer || pack.place).trim(),
         destinationInstruction: (
           match.destinationInstruction
-          || `Go to ${pack.place}. All four members scan there.`
+          || `Go to ${pack.place}. All ${teamSize} members scan there.`
         ).trim(),
       };
     });
 
     setPackContent(nextPacks);
     setHydrated(true);
-  }, [ready, hydrated, orderedPoints, variants, cluePacks]);
+  }, [ready, hydrated, orderedPoints, variants, cluePacks, teamSize]);
 
   useEffect(() => {
     setHydrated(false);
-  }, [stations]);
+  }, [stations, starts, teamSize]);
 
   const updatePack = (packId, field, value) => {
     setPackContent((prev) => ({
@@ -301,14 +324,14 @@ export default function Clue1VariantManager({
     let count = 0;
     orderedPoints.forEach((point) => {
       const code = startCode(point);
-      TEAM_SLOTS.forEach((wave) => {
+      teamSlots.forEach((wave) => {
         if (findVariant(variants, code, wave.id, id(point))) count += 1;
       });
     });
     return count;
-  }, [orderedPoints, variants]);
+  }, [orderedPoints, variants, teamSlots]);
 
-  const expectedVariantCount = orderedPoints.length * TEAM_SLOTS.length;
+  const expectedVariantCount = orderedPoints.length * teamSlots.length;
 
   const saveAll = async () => {
     if (!roundId) {
@@ -316,7 +339,7 @@ export default function Clue1VariantManager({
       return;
     }
     if (!orderedPoints.length) {
-      setError('Add the four starting points under Locations first.');
+      setError(`Need at least 1 active starting point. Save setup (starts & places) first.`);
       return;
     }
 
@@ -340,10 +363,16 @@ export default function Clue1VariantManager({
           failures.push(`${startLabel(point)}: no route ${code}`);
           continue;
         }
-        for (const wave of TEAM_SLOTS) {
-          const firstStopPlace = expectedFirstStop(point, wave.index, stations);
+        for (const wave of teamSlots) {
+          const firstStopPlace = expectedFirstStop(
+            point,
+            wave.index,
+            stations,
+            teamsPerWait,
+            starts,
+          );
           const pack = packForPlace(firstStopPlace, cluePacks);
-          const content = packContent[pack.id] || blankPackContent(pack.place);
+          const content = packContent[pack.id] || blankPackContent(pack.place, teamSize);
           const place = firstStopPlace || pack.place;
           const prompt = stripWaitBoilerplate(content.prompt, place);
           const answer = (content.answer || place).trim();
@@ -359,8 +388,8 @@ export default function Clue1VariantManager({
             answer,
             destinationInstruction: (
               content.destinationInstruction
-              || `Go to ${place}. All four members scan there.`
-            ).trim(),
+            || `Go to ${place}. All ${teamSize} members scan there.`
+              ).trim(),
             place,
             stationCode: pack.code,
             hintText: `Ask staff for the way to ${place}.`,
@@ -410,28 +439,28 @@ export default function Clue1VariantManager({
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2 text-[11px]">
         <span className={`rounded-full px-2.5 py-1 ${
-          orderedPoints.length >= 4
+          orderedPoints.length >= 1
             ? 'bg-emerald-500/15 text-emerald-200'
             : 'bg-amber-500/15 text-amber-100'
         }`}>
-          Starts {orderedPoints.length}/4
+          Starts {orderedPoints.length}/{Math.max(1, starts.length || orderedPoints.length || 1)}
         </span>
         <span className="rounded-full bg-white/10 px-2.5 py-1 text-white/55">
-          {STATION_TARGET_COUNT} places · {TARGET_TEAMS_PER_STATION} QRs each · 4/4 scans → Clue 2
+          {stations.length} places · ~{teamsPerStation} QRs each · {teamSize}/{teamSize} scans → Clue 2
         </span>
         <span className={`rounded-full px-2.5 py-1 ${
           savedVariantCount >= expectedVariantCount && expectedVariantCount > 0
             ? 'bg-emerald-500/15 text-emerald-200'
             : 'bg-amber-500/15 text-amber-100'
         }`}>
-          Saved {savedVariantCount}/{expectedVariantCount || 40}
+          Saved {savedVariantCount}/{expectedVariantCount || teamCapacity}
         </span>
       </div>
 
       <section className="rounded-2xl border border-white/15 bg-white/5 p-4">
         <h2 className="text-base font-semibold text-white">1. Write clues</h2>
         <p className="mt-1 text-xs text-white/50">
-          Leader reads the clue, types the answer, then the team scans at that place.
+          One clue per selected campus place ({stations.length}). Leader reads the clue, types the answer, then the team scans at that place.
           Answer is usually the place name.
         </p>
         <div className="mt-3 divide-y divide-white/10">
@@ -444,7 +473,7 @@ export default function Clue1VariantManager({
               >
                 <div className="pt-1">
                   <p className="text-sm font-semibold text-white">{pack.title}</p>
-                  <p className="text-[10px] text-white/40">{TARGET_TEAMS_PER_STATION} teams</p>
+                  <p className="text-[10px] text-white/40">~{teamsPerStation} teams</p>
                 </div>
                 <textarea
                   value={content.prompt}
@@ -481,11 +510,11 @@ export default function Clue1VariantManager({
                 const waitIndex = waitIndexForStart(code);
                 const startName = campusStart(point)?.name || point.name || code;
                 const active = (activeStartCode || startCode(orderedPoints[0])) === code;
-                const startSaved = TEAM_SLOTS.every((wave) => (
+                const startSaved = teamSlots.every((wave) => (
                   findVariant(variants, code, wave.id, id(point))
                 ));
-                const from = globalTeamNumber(waitIndex, 1);
-                const to = globalTeamNumber(waitIndex, TEAMS_PER_WAIT);
+                const from = globalTeamNumber(waitIndex, 1, teamsPerWait);
+                const to = globalTeamNumber(waitIndex, teamsPerWait, teamsPerWait);
                 return (
                   <button
                     key={code}
@@ -522,10 +551,16 @@ export default function Clue1VariantManager({
                   {' '}— first stops:
                 </p>
                 <div className="space-y-1">
-                  {TEAM_SLOTS.map((slot) => {
+                  {teamSlots.map((slot) => {
                     const waitIndex = waitIndexForStart(startCode(activePoint));
-                    const teamNumber = globalTeamNumber(waitIndex, slot.localTeamNumber);
-                    const firstStop = expectedFirstStop(activePoint, slot.index, stations) || '—';
+                    const teamNumber = globalTeamNumber(waitIndex, slot.localTeamNumber, teamsPerWait);
+                    const firstStop = expectedFirstStop(
+                      activePoint,
+                      slot.index,
+                      stations,
+                      teamsPerWait,
+                      starts,
+                    ) || '—';
                     const pack = packForPlace(firstStop, cluePacks);
                     return (
                       <div
@@ -554,7 +589,8 @@ export default function Clue1VariantManager({
       <section className="rounded-2xl border border-white/15 bg-white/5 p-4">
         <h2 className="text-base font-semibold text-white">3. Who goes where</h2>
         <p className="mt-1 text-xs text-white/50">
-          At each place: which Team (1–40) arrives, and which starting point they left.
+          For each selected place: which Team (1–{teamCapacity}) arrives, and which of your{' '}
+          {starts.length} start{starts.length === 1 ? '' : 's'} they left.
         </p>
         <div className="mt-3 grid gap-2 md:grid-cols-2">
           {arrivalPlan.map((place) => (
@@ -596,15 +632,16 @@ export default function Clue1VariantManager({
           {busy ? 'Saving…' : 'Save Clue 1'}
         </button>
         {!orderedPoints.length && (
-          <p className="text-xs text-amber-200">Add 4 starting points under Locations first.</p>
+          <p className="text-xs text-amber-200">Save setup with at least 1 starting point first.</p>
         )}
         {!roundId && (
           <p className="text-xs text-amber-200">Create Round 1 first.</p>
         )}
       </div>
       <p className="text-[11px] text-white/40">
-        Save binds all 40 teams. Then print the 10 shared Orange QRs below. Lock Schedule before live release.
-        After 4 members scan and enter the team code, Clue 2 unlocks.
+        Save binds all {teamCapacity} teams across {starts.length} start(s) → {stations.length} place(s).
+        Then print the {stations.length} shared Orange QR{stations.length === 1 ? '' : 's'} below.
+        After {teamSize} members scan and enter the team code, Clue 2 unlocks.
       </p>
       {message && <p className="text-sm text-[#0ECCEE]">{message}</p>}
       {error && <p className="text-sm text-amber-200">{error}</p>}

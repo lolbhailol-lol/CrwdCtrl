@@ -24,18 +24,41 @@ const { writeAudit } = require('./auditService');
 const {
   DEFAULT_CAMPUS_STATIONS,
   resolveCampusStations,
+  resolveCampusStarts,
+  resolveStartCount,
 } = require('./stationCatalogService');
 
 const ROUTE_KEYS = ['A', 'B', 'C', 'D'];
 const TARGET_TEAMS_PER_STATION = 4;
 const TEAMS_PER_WAIT = 10;
+const STATION_COUNT = DEFAULT_CAMPUS_STATIONS.length || 10;
+
+function teamsPerWaitFor(capacity, startCount = ROUTE_KEYS.length) {
+  const starts = Math.max(1, Math.min(ROUTE_KEYS.length, Number(startCount) || ROUTE_KEYS.length));
+  return Math.max(1, Math.ceil((Number(capacity) || 40) / starts));
+}
+
+function teamsPerStationFor(capacity, stationCount = STATION_COUNT) {
+  const stations = Math.max(1, Math.min(STATION_COUNT, Number(stationCount) || STATION_COUNT));
+  return Math.max(1, Math.round((Number(capacity) || 40) / stations));
+}
+
+function buildTeamGroups(teamsPerWait = TEAMS_PER_WAIT) {
+  const n = Math.max(1, Number(teamsPerWait) || TEAMS_PER_WAIT);
+  return Array.from({ length: n }, (_, i) => ({
+    wave: `T${i + 1}`,
+    teamLabel: `team ${i + 1}`,
+    slot: i,
+    localTeamNumber: i + 1,
+  }));
+}
 
 /** 4 starting points only — teams hold here until release. */
 const WAIT_POINTS = [
-  { code: 'A', name: 'Library', description: 'Starting point — 10 teams hold here until release.' },
-  { code: 'B', name: 'Chanakya Porch', description: 'Starting point — 10 teams hold here until release.' },
-  { code: 'C', name: 'Design', description: 'Starting point — 10 teams hold here until release.' },
-  { code: 'D', name: 'Vyas Parking', description: 'Starting point — 10 teams hold here until release.' },
+  { code: 'A', name: 'Library', description: 'Starting point — teams hold here until release.' },
+  { code: 'B', name: 'Chanakya Porch', description: 'Starting point — teams hold here until release.' },
+  { code: 'C', name: 'Design', description: 'Starting point — teams hold here until release.' },
+  { code: 'D', name: 'Vyas Parking', description: 'Starting point — teams hold here until release.' },
 ];
 
 /** Default hunt stations — prefer event.campusStations via resolveCampusStations. */
@@ -43,13 +66,8 @@ const HUNT_STATIONS = DEFAULT_CAMPUS_STATIONS;
 const CAMPUS_STATIONS = HUNT_STATIONS;
 const DEFAULT_LOCATIONS = WAIT_POINTS;
 
-/** Local Team 1–10 release slots (variant keys T1…T10). */
-const TEAM_GROUPS = Array.from({ length: TEAMS_PER_WAIT }, (_, i) => ({
-  wave: `T${i + 1}`,
-  teamLabel: `team ${i + 1}`,
-  slot: i,
-  localTeamNumber: i + 1,
-}));
+/** Local Team release slots (variant keys T1…Tn). Baseline: 10. */
+const TEAM_GROUPS = buildTeamGroups(TEAMS_PER_WAIT);
 
 function stationForLocalTeam(localTeamNumber, waitIndex = 0, stations = HUNT_STATIONS, stopOffset = 0) {
   const list = stations?.length ? stations : HUNT_STATIONS;
@@ -59,29 +77,43 @@ function stationForLocalTeam(localTeamNumber, waitIndex = 0, stations = HUNT_STA
   return list[(teamIndex + offset + step) % list.length];
 }
 
-/** Stable unique 3-digit code for global team 1–40. */
-function threeDigitCodeForTeam(waitIndex, localTeamNumber) {
-  const teamNumber = (Math.max(0, Number(waitIndex) || 0) * TEAMS_PER_WAIT)
+/** Stable unique 3-digit code for global team. */
+function threeDigitCodeForTeam(waitIndex, localTeamNumber, teamsPerWait = TEAMS_PER_WAIT) {
+  const perWait = Math.max(1, Number(teamsPerWait) || TEAMS_PER_WAIT);
+  const teamNumber = (Math.max(0, Number(waitIndex) || 0) * perWait)
     + Math.max(1, Number(localTeamNumber) || 1);
   return String(100 + ((teamNumber * 73 + 19) % 900)).padStart(3, '0');
 }
 
-function clue1ForPlace(place) {
+function clue1ForPlace(place, teamSize = 4) {
   const name = place || 'the station';
+  const people = Math.max(2, Math.min(8, Number(teamSize) || 4));
   return {
     prompt:
       `Your first scan is waiting on campus. Read the marks, follow the crowd of clues, `
       + `and name the place: ${name}.`,
     answer: name,
     destinationInstruction:
-      `Go to ${name}. All four members scan the shared QR, then enter your team code.`,
+      `Go to ${name}. All ${people} members scan the shared QR, then enter your team code.`,
     hintText: `Ask staff for the way to ${name}.`,
   };
 }
 
-function routeClueDefaults(challengeNumber, destination) {
+function splitIntoMemberCodes(word, teamSize = 4) {
+  const people = Math.max(2, Math.min(8, Number(teamSize) || 4));
+  const raw = String(word || 'QUEST').replace(/\s+/g, '').toUpperCase();
+  const len = Math.max(people, raw.length);
+  const padded = raw.padEnd(len, 'X');
+  const size = Math.ceil(padded.length / people);
+  return Array.from({ length: people }, (_, i) => (
+    padded.slice(i * size, (i + 1) * size) || String(i + 1)
+  ));
+}
+
+function routeClueDefaults(challengeNumber, destination, teamSize = 4) {
   const place = destination || 'the next station';
   const n = Number(challengeNumber) || 2;
+  const people = Math.max(2, Math.min(8, Number(teamSize) || 4));
 
   if (n === 2) {
     return {
@@ -92,8 +124,8 @@ function routeClueDefaults(challengeNumber, destination) {
       hintText: 'Check posts, pillars, and notice boards at eye level.',
       destinationInstruction:
         'Go to your next location now. Find the shared green SECOND SCAN QR — '
-        + 'all 4 members scan, then enter your team code to unlock Clue 3.',
-      memberPrompts: ['', '', '', ''],
+        + `all ${people} members scan, then enter your team code to unlock Clue 3.`,
+      memberPrompts: Array.from({ length: people }, () => ''),
     };
   }
 
@@ -106,32 +138,24 @@ function routeClueDefaults(challengeNumber, destination) {
       hintText: 'Caesar shift of 3 — A becomes D, B becomes E… Spaces stay spaces.',
       destinationInstruction:
         'Riddle solved — go find the shared blue THIRD SCAN QR at that place. '
-        + 'All 4 members scan, then enter your team code to unlock Final.',
-      memberPrompts: ['', '', '', ''],
+        + `All ${people} members scan, then enter your team code to unlock Final.`,
+      memberPrompts: Array.from({ length: people }, () => ''),
     };
   }
 
   // Clue 4 / Final — collaborative one-word puzzle; `place` here is the finish word.
   const word = String(place || 'QUEST').replace(/\s+/g, '').toUpperCase();
-  const chunks = splitIntoFourCodes(word);
+  const chunks = splitIntoMemberCodes(word, people);
   return {
     prompt:
       'Each teammate has a code fragment on their phone. '
-      + 'Speak them in order 1→4 and rebuild the one word. Leader submits it.',
+      + `Speak them in order 1→${people} and rebuild the one word. Leader submits it.`,
     answer: word,
     hintText: 'Say every code out loud in member order — no spaces in the final word.',
     destinationInstruction:
       'Word solved — report to your start location. Ask the organizer to mark your team reached.',
     memberPrompts: chunks,
   };
-}
-
-function splitIntoFourCodes(word) {
-  const raw = String(word || 'QUEST').replace(/\s+/g, '').toUpperCase();
-  const len = Math.max(4, raw.length);
-  const padded = raw.padEnd(len, 'X');
-  const size = Math.ceil(padded.length / 4);
-  return [0, 1, 2, 3].map((i) => padded.slice(i * size, (i + 1) * size) || String(i + 1));
 }
 
 /** One-word answers per start path for Clue 4. */
@@ -142,19 +166,19 @@ const CLUE4_WORDS = {
   D: 'PRIDE',
 };
 
-/** Clue 1 first stops for local teams 1–10 at a given wait (shuffled by waitIndex). */
-function rotatingFirstStops(waitIndex = 0, stations = HUNT_STATIONS) {
-  return TEAM_GROUPS.map((group) => stationForLocalTeam(group.localTeamNumber, waitIndex, stations, 0));
+/** Clue 1 first stops for local teams at a given wait (shuffled by waitIndex). */
+function rotatingFirstStops(waitIndex = 0, stations = HUNT_STATIONS, teamGroups = TEAM_GROUPS) {
+  return teamGroups.map((group) => stationForLocalTeam(group.localTeamNumber, waitIndex, stations, 0));
 }
 
 /** Checkpoint 2 / Clue 2 destinations — one station after first stop. */
-function rotatingSecondStops(waitIndex = 0, stations = HUNT_STATIONS) {
-  return TEAM_GROUPS.map((group) => stationForLocalTeam(group.localTeamNumber, waitIndex, stations, 1));
+function rotatingSecondStops(waitIndex = 0, stations = HUNT_STATIONS, teamGroups = TEAM_GROUPS) {
+  return teamGroups.map((group) => stationForLocalTeam(group.localTeamNumber, waitIndex, stations, 1));
 }
 
 /** Checkpoint 3 destinations — two stations after first stop (different from CP1/CP2). */
-function rotatingThirdStops(waitIndex = 0, stations = HUNT_STATIONS) {
-  return TEAM_GROUPS.map((group) => stationForLocalTeam(group.localTeamNumber, waitIndex, stations, 2));
+function rotatingThirdStops(waitIndex = 0, stations = HUNT_STATIONS, teamGroups = TEAM_GROUPS) {
+  return teamGroups.map((group) => stationForLocalTeam(group.localTeamNumber, waitIndex, stations, 2));
 }
 
 function caesarShift(text, shift = 3) {
@@ -169,6 +193,11 @@ function padTeam(n) {
 }
 
 async function ensureRound(event) {
+  const { deriveCompetitionFormat } = require('../utils/competitionFormat');
+  const format = deriveCompetitionFormat({
+    teamCapacity: event.teamCapacity,
+    teamSize: event.teamSize,
+  });
   let round = await CampusHuntRound.findOne({ eventId: event._id, roundNumber: 1 });
   if (!round) {
     round = await CampusHuntRound.create({
@@ -179,13 +208,7 @@ async function ensureRound(event) {
       releaseIntervalMinutes: 5,
       assignmentStrategy: 'route_balanced',
       scheduleStatus: 'draft',
-      qualification: {
-        topNDirectFinale: 5,
-        survivalTeams: 35,
-        lastChanceTeams: 0,
-        finaleTeams: 12,
-        nextRoundName: 'SURVIVAL_STAGE',
-      },
+      qualification: format.qualification,
     });
   } else {
     if (!round.releaseIntervalMinutes || round.releaseIntervalMinutes < 1) {
@@ -194,22 +217,20 @@ async function ensureRound(event) {
     if (!round.assignmentStrategy) round.assignmentStrategy = 'route_balanced';
     round.qualification = {
       ...(round.qualification?.toObject?.() || round.qualification || {}),
-      topNDirectFinale: 5,
-      survivalTeams: 35,
-      lastChanceTeams: 0,
-      finaleTeams: 12,
-      nextRoundName: 'SURVIVAL_STAGE',
+      ...format.qualification,
     };
     await round.save();
   }
   return round;
 }
 
-async function ensureLocations(event, round, capacity = 10) {
+async function ensureLocations(event, round, capacity = 10, startCount = 4) {
+  const starts = resolveCampusStarts(event);
+  const activeCodes = starts.map((s) => s.code);
   const points = [];
-  const canonicalCodes = DEFAULT_LOCATIONS.map((loc) => loc.code);
-  for (let index = 0; index < DEFAULT_LOCATIONS.length; index += 1) {
-    const loc = DEFAULT_LOCATIONS[index];
+  for (let index = 0; index < starts.length; index += 1) {
+    const loc = starts[index];
+    const meta = DEFAULT_LOCATIONS.find((row) => row.code === loc.code) || loc;
     // eslint-disable-next-line no-await-in-loop
     const point = await CampusHuntStartingPoint.findOneAndUpdate(
       { eventId: event._id, code: loc.code },
@@ -219,7 +240,7 @@ async function ensureLocations(event, round, capacity = 10) {
           roundId: round._id,
           code: loc.code,
           name: loc.name,
-          description: loc.description,
+          description: meta.description || `Starting point — ${capacity} teams hold here until release.`,
           capacity,
           displayOrder: index,
           active: true,
@@ -230,21 +251,23 @@ async function ensureLocations(event, round, capacity = 10) {
     );
     points.push(point);
   }
-  // Retire legacy duplicates (START-A / START A) so schedule capacity stays 4×10=40.
+  // Retire unused starts (and legacy duplicates) so schedule uses only active layout.
   await CampusHuntStartingPoint.updateMany(
     {
       eventId: event._id,
-      code: { $nin: canonicalCodes },
+      code: { $nin: activeCodes },
     },
     { $set: { active: false } },
   );
   return points;
 }
 
-async function ensureRoutes(event, teamCapacity = 40) {
+async function ensureRoutes(event, teamCapacity = 40, startCount = 4) {
+  const starts = Math.max(1, Math.min(ROUTE_KEYS.length, Number(startCount) || ROUTE_KEYS.length));
+  const activeKeys = ROUTE_KEYS.slice(0, starts);
   const routes = [];
-  const slots = Math.ceil(teamCapacity / ROUTE_KEYS.length);
-  for (const key of ROUTE_KEYS) {
+  const slots = Math.ceil(teamCapacity / starts);
+  for (const key of activeKeys) {
     // eslint-disable-next-line no-await-in-loop
     const route = await CampusHuntRoute.findOneAndUpdate(
       { eventId: event._id, routeKey: key },
@@ -261,6 +284,13 @@ async function ensureRoutes(event, teamCapacity = 40) {
     );
     routes.push(route);
   }
+  await CampusHuntRoute.updateMany(
+    {
+      eventId: event._id,
+      routeKey: { $nin: activeKeys },
+    },
+    { $set: { active: false } },
+  );
   return routes;
 }
 
@@ -296,7 +326,8 @@ async function ensureSharedStationCheckpoints(event, round, anchorRoute, station
             stationCode: station.code,
             publicInstruction:
               `${prog.label} at ${station.name}. One shared QR for this place. `
-              + 'All 4 team members scan, then enter your team code to unlock your allotted clue.',
+              + `All ${Math.max(2, Math.min(8, Number(event.teamSize) || 4))} team members scan, `
+              + 'then enter your team code to unlock your allotted clue.',
             sequence: prog.seq,
             capacityGuidance: capacity,
             concurrencyGuidance:
@@ -339,6 +370,9 @@ async function ensureCheckpointsAndClues(
   startingPoints,
   capacity = TARGET_TEAMS_PER_STATION,
   huntStations = HUNT_STATIONS,
+  teamGroups = TEAM_GROUPS,
+  teamsPerWait = TEAMS_PER_WAIT,
+  onlyChallengeNumbers = null,
 ) {
   const scoring = event.scoringConfig || DEFAULT_SCORING_CONFIG;
   const stations = huntStations?.length ? huntStations : HUNT_STATIONS;
@@ -347,6 +381,10 @@ async function ensureCheckpointsAndClues(
   const pointsByCode = new Map(
     startingPoints.map((point) => [String(point.code || '').toUpperCase(), point]),
   );
+  const only = Array.isArray(onlyChallengeNumbers)
+    ? new Set(onlyChallengeNumbers.map((n) => Number(n)).filter((n) => n >= 1 && n <= 4))
+    : null;
+  const wantClue = (n) => !only || only.has(Number(n));
 
   if (!routes.length) {
     return { checkpointCount: 0, clueCount: 0, retiredWaitNamedCheckpoints: 0 };
@@ -366,15 +404,17 @@ async function ensureCheckpointsAndClues(
     const key = route.routeKey;
     const startIndex = ROUTE_KEYS.indexOf(key);
     const stationIndex = startIndex >= 0 ? startIndex : routeIndex;
-    const startStation = WAIT_POINTS[stationIndex] || WAIT_POINTS[0];
+    const startStation = (resolveCampusStarts(event)[stationIndex]
+      || WAIT_POINTS[stationIndex]
+      || WAIT_POINTS[0]);
     const startingPoint = pointsByCode.get(startStation.code) || startingPoints[stationIndex];
-    const firstStops = rotatingFirstStops(stationIndex, stations);
-    const secondStops = rotatingSecondStops(stationIndex, stations);
-    const thirdStops = rotatingThirdStops(stationIndex, stations);
+    const firstStops = rotatingFirstStops(stationIndex, stations, teamGroups);
+    const secondStops = rotatingSecondStops(stationIndex, stations, teamGroups);
+    const thirdStops = rotatingThirdStops(stationIndex, stations, teamGroups);
     const finishWord = CLUE4_WORDS[key] || 'QUEST';
     const startName = startStation.name;
 
-    const firstStopDefs = TEAM_GROUPS.map((group) => ({
+    const firstStopDefs = teamGroups.map((group) => ({
       wave: group.wave,
       teamLabel: group.teamLabel,
       localTeamNumber: group.localTeamNumber,
@@ -382,16 +422,16 @@ async function ensureCheckpointsAndClues(
       key: `1-${group.wave}`,
     }));
 
-    const secondStopDefs = TEAM_GROUPS.map((group) => ({
+    const secondStopDefs = teamGroups.map((group) => ({
       wave: group.wave,
       teamLabel: group.teamLabel,
       localTeamNumber: group.localTeamNumber,
       station: secondStops[group.slot],
       key: `2-${group.wave}`,
-      code: threeDigitCodeForTeam(stationIndex, group.localTeamNumber),
+      code: threeDigitCodeForTeam(stationIndex, group.localTeamNumber, teamsPerWait),
     }));
 
-    const thirdStopDefs = TEAM_GROUPS.map((group) => ({
+    const thirdStopDefs = teamGroups.map((group) => ({
       wave: group.wave,
       teamLabel: group.teamLabel,
       localTeamNumber: group.localTeamNumber,
@@ -412,6 +452,7 @@ async function ensureCheckpointsAndClues(
     ];
 
     for (const first of firstStopDefs) {
+      if (!wantClue(1)) break;
       const firstCheckpoint = shared.map.get(`1:${first.station.code}`);
       if (!startingPoint || !firstCheckpoint) {
         // eslint-disable-next-line no-continue
@@ -419,7 +460,8 @@ async function ensureCheckpointsAndClues(
       }
 
       const variantKey = `${startStation.code}-${first.wave}`;
-      const clue1 = clue1ForPlace(first.station.name);
+      const people = Math.max(2, Math.min(8, Number(event.teamSize) || 4));
+      const clue1 = clue1ForPlace(first.station.name, people);
       // eslint-disable-next-line no-await-in-loop
       await CampusHuntChallenge.findOneAndUpdate(
         {
@@ -445,7 +487,7 @@ async function ensureCheckpointsAndClues(
               first.station.name.toLowerCase(),
             ],
             destinationInstruction:
-              `Go to ${first.station.name}. All four members scan the shared orange QR, `
+              `Go to ${first.station.name}. All ${people} members scan the shared orange QR, `
               + 'then enter your team code to unlock Clue 2.',
             basePoints: scoring.clue1?.basePoints ?? DEFAULT_SCORING_CONFIG.clue1.basePoints ?? 50,
             maxAttempts: scoring.clue1?.maxAttempts || 3,
@@ -464,6 +506,7 @@ async function ensureCheckpointsAndClues(
 
     // Clue 2 variants → shared green SECOND SCAN QR at next station
     for (const second of secondStopDefs) {
+      if (!wantClue(2)) break;
       const secondCheckpoint = shared.map.get(`2:${second.station.code}`);
       if (!startingPoint || !secondCheckpoint) {
         // eslint-disable-next-line no-continue
@@ -471,7 +514,7 @@ async function ensureCheckpointsAndClues(
       }
 
       const variantKey = `${startStation.code}-${second.wave}`;
-      const clue2Defaults = routeClueDefaults(2, second.station.name);
+      const clue2Defaults = routeClueDefaults(2, second.station.name, event.teamSize);
       // eslint-disable-next-line no-await-in-loop
       await CampusHuntChallenge.findOneAndUpdate(
         {
@@ -495,7 +538,7 @@ async function ensureCheckpointsAndClues(
             acceptedAnswers: [second.code],
             destinationInstruction:
               `Go to ${second.station.name} now. Find the shared green SECOND SCAN QR. `
-              + 'All 4 members scan, then enter your team code to unlock Clue 3.',
+              + `All ${Math.max(2, Math.min(8, Number(event.teamSize) || 4))} members scan, then enter your team code to unlock Clue 3.`,
             basePoints: 0,
             maxAttempts: scoring.clue2?.maxAttempts || 3,
             timerSeconds: scoring.clue2?.timerSeconds || 180,
@@ -525,6 +568,7 @@ async function ensureCheckpointsAndClues(
 
     // Clue 3 variants → shared blue THIRD SCAN QR
     for (const third of thirdStopDefs) {
+      if (!wantClue(3)) break;
       const thirdCheckpoint = shared.map.get(`3:${third.station.code}`);
       if (!startingPoint || !thirdCheckpoint) {
         // eslint-disable-next-line no-continue
@@ -532,7 +576,7 @@ async function ensureCheckpointsAndClues(
       }
 
       const variantKey = `${startStation.code}-${third.wave}`;
-      const clue3Defaults = routeClueDefaults(3, third.station.name);
+      const clue3Defaults = routeClueDefaults(3, third.station.name, event.teamSize);
       // eslint-disable-next-line no-await-in-loop
       await CampusHuntChallenge.findOneAndUpdate(
         {
@@ -583,6 +627,7 @@ async function ensureCheckpointsAndClues(
 
     // Finish checkpoint only (Clue 3 is fan-out variants above)
     for (const cp of laterDefs) {
+      if (!wantClue(4)) break;
       // eslint-disable-next-line no-await-in-loop
       await CampusHuntCheckpoint.findOneAndUpdate(
         { eventId: event._id, routeId: route._id, checkpointKey: cp.key },
@@ -612,8 +657,9 @@ async function ensureCheckpointsAndClues(
       checkpointCount += 1;
     }
 
+    if (wantClue(4)) {
     // eslint-disable-next-line no-await-in-loop
-    const clue4Defaults = routeClueDefaults(4, finishWord);
+    const clue4Defaults = routeClueDefaults(4, finishWord, event.teamSize);
     clue4Defaults.destinationInstruction =
       `Report to your start — ${startName}. Ask the organizer to mark your team reached.`;
     await CampusHuntChallenge.findOneAndUpdate(
@@ -651,6 +697,7 @@ async function ensureCheckpointsAndClues(
       { upsert: true },
     );
     clueCount += 1;
+    }
   }
 
   // Retire old Clue 1 rows that still use wait names (Library/Chanakya/…) as scan places
@@ -716,8 +763,11 @@ async function ensurePlaceholderTeams(event, round, routes, {
       leaderEmail: `team${i}.leader@campus-hunt.local`,
       leaderName: `Leader ${i}`,
       leaderPassword,
-      memberNames: [`Member ${i}A`, `Member ${i}B`, `Member ${i}C`],
+      memberNames: Array.from({ length: Math.max(1, (Number(event.teamSize) || 4) - 1) }, (_, idx) => (
+        `Member ${i}${String.fromCharCode(65 + idx)}`
+      )),
       scannerPassword,
+      teamSize: event.teamSize || 4,
     });
     const roster = assertValidTeamRoster({
       leaderUserId: provisioned.leaderUserId,
@@ -764,12 +814,14 @@ async function ensurePlaceholderTeams(event, round, routes, {
  * @param {object} [options.actor]
  * @param {boolean} [options.createTeams]
  * @param {boolean} [options.enablePublicLeaderboard]
+ * @param {number[]|null} [options.challengeNumbers] null = all clues; [] = layout only; [1] = Clue 1 only
  */
 async function bootstrapRound1Defaults({
   eventId,
   actor = {},
   createTeams = true,
   enablePublicLeaderboard = true,
+  challengeNumbers = null,
 } = {}) {
   if (typeof CampusHuntChallenge.ensureChallengeIndexes === 'function') {
     await CampusHuntChallenge.ensureChallengeIndexes();
@@ -782,7 +834,7 @@ async function bootstrapRound1Defaults({
     throw err;
   }
 
-  if (!event.teamCapacity || event.teamCapacity < 40) {
+  if (!event.teamCapacity || event.teamCapacity < 2) {
     event.teamCapacity = 40;
   }
   if (!event.scoringConfig) {
@@ -808,23 +860,38 @@ async function bootstrapRound1Defaults({
   }
   const huntStations = resolveCampusStations(event);
   if (!event.campusStations?.length) {
-    event.campusStations = huntStations;
+    event.campusStations = DEFAULT_CAMPUS_STATIONS;
   }
   await event.save();
 
   const round = await ensureRound(event);
-  const startingPoints = await ensureLocations(event, round, 10);
-  const routes = await ensureRoutes(event, event.teamCapacity || 40);
+  const capacity = Number(event.teamCapacity) || 40;
+  const startCount = resolveStartCount(event);
+  const perWait = teamsPerWaitFor(capacity, startCount);
+  const perStation = teamsPerStationFor(capacity, huntStations.length);
+  const teamGroups = buildTeamGroups(perWait);
+  const startingPoints = await ensureLocations(event, round, perWait, startCount);
+  const routes = await ensureRoutes(event, capacity, startCount);
   const content = await ensureCheckpointsAndClues(
     event,
     round,
     routes,
     startingPoints,
-    TARGET_TEAMS_PER_STATION,
+    perStation,
     huntStations,
+    teamGroups,
+    perWait,
+    challengeNumbers,
   );
 
+  const updatingAllClues = challengeNumbers == null;
+  const updatingClue1 = updatingAllClues
+    || (Array.isArray(challengeNumbers) && challengeNumbers.map(Number).includes(1));
+  const updatingClue3 = updatingAllClues
+    || (Array.isArray(challengeNumbers) && challengeNumbers.map(Number).includes(3));
+
   // Patch legacy Clue 1 rows that stored basePoints: 0 (flat award was never applied).
+  if (updatingClue1) {
   await CampusHuntChallenge.updateMany(
     {
       eventId: event._id,
@@ -838,7 +905,9 @@ async function bootstrapRound1Defaults({
       },
     },
   );
+  }
   // Patch Clue 3 rows still on legacy 75 when config is 50.
+  if (updatingClue3) {
   await CampusHuntChallenge.updateMany(
     {
       eventId: event._id,
@@ -852,6 +921,7 @@ async function bootstrapRound1Defaults({
       },
     },
   );
+  }
   const teams = await ensurePlaceholderTeams(event, round, routes, { createTeams });
 
   await writeAudit({
@@ -865,6 +935,7 @@ async function bootstrapRound1Defaults({
       routes: routes.map((r) => r.routeKey),
       checkpoints: content.checkpointCount,
       clues: content.clueCount,
+      challengeNumbers: challengeNumbers == null ? 'all' : challengeNumbers,
       teamsCreated: teams.created,
       publicLeaderboardLive: event.publicLeaderboardLive,
       releaseIntervalMinutes: 5,
@@ -893,8 +964,9 @@ async function bootstrapRound1Defaults({
       model:
         '4 starting points (gather only). 10 campus stations with 1 shared QR each (per scan stage). '
         + 'First stops shuffled by starting point so simultaneous releases avoid crowds; '
-        + '~4 teams/station across the event. All 4 members scan, then enter team code. '
-        + 'Team 1 @ first release, Team 2 +5 min, … Team 10.',
+        + `~${Math.ceil((Number(event.teamCapacity) || 40) / Math.max(1, Number(event.stationCount) || 10))} teams/station across the event. `
+        + `All ${Math.max(2, Math.min(8, Number(event.teamSize) || 4))} members scan, then enter team code. `
+        + 'Team 1 @ first release, Team 2 +5 min, …',
     },
   };
 }

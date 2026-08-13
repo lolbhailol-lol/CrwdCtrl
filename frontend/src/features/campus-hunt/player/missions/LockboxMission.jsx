@@ -66,7 +66,7 @@ export default function LockboxMission({
         requirements={
           isKey
             ? [
-              'All 4 stay together',
+              'Stay together',
               locationName
                 ? `Go to ${locationName}`
                 : 'Go to the location from the clue',

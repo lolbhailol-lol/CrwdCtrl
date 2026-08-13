@@ -63,11 +63,12 @@ export function buildPlayerNowGuide({
       : checkpointStatus?.checkpointKey?.startsWith('3')
         ? 'Blue'
         : 'Orange';
+    const required = Number(checkpointStatus?.requiredCount || team?.teamSize || 4);
     const scanned = Boolean(checkpointStatus?.youScanned);
     const awaitingClaim = Boolean(checkpointStatus?.awaitingTeamCodeConfirm)
       || (
         Number(checkpointStatus?.verifiedCount || 0)
-        >= Number(checkpointStatus?.requiredCount || 4)
+        >= required
         && checkpointStatus?.status !== 'complete'
       );
     const done = checkpointStatus?.status === 'complete';
@@ -87,7 +88,7 @@ export function buildPlayerNowGuide({
         tone: 'scan',
         eyebrow: `${color} · team code`,
         title: 'Enter your team code',
-        body: `All 4 scanned at ${place}. Confirm ${team?.teamCode || 'your code'} to unlock your allotted clue.`,
+        body: `All ${required} scanned at ${place}. Confirm ${team?.teamCode || 'your code'} to unlock your allotted clue.`,
         steps: [
           'Type your team code',
           'Tap Confirm',
@@ -118,7 +119,7 @@ export function buildPlayerNowGuide({
       steps: [
         `Go to ${place}`,
         `Scan the shared ${color} QR`,
-        'All 4 must scan',
+        `All ${required} must scan`,
         'Enter your team code for your clue',
       ],
     };

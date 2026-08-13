@@ -114,7 +114,7 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
     setShowScanner(true);
   }, [atCheckpoint, checkpointStatus?.checkpointId, checkpointStatus?.youScanned]);
 
-  // Prefill team code as soon as 4/4 is ready
+  // Prefill team code as soon as full roster has scanned
   useEffect(() => {
     if (!checkpointStatus?.awaitingTeamCodeConfirm) return;
     if (claimCode) return;
@@ -291,7 +291,7 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
     }
     const resData = result.payload;
     const count = Number(resData?.verifiedCount || resData?.checkpointStatus?.verifiedCount || 0);
-    const required = Number(resData?.requiredCount || resData?.checkpointStatus?.requiredCount || 4);
+    const required = Number(resData?.requiredCount || resData?.checkpointStatus?.requiredCount || team?.teamSize || 4);
     const awaiting = Boolean(
       resData?.awaitingTeamCodeConfirm
       || resData?.checkpointStatus?.awaitingTeamCodeConfirm
@@ -307,7 +307,7 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
     setFeedbackTone('ok');
     setFeedback(resData?.message || `Scanned (${count}/${required})`);
     if (awaiting && !unlocked) {
-      celebrate('All 4 scanned — confirm team code');
+      celebrate(`All ${required} scanned — confirm team code`);
       if (team?.teamCode) setClaimCode(String(team.teamCode).toUpperCase());
     } else if (!unlocked) {
       celebrate(`You're in · ${count}/${required}`);
@@ -519,7 +519,7 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
                     width: `${Math.min(
                       100,
                       (Number(checkpointStatus.verifiedCount || 0)
-                        / Math.max(1, Number(checkpointStatus.requiredCount || 4))) * 100,
+                        / Math.max(1, Number(checkpointStatus.requiredCount || team?.teamSize || 4))) * 100,
                     )}%`,
                     background: checkpointTheme.hex,
                   }}
@@ -535,13 +535,13 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
                   })}
                 </p>
                 <p className="mt-1 text-xs text-white/50">
-                  All 4 scan the same poster · phones update live
+                  All {Number(checkpointStatus.requiredCount || team?.teamSize || 4)} scan the same poster · phones update live
                 </p>
               </div>
 
               {!checkpointStatus.youScanned
                 && !checkpointStatus.awaitingTeamCodeConfirm
-                && checkpointStatus.verifiedCount < 4 && (
+                && Number(checkpointStatus.verifiedCount || 0) < Number(checkpointStatus.requiredCount || team?.teamSize || 4) && (
                 <>
                   <button
                     type="button"
@@ -623,7 +623,7 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
               )}
 
               {checkpointStatus.youScanned
-                && checkpointStatus.verifiedCount < 4
+                && Number(checkpointStatus.verifiedCount || 0) < Number(checkpointStatus.requiredCount || team?.teamSize || 4)
                 && !checkpointStatus.awaitingTeamCodeConfirm && (
                 <p className="animate-pulse text-center text-sm text-emerald-300/90">
                   You scanned · waiting for {checkpointStatus.membersNeeded} more
@@ -639,11 +639,11 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
               )}
 
               {(checkpointStatus.awaitingTeamCodeConfirm
-                || (checkpointStatus.verifiedCount >= 4
+                || (Number(checkpointStatus.verifiedCount || 0) >= Number(checkpointStatus.requiredCount || team?.teamSize || 4)
                   && checkpointStatus.status !== 'complete')) && (
                 <form onSubmit={onStationClaim} className="space-y-2 rounded-xl border border-white/10 bg-black/30 p-3">
                   <p className="text-center text-sm text-emerald-200/90">
-                    All 4 scanned — confirm team code to unlock
+                    All {Number(checkpointStatus.requiredCount || team?.teamSize || 4)} scanned — confirm team code to unlock
                   </p>
                   <input
                     value={claimCode}
@@ -896,7 +896,7 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
                 {(team.currentStage === 'CLUE_1_COMPLETED'
                   ? clue1?.destinationInstruction
                   : challenges.find((c) => c.challengeNumber === 2)?.destinationInstruction)
-                  || 'Go to the next place. All 4 members scan the shared QR, then enter your team code.'}
+                  || `Go to the next place. All ${Number(checkpointStatus?.requiredCount || team?.teamSize || 4)} members scan the shared QR, then enter your team code.`}
               </p>
             </section>
           )}

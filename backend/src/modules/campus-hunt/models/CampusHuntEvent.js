@@ -65,6 +65,10 @@ const campusHuntEventSchema = new mongoose.Schema(
     },
     teamCapacity: { type: Number, default: 40 },
     teamSize: { type: Number, default: 4 },
+    /** Finale board size (usually ≤ teamCapacity, max 12). */
+    finaleCapacity: { type: Number, default: 12 },
+    /** Top N from Round 1 auto-promoted into Finale. */
+    finaleDirectFromR1: { type: Number, default: 5 },
     startingScore: { type: Number, default: 100 },
     /** When true, college appears in Profile → Campus Hunt leaderboard */
     publicLeaderboardLive: { type: Boolean, default: false, index: true },
@@ -84,6 +88,19 @@ const campusHuntEventSchema = new mongoose.Schema(
     scoringConfig: {
       type: scoringConfigSchema,
       default: () => ({ ...DEFAULT_SCORING_CONFIG }),
+    },
+    /** How many of the 4 starting points are live (1–4). Small demos often use 1. */
+    startCount: { type: Number, default: 4, min: 1, max: 4 },
+    /** How many of the 10 campus hunt places are live (1–10). */
+    stationCount: { type: Number, default: 10, min: 1, max: 10 },
+    /** Custom names for starting points A–D. */
+    campusStarts: {
+      type: [{
+        code: { type: String, required: true, trim: true, uppercase: true },
+        name: { type: String, required: true, trim: true },
+        _id: false,
+      }],
+      default: undefined,
     },
     /** Custom names for the 10 hunt scan places (codes S01–S10). */
     campusStations: {

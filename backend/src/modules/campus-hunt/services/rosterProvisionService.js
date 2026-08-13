@@ -111,9 +111,9 @@ async function ensureLeaderUser({
 }
 
 /**
- * Build a full 4-person roster from leader email + 3 member names.
- * All 3 scanners share the same password (different login emails) so
- * checkpoint scans stay 4 distinct user IDs.
+ * Build a full roster from leader email + member names (teamSize - 1 scanners).
+ * Scanners share the same password (different login emails) so
+ * checkpoint scans stay distinct user IDs.
  */
 async function provisionTeamRoster({
   eventId,
@@ -124,12 +124,19 @@ async function provisionTeamRoster({
   leaderPassword,
   memberNames = [],
   scannerPassword,
+  teamSize = 4,
 }) {
+  const size = Math.max(2, Math.min(8, Number(teamSize) || 4));
+  const membersNeeded = size - 1;
   const names = (memberNames || [])
     .map((n) => String(n || '').trim())
-    .filter(Boolean);
-  if (names.length !== 3) {
-    const err = new Error('Provide exactly 3 member names for scanners');
+    .filter(Boolean)
+    .slice(0, membersNeeded);
+  while (names.length < membersNeeded) {
+    names.push(`Player ${names.length + 1}`);
+  }
+  if (names.length !== membersNeeded) {
+    const err = new Error(`Provide exactly ${membersNeeded} member name(s) for scanners`);
     err.status = 400;
     err.code = 'ROSTER_NAMES';
     throw err;
@@ -143,9 +150,10 @@ async function provisionTeamRoster({
     leaderName: leaderName || teamName,
     leaderPassword,
   });
+  const resolvedLeaderPassword = leader.password || leaderPassword || generatePassword(8);
 
   const scanners = [];
-  for (let i = 0; i < 3; i += 1) {
+  for (let i = 0; i < membersNeeded; i += 1) {
     // eslint-disable-next-line no-await-in-loop
     const slot = await ensureScannerUser({
       eventId,
@@ -178,7 +186,7 @@ async function provisionTeamRoster({
       name: resolvedLeaderName,
       loginEmail: leader.loginEmail,
       contactEmail: leader.contactEmail || String(leaderEmail || '').trim().toLowerCase(),
-      password: leader.password || '',
+      password: resolvedLeaderPassword,
       role: 'leader',
       note: leader.note,
       access: 'Full hunt — clues, answers, timer, scans',
@@ -190,8 +198,8 @@ async function provisionTeamRoster({
       role: 'scanner',
       access: 'Scanner only — checkpoint QR / paste when required',
     })),
-    sharedScannerPassword: sharedScannerPassword,
-    teamPassword: String(leaderPassword || sharedScannerPassword || '').trim()
+    sharedScannerPassword,
+    teamPassword: String(resolvedLeaderPassword || sharedScannerPassword).trim()
       || sharedScannerPassword,
     allMemberNames: [resolvedLeaderName, ...names],
   };
@@ -210,10 +218,8 @@ async function provisionTeamRoster({
       encryptedPassword: encryptCredential(s.password),
     })),
     encryptedSharedScannerPassword: encryptCredential(sharedScannerPassword),
-    // Gate password for “team code + one password” login (defaults to leader password).
     encryptedTeamPassword: encryptCredential(
-      String(leaderPassword || sharedScannerPassword || '').trim()
-        || credentials.leader.password
+      String(credentials.teamPassword || sharedScannerPassword).trim()
         || sharedScannerPassword,
     ),
   };
@@ -230,13 +236,19 @@ async function provisionTeamRoster({
   };
 }
 
-function memberNamesForTeam(team) {
+function memberNamesForTeam(team, teamSize = 4) {
+  const membersNeeded = Math.max(1, Math.min(7, (Number(teamSize) || 4) - 1));
   const fromTeam = (team.memberNames || [])
     .map((n) => String(n || '').trim())
-    .filter(Boolean);
-  if (fromTeam.length === 3) return fromTeam;
+    .filter(Boolean)
+    .slice(0, membersNeeded);
+  if (fromTeam.length === membersNeeded) return fromTeam;
   const label = team.teamName || team.teamCode || 'Team';
-  return [`${label} · Player 1`, `${label} · Player 2`, `${label} · Player 3`];
+  const names = [...fromTeam];
+  while (names.length < membersNeeded) {
+    names.push(`${label} · Player ${names.length + 1}`);
+  }
+  return names;
 }
 
 /**
@@ -248,7 +260,9 @@ async function repairTeamRoster(team, event, {
   scannerPassword = 'HUNT2026',
 } = {}) {
   const { isTeamRosterReady } = require('../utils/roster');
-  if (isTeamRosterReady(team)) {
+  const { resolveDemoScale } = require('../utils/demoScale');
+  const scale = resolveDemoScale(event);
+  if (isTeamRosterReady(team, scale.teamSize)) {
     return { repaired: false, teamCode: team.teamCode };
   }
 
@@ -259,8 +273,9 @@ async function repairTeamRoster(team, event, {
     leaderEmail: team.leaderContactEmail || team.accessPack?.leader?.contactEmail || '',
     leaderName: team.leaderName || team.accessPack?.leader?.name || `${team.teamCode} Leader`,
     leaderPassword,
-    memberNames: memberNamesForTeam(team),
+    memberNames: memberNamesForTeam(team, scale.teamSize),
     scannerPassword,
+    teamSize: scale.teamSize,
   });
 
   team.leaderUserId = provisioned.leaderUserId;
@@ -278,6 +293,7 @@ async function repairAllTeamRostersForEvent(eventId, options = {}) {
   const CampusHuntTeam = require('../models/CampusHuntTeam');
   const CampusHuntEvent = require('../models/CampusHuntEvent');
   const { isTeamRosterReady } = require('../utils/roster');
+  const { resolveDemoScale } = require('../utils/demoScale');
 
   const event = await CampusHuntEvent.findById(eventId);
   if (!event) {
@@ -285,6 +301,7 @@ async function repairAllTeamRostersForEvent(eventId, options = {}) {
     err.status = 404;
     throw err;
   }
+  const scale = resolveDemoScale(event);
 
   const teams = await CampusHuntTeam.find({ eventId: event._id }).sort({ teamCode: 1 });
   let repaired = 0;
@@ -292,7 +309,7 @@ async function repairAllTeamRostersForEvent(eventId, options = {}) {
   const errors = [];
 
   for (const team of teams) {
-    if (isTeamRosterReady(team)) {
+    if (isTeamRosterReady(team, scale.teamSize)) {
       alreadyReady += 1;
       // eslint-disable-next-line no-continue
       continue;
@@ -312,6 +329,8 @@ async function repairAllTeamRostersForEvent(eventId, options = {}) {
     alreadyReady,
     stillIncomplete: teams.length - alreadyReady - repaired,
     errors,
+    teamSize: scale.teamSize,
+    teamCapacity: scale.teamCapacity,
   };
 }
 

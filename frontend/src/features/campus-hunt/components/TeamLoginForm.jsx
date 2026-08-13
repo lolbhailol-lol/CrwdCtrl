@@ -399,7 +399,7 @@ export default function TeamLoginForm({
         {unlocked && members.length > 0 && (
           <div className="mt-6 space-y-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-white/45">
-              Who are you?
+              Who are you? ({members.length} on this team)
             </p>
 
             {leader && (

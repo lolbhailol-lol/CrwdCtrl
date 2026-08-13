@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   adminListTeams,
   adminListRoutes,
@@ -45,9 +45,11 @@ function TeamDetailCard({
   startingPoints = [],
   clue1Variants = [],
   checkpoints = [],
+  teamSize = 4,
   onCopied,
   onChanged,
 }) {
+  const scannersNeeded = Math.max(1, (Number(teamSize) || 4) - 1);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -57,11 +59,7 @@ function TeamDetailCard({
     teamName: team.teamName || '',
     leaderName: team.leaderName || '',
     leaderEmail: team.leaderContactEmail || team.access?.leader?.contactEmail || '',
-    memberNames: [
-      team.memberNames?.[0] || '',
-      team.memberNames?.[1] || '',
-      team.memberNames?.[2] || '',
-    ],
+    memberNames: Array.from({ length: scannersNeeded }, (_, i) => team.memberNames?.[i] || ''),
     routeId: id(team.routeId),
     startingPointId: id(team.startingPointId),
     scheduledStartAt: toLocalDateTime(team.scheduledStartAt),
@@ -84,11 +82,7 @@ function TeamDetailCard({
       teamName: team.teamName || '',
       leaderName: team.leaderName || '',
       leaderEmail: team.leaderContactEmail || team.access?.leader?.contactEmail || '',
-      memberNames: [
-        team.memberNames?.[0] || '',
-        team.memberNames?.[1] || '',
-        team.memberNames?.[2] || '',
-      ],
+      memberNames: Array.from({ length: scannersNeeded }, (_, i) => team.memberNames?.[i] || ''),
       routeId: id(team.routeId),
       startingPointId: id(team.startingPointId),
       scheduledStartAt: toLocalDateTime(team.scheduledStartAt),
@@ -107,8 +101,10 @@ function TeamDetailCard({
     setBusy(true);
     try {
       const namesOnly = editForm.memberNames.map((n) => n.trim()).filter(Boolean);
-      if (!editForm.teamName.trim() || !editForm.leaderName.trim() || namesOnly.length !== 3) {
-        onCopied?.('Team name, leader name, and 3 member names are required');
+      if (!editForm.teamName.trim() || !editForm.leaderName.trim() || namesOnly.length !== scannersNeeded) {
+        onCopied?.(
+          `Team name, leader name, and ${scannersNeeded} member name(s) are required (${teamSize} people/team)`,
+        );
         return;
       }
       await adminUpdateTeam(team._id, {
@@ -429,7 +425,7 @@ function TeamDetailCard({
                   ...f,
                   teamPassword: e.target.value,
                 }))}
-                placeholder="Shared team password (all 4 people)"
+                placeholder={`Shared team password (all ${teamSize} people)`}
                 className="w-full rounded-lg border border-[#0ECCEE]/40 bg-[#161718] px-3 py-2 font-mono text-sm"
               />
               <p className="text-[11px] text-white/45">
@@ -525,7 +521,7 @@ function TeamDetailCard({
               </span>
             </p>
             <p className="mt-1 text-[11px] text-white/50">
-              Share this one link. All 4 people: password → tap their name.
+              Share this one link. All {teamSize} people: password → tap their name.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <button
@@ -689,7 +685,7 @@ function CredentialsCard({ credentials, teamCode, teamLoginPath }) {
       </div>
 
       <div className="rounded-lg bg-black/20 px-3 py-2">
-        <p className="text-xs uppercase tracking-wide text-white/50">All 4 names</p>
+        <p className="text-xs uppercase tracking-wide text-white/50">All names</p>
         <p className="text-sm text-white/90">
           {(allMemberNames || [leader?.name, ...(scanners || []).map((s) => s.name)]).join(' · ')}
         </p>
@@ -704,9 +700,10 @@ export default function TeamManagerPanel({
   onChanged,
   showRouteTools = false,
   readiness = null,
+  eventMeta: eventMetaProp = null,
 }) {
   const [teams, setTeams] = useState([]);
-  const [eventMeta, setEventMeta] = useState(null);
+  const [eventMeta, setEventMeta] = useState(eventMetaProp);
   const [routes, setRoutes] = useState([]);
   const [startingPoints, setStartingPoints] = useState([]);
   const [clue1Variants, setClue1Variants] = useState([]);
@@ -728,6 +725,22 @@ export default function TeamManagerPanel({
   const [bulkTeamPassword, setBulkTeamPassword] = useState('');
   const [routeDraft, setRouteDraft] = useState({ routeKey: '', name: '', teamSlots: 10 });
 
+  const capacity = Math.max(2, Number(eventMeta?.teamCapacity) || 40);
+  const teamSize = Math.max(2, Math.min(8, Number(eventMeta?.teamSize) || 4));
+  const startCount = Math.max(1, Math.min(4, Number(eventMeta?.startCount) || 4));
+  const teamsPerWait = Math.max(1, Math.ceil(capacity / startCount));
+  const scannersNeeded = Math.max(1, teamSize - 1);
+
+  const activeStarts = useMemo(() => {
+    const active = (startingPoints || []).filter((p) => p.active !== false);
+    const order = ['A', 'B', 'C', 'D'];
+    const sorted = [...active].sort((a, b) => (
+      order.indexOf(String(a.code || '').toUpperCase().charAt(0))
+      - order.indexOf(String(b.code || '').toUpperCase().charAt(0))
+    ));
+    return sorted.slice(0, startCount);
+  }, [startingPoints, startCount]);
+
   const refresh = async () => {
     const [t, r, pointResult, challengeResult, checkpointResult] = await Promise.all([
       adminListTeams(eventId),
@@ -737,7 +750,11 @@ export default function TeamManagerPanel({
       adminListCheckpoints(eventId).catch(() => ({ data: { checkpoints: [] } })),
     ]);
     setTeams(t.data?.teams || []);
-    setEventMeta(t.data?.event || null);
+    setEventMeta((prev) => ({
+      ...(prev || {}),
+      ...(eventMetaProp || {}),
+      ...(t.data?.event || {}),
+    }));
     const routeList = r.data?.routes || [];
     setRoutes(routeList);
     setStartingPoints(pointResult.data?.startingPoints || pointResult.data?.points || []);
@@ -751,8 +768,22 @@ export default function TeamManagerPanel({
   };
 
   useEffect(() => {
+    if (eventMetaProp) {
+      setEventMeta((prev) => ({ ...(prev || {}), ...eventMetaProp }));
+    }
+  }, [eventMetaProp]);
+
+  useEffect(() => {
     refresh().catch((err) => setMsg(err.message));
   }, [eventId]);
+
+  useEffect(() => {
+    setMemberNames((prev) => {
+      const next = Array.from({ length: scannersNeeded }, (_, i) => prev[i] || '');
+      if (next.length === prev.length && next.every((v, i) => v === prev[i])) return prev;
+      return next;
+    });
+  }, [scannersNeeded]);
 
   const createOne = async (e) => {
     e.preventDefault();
@@ -770,8 +801,8 @@ export default function TeamManagerPanel({
         return;
       }
       const names = memberNames.map((n) => n.trim()).filter(Boolean);
-      if (names.length !== 3) {
-        setMsg('Enter all 3 member names (players)');
+      if (names.length !== scannersNeeded) {
+        setMsg(`Enter all ${scannersNeeded} member name(s) (${teamSize} people per team including leader)`);
         return;
       }
       const res = await adminCreateTeam(eventId, {
@@ -796,7 +827,7 @@ export default function TeamManagerPanel({
       setLeaderEmail('');
       setLeaderName('');
       setLeaderPassword('');
-      setMemberNames(['', '', '']);
+      setMemberNames(Array.from({ length: scannersNeeded }, () => ''));
       setScannerPassword('');
       await refresh();
       onChanged?.();
@@ -922,13 +953,13 @@ export default function TeamManagerPanel({
   };
 
   const createDemoTeams = async () => {
-    const capacity = eventMeta?.teamCapacity || 40;
     if (teams.length >= capacity) {
       setMsg(`Already have ${teams.length}/${capacity} teams.`);
       return;
     }
     const ok = window.confirm(
       `Create demo Team 1–${capacity} (codes CC001–CC${String(capacity).padStart(3, '0')})?\n\n`
+      + `${teamSize} people/team · ${startCount} start(s) · ~${teamsPerWait} teams per start.\n\n`
       + 'Does NOT set one shared password for all teams.\n'
       + 'After create: set a unique password per team (or run unique-campus-hunt-team-passwords.js).\n\n'
       + 'Skips teams that already exist.',
@@ -967,33 +998,46 @@ export default function TeamManagerPanel({
     }
   };
 
-  const capacity = eventMeta?.teamCapacity || 40;
-  const demoReady = teams.length >= capacity;
-  const localRostersReady = teams.filter((t) => (
+  const sortedTeams = useMemo(
+    () => [...teams].sort((a, b) => (
+      String(a.teamCode).localeCompare(String(b.teamCode), undefined, { numeric: true })
+    )),
+    [teams],
+  );
+  const teamsForSchedule = Math.min(teams.length, capacity);
+  const leftoverTeams = Math.max(0, teams.length - capacity);
+  const layoutTeams = sortedTeams.slice(0, capacity);
+  const extraTeams = sortedTeams.slice(capacity);
+  const demoReady = teamsForSchedule >= capacity;
+  const localRostersReady = layoutTeams.filter((t) => (
     t.access?.leader?.loginEmail
     && Array.isArray(t.access?.scanners)
-    && t.access.scanners.length === 3
-    && t.access.scanners.every((s) => s.loginEmail)
+    && t.access.scanners.length >= scannersNeeded
+    && t.access.scanners.slice(0, scannersNeeded).every((s) => s.loginEmail)
   )).length;
-  const rostersIncomplete = readiness?.rostersIncomplete ?? (teams.length - localRostersReady);
+  const rostersIncomplete = readiness?.rostersIncomplete ?? Math.max(0, teamsForSchedule - localRostersReady);
 
   return (
     <div className="space-y-6">
       <section className="rounded-xl border border-[#0ECCEE]/30 bg-[#0ECCEE]/10 p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h3 className="font-semibold text-white">Demo teams (40)</h3>
+            <h3 className="font-semibold text-white">
+              Demo teams ({capacity})
+            </h3>
             <p className="mt-1 text-xs text-white/60">
-              Creates CC001–CC{String(capacity).padStart(3, '0')} with placeholder names.
+              Creates CC001–CC{String(capacity).padStart(3, '0')} with placeholder names
+              ({teamSize}/team · {startCount} start{startCount === 1 ? '' : 's'} · ~{teamsPerWait}/start).
               Each team gets its own login link — set a unique password per team before hunt day.
             </p>
             {demoReady ? (
               <p className="mt-2 text-sm text-emerald-200">
-                {teams.length} teams ready — Copy all team URLs below.
+                {teamsForSchedule}/{capacity} teams ready for this layout
+                {leftoverTeams > 0 ? ` · ${leftoverTeams} leftover beyond capacity` : ''}.
               </p>
             ) : (
               <p className="mt-2 text-sm text-amber-100/80">
-                {teams.length}/{capacity} teams — create the rest for a full dry run.
+                {teamsForSchedule}/{capacity} teams — create the rest for this layout.
               </p>
             )}
             {teams.length > 0 && rostersIncomplete > 0 && (
@@ -1009,7 +1053,7 @@ export default function TeamManagerPanel({
               onClick={createDemoTeams}
               className="rounded-xl bg-[#0ECCEE] px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-40"
             >
-              {busy ? 'Creating…' : demoReady ? `${teams.length} teams ready` : `Create ${capacity} demo teams`}
+              {busy ? 'Creating…' : demoReady ? `${capacity} teams ready` : `Create ${capacity} demo teams`}
             </button>
             {teams.length > 0 && rostersIncomplete > 0 && (
               <button
@@ -1036,15 +1080,14 @@ export default function TeamManagerPanel({
             <button
               type="button"
               onClick={() => {
-                const lines = [...teams]
-                  .sort((a, b) => String(a.teamCode).localeCompare(String(b.teamCode), undefined, { numeric: true }))
+                const lines = layoutTeams
                   .map((t) => `${t.teamCode}\t${absoluteUrl(`/campus-hunt/${eventMeta.slug}/team/${t.teamCode}`)}`);
                 copyText(`One link per team — use that team’s unique password\n\n${lines.join('\n')}`);
-                setMsg('Copied all 40 team URLs');
+                setMsg(`Copied all ${lines.length} team URLs`);
               }}
               className="rounded-lg bg-[#0ECCEE]/20 px-3 py-2 text-xs font-semibold text-[#0ECCEE]"
             >
-              Copy all 40 URLs
+              Copy all {teamsForSchedule || capacity} URLs
             </button>
           </div>
         )}
@@ -1052,11 +1095,15 @@ export default function TeamManagerPanel({
 
       <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
         <p className="font-semibold text-white">
-          Teams ({teams.length}/{capacity})
+          Teams ({teamsForSchedule}/{capacity})
         </p>
         <p className="mt-1 text-xs text-white/55">
           Add real teams below, or use demo teams above for a dry run.
-          Schedule assigns 10 teams per starting point.
+          Schedule assigns ~{teamsPerWait} team{teamsPerWait === 1 ? '' : 's'} per starting point
+          ({startCount} start{startCount === 1 ? '' : 's'} · {teamSize} people/team).
+          {leftoverTeams > 0
+            ? ` ${leftoverTeams} extra team(s) from an older size are listed below capacity — schedule ignores them.`
+            : ''}
         </p>
         <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs text-white/55">
           <li>
@@ -1068,20 +1115,26 @@ export default function TeamManagerPanel({
           <li>Players open that link → type password → tap their name</li>
           <li>Use “Set password for all teams” below so everyone has the same password</li>
         </ol>
-        {startingPoints.length > 0 && (
+        {activeStarts.length > 0 && (
           <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            {startingPoints.map((point) => {
+            {activeStarts.map((point) => {
               const count = teams.filter(
                 (team) => id(team.startingPointId) === id(point),
               ).length;
+              const pointCap = Number(point.capacity) || teamsPerWait;
               return (
                 <div key={id(point)} className="rounded-lg bg-black/25 px-3 py-2 text-xs">
-                  <p className="font-semibold text-[#0ECCEE]">{point.code}</p>
-                  <p className="text-white/50">{count}/{point.capacity || 10} assigned</p>
+                  <p className="font-semibold text-[#0ECCEE]">{point.code} · {point.name}</p>
+                  <p className="text-white/50">{count}/{pointCap} assigned</p>
                 </div>
               );
             })}
           </div>
+        )}
+        {!activeStarts.length && (
+          <p className="mt-3 text-xs text-amber-200">
+            No active starts yet — Save setup (starts & places) on Clues, then Schedule / Update Clue 1.
+          </p>
         )}
         {eventMeta?.slug && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -1091,12 +1144,11 @@ export default function TeamManagerPanel({
                 const lines = [
                   'Share ONE link per team. Players only type the password and tap their name.',
                   '',
-                  ...[...teams]
-                    .sort((a, b) => String(a.teamCode).localeCompare(String(b.teamCode), undefined, { numeric: true }))
+                  ...layoutTeams
                     .map((t) => `${t.teamCode}\t${absoluteUrl(`/campus-hunt/${eventMeta.slug}/team/${t.teamCode}`)}`),
                 ];
                 copyText(lines.join('\n'));
-                setMsg('Copied all team login URLs');
+                setMsg(`Copied ${layoutTeams.length} team login URLs`);
               }}
               className="rounded-lg bg-[#0ECCEE]/20 px-3 py-1.5 text-xs font-semibold text-[#0ECCEE]"
             >
@@ -1207,7 +1259,9 @@ export default function TeamManagerPanel({
         <div>
           <h3 className="font-semibold">1. Add team and login access</h3>
           <p className="mt-1 text-xs text-white/50">
-            One shared password for the whole team. Share each team&apos;s URL — players only type the password and tap their name.
+            {teamSize} people/team (leader + {scannersNeeded} member{scannersNeeded === 1 ? '' : 's'}).
+            One shared password for the whole team. Share each team&apos;s URL —
+            players only type the password and tap their name.
           </p>
         </div>
         <div className="grid gap-2 md:grid-cols-2">
@@ -1247,7 +1301,7 @@ export default function TeamManagerPanel({
               setLeaderPassword(e.target.value);
               setScannerPassword(e.target.value);
             }}
-            placeholder="Shared team password (all 4 people)"
+            placeholder={`Shared team password (all ${teamSize} people)`}
             className="rounded-lg border border-[#0ECCEE]/40 bg-[#161718] px-3 py-2 font-mono md:col-span-2"
             required
           />
@@ -1297,34 +1351,57 @@ export default function TeamManagerPanel({
       <section className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-4">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
-            <h3 className="font-semibold">2. Existing teams ({teams.length}/40)</h3>
+            <h3 className="font-semibold">2. Existing teams ({teamsForSchedule}/{capacity})</h3>
             <p className="mt-1 text-xs text-white/50">
               Open a team to copy its login link, reveal password, edit names, or delete.
+              {leftoverTeams > 0
+                ? ` First ${capacity} count for this layout; ${leftoverTeams} leftover below (delete if unused).`
+                : ''}
             </p>
           </div>
-          {teams.length === 40 && (
+          {teamsForSchedule >= capacity && (
             <span className="rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-200">
-              All 40 ready
+              All {capacity} ready
             </span>
           )}
         </div>
-        {[...teams]
-          .sort((a, b) => String(a.teamCode).localeCompare(String(b.teamCode), undefined, { numeric: true }))
-          .map((t) => (
+        {layoutTeams.map((t) => (
           <TeamDetailCard
             key={t._id}
             team={t}
             routes={routes}
-            startingPoints={startingPoints}
+            startingPoints={activeStarts.length ? activeStarts : startingPoints}
             clue1Variants={clue1Variants}
             checkpoints={checkpoints}
+            teamSize={teamSize}
             onCopied={setMsg}
             onChanged={refresh}
           />
         ))}
+        {extraTeams.length > 0 && (
+          <div className="space-y-2 rounded-lg border border-amber-400/30 bg-amber-500/10 p-3">
+            <p className="text-xs font-semibold text-amber-100">
+              Leftover teams ({extraTeams.length}) — beyond current capacity of {capacity}
+            </p>
+            {extraTeams.map((t) => (
+              <div key={t._id} className="opacity-70">
+                <TeamDetailCard
+                  team={t}
+                  routes={routes}
+                  startingPoints={activeStarts.length ? activeStarts : startingPoints}
+                  clue1Variants={clue1Variants}
+                  checkpoints={checkpoints}
+                  teamSize={teamSize}
+                  onCopied={setMsg}
+                  onChanged={refresh}
+                />
+              </div>
+            ))}
+          </div>
+        )}
         {!teams.length && (
           <p className="rounded-lg border border-dashed border-white/15 p-4 text-sm text-white/50">
-            No teams yet. Use “Add team and login access” above, or create 40 demo teams.
+            No teams yet. Use “Add team and login access” above, or create {capacity} demo teams.
           </p>
         )}
       </section>

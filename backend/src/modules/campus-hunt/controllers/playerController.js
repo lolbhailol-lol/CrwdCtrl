@@ -218,7 +218,7 @@ async function getMyTeam(req, res, next) {
     const progress = await buildPlayerProgress(team, userId, isLeader);
 
     const event = await CampusHuntEvent.findById(eventId)
-      .select('slug name college playerRoundAccess')
+      .select('slug name college playerRoundAccess teamSize')
       .lean();
     const rounds = await CampusHuntRound.find({ eventId })
       .select('name roundNumber status')
@@ -240,7 +240,12 @@ async function getMyTeam(req, res, next) {
     return res.json({
       success: true,
       data: {
-        team: publicTeamView(progress.team, { isLeader, start: progress.start, userId }),
+        team: publicTeamView(progress.team, {
+          isLeader,
+          start: progress.start,
+          userId,
+          teamSize: event?.teamSize,
+        }),
         challenges: progress.challenges,
         checkpointStatus: progress.checkpointStatus || null,
         serverTime: progress.serverTime,
@@ -249,6 +254,7 @@ async function getMyTeam(req, res, next) {
           slug: event.slug,
           name: event.name,
           college: event.college,
+          teamSize: Math.max(2, Math.min(8, Number(event.teamSize) || 4)),
           playerRoundAccess: roundsHub.access,
         } : null,
         rounds: roundsHub.cards,
@@ -268,7 +274,7 @@ async function getTeamProgress(req, res, next) {
     return res.json({
       success: true,
       data: {
-        team: publicTeamView(progress.team, { isLeader, start: progress.start, userId }),
+        team: publicTeamView(progress.team, { isLeader, start: progress.start, userId, teamSize: progress.teamSize }),
         challenges: progress.challenges,
         checkpointStatus: progress.checkpointStatus || null,
         serverTime: progress.serverTime,
@@ -300,7 +306,7 @@ async function scanStation(req, res, next) {
       success: true,
       data: {
         ...result,
-        team: publicTeamView(progress.team, { isLeader: req.isHuntLeader, start: progress.start, userId: req.user.userId }),
+        team: publicTeamView(progress.team, { isLeader: req.isHuntLeader, start: progress.start, userId: req.user.userId, teamSize: progress.teamSize }),
         challenges: progress.challenges,
         checkpointStatus: progress.checkpointStatus,
         serverTime: progress.serverTime,
@@ -357,7 +363,7 @@ async function confirmStation(req, res, next) {
       success: true,
       data: {
         ...result,
-        team: publicTeamView(progress.team, { isLeader: req.isHuntLeader, start: progress.start, userId: req.user.userId }),
+        team: publicTeamView(progress.team, { isLeader: req.isHuntLeader, start: progress.start, userId: req.user.userId, teamSize: progress.teamSize }),
         challenges: progress.challenges,
         checkpointStatus: progress.checkpointStatus,
         serverTime: progress.serverTime,
@@ -403,7 +409,7 @@ async function submitChallengeAnswer(req, res, next) {
       success: true,
       data: {
         ...result,
-        team: publicTeamView(progress.team, { isLeader: req.isHuntLeader, start: progress.start, userId: req.user.userId }),
+        team: publicTeamView(progress.team, { isLeader: req.isHuntLeader, start: progress.start, userId: req.user.userId, teamSize: progress.teamSize }),
         challenges: progress.challenges,
         checkpointStatus: progress.checkpointStatus || null,
         serverTime: progress.serverTime,
@@ -451,7 +457,7 @@ async function requestChallengeHint(req, res, next) {
       success: true,
       data: {
         ...result,
-        team: publicTeamView(progress.team, { isLeader: req.isHuntLeader, start: progress.start, userId: req.user.userId }),
+        team: publicTeamView(progress.team, { isLeader: req.isHuntLeader, start: progress.start, userId: req.user.userId, teamSize: progress.teamSize }),
         challenges: progress.challenges,
         checkpointStatus: progress.checkpointStatus || null,
         serverTime: progress.serverTime,
@@ -572,7 +578,9 @@ async function getTeamLoginCard(req, res, next) {
   }
 }
 
-function buildPublicRosterMembers(teamDoc) {
+function buildPublicRosterMembers(teamDoc, teamSize = 4) {
+  const size = Math.max(2, Math.min(8, Number(teamSize) || 4));
+  const scannersNeeded = Math.max(1, size - 1);
   const pack = teamDoc.accessPack || {};
   const scanners = (teamDoc.memberNames || []).map((name, idx) => {
     const stored = pack.scanners?.[idx] || {};
@@ -582,10 +590,10 @@ function buildPublicRosterMembers(teamDoc) {
       role: 'scanner',
     };
   });
-  while (scanners.length < 3) {
+  while (scanners.length < scannersNeeded) {
     scanners.push({
       slot: scanners.length + 1,
-      name: `Player ${scanners.length + 1}`,
+      name: pack.scanners?.[scanners.length]?.name || `Player ${scanners.length + 1}`,
       role: 'scanner',
     });
   }
@@ -595,7 +603,7 @@ function buildPublicRosterMembers(teamDoc) {
       name: pack.leader?.name || teamDoc.leaderName || 'Leader',
       role: 'leader',
     },
-    ...scanners.slice(0, 3),
+    ...scanners.slice(0, scannersNeeded),
   ];
 }
 
@@ -617,7 +625,7 @@ async function unlockTeamRoster(req, res, next) {
     }
 
     const event = await CampusHuntEvent.findOne({ slug: req.params.slug })
-      .select('_id slug name college');
+      .select('_id slug name college teamSize');
     if (!event) {
       return res.status(401).json({ success: false, message: 'Wrong team or password' });
     }
@@ -658,7 +666,8 @@ async function unlockTeamRoster(req, res, next) {
           teamName: team.teamName,
           playPath: `/campus-hunt/${event.slug}/play`,
           loginPath: `/campus-hunt/${event.slug}/team/${team.teamCode}`,
-          members: buildPublicRosterMembers(team),
+          members: buildPublicRosterMembers(team, event.teamSize),
+          teamSize: Math.max(2, Math.min(8, Number(event.teamSize) || 4)),
           roles: {
             leader: 'Sees Clue 1 and submits all answers. Everyone still scans.',
             player: 'Helps on Clue 2–4. Scans station cards. No Clue 1 text.',
@@ -834,7 +843,7 @@ async function enterTeamAsMember(req, res, next) {
   }
 }
 
-/** Local/dev only: force current pending checkpoint — requires 4 distinct members. */
+/** Local/dev only: force current pending checkpoint — requires full team roster. */
 async function forceUnlockClue2(req, res, next) {
   try {
     // Never in production. Staging/local also need CAMPUS_HUNT_DEV_CHEATS=1.
@@ -847,6 +856,7 @@ async function forceUnlockClue2(req, res, next) {
     const {
       completeCheckpoint,
       getPendingCheckpointStatus,
+      scanRequiredForTeam,
     } = require('../services/checkpointService');
     const CampusHuntCheckpoint = require('../models/CampusHuntCheckpoint');
     const { assertOnlineRosterReady } = require('../utils/roster');
@@ -872,7 +882,8 @@ async function forceUnlockClue2(req, res, next) {
       return res.status(404).json({ success: false, message: 'Checkpoint not found' });
     }
 
-    const memberIds = assertOnlineRosterReady(team, 4);
+    const requiredCount = await scanRequiredForTeam(team);
+    const memberIds = assertOnlineRosterReady(team, requiredCount);
 
     await completeCheckpoint({
       team,
@@ -894,7 +905,7 @@ async function forceUnlockClue2(req, res, next) {
       data: {
         forced: true,
         checkpointKey: checkpoint.checkpointKey,
-        team: publicTeamView(progress.team, { isLeader: req.isHuntLeader, start: progress.start, userId: req.user.userId }),
+        team: publicTeamView(progress.team, { isLeader: req.isHuntLeader, start: progress.start, userId: req.user.userId, teamSize: progress.teamSize }),
         challenges: progress.challenges,
         checkpointStatus: progress.checkpointStatus,
         serverTime: progress.serverTime,
@@ -925,7 +936,7 @@ async function rewindStep(req, res, next) {
       success: true,
       data: {
         ...result,
-        team: publicTeamView(progress.team, { isLeader: true, userId: req.user.userId }),
+        team: publicTeamView(progress.team, { isLeader: true, userId: req.user.userId, teamSize: progress.teamSize }),
         challenges: progress.challenges,
         checkpointStatus: progress.checkpointStatus || null,
         serverTime: progress.serverTime,

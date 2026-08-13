@@ -8,6 +8,7 @@ import {
 } from '../services/campusHunt.api';
 import { CAMPUS_HUNT_PATHS } from '../config';
 import CampusHuntStageProgress from './CampusHuntStageProgress';
+import { deriveCompetitionFormat, formatLadderLabel } from './competitionFormat';
 
 function slugify(text) {
   return String(text || '')
@@ -37,6 +38,11 @@ export default function CampusHuntAdminDashboard() {
   const [slugTouched, setSlugTouched] = useState(false);
   const [formMsg, setFormMsg] = useState('');
 
+  const previewFormat = deriveCompetitionFormat({
+    teamCapacity: form.teamCapacity,
+    teamSize: form.teamSize,
+  });
+
   const reload = async () => {
     const res = await adminListEvents();
     setEvents(res.data?.events || []);
@@ -60,13 +66,17 @@ export default function CampusHuntAdminDashboard() {
     setFormMsg('');
     try {
       const slug = form.slug.trim() || slugify(`${form.college}-${form.name}`);
+      const format = deriveCompetitionFormat({
+        teamCapacity: form.teamCapacity,
+        teamSize: form.teamSize,
+      });
       const res = await adminCreateEvent({
         name: form.name.trim(),
         college: form.college.trim(),
         slug,
-        teamCapacity: Number(form.teamCapacity) || 40,
+        teamCapacity: format.teamCapacity,
         date: form.date || undefined,
-        teamSize: Number(form.teamSize) || 4,
+        teamSize: format.teamSize,
         startingScore: Number(form.startingScore) || 100,
         featureNotes: form.featureNotes.trim(),
         status: 'registration_open',
@@ -199,11 +209,22 @@ export default function CampusHuntAdminDashboard() {
             />
           </label>
           <label className="block text-xs text-white/50">
-            Members per team
+            Overall teams
             <input
               type="number"
               min={4}
-              max={4}
+              max={200}
+              value={form.teamCapacity}
+              onChange={(e) => setForm((f) => ({ ...f, teamCapacity: e.target.value }))}
+              className="mt-1 w-full rounded-lg border border-white/20 bg-[#161718] px-3 py-2 text-sm text-white"
+            />
+          </label>
+          <label className="block text-xs text-white/50">
+            People per team
+            <input
+              type="number"
+              min={2}
+              max={8}
               value={form.teamSize}
               onChange={(e) => setForm((f) => ({ ...f, teamSize: e.target.value }))}
               className="mt-1 w-full rounded-lg border border-white/20 bg-[#161718] px-3 py-2 text-sm text-white"
@@ -228,18 +249,10 @@ export default function CampusHuntAdminDashboard() {
               className="mt-1 min-h-20 w-full rounded-lg border border-white/20 bg-[#161718] px-3 py-2 text-sm text-white"
             />
           </label>
-          <label className="block text-xs text-white/50">
-            Team capacity
-            <input
-              type="number"
-              min={4}
-              max={200}
-              value={form.teamCapacity}
-              onChange={(e) => setForm((f) => ({ ...f, teamCapacity: e.target.value }))}
-              className="mt-1 w-full rounded-lg border border-white/20 bg-[#161718] px-3 py-2 text-sm text-white"
-            />
-          </label>
         </div>
+        <p className="text-xs text-white/45">
+          Ladder preview: {formatLadderLabel(previewFormat)} · {previewFormat.totalPlayers} players
+        </p>
         <button
           type="submit"
           disabled={creating}
@@ -251,7 +264,8 @@ export default function CampusHuntAdminDashboard() {
       </form>
 
       <CampusHuntStageProgress
-        teamCapacity={Number(form.teamCapacity) || 40}
+        teamCapacity={previewFormat.teamCapacity}
+        teamSize={previewFormat.teamSize}
         round1Status="not_created"
       />
 
@@ -274,7 +288,12 @@ export default function CampusHuntAdminDashboard() {
                   {ev.college} · {ev.slug}
                 </p>
                 <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-white/40">
-                  Round 1 ({ev.teamCapacity || 40}) → Survival (35) → Finale (12 · +5 direct)
+                  {formatLadderLabel({
+                    teamCapacity: ev.teamCapacity,
+                    teamSize: ev.teamSize,
+                  })}
+                  {' · '}
+                  {ev.teamSize || 4}/team
                 </p>
               </Link>
               <span className="rounded-full bg-white/10 px-3 py-1 text-xs uppercase">
