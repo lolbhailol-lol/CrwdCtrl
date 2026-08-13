@@ -43,14 +43,23 @@ function normalizeStationList(input) {
   return DEFAULT_CAMPUS_STATIONS.map((station) => byCode.get(station.code));
 }
 
+/** Normalize wait code from A / START-A / similar (matches startScheduleService). */
+function normalizeWaitCode(rawInput) {
+  const raw = String(rawInput || '').toUpperCase().trim();
+  if (/^[A-D]$/.test(raw)) return raw;
+  const stripped = raw.replace(/^START[-_\s]?/, '');
+  if (/^[A-D]$/.test(stripped)) return stripped;
+  return raw.match(/^([A-D])/)?.[1] || null;
+}
+
 function normalizeStartList(input) {
   const byCode = new Map(
     DEFAULT_CAMPUS_STARTS.map((start) => [start.code, { ...start }]),
   );
   (Array.isArray(input) ? input : []).forEach((row) => {
-    const code = String(row?.code || '').toUpperCase().trim().charAt(0);
+    const code = normalizeWaitCode(row?.code);
     const name = String(row?.name || '').trim();
-    if (!byCode.has(code) || !name) return;
+    if (!code || !byCode.has(code) || !name) return;
     byCode.set(code, { code, name });
   });
   return DEFAULT_CAMPUS_STARTS.map((start) => byCode.get(start.code));
@@ -115,7 +124,7 @@ async function updateCampusStations({
   const previousStarts = resolveCampusStartsCatalog(event);
   const nextStarts = starts != null ? normalizeStartList(starts) : previousStarts;
   const nextStationCount = stationCount != null
-    ? clampCount(stationCount, 1, DEFAULT_CAMPUS_STATIONS.length, previous.length)
+    ? clampCount(stationCount, 1, DEFAULT_CAMPUS_STATIONS.length, resolveStationCount(event))
     : resolveStationCount(event);
   const nextStartCount = startCount != null
     ? clampCount(startCount, 1, DEFAULT_CAMPUS_STARTS.length, resolveStartCount(event))
@@ -264,6 +273,7 @@ module.exports = {
   DEFAULT_CAMPUS_STARTS,
   normalizeStationList,
   normalizeStartList,
+  normalizeWaitCode,
   resolveStationCount,
   resolveStartCount,
   resolveCampusStations,

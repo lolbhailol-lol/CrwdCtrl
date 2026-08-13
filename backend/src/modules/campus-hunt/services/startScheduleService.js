@@ -7,6 +7,7 @@ const CampusHuntCheckpoint = require('../models/CampusHuntCheckpoint');
 const CampusHuntTeamProgress = require('../models/CampusHuntTeamProgress');
 const CampusHuntCheckpointVerification = require('../models/CampusHuntCheckpointVerification');
 const { writeAudit } = require('./auditService');
+const { normalizeWaitCode } = require('./stationCatalogService');
 
 function scheduleError(message, code = 'INVALID_START_SCHEDULE', status = 409) {
   const error = new Error(message);
@@ -25,11 +26,7 @@ function sortByCode(rows, key) {
 
 /** Normalize wait code from A / START-A / similar. */
 function waitCodeFromPoint(point) {
-  const raw = String(point?.code || point?.routeKey || '').toUpperCase().trim();
-  if (/^[A-D]$/.test(raw)) return raw;
-  const stripped = raw.replace(/^START[-_\s]?/, '');
-  if (/^[A-D]$/.test(stripped)) return stripped;
-  return raw.match(/^([A-D])/)?.[1] || null;
+  return normalizeWaitCode(point?.code || point?.routeKey);
 }
 
 /**
