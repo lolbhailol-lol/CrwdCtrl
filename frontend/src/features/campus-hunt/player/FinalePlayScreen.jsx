@@ -161,8 +161,13 @@ export default function FinalePlayScreen({
     try {
       const res = await fn();
       const payload = res.data;
-      if (!onActionResult?.(payload)) {
-        void onRefresh?.();
+      const applied = onActionResult?.(payload);
+      if (!applied) {
+        void onRefresh?.({ force: true });
+      } else {
+        window.setTimeout(() => {
+          void onRefresh?.({ force: true });
+        }, 300);
       }
       const msg = payload?.submitResult?.message
         || payload?.activeMission?.playerView?.message;
@@ -182,7 +187,7 @@ export default function FinalePlayScreen({
       // Only heal when server state may be ahead of the UI — never on 500/network
       if (['MISSION_ACTIVE', 'MISSION_COMPLETED', 'NOT_RELEASED', 'WRONG_MISSION', 'NO_ACTIVE_RUN'].includes(code)
         && status < 500) {
-        void onRefresh?.();
+        void onRefresh?.({ force: true });
       }
       return { ok: false, error: err };
     } finally {
@@ -272,6 +277,14 @@ export default function FinalePlayScreen({
           {pollError ? (
             <p className="rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2.5 text-center text-sm text-amber-100">
               {typeof pollError === 'string' ? pollError : finalePlayerMessage(pollError)}
+              {' · '}
+              <button
+                type="button"
+                className="underline"
+                onClick={() => onRefresh?.({ force: true })}
+              >
+                Retry
+              </button>
             </p>
           ) : null}
           {waitingForRelease && (
@@ -301,7 +314,7 @@ export default function FinalePlayScreen({
                   ? 'Waiting for organizers to release your wave.'
                   : 'Finals not live yet. Stay put — your timer appears after Start Finals.'
               }
-              onReady={onRefresh}
+              onReady={() => onRefresh?.({ force: true })}
               footer={
                 isLeader && round?.status === 'live' ? (
                   <p className="rounded-xl border border-[#0ECCEE]/35 bg-[#0ECCEE]/10 px-3 py-2 text-xs font-semibold text-[#0ECCEE]">

@@ -244,7 +244,7 @@ export default function CampusHuntPlayPage() {
           onActionResult={finale.applyActionData}
           eventSlug={slug}
           onLeaveRound={clearHuntLastRound}
-          pollError={finale.error}
+          pollError={finale.pollError || finale.error}
         />
       </div>
     );
@@ -280,6 +280,7 @@ export default function CampusHuntPlayPage() {
           userId={playerUserId}
           eventSlug={slug}
           onLeaveRound={clearHuntLastRound}
+          pollError={hunt.pollError}
         />
       </div>
     );

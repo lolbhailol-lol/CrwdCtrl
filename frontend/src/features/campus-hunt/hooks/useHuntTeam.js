@@ -1,6 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchMyTeam, fetchTeamProgress } from '../services/campusHunt.api';
 
+function isActivelyPlaying(data) {
+  const stage = String(data?.team?.currentStage || '');
+  if (!stage || stage === 'SCORE_LOCKED') return false;
+  return (
+    stage.includes('ACTIVE')
+    || stage.includes('COMPLETED')
+    || stage.includes('FAILED')
+    || stage.includes('TIMEOUT')
+  );
+}
+
 function pollIntervalMs(data, burstUntil) {
   if (burstUntil && Date.now() < burstUntil) return 1000;
 
@@ -12,22 +23,16 @@ function pollIntervalMs(data, burstUntil) {
   const nearRelease = waiting && scheduledAt > 0 && scheduledAt - Date.now() <= 2 * 60 * 1000;
 
   const cp = data?.checkpointStatus;
-  const pendingFour =
+  const pendingScan =
     cp
     && cp.checkpointId
     && Number(cp.verifiedCount || 0) < Number(cp.requiredCount || data?.team?.teamSize || 4);
   const awaitingClaim = Boolean(cp?.awaitingTeamCodeConfirm);
 
-  const activelyPlaying =
-    stage.includes('ACTIVE')
-    || stage.includes('COMPLETED')
-    || stage.includes('FAILED')
-    || stage.includes('TIMEOUT');
-
-  // Full-roster scanning needs near-live teammate updates
-  if (pendingFour || awaitingClaim) return 1200;
+  // Near-live while anyone on the team can change the board
+  if (pendingScan || awaitingClaim || isActivelyPlaying(data)) return 1000;
   if (nearRelease) return 2000;
-  if (activelyPlaying && stage !== 'SCORE_LOCKED') return 5000;
+  if (stage === 'SCORE_LOCKED') return 15000;
   return 15000;
 }
 
@@ -50,6 +55,7 @@ export function useHuntTeam(eventId, { enabled = true } = {}) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(Boolean(eventId) && enabled);
   const [error, setError] = useState(null);
+  const [pollError, setPollError] = useState(null);
   const [burstUntil, setBurstUntil] = useState(0);
   const teamIdRef = useRef(null);
   const fetchGenRef = useRef(0);
@@ -70,12 +76,15 @@ export function useHuntTeam(eventId, { enabled = true } = {}) {
       setData(res.data);
       teamIdRef.current = res.data?.team?.id || null;
       setError(null);
+      setPollError(null);
     } catch (err) {
       if (gen !== fetchGenRef.current) return;
       if (err?.code === 'AUTH_401' || err?.status === 401) {
         setError('Session expired — open your team link again');
         setData(null);
         teamIdRef.current = null;
+      } else if (soft) {
+        setPollError(err.message || 'Failed to refresh');
       } else {
         setError(err.message || 'Failed to load team');
         // Soft poll / mid-play failure: keep last board (never flash "No team")
@@ -85,9 +94,14 @@ export function useHuntTeam(eventId, { enabled = true } = {}) {
     }
   }, [eventId, enabled]);
 
-  const refreshProgress = useCallback(async () => {
+  /**
+   * Soft progress poll. Interval calls skip during pausePollUntil;
+   * manual Refresh passes `{ force: true }` and always runs.
+   */
+  const refreshProgress = useCallback(async ({ force = false } = {}) => {
     if (!enabled) return;
-    if (Date.now() < pausePollUntilRef.current) return;
+    if (!force && Date.now() < pausePollUntilRef.current) return;
+    if (force) pausePollUntilRef.current = 0;
     const teamId = teamIdRef.current;
     if (!teamId) return refresh({ soft: true });
     const gen = ++fetchGenRef.current;
@@ -101,9 +115,10 @@ export function useHuntTeam(eventId, { enabled = true } = {}) {
       }));
       teamIdRef.current = res.data?.team?.id || teamId;
       setError(null);
+      setPollError(null);
     } catch (err) {
       if (gen !== fetchGenRef.current) return;
-      setError(err.message || 'Failed to refresh');
+      setPollError(err.message || 'Failed to refresh');
     }
   }, [refresh, enabled]);
 
@@ -113,20 +128,21 @@ export function useHuntTeam(eventId, { enabled = true } = {}) {
     if (!next) return false;
     fetchGenRef.current += 1;
     const cp = next.checkpointStatus;
-    const pendingFour = Boolean(
+    const pendingScan = Boolean(
       cp?.checkpointId
       && Number(cp.verifiedCount || 0) < Number(cp.requiredCount || next.team?.teamSize || 4),
     );
-    // Keep polls almost live while teammates are still scanning
-    pausePollUntilRef.current = Date.now() + (pendingFour ? 350 : 1200);
+    // Pause only the interval — manual force refresh still works
+    pausePollUntilRef.current = Date.now() + (pendingScan ? 350 : 800);
     setData((prev) => ({
       ...next,
       rounds: prev?.rounds,
       event: prev?.event,
     }));
     teamIdRef.current = next.team?.id || teamIdRef.current;
-    setBurstUntil(Date.now() + (pendingFour ? 8000 : 4000));
+    setBurstUntil(Date.now() + (pendingScan ? 8000 : 5000));
     setError(null);
+    setPollError(null);
     return true;
   }, []);
 
@@ -162,20 +178,17 @@ export function useHuntTeam(eventId, { enabled = true } = {}) {
     refreshProgress,
   ]);
 
-  // Resume / focus — pull teammate scans immediately
+  // Focus / visibility — always pull while Round 1 is open
   useEffect(() => {
     if (!eventId || !enabled) return undefined;
     const kick = () => {
-      const cp = dataRef.current?.checkpointStatus;
-      const pending = Boolean(
-        cp?.checkpointId
-        && Number(cp.verifiedCount || 0) < Number(
-          cp.requiredCount || dataRef.current?.team?.teamSize || 4,
-        ),
-      );
-      if (!pending && !cp?.awaitingTeamCodeConfirm) return;
+      const current = dataRef.current;
+      const stage = String(current?.team?.currentStage || '');
+      const waiting = ['WAITING', 'READY'].includes(current?.team?.startStatus);
+      const open = waiting || isActivelyPlaying(current) || stage === 'SCORE_LOCKED';
+      if (!open && !current?.checkpointStatus?.checkpointId) return;
       pausePollUntilRef.current = 0;
-      void refreshProgress();
+      void refreshProgress({ force: true });
     };
     const onVis = () => {
       if (document.visibilityState === 'visible') kick();
@@ -192,6 +205,7 @@ export function useHuntTeam(eventId, { enabled = true } = {}) {
     data,
     loading,
     error,
+    pollError,
     refresh: () => refresh({ soft: true }),
     refreshProgress,
     applyActionData,

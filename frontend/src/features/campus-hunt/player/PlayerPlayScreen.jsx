@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ScoreChip from '../components/ScoreChip';
 import CountdownTimer from '../components/CountdownTimer';
-import HuntQrScanner from '../components/HuntQrScanner';
+import HuntQrScanner, { releaseHuntCameraSession } from '../components/HuntQrScanner';
 import HuntProgressTrack from '../components/HuntProgressTrack';
 import PassedCluesPanel from '../components/PassedCluesPanel';
 import ClueHowTo from '../components/ClueHowTo';
@@ -47,7 +47,14 @@ function needsStartReport(stage) {
 
 const panel = 'rounded-2xl border border-white/[0.08] bg-[#121416]/85 p-4 backdrop-blur-sm';
 
-export default function PlayerPlayScreen({ data, onRefresh, onActionResult, eventSlug, onLeaveRound }) {
+export default function PlayerPlayScreen({
+  data,
+  onRefresh,
+  onActionResult,
+  eventSlug,
+  onLeaveRound,
+  pollError,
+}) {
   const team = data?.team;
   const challenges = data?.challenges || [];
   const serverTime = data?.serverTime || team?.serverTime;
@@ -92,6 +99,11 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
     return () => clearTimeout(t);
   }, [showSuccess]);
 
+  // Release session camera when leaving Round 1 play
+  useEffect(() => () => {
+    releaseHuntCameraSession();
+  }, []);
+
   // When stage advances, jump to top so next clue/scan is immediately visible
   useEffect(() => {
     const stage = team?.currentStage;
@@ -124,8 +136,13 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
   const applyResult = (resData) => {
     const applied = onActionResult?.(resData);
     if (!applied) {
-      void onRefresh?.();
+      void onRefresh?.({ force: true });
+      return;
     }
+    // Align with server shortly after local apply (teammates + actor)
+    window.setTimeout(() => {
+      void onRefresh?.({ force: true });
+    }, 300);
   };
 
   const HEAL_CODES = new Set([
@@ -152,7 +169,7 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
       setFeedback(err.message || 'Action failed');
       setFeedbackTone('err');
       if (HEAL_CODES.has(code) || err?.status === 409) {
-        void onRefresh?.();
+        void onRefresh?.({ force: true });
       }
       return { ok: false, error: err };
     } finally {
@@ -449,7 +466,7 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
               pausedText="Releases paused — stay at your start."
               emptyText="Waiting for organizers to set your unlock day and time."
               serverTime={serverTime}
-              onReady={onRefresh}
+              onReady={() => onRefresh?.({ force: true })}
               footer={team.startingPoint?.description ? (
                 <p className="text-sm text-white/45">{team.startingPoint.description}</p>
               ) : null}
@@ -469,6 +486,20 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
               </p>
             </section>
           )}
+
+          {pollError ? (
+            <p className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2.5 text-center text-sm text-amber-100">
+              Sync issue: {typeof pollError === 'string' ? pollError : 'Could not refresh'}
+              {' · '}
+              <button
+                type="button"
+                className="underline"
+                onClick={() => onRefresh?.({ force: true })}
+              >
+                Retry
+              </button>
+            </p>
+          ) : null}
 
           {feedback ? (
             <p
@@ -553,9 +584,10 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
                   </button>
                   {showScanner && (
                     <HuntQrScanner
-                      active={!busy}
+                      active
                       onScan={onStationScan}
                       accentHex={checkpointTheme.hex}
+                      onClose={() => setShowScanner(false)}
                     />
                   )}
                   {!showPaste ? (
@@ -631,7 +663,7 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
                   <button
                     type="button"
                     className="underline"
-                    onClick={() => onRefresh?.()}
+                    onClick={() => onRefresh?.({ force: true })}
                   >
                     Refresh
                   </button>
@@ -760,7 +792,7 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
                     expiresAt={activeChallenge.timerStartsAt}
                     serverTime={serverTime}
                     label="Starts in"
-                    onComplete={onRefresh}
+                    onComplete={() => onRefresh?.({ force: true })}
                   />
                 )}
                 {activeChallenge.expiresAt
@@ -770,7 +802,9 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
                     serverTime={serverTime}
                     label={activeChallenge.timeExpired ? 'Time up' : 'Left'}
                     onComplete={
-                      activeChallenge.allowLateSubmit ? onRefresh : undefined
+                      activeChallenge.allowLateSubmit
+                        ? () => onRefresh?.({ force: true })
+                        : undefined
                     }
                   />
                 )}
@@ -911,7 +945,7 @@ export default function PlayerPlayScreen({ data, onRefresh, onActionResult, even
 
           <button
             type="button"
-            onClick={() => onRefresh?.()}
+            onClick={() => onRefresh?.({ force: true })}
             className="w-full py-2 text-center text-sm text-white/30 transition hover:text-white/55"
           >
             Refresh status
