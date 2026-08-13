@@ -36,6 +36,7 @@ import DemoScalePanel from './DemoScalePanel';
 import StartingSystemPanel from './StartingSystemPanel';
 import AdminWorkflowNav from './AdminWorkflowNav';
 import AdminSetupGuide from './AdminSetupGuide';
+import DryRunHuddleChecklist from './DryRunHuddleChecklist';
 import RouteManagerPanel from './RouteManagerPanel';
 import PlaytestDesk from './PlaytestDesk';
 import VolunteerSetupPanel from './VolunteerSetupPanel';
@@ -421,6 +422,14 @@ export default function CampusHuntEventControl() {
           </button>
 
           <AdminSetupGuide compact />
+
+          <DryRunHuddleChecklist
+            eventId={eventId}
+            campusStations={overview?.campusStations || overview?.event?.campusStations}
+            campusStarts={overview?.campusStarts || overview?.event?.campusStarts}
+            stationCount={overview?.stationCount ?? overview?.event?.stationCount}
+            teamSize={competitionFormat.teamSize}
+          />
 
           <AdminWorkflowNav
             current={tab}

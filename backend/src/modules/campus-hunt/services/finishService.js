@@ -9,7 +9,7 @@ const { applyCheckpointCompletionCascade } = require('./stateMachine');
 const { completionMs } = require('./timerService');
 const { writeAudit } = require('./auditService');
 
-const FINISH_READY_STAGES = new Set(['CLUE_4_COMPLETED', 'CLUE_4_FAILED']);
+const FINISH_READY_STAGES = new Set(['CLUE_5_COMPLETED', 'CLUE_5_FAILED']);
 
 async function markTeamReachedAtStart({
   teamId,
@@ -89,6 +89,9 @@ async function markTeamReachedAtStart({
       finishedAt: updated.finishedAt,
     },
   });
+
+  const { publishTeamProgress } = require('./teamProgressBus');
+  publishTeamProgress(team._id);
 
   return {
     alreadyProcessed: false,

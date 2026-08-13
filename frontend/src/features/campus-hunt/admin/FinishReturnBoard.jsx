@@ -8,7 +8,7 @@ import { isGenericTeamName } from '../utils/teamLabel';
 
 const THEME = STAGE_THEMES.final;
 
-const RETURNING_STAGES = new Set(['CLUE_4_COMPLETED', 'CLUE_4_FAILED']);
+const RETURNING_STAGES = new Set(['CLUE_5_COMPLETED', 'CLUE_5_FAILED']);
 const DONE_STAGES = new Set(['SCORE_LOCKED', 'FINISH_COMPLETED']);
 
 function id(value) {
@@ -194,7 +194,7 @@ export default function FinishReturnBoard({
           </div>
           <h3 className="mt-2 text-lg font-bold text-white">Teams coming back</h3>
           <p className="mt-1 text-sm text-white/65">
-            After the one-word Final clue, teams return to their own start
+            After Clue 5 / the one-word Final, teams return to their own start
             ({teamCapacity} teams · {startCount} start{startCount === 1 ? '' : 's'}
             {' '}· ~{teamsPerWait}/start · {teamSize}/team).
             Mark them by team number when they arrive — score locks.
@@ -296,7 +296,7 @@ export default function FinishReturnBoard({
                             : 'Say this code at the desk'}
                         </p>
                         <p className="text-[10px] uppercase text-red-100/70">
-                          {team.currentStage === 'CLUE_4_FAILED' ? 'Clue 4 failed · still check in' : 'Clue 4 done · at start'}
+                          {team.currentStage === 'CLUE_5_FAILED' ? 'Clue 5 failed · still check in' : 'Clue 5 / Final done · at start'}
                         </p>
                       </div>
                       <button

@@ -16,7 +16,12 @@ const {
   hasDistinctVerifiedRoster,
   uniqueIdStrings,
 } = require('../utils/roster');
+const { publishTeamProgress } = require('./teamProgressBus');
 
+function notifyTeam(teamOrId) {
+  const id = teamOrId?._id || teamOrId?.id || teamOrId;
+  if (id) publishTeamProgress(id);
+}
 
 async function scanRequiredForTeam(team) {
   const event = await CampusHuntEvent.findById(team.eventId).select('teamSize').lean();
@@ -91,10 +96,11 @@ function assertTeamEligibleForCheckpoint(team, checkpoint) {
   const isFirstStop = key === '1';
   const isSecondStop = key === '2';
   const isThirdStop = key === '3';
+  const isFourthStop = key === '4';
   // Only ST-* posters skip route matching (they're anchored on one route id).
   const sharedStation = isSharedStationCheckpoint(checkpoint);
 
-  // Assigned station must match (shared QR still maps to team.first/second/thirdCheckpointId).
+  // Assigned station must match (shared QR still maps to team.first/second/third/fourthCheckpointId).
   if (isFirstStop && String(team.firstCheckpointId || '') !== String(checkpoint._id)) {
     const err = new Error(
       'Wrong station — this QR is not your assigned first stop. Go to your allotted place.',
@@ -117,6 +123,14 @@ function assertTeamEligibleForCheckpoint(team, checkpoint) {
     );
     err.status = 409;
     err.code = 'WRONG_THIRD_CHECKPOINT';
+    throw err;
+  }
+  if (isFourthStop && String(team.fourthCheckpointId || '') !== String(checkpoint._id)) {
+    const err = new Error(
+      'Wrong station — this FOURTH SCAN QR is not your assigned stop.',
+    );
+    err.status = 409;
+    err.code = 'WRONG_FOURTH_CHECKPOINT';
     throw err;
   }
   if (
@@ -263,6 +277,7 @@ async function verifyMember({
   }
 
   const fresh = await CampusHuntCheckpointVerification.findById(verification._id);
+  notifyTeam(team);
   return {
     alreadyComplete: false,
     verifiedCount: fresh.verifiedMemberIds.length,
@@ -303,6 +318,7 @@ async function completeCheckpoint({
   });
   if (existing && (existing.status === 'complete' || existing.status === 'manual_reconciled')) {
     const freshTeam = await CampusHuntTeam.findById(team._id);
+    notifyTeam(team);
     return {
       alreadyProcessed: true,
       status: existing.status,
@@ -469,6 +485,7 @@ async function completeCheckpoint({
   if (!updatedTeam) {
     // Another writer won — return current
     const fresh = await CampusHuntTeam.findById(team._id);
+    notifyTeam(team);
     return {
       alreadyProcessed: true,
       status: completed.status,
@@ -493,6 +510,7 @@ async function completeCheckpoint({
     },
   });
 
+  notifyTeam(team);
   return {
     alreadyProcessed: false,
     status: completed.status,
@@ -732,6 +750,7 @@ async function playerScanStation({ team, userId, raw, now = new Date() }) {
     after: { verifiedCount: distinctVerified, teamStage, awaitingTeamCodeConfirm },
   });
 
+  notifyTeam(team);
   return {
     alreadyComplete: false,
     verifiedCount: distinctVerified,
@@ -764,7 +783,8 @@ async function getPendingCheckpointStatus(team, userId) {
   if (stage === 'CLUE_1_COMPLETED') checkpointKey = '1';
   else if (['CLUE_2_COMPLETED', 'CLUE_2_FAILED', 'CLUE_2_TIMEOUT'].includes(stage)) checkpointKey = '2';
   else if (['CLUE_3_COMPLETED', 'CLUE_3_FAILED'].includes(stage)) checkpointKey = '3';
-  else if (['CLUE_4_COMPLETED', 'CLUE_4_FAILED'].includes(stage)) {
+  else if (['CLUE_4_COMPLETED', 'CLUE_4_FAILED', 'CLUE_4_TIMEOUT'].includes(stage)) checkpointKey = '4';
+  else if (['CLUE_5_COMPLETED', 'CLUE_5_FAILED'].includes(stage)) {
     // Organizer marks reached at start — do not expose FINISH QR as pending player scan.
     return null;
   }
@@ -804,12 +824,31 @@ async function getPendingCheckpointStatus(team, userId) {
       membersNeeded: requiredCount,
     };
   }
+  if (checkpointKey === '4' && !team.fourthCheckpointId) {
+    return {
+      checkpointId: null,
+      checkpointKey: '4',
+      code: null,
+      locationName: null,
+      assignmentMissing: true,
+      publicInstruction:
+        'Your purple FOURTH SCAN station is not assigned yet. Ask an organizer to resync Clue 4 bindings.',
+      verifiedCount: 0,
+      requiredCount,
+      youScanned: false,
+      status: 'unassigned',
+      awaitingTeamCodeConfirm: false,
+      membersNeeded: requiredCount,
+    };
+  }
 
   const assignedId = checkpointKey === '1'
     ? team.firstCheckpointId
     : checkpointKey === '2'
       ? team.secondCheckpointId
-      : team.thirdCheckpointId;
+      : checkpointKey === '3'
+        ? team.thirdCheckpointId
+        : team.fourthCheckpointId;
 
   const checkpoint = assignedId
     ? await CampusHuntCheckpoint.findOne({
@@ -847,11 +886,13 @@ async function getPendingCheckpointStatus(team, userId) {
     scanned: verifiedIds.includes(id),
   }));
 
-  const scanKind = checkpointKey === '3'
-    ? 'THIRD SCAN'
-    : checkpointKey === '2'
-      ? 'SECOND SCAN'
-      : 'FIRST SCAN';
+  const scanKind = checkpointKey === '4'
+    ? 'FOURTH SCAN'
+    : checkpointKey === '3'
+      ? 'THIRD SCAN'
+      : checkpointKey === '2'
+        ? 'SECOND SCAN'
+        : 'FIRST SCAN';
   const awaitingTeamCodeConfirm = verification?.status === 'awaiting_claim'
     || (
       verifiedIds.length >= requiredCount
@@ -986,7 +1027,8 @@ async function confirmStationClaim({
   let unlockLabel = 'Next step unlocked';
   if (stageStr.includes('CLUE_2')) unlockLabel = 'Clue 2 unlocked';
   else if (stageStr.includes('CLUE_3')) unlockLabel = 'Clue 3 riddle unlocked';
-  else if (stageStr.includes('CLUE_4')) unlockLabel = 'Final clue unlocked';
+  else if (stageStr.includes('CLUE_4')) unlockLabel = 'Crazy prop hunt unlocked';
+  else if (stageStr.includes('CLUE_5')) unlockLabel = 'Final clue unlocked';
 
   return {
     alreadyComplete: Boolean(result.alreadyProcessed),
@@ -994,6 +1036,8 @@ async function confirmStationClaim({
     unlockedNext: true,
     unlockedClue2: stageStr.includes('CLUE_2'),
     unlockedClue3: stageStr.includes('CLUE_3'),
+    unlockedClue4: stageStr.includes('CLUE_4'),
+    unlockedClue5: stageStr.includes('CLUE_5'),
     teamStage: result.teamStage,
     verifiedCount: requiredCount,
     requiredCount,

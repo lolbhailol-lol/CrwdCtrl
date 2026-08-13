@@ -62,7 +62,9 @@ export function buildPlayerNowGuide({
       ? 'Green'
       : checkpointStatus?.checkpointKey?.startsWith('3')
         ? 'Blue'
-        : 'Orange';
+        : checkpointStatus?.checkpointKey?.startsWith('4')
+          ? 'Purple'
+          : 'Orange';
     const required = Number(checkpointStatus?.requiredCount || team?.teamSize || 4);
     const scanned = Boolean(checkpointStatus?.youScanned);
     const awaitingClaim = Boolean(checkpointStatus?.awaitingTeamCodeConfirm)
@@ -186,15 +188,38 @@ export function buildPlayerNowGuide({
   }
 
   if (activeNum === 4) {
+    if (activeChallenge?.instructionPhase) {
+      return {
+        tone: 'clue',
+        eyebrow: 'Clue 4 · Prop hunt',
+        title: 'Read the brief',
+        body: 'The hunt timer starts when the countdown hits zero.',
+        steps: ['Read now', 'Wait for the timer', 'Then find the prop and submit its code'],
+      };
+    }
+    return {
+      tone: 'clue',
+      eyebrow: 'Clue 4 · Prop hunt',
+      title: isLeader ? 'Find the crazy prop' : 'Help find the prop',
+      body: isLeader
+        ? 'Hunt the planted prop, type its sticker code. Faster = more points.'
+        : 'Help search — only the leader submits.',
+      steps: isLeader
+        ? ['Find the prop', 'Type the short code', 'Submit, then scan purple']
+        : ['Help search', 'Stay for the purple scan next'],
+    };
+  }
+
+  if (activeNum === 5) {
     return {
       tone: 'final',
       eyebrow: 'Final clue',
       title: isLeader ? 'Submit the one word' : 'Share your code',
       body: isLeader
-        ? 'Collect all 4 fragments, submit, then report to start.'
+        ? 'Collect all fragments, submit, then report to start.'
         : 'Show your fragment — leader submits.',
       steps: isLeader
-        ? ['Collect 4 codes', 'Type the word', 'Submit, then report to start']
+        ? ['Collect codes', 'Type the word', 'Submit, then report to start']
         : ['Show your fragment', 'Go with the team to the start desk'],
     };
   }

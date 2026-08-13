@@ -285,6 +285,12 @@ async function getTeamProgress(req, res, next) {
   }
 }
 
+/** SSE: teammates / admin mutations push a progress ping; client refetches progress. */
+async function streamTeamProgress(req, res) {
+  const { subscribeTeamProgress } = require('../services/teamProgressBus');
+  subscribeTeamProgress(req.params.teamId, res);
+}
+
 async function scanStation(req, res, next) {
   try {
     const { playerScanStation } = require('../services/checkpointService');
@@ -336,6 +342,8 @@ async function confirmStation(req, res, next) {
         checkpointId = req.huntTeam.secondCheckpointId;
       } else if (['CLUE_3_COMPLETED', 'CLUE_3_FAILED'].includes(stage)) {
         checkpointId = req.huntTeam.thirdCheckpointId;
+      } else if (['CLUE_4_COMPLETED', 'CLUE_4_FAILED', 'CLUE_4_TIMEOUT'].includes(stage)) {
+        checkpointId = req.huntTeam.fourthCheckpointId;
       }
     }
     if (!checkpointId) {
@@ -961,6 +969,7 @@ module.exports = {
   getPublicLeaderboard,
   getMyTeam,
   getTeamProgress,
+  streamTeamProgress,
   submitChallengeAnswer,
   submitClue1,
   requestChallengeHint,

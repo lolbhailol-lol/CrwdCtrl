@@ -9,6 +9,7 @@ const {
   promoteTop5FromR1,
   promoteManualPick,
   promoteDemoFinalists,
+  setFinalePlayingTeams,
   listEntries,
   listPromotionCandidates,
 } = require('../services/finale/finalePromotionService');
@@ -42,6 +43,11 @@ const {
   playtestResetFinaleTeam,
   loadEntryForTeam,
 } = require('../services/finale/finaleMissionService');
+const { publishTeamProgress } = require('../services/teamProgressBus');
+
+function notifyFinaleTeam(teamId) {
+  if (teamId) publishTeamProgress(teamId);
+}
 const CampusHuntEvent = require('../models/CampusHuntEvent');
 const { buildPlayerRoundsHub, assertRoundPlayable } = require('../services/playerRoundAccess');
 
@@ -206,6 +212,24 @@ async function promoteDemo(req, res, next) {
   }
 }
 
+/** Dry-run / custom: pick exact teams that play Finale (updates mission roster). */
+async function promoteSelected(req, res, next) {
+  try {
+    const result = await setFinalePlayingTeams({
+      eventId: req.params.eventId,
+      teamIds: req.body?.teamIds || [],
+      replace: req.body?.replace !== false,
+      actor: actorFromReq(req),
+    });
+    return res.json({ success: true, data: result });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, message: err.message, code: err.code });
+    }
+    return next(err);
+  }
+}
+
 async function getEntries(req, res, next) {
   try {
     const entries = await listEntries(req.params.eventId);
@@ -356,6 +380,7 @@ async function releaseTeam(req, res, next) {
       teamId: req.params.teamId,
       actor: actorFromReq(req),
     });
+    notifyFinaleTeam(req.params.teamId);
     return res.json({ success: true, data: { entry } });
   } catch (err) {
     if (err.status) {
@@ -588,6 +613,7 @@ async function startFinaleMission(req, res, next) {
       userId: req.user.userId,
       actor: playerActor(req),
     });
+    notifyFinaleTeam(team._id);
     return res.json({ success: true, data });
   } catch (err) {
     if (err.status) {
@@ -612,6 +638,7 @@ async function submitFinaleMission(req, res, next) {
       isLeader,
       actor: playerActor(req),
     });
+    notifyFinaleTeam(team._id);
     return res.json({ success: true, data });
   } catch (err) {
     if (err.status) {
@@ -630,6 +657,7 @@ async function abandonFinaleMission(req, res, next) {
       userId: req.user.userId,
       actor: playerActor(req),
     });
+    notifyFinaleTeam(team._id);
     return res.json({ success: true, data });
   } catch (err) {
     if (err.status) {
@@ -647,6 +675,7 @@ async function stopFinaleTeam(req, res, next) {
       teamId: team._id,
       actor: playerActor(req),
     });
+    notifyFinaleTeam(team._id);
     return res.json({ success: true, data });
   } catch (err) {
     if (err.status) {
@@ -735,6 +764,7 @@ module.exports = {
   promoteAuto,
   promoteManual,
   promoteDemo,
+  promoteSelected,
   getEntries,
   getCandidates,
   startFinale,

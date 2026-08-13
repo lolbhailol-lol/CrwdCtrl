@@ -62,6 +62,16 @@ const campusHuntTeamSchema = new mongoose.Schema(
       ref: 'CampusHuntCheckpoint',
       index: true,
     },
+    clue4ChallengeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'CampusHuntChallenge',
+      index: true,
+    },
+    fourthCheckpointId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'CampusHuntCheckpoint',
+      index: true,
+    },
     teamCode: {
       type: String,
       required: true,

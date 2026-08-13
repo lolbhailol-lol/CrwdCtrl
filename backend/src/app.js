@@ -52,6 +52,8 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(compression({
   filter: (req, res) => {
     if (req.headers['x-no-compression']) return false;
+    // SSE must not be gzip-buffered
+    if (String(req.originalUrl || req.url || '').includes('/stream')) return false;
     return compression.filter(req, res);
   },
   level: 6,

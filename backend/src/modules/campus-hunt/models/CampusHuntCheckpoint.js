@@ -34,11 +34,11 @@ const campusHuntCheckpointSchema = new mongoose.Schema(
     },
     progressionKey: {
       type: String,
-      enum: ['1', '2', '3', 'FINISH'],
+      enum: ['1', '2', '3', '4', 'FINISH'],
       default: function defaultProgressionKey() {
         const key = String(this.checkpointKey || this.checkpointNumber || '1').toUpperCase();
         if (key === 'FINISH' || key.startsWith('FINISH')) return 'FINISH';
-        const match = key.match(/^([123])(?:-|$)/);
+        const match = key.match(/^([1234])(?:-|$)/);
         return match ? match[1] : '1';
       },
       index: true,
@@ -49,7 +49,7 @@ const campusHuntCheckpointSchema = new mongoose.Schema(
     },
     capacityGuidance: { type: Number, min: 1 },
     concurrencyGuidance: { type: String, default: '', trim: true },
-    /** 1 | 2 | 3 | or use checkpointKey FINISH */
+    /** 1 | 2 | 3 | 4 | or use checkpointKey FINISH */
     checkpointNumber: { type: Number, required: true },
     checkpointKey: {
       type: String,

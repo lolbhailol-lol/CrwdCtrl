@@ -138,7 +138,7 @@ function removeManualPenalty(currentScore, penalty) {
   return (Number(currentScore) || 0) + Math.abs(Number(penalty) || 0);
 }
 
-/** Max: start 100 + clue1 50 + clue2 50 + clue3 50 + clue4 75 = 325 */
+/** Max: start 100 + clue1 50 + clue2 50 + clue3 50 + clue4 50 + clue5 75 = 375 */
 function theoreticalMaxScore(scoringConfig) {
   const start = scoringConfig?.startingScore ?? 100;
   const c1Mode = scoringConfig?.clue1?.awardMode || 'flat_base';
@@ -148,9 +148,11 @@ function theoreticalMaxScore(scoringConfig) {
   const c2Bands = scoringConfig?.clue2?.speedBonusBands || [];
   const c2 = Math.max(0, ...c2Bands.map((b) => Number(b.bonus) || 0), 0);
   const c3 = scoringConfig?.clue3?.basePoints ?? 50;
-  const c4 = (scoringConfig?.clue4?.basePoints ?? 50)
-    + Math.max(0, ...(scoringConfig?.clue4?.speedBonusBands || []).map((b) => Number(b.bonus) || 0), 0);
-  return start + c1 + c2 + c3 + c4;
+  const c4Bands = scoringConfig?.clue4?.speedBonusBands || [];
+  const c4 = Math.max(0, ...c4Bands.map((b) => Number(b.bonus) || 0), Number(scoringConfig?.clue4?.basePoints) || 0, 0);
+  const c5 = (scoringConfig?.clue5?.basePoints ?? 50)
+    + Math.max(0, ...(scoringConfig?.clue5?.speedBonusBands || []).map((b) => Number(b.bonus) || 0), 0);
+  return start + c1 + c2 + c3 + c4 + c5;
 }
 
 module.exports = {

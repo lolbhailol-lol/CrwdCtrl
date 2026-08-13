@@ -55,6 +55,12 @@ const campusHuntChallengeSchema = new mongoose.Schema(
       ref: 'CampusHuntCheckpoint',
       index: true,
     },
+    /** Clue 4 prop-hunt variant → shared station Checkpoint 4 (ST-*-4). */
+    fourthCheckpointId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'CampusHuntCheckpoint',
+      index: true,
+    },
     difficulty: {
       type: String,
       enum: ['easy', 'medium', 'hard'],
@@ -64,7 +70,7 @@ const campusHuntChallengeSchema = new mongoose.Schema(
       type: Number,
       required: true,
       min: 1,
-      max: 4,
+      max: 5,
     },
     type: {
       type: String,
@@ -73,7 +79,7 @@ const campusHuntChallengeSchema = new mongoose.Schema(
     },
     /** Shared prompt (Clue 1–3). */
     prompt: { type: String, default: '' },
-    /** Clue 4: four pieces keyed by member index 0=leader, 1–3=members. */
+    /** Clue 5 / Final: four pieces keyed by member index 0=leader, 1–3=members. */
     memberPrompts: {
       type: [String],
       default: undefined,

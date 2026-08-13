@@ -41,6 +41,7 @@ const scoringConfigSchema = new mongoose.Schema(
     clue2: { type: clueScoringSchema, default: () => ({ ...DEFAULT_SCORING_CONFIG.clue2 }) },
     clue3: { type: clueScoringSchema, default: () => ({ ...DEFAULT_SCORING_CONFIG.clue3 }) },
     clue4: { type: clueScoringSchema, default: () => ({ ...DEFAULT_SCORING_CONFIG.clue4 }) },
+    clue5: { type: clueScoringSchema, default: () => ({ ...DEFAULT_SCORING_CONFIG.clue5 }) },
   },
   { _id: false },
 );

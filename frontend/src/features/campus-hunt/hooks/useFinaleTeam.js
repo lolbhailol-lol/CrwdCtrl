@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { fetchFinaleMe, fetchMyTeam } from '../services/campusHunt.api';
+import {
+  fetchFinaleMe,
+  fetchMyTeam,
+  openTeamProgressStream,
+} from '../services/campusHunt.api';
 import { finalePlayerMessage } from '../utils/finalePlayerMessage';
 
 function pollIntervalMs(data, burstUntil) {
@@ -7,11 +11,29 @@ function pollIntervalMs(data, burstUntil) {
   const active = Boolean(data?.activeMission || data?.entry?.activeMissionId);
   const waiting = Boolean(data?.waitingForRelease);
   const live = data?.round?.status === 'live' && !data?.round?.closed;
-  // Near-live while teammates can change the board
   if (active) return 1000;
   if (waiting) return 2000;
+  // SSE is primary; keep a light safety poll while live
   if (live) return 3000;
   return 15000;
+}
+
+function finaleFingerprint(data) {
+  if (!data?.entry) return '';
+  const m = data.activeMission;
+  const missions = Array.isArray(data.missions) ? data.missions : [];
+  return [
+    data.entry.id || data.entry._id,
+    data.entry.status,
+    data.entry.finaleScore,
+    data.entry.activeMissionId,
+    data.waitingForRelease ? 1 : 0,
+    data.round?.status,
+    m?.missionId,
+    m?.status,
+    m?.stepIndex,
+    ...missions.map((x) => `${x.id || x.missionId}:${x.status}:${x.points ?? ''}`),
+  ].join('|');
 }
 
 export function finaleFromActionData(payload) {
@@ -31,10 +53,19 @@ export function useFinaleTeam(eventId) {
   const fetchGenRef = useRef(0);
   const pausePollUntilRef = useRef(0);
   const dataRef = useRef(null);
+  const fingerprintRef = useRef('');
 
   useEffect(() => {
     dataRef.current = data;
+    fingerprintRef.current = finaleFingerprint(data);
   }, [data]);
+
+  const applyMerged = useCallback((next) => {
+    const fp = finaleFingerprint(next);
+    if (fp && fp === fingerprintRef.current) return;
+    fingerprintRef.current = fp;
+    setData(next);
+  }, []);
 
   const refresh = useCallback(async ({
     includeTeam = false,
@@ -64,39 +95,42 @@ export function useFinaleTeam(eventId) {
         if (gen !== fetchGenRef.current) return;
         nextData = finaleRes.data;
       }
-      setData(nextData);
+      applyMerged(nextData);
       setError(null);
       setPollError(null);
     } catch (err) {
       if (gen !== fetchGenRef.current) return;
       if (err?.code === 'AUTH_401' || err?.status === 401) {
-        setError('Session expired — open your team link again');
-        setData(null);
-        teamIdRef.current = null;
-        teamMetaLoadedRef.current = false;
+        if (soft && dataRef.current) {
+          setPollError('Session issue — tap Refresh if the board looks stuck');
+        } else {
+          setError('Session expired — open your team link again');
+          setData(null);
+          teamIdRef.current = null;
+          teamMetaLoadedRef.current = false;
+          fingerprintRef.current = '';
+        }
       } else if (soft) {
         setPollError(finalePlayerMessage(err) || 'Failed to refresh');
       } else {
         setError(finalePlayerMessage(err) || 'Failed to load finale');
-        // Keep last good board — 500 / ROUND_LOCKED should never unmount mid-play
       }
     } finally {
       if (gen === fetchGenRef.current) setLoading(false);
     }
-  }, [eventId]);
+  }, [eventId, applyMerged]);
 
   const applyActionData = useCallback((payload) => {
     const next = finaleFromActionData(payload);
     if (!next) return false;
-    // Invalidate in-flight polls so they can't overwrite this optimistic board
     fetchGenRef.current += 1;
     pausePollUntilRef.current = Date.now() + 800;
-    setData(next);
+    applyMerged(next);
     setBurstUntil(Date.now() + 5000);
     setError(null);
     setPollError(null);
     return true;
-  }, []);
+  }, [applyMerged]);
 
   useEffect(() => {
     if (!eventId) {
@@ -106,9 +140,11 @@ export function useFinaleTeam(eventId) {
       setError(null);
       setPollError(null);
       teamMetaLoadedRef.current = false;
+      fingerprintRef.current = '';
       return undefined;
     }
-    setLoading(true);
+    // Silent revalidate when board already exists
+    if (!dataRef.current) setLoading(true);
     teamMetaLoadedRef.current = false;
     refresh({ includeTeam: true });
     return undefined;
@@ -133,7 +169,49 @@ export function useFinaleTeam(eventId) {
     refresh,
   ]);
 
-  // Focus / visibility — pull while finale is open
+  // Live SSE — admin release / teammate mission steps push → force finale board pull
+  useEffect(() => {
+    if (!eventId) return undefined;
+    const teamId = teamIdRef.current
+      || data?.entry?.teamId
+      || teamMeta?.id
+      || null;
+    if (!teamId) return undefined;
+
+    const ac = new AbortController();
+    let cancelled = false;
+    let retryTimer = null;
+
+    const connect = async () => {
+      while (!cancelled && !ac.signal.aborted) {
+        try {
+          await openTeamProgressStream(teamId, {
+            signal: ac.signal,
+            onEvent: (evt) => {
+              if (evt?.type === 'progress') {
+                pausePollUntilRef.current = 0;
+                void refresh({ includeTeam: false, soft: true, force: true });
+              }
+            },
+          });
+        } catch (err) {
+          if (cancelled || ac.signal.aborted || err?.name === 'AbortError') return;
+        }
+        if (cancelled || ac.signal.aborted) return;
+        await new Promise((resolve) => {
+          retryTimer = setTimeout(resolve, 2500);
+        });
+      }
+    };
+
+    void connect();
+    return () => {
+      cancelled = true;
+      ac.abort();
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [eventId, data?.entry?.teamId, teamMeta?.id, refresh]);
+
   useEffect(() => {
     if (!eventId) return undefined;
     const kick = () => {

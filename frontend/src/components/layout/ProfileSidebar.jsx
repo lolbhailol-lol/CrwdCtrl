@@ -1,7 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, User, HelpCircle, LogOut, Sun, Moon, Footprints, Mountain, CalendarDays, MapPinned, KeyRound } from 'lucide-react';
 import { isCampusHuntEnabled, CAMPUS_HUNT_PATHS } from '../../features/campus-hunt/config';
-import { fetchCampusHuntProfileEntries } from '../../features/campus-hunt/services/campusHunt.api';
+import {
+    clearCampusHuntProfileCache,
+    loadCampusHuntProfileEntries,
+    peekCampusHuntProfileCache,
+    warmCampusHuntChunks,
+} from '../../features/campus-hunt/utils/campusHuntProfileCache';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -36,7 +41,6 @@ function GoogleIcon({ className = 'w-6 h-6' }) {
 }
 
 /** Session caches so reopening Profile does not wait on the network again */
-let campusHuntProfileCache = null;
 let organizerEligibilityCache = null;
 
 export default function ProfileSidebar({
@@ -61,14 +65,18 @@ export default function ProfileSidebar({
     const [eventOrganizerEligible, setEventOrganizerEligible] = useState(
         () => Boolean(organizerEligibilityCache?.event),
     );
+    const cachedHunt = peekCampusHuntProfileCache();
     const [campusHuntLoginLive, setCampusHuntLoginLive] = useState(
-        () => Boolean(campusHuntProfileCache?.showLogin),
+        () => Boolean(cachedHunt?.showLogin),
     );
     const [campusHuntLeaderboardLive, setCampusHuntLeaderboardLive] = useState(
-        () => Boolean(campusHuntProfileCache?.showLeaderboard),
+        () => Boolean(cachedHunt?.showLeaderboard),
     );
     const [campusHuntMyTeams, setCampusHuntMyTeams] = useState(
-        () => campusHuntProfileCache?.myTeams || [],
+        () => cachedHunt?.myTeams || [],
+    );
+    const [campusHuntEntriesPending, setCampusHuntEntriesPending] = useState(
+        () => isCampusHuntEnabled() && !cachedHunt?.resolved,
     );
 
     const authPending = isLoading || isAuthProcessing || isRedirectProcessing;
@@ -82,70 +90,68 @@ export default function ProfileSidebar({
     // Drop profile caches on confirmed logout (skip cold auth bootstrap)
     useEffect(() => {
         if (authPending || isAuthenticated) return undefined;
-        campusHuntProfileCache = null;
+        clearCampusHuntProfileCache();
         organizerEligibilityCache = null;
         setCampusHuntLoginLive(false);
         setCampusHuntLeaderboardLive(false);
         setCampusHuntMyTeams([]);
+        setCampusHuntEntriesPending(isCampusHuntEnabled());
         setClubManagerEligible(false);
         setTrekCommunityEligible(false);
         setEventOrganizerEligible(false);
         return undefined;
     }, [isAuthenticated, authPending]);
 
-    // Campus Hunt Profile entries — admin toggles login / leaderboard separately
+    // Prefetch Campus Hunt entries as soon as auth settles (not only when Profile opens)
     useEffect(() => {
-        if (!isOpen || !isCampusHuntEnabled()) {
-            if (!isCampusHuntEnabled()) {
-                setCampusHuntLoginLive(false);
-                setCampusHuntLeaderboardLive(false);
-                setCampusHuntMyTeams([]);
-            }
+        if (!isCampusHuntEnabled()) {
+            setCampusHuntLoginLive(false);
+            setCampusHuntLeaderboardLive(false);
+            setCampusHuntMyTeams([]);
+            setCampusHuntEntriesPending(false);
             return undefined;
         }
-
-        // Avoid a throwaway fetch as `u:auth` before user fields hydrate after login
+        if (authPending) return undefined;
         if (isAuthenticated && !campusHuntIdentity) return undefined;
 
         const cacheKey = isAuthenticated ? `u:${campusHuntIdentity}` : 'guest';
-
-        // Cache hit for this identity → apply UI state, skip network
-        if (campusHuntProfileCache?.key === cacheKey) {
-            setCampusHuntLoginLive(Boolean(campusHuntProfileCache.showLogin));
-            setCampusHuntLeaderboardLive(Boolean(campusHuntProfileCache.showLeaderboard));
-            setCampusHuntMyTeams(campusHuntProfileCache.myTeams || []);
+        const hit = peekCampusHuntProfileCache();
+        if (hit?.key === cacheKey && hit.resolved) {
+            setCampusHuntLoginLive(Boolean(hit.showLogin));
+            setCampusHuntLeaderboardLive(Boolean(hit.showLeaderboard));
+            setCampusHuntMyTeams(hit.myTeams || []);
+            setCampusHuntEntriesPending(false);
             return undefined;
         }
 
-        if (campusHuntProfileCache) {
-            campusHuntProfileCache = null;
-        }
-
         let cancelled = false;
+        setCampusHuntEntriesPending(true);
         (async () => {
             try {
-                const res = await fetchCampusHuntProfileEntries();
+                const next = await loadCampusHuntProfileEntries(cacheKey);
                 if (cancelled) return;
-                const next = {
-                    key: cacheKey,
-                    showLogin: Boolean(res.data?.showLogin),
-                    showLeaderboard: Boolean(res.data?.showLeaderboard),
-                    myTeams: Array.isArray(res.data?.myTeams) ? res.data.myTeams : [],
-                };
-                campusHuntProfileCache = next;
                 setCampusHuntLoginLive(next.showLogin);
                 setCampusHuntLeaderboardLive(next.showLeaderboard);
-                setCampusHuntMyTeams(next.myTeams);
+                setCampusHuntMyTeams(next.myTeams || []);
             } catch {
-                if (!cancelled && !campusHuntProfileCache) {
+                if (!cancelled && !peekCampusHuntProfileCache()?.resolved) {
                     setCampusHuntLoginLive(false);
                     setCampusHuntLeaderboardLive(false);
                     setCampusHuntMyTeams([]);
                 }
+            } finally {
+                if (!cancelled) setCampusHuntEntriesPending(false);
             }
         })();
         return () => { cancelled = true; };
-    }, [isOpen, isAuthenticated, campusHuntIdentity]);
+    }, [authPending, isAuthenticated, campusHuntIdentity]);
+
+    // Warm hunt route chunks when Profile opens
+    useEffect(() => {
+        if (!isOpen || !isCampusHuntEnabled()) return undefined;
+        warmCampusHuntChunks();
+        return undefined;
+    }, [isOpen]);
 
     // Organizer rows load in the background; menu is usable immediately
     useEffect(() => {
@@ -212,11 +218,12 @@ export default function ProfileSidebar({
     }, [isOpen]);
 
     const handleLogout = () => {
-        campusHuntProfileCache = null;
+        clearCampusHuntProfileCache();
         organizerEligibilityCache = null;
         setCampusHuntLoginLive(false);
         setCampusHuntLeaderboardLive(false);
         setCampusHuntMyTeams([]);
+        setCampusHuntEntriesPending(isCampusHuntEnabled());
         setClubManagerEligible(false);
         setTrekCommunityEligible(false);
         setEventOrganizerEligible(false);
@@ -252,6 +259,7 @@ export default function ProfileSidebar({
         }
 
         if (label === 'Campus Hunt login') {
+            warmCampusHuntChunks();
             if (!isAuthenticated) {
                 if (onShowLogin) {
                     onShowLogin({ returnPath: CAMPUS_HUNT_PATHS.profileLogin });
@@ -308,6 +316,7 @@ export default function ProfileSidebar({
 
         const path = MENU_ROUTES[label];
         if (!path) return;
+        if (label.startsWith('Campus Hunt')) warmCampusHuntChunks();
         goToPath(path);
     };
 
@@ -317,6 +326,9 @@ export default function ProfileSidebar({
         hint: t.teamName || t.college || 'Open team login',
     }));
 
+    const showHuntLoginPlaceholder = campusHuntEntriesPending && !campusHuntLoginLive;
+    const showHuntBoardPlaceholder = campusHuntEntriesPending && !campusHuntLeaderboardLive;
+
     const campusHuntItems = [
         ...campusHuntTeamItems,
         ...(campusHuntLoginLive && campusHuntTeamItems.length === 0
@@ -325,8 +337,14 @@ export default function ProfileSidebar({
         ...(campusHuntLoginLive && campusHuntTeamItems.length > 0
             ? [{ icon: KeyRound, label: 'Campus Hunt login', hint: 'Enter another team code' }]
             : []),
+        ...(showHuntLoginPlaceholder
+            ? [{ icon: KeyRound, label: 'Campus Hunt login', hint: 'Loading…', pending: true }]
+            : []),
         ...(campusHuntLeaderboardLive
             ? [{ icon: MapPinned, label: 'Campus Hunt leaderboard', hint: 'Live college scores' }]
+            : []),
+        ...(showHuntBoardPlaceholder
+            ? [{ icon: MapPinned, label: 'Campus Hunt leaderboard', hint: 'Loading…', pending: true }]
             : []),
     ];
 
@@ -352,11 +370,21 @@ export default function ProfileSidebar({
     const allMobileMenuItems = [
         { icon: User, label: 'Edit profile', requiresAuth: true },
         ...campusHuntTeamItems.map((item) => ({ ...item, requiresAuth: false })),
-        ...(campusHuntLoginLive
-            ? [{ icon: KeyRound, label: 'Campus Hunt login', requiresAuth: false, hint: 'Google sign-in · enter team code' }]
+        ...(campusHuntLoginLive || showHuntLoginPlaceholder
+            ? [{
+                icon: KeyRound,
+                label: 'Campus Hunt login',
+                requiresAuth: false,
+                hint: showHuntLoginPlaceholder && !campusHuntLoginLive ? 'Loading…' : 'Google sign-in · enter team code',
+            }]
             : []),
-        ...(campusHuntLeaderboardLive
-            ? [{ icon: MapPinned, label: 'Campus Hunt leaderboard', requiresAuth: false, hint: 'Live college scores' }]
+        ...(campusHuntLeaderboardLive || showHuntBoardPlaceholder
+            ? [{
+                icon: MapPinned,
+                label: 'Campus Hunt leaderboard',
+                requiresAuth: false,
+                hint: showHuntBoardPlaceholder && !campusHuntLeaderboardLive ? 'Loading…' : 'Live college scores',
+            }]
             : []),
         ...(clubManagerEligible
             ? [{ icon: Footprints, label: 'Club manager', requiresAuth: true, hint: 'Runs, guests, check-in & notify' }]

@@ -19,6 +19,7 @@ const {
   getPublicLeaderboard,
   getMyTeam,
   getTeamProgress,
+  streamTeamProgress,
   submitClue1,
   submitChallengeAnswer,
   requestChallengeHint,
@@ -59,6 +60,12 @@ router.get(
   authenticateToken,
   requireTeamMember,
   getTeamProgress,
+);
+router.get(
+  '/teams/:teamId/stream',
+  authenticateToken,
+  requireTeamMember,
+  streamTeamProgress,
 );
 router.post(
   '/teams/:teamId/challenges/1/submit',

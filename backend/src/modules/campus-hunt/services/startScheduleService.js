@@ -57,6 +57,7 @@ function buildDeterministicSchedule({
   variants,
   clue2Variants = [],
   clue3Variants = [],
+  clue4Variants = [],
   startsAt,
   releaseIntervalMinutes = 5,
   assignmentStrategy = 'route_balanced',
@@ -191,6 +192,28 @@ function buildDeterministicSchedule({
     const clue3 = clue3ByWave
       || (clue3Sorted.length ? clue3Sorted[slot % clue3Sorted.length] : null);
 
+    const clue4Pool = (clue4Variants || []).filter((row) => (
+      row.active !== false
+      && Number(row.challengeNumber) === 4
+      && String(row.routeId) === String(route._id)
+      && row.fourthCheckpointId
+    ));
+    const clue4Exact = clue4Pool.filter((row) => (
+      !row.startingPointId
+      || String(row.startingPointId) === String(point._id)
+    ));
+    const clue4Sorted = (clue4Exact.length ? clue4Exact : clue4Pool)
+      .sort((a, b) => String(a.variantKey).localeCompare(String(b.variantKey)));
+    const clue4ByWave = clue4Sorted.find((row) => (
+      String(row.variantKey || '').toUpperCase().endsWith(`-${waveId}`)
+    )) || (variant
+      ? clue4Sorted.find((row) => (
+        String(row.variantKey || '').toUpperCase() === String(variant.variantKey || '').toUpperCase()
+      ))
+      : null);
+    const clue4 = clue4ByWave
+      || (clue4Sorted.length ? clue4Sorted[slot % clue4Sorted.length] : null);
+
     return {
       teamId: String(team._id),
       teamCode: team.teamCode,
@@ -218,6 +241,11 @@ function buildDeterministicSchedule({
       thirdCheckpointId: clue3?.thirdCheckpointId
         ? String(clue3.thirdCheckpointId)
         : null,
+      clue4ChallengeId: clue4 ? String(clue4._id) : null,
+      clue4VariantKey: clue4?.variantKey || null,
+      fourthCheckpointId: clue4?.fourthCheckpointId
+        ? String(clue4.fourthCheckpointId)
+        : null,
       complete: Boolean(variant?.firstCheckpointId),
     };
   });
@@ -231,7 +259,7 @@ async function previewSchedule({
   assignmentStrategy,
 }) {
   const CampusHuntEvent = require('../models/CampusHuntEvent');
-  const [round, event, teams, startingPointsRaw, routes, variants, clue2Variants, clue3Variants] = await Promise.all([
+  const [round, event, teams, startingPointsRaw, routes, variants, clue2Variants, clue3Variants, clue4Variants] = await Promise.all([
     CampusHuntRound.findOne({ _id: roundId, eventId }),
     CampusHuntEvent.findById(eventId).select('startCount teamCapacity').lean(),
     CampusHuntTeam.find({ eventId }).select('_id teamCode teamName routeId'),
@@ -241,6 +269,7 @@ async function previewSchedule({
     CampusHuntChallenge.find({ eventId, challengeNumber: 1, active: { $ne: false } }),
     CampusHuntChallenge.find({ eventId, challengeNumber: 2, active: { $ne: false } }),
     CampusHuntChallenge.find({ eventId, challengeNumber: 3, active: { $ne: false } }),
+    CampusHuntChallenge.find({ eventId, challengeNumber: 4, active: { $ne: false } }),
   ]);
   if (!round) throw scheduleError('Round not found', 'ROUND_NOT_FOUND', 404);
   const startCount = Math.max(1, Math.min(4, Number(event?.startCount) || 4));
@@ -294,6 +323,7 @@ async function previewSchedule({
     variants: pickChallenges(variants),
     clue2Variants: pickChallenges(clue2Variants),
     clue3Variants: pickChallenges(clue3Variants),
+    clue4Variants: pickChallenges(clue4Variants),
     startsAt: startsAt || round.startsAt,
     releaseIntervalMinutes: interval,
     assignmentStrategy: strategy,
@@ -307,6 +337,7 @@ async function previewSchedule({
         row.firstCheckpointId,
         row.secondCheckpointId,
         row.thirdCheckpointId,
+        row.fourthCheckpointId,
       ].filter(Boolean)),
     ),
   ];
@@ -320,12 +351,14 @@ async function previewSchedule({
     const first = byId.get(String(row.firstCheckpointId || ''));
     const second = byId.get(String(row.secondCheckpointId || ''));
     const third = byId.get(String(row.thirdCheckpointId || ''));
+    const fourth = byId.get(String(row.fourthCheckpointId || ''));
     return {
       ...row,
       startingPointName: row.startingPointName || row.startingPointCode || null,
       firstStopName: first?.locationName || null,
       secondStopName: second?.locationName || null,
       thirdStopName: third?.locationName || null,
+      fourthStopName: fourth?.locationName || null,
     };
   });
 
@@ -421,6 +454,30 @@ async function syncThirdCheckpointAllowLists({ eventId, roundId, assignments }) 
   return byCheckpoint.size;
 }
 
+/** Bind visiting teams onto each shared Checkpoint 4 / FOURTH SCAN QR. */
+async function syncFourthCheckpointAllowLists({ eventId, roundId, assignments }) {
+  await CampusHuntCheckpoint.updateMany(
+    { eventId, roundId, progressionKey: '4' },
+    { $set: { allowedTeamIds: [] } },
+  );
+  const byCheckpoint = new Map();
+  for (const assignment of assignments) {
+    if (!assignment.fourthCheckpointId || !assignment.teamId) continue;
+    const key = String(assignment.fourthCheckpointId);
+    if (!byCheckpoint.has(key)) byCheckpoint.set(key, []);
+    byCheckpoint.get(key).push(assignment.teamId);
+  }
+  for (const [checkpointId, teamIds] of byCheckpoint.entries()) {
+    const unique = [...new Set(teamIds.map(String))];
+    // eslint-disable-next-line no-await-in-loop
+    await CampusHuntCheckpoint.updateOne(
+      { _id: checkpointId, eventId, progressionKey: '4' },
+      { $set: { allowedTeamIds: unique } },
+    );
+  }
+  return byCheckpoint.size;
+}
+
 async function generateSchedule(options) {
   const result = await previewSchedule(options);
   const { round, assignments } = result;
@@ -430,7 +487,7 @@ async function generateSchedule(options) {
   for (const assignment of assignments) {
     // eslint-disable-next-line no-await-in-loop
     const before = await CampusHuntTeam.findById(assignment.teamId)
-      .select('startingPointId routeId scheduledStartAt clue1ChallengeId firstCheckpointId clue2ChallengeId secondCheckpointId clue3ChallengeId thirdCheckpointId currentStage startStatus startingScore currentScore')
+      .select('startingPointId routeId scheduledStartAt clue1ChallengeId firstCheckpointId clue2ChallengeId secondCheckpointId clue3ChallengeId thirdCheckpointId clue4ChallengeId fourthCheckpointId currentStage startStatus startingScore currentScore')
       .lean();
 
     const forceReset = options.forceResetProgress === true;
@@ -451,6 +508,8 @@ async function generateSchedule(options) {
     if (assignment.secondCheckpointId) $set.secondCheckpointId = assignment.secondCheckpointId;
     if (assignment.clue3ChallengeId) $set.clue3ChallengeId = assignment.clue3ChallengeId;
     if (assignment.thirdCheckpointId) $set.thirdCheckpointId = assignment.thirdCheckpointId;
+    if (assignment.clue4ChallengeId) $set.clue4ChallengeId = assignment.clue4ChallengeId;
+    if (assignment.fourthCheckpointId) $set.fourthCheckpointId = assignment.fourthCheckpointId;
 
     // Never wipe live stages unless organizer explicitly force-resets.
     if (!alreadyInProgress || forceReset) {
@@ -463,6 +522,8 @@ async function generateSchedule(options) {
     if (!assignment.secondCheckpointId) $unset.secondCheckpointId = 1;
     if (!assignment.clue3ChallengeId) $unset.clue3ChallengeId = 1;
     if (!assignment.thirdCheckpointId) $unset.thirdCheckpointId = 1;
+    if (!assignment.clue4ChallengeId) $unset.clue4ChallengeId = 1;
+    if (!assignment.fourthCheckpointId) $unset.fourthCheckpointId = 1;
     if (forceReset) {
       $unset.actualStartAt = 1;
       $unset.finalScore = 1;
@@ -532,6 +593,11 @@ async function generateSchedule(options) {
     roundId: round._id,
     assignments,
   });
+  const fourthPostersBound = await syncFourthCheckpointAllowLists({
+    eventId: options.eventId,
+    roundId: round._id,
+    assignments,
+  });
   round.startsAt = new Date(options.startsAt || round.startsAt);
   round.releaseIntervalMinutes = result.releaseIntervalMinutes;
   round.assignmentStrategy = result.assignmentStrategy;
@@ -561,9 +627,10 @@ async function generateSchedule(options) {
       firstStopPostersBound: postersBound,
       secondStopPostersBound: secondPostersBound,
       thirdStopPostersBound: thirdPostersBound,
+      fourthStopPostersBound: fourthPostersBound,
     },
   });
-  return { ...result, postersBound, secondPostersBound, thirdPostersBound };
+  return { ...result, postersBound, secondPostersBound, thirdPostersBound, fourthPostersBound };
 }
 
 /**
@@ -604,7 +671,7 @@ async function resyncClue1TeamBindings({ eventId, roundId, actor = {}, reason = 
     }
     // eslint-disable-next-line no-await-in-loop
     const team = await CampusHuntTeam.findById(assignment.teamId)
-      .select('startingPointId routeId scheduledStartAt roundId currentStage startStatus clue1ChallengeId firstCheckpointId clue2ChallengeId secondCheckpointId clue3ChallengeId thirdCheckpointId');
+      .select('startingPointId routeId scheduledStartAt roundId currentStage startStatus clue1ChallengeId firstCheckpointId clue2ChallengeId secondCheckpointId clue3ChallengeId thirdCheckpointId clue4ChallengeId fourthCheckpointId');
     if (!team) continue;
 
     const $set = {
@@ -619,6 +686,8 @@ async function resyncClue1TeamBindings({ eventId, roundId, actor = {}, reason = 
     if (assignment.secondCheckpointId) $set.secondCheckpointId = assignment.secondCheckpointId;
     if (assignment.clue3ChallengeId) $set.clue3ChallengeId = assignment.clue3ChallengeId;
     if (assignment.thirdCheckpointId) $set.thirdCheckpointId = assignment.thirdCheckpointId;
+    if (assignment.clue4ChallengeId) $set.clue4ChallengeId = assignment.clue4ChallengeId;
+    if (assignment.fourthCheckpointId) $set.fourthCheckpointId = assignment.fourthCheckpointId;
     if (!team.scheduledStartAt) $set.scheduledStartAt = assignment.scheduledStartAt;
 
     // eslint-disable-next-line no-await-in-loop
@@ -633,6 +702,8 @@ async function resyncClue1TeamBindings({ eventId, roundId, actor = {}, reason = 
       secondCheckpointId: assignment.secondCheckpointId,
       clue3ChallengeId: assignment.clue3ChallengeId,
       thirdCheckpointId: assignment.thirdCheckpointId,
+      clue4ChallengeId: assignment.clue4ChallengeId,
+      fourthCheckpointId: assignment.fourthCheckpointId,
       startingPointCode: assignment.startingPointCode,
       clue1VariantKey: assignment.clue1VariantKey,
       clue2VariantKey: assignment.clue2VariantKey,
@@ -655,6 +726,11 @@ async function resyncClue1TeamBindings({ eventId, roundId, actor = {}, reason = 
     roundId: round._id,
     assignments: preview.assignments,
   });
+  const fourthPostersBound = await syncFourthCheckpointAllowLists({
+    eventId,
+    roundId: round._id,
+    assignments: preview.assignments,
+  });
 
   await writeAudit({
     eventId,
@@ -670,6 +746,7 @@ async function resyncClue1TeamBindings({ eventId, roundId, actor = {}, reason = 
       firstStopPostersBound: postersBound,
       secondStopPostersBound: secondPostersBound,
       thirdStopPostersBound: thirdPostersBound,
+      fourthStopPostersBound: fourthPostersBound,
     },
   });
 
@@ -681,6 +758,7 @@ async function resyncClue1TeamBindings({ eventId, roundId, actor = {}, reason = 
     postersBound,
     secondPostersBound,
     thirdPostersBound,
+    fourthPostersBound,
     assignments: bound,
   };
 }
@@ -702,11 +780,13 @@ async function lockSchedule({ eventId, roundId, actor, reason }) {
     || !team.secondCheckpointId
     || !team.clue3ChallengeId
     || !team.thirdCheckpointId
+    || !team.clue4ChallengeId
+    || !team.fourthCheckpointId
   ));
   if (incomplete.length) {
     throw scheduleError(
-      `${incomplete.length} teams missing Clue 1/2/3 bindings (checkpoint or challenge). `
-      + 'Save Clue 2 & Clue 3, then Resync before locking.',
+      `${incomplete.length} teams missing Clue 1–4 bindings (checkpoint or challenge). `
+      + 'Bootstrap / Update clues, then Resync before locking.',
       'INCOMPLETE_START_ASSIGNMENTS',
     );
   }
@@ -768,6 +848,14 @@ async function lockSchedule({ eventId, roundId, actor, reason }) {
       thirdCheckpointId: team.thirdCheckpointId ? String(team.thirdCheckpointId) : null,
     })),
   });
+  await syncFourthCheckpointAllowLists({
+    eventId,
+    roundId,
+    assignments: teams.map((team) => ({
+      teamId: String(team._id),
+      fourthCheckpointId: team.fourthCheckpointId ? String(team.fourthCheckpointId) : null,
+    })),
+  });
   round.scheduleStatus = 'locked';
   round.scheduleLockedAt = new Date();
   await round.save();
@@ -792,6 +880,7 @@ module.exports = {
   syncFirstCheckpointAllowLists,
   syncSecondCheckpointAllowLists,
   syncThirdCheckpointAllowLists,
+  syncFourthCheckpointAllowLists,
   selectCanonicalStartingPoints,
   waitCodeFromPoint,
   scheduleError,

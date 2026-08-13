@@ -1,6 +1,6 @@
 /**
- * Rebind campushunt layout teams to active places only (S01–S04),
- * refresh Clue 1–3, regenerate schedule for dry run. Preserves roster names.
+ * Rebind campushunt layout teams to active places (stationCount, e.g. S01–S06),
+ * refresh clues, recreate schedule for dry run. Preserves roster names.
  *
  * Usage: node scripts/rebind-campushunt-active-stations.js [eventSlug]
  */
@@ -35,7 +35,7 @@ const LAYOUT_CODES = [
   event.teamCapacity = 8;
   event.teamSize = 3;
   event.startCount = Math.max(1, Number(event.startCount) || 1);
-  event.stationCount = Math.max(1, Math.min(10, Number(event.stationCount) || 4));
+  event.stationCount = Math.max(1, Math.min(10, Number(event.stationCount) || 6));
   if (event.status === 'finale') event.status = 'live';
   await event.save();
 
@@ -63,7 +63,7 @@ const LAYOUT_CODES = [
     {
       eventId: event._id,
       stationCode: { $nin: activeCodes },
-      progressionKey: { $in: ['1', '2', '3'] },
+      progressionKey: { $in: ['1', '2', '3', '4'] },
     },
     {
       $set: {

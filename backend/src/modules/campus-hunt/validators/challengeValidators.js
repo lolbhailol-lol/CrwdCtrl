@@ -9,7 +9,7 @@ function requireNonEmptyString(value, fieldName) {
 
 function parseChallengeNumber(raw) {
   const n = Number(raw);
-  if (![1, 2, 3, 4].includes(n)) {
+  if (![1, 2, 3, 4, 5].includes(n)) {
     const err = new Error('Invalid challenge number');
     err.status = 400;
     throw err;

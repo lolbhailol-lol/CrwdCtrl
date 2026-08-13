@@ -7,8 +7,10 @@ import {
   adminPromoteFinaleAuto,
   adminPromoteFinaleManual,
   adminPromoteFinaleDemo,
+  adminPromoteFinaleSelected,
   adminGetFinaleEntries,
   adminGetFinaleCandidates,
+  adminListTeams,
   adminGetFinaleLeaderboard,
   adminGetFinaleGridSessions,
   adminGetFinaleMissionAssignments,
@@ -195,6 +197,8 @@ export default function FinaleControlPanel({
   const [missionAssignments, setMissionAssignments] = useState(null);
   const [assignmentsLoading, setAssignmentsLoading] = useState(false);
   const [selected, setSelected] = useState(new Set());
+  const [rosterTeams, setRosterTeams] = useState([]);
+  const [rosterPick, setRosterPick] = useState(new Set());
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -217,13 +221,27 @@ export default function FinaleControlPanel({
   }, [eventId]);
 
   const loadFinalists = useCallback(async () => {
-    const [ent, cand] = await Promise.all([
+    const [ent, cand, teamRes] = await Promise.all([
       adminGetFinaleEntries(eventId),
       adminGetFinaleCandidates(eventId),
+      adminListTeams(eventId).catch(() => ({ data: { teams: [] } })),
     ]);
     setEntries(ent.data?.entries || []);
     setCandidates(cand.data?.candidates || []);
     if (ent.data?.round) setRound(ent.data.round);
+    const teams = Array.isArray(teamRes.data?.teams) ? teamRes.data.teams : [];
+    const sorted = [...teams].sort((a, b) => (
+      String(a.teamCode || '').localeCompare(String(b.teamCode || ''))
+    ));
+    setRosterTeams(sorted);
+    setRosterPick((prev) => {
+      if (prev.size > 0) return prev;
+      return new Set(
+        (ent.data?.entries || [])
+          .map((e) => String(e.teamId || ''))
+          .filter(Boolean),
+      );
+    });
   }, [eventId]);
 
   const loadLive = useCallback(async () => {
@@ -383,6 +401,39 @@ export default function FinaleControlPanel({
     );
   };
 
+  const toggleRosterPick = (teamId) => {
+    const id = String(teamId);
+    setRosterPick((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectFirstNRoster = (n) => {
+    const count = Math.max(1, Math.min(40, Number(n) || 1));
+    const ids = rosterTeams.slice(0, count).map((t) => String(t._id || t.id));
+    setRosterPick(new Set(ids));
+  };
+
+  const applyRosterPick = async () => {
+    const teamIds = [...rosterPick];
+    if (!teamIds.length) {
+      setMsg('Select at least one team');
+      return;
+    }
+    await run(
+      () => adminPromoteFinaleSelected(eventId, teamIds, { replace: true }),
+      `${teamIds.length} team(s) set for Finale — open Schedule → Generate so mission slots update`,
+    );
+    // After replace, sync checkboxes to what is actually promoted
+    const ent = await adminGetFinaleEntries(eventId);
+    setRosterPick(new Set(
+      (ent.data?.entries || []).map((e) => String(e.teamId || '')).filter(Boolean),
+    ));
+  };
+
   const fillDemoFinalists = async () => {
     let entRes = await adminGetFinaleEntries(eventId);
     let currentDirect = (entRes.data?.entries || [])
@@ -521,6 +572,82 @@ export default function FinaleControlPanel({
             <p className="text-sm text-white/55">
               Team 1–{format.directFromR1} direct from R1 · Team {format.directFromR1 + 1}–{format.finaleTeams} from Survival.
               Click any team to open their play link.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-4">
+            <p className="text-xs font-semibold uppercase tracking-widest text-emerald-200">
+              Dry-run · pick who plays Finale
+            </p>
+            <p className="mt-1 text-sm text-emerald-50/80">
+              Select Round 1 teams (or any teams), then apply. Replaces the finale roster and updates
+              mission capacity — then Generate schedule so slots/missions match.
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                disabled={busy || !rosterTeams.length}
+                onClick={() => selectFirstNRoster(8)}
+                className="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-semibold disabled:opacity-40"
+              >
+                Select first 8
+              </button>
+              <button
+                type="button"
+                disabled={busy || !rosterTeams.length}
+                onClick={() => selectFirstNRoster(format.finaleTeams)}
+                className="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-semibold disabled:opacity-40"
+              >
+                Select first {format.finaleTeams}
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setRosterPick(new Set())}
+                className="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-semibold disabled:opacity-40"
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                disabled={busy || !round || rosterPick.size === 0}
+                onClick={() => applyRosterPick()}
+                className="rounded-xl bg-emerald-400 px-4 py-2 text-sm font-bold text-black disabled:opacity-40"
+              >
+                Set {rosterPick.size || '…'} selected as Finale roster
+              </button>
+            </div>
+            <div className="mt-3 max-h-56 overflow-y-auto divide-y divide-white/10 rounded-xl border border-white/10 bg-black/25">
+              {rosterTeams.map((t) => {
+                const id = String(t._id || t.id);
+                const inFinale = Boolean(t.finaleEntryId)
+                  || entries.some((e) => String(e.teamId) === id);
+                return (
+                  <label
+                    key={id}
+                    className="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-white/5"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={rosterPick.has(id)}
+                      onChange={() => toggleRosterPick(id)}
+                    />
+                    <span className="font-mono text-[#0ECCEE]">{t.teamCode}</span>
+                    <span className="min-w-0 flex-1 truncate text-sm text-white/70">
+                      {t.teamName || t.leaderName || '—'}
+                    </span>
+                    <span className="text-[10px] uppercase tracking-wide text-white/40">
+                      {inFinale ? 'In finale' : (t.currentStage || 'R1')}
+                    </span>
+                  </label>
+                );
+              })}
+              {!rosterTeams.length ? (
+                <p className="px-3 py-4 text-sm text-white/45">No teams yet — create Round 1 teams first.</p>
+              ) : null}
+            </div>
+            <p className="mt-2 text-[11px] text-emerald-100/60">
+              Selected {rosterPick.size} · After apply: Schedule → Generate → Lock → Start · Release teams
             </p>
           </div>
 

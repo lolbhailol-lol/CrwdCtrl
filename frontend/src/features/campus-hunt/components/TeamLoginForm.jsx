@@ -12,6 +12,7 @@ import useHuntAuth from '../hooks/useHuntAuth';
 import { teamPrimaryLabel, teamSecondaryName } from '../utils/teamLabel';
 import { normalizeTeamCode } from '../utils/teamCode';
 import { rememberHuntSession } from '../utils/huntSession';
+import { readHuntAuthMeta } from '../utils/huntAuth';
 import CampusHuntBackLink from './CampusHuntBackLink';
 
 /**
@@ -103,8 +104,26 @@ export default function TeamLoginForm({
       setOtherTeamCode('');
       return;
     }
+
+    // Instant resume when stored meta already matches this team link
+    const metaCode = normalizeTeamCode(readHuntAuthMeta()?.teamCode);
+    if (metaCode && metaCode === teamCode) {
+      rememberHuntSession({
+        slug,
+        teamCode,
+        playPath,
+        teamLoginPath: CAMPUS_HUNT_PATHS.teamLogin(slug, teamCode),
+      });
+      navigate(playPath, { replace: true });
+      return;
+    }
+
     let cancelled = false;
     setSessionCheck('checking');
+    const failSafe = setTimeout(() => {
+      if (!cancelled) setSessionCheck((prev) => (prev === 'checking' ? 'ready' : prev));
+    }, 400);
+
     (async () => {
       try {
         const res = await fetchMyTeam(eventId);
@@ -133,7 +152,10 @@ export default function TeamLoginForm({
         }
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      clearTimeout(failSafe);
+    };
   }, [
     isHuntAuthenticated,
     lookingUp,
@@ -275,8 +297,8 @@ export default function TeamLoginForm({
 
   if (sessionCheck === 'checking') {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0b0c0d] text-white">
-        Checking hunt access…
+      <div className="flex min-h-screen flex-col items-center justify-center gap-2 bg-[#0b0c0d] px-4 text-center text-white">
+        <p className="text-sm text-white/70">Opening your hunt…</p>
       </div>
     );
   }

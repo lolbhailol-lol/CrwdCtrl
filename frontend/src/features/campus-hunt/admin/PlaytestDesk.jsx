@@ -220,7 +220,7 @@ export default function PlaytestDesk({
         1: `Orange ${n}/${n} forced — player phones refresh ~1s. Solve Clue 2 on phone (or tap Green next)`,
         2: `Green ${n}/${n} forced — player phones refresh ~1s. Solve Clue 3 on phone, then Blue`,
         3: `Blue ${n}/${n} forced — player phones refresh ~1s. Solve Final, then Mark finish`,
-        all: 'All scans forced. Keep player screens open — they update fast. Finish missing clues · Mark finish',
+        all: 'All scans forced. Player phones update live — keep play screens open.',
       };
       setNote(tips[scan] || `${labels} done`);
       await onChanged?.();

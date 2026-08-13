@@ -96,6 +96,7 @@ router.patch('/events/:eventId/finale/config', finaleController.patchConfig);
 router.post('/events/:eventId/finale/promote/auto', finaleController.promoteAuto);
 router.post('/events/:eventId/finale/promote/manual', finaleController.promoteManual);
 router.post('/events/:eventId/finale/promote/demo', finaleController.promoteDemo);
+router.post('/events/:eventId/finale/promote/selected', finaleController.promoteSelected);
 router.get('/events/:eventId/finale/entries', finaleController.getEntries);
 router.get('/events/:eventId/finale/candidates', finaleController.getCandidates);
 router.get('/events/:eventId/finale/grid-sessions', finaleController.getGridSessions);

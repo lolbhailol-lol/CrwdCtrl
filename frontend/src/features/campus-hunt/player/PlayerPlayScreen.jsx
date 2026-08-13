@@ -38,11 +38,14 @@ function needsStationScan(stage) {
     || stage === 'CLUE_2_TIMEOUT'
     || stage === 'CLUE_3_COMPLETED'
     || stage === 'CLUE_3_FAILED'
+    || stage === 'CLUE_4_COMPLETED'
+    || stage === 'CLUE_4_FAILED'
+    || stage === 'CLUE_4_TIMEOUT'
   );
 }
 
 function needsStartReport(stage) {
-  return stage === 'CLUE_4_COMPLETED' || stage === 'CLUE_4_FAILED';
+  return stage === 'CLUE_5_COMPLETED' || stage === 'CLUE_5_FAILED';
 }
 
 const panel = 'rounded-2xl border border-white/[0.08] bg-[#121416]/85 p-4 backdrop-blur-sm';
@@ -219,7 +222,7 @@ export default function PlayerPlayScreen({
     e.preventDefault();
     if (!activeNum || !isLeader) return;
     if (activeChallenge?.instructionPhase) {
-      setFeedback('Read the instructions first — the 3-minute timer has not started yet.');
+      setFeedback('Read the instructions first — the hunt timer has not started yet.');
       return;
     }
     const attempts = Number(activeChallenge?.attempts || 0);
@@ -249,6 +252,13 @@ export default function PlayerPlayScreen({
         );
         setAwardedFlash(pts > 0 ? pts : null);
       } else if (activeNum === 4) {
+        celebrate(
+          pts > 0
+            ? `Prop found! +${pts} pts — purple scan next`
+            : 'Prop found — purple scan next',
+        );
+        setAwardedFlash(pts > 0 ? pts : null);
+      } else if (activeNum === 5) {
         celebrate(
           pts > 0
             ? `Correct! +${pts} pts — report to start`
@@ -518,7 +528,7 @@ export default function PlayerPlayScreen({
           {/* Scan action */}
           {atCheckpoint && checkpointStatus && (
             <motion.section
-              initial={{ opacity: 0, y: 10 }}
+              initial={false}
               animate={{ opacity: 1, y: 0 }}
               className={`${panel} space-y-4`}
               style={{ borderColor: `${checkpointTheme.hex}40` }}
@@ -657,7 +667,7 @@ export default function PlayerPlayScreen({
               {checkpointStatus.youScanned
                 && Number(checkpointStatus.verifiedCount || 0) < Number(checkpointStatus.requiredCount || team?.teamSize || 4)
                 && !checkpointStatus.awaitingTeamCodeConfirm && (
-                <p className="animate-pulse text-center text-sm text-emerald-300/90">
+                <p className="text-center text-sm text-emerald-300/90">
                   You scanned · waiting for {checkpointStatus.membersNeeded} more
                   {' · '}
                   <button
@@ -704,11 +714,15 @@ export default function PlayerPlayScreen({
                     if (!result.ok) return;
                     const key = result.payload?.checkpointKey || checkpointStatus.checkpointKey;
                     celebrate(
-                      key === '2'
-                        ? 'Dev: all scanned → Decode'
-                        : key === '1'
-                          ? 'Dev: all scanned → Clue 2'
-                          : 'Dev: checkpoint cleared',
+                      key === '4'
+                        ? 'Dev: all scanned → Final'
+                        : key === '3'
+                          ? 'Dev: all scanned → Prop hunt'
+                          : key === '2'
+                            ? 'Dev: all scanned → Decode'
+                            : key === '1'
+                              ? 'Dev: all scanned → Clue 2'
+                              : 'Dev: checkpoint cleared',
                     );
                   }}
                   className="w-full rounded-xl border border-amber-400/30 py-2 text-xs text-amber-100/80"
@@ -740,7 +754,7 @@ export default function PlayerPlayScreen({
           {/* Clue 1 — non-leader standby */}
           {!waitingForRelease && activeChallenge?.challengeNumber === 1 && !isLeader && (
             <motion.section
-              initial={{ opacity: 0, y: 10 }}
+              initial={false}
               animate={{ opacity: 1, y: 0 }}
               className={`${panel} space-y-3 text-center`}
               style={{ borderColor: `${clueTheme.hex}40` }}
@@ -765,7 +779,7 @@ export default function PlayerPlayScreen({
           {/* Clue action */}
           {!waitingForRelease && activeChallenge && (isLeader || activeChallenge.challengeNumber !== 1) && (
             <motion.section
-              initial={{ opacity: 0, y: 10 }}
+              initial={false}
               animate={{ opacity: 1, y: 0 }}
               className={`${panel} space-y-4`}
               style={{ borderColor: `${clueTheme.hex}40` }}
@@ -781,11 +795,13 @@ export default function PlayerPlayScreen({
                     {activeChallenge.challengeNumber === 3
                       ? 'Decode'
                       : activeChallenge.challengeNumber === 4
-                        ? 'Final'
-                        : `Clue ${activeChallenge.challengeNumber}`}
+                        ? 'Prop hunt'
+                        : activeChallenge.challengeNumber === 5
+                          ? 'Final'
+                          : `Clue ${activeChallenge.challengeNumber}`}
                   </p>
                 </div>
-                {activeChallenge.challengeNumber === 2
+                {(activeChallenge.challengeNumber === 2 || activeChallenge.challengeNumber === 4)
                   && activeChallenge.instructionPhase
                   && activeChallenge.timerStartsAt && (
                   <CountdownTimer
@@ -796,7 +812,10 @@ export default function PlayerPlayScreen({
                   />
                 )}
                 {activeChallenge.expiresAt
-                  && !(activeChallenge.challengeNumber === 2 && activeChallenge.instructionPhase) && (
+                  && !(
+                    (activeChallenge.challengeNumber === 2 || activeChallenge.challengeNumber === 4)
+                    && activeChallenge.instructionPhase
+                  ) && (
                   <CountdownTimer
                     expiresAt={activeChallenge.expiresAt}
                     serverTime={serverTime}
@@ -874,7 +893,9 @@ export default function PlayerPlayScreen({
                           ? '3-digit number'
                           : activeChallenge.challengeNumber === 3
                             ? 'Decoded word'
-                            : 'One word'
+                            : activeChallenge.challengeNumber === 4
+                              ? 'Prop code'
+                              : 'One word'
                     }
                     inputMode={activeChallenge.challengeNumber === 2 ? 'numeric' : 'text'}
                     disabled={Boolean(activeChallenge.instructionPhase)}

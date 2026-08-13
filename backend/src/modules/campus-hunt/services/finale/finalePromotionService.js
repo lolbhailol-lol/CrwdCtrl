@@ -303,11 +303,103 @@ async function promoteDemoFinalists({ eventId, actor = {} }) {
   return { promoted: created.length, entries: created };
 }
 
+/**
+ * Demo / dry-run: set exactly these teams as the finale roster.
+ * No Round 1 finalize required. Replaces existing finalists when replace=true.
+ * Mission board / schedule use this entry list after you Generate schedule.
+ */
+async function setFinalePlayingTeams({
+  eventId,
+  teamIds = [],
+  replace = true,
+  actor = {},
+}) {
+  const finaleRound = await getFinaleRound(eventId);
+  if (!finaleRound) {
+    throw promotionError('Bootstrap Finale round first.', 'FINALE_NOT_BOOTSTRAPPED');
+  }
+  const config = await getOrCreateMissionConfig(eventId, finaleRound._id);
+  const caps = await resolvePromotionCaps(eventId);
+
+  const ids = [...new Set((teamIds || []).map(String).filter(Boolean))];
+  if (ids.length === 0) {
+    throw promotionError('Select at least one team to play Finale.', 'NO_TEAMS', 400);
+  }
+  if (ids.length > 40) {
+    throw promotionError('Select at most 40 teams.', 'TOO_MANY', 400);
+  }
+
+  if (replace) {
+    const existing = await CampusHuntFinaleEntry.find({ eventId });
+    for (const entry of existing) {
+      if (ids.includes(String(entry.teamId))) continue;
+      // eslint-disable-next-line no-await-in-loop
+      await CampusHuntTeam.updateOne(
+        { _id: entry.teamId },
+        {
+          $unset: { finaleEntryId: 1 },
+          $set: { competitionPhase: 'round1' },
+        },
+      );
+      // eslint-disable-next-line no-await-in-loop
+      await CampusHuntFinaleEntry.deleteOne({ _id: entry._id });
+    }
+  }
+
+  const created = [];
+  const directN = Math.min(caps.directFromR1 || 0, ids.length);
+  for (let i = 0; i < ids.length; i += 1) {
+    const teamId = ids[i];
+    // eslint-disable-next-line no-await-in-loop
+    const team = await CampusHuntTeam.findOne({ _id: teamId, eventId });
+    if (!team) {
+      throw promotionError(`Team not found: ${teamId}`, 'TEAM_NOT_FOUND', 404);
+    }
+    const promotionSource = i < directN ? 'direct_r1' : 'manual_pick';
+    // eslint-disable-next-line no-await-in-loop
+    const entry = await createEntry({
+      eventId,
+      roundId: finaleRound._id,
+      team,
+      promotionSource,
+      r1Rank: i + 1,
+      r1Score: Number(team.currentScore) || 0,
+      startingScore: config.startingScore,
+      maxFinalists: ids.length,
+    });
+    created.push(entry);
+  }
+
+  // Keep event capacity aligned so schedule/UI expect this many finalists
+  const event = await CampusHuntEvent.findById(eventId);
+  if (event) {
+    event.finaleCapacity = ids.length;
+    await event.save();
+  }
+
+  await writeAudit({
+    eventId,
+    ...actor,
+    action: 'finale_set_playing_teams',
+    targetType: 'event',
+    targetId: eventId,
+    after: { count: created.length, teamIds: ids, replace: Boolean(replace) },
+  });
+
+  return {
+    promoted: created.length,
+    entries: created,
+    finaleCapacity: ids.length,
+    message: `${created.length} team(s) set for Finale — Generate schedule next so missions/slots update.`,
+  };
+}
+
 module.exports = {
   resolvePromotionCaps,
   promoteTop5FromR1,
   promoteManualPick,
   promoteDemoFinalists,
+  setFinalePlayingTeams,
   listEntries,
   listPromotionCandidates,
 };

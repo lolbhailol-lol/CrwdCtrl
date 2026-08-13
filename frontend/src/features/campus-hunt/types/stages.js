@@ -11,26 +11,32 @@ export const STAGE_LABELS = {
   CLUE_3_ACTIVE: 'Clue 3 — Decode',
   CLUE_3_COMPLETED: 'Find blue shared QR & scan',
   CLUE_3_FAILED: 'Find blue shared QR & scan',
-  CHECKPOINT_3_COMPLETED: 'Checkpoint 3 done',
-  CLUE_4_ACTIVE: 'Final clue — combine 4 codes',
-  CLUE_4_COMPLETED: 'Report to your start · ask organizer',
-  CLUE_4_FAILED: 'Report to your start · ask organizer',
+  CHECKPOINT_3_COMPLETED: 'Prop hunt unlocking…',
+  CLUE_4_ACTIVE: 'Clue 4 — Prop hunt',
+  CLUE_4_COMPLETED: 'Find purple shared QR & scan',
+  CLUE_4_FAILED: 'Find purple shared QR & scan',
+  CLUE_4_TIMEOUT: 'Find purple shared QR & scan',
+  CHECKPOINT_4_COMPLETED: 'Final unlocking…',
+  CLUE_5_ACTIVE: 'Final clue — combine codes',
+  CLUE_5_COMPLETED: 'Report to your start · ask organizer',
+  CLUE_5_FAILED: 'Report to your start · ask organizer',
   FINISH_COMPLETED: 'Finished',
   SCORE_LOCKED: 'Score locked',
 };
 
-/** Player dashboard progress steps (release → Clue 1 → Final → Done). */
+/** Player dashboard progress steps (release → Clue 1–4 → Final → Done). */
 export const HUNT_PROGRESS_STEPS = [
   { id: 'start', label: 'Start', short: 'S' },
   { id: 'clue1', label: 'Clue 1', short: '1' },
   { id: 'clue2', label: 'Clue 2', short: '2' },
   { id: 'clue3', label: 'Clue 3', short: '3' },
+  { id: 'clue4', label: 'Clue 4', short: '4' },
   { id: 'final', label: 'Final', short: 'F' },
   { id: 'done', label: 'Finish', short: '✓' },
 ];
 
 /**
- * Map team stage → progress index (0–5) and status per step.
+ * Map team stage → progress index (0–6) and status per step.
  * Index = current/highest unlocked step; earlier steps are complete.
  */
 export function huntProgressFromStage(stage) {
@@ -57,8 +63,15 @@ export function huntProgressFromStage(stage) {
     || s === 'CLUE_4_ACTIVE'
     || s === 'CLUE_4_COMPLETED'
     || s === 'CLUE_4_FAILED'
+    || s === 'CLUE_4_TIMEOUT'
   ) index = 4;
-  else if (s === 'FINISH_COMPLETED' || s === 'SCORE_LOCKED') index = 5;
+  else if (
+    s === 'CHECKPOINT_4_COMPLETED'
+    || s === 'CLUE_5_ACTIVE'
+    || s === 'CLUE_5_COMPLETED'
+    || s === 'CLUE_5_FAILED'
+  ) index = 5;
+  else if (s === 'FINISH_COMPLETED' || s === 'SCORE_LOCKED') index = 6;
   else index = 0;
 
   const steps = HUNT_PROGRESS_STEPS.map((step, i) => {
@@ -71,6 +84,10 @@ export function huntProgressFromStage(stage) {
       else if (
         ['CLUE_2_COMPLETED', 'CLUE_2_FAILED', 'CLUE_2_TIMEOUT'].includes(s)
         && i === 2
+      ) status = 'done';
+      else if (
+        ['CLUE_4_COMPLETED', 'CLUE_4_FAILED', 'CLUE_4_TIMEOUT'].includes(s)
+        && i === 4
       ) status = 'done';
       else status = 'active';
     }
@@ -85,9 +102,12 @@ export function huntProgressFromStage(stage) {
     currentLabel = 'Go scan green shared QR · all 4 · then enter team code → Clue 3';
   }
   if (['CLUE_3_COMPLETED', 'CLUE_3_FAILED'].includes(s)) {
-    currentLabel = 'Go scan blue shared QR · all 4 · then enter team code → Final';
+    currentLabel = 'Go scan blue shared QR · all 4 · then enter team code → Prop hunt';
   }
-  if (['CLUE_4_COMPLETED', 'CLUE_4_FAILED'].includes(s)) {
+  if (['CLUE_4_COMPLETED', 'CLUE_4_FAILED', 'CLUE_4_TIMEOUT'].includes(s)) {
+    currentLabel = 'Go scan purple shared QR · all members · then enter team code → Final';
+  }
+  if (['CLUE_5_COMPLETED', 'CLUE_5_FAILED'].includes(s)) {
     currentLabel = 'Report to your start · ask organizer to mark reached';
   }
 

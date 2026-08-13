@@ -488,11 +488,11 @@ function TeamDetailCard({
             </p>
           </div>
 
-          {['CLUE_4_COMPLETED', 'CLUE_4_FAILED'].includes(team.currentStage) && (
+          {['CLUE_5_COMPLETED', 'CLUE_5_FAILED'].includes(team.currentStage) && (
             <div className="rounded-lg border border-red-400/40 bg-red-500/10 px-3 py-3">
               <p className="text-sm font-semibold text-red-100">Waiting at start</p>
               <p className="mt-1 text-xs text-white/65">
-                Team finished Clue 4. When they arrive at{' '}
+                Team finished Clue 5 / Final. When they arrive at{' '}
                 {team.startingPoint?.name
                   || startingPoints.find((point) => id(point) === id(team.startingPointId))?.name
                   || 'their start'}

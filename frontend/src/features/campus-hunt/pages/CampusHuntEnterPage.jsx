@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
-import { fetchCampusHuntProfileEntries } from '../services/campusHunt.api';
 import { CAMPUS_HUNT_PATHS } from '../config';
 import { normalizeTeamCode } from '../utils/teamCode';
+import {
+  loadCampusHuntProfileEntries,
+  peekCampusHuntProfileCache,
+} from '../utils/campusHuntProfileCache';
 import CampusHuntBackLink from '../components/CampusHuntBackLink';
 
 /**
@@ -13,30 +16,39 @@ import CampusHuntBackLink from '../components/CampusHuntBackLink';
  */
 export default function CampusHuntEnterPage() {
   const navigate = useNavigate();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
-  const [events, setEvents] = useState([]);
-  const [slug, setSlug] = useState('');
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth();
+  const identity = isAuthenticated
+    ? String(user?.uid || user?.id || user?.email || '').toLowerCase()
+    : '';
+  const cacheKey = isAuthenticated && identity ? `u:${identity}` : 'guest';
+  const cached = peekCampusHuntProfileCache();
+  const cachedLogin = cached?.key === cacheKey && Array.isArray(cached.login)
+    ? cached.login
+    : null;
+
+  const [events, setEvents] = useState(() => cachedLogin || []);
+  const [slug, setSlug] = useState(() => cachedLogin?.[0]?.slug || '');
   const [teamCode, setTeamCode] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!cachedLogin);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetchCampusHuntProfileEntries();
+        const next = await loadCampusHuntProfileEntries(cacheKey);
         if (cancelled) return;
-        const list = res.data?.login || [];
+        const list = next.login || [];
         setEvents(list);
-        if (list[0]?.slug) setSlug(list[0].slug);
+        setSlug((prev) => prev || list[0]?.slug || '');
       } catch (err) {
-        if (!cancelled) setError(err.message || 'Could not load events');
+        if (!cancelled && !cachedLogin) setError(err.message || 'Could not load events');
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [cacheKey]);
 
   if (authLoading) {
     return (
@@ -84,7 +96,7 @@ export default function CampusHuntEnterPage() {
           </p>
         </header>
 
-        {loading ? (
+        {loading && events.length === 0 ? (
           <p className="text-center text-white/50">Loading events…</p>
         ) : !events.length ? (
           <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-center text-sm text-white/60">
@@ -101,7 +113,7 @@ export default function CampusHuntEnterPage() {
                 className="mt-2 w-full rounded-xl border border-white/15 bg-black/40 px-3 py-3 text-sm text-white outline-none focus:border-[#0ECCEE]"
               >
                 {events.map((ev) => (
-                  <option key={ev.id} value={ev.slug}>
+                  <option key={ev.id || ev.slug} value={ev.slug}>
                     {ev.college} · {ev.name}
                   </option>
                 ))}

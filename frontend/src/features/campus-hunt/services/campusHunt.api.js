@@ -147,6 +147,75 @@ export async function fetchTeamProgress(teamId) {
   return huntJson(`${BASE}/teams/${teamId}/progress`);
 }
 
+/**
+ * Authenticated SSE stream for team progress pings.
+ * Uses fetch (not EventSource) so Bearer hunt token can be sent.
+ */
+export async function openTeamProgressStream(teamId, { onEvent, signal } = {}) {
+  const token = resolveHuntToken();
+  if (!token || isHuntTokenExpired(token)) {
+    clearHuntAuth();
+    const err = new Error('Hunt session expired — open your team link again');
+    err.status = 401;
+    err.code = 'AUTH_401';
+    throw err;
+  }
+
+  const response = await fetch(resolveUrl(`${BASE}/teams/${teamId}/stream`), {
+    method: 'GET',
+    headers: {
+      Accept: 'text/event-stream',
+      Authorization: `Bearer ${token}`,
+      'x-no-compression': '1',
+    },
+    credentials: 'include',
+    signal,
+  });
+
+  if (response.status === 401) {
+    clearHuntAuth();
+    redirectCampusHuntAuthLoss();
+    const err = new Error('Hunt session expired — open your team link again');
+    err.status = 401;
+    err.code = 'AUTH_401';
+    throw err;
+  }
+  if (!response.ok || !response.body) {
+    const err = new Error(`Live sync unavailable (${response.status})`);
+    err.status = response.status;
+    throw err;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split(/\n\n/);
+    buffer = parts.pop() || '';
+    for (const chunk of parts) {
+      const lines = chunk.split(/\n/);
+      let eventName = 'message';
+      let dataLine = '';
+      for (const line of lines) {
+        if (line.startsWith('event:')) eventName = line.slice(6).trim();
+        else if (line.startsWith('data:')) dataLine += line.slice(5).trim();
+      }
+      if (!dataLine) continue;
+      let payload = dataLine;
+      try {
+        payload = JSON.parse(dataLine);
+      } catch {
+        /* keep string */
+      }
+      onEvent?.({ type: eventName, data: payload });
+    }
+  }
+}
+
 export async function submitChallengeAnswer(teamId, challengeNumber, answer, requestId) {
   const path =
     Number(challengeNumber) === 1
@@ -867,6 +936,14 @@ export async function adminGetFinaleGridSessions(eventId) {
 
 export async function adminPromoteFinaleDemo(eventId) {
   return adminFetchJSON(`${BASE}/admin/events/${eventId}/finale/promote/demo`, { method: 'POST' });
+}
+
+/** Dry-run / custom roster: exactly these teams play Finale (replace existing). */
+export async function adminPromoteFinaleSelected(eventId, teamIds, { replace = true } = {}) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/finale/promote/selected`, {
+    method: 'POST',
+    body: JSON.stringify({ teamIds, replace }),
+  });
 }
 
 export async function adminGetFinaleMissionAssignments(eventId) {

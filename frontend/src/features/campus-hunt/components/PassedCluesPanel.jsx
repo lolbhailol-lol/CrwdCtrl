@@ -26,7 +26,7 @@ export default function PassedCluesPanel({ challenges = [], isLeader, currentAct
         {passed.map((ch) => {
           const open = openNum === ch.challengeNumber;
           const title =
-            ch.challengeNumber === 4 ? 'Final clue' : `Clue ${ch.challengeNumber}`;
+            ch.challengeNumber === 5 ? 'Final clue' : `Clue ${ch.challengeNumber}`;
           const statusLabel =
             ch.state === 'COMPLETED'
               ? 'Done'

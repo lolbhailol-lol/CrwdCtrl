@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { fetchMyTeam, fetchTeamProgress } from '../services/campusHunt.api';
+import {
+  fetchMyTeam,
+  fetchTeamProgress,
+  openTeamProgressStream,
+} from '../services/campusHunt.api';
 
 function isActivelyPlaying(data) {
   const stage = String(data?.team?.currentStage || '');
@@ -12,6 +16,15 @@ function isActivelyPlaying(data) {
   );
 }
 
+function isPendingScan(data) {
+  const cp = data?.checkpointStatus;
+  return Boolean(
+    cp
+    && cp.checkpointId
+    && Number(cp.verifiedCount || 0) < Number(cp.requiredCount || data?.team?.teamSize || 4),
+  );
+}
+
 function pollIntervalMs(data, burstUntil) {
   if (burstUntil && Date.now() < burstUntil) return 1000;
 
@@ -21,19 +34,62 @@ function pollIntervalMs(data, burstUntil) {
     : 0;
   const waiting = ['WAITING', 'READY'].includes(data?.team?.startStatus);
   const nearRelease = waiting && scheduledAt > 0 && scheduledAt - Date.now() <= 2 * 60 * 1000;
+  const awaitingClaim = Boolean(data?.checkpointStatus?.awaitingTeamCodeConfirm);
 
-  const cp = data?.checkpointStatus;
-  const pendingScan =
-    cp
-    && cp.checkpointId
-    && Number(cp.verifiedCount || 0) < Number(cp.requiredCount || data?.team?.teamSize || 4);
-  const awaitingClaim = Boolean(cp?.awaitingTeamCodeConfirm);
-
-  // Near-live while anyone on the team can change the board
-  if (pendingScan || awaitingClaim || isActivelyPlaying(data)) return 1000;
+  // Fast only while teammates may still be scanning / claiming
+  if (isPendingScan(data) || awaitingClaim) return 1000;
   if (nearRelease) return 2000;
+  // Safety net while playing (SSE is primary)
+  if (isActivelyPlaying(data)) return 3000;
   if (stage === 'SCORE_LOCKED') return 15000;
   return 15000;
+}
+
+function progressFingerprint(data) {
+  if (!data?.team) return '';
+  const cp = data.checkpointStatus;
+  const challenges = Array.isArray(data.challenges) ? data.challenges : [];
+  return [
+    data.team.id,
+    data.team.currentStage,
+    data.team.startStatus,
+    data.team.currentScore,
+    data.team.scheduledStartAt,
+    cp?.checkpointId || '',
+    cp?.verifiedCount ?? '',
+    cp?.requiredCount ?? '',
+    cp?.awaitingTeamCodeConfirm ? 1 : 0,
+    cp?.youScanned ? 1 : 0,
+    cp?.status || '',
+    ...challenges.map((c) => `${c.number}:${c.state}:${c.attemptsLeft ?? c.attempts ?? ''}`),
+  ].join('|');
+}
+
+function stageNeedsCheckpoint(stage) {
+  const s = String(stage || '');
+  if (!s || s === 'SCORE_LOCKED' || s === 'FINISH_COMPLETED') return false;
+  if (s.includes('CLUE_5_')) return false;
+  return s.includes('COMPLETED') || s.includes('FAILED') || s.includes('TIMEOUT');
+}
+
+/** Keep last checkpoint panel if soft poll briefly returns null on same stage. */
+function mergeProgress(prev, next) {
+  if (!next?.team) return prev;
+  let { checkpointStatus } = next;
+  if (
+    checkpointStatus == null
+    && prev?.checkpointStatus?.checkpointId
+    && String(prev?.team?.currentStage || '') === String(next.team.currentStage || '')
+    && stageNeedsCheckpoint(next.team.currentStage)
+  ) {
+    checkpointStatus = prev.checkpointStatus;
+  }
+  return {
+    ...next,
+    checkpointStatus: checkpointStatus ?? null,
+    rounds: next.rounds || prev?.rounds,
+    event: next.event || prev?.event,
+  };
 }
 
 /** Normalize mutation / progress payloads into play-screen state. */
@@ -61,10 +117,26 @@ export function useHuntTeam(eventId, { enabled = true } = {}) {
   const fetchGenRef = useRef(0);
   const pausePollUntilRef = useRef(0);
   const dataRef = useRef(null);
+  const fingerprintRef = useRef('');
 
   useEffect(() => {
     dataRef.current = data;
+    fingerprintRef.current = progressFingerprint(data);
   }, [data]);
+
+  const applyMerged = useCallback((incoming, { soft = false } = {}) => {
+    const merged = soft
+      ? mergeProgress(dataRef.current, incoming)
+      : {
+        ...incoming,
+        rounds: incoming?.rounds || dataRef.current?.rounds,
+        event: incoming?.event || dataRef.current?.event,
+      };
+    const nextFp = progressFingerprint(merged);
+    if (nextFp && nextFp === fingerprintRef.current) return;
+    fingerprintRef.current = nextFp;
+    setData(merged);
+  }, []);
 
   const refresh = useCallback(async ({ soft = false } = {}) => {
     if (!eventId || !enabled) return;
@@ -73,26 +145,31 @@ export function useHuntTeam(eventId, { enabled = true } = {}) {
     try {
       const res = await fetchMyTeam(eventId);
       if (gen !== fetchGenRef.current) return;
-      setData(res.data);
+      applyMerged(res.data, { soft });
       teamIdRef.current = res.data?.team?.id || null;
       setError(null);
       setPollError(null);
     } catch (err) {
       if (gen !== fetchGenRef.current) return;
       if (err?.code === 'AUTH_401' || err?.status === 401) {
-        setError('Session expired — open your team link again');
-        setData(null);
-        teamIdRef.current = null;
+        // Soft mid-play: keep board; hard first-load can clear
+        if (soft && dataRef.current) {
+          setPollError('Session issue — tap Refresh if the board looks stuck');
+        } else {
+          setError('Session expired — open your team link again');
+          setData(null);
+          teamIdRef.current = null;
+          fingerprintRef.current = '';
+        }
       } else if (soft) {
         setPollError(err.message || 'Failed to refresh');
       } else {
         setError(err.message || 'Failed to load team');
-        // Soft poll / mid-play failure: keep last board (never flash "No team")
       }
     } finally {
       if (gen === fetchGenRef.current) setLoading(false);
     }
-  }, [eventId, enabled]);
+  }, [eventId, enabled, applyMerged]);
 
   /**
    * Soft progress poll. Interval calls skip during pausePollUntil;
@@ -108,19 +185,23 @@ export function useHuntTeam(eventId, { enabled = true } = {}) {
     try {
       const res = await fetchTeamProgress(teamId);
       if (gen !== fetchGenRef.current) return;
-      setData((prev) => ({
-        ...res.data,
-        rounds: res.data?.rounds || prev?.rounds,
-        event: res.data?.event || prev?.event,
-      }));
+      applyMerged(res.data, { soft: !force });
       teamIdRef.current = res.data?.team?.id || teamId;
       setError(null);
       setPollError(null);
     } catch (err) {
       if (gen !== fetchGenRef.current) return;
-      setPollError(err.message || 'Failed to refresh');
+      if (err?.code === 'AUTH_401' || err?.status === 401) {
+        if (dataRef.current) {
+          setPollError('Session issue — tap Refresh if the board looks stuck');
+        } else {
+          setError('Session expired — open your team link again');
+        }
+      } else {
+        setPollError(err.message || 'Failed to refresh');
+      }
     }
-  }, [refresh, enabled]);
+  }, [refresh, enabled, applyMerged]);
 
   /** Instant UI update from submit/scan response — no extra wait. */
   const applyActionData = useCallback((payload) => {
@@ -132,26 +213,26 @@ export function useHuntTeam(eventId, { enabled = true } = {}) {
       cp?.checkpointId
       && Number(cp.verifiedCount || 0) < Number(cp.requiredCount || next.team?.teamSize || 4),
     );
-    // Pause only the interval — manual force refresh still works
     pausePollUntilRef.current = Date.now() + (pendingScan ? 350 : 800);
-    setData((prev) => ({
+    applyMerged({
       ...next,
-      rounds: prev?.rounds,
-      event: prev?.event,
-    }));
+      rounds: dataRef.current?.rounds,
+      event: dataRef.current?.event,
+    }, { soft: false });
     teamIdRef.current = next.team?.id || teamIdRef.current;
     setBurstUntil(Date.now() + (pendingScan ? 8000 : 5000));
     setError(null);
     setPollError(null);
     return true;
-  }, []);
+  }, [applyMerged]);
 
   useEffect(() => {
     if (!eventId || !enabled) {
       if (!enabled) setLoading(false);
       return undefined;
     }
-    setLoading(true);
+    // Silent revalidate when board already exists — no full-page loading flash
+    if (!dataRef.current) setLoading(true);
     refresh();
     return undefined;
   }, [refresh, eventId, enabled]);
@@ -177,6 +258,46 @@ export function useHuntTeam(eventId, { enabled = true } = {}) {
     burstUntil,
     refreshProgress,
   ]);
+
+  // Live SSE — admin/teammate mutations push a ping → force progress pull
+  useEffect(() => {
+    if (!enabled || !eventId) return undefined;
+    const teamId = data?.team?.id || teamIdRef.current;
+    if (!teamId) return undefined;
+
+    const ac = new AbortController();
+    let cancelled = false;
+    let retryTimer = null;
+
+    const connect = async () => {
+      while (!cancelled && !ac.signal.aborted) {
+        try {
+          await openTeamProgressStream(teamId, {
+            signal: ac.signal,
+            onEvent: (evt) => {
+              if (evt?.type === 'progress') {
+                pausePollUntilRef.current = 0;
+                void refreshProgress({ force: true });
+              }
+            },
+          });
+        } catch (err) {
+          if (cancelled || ac.signal.aborted || err?.name === 'AbortError') return;
+        }
+        if (cancelled || ac.signal.aborted) return;
+        await new Promise((resolve) => {
+          retryTimer = setTimeout(resolve, 2500);
+        });
+      }
+    };
+
+    void connect();
+    return () => {
+      cancelled = true;
+      ac.abort();
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [enabled, eventId, data?.team?.id, refreshProgress]);
 
   // Focus / visibility — always pull while Round 1 is open
   useEffect(() => {

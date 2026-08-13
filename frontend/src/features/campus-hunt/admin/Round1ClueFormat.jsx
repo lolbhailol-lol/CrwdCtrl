@@ -8,6 +8,7 @@ import CampusStationNamesEditor from './CampusStationNamesEditor';
 import FirstStopPosterPrint from './FirstStopPosterPrint';
 import SecondStopPosterPrint from './SecondStopPosterPrint';
 import ThirdStopPosterPrint from './ThirdStopPosterPrint';
+import FourthStopPosterPrint from './FourthStopPosterPrint';
 import {
   STATION_TARGET_COUNT,
   destinationsSummary,
@@ -67,7 +68,7 @@ export function buildRound1Clues(geometry) {
       short: 'THIRD STOP · BLUE',
       detail:
         `${places} places · ~${perStation} teams each · `
-        + `after green scan + team code → Caesar riddle → blue shared QR + team code → Final`,
+        + `after green scan + team code → Caesar riddle → blue shared QR + team code → Prop hunt`,
       checkpointKeys: ['3'],
       checkpointLabel: 'THIRD SCAN',
       takesToSummary: destinationsSummary(3, undefined, perStation, perWait),
@@ -75,15 +76,29 @@ export function buildRound1Clues(geometry) {
       showCheckpoints: false,
     },
     {
-      id: 'final',
+      id: 'clue4',
       number: 4,
+      label: 'CLUE 4 · Prop hunt',
+      short: 'FOURTH STOP · PURPLE',
+      detail:
+        `${places} places · ~${perStation} teams each · `
+        + `crazy timed prop hunt → purple shared QR + team code → Final`,
+      checkpointKeys: ['4'],
+      checkpointLabel: 'FOURTH SCAN',
+      takesToSummary: destinationsSummary(4, undefined, perStation, perWait),
+      type: 'timed_search',
+      showCheckpoints: false,
+    },
+    {
+      id: 'final',
+      number: 5,
       label: 'FINAL CLUE · One word',
       short: 'FINAL · RED',
       detail:
         `All ${people} get a code fragment → one word. Then report to start; organizer marks reached.`,
-      checkpointKeys: ['FINISH', '4'],
+      checkpointKeys: ['FINISH'],
       checkpointLabel: 'START CHECK-IN',
-      takesToSummary: destinationsSummary(4, undefined, perStation, perWait),
+      takesToSummary: destinationsSummary(5, undefined, perStation, perWait),
       type: 'collaborative',
       showCheckpoints: false,
     },
@@ -161,13 +176,13 @@ function ClueBox({
             {clue.label}
           </h3>
           <p className="mt-1 text-xs text-white/50">{clue.detail}</p>
-          {(clue.number === 1 || clue.number === 2 || clue.number === 3) ? (
+          {(clue.number === 1 || clue.number === 2 || clue.number === 3 || clue.number === 4) ? (
             <p className="mt-1.5 text-[11px] text-white/40">
               {destinationsSummary(clue.number, campusStations, teamsPerStation, teamsPerWait, campusStarts)}
             </p>
-          ) : clue.takesToSummary || clue.number === 4 ? (
+          ) : clue.takesToSummary || clue.number === 5 ? (
             <p className="mt-1.5 text-[11px] text-white/40 line-clamp-2">
-              {destinationsSummary(4, campusStations, teamsPerStation, teamsPerWait, campusStarts)}
+              {destinationsSummary(5, campusStations, teamsPerStation, teamsPerWait, campusStarts)}
             </p>
           ) : null}
         </div>
@@ -260,6 +275,31 @@ function ClueBox({
                 teamSize={teamSize}
               />
             </>
+          ) : clue.number === 4 ? (
+            <>
+              <RouteClueEditor
+                eventId={eventId}
+                roundId={roundId}
+                challengeNumber={clue.number}
+                clueLabel={clue.label}
+                campusStations={campusStations}
+                campusStarts={campusStarts}
+                teamCapacity={teamCapacity}
+                teamSize={teamSize}
+                teamsPerWait={teamsPerWait}
+                teamsPerStation={teamsPerStation}
+                onChanged={() => {
+                  onClueContentChanged?.();
+                  onChanged?.();
+                }}
+              />
+              <FourthStopPosterPrint
+                eventId={eventId}
+                reloadKey={checkpointReloadKey}
+                campusStations={campusStations}
+                teamSize={teamSize}
+              />
+            </>
           ) : (
             <>
               <RouteClueEditor
@@ -278,7 +318,7 @@ function ClueBox({
                   onChanged?.();
                 }}
               />
-              {clue.number === 4 && (
+              {clue.number === 5 && (
                 <p className="rounded-xl border border-red-400/25 bg-red-500/10 px-3 py-2 text-xs text-red-100">
                   After teams solve the Final word they report to their start.
                   Mark them reached on the <span className="font-semibold">Live → Finish desk</span> tab
@@ -293,7 +333,7 @@ function ClueBox({
               roundId={roundId}
               onChanged={onChanged}
               progressionFilter={clue.checkpointKeys}
-              title={`${clue.checkpointLabel} · Checkpoint ${clue.number === 4 ? 'Finish' : clue.number}`}
+              title={`${clue.checkpointLabel} · Checkpoint ${clue.number === 5 ? 'Finish' : clue.number}`}
               reloadKey={checkpointReloadKey}
               campusStations={campusStations}
               stageTheme={theme}

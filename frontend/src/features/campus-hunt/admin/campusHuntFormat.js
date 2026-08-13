@@ -241,6 +241,10 @@ export function thirdStopForLocalTeam(localTeamNumber, waitIndex = 0, stations =
   return stationForLocalTeam(localTeamNumber, waitIndex, stations, 2).name;
 }
 
+export function fourthStopForLocalTeam(localTeamNumber, waitIndex = 0, stations = CAMPUS_STATIONS) {
+  return stationForLocalTeam(localTeamNumber, waitIndex, stations, 3).name;
+}
+
 /** Stable unique 3-digit code for global team (matches backend bootstrap). */
 export function threeDigitCodeForTeam(waitIndex, localTeamNumber, teamsPerWait = TEAMS_PER_WAIT) {
   const perWait = Math.max(1, Number(teamsPerWait) || TEAMS_PER_WAIT);
@@ -333,6 +337,15 @@ export function thirdStopArrivalPlan(
   return stationArrivalPlan(2, stations, teamsPerWait, starts);
 }
 
+/** Clue 4 fourth-stop plan: same fan-out, three stations after first stop. */
+export function fourthStopArrivalPlan(
+  stations = CAMPUS_STATIONS,
+  teamsPerWait = TEAMS_PER_WAIT,
+  starts = WAIT_POINTS,
+) {
+  return stationArrivalPlan(3, stations, teamsPerWait, starts);
+}
+
 /** Wait code A–D or 0–3 → wait index for shuffle offset. */
 export function waitIndexForStart(startCodeOrIndex) {
   if (typeof startCodeOrIndex === 'number' && Number.isFinite(startCodeOrIndex)) {
@@ -379,17 +392,25 @@ export function buildCampusStarts(
 
 export const CAMPUS_STARTS = buildCampusStarts();
 
-/** Final one-word answers per start path (A–D). */
-export const CLUE4_WORDS = {
+/** Final one-word answers per start path (A–D) — Clue 5. */
+export const CLUE5_WORDS = {
   A: 'QUEST',
   B: 'BLAZE',
   C: 'SPARK',
   D: 'PRIDE',
 };
 
-export function clue4WordForStart(startCode) {
+/** @deprecated use CLUE5_WORDS */
+export const CLUE4_WORDS = CLUE5_WORDS;
+
+export function clue5WordForStart(startCode) {
   const code = String(startCode || 'A').toUpperCase().charAt(0);
-  return CLUE4_WORDS[code] || 'QUEST';
+  return CLUE5_WORDS[code] || 'QUEST';
+}
+
+/** @deprecated use clue5WordForStart */
+export function clue4WordForStart(startCode) {
+  return clue5WordForStart(startCode);
 }
 
 /** One release slot per local team (Team 1 @ t0, Team 2 @ t+5…). */
@@ -413,7 +434,7 @@ export function clue1ForPlace(place, teamSize = 4) {
   };
 }
 
-/** Clue 2 / 3 / Final defaults for a destination stop. */
+/** Clue 2 / 3 / 4 / Final defaults for a destination stop. */
 export function routeClueDefaults(challengeNumber, destination, teamSize = 4) {
   const place = destination || 'the next station';
   const n = Number(challengeNumber) || 2;
@@ -445,11 +466,27 @@ export function routeClueDefaults(challengeNumber, destination, teamSize = 4) {
       hintText: 'Caesar shift of 3 — A becomes D, B becomes E… Spaces stay spaces.',
       destinationInstruction:
         'Riddle solved — go find the shared blue Checkpoint 3 QR at that place. '
+        + `All ${people} members scan, then enter your team code to unlock the prop hunt.`,
+      memberPrompts: Array.from({ length: people }, () => ''),
+    };
+  }
+
+  if (n === 4) {
+    return {
+      prompt:
+        `CRAZY PROP HUNT at ${place}.\n`
+        + 'Hunt as a team for the silly planted prop (bright / weird object in plain sight). '
+        + 'Read the short code on its sticker and type it here (leader submits).',
+      answer: '',
+      hintText: 'Look at eye / knee level near the purple QR zone — not on your phones.',
+      destinationInstruction:
+        `Prop found — stay at ${place}. Find the shared purple FOURTH SCAN QR. `
         + `All ${people} members scan, then enter your team code to unlock Final.`,
       memberPrompts: Array.from({ length: people }, () => ''),
     };
   }
 
+  // Clue 5 / Final — collaborative one-word; `place` is the finish word.
   const raw = String(place).replace(/\s+/g, '').toUpperCase();
   const len = Math.max(people, raw.length);
   const padded = raw.padEnd(len, 'X');
@@ -469,7 +506,7 @@ export function routeClueDefaults(challengeNumber, destination, teamSize = 4) {
   };
 }
 
-/** Where challenge 1–4 sends a team that waited at this start. */
+/** Where challenge 1–5 sends a team that waited at this start. */
 export function destinationForClue(
   startCodeOrName,
   challengeNumber,
@@ -489,7 +526,7 @@ export function destinationForClue(
     || CAMPUS_STARTS[0];
   const waitIndex = WAIT_POINTS.findIndex((item) => item.code === start.code);
   const wait = waitIndex >= 0 ? waitIndex : 0;
-  const clue = Math.max(1, Math.min(4, Number(challengeNumber) || 1));
+  const clue = Math.max(1, Math.min(5, Number(challengeNumber) || 1));
   if (clue === 1) {
     return firstStopForLocalTeam(localTeamNumber, wait, stations);
   }
@@ -499,7 +536,10 @@ export function destinationForClue(
   if (clue === 3) {
     return thirdStopForLocalTeam(localTeamNumber, wait, stations);
   }
-  // Clue 4 / Final: teams return to their own start (not another campus station).
+  if (clue === 4) {
+    return fourthStopForLocalTeam(localTeamNumber, wait, stations);
+  }
+  // Clue 5 / Final: teams return to their own start (not another campus station).
   return start.name;
 }
 
@@ -511,16 +551,16 @@ export function destinationsSummary(
   teamsPerWait = TEAMS_PER_WAIT,
   starts = WAIT_POINTS,
 ) {
-  const clue = Math.max(1, Math.min(4, Number(challengeNumber) || 1));
+  const clue = Math.max(1, Math.min(5, Number(challengeNumber) || 1));
   const waitList = Array.isArray(starts) && starts.length ? starts : resolveStarts(starts);
-  if (clue === 1 || clue === 2 || clue === 3) {
+  if (clue === 1 || clue === 2 || clue === 3 || clue === 4) {
     const list = Array.isArray(stations) && stations.length
       ? stations
       : resolveStations(stations);
     return `${list.length} places · ~${teamsPerStation} teams each`;
   }
   return waitList.map((start) => (
-    `${start.code} ${start.name} ← ${clue4WordForStart(start.code)} · ${teamsPerWait} teams`
+    `${start.code} ${start.name} ← ${clue5WordForStart(start.code)} · ${teamsPerWait} teams`
   )).join(' · ');
 }
 

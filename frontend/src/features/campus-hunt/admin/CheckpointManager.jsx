@@ -125,7 +125,7 @@ export default function CheckpointManager({
     const firstKey = Array.isArray(progressionFilter) && progressionFilter[0]
       ? String(progressionFilter[0])
       : '1';
-    const num = firstKey === 'FINISH' ? 4 : Number(firstKey) || 1;
+    const num = firstKey === 'FINISH' ? 5 : Number(firstKey) || 1;
     setDraft({
       ...emptyDraft,
       progressionKey: firstKey,
@@ -512,6 +512,7 @@ export default function CheckpointManager({
                 <option value="1">Checkpoint 1</option>
                 <option value="2">Checkpoint 2</option>
                 <option value="3">Checkpoint 3</option>
+                <option value="4">Checkpoint 4</option>
                 <option value="FINISH">Finish</option>
               </select>
             </label>

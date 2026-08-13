@@ -249,7 +249,7 @@ export default function Clue3VariantManager({
       <p className="text-xs text-white/50">
         After green SECOND SCAN + team code, teams get this Caesar riddle on their phone.
         Decoding it reveals the third place — then they scan the shared blue QR and enter
-        their team code to unlock Final.
+        their team code to unlock the prop hunt.
       </p>
 
       <div className="grid gap-3 md:grid-cols-2">

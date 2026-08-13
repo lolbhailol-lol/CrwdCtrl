@@ -138,12 +138,28 @@ function routeClueDefaults(challengeNumber, destination, teamSize = 4) {
       hintText: 'Caesar shift of 3 — A becomes D, B becomes E… Spaces stay spaces.',
       destinationInstruction:
         'Riddle solved — go find the shared blue THIRD SCAN QR at that place. '
+        + `All ${people} members scan, then enter your team code to unlock the prop hunt.`,
+      memberPrompts: Array.from({ length: people }, () => ''),
+    };
+  }
+
+  if (n === 4) {
+    // `place` is the destination station name; answer is the planted prop code (passed separately).
+    return {
+      prompt:
+        `CRAZY PROP HUNT at ${place}.\n`
+        + 'Hunt as a team for the silly planted prop (bright / weird object in plain sight). '
+        + 'Read the short code on its sticker and type it here (leader submits).',
+      answer: '',
+      hintText: 'Look at eye / knee level near the purple QR zone — not on your phones.',
+      destinationInstruction:
+        `Prop found — stay at ${place}. Find the shared purple FOURTH SCAN QR. `
         + `All ${people} members scan, then enter your team code to unlock Final.`,
       memberPrompts: Array.from({ length: people }, () => ''),
     };
   }
 
-  // Clue 4 / Final — collaborative one-word puzzle; `place` here is the finish word.
+  // Clue 5 / Final — collaborative one-word puzzle; `place` here is the finish word.
   const word = String(place || 'QUEST').replace(/\s+/g, '').toUpperCase();
   const chunks = splitIntoMemberCodes(word, people);
   return {
@@ -158,13 +174,27 @@ function routeClueDefaults(challengeNumber, destination, teamSize = 4) {
   };
 }
 
-/** One-word answers per start path for Clue 4. */
-const CLUE4_WORDS = {
+/** One-word answers per start path for Final (Clue 5). */
+const CLUE5_WORDS = {
   A: 'QUEST',
   B: 'BLAZE',
   C: 'SPARK',
   D: 'PRIDE',
 };
+
+/** Planted prop sticker codes — rotate so routes don’t share the same word. */
+const PROP_CODES = [
+  'BANANA', 'WOOF', 'NEON', 'QUACK', 'SOCK', 'EGG', 'YEET', 'ZOOM',
+  'BLOOP', 'ZAP', 'GOOF', 'BONK', 'YIKES', 'NOPE', 'YAY', 'BOOP',
+];
+
+function propCodeForTeam(stationIndex, localTeamNumber) {
+  const i = (Number(stationIndex) || 0) * 11 + (Number(localTeamNumber) || 1);
+  return PROP_CODES[Math.abs(i) % PROP_CODES.length];
+}
+
+/** @deprecated use CLUE5_WORDS */
+const CLUE4_WORDS = CLUE5_WORDS;
 
 /** Clue 1 first stops for local teams at a given wait (shuffled by waitIndex). */
 function rotatingFirstStops(waitIndex = 0, stations = HUNT_STATIONS, teamGroups = TEAM_GROUPS) {
@@ -179,6 +209,11 @@ function rotatingSecondStops(waitIndex = 0, stations = HUNT_STATIONS, teamGroups
 /** Checkpoint 3 destinations — two stations after first stop (different from CP1/CP2). */
 function rotatingThirdStops(waitIndex = 0, stations = HUNT_STATIONS, teamGroups = TEAM_GROUPS) {
   return teamGroups.map((group) => stationForLocalTeam(group.localTeamNumber, waitIndex, stations, 2));
+}
+
+/** Checkpoint 4 / prop hunt — three stations after first stop. */
+function rotatingFourthStops(waitIndex = 0, stations = HUNT_STATIONS, teamGroups = TEAM_GROUPS) {
+  return teamGroups.map((group) => stationForLocalTeam(group.localTeamNumber, waitIndex, stations, 3));
 }
 
 function caesarShift(text, shift = 3) {
@@ -305,6 +340,7 @@ async function ensureSharedStationCheckpoints(event, round, anchorRoute, station
     { key: '1', num: 1, seq: 1, label: 'orange FIRST SCAN' },
     { key: '2', num: 2, seq: 2, label: 'green SECOND SCAN' },
     { key: '3', num: 3, seq: 3, label: 'blue THIRD SCAN' },
+    { key: '4', num: 4, seq: 4, label: 'purple FOURTH SCAN' },
   ];
   for (const station of stations) {
     for (const prog of stages) {
@@ -349,7 +385,7 @@ async function ensureSharedStationCheckpoints(event, round, anchorRoute, station
     {
       eventId: event._id,
       roundId: round._id,
-      progressionKey: { $in: ['1', '2', '3'] },
+      progressionKey: { $in: ['1', '2', '3', '4'] },
       code: { $not: /^ST-/i },
     },
     {
@@ -382,7 +418,7 @@ async function ensureCheckpointsAndClues(
     startingPoints.map((point) => [String(point.code || '').toUpperCase(), point]),
   );
   const only = Array.isArray(onlyChallengeNumbers)
-    ? new Set(onlyChallengeNumbers.map((n) => Number(n)).filter((n) => n >= 1 && n <= 4))
+    ? new Set(onlyChallengeNumbers.map((n) => Number(n)).filter((n) => n >= 1 && n <= 5))
     : null;
   const wantClue = (n) => !only || only.has(Number(n));
 
@@ -411,7 +447,8 @@ async function ensureCheckpointsAndClues(
     const firstStops = rotatingFirstStops(stationIndex, stations, teamGroups);
     const secondStops = rotatingSecondStops(stationIndex, stations, teamGroups);
     const thirdStops = rotatingThirdStops(stationIndex, stations, teamGroups);
-    const finishWord = CLUE4_WORDS[key] || 'QUEST';
+    const fourthStops = rotatingFourthStops(stationIndex, stations, teamGroups);
+    const finishWord = CLUE5_WORDS[key] || CLUE4_WORDS[key] || 'QUEST';
     const startName = startStation.name;
 
     const firstStopDefs = teamGroups.map((group) => ({
@@ -439,11 +476,20 @@ async function ensureCheckpointsAndClues(
       key: `3-${group.wave}`,
     }));
 
+    const fourthStopDefs = teamGroups.map((group) => ({
+      wave: group.wave,
+      teamLabel: group.teamLabel,
+      localTeamNumber: group.localTeamNumber,
+      station: fourthStops[group.slot],
+      key: `4-${group.wave}`,
+      propCode: propCodeForTeam(stationIndex, group.localTeamNumber),
+    }));
+
     const laterDefs = [
       {
         key: 'FINISH',
-        num: 4,
-        seq: 4,
+        num: 5,
+        seq: 5,
         station: startStation,
         instruction:
           `Finish at ${startName} (your start). `
@@ -625,9 +671,74 @@ async function ensureCheckpointsAndClues(
       { $set: { active: false } },
     );
 
-    // Finish checkpoint only (Clue 3 is fan-out variants above)
-    for (const cp of laterDefs) {
+    // Clue 4 variants → shared purple FOURTH SCAN (crazy prop hunt)
+    for (const fourth of fourthStopDefs) {
       if (!wantClue(4)) break;
+      const fourthCheckpoint = shared.map.get(`4:${fourth.station.code}`);
+      if (!startingPoint || !fourthCheckpoint) {
+        // eslint-disable-next-line no-continue
+        continue;
+      }
+
+      const variantKey = `${startStation.code}-${fourth.wave}`;
+      const clue4Defaults = routeClueDefaults(4, fourth.station.name, event.teamSize);
+      const propAnswer = String(fourth.propCode || 'BANANA').toUpperCase();
+      // eslint-disable-next-line no-await-in-loop
+      await CampusHuntChallenge.findOneAndUpdate(
+        {
+          eventId: event._id,
+          roundId: round._id,
+          routeId: route._id,
+          challengeNumber: 4,
+          variantKey,
+        },
+        {
+          $set: {
+            eventId: event._id,
+            roundId: round._id,
+            routeId: route._id,
+            startingPointId: startingPoint._id,
+            fourthCheckpointId: fourthCheckpoint._id,
+            challengeNumber: 4,
+            type: 'timed_search',
+            prompt: clue4Defaults.prompt,
+            answer: propAnswer,
+            acceptedAnswers: [propAnswer, propAnswer.toLowerCase()],
+            destinationInstruction: clue4Defaults.destinationInstruction,
+            basePoints: scoring.clue4?.basePoints ?? DEFAULT_SCORING_CONFIG.clue4.basePoints ?? 0,
+            maxAttempts: scoring.clue4?.maxAttempts || 3,
+            timerSeconds: scoring.clue4?.timerSeconds
+              ?? DEFAULT_SCORING_CONFIG.clue4.timerSeconds
+              ?? 180,
+            speedBonusBands: scoring.clue4?.speedBonusBands
+              || DEFAULT_SCORING_CONFIG.clue4.speedBonusBands
+              || [],
+            hintText: clue4Defaults.hintText,
+            hintCost: scoring.hintCost || 15,
+            difficulty: 'medium',
+            variantKey,
+            active: true,
+          },
+        },
+        { upsert: true },
+      );
+      clueCount += 1;
+    }
+
+    // eslint-disable-next-line no-await-in-loop
+    await CampusHuntChallenge.updateMany(
+      {
+        eventId: event._id,
+        routeId: route._id,
+        challengeNumber: 4,
+        variantKey: 'DEFAULT',
+      },
+      { $set: { active: false } },
+    );
+
+    // Finish checkpoint only (Final is Clue 5 below)
+    for (const cp of laterDefs) {
+      if (!wantClue(5)) break;
       // eslint-disable-next-line no-await-in-loop
       await CampusHuntCheckpoint.findOneAndUpdate(
         { eventId: event._id, routeId: route._id, checkpointKey: cp.key },
@@ -657,17 +768,17 @@ async function ensureCheckpointsAndClues(
       checkpointCount += 1;
     }
 
-    if (wantClue(4)) {
+    if (wantClue(5)) {
     // eslint-disable-next-line no-await-in-loop
-    const clue4Defaults = routeClueDefaults(4, finishWord, event.teamSize);
-    clue4Defaults.destinationInstruction =
+    const clue5Defaults = routeClueDefaults(5, finishWord, event.teamSize);
+    clue5Defaults.destinationInstruction =
       `Report to your start — ${startName}. Ask the organizer to mark your team reached.`;
     await CampusHuntChallenge.findOneAndUpdate(
       {
         eventId: event._id,
         roundId: round._id,
         routeId: route._id,
-        challengeNumber: 4,
+        challengeNumber: 5,
         variantKey: 'DEFAULT',
       },
       {
@@ -676,18 +787,27 @@ async function ensureCheckpointsAndClues(
           roundId: round._id,
           routeId: route._id,
           startingPointId: startingPoint?._id,
-          challengeNumber: 4,
+          challengeNumber: 5,
           type: 'collaborative',
-          prompt: clue4Defaults.prompt,
-          memberPrompts: clue4Defaults.memberPrompts,
-          answer: clue4Defaults.answer,
-          acceptedAnswers: [clue4Defaults.answer],
-          destinationInstruction: clue4Defaults.destinationInstruction,
-          basePoints: scoring.clue4?.basePoints || 50,
-          maxAttempts: scoring.clue4?.maxAttempts || 3,
-          timerSeconds: scoring.clue4?.timerSeconds || 300,
-          speedBonusBands: scoring.clue4?.speedBonusBands || [],
-          hintText: clue4Defaults.hintText,
+          prompt: clue5Defaults.prompt,
+          memberPrompts: clue5Defaults.memberPrompts,
+          answer: clue5Defaults.answer,
+          acceptedAnswers: [clue5Defaults.answer],
+          destinationInstruction: clue5Defaults.destinationInstruction,
+          basePoints: scoring.clue5?.basePoints
+            || scoring.clue4?.basePoints
+            || DEFAULT_SCORING_CONFIG.clue5.basePoints
+            || 50,
+          maxAttempts: scoring.clue5?.maxAttempts
+            || scoring.clue4?.maxAttempts
+            || 3,
+          timerSeconds: scoring.clue5?.timerSeconds
+            || DEFAULT_SCORING_CONFIG.clue5.timerSeconds
+            || 300,
+          speedBonusBands: scoring.clue5?.speedBonusBands
+            || DEFAULT_SCORING_CONFIG.clue5.speedBonusBands
+            || [],
+          hintText: clue5Defaults.hintText,
           hintCost: scoring.hintCost || 15,
           difficulty: 'hard',
           variantKey: 'DEFAULT',
@@ -697,6 +817,18 @@ async function ensureCheckpointsAndClues(
       { upsert: true },
     );
     clueCount += 1;
+
+    // Retire legacy Final that lived on challengeNumber 4 DEFAULT
+    await CampusHuntChallenge.updateMany(
+      {
+        eventId: event._id,
+        routeId: route._id,
+        challengeNumber: 4,
+        type: 'collaborative',
+        variantKey: 'DEFAULT',
+      },
+      { $set: { active: false } },
+    );
     }
   }
 
@@ -852,6 +984,7 @@ async function bootstrapRound1Defaults({
       },
       clue3: { ...DEFAULT_SCORING_CONFIG.clue3 },
       clue4: { ...DEFAULT_SCORING_CONFIG.clue4 },
+      clue5: { ...DEFAULT_SCORING_CONFIG.clue5 },
     };
     event.markModified('scoringConfig');
   }
@@ -983,6 +1116,8 @@ module.exports = {
   rotatingFirstStops,
   rotatingSecondStops,
   rotatingThirdStops,
+  rotatingFourthStops,
+  propCodeForTeam,
   caesarShift,
   threeDigitCodeForTeam,
   stationForLocalTeam,

@@ -24,6 +24,12 @@ const {
 } = require('./timerService');
 const { writeAudit } = require('./auditService');
 const { DEFAULT_SCORING_CONFIG, CLUE_HOW_TO } = require('../constants');
+const { publishTeamProgress } = require('./teamProgressBus');
+
+function notifyTeam(teamOrId) {
+  const id = teamOrId?._id || teamOrId?.id || teamOrId;
+  if (id) publishTeamProgress(id);
+}
 
 async function getChallengeForTeam(team, challengeNumber, { includeSecrets = false } = {}) {
   const n = Number(challengeNumber);
@@ -53,6 +59,15 @@ async function getChallengeForTeam(team, challengeNumber, { includeSecrets = fal
       roundId: team.roundId,
       routeId: team.routeId,
       challengeNumber: 3,
+      active: true,
+    };
+  } else if (n === 4 && team.clue4ChallengeId) {
+    filter = {
+      _id: team.clue4ChallengeId,
+      eventId: team.eventId,
+      roundId: team.roundId,
+      routeId: team.routeId,
+      challengeNumber: 4,
       active: true,
     };
   } else {
@@ -111,17 +126,18 @@ function scoringForChallenge(event, challengeNumber) {
   const custom = raw?.toObject?.() || raw || {};
   const merged = { ...defaults, ...custom };
 
-  // Clue 2: keep Round 1 shape, but honor event scoringConfig overrides.
-  if (Number(challengeNumber) === 2) {
+  // Clue 2 / Clue 4 (prop hunt): keep Round 1 shape, but honor event scoringConfig overrides.
+  if (Number(challengeNumber) === 2 || Number(challengeNumber) === 4) {
     const timer = Number(merged.timerSeconds);
     merged.timerSeconds = Number.isFinite(timer) && timer > 0
       ? timer
       : (Number(defaults.timerSeconds) || 180);
 
     const delay = Number(merged.timerStartDelaySeconds);
+    const defaultDelay = Number(challengeNumber) === 4 ? 15 : 20;
     merged.timerStartDelaySeconds = Number.isFinite(delay) && delay >= 0
       ? delay
-      : (Number(defaults.timerStartDelaySeconds) || 20);
+      : (Number(defaults.timerStartDelaySeconds) || defaultDelay);
 
     merged.awardMode = merged.awardMode || defaults.awardMode || 'time_bands_total';
     merged.allowLateSubmit = merged.allowLateSubmit !== false;
@@ -147,15 +163,17 @@ async function ensureChallengeActive(team, challengeNumber, now = new Date()) {
 
   const event = await CampusHuntEvent.findById(team.eventId);
   const scoring = scoringForChallenge(event, challengeNumber);
-  // Prefer event scoring config so Clue 2 timer/delay updates apply without re-saving each route clue.
-  const timerSeconds = Number(challengeNumber) === 2
+  // Prefer event scoring config so Clue 2/4 timer/delay updates apply without re-saving each route clue.
+  const timerSeconds = Number(challengeNumber) === 2 || Number(challengeNumber) === 4
     ? Number(scoring.timerSeconds || challenge.timerSeconds || 180)
-    : Number(challengeNumber) === 4
+    : Number(challengeNumber) === 5
       ? Number(scoring.timerSeconds || challenge.timerSeconds || 300)
       : Number(challenge.timerSeconds || scoring.timerSeconds || 0);
   const delaySeconds = Number(challengeNumber) === 2
     ? Number(scoring.timerStartDelaySeconds ?? 20)
-    : 0;
+    : Number(challengeNumber) === 4
+      ? Number(scoring.timerStartDelaySeconds ?? 15)
+      : 0;
 
   let progress = await getOrCreateProgress(team, challenge);
 
@@ -225,11 +243,11 @@ function publicChallengeView(challenge, progress, {
   }
   let memberCode = undefined;
   let collaborative = false;
-  if (n === 4 && Array.isArray(challenge.memberPrompts) && challenge.memberPrompts.length) {
+  if (n === 5 && Array.isArray(challenge.memberPrompts) && challenge.memberPrompts.length) {
     collaborative = true;
     memberCode = challenge.memberPrompts[memberIndex] || '';
     // Keep shared instruction as prompt; each person also gets their code fragment.
-    prompt = challenge.prompt || 'Combine all four codes in order 1→4 into one word.';
+    prompt = challenge.prompt || 'Combine all teammate codes in order into one word.';
   }
 
   const maxAttempts = challenge.maxAttempts || scoring?.maxAttempts || 3;
@@ -253,7 +271,7 @@ function publicChallengeView(challenge, progress, {
   const expiresAt = progress?.expiresAt || null;
   const nowMs = nowDate(now).getTime();
   const timerArmed = !startedAt || nowMs >= new Date(startedAt).getTime();
-  const instructionPhase = n === 2
+  const instructionPhase = (n === 2 || n === 4)
     && progress?.state === 'ACTIVE'
     && Boolean(startedAt)
     && !timerArmed;
@@ -427,7 +445,8 @@ async function submitAnswer({
   const expired = isExpired(progress.expiresAt, now);
   const allowLate = Boolean(scoring.allowLateSubmit)
     || Number(challengeNumber) === 2
-    || Number(challengeNumber) === 4;
+    || Number(challengeNumber) === 4
+    || Number(challengeNumber) === 5;
 
   // Timed clues with allowLateSubmit: after timer, still accept for 0 points.
   if (expired && !allowLate) {
@@ -529,6 +548,7 @@ async function submitAnswer({
     const attemptsLeft = Math.max(0, maxAttempts - nextAttempts);
     const nextPts = scoring.attemptBands?.find((b) => Number(b.attempt) === nextAttempts + 1)?.points;
 
+    notifyTeam(updatedTeam);
     return {
       correct: false,
       state: updatedProgress.state || (failed ? 'FAILED' : 'ACTIVE'),
@@ -575,7 +595,10 @@ async function submitAnswer({
     submittedAt: now,
     awardMode: scoring.awardMode,
     timerSeconds: challenge.timerSeconds || scoring.timerSeconds,
-    allowLateSubmit: Boolean(scoring.allowLateSubmit) || Number(challengeNumber) === 4,
+    allowLateSubmit: Boolean(scoring.allowLateSubmit)
+      || Number(challengeNumber) === 2
+      || Number(challengeNumber) === 4
+      || Number(challengeNumber) === 5,
   });
 
   const completedProgress = await CampusHuntTeamProgress.findOneAndUpdate(
@@ -691,21 +714,28 @@ async function submitAnswer({
     ? (
       challenge.destinationInstruction
       || 'Go to your next location now. Find the shared green SECOND SCAN QR. '
-        + 'All 4 scan, then enter your team code to unlock Clue 3.'
+        + 'All members scan, then enter your team code to unlock Clue 3.'
     )
     : Number(challengeNumber) === 3
       ? (
         challenge.destinationInstruction
         || 'Riddle solved — go find the shared blue THIRD SCAN QR. '
-          + 'All 4 scan, then enter your team code to unlock Final.'
+          + 'All members scan, then enter your team code to unlock the prop hunt.'
       )
     : Number(challengeNumber) === 4
+      ? (
+        challenge.destinationInstruction
+        || 'Prop found — scan the shared purple FOURTH SCAN QR here. '
+          + 'All members scan, then enter your team code to unlock Final.'
+      )
+    : Number(challengeNumber) === 5
       ? (
         challenge.destinationInstruction
         || 'Report to your start location. Ask the organizer to mark your team reached.'
       )
       : (challenge.destinationInstruction || '');
 
+  notifyTeam(updatedTeam);
   return {
     correct: true,
     state: 'COMPLETED',
@@ -720,9 +750,15 @@ async function submitAnswer({
       ? (
         award.late
           ? 'Correct (0 pts — time up). Go scan green SECOND SCAN, then enter team code → Clue 3.'
-          : 'Correct! Go to next place · shared green QR · 4 scan + team code → Clue 3.'
+          : 'Correct! Go to next place · shared green QR · scan + team code → Clue 3.'
       )
       : Number(challengeNumber) === 4
+        ? (
+          award.late
+            ? 'Correct (0 pts — time up). Scan purple FOURTH SCAN here, then team code → Final.'
+            : 'Correct! Scan the purple FOURTH SCAN QR here — all members + team code → Final.'
+        )
+      : Number(challengeNumber) === 5
         ? (
           award.late
             ? 'Correct (0 pts — time up). Report to your start — ask the organizer to mark you reached.'
@@ -761,6 +797,7 @@ async function finalizeTimeout({ team, challenge, progress, now }) {
     ) || team;
   }
 
+  notifyTeam(updatedTeam);
   return {
     correct: false,
     state: updatedProgress?.state || 'TIMED_OUT',
@@ -890,6 +927,7 @@ async function requestHint({
     after: { hintCost, score: newScore },
   });
 
+  notifyTeam(updatedTeam || team);
   return {
     hint: challenge.hintText || '',
     score: updatedTeam?.currentScore ?? newScore,
@@ -957,9 +995,17 @@ async function rewindPreviousStepUnsafe({ team, userId, isLeader }) {
     to = 'CLUE_3_COMPLETED';
     challengeNumberToReset = 4;
     checkpointKeyToClear = '3';
-  } else if (['CLUE_4_COMPLETED', 'CLUE_4_FAILED'].includes(from)) {
+  } else if (['CLUE_4_COMPLETED', 'CLUE_4_FAILED', 'CLUE_4_TIMEOUT'].includes(from)) {
     to = 'CLUE_4_ACTIVE';
     challengeNumberToReset = 4;
+    checkpointKeyToClear = '4';
+  } else if (from === 'CHECKPOINT_4_COMPLETED' || from === 'CLUE_5_ACTIVE') {
+    to = 'CLUE_4_COMPLETED';
+    challengeNumberToReset = 5;
+    checkpointKeyToClear = '4';
+  } else if (['CLUE_5_COMPLETED', 'CLUE_5_FAILED'].includes(from)) {
+    to = 'CLUE_5_ACTIVE';
+    challengeNumberToReset = 5;
     checkpointKeyToClear = 'FINISH';
   } else {
     const err = new Error('Nothing to go back to from this stage');
@@ -1004,6 +1050,7 @@ async function rewindPreviousStepUnsafe({ team, userId, isLeader }) {
     after: { currentStage: to },
   });
 
+  notifyTeam(team);
   return { from, to };
 }
 
@@ -1021,7 +1068,7 @@ async function buildPlayerProgress(team, userId, isLeader) {
       team = await CampusHuntTeam.findById(team._id);
     }
   }
-  const [clue1, clue2, clue3, routeChallenges] = await Promise.all([
+  const [clue1, clue2, clue3, clue4, routeChallenges] = await Promise.all([
     team.clue1ChallengeId
       ? CampusHuntChallenge.findOne({
         _id: team.clue1ChallengeId,
@@ -1043,16 +1090,23 @@ async function buildPlayerProgress(team, userId, isLeader) {
         active: true,
       })
       : null,
+    team.clue4ChallengeId
+      ? CampusHuntChallenge.findOne({
+        _id: team.clue4ChallengeId,
+        eventId: team.eventId,
+        active: true,
+      })
+      : null,
     CampusHuntChallenge.find({
       eventId: team.eventId,
       roundId: team.roundId,
       routeId: team.routeId,
-      challengeNumber: { $gte: 4 },
+      challengeNumber: { $gte: 5 },
       variantKey: 'DEFAULT',
       active: true,
     }).sort({ challengeNumber: 1 }),
   ]);
-  const challenges = [clue1, clue2, clue3, ...routeChallenges].filter(Boolean);
+  const challenges = [clue1, clue2, clue3, clue4, ...routeChallenges].filter(Boolean);
 
   const progressDocs = await CampusHuntTeamProgress.find({ teamId: team._id });
   const byNumber = new Map(progressDocs.map((p) => [p.challengeNumber, p]));
@@ -1077,7 +1131,7 @@ async function buildPlayerProgress(team, userId, isLeader) {
   for (const ch of challenges) {
     const p = byNumber2.get(ch.challengeNumber);
     const scoringRow = scoringForChallenge(eventForTimeout, ch.challengeNumber);
-    if (scoringRow.allowLateSubmit || ch.challengeNumber === 2 || ch.challengeNumber === 4) {
+    if (scoringRow.allowLateSubmit || ch.challengeNumber === 2 || ch.challengeNumber === 4 || ch.challengeNumber === 5) {
       continue;
     }
     if (

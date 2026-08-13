@@ -152,7 +152,7 @@ export default function CampusStationNamesEditor({
           <h2 className="text-base font-semibold text-white">Teams, starts & places</h2>
           <p className="mt-1 text-xs text-white/50">
             Set overall teams and people per team, then starting points and campus places.
-            Save setup here, then update Clue 1 → 2 → 3 → Final one by one.
+            Save setup here, then update Clue 1 → 2 → 3 → 4 → Final one by one.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -210,18 +210,39 @@ export default function CampusStationNamesEditor({
         </label>
         <label className="block text-[11px] text-white/45">
           Campus places (1–10)
-          <input
-            type="number"
-            min={1}
-            max={10}
-            value={stationCount}
-            onChange={(e) => setStationCount(e.target.value)}
-            className={`mt-1 ${inputClass}`}
-          />
+          <div className="mt-1 flex items-center gap-2">
+            <button
+              type="button"
+              aria-label="Fewer places"
+              disabled={Number(stationCount) <= 1}
+              onClick={() => setStationCount((n) => Math.max(1, Number(n) - 1))}
+              className="h-9 w-9 shrink-0 rounded-lg border border-white/15 bg-white/5 text-lg text-white disabled:opacity-30"
+            >
+              −
+            </button>
+            <input
+              type="number"
+              min={1}
+              max={10}
+              value={stationCount}
+              onChange={(e) => setStationCount(e.target.value)}
+              className={`${inputClass} text-center`}
+            />
+            <button
+              type="button"
+              aria-label="More places"
+              disabled={Number(stationCount) >= 10}
+              onClick={() => setStationCount((n) => Math.min(10, Number(n) + 1))}
+              className="h-9 w-9 shrink-0 rounded-lg border border-white/15 bg-white/5 text-lg text-white disabled:opacity-30"
+            >
+              +
+            </button>
+          </div>
         </label>
       </div>
       <p className="mt-2 text-[11px] text-white/40">
         {preview.totalPlayers} players total · Round 1 / Survival / Finale ladder updates from team count.
+        Raise campus places with + to unlock more scan locations (then Save setup + bootstrap QRs).
       </p>
 
       <div className="mt-4">
