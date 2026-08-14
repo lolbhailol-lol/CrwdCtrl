@@ -25,6 +25,13 @@ function isPendingScan(data) {
   );
 }
 
+function awaitingRoundOpen(data) {
+  return (data?.rounds || []).some((card) => (
+    (card.id === 'round1' && !card.open && !card.comingSoon)
+    || (card.id === 'finale' && card.eligible && !card.open)
+  ));
+}
+
 function pollIntervalMs(data, burstUntil) {
   if (burstUntil && Date.now() < burstUntil) return 1000;
 
@@ -32,14 +39,16 @@ function pollIntervalMs(data, burstUntil) {
   const waiting = ['WAITING', 'READY'].includes(data?.team?.startStatus);
   const awaitingClaim = Boolean(data?.checkpointStatus?.awaitingTeamCodeConfirm);
 
+  if (awaitingRoundOpen(data)) return 2000;
   // Fast while waiting so admin release / start shows without a manual refresh
-  if (waiting) return 2000;
+  if (waiting || stage === 'WAITING') return 2000;
   // Fast only while teammates may still be scanning / claiming
   if (isPendingScan(data) || awaitingClaim) return 1000;
   // Safety net while playing (SSE is primary)
   if (isActivelyPlaying(data)) return 3000;
   if (stage === 'SCORE_LOCKED') return 15000;
-  return 15000;
+  // Between clues / next step mounting — never sit 15s needing Refresh
+  return 2000;
 }
 
 function progressFingerprint(data) {
@@ -51,9 +60,18 @@ function progressFingerprint(data) {
     data.team.currentStage,
     data.team.startStatus,
     data.team.currentScore,
+    data.team.leaderboardRank,
+    data.team.leaderboardSize,
     data.team.scheduledStartAt,
     data.team.actualStartAt,
     data.team.releasePaused ? 1 : 0,
+    data.team.competitionPhase || '',
+    data.team.finaleEntryId || '',
+    data.team.playerRoundLocks?.round1 ? 1 : 0,
+    data.team.playerRoundLocks?.finale ? 1 : 0,
+    ...(Array.isArray(data.rounds)
+      ? data.rounds.map((r) => `${r.id}:${r.open ? 1 : 0}:${r.statusHint || ''}:${r.eligible ? 1 : 0}`)
+      : []),
     cp?.checkpointId || '',
     cp?.verifiedCount ?? '',
     cp?.requiredCount ?? '',
@@ -104,23 +122,31 @@ export function progressFromActionData(payload) {
 
 /**
  * @param {string|null} eventId
- * @param {{ enabled?: boolean }} [options] — set enabled=false to pause polling
+ * @param {{ enabled?: boolean, initialData?: object|null }} [options]
  */
-export function useHuntTeam(eventId, { enabled = true } = {}) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(Boolean(eventId) && enabled);
+export function useHuntTeam(eventId, { enabled = true, initialData = null } = {}) {
+  const [data, setData] = useState(() => (
+    initialData?.team && Array.isArray(initialData?.rounds) ? initialData : null
+  ));
+  const [loading, setLoading] = useState(
+    Boolean(eventId) && enabled && !(initialData?.team && Array.isArray(initialData?.rounds)),
+  );
   const [error, setError] = useState(null);
   const [pollError, setPollError] = useState(null);
   const [burstUntil, setBurstUntil] = useState(0);
-  const teamIdRef = useRef(null);
+  const teamIdRef = useRef(initialData?.team?.id || null);
   /** Full /me/team loads — soft progress must not invalidate these. */
   const hardGenRef = useRef(0);
   /** Lightweight /progress polls only. */
   const softGenRef = useRef(0);
   const pausePollUntilRef = useRef(0);
-  const dataRef = useRef(null);
+  const dataRef = useRef(
+    initialData?.team && Array.isArray(initialData?.rounds) ? initialData : null,
+  );
   const fingerprintRef = useRef('');
-  const bootstrappedRef = useRef(false);
+  const bootstrappedRef = useRef(
+    Boolean(initialData?.team?.id && Array.isArray(initialData?.rounds)),
+  );
 
   useEffect(() => {
     dataRef.current = data;
@@ -278,6 +304,8 @@ export function useHuntTeam(eventId, { enabled = true } = {}) {
     data?.team?.scheduledStartAt,
     data?.team?.startStatus,
     data?.team?.currentStage,
+    data?.team?.finaleEntryId,
+    data?.rounds,
     data?.checkpointStatus?.verifiedCount,
     data?.checkpointStatus?.requiredCount,
     data?.checkpointStatus?.checkpointId,

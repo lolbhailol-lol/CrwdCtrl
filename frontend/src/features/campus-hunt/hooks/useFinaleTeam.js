@@ -26,6 +26,8 @@ function finaleFingerprint(data) {
     data.entry.id || data.entry._id,
     data.entry.status,
     data.entry.finaleScore,
+    data.entry.leaderboardRank,
+    data.entry.leaderboardSize,
     data.entry.activeMissionId,
     data.waitingForRelease ? 1 : 0,
     data.round?.status,
@@ -265,10 +267,11 @@ export function useFinaleTeam(eventId) {
     pollError,
     refresh: (opts) => {
       const safe = opts && typeof opts === 'object' && !opts.nativeEvent ? opts : {};
+      const hasBoard = Boolean(dataRef.current);
       return refresh({
-        includeTeam: Boolean(safe.includeTeam),
-        soft: true,
-        force: Boolean(safe.force),
+        includeTeam: Boolean(safe.includeTeam) || !hasBoard,
+        soft: hasBoard && safe.soft !== false && !safe.force,
+        force: Boolean(safe.force) || !hasBoard,
       });
     },
     applyActionData,

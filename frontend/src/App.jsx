@@ -222,9 +222,14 @@ function AppContent({
   useEffect(() => {
     const onUserLogin = () => {
       let fromProfile = false;
+      let stayInProfile = false;
       try {
         const raw = sessionStorage.getItem('crwdctrl_login_context');
-        if (raw) fromProfile = Boolean(JSON.parse(raw).fromProfile);
+        if (raw) {
+          const ctx = JSON.parse(raw);
+          fromProfile = Boolean(ctx.fromProfile);
+          stayInProfile = Boolean(ctx.stayInProfile);
+        }
       } catch {
         /* ignore */
       }
@@ -235,10 +240,14 @@ function AppContent({
       const destination = resolvePostLoginRedirect();
       const here = currentAppPath();
 
-      // Keep profile open after Profile-gated Google sign-in (blur lifts once authed)
-      if (!fromProfile || (destination && destination !== here && destination !== '/')) {
-        setIsProfileOpen(false);
+      // Profile Google sheet: stay on Profile, toast “Login successful”, then they tap Hunt.
+      if (stayInProfile || fromProfile) {
+        setIsProfileOpen(true);
+        window.requestAnimationFrame(() => showLoginPopup());
+        return;
       }
+
+      setIsProfileOpen(false);
 
       if (destination && destination !== here) {
         navigate(destination, { replace: true });
@@ -298,7 +307,7 @@ function AppContent({
         <CrwdCtrlLogin
           googleOnly
           title="Continue with Google"
-          subtitle="Sign in once — then you’re ready"
+          subtitle="Sign in — then you can open Campus Hunt from Profile"
           onClose={handleCloseLogin}
         />
       )}
@@ -320,9 +329,9 @@ function App() {
   const openLoginFromProfile = useCallback((options = {}) => {
     prepareLogin({
       fromProfile: true,
-      returnPath: options.returnPath,
+      stayInProfile: options.stayInProfile !== false,
+      returnPath: options.stayInProfile === false ? options.returnPath : undefined,
     });
-    setIsProfileOpen(false);
     setShowLogin(true);
   }, []);
 

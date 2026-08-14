@@ -249,30 +249,42 @@ export default function ProfileSidebar({
         onClose();
     };
 
+    const promptGoogleFromProfile = () => {
+        if (onShowLogin) {
+            onShowLogin({ stayInProfile: true });
+            return;
+        }
+        prepareLogin({ fromProfile: true, stayInProfile: true });
+        prepareRouteNavigation('/login');
+        navigate('/login');
+    };
+
     const handleMenuItemClick = async (label) => {
         const teamEntry = campusHuntMyTeams.find(
             (t) => label === `Team ${t.teamCode}` || label === t.teamCode,
         );
         if (teamEntry?.loginPath) {
+            if (!isAuthenticated) {
+                promptGoogleFromProfile();
+                return;
+            }
             goToPath(teamEntry.loginPath);
+            return;
+        }
+
+        const needsGoogle = !isAuthenticated && (
+            label === 'Campus Hunt login'
+            || label === 'Campus Hunt leaderboard'
+            || label === 'Edit profile'
+        );
+        if (needsGoogle) {
+            warmCampusHuntChunks();
+            promptGoogleFromProfile();
             return;
         }
 
         if (label === 'Campus Hunt login') {
             warmCampusHuntChunks();
-            if (!isAuthenticated) {
-                if (onShowLogin) {
-                    onShowLogin({ returnPath: CAMPUS_HUNT_PATHS.profileLogin });
-                } else {
-                    prepareLogin({ fromProfile: true, returnPath: CAMPUS_HUNT_PATHS.profileLogin });
-                    prepareRouteNavigation('/login');
-                    navigate('/login', {
-                        state: { from: { pathname: CAMPUS_HUNT_PATHS.profileLogin } },
-                    });
-                }
-                onClose();
-                return;
-            }
             goToPath(CAMPUS_HUNT_PATHS.profileLogin);
             return;
         }
@@ -326,27 +338,29 @@ export default function ProfileSidebar({
         hint: t.teamName || t.college || 'Open team login',
     }));
 
-    const showHuntLoginPlaceholder = campusHuntEntriesPending && !campusHuntLoginLive;
-    const showHuntBoardPlaceholder = campusHuntEntriesPending && !campusHuntLeaderboardLive;
+    const huntEnabled = isCampusHuntEnabled();
+    const huntLoginHint = !isAuthenticated
+        ? 'Sign in with Google, then enter your team code'
+        : (campusHuntTeamItems.length > 0 ? 'Enter another team code' : 'Enter team code');
+    const huntBoardHint = !isAuthenticated
+        ? 'Sign in with Google, then open live scores'
+        : 'Live college scores';
 
-    const campusHuntItems = [
+    const campusHuntItems = huntEnabled ? [
         ...campusHuntTeamItems,
-        ...(campusHuntLoginLive && campusHuntTeamItems.length === 0
-            ? [{ icon: KeyRound, label: 'Campus Hunt login', hint: 'Google sign-in · enter team code' }]
-            : []),
-        ...(campusHuntLoginLive && campusHuntTeamItems.length > 0
-            ? [{ icon: KeyRound, label: 'Campus Hunt login', hint: 'Enter another team code' }]
-            : []),
-        ...(showHuntLoginPlaceholder
-            ? [{ icon: KeyRound, label: 'Campus Hunt login', hint: 'Loading…', pending: true }]
-            : []),
-        ...(campusHuntLeaderboardLive
-            ? [{ icon: MapPinned, label: 'Campus Hunt leaderboard', hint: 'Live college scores' }]
-            : []),
-        ...(showHuntBoardPlaceholder
-            ? [{ icon: MapPinned, label: 'Campus Hunt leaderboard', hint: 'Loading…', pending: true }]
-            : []),
-    ];
+        {
+            icon: KeyRound,
+            label: 'Campus Hunt login',
+            hint: campusHuntEntriesPending && !campusHuntLoginLive ? 'Loading…' : huntLoginHint,
+            pending: campusHuntEntriesPending && !campusHuntLoginLive,
+        },
+        {
+            icon: MapPinned,
+            label: 'Campus Hunt leaderboard',
+            hint: campusHuntEntriesPending && !campusHuntLeaderboardLive ? 'Loading…' : huntBoardHint,
+            pending: campusHuntEntriesPending && !campusHuntLeaderboardLive,
+        },
+    ] : [];
 
     const menuItems = [
         { icon: User, label: 'Edit profile' },
@@ -368,22 +382,22 @@ export default function ProfileSidebar({
 
     // Mobile menu items - filtered based on authentication status
     const allMobileMenuItems = [
-        { icon: User, label: 'Edit profile', requiresAuth: true },
+        { icon: User, label: 'Edit profile', requiresAuth: false },
         ...campusHuntTeamItems.map((item) => ({ ...item, requiresAuth: false })),
-        ...(campusHuntLoginLive || showHuntLoginPlaceholder
+        ...(huntEnabled
             ? [{
                 icon: KeyRound,
                 label: 'Campus Hunt login',
                 requiresAuth: false,
-                hint: showHuntLoginPlaceholder && !campusHuntLoginLive ? 'Loading…' : 'Google sign-in · enter team code',
+                hint: huntLoginHint,
             }]
             : []),
-        ...(campusHuntLeaderboardLive || showHuntBoardPlaceholder
+        ...(huntEnabled
             ? [{
                 icon: MapPinned,
                 label: 'Campus Hunt leaderboard',
                 requiresAuth: false,
-                hint: showHuntBoardPlaceholder && !campusHuntLeaderboardLive ? 'Loading…' : 'Live college scores',
+                hint: huntBoardHint,
             }]
             : []),
         ...(clubManagerEligible
@@ -561,7 +575,7 @@ export default function ProfileSidebar({
                                 </button>
                             ) : (
                                 <button
-                                    onClick={() => onShowLogin?.()}
+                                    onClick={() => promptGoogleFromProfile()}
                                     className="w-full flex items-center justify-center gap-2 p-4 rounded-xl transition-colors group bg-[#0ECCEE] hover:bg-[#0ECCEE]/90 active:scale-[0.98]"
                                 >
                                     <GoogleIcon className="w-5 h-5" />
@@ -691,7 +705,7 @@ export default function ProfileSidebar({
                                 </button>
                             ) : (
                                 <button
-                                    onClick={() => onShowLogin?.()}
+                                    onClick={() => promptGoogleFromProfile()}
                                     className="w-full flex items-center justify-center gap-3 p-4 rounded-2xl transition-all duration-200 active:scale-95 bg-[#0ECCEE] hover:bg-[#0ECCEE]/90"
                                 >
                                     <GoogleIcon />

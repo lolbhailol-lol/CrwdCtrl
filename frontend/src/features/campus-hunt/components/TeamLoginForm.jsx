@@ -96,7 +96,26 @@ export default function TeamLoginForm({
   const secondary = teamCard?.team ? teamSecondaryName(teamCard.team) : '';
   const eventBackPath = CAMPUS_HUNT_PATHS.event(slug);
 
-  // Stay enrolled: same team → go straight to play (hunt token already stored).
+  const goToPlay = async (knownPayload = null) => {
+    rememberHuntSession({
+      slug,
+      teamCode,
+      playPath,
+      teamLoginPath: CAMPUS_HUNT_PATHS.teamLogin(slug, teamCode),
+    });
+    let payload = knownPayload;
+    if (!payload && eventId) {
+      try {
+        const res = await fetchMyTeam(eventId);
+        payload = res.data || null;
+      } catch {
+        payload = null;
+      }
+    }
+    navigate(playPath, { replace: true, state: { huntBootstrap: payload || undefined } });
+  };
+
+  // Stay enrolled: same team → rounds hub (or live resume). Keep this screen until ready.
   useEffect(() => {
     if (lookingUp || !teamCode || !eventId) return;
     if (!isHuntAuthenticated) {
@@ -105,38 +124,21 @@ export default function TeamLoginForm({
       return;
     }
 
-    // Instant resume when stored meta already matches this team link
     const metaCode = normalizeTeamCode(readHuntAuthMeta()?.teamCode);
-    if (metaCode && metaCode === teamCode) {
-      rememberHuntSession({
-        slug,
-        teamCode,
-        playPath,
-        teamLoginPath: CAMPUS_HUNT_PATHS.teamLogin(slug, teamCode),
-      });
-      navigate(playPath, { replace: true });
-      return;
-    }
-
     let cancelled = false;
     setSessionCheck('checking');
-    const failSafe = setTimeout(() => {
-      if (!cancelled) setSessionCheck((prev) => (prev === 'checking' ? 'ready' : prev));
-    }, 400);
 
     (async () => {
       try {
+        if (metaCode && metaCode === teamCode) {
+          await goToPlay();
+          return;
+        }
         const res = await fetchMyTeam(eventId);
         if (cancelled) return;
         const myCode = normalizeTeamCode(res.data?.team?.teamCode);
         if (myCode && myCode === teamCode) {
-          rememberHuntSession({
-            slug,
-            teamCode,
-            playPath,
-            teamLoginPath: CAMPUS_HUNT_PATHS.teamLogin(slug, teamCode),
-          });
-          navigate(playPath, { replace: true });
+          await goToPlay(res.data);
           return;
         }
         if (myCode && myCode !== teamCode) {
@@ -154,7 +156,6 @@ export default function TeamLoginForm({
     })();
     return () => {
       cancelled = true;
-      clearTimeout(failSafe);
     };
   }, [
     isHuntAuthenticated,
@@ -267,7 +268,7 @@ export default function TeamLoginForm({
         role: enteredRole,
         userId: result.user?.id || result.user?._id || '',
       });
-      navigate(result.team?.playPath || playPath, { replace: true });
+      await goToPlay();
     } catch (err) {
       setError(err.message || 'Wrong password');
     } finally {
@@ -291,14 +292,6 @@ export default function TeamLoginForm({
         <h1 className="text-2xl font-bold">Invalid team link</h1>
         <p className="text-white/55">Ask your organizer for your team URL.</p>
         <Link to={eventBackPath} className="text-[#0ECCEE] underline">Campus Hunt</Link>
-      </div>
-    );
-  }
-
-  if (sessionCheck === 'checking') {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-2 bg-[#0b0c0d] px-4 text-center text-white">
-        <p className="text-sm text-white/70">Opening your hunt…</p>
       </div>
     );
   }
@@ -411,8 +404,11 @@ export default function TeamLoginForm({
               {busy ? 'Checking…' : 'Continue → show names'}
             </button>
           )}
-          {lookingUp && (
-            <p className="mt-3 text-sm text-white/45">Loading team…</p>
+          {lookingUp && !teamCard && (
+            <p className="mt-3 text-sm text-white/45">Opening team…</p>
+          )}
+          {sessionCheck === 'checking' && !lookingUp && (
+            <p className="mt-3 text-sm text-white/45">Opening rounds…</p>
           )}
         </div>
 

@@ -247,24 +247,6 @@ export default function CampusHuntLeaderboardPage() {
               </span>
               <span>{updatedAt ? `Updated ${updatedAt}` : '…'}</span>
             </div>
-            {(board?.startCounts || board?.counts?.starts) && (
-              <div className={`grid grid-cols-3 gap-2 border-b px-4 py-3 text-center text-xs ${
-                isDark ? 'border-white/10' : 'border-gray-100'
-              }`}>
-                <div>
-                  <p className={mutedSoft}>Waiting</p>
-                  <p className="font-bold">{board.startCounts?.waiting ?? board.counts?.starts?.waiting ?? 0}</p>
-                </div>
-                <div>
-                  <p className={mutedSoft}>Released</p>
-                  <p className="font-bold">{board.startCounts?.released ?? board.counts?.starts?.released ?? 0}</p>
-                </div>
-                <div>
-                  <p className={mutedSoft}>Finished</p>
-                  <p className="font-bold">{board.startCounts?.completed ?? board.counts?.starts?.completed ?? 0}</p>
-                </div>
-              </div>
-            )}
             <div className={`divide-y ${rowDivider}`}>
               {rows.map((row) => {
                 const mine = myTeamId && row.teamId === myTeamId;
@@ -283,21 +265,9 @@ export default function CampusHuntLeaderboardPage() {
                       </p>
                       <p className={`truncate text-xs ${mutedSoft}`}>
                         {row.teamCode}
-                        {!isFinaleBoard && (
-                          <>
-                            {' · '}
-                            {['WAITING', 'READY'].includes(row.startStatus)
-                              ? `Starts ${
-                                row.scheduledStartAt
-                                  ? new Date(row.scheduledStartAt).toLocaleTimeString([], {
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                  })
-                                  : 'soon'
-                              }`
-                              : stageLabel(row.currentStage)}
-                          </>
-                        )}
+                        {!isFinaleBoard && row.currentStage ? (
+                          <> · {stageLabel(row.currentStage)}</>
+                        ) : null}
                         {isFinaleBoard && row.completedMissionIds?.length > 0 && (
                           <> · {row.completedMissionIds.length} missions</>
                         )}

@@ -275,7 +275,12 @@ export default function FinalePlayScreen({
                 ].filter(Boolean).join(' · ')}
               </p>
             </div>
-            <ScoreChip score={entry?.finaleScore ?? 500} label="Score" />
+            <ScoreChip
+              score={entry?.finaleScore ?? 500}
+              label="Score"
+              rank={entry?.leaderboardRank}
+              fieldSize={entry?.leaderboardSize}
+            />
           </div>
         </header>
 
@@ -346,6 +351,9 @@ export default function FinalePlayScreen({
               </p>
               <p className="mt-2 text-lg font-semibold text-white">
                 Score locked · {entry?.finalScore ?? entry?.finaleScore ?? 0} pts
+                {Number(entry?.leaderboardRank) > 0
+                  ? ` · #${entry.leaderboardRank}${Number(entry.leaderboardSize) > 0 ? ` of ${entry.leaderboardSize}` : ''}`
+                  : ''}
               </p>
               <p className="mt-2 text-sm text-white/60">
                 {allMissionsDone

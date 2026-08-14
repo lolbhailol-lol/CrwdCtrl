@@ -61,7 +61,7 @@ const NavItem = ({ item, isActive, isDark, layout = 'stacked', onClick, classNam
     );
 };
 
-const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile, onShowLogin }) => {
+const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
     const { isDark } = useDarkMode();
     const { user, isAuthenticated } = useAuth();
     const { confirm } = useDialog();
@@ -1041,12 +1041,8 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile, onShowLogin }) =>
                     <div className="relative">
                         <button
                             onClick={() => {
-                                if (isAuthenticated) {
-                                    if (onOpenProfile) onOpenProfile();
-                                    else setIsProfileOpen(true);
-                                } else {
-                                    onShowLogin?.();
-                                }
+                                if (onOpenProfile) onOpenProfile();
+                                else setIsProfileOpen(true);
                             }}
                             className={`w-8 lg:w-10 h-8 lg:h-10 rounded-xl flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 ${isAuthenticated
                                 ? 'bg-linear-to-br from-[#007BFF] to-[#00C9A7]'

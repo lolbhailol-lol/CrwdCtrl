@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { fetchEventBySlug } from '../services/campusHunt.api';
 import { useHuntTeam } from '../hooks/useHuntTeam';
 import { useFinaleTeam } from '../hooks/useFinaleTeam';
@@ -8,6 +8,7 @@ import PlayerPlayScreen from '../player/PlayerPlayScreen';
 import FinalePlayScreen from '../player/FinalePlayScreen';
 import PlayerRoundsHub from '../player/PlayerRoundsHub';
 import { CAMPUS_HUNT_PATHS } from '../config';
+import { isHuntAuthenticated as huntTokenPresent } from '../utils/huntAuth';
 import {
   clearHuntLastRound,
   readHuntSession,
@@ -17,9 +18,39 @@ import {
 const VALID_ROUNDS = new Set(['round1', 'survival', 'finale']);
 const RESUMABLE_ROUNDS = new Set(['round1', 'finale']);
 
+function roundIsLive(card) {
+  return String(card?.statusHint || '').toLowerCase() === 'live';
+}
+
+function teamIsInLivePlay(team) {
+  const stage = String(team?.currentStage || '');
+  if (!stage || stage === 'WAITING' || stage === 'SCORE_LOCKED') return false;
+  const released = Boolean(
+    team?.actualStartAt
+    || ['RELEASED', 'ACTIVE', 'COMPLETED'].includes(String(team?.startStatus || '')),
+  );
+  return released || stage.includes('ACTIVE') || stage.includes('COMPLETED');
+}
+
+function HubBoot({ team, eventName, lastRound, onOpenRound, onSwitchPerson, rounds = [] }) {
+  return (
+    <div className="min-h-screen bg-[#0b0c0d]">
+      <PlayerRoundsHub
+        team={team}
+        rounds={rounds}
+        eventName={eventName}
+        lastRound={lastRound}
+        onOpenRound={onOpenRound}
+        onSwitchPerson={onSwitchPerson}
+      />
+    </div>
+  );
+}
+
 export default function CampusHuntPlayPage() {
   const { slug } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const {
     isHuntAuthenticated,
@@ -27,7 +58,11 @@ export default function CampusHuntPlayPage() {
     meta: huntMeta,
     clearHuntAuth,
   } = useHuntAuth();
-  const [eventId, setEventId] = useState(() => huntClaims?.huntEventId || null);
+  const enrolled = isHuntAuthenticated || huntTokenPresent();
+  const bootstrap = location.state?.huntBootstrap || null;
+  const [eventId, setEventId] = useState(
+    () => huntClaims?.huntEventId || bootstrap?.event?.id || null,
+  );
   const [bootError, setBootError] = useState('');
   const saved = readHuntSession();
   const teamLoginFallback = saved?.slug === slug && saved?.teamLoginPath
@@ -59,13 +94,14 @@ export default function CampusHuntPlayPage() {
     };
   }, [slug, eventId]);
 
-  const hunt = useHuntTeam(isHuntAuthenticated ? eventId : null, {
-    enabled: Boolean(isHuntAuthenticated && eventId),
+  const hunt = useHuntTeam(enrolled ? eventId : null, {
+    enabled: Boolean(enrolled && eventId),
+    initialData: bootstrap,
   });
   const wantFinale = urlRound === 'finale'
     || (!urlRound && saved?.lastRound === 'finale');
   const finale = useFinaleTeam(
-    isHuntAuthenticated && eventId && wantFinale ? eventId : null,
+    enrolled && eventId && wantFinale ? eventId : null,
   );
 
   useEffect(() => {
@@ -75,7 +111,6 @@ export default function CampusHuntPlayPage() {
     }
   }, [hunt.data?.event?.slug, slug, navigate, teamLoginFallback]);
 
-  const loading = hunt.loading && !hunt.data;
   const error = hunt.error;
 
   const openRound = (id) => {
@@ -98,11 +133,15 @@ export default function CampusHuntPlayPage() {
   const roundsReady = Array.isArray(hunt.data?.rounds);
   const lastRound = saved?.lastRound;
   const lastCard = rounds.find((r) => r.id === lastRound);
+  const canResume = Boolean(
+    lastCard?.open
+    && !lastCard.comingSoon
+    && (roundIsLive(lastCard) || teamIsInLivePlay(hunt.data?.team)),
+  );
   const resumeRound = !urlRound
     && roundsReady
     && RESUMABLE_ROUNDS.has(lastRound)
-    && lastCard?.open
-    && !lastCard.comingSoon
+    && canResume
     ? lastRound
     : null;
   const activeRound = urlRound || resumeRound;
@@ -116,12 +155,21 @@ export default function CampusHuntPlayPage() {
     setSearchParams({ round: resumeRound }, { replace: true });
   }, [resumeRound, urlRound, setSearchParams]);
 
+  useEffect(() => {
+    if (!roundsReady || !urlRound) return;
+    const card = rounds.find((r) => r.id === urlRound);
+    if (!card || !card.open || card.comingSoon) {
+      clearHuntLastRound();
+      setSearchParams({}, { replace: true });
+    }
+  }, [roundsReady, urlRound, rounds, setSearchParams]);
+
   const playerUserId = useMemo(
     () => huntMeta?.userId || huntClaims?.userId || hunt.data?.team?.myUserId || null,
     [huntMeta?.userId, huntClaims?.userId, hunt.data?.team?.myUserId],
   );
 
-  if (!isHuntAuthenticated) {
+  if (!enrolled) {
     return <Navigate to={teamLoginFallback} replace />;
   }
 
@@ -136,21 +184,17 @@ export default function CampusHuntPlayPage() {
     );
   }
 
-  if (loading || !eventId) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-[#0b0c0d] px-4 text-center text-white">
-        <p>Loading your team…</p>
-        {eventId ? (
-          <button
-            type="button"
-            onClick={() => hunt.refresh?.({ force: true })}
-            className="text-sm text-[#0ECCEE] underline"
-          >
-            Taking too long? Retry
-          </button>
-        ) : null}
-      </div>
-    );
+  const hubProps = {
+    team: hunt.data?.team || { teamCode: saved?.teamCode },
+    eventName: hunt.data?.event?.name,
+    lastRound: saved?.lastRound || null,
+    onOpenRound: openRound,
+    onSwitchPerson: switchPerson,
+  };
+
+  // Never drop into a blank play screen while event/team is still resolving.
+  if (!eventId || (!roundsReady && !hunt.data?.team)) {
+    return <HubBoot {...hubProps} />;
   }
 
   if (error && !hunt.data) {
@@ -171,72 +215,37 @@ export default function CampusHuntPlayPage() {
     );
   }
 
-  if (activeRound && !roundsReady && !error) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-[#0b0c0d] px-4 text-center text-white">
-        <p>Loading rounds…</p>
-        <button
-          type="button"
-          onClick={() => hunt.refresh?.({ force: true })}
-          className="rounded-xl bg-[#0ECCEE] px-5 py-2.5 text-sm font-semibold text-black"
-        >
-          Retry
-        </button>
-      </div>
-    );
-  }
-
   const roundCard = activeRound
     ? rounds.find((r) => r.id === activeRound)
     : null;
 
   if (activeRound && roundsReady && (!roundCard || !roundCard.open)) {
-    return (
-      <div className="min-h-screen bg-[#0b0c0d]">
-        <div className="mx-auto max-w-lg px-4 py-10 text-center text-white">
-          <p className="text-lg font-semibold">
-            {roundCard?.label || 'This round'} is locked
-          </p>
-          <p className="mt-2 text-sm text-white/55">
-            {roundCard?.lockedReason || 'Wait for organizers to open this round.'}
-          </p>
-          <button
-            type="button"
-            onClick={backToHub}
-            className="mt-6 rounded-xl bg-[#0ECCEE] px-5 py-2.5 text-sm font-semibold text-black"
-          >
-            Back to rounds
-          </button>
-        </div>
-      </div>
-    );
+    return <HubBoot {...hubProps} rounds={rounds} />;
   }
 
   if (activeRound === 'finale') {
-    if (finale.loading && !finale.data) {
-      return (
-        <div className="min-h-screen bg-[#0b0c0d] text-white">
-          <div className="mx-auto max-w-lg animate-pulse px-4 pb-10 pt-8">
-            <div className="h-3 w-24 rounded bg-white/10" />
-            <div className="mt-3 h-7 w-40 rounded bg-white/15" />
-            <div className="mt-2 h-4 w-56 rounded bg-white/10" />
-            <div className="mt-8 grid gap-3 sm:grid-cols-2">
-              {[0, 1, 2, 3].map((i) => (
-                <div key={i} className="h-28 rounded-2xl border border-white/10 bg-white/[0.04]" />
-              ))}
-            </div>
-            <p className="mt-8 text-center text-xs text-white/35">Opening Finals…</p>
-          </div>
-        </div>
-      );
-    }
     if (!finale.data) {
+      if (!eventId || finale.loading || !finale.error) {
+        return (
+          <div className="min-h-screen bg-[#0b0c0d] text-white">
+            <div className="mx-auto max-w-lg animate-pulse px-4 pb-10 pt-8">
+              <div className="h-3 w-24 rounded bg-white/10" />
+              <div className="mt-3 h-7 w-40 rounded bg-white/15" />
+              <div className="mt-2 h-4 w-56 rounded bg-white/10" />
+              <div className="mt-8 grid gap-3 sm:grid-cols-2">
+                {[0, 1, 2, 3].map((i) => (
+                  <div key={i} className="h-28 rounded-2xl border border-white/10 bg-white/[0.04]" />
+                ))}
+              </div>
+              <p className="mt-8 text-center text-xs text-white/35">Opening Finals…</p>
+            </div>
+          </div>
+        );
+      }
       return (
         <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-[#0b0c0d] px-4 text-center text-white">
-          <p className="text-lg font-semibold">
-            {finale.error ? 'Couldn’t load Finals' : 'Finale not ready'}
-          </p>
-          <p className="text-sm text-white/60">{finale.error || 'Waiting for organizer…'}</p>
+          <p className="text-lg font-semibold">Couldn’t load Finals</p>
+          <p className="text-sm text-white/60">{finale.error}</p>
           <button
             type="button"
             onClick={() => finale.refresh()}
@@ -288,6 +297,9 @@ export default function CampusHuntPlayPage() {
   }
 
   if (activeRound === 'round1') {
+    if (!hunt.data?.team) {
+      return <HubBoot {...hubProps} />;
+    }
     return (
       <div className="min-h-screen bg-[#0b0c0d]">
         <PlayerPlayScreen
@@ -304,23 +316,8 @@ export default function CampusHuntPlayPage() {
   }
 
   if (!roundsReady) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0b0c0d] text-white">
-        Loading rounds…
-      </div>
-    );
+    return <HubBoot {...hubProps} />;
   }
 
-  return (
-    <div className="min-h-screen bg-[#0b0c0d]">
-      <PlayerRoundsHub
-        team={hunt.data?.team}
-        rounds={rounds}
-        eventName={hunt.data?.event?.name}
-        lastRound={saved?.lastRound || null}
-        onOpenRound={openRound}
-        onSwitchPerson={switchPerson}
-      />
-    </div>
-  );
+  return <HubBoot {...hubProps} rounds={rounds} />;
 }

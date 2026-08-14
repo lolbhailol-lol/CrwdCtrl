@@ -228,9 +228,9 @@ export function buildPlayerNowGuide({
     return {
       tone: 'wait',
       eyebrow: 'Hold on',
-      title: 'Loading the next step',
-      body: 'If this stays blank, tap Refresh below.',
-      steps: ['Stay with your team', 'Tap Refresh status'],
+      title: 'Next step unlocking',
+      body: 'Stay with your team — the next clue will show here in a moment.',
+      steps: ['Stay together', 'Watch this screen'],
     };
   }
 

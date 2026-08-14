@@ -3616,6 +3616,13 @@ async function startRound(req, res, next) {
     );
     const due = await releaseDueTeams({ eventId: round.eventId, roundId: round._id, now });
 
+    const liveTeams = await CampusHuntTeam.find({
+      eventId: round.eventId,
+      roundId: round._id,
+    }).select('_id').lean();
+    const { publishManyTeamProgress } = require('../services/teamProgressBus');
+    publishManyTeamProgress(liveTeams.map((row) => row._id));
+
     await writeAudit({
       eventId: round.eventId,
       ...adminActor(req),

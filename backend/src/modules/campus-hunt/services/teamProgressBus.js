@@ -23,6 +23,10 @@ function publishTeamProgress(teamId, payload = {}) {
   });
 }
 
+function publishManyTeamProgress(teamIds, payload = {}) {
+  (teamIds || []).forEach((id) => publishTeamProgress(id, payload));
+}
+
 /**
  * Attach an SSE client for a team. Returns a cleanup function.
  * @param {import('express').Response} res
@@ -87,5 +91,6 @@ function reqSafeOnClose(res, cleanup) {
 
 module.exports = {
   publishTeamProgress,
+  publishManyTeamProgress,
   subscribeTeamProgress,
 };

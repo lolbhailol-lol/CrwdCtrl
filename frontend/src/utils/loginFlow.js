@@ -2,14 +2,22 @@ const LOGIN_CONTEXT_KEY = 'crwdctrl_login_context';
 const LOGIN_MODAL_OPEN_KEY = 'crwdctrl_login_modal_open';
 
 /** Save intent before opening the login modal. */
-export function prepareLogin({ fromProfile = false, returnPath: explicitReturnPath } = {}) {
+export function prepareLogin({
+    fromProfile = false,
+    stayInProfile = false,
+    returnPath: explicitReturnPath,
+} = {}) {
     const returnPath =
         explicitReturnPath
         || `${window.location.pathname}${window.location.search}${window.location.hash}`;
     try {
         sessionStorage.setItem(
             LOGIN_CONTEXT_KEY,
-            JSON.stringify({ fromProfile: Boolean(fromProfile), returnPath }),
+            JSON.stringify({
+                fromProfile: Boolean(fromProfile),
+                stayInProfile: Boolean(stayInProfile),
+                returnPath,
+            }),
         );
     } catch {
         /* storage unavailable */
@@ -70,7 +78,8 @@ export function resolvePostLoginRedirect() {
         sessionStorage.removeItem(LOGIN_CONTEXT_KEY);
         if (!raw) return null;
 
-        const { returnPath } = JSON.parse(raw);
+        const { returnPath, stayInProfile } = JSON.parse(raw);
+        if (stayInProfile) return null;
         if (!returnPath || returnPath === '/profile') return '/';
         return returnPath;
     } catch {

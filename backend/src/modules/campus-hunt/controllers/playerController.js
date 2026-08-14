@@ -217,25 +217,8 @@ async function getMyTeam(req, res, next) {
     const isLeader = team.isLeader(userId);
     const progress = await buildPlayerProgress(team, userId, isLeader);
 
-    const event = await CampusHuntEvent.findById(eventId)
-      .select('slug name college playerRoundAccess teamSize teamCapacity finaleCapacity')
-      .lean();
-    const rounds = await CampusHuntRound.find({ eventId })
-      .select('name roundNumber status')
-      .lean();
-    const round1Doc = rounds.find((r) => Number(r.roundNumber) === 1)
-      || rounds.find((r) => /hunt|round\s*1/i.test(String(r.name || '')));
-    const finaleRound = rounds.find((r) => /finale/i.test(String(r.name || '')))
-      || rounds.find((r) => Number(r.roundNumber) >= 4);
-
-    const { buildPlayerRoundsHub } = require('../services/playerRoundAccess');
-    const roundsHub = buildPlayerRoundsHub({
-      event,
-      team,
-      round1Status: round1Doc?.status,
-      finaleStatus: finaleRound?.status,
-      hasFinaleEntry: Boolean(team.finaleEntryId),
-    });
+    const { loadPlayerHubState, publicEventView } = require('../services/playerRoundAccess');
+    const { event, hub } = await loadPlayerHubState(eventId, progress.team || team);
 
     return res.json({
       success: true,
@@ -249,17 +232,8 @@ async function getMyTeam(req, res, next) {
         challenges: progress.challenges,
         checkpointStatus: progress.checkpointStatus || null,
         serverTime: progress.serverTime,
-        event: event ? {
-          id: String(event._id || eventId),
-          slug: event.slug,
-          name: event.name,
-          college: event.college,
-          teamSize: Math.max(2, Math.min(8, Number(event.teamSize) || 4)),
-          teamCapacity: Math.max(2, Math.min(200, Number(event.teamCapacity) || 40)),
-          finaleCapacity: Math.max(1, Math.min(200, Number(event.finaleCapacity) || 12)),
-          playerRoundAccess: roundsHub.access,
-        } : null,
-        rounds: roundsHub.cards,
+        event: publicEventView(event, hub.access),
+        rounds: hub.cards,
       },
     });
   } catch (err) {
@@ -273,6 +247,8 @@ async function getTeamProgress(req, res, next) {
     const userId = req.user.userId;
     const isLeader = req.isHuntLeader;
     const progress = await buildPlayerProgress(team, userId, isLeader);
+    const { loadPlayerHubState, publicEventView } = require('../services/playerRoundAccess');
+    const { event, hub } = await loadPlayerHubState(team.eventId, progress.team || team);
     return res.json({
       success: true,
       data: {
@@ -280,6 +256,8 @@ async function getTeamProgress(req, res, next) {
         challenges: progress.challenges,
         checkpointStatus: progress.checkpointStatus || null,
         serverTime: progress.serverTime,
+        event: publicEventView(event, hub.access),
+        rounds: hub.cards,
       },
     });
   } catch (err) {

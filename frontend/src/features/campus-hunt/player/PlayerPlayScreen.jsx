@@ -189,7 +189,15 @@ export default function PlayerPlayScreen({
     }
   };
 
-  if (!team) return null;
+  if (!team) {
+    return (
+      <div className="mx-auto max-w-lg animate-pulse px-4 pb-10 pt-8 text-white">
+        <div className="h-3 w-24 rounded bg-white/10" />
+        <div className="mt-3 h-7 w-40 rounded bg-white/15" />
+        <div className="mt-8 h-28 rounded-2xl border border-white/10 bg-white/[0.04]" />
+      </div>
+    );
+  }
 
   const locked = team.currentStage === 'SCORE_LOCKED';
   const atStartReport = !waitingForRelease && needsStartReport(team.currentStage) && !activeNum;
@@ -447,7 +455,12 @@ export default function PlayerPlayScreen({
                 ].filter(Boolean).join(' · ')}
               </p>
             </div>
-            <ScoreChip score={team.currentScore} label="Score" />
+            <ScoreChip
+              score={team.currentScore}
+              label="Score"
+              rank={team.leaderboardRank}
+              fieldSize={team.leaderboardSize}
+            />
           </div>
         </header>
 
@@ -498,6 +511,9 @@ export default function PlayerPlayScreen({
               </p>
               <p className="mt-2 text-lg font-semibold text-white">
                 Score locked · {team.finalScore ?? team.currentScore ?? 0} pts
+                {Number(team.leaderboardRank) > 0
+                  ? ` · #${team.leaderboardRank}${Number(team.leaderboardSize) > 0 ? ` of ${team.leaderboardSize}` : ''}`
+                  : ''}
               </p>
               <p className="mt-2 text-sm text-white/60">
                 {finalsHint}

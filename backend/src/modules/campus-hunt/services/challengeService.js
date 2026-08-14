@@ -1211,8 +1211,24 @@ async function buildPlayerProgress(team, userId, isLeader) {
 
   const teamSize = Math.max(2, Math.min(8, Number(eventMeta?.teamSize) || 4));
 
+  let leaderboardRank = null;
+  let leaderboardSize = null;
+  try {
+    const { standingForTeam } = require('./leaderboardService');
+    const standing = await standingForTeam(teamFresh.eventId, teamFresh._id);
+    leaderboardRank = standing.rank;
+    leaderboardSize = standing.size;
+  } catch {
+    /* rank is best-effort for the in-game score chip */
+  }
+  const teamOut = typeof teamFresh.toObject === 'function'
+    ? teamFresh.toObject()
+    : teamFresh;
+  teamOut.leaderboardRank = leaderboardRank;
+  teamOut.leaderboardSize = leaderboardSize;
+
   return {
-    team: teamFresh,
+    team: teamOut,
     teamSize,
     challenges: views,
     checkpointStatus,

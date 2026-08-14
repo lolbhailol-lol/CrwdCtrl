@@ -3,6 +3,8 @@
  * Locked rounds stay visible, tinted, and full — not grayed out.
  */
 
+import ScoreChip from '../components/ScoreChip';
+
 const ROUND_LOOK = {
   round1: {
     hex: '#0ECCEE',
@@ -54,27 +56,44 @@ export default function PlayerRoundsHub({
       />
 
       <div className="relative mx-auto max-w-lg px-4 py-8">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#0ECCEE]">
-          Campus Hunt
-        </p>
-        <h1 className="mt-1 text-[1.35rem] font-semibold tracking-tight">
-          {team?.teamCode || 'Team'}
-          {team?.teamName ? (
-            <span className="font-normal text-white/50"> · {team.teamName}</span>
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#0ECCEE]">
+              Campus Hunt
+            </p>
+            <h1 className="mt-1 text-[1.35rem] font-semibold tracking-tight">
+              {team?.teamCode || 'Team'}
+              {team?.teamName ? (
+                <span className="font-normal text-white/50"> · {team.teamName}</span>
+              ) : null}
+            </h1>
+            {eventName && (
+              <p className="mt-1 text-sm text-white/50">{eventName}</p>
+            )}
+          </div>
+          {team?.currentScore != null ? (
+            <ScoreChip
+              score={team.currentScore}
+              label="Score"
+              rank={team.leaderboardRank}
+              fieldSize={team.leaderboardSize}
+            />
           ) : null}
-        </h1>
-        {eventName && (
-          <p className="mt-1 text-sm text-white/50">{eventName}</p>
-        )}
+        </div>
         <p className="mt-4 text-sm text-white/60">
-          Choose a round. Locked rounds stay visible until organizers open them.
+          Choose a round. Round 1 opens when organizers go live.
         </p>
 
         <div className="mt-6 space-y-3">
           {cards.length === 0 && (
-            <p className="rounded-2xl border border-white/10 bg-white/4 px-4 py-6 text-center text-sm text-white/50">
-              Loading rounds…
-            </p>
+            <div className="space-y-3">
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="h-24 animate-pulse rounded-2xl border border-white/10 bg-white/[0.04]"
+                />
+              ))}
+            </div>
           )}
           {cards.map((card, index) => {
             const canOpen = Boolean(card.open) && !card.comingSoon;

@@ -184,6 +184,18 @@ async function buildBoardPayload({
     }
   }
 
+  let leaderboardRank = null;
+  let leaderboardSize = null;
+  try {
+    const { buildFinaleLeaderboard } = require('./finaleLeaderboardService');
+    const board = await buildFinaleLeaderboard(eventId, { includeAll: true });
+    leaderboardSize = board.length;
+    const row = board.find((r) => String(r.teamId) === String(teamId));
+    leaderboardRank = row?.rank || null;
+  } catch {
+    /* rank is best-effort */
+  }
+
   return {
     entry: {
       id: String(entry._id),
@@ -204,6 +216,8 @@ async function buildBoardPayload({
       releasedAt: entry.releasedAt,
       released,
       finalScore: entry.finalScore ?? null,
+      leaderboardRank,
+      leaderboardSize,
     },
     round: round ? {
       id: String(round._id),

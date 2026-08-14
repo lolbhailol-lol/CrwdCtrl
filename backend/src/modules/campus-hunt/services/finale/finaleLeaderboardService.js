@@ -81,6 +81,12 @@ async function startFinaleRound({ roundId, actor = {} }) {
     actor: { actorType: 'system', actorId: 'start' },
   });
 
+  const liveEntries = await CampusHuntFinaleEntry.find({ eventId: round.eventId })
+    .select('teamId')
+    .lean();
+  const { publishManyTeamProgress } = require('../teamProgressBus');
+  publishManyTeamProgress(liveEntries.map((row) => row.teamId));
+
   await writeAudit({
     eventId: round.eventId,
     ...actor,

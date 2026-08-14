@@ -60,6 +60,17 @@ async function buildLeaderboard(eventId, { includeUnfinished = true } = {}) {
   }));
 }
 
+/** Live rank for one team on the Round 1 board. */
+async function standingForTeam(eventId, teamId) {
+  const board = await buildLeaderboard(eventId, { includeUnfinished: true });
+  const row = board.find((r) => String(r.teamId) === String(teamId));
+  return {
+    rank: row?.rank || null,
+    size: board.length,
+  };
+}
+
 module.exports = {
   buildLeaderboard,
+  standingForTeam,
 };

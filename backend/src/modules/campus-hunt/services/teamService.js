@@ -92,6 +92,8 @@ function publicTeamView(team, { isLeader = false, start = null, userId = null, t
     currentScore: team.currentScore,
     startingScore: team.startingScore ?? 100,
     finalScore: team.finalScore ?? null,
+    leaderboardRank: team.leaderboardRank ?? null,
+    leaderboardSize: team.leaderboardSize ?? null,
     status: team.status,
     currentStage: team.currentStage,
     competitionPhase: team.competitionPhase || 'round1',
