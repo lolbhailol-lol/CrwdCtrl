@@ -1348,7 +1348,7 @@ export default function TeamManagerPanel({
           Schedule assigns ~{teamsPerWait} team{teamsPerWait === 1 ? '' : 's'} per starting point
           ({startCount} start{startCount === 1 ? '' : 's'} · {teamSize} people/team).
           {leftoverTeams > 0
-            ? ` ${leftoverTeams} extra team(s) from an older size are listed below capacity — schedule ignores them.`
+            ? ` ${leftoverTeams} extra team(s) beyond capacity — schedule ignores them; Lock parks them automatically.`
             : ''}
         </p>
         <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs text-white/55">
@@ -1612,7 +1612,7 @@ export default function TeamManagerPanel({
             <p className="mt-1 text-xs text-white/50">
               Open a team to copy its login link, reveal password, edit names, or delete.
               {leftoverTeams > 0
-                ? ` First ${capacity} count for this layout; ${leftoverTeams} leftover below (delete if unused).`
+                ? ` First ${capacity} count for this layout; ${leftoverTeams} extra below (ignored by schedule, parked on Lock).`
                 : ''}
             </p>
           </div>

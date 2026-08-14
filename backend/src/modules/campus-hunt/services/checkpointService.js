@@ -790,6 +790,24 @@ async function getPendingCheckpointStatus(team, userId) {
   }
   else return null;
 
+  if (checkpointKey === '1' && !team.firstCheckpointId) {
+    return {
+      checkpointId: null,
+      checkpointKey: '1',
+      code: null,
+      locationName: null,
+      assignmentMissing: true,
+      publicInstruction:
+        'Your orange FIRST SCAN station is not assigned yet. Ask an organizer to Generate & Lock the schedule.',
+      verifiedCount: 0,
+      requiredCount,
+      youScanned: false,
+      status: 'unassigned',
+      awaitingTeamCodeConfirm: false,
+      membersNeeded: requiredCount,
+    };
+  }
+
   if (checkpointKey === '2' && !team.secondCheckpointId) {
     return {
       checkpointId: null,

@@ -131,11 +131,11 @@ export default function PlayerPlayScreen({
 
   // Auto-open camera on scan stages so the main action is one tap away
   useEffect(() => {
-    if (!atCheckpoint || !checkpointStatus || checkpointStatus.youScanned) {
+    if (!atCheckpoint || !checkpointStatus || checkpointStatus.youScanned || checkpointStatus.assignmentMissing) {
       return;
     }
     setShowScanner(true);
-  }, [atCheckpoint, checkpointStatus?.checkpointId, checkpointStatus?.youScanned]);
+  }, [atCheckpoint, checkpointStatus?.checkpointId, checkpointStatus?.youScanned, checkpointStatus?.assignmentMissing]);
 
   // Prefill team code as soon as full roster has scanned
   useEffect(() => {
@@ -550,7 +550,24 @@ export default function PlayerPlayScreen({
           ) : null}
 
           {/* Scan action */}
-          {atCheckpoint && checkpointStatus && (
+          {atCheckpoint && checkpointStatus?.assignmentMissing && (
+            <section className={`${panel} border border-amber-400/35 bg-amber-500/10`}>
+              <p className="text-sm font-semibold text-amber-100">Station not assigned yet</p>
+              <p className="mt-2 text-sm leading-relaxed text-amber-100/90">
+                {checkpointStatus.publicInstruction
+                  || 'Your scan station is not set up yet. Ask an organizer to update clues and regenerate the schedule.'}
+              </p>
+              <button
+                type="button"
+                onClick={() => onRefresh?.({ force: true })}
+                className="mt-3 w-full rounded-xl border border-amber-300/30 bg-black/20 py-2.5 text-sm font-semibold text-amber-100"
+              >
+                Refresh status
+              </button>
+            </section>
+          )}
+
+          {atCheckpoint && checkpointStatus && !checkpointStatus.assignmentMissing && (
             <motion.section
               initial={false}
               animate={{ opacity: 1, y: 0 }}

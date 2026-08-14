@@ -23,8 +23,8 @@ import {
 
 const inputClass = 'w-full rounded-lg border border-white/15 bg-[#161718] px-3 py-2 text-sm text-white';
 
-function buildCluePacks(stations) {
-  return resolveStations(stations).map((station, index) => ({
+function buildCluePacks(stations, stationCount = null) {
+  return resolveStations(stations, stationCount).map((station, index) => ({
     id: `pack-${station.code}`,
     index,
     title: station.name,
@@ -81,13 +81,13 @@ function variantKeyFor(code, waveId) {
 }
 
 function packForPlace(place, packs) {
-  const list = packs?.length ? packs : buildCluePacks();
+  const list = packs?.length ? packs : [];
   const needle = String(place || '').toLowerCase().trim();
   return list.find((pack) => pack.place.toLowerCase() === needle) || list[0];
 }
 
 function packFromVariant(variant, packs) {
-  const list = packs?.length ? packs : buildCluePacks();
+  const list = packs?.length ? packs : [];
   const answer = String(variant?.answer || '').toLowerCase().trim();
   const dest = String(variant?.destinationInstruction || '').toLowerCase();
   const byAnswer = list.find((pack) => pack.place.toLowerCase() === answer);
@@ -213,12 +213,16 @@ export default function Clue1VariantManager({
   onChanged,
   campusStations,
   campusStarts,
+  stationCount = null,
   teamCapacity = 40,
   teamSize = 4,
   teamsPerWait = TEAMS_PER_WAIT,
   teamsPerStation = TARGET_TEAMS_PER_STATION,
 }) {
-  const stations = useMemo(() => resolveStations(campusStations), [campusStations]);
+  const stations = useMemo(
+    () => resolveStations(campusStations, stationCount),
+    [campusStations, stationCount],
+  );
   const starts = useMemo(() => resolveStarts(campusStarts), [campusStarts]);
   const teamSlots = useMemo(() => buildTeamSlots(teamsPerWait), [teamsPerWait]);
   const cluePacks = useMemo(() => buildCluePacks(stations), [stations]);
@@ -232,7 +236,12 @@ export default function Clue1VariantManager({
   const [points, setPoints] = useState([]);
   const [checkpoints, setCheckpoints] = useState([]);
   const [packContent, setPackContent] = useState(() => (
-    Object.fromEntries(buildCluePacks().map((pack) => [pack.id, blankPackContent(pack.place, teamSize)]))
+    Object.fromEntries(
+      buildCluePacks(campusStations, stationCount).map((pack) => [
+        pack.id,
+        blankPackContent(pack.place, teamSize),
+      ]),
+    )
   ));
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');

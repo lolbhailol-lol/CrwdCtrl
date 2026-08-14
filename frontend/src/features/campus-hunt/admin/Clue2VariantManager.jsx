@@ -107,13 +107,17 @@ export default function Clue2VariantManager({
   roundId,
   campusStations,
   campusStarts,
+  stationCount = null,
   onChanged,
   teamCapacity = 40,
   teamSize = 4,
   teamsPerWait = TEAMS_PER_WAIT,
   teamsPerStation = TARGET_TEAMS_PER_STATION,
 }) {
-  const stations = useMemo(() => resolveStations(campusStations), [campusStations]);
+  const stations = useMemo(
+    () => resolveStations(campusStations, stationCount),
+    [campusStations, stationCount],
+  );
   const starts = useMemo(() => resolveStarts(campusStarts), [campusStarts]);
   const teamSlots = useMemo(() => buildTeamSlots(teamsPerWait), [teamsPerWait]);
   const arrivalPlan = useMemo(

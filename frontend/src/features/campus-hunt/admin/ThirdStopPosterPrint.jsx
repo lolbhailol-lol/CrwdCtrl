@@ -6,11 +6,14 @@ export default function ThirdStopPosterPrint({
   eventId,
   reloadKey = 0,
   campusStations,
+  stationCount = null,
   teamSize = 4,
 }) {
-  const placeCount = Array.isArray(campusStations) && campusStations.length
-    ? campusStations.length
-    : null;
+  const placeCount = stationCount != null
+    ? Number(stationCount)
+    : (Array.isArray(campusStations) && campusStations.length
+      ? campusStations.length
+      : null);
   return (
     <StationPosterPrint
       eventId={eventId}
@@ -26,6 +29,7 @@ export default function ThirdStopPosterPrint({
       needMoreHint="Update Clue 3 for this setup + Save Clue 3, then refresh."
       skippedSummaryKey="thirdSkipped"
       campusStations={campusStations}
+      stationCount={stationCount}
       teamSize={teamSize}
     />
   );

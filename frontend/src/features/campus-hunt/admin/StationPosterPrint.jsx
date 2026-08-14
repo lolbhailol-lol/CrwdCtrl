@@ -29,18 +29,20 @@ export default function StationPosterPrint({
   needMoreHint,
   skippedSummaryKey,
   campusStations,
+  stationCount = null,
   teamSize = 4,
 }) {
   const [packs, setPacks] = useState([]);
   const [summary, setSummary] = useState(null);
+  const [apiStations, setApiStations] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
-  const activeStations = useMemo(
-    () => resolveStations(campusStations),
-    [campusStations],
-  );
+  const activeStations = useMemo(() => {
+    if (Array.isArray(apiStations) && apiStations.length) return apiStations;
+    return resolveStations(campusStations, stationCount);
+  }, [apiStations, campusStations, stationCount]);
   const activeCodes = useMemo(
     () => new Set(activeStations.map((s) => String(s.code || '').toUpperCase())),
     [activeStations],
@@ -57,6 +59,7 @@ export default function StationPosterPrint({
       const result = await adminListStationQr(eventId);
       setPacks(result.data?.[packsKey] || []);
       setSummary(result.data?.printSummary || null);
+      setApiStations(result.data?.campusStations || null);
     } catch (err) {
       setError(err.message || `Could not load ${scanLabel} posters`);
     } finally {

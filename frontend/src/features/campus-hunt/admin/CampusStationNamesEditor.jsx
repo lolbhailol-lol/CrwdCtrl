@@ -24,6 +24,7 @@ export default function CampusStationNamesEditor({
   teamCapacity: teamCapacityProp = 40,
   teamSize: teamSizeProp = 4,
   onChanged,
+  onLayoutDraftChange,
 }) {
   const [teams, setTeams] = useState(String(teamCapacityProp));
   const [people, setPeople] = useState(String(teamSizeProp));
@@ -43,6 +44,7 @@ export default function CampusStationNamesEditor({
   useEffect(() => {
     setStartCount(startCountProp);
     setStationCount(stationCountProp);
+    // Full rename catalog — activeStations / activeStarts slice by local count for display.
     setStationDraft(resolveStations(campusStations));
     setStartDraft(resolveStarts(campusStarts));
   }, [campusStations, campusStarts, startCountProp, stationCountProp]);
@@ -60,6 +62,15 @@ export default function CampusStationNamesEditor({
     () => stationDraft.slice(0, Math.max(1, Math.min(10, Number(stationCount) || 1))),
     [stationDraft, stationCount],
   );
+
+  useEffect(() => {
+    onLayoutDraftChange?.({
+      stationCount: Number(stationCount) || 1,
+      startCount: Number(startCount) || 1,
+      campusStations: activeStations,
+      campusStarts: activeStarts,
+    });
+  }, [stationCount, startCount, activeStations, activeStarts, onLayoutDraftChange]);
 
   const suggested = useMemo(
     () => suggestHuntLayout(preview.teamCapacity),

@@ -299,12 +299,18 @@ async function getEventOverview(req, res, next) {
     });
     const { isTeamRosterReady } = require('../utils/roster');
     const { resolveDemoScale } = require('../utils/demoScale');
+    const { selectCompetitionTeams } = require('../services/startScheduleService');
     const scale = resolveDemoScale(event);
-    const teamsReady = teams.filter((team) => (
+    const roundOne = rounds.find((round) => Number(round.roundNumber) === 1);
+    const roundTeams = roundOne?._id
+      ? teams.filter((team) => String(team.roundId) === String(roundOne._id))
+      : teams;
+    const competitionTeams = selectCompetitionTeams(roundTeams, event.teamCapacity);
+    const leftoverTeams = Math.max(0, roundTeams.length - competitionTeams.length);
+    const teamsReady = competitionTeams.filter((team) => (
       team.routeId && isTeamRosterReady(team, scale.teamSize)
     )).length;
-    const roundOne = rounds.find((round) => Number(round.roundNumber) === 1);
-    const startAssignmentsReady = teams.filter((team) => (
+    const startAssignmentsReady = competitionTeams.filter((team) => (
       team.startingPointId
       && team.routeId
       && team.scheduledStartAt
@@ -321,18 +327,20 @@ async function getEventOverview(req, res, next) {
     const startingPointsReady = startingPoints.filter((p) => p.active !== false).length
       >= Math.max(1, Number(event.startCount) || 4);
     const readiness = {
-      ready: teams.length > 0
-        && teamsReady === teams.length
-        && startAssignmentsReady === teams.length
+      ready: competitionTeams.length > 0
+        && teamsReady === competitionTeams.length
+        && startAssignmentsReady === competitionTeams.length
         && roundOne?.scheduleStatus === 'locked'
         && routeReadiness.some((route) => route.ready)
         && startingPointsReady,
       teamsReady,
-      teamsTotal: teams.length,
-      rostersIncomplete: teams.length - teamsReady,
+      teamsTotal: competitionTeams.length,
+      teamsInDb: teams.length,
+      leftoverTeams,
+      rostersIncomplete: competitionTeams.length - teamsReady,
       startAssignmentsReady,
       scheduleLocked: roundOne?.scheduleStatus === 'locked',
-      unassignedTeams: teams.filter((team) => !team.routeId).length,
+      unassignedTeams: competitionTeams.filter((team) => !team.routeId).length,
       routesReady: routeReadiness.filter((route) => route.ready).length,
       routesTotal: routeReadiness.length,
       startingPointsReady,

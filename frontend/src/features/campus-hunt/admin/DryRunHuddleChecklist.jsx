@@ -78,10 +78,7 @@ export default function DryRunHuddleChecklist({
   stationCount,
 }) {
   const stations = useMemo(
-    () => resolveStations(campusStations).slice(
-      0,
-      Math.max(1, Math.min(10, Number(stationCount) || resolveStations(campusStations).length || 4)),
-    ),
+    () => resolveStations(campusStations, stationCount),
     [campusStations, stationCount],
   );
   const starts = useMemo(() => resolveStarts(campusStarts), [campusStarts]);
@@ -176,10 +173,10 @@ export default function DryRunHuddleChecklist({
       : stations.map((s) => ({
         code: s.code,
         name: s.name,
-        orange: true,
-        green: true,
-        blue: true,
-        purple: true,
+        orange: false,
+        green: false,
+        blue: false,
+        purple: false,
       }));
 
     return base.map((row) => {
@@ -248,7 +245,7 @@ export default function DryRunHuddleChecklist({
               {' '}
               {stations.map((s) => `${s.code} ${s.name}`).join(' · ') || '—'}
               .
-              Print ~{posterCount || stations.length * 4} posters from Station QR (orange + green + blue + purple).
+              Print ~{posterCount || (loading ? '…' : 0)} posters from Station QR (orange + green + blue + purple).
             </p>
             <ol className="list-decimal space-y-1.5 pl-4 print:space-y-1">
               <li>
@@ -317,7 +314,7 @@ export default function DryRunHuddleChecklist({
           </div>
 
           <div className="mt-2 huddle-prep-grid grid gap-x-4 md:grid-cols-2">
-            <CheckRow id="m1" accent="#0ECCEE">Printed all {posterCount || stations.length * 4} station posters</CheckRow>
+            <CheckRow id="m1" accent="#0ECCEE">Printed all {posterCount || (loading ? '…' : 0)} station posters</CheckRow>
             <CheckRow id="m2" accent="#0ECCEE">Team links + password · phones on play screen</CheckRow>
             <CheckRow id="m3" accent="#0ECCEE">Schedule locked · Round started · finish desk staffed</CheckRow>
             <CheckRow id="m4" accent="#0ECCEE">Walked every place below before release</CheckRow>

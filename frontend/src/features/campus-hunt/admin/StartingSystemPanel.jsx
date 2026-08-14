@@ -36,10 +36,9 @@ function dateTimeLocal(date = new Date(Date.now() + 15 * 60 * 1000)) {
   return shifted.toISOString().slice(0, 16);
 }
 
-/** Fixed Round 1 launch: 22 Aug 2026, 4:00 PM local. */
+/** Default Round 1 launch: today (or tomorrow) at 4:00 PM local. */
 function round1LaunchDateTime() {
-  const date = new Date(2026, 7, 22, 16, 0, 0, 0); // month is 0-based
-  return dateTimeLocal(date);
+  return dateTimeAtHourMinute(16, 0);
 }
 
 /** Today (or tomorrow if already past) at local HH:MM — e.g. 16:00 for 4:00 PM. */

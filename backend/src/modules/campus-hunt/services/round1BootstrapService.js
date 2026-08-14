@@ -396,7 +396,37 @@ async function ensureSharedStationCheckpoints(event, round, anchorRoute, station
     },
   );
 
-  return { map, created, retired: retired.modifiedCount || 0 };
+  // Hide shared QRs for campus places no longer in the active hunt layout.
+  const activeStationCodes = new Set(
+    stations.map((row) => String(row.code || '').toUpperCase().trim()).filter(Boolean),
+  );
+  const inactiveStationCodes = DEFAULT_CAMPUS_STATIONS
+    .map((row) => row.code)
+    .filter((code) => !activeStationCodes.has(code));
+  let retiredInactiveStations = 0;
+  if (inactiveStationCodes.length) {
+    const retiredInactive = await CampusHuntCheckpoint.updateMany(
+      {
+        eventId: event._id,
+        progressionKey: { $in: ['1', '2', '3', '4'] },
+        code: { $regex: /^ST-/i },
+        stationCode: { $in: inactiveStationCodes },
+      },
+      {
+        $set: {
+          active: false,
+          concurrencyGuidance: 'Retired — campus place removed from active hunt layout.',
+        },
+      },
+    );
+    retiredInactiveStations = retiredInactive.modifiedCount || 0;
+  }
+
+  return {
+    map,
+    created,
+    retired: (retired.modifiedCount || 0) + retiredInactiveStations,
+  };
 }
 
 async function ensureCheckpointsAndClues(

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Clue1VariantManager from './Clue1VariantManager';
 import Clue2VariantManager from './Clue2VariantManager';
 import Clue3VariantManager from './Clue3VariantManager';
@@ -15,6 +15,7 @@ import {
   deriveClueGeometry,
   resolveStarts,
   resolveStations,
+  suggestHuntLayout,
 } from './campusHuntFormat';
 import { adminBootstrapRound1 } from '../services/campusHunt.api';
 import { STAGE_THEME_LIST, themeForChallengeNumber } from '../types/stageTheme';
@@ -119,6 +120,8 @@ function ClueBox({
   onClueContentChanged,
   campusStations,
   campusStarts,
+  stationCount,
+  layoutDirty = false,
   teamCapacity,
   teamSize,
   teamsPerWait,
@@ -193,8 +196,9 @@ function ClueBox({
           <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-3 py-2">
             <button
               type="button"
-              disabled={updating || !eventId}
+              disabled={updating || !eventId || layoutDirty}
               onClick={updateThisClue}
+              title={layoutDirty ? 'Save setup first' : undefined}
               className={`rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-40 ${theme.solidClass} ${theme.solidTextClass}`}
             >
               {updating ? 'Updating…' : `Update Clue ${clue.number} for this setup`}
@@ -213,6 +217,7 @@ function ClueBox({
                 roundId={roundId}
                 campusStations={campusStations}
                 campusStarts={campusStarts}
+                stationCount={stationCount}
                 teamCapacity={teamCapacity}
                 teamSize={teamSize}
                 teamsPerWait={teamsPerWait}
@@ -226,6 +231,7 @@ function ClueBox({
                 eventId={eventId}
                 reloadKey={checkpointReloadKey}
                 campusStations={campusStations}
+                stationCount={stationCount}
                 teamSize={teamSize}
               />
             </>
@@ -236,6 +242,7 @@ function ClueBox({
                 roundId={roundId}
                 campusStations={campusStations}
                 campusStarts={campusStarts}
+                stationCount={stationCount}
                 teamCapacity={teamCapacity}
                 teamSize={teamSize}
                 teamsPerWait={teamsPerWait}
@@ -249,6 +256,7 @@ function ClueBox({
                 eventId={eventId}
                 reloadKey={checkpointReloadKey}
                 campusStations={campusStations}
+                stationCount={stationCount}
                 teamSize={teamSize}
               />
             </>
@@ -259,6 +267,7 @@ function ClueBox({
                 roundId={roundId}
                 campusStations={campusStations}
                 campusStarts={campusStarts}
+                stationCount={stationCount}
                 teamCapacity={teamCapacity}
                 teamSize={teamSize}
                 teamsPerWait={teamsPerWait}
@@ -272,6 +281,7 @@ function ClueBox({
                 eventId={eventId}
                 reloadKey={checkpointReloadKey}
                 campusStations={campusStations}
+                stationCount={stationCount}
                 teamSize={teamSize}
               />
             </>
@@ -284,6 +294,7 @@ function ClueBox({
                 clueLabel={clue.label}
                 campusStations={campusStations}
                 campusStarts={campusStarts}
+                stationCount={stationCount}
                 teamCapacity={teamCapacity}
                 teamSize={teamSize}
                 teamsPerWait={teamsPerWait}
@@ -297,6 +308,7 @@ function ClueBox({
                 eventId={eventId}
                 reloadKey={checkpointReloadKey}
                 campusStations={campusStations}
+                stationCount={stationCount}
                 teamSize={teamSize}
               />
             </>
@@ -309,6 +321,7 @@ function ClueBox({
                 clueLabel={clue.label}
                 campusStations={campusStations}
                 campusStarts={campusStarts}
+                stationCount={stationCount}
                 teamCapacity={teamCapacity}
                 teamSize={teamSize}
                 teamsPerWait={teamsPerWait}
@@ -363,7 +376,12 @@ export default function Round1ClueFormat({
   const [localCapacity, setLocalCapacity] = useState(teamCapacity);
   const [localTeamSize, setLocalTeamSize] = useState(teamSize);
   const [startCount, setStartCount] = useState(startCountProp ?? 4);
-  const [stationCount, setStationCount] = useState(stationCountProp ?? 10);
+  const [stationCount, setStationCount] = useState(
+    () => stationCountProp
+      ?? (Array.isArray(campusStationsProp) && campusStationsProp.length
+        ? campusStationsProp.length
+        : suggestHuntLayout(teamCapacity).stationCount),
+  );
 
   useEffect(() => {
     setLocalCapacity(teamCapacity);
@@ -377,6 +395,21 @@ export default function Round1ClueFormat({
     }),
     [localCapacity, localTeamSize, startCount, stationCount],
   );
+  const layoutDirty = useMemo(() => (
+    localCapacity !== teamCapacity
+    || localTeamSize !== teamSize
+    || (startCountProp != null && startCount !== startCountProp)
+    || (stationCountProp != null && stationCount !== stationCountProp)
+  ), [
+    localCapacity,
+    localTeamSize,
+    teamCapacity,
+    teamSize,
+    startCount,
+    startCountProp,
+    stationCount,
+    stationCountProp,
+  ]);
   const clues = useMemo(() => buildRound1Clues(geometry), [geometry]);
   const [openId, setOpenId] = useState('clue1');
   const [busy, setBusy] = useState(false);
@@ -418,8 +451,35 @@ export default function Round1ClueFormat({
     setClueReloadKey((n) => n + 1);
   };
 
+  const handleLayoutDraftChange = useCallback((draft) => {
+    const nextStation = draft?.stationCount ?? stationCount;
+    const nextStart = draft?.startCount ?? startCount;
+    setStationCount(nextStation);
+    setStartCount(nextStart);
+    if (Array.isArray(draft?.campusStations) && draft.campusStations.length) {
+      setCampusStations(draft.campusStations);
+    } else {
+      setCampusStations(resolveStations(
+        campusStationsCatalog || campusStationsProp,
+        nextStation,
+      ));
+    }
+    if (Array.isArray(draft?.campusStarts) && draft.campusStarts.length) {
+      setCampusStarts(draft.campusStarts);
+    }
+  }, [
+    campusStationsCatalog,
+    campusStationsProp,
+    startCount,
+    stationCount,
+  ]);
+
   const bootstrap = async () => {
     if (!eventId) return;
+    if (layoutDirty) {
+      setMessage('Save setup first — bootstrap uses the last saved teams / starts / places, not unsaved edits.');
+      return;
+    }
     setBusy(true);
     setMessage('');
     try {
@@ -458,13 +518,19 @@ export default function Round1ClueFormat({
         </div>
         <button
           type="button"
-          disabled={busy || !eventId}
+          disabled={busy || !eventId || layoutDirty}
           onClick={bootstrap}
+          title={layoutDirty ? 'Save setup first' : undefined}
           className="rounded-lg bg-white/10 px-3 py-2 text-xs font-semibold disabled:opacity-40"
         >
           {busy ? 'Bootstrapping…' : 'Bootstrap all clues'}
         </button>
       </div>
+      {layoutDirty && (
+        <p className="text-xs text-amber-200">
+          Unsaved layout changes — tap <span className="font-semibold">Save setup</span> before bootstrap or clue updates.
+        </p>
+      )}
       {message && <p className="text-xs text-[#0ECCEE]">{message}</p>}
 
       <div className="flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
@@ -493,6 +559,7 @@ export default function Round1ClueFormat({
         stationCount={stationCount}
         teamCapacity={geometry.teamCapacity}
         teamSize={geometry.teamSize}
+        onLayoutDraftChange={handleLayoutDraftChange}
         onChanged={(data) => {
           const nextStart = data?.startCount ?? startCount;
           const nextStation = data?.stationCount ?? stationCount;
@@ -527,6 +594,8 @@ export default function Round1ClueFormat({
           onClueContentChanged={bumpCheckpoints}
           campusStations={campusStations}
           campusStarts={campusStarts}
+          stationCount={geometry.stationCount}
+          layoutDirty={layoutDirty}
           teamCapacity={geometry.teamCapacity}
           teamSize={geometry.teamSize}
           teamsPerWait={geometry.teamsPerWait}

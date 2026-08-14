@@ -637,6 +637,12 @@ export default function CampusHuntEventControl() {
                   <p className="mt-2 text-xs text-amber-100">
                     Setup still incomplete ({readiness.teamsReady}/{readiness.teamsTotal} rosters,
                     {' '}{readiness.startAssignmentsReady || 0}/{readiness.teamsTotal} full bindings).
+                    {readiness.leftoverTeams > 0 ? (
+                      <>
+                        {' '}
+                        {readiness.leftoverTeams} extra team(s) beyond capacity are parked — only field teams count.
+                      </>
+                    ) : null}
                     {readiness.rostersIncomplete > 0 ? (
                       <>
                         {' '}Teams tab → <strong>Repair rosters</strong> — demo teams need leader + 3 player accounts.

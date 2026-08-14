@@ -1,3 +1,4 @@
+const CampusHuntEvent = require('../models/CampusHuntEvent');
 const CampusHuntRound = require('../models/CampusHuntRound');
 const CampusHuntStartingPoint = require('../models/CampusHuntStartingPoint');
 const CampusHuntRoute = require('../models/CampusHuntRoute');
@@ -22,6 +23,12 @@ function sortByCode(rows, key) {
     undefined,
     { numeric: true },
   ));
+}
+
+/** First N teams by code — matches generateSchedule / leaderboard field size. */
+function selectCompetitionTeams(teams, teamCapacity) {
+  const capacity = Math.max(1, Number(teamCapacity) || teams.length || 40);
+  return sortByCode(teams, 'teamCode').slice(0, capacity);
 }
 
 /** Normalize wait code from A / START-A / similar. */
@@ -764,13 +771,31 @@ async function resyncClue1TeamBindings({ eventId, roundId, actor = {}, reason = 
 }
 
 async function lockSchedule({ eventId, roundId, actor, reason }) {
-  const [round, teams] = await Promise.all([
+  const [round, teams, event] = await Promise.all([
     CampusHuntRound.findOne({ _id: roundId, eventId }),
     CampusHuntTeam.find({ eventId, roundId }),
+    CampusHuntEvent.findById(eventId).select('teamCapacity').lean(),
   ]);
   if (!round) throw scheduleError('Round not found', 'ROUND_NOT_FOUND', 404);
   if (!teams.length) throw scheduleError('No teams assigned to this round');
-  const incomplete = teams.filter((team) => (
+
+  const teamCapacity = Math.max(1, Number(event?.teamCapacity) || teams.length || 40);
+  const teamsToLock = selectCompetitionTeams(teams, teamCapacity);
+  const leftoverTeams = sortByCode(teams, 'teamCode').slice(teamCapacity);
+
+  if (!teamsToLock.length) {
+    throw scheduleError('No teams within the current overall team capacity');
+  }
+
+  // Park demo leftovers from an older bootstrap so they cannot block lock.
+  if (leftoverTeams.length) {
+    await CampusHuntTeam.updateMany(
+      { _id: { $in: leftoverTeams.map((team) => team._id) } },
+      { $set: { startStatus: 'CANCELLED', currentStage: 'WAITING' } },
+    );
+  }
+
+  const incomplete = teamsToLock.filter((team) => (
     !team.startingPointId
     || !team.routeId
     || !team.scheduledStartAt
@@ -785,49 +810,49 @@ async function lockSchedule({ eventId, roundId, actor, reason }) {
   ));
   if (incomplete.length) {
     throw scheduleError(
-      `${incomplete.length} teams missing Clue 1–4 bindings (checkpoint or challenge). `
-      + 'Bootstrap / Update clues, then Resync before locking.',
+      `${incomplete.length} of ${teamsToLock.length} field teams missing Clue 1–4 bindings. `
+      + 'Update Clue 1–4, Generate schedule, then Lock.',
       'INCOMPLETE_START_ASSIGNMENTS',
     );
   }
-  const pointIds = [...new Set(teams.map((team) => String(team.startingPointId)))];
+  const pointIds = [...new Set(teamsToLock.map((team) => String(team.startingPointId)))];
   const points = await CampusHuntStartingPoint.find({ _id: { $in: pointIds }, active: true });
   if (points.length !== pointIds.length) {
     throw scheduleError('One or more assigned starting points are inactive or missing');
   }
   for (const point of points) {
-    const count = teams.filter((team) => String(team.startingPointId) === String(point._id)).length;
+    const count = teamsToLock.filter((team) => String(team.startingPointId) === String(point._id)).length;
     if (count > point.capacity) {
       throw scheduleError(`${point.code} exceeds capacity ${point.capacity}`, 'START_CAPACITY_EXCEEDED');
     }
   }
   const [variants, checkpoints] = await Promise.all([
     CampusHuntChallenge.countDocuments({
-      _id: { $in: teams.map((team) => team.clue1ChallengeId) },
+      _id: { $in: teamsToLock.map((team) => team.clue1ChallengeId) },
       active: true,
       challengeNumber: 1,
     }),
     CampusHuntCheckpoint.countDocuments({
-      _id: { $in: teams.map((team) => team.firstCheckpointId) },
+      _id: { $in: teamsToLock.map((team) => team.firstCheckpointId) },
       active: true,
       progressionKey: '1',
     }),
   ]);
-  if (variants < new Set(teams.map((team) => String(team.clue1ChallengeId))).size) {
+  if (variants < new Set(teamsToLock.map((team) => String(team.clue1ChallengeId))).size) {
     throw scheduleError('One or more Clue 1 variants are inactive or invalid');
   }
-  if (checkpoints < new Set(teams.map((team) => String(team.firstCheckpointId))).size) {
+  if (checkpoints < new Set(teamsToLock.map((team) => String(team.firstCheckpointId))).size) {
     throw scheduleError('One or more first checkpoints are inactive or invalid');
   }
   await CampusHuntTeam.updateMany(
-    { eventId, roundId, startStatus: { $ne: 'CANCELLED' } },
+    { _id: { $in: teamsToLock.map((team) => team._id) }, startStatus: { $ne: 'CANCELLED' } },
     { $set: { startStatus: 'READY', currentStage: 'WAITING' } },
   );
   // Re-bind each Clue 1 / Clue 2 poster to its assigned team before lock
   await syncFirstCheckpointAllowLists({
     eventId,
     roundId,
-    assignments: teams.map((team) => ({
+    assignments: teamsToLock.map((team) => ({
       teamId: String(team._id),
       firstCheckpointId: team.firstCheckpointId ? String(team.firstCheckpointId) : null,
     })),
@@ -835,7 +860,7 @@ async function lockSchedule({ eventId, roundId, actor, reason }) {
   await syncSecondCheckpointAllowLists({
     eventId,
     roundId,
-    assignments: teams.map((team) => ({
+    assignments: teamsToLock.map((team) => ({
       teamId: String(team._id),
       secondCheckpointId: team.secondCheckpointId ? String(team.secondCheckpointId) : null,
     })),
@@ -843,7 +868,7 @@ async function lockSchedule({ eventId, roundId, actor, reason }) {
   await syncThirdCheckpointAllowLists({
     eventId,
     roundId,
-    assignments: teams.map((team) => ({
+    assignments: teamsToLock.map((team) => ({
       teamId: String(team._id),
       thirdCheckpointId: team.thirdCheckpointId ? String(team.thirdCheckpointId) : null,
     })),
@@ -851,7 +876,7 @@ async function lockSchedule({ eventId, roundId, actor, reason }) {
   await syncFourthCheckpointAllowLists({
     eventId,
     roundId,
-    assignments: teams.map((team) => ({
+    assignments: teamsToLock.map((team) => ({
       teamId: String(team._id),
       fourthCheckpointId: team.fourthCheckpointId ? String(team.fourthCheckpointId) : null,
     })),
@@ -866,9 +891,17 @@ async function lockSchedule({ eventId, roundId, actor, reason }) {
     targetType: 'round',
     targetId: round._id,
     reason: reason || '',
-    after: { teams: teams.length, scheduleLockedAt: round.scheduleLockedAt },
+    after: {
+      teams: teamsToLock.length,
+      leftoverParked: leftoverTeams.length,
+      scheduleLockedAt: round.scheduleLockedAt,
+    },
   });
-  return { round, teamsReady: teams.length };
+  return {
+    round,
+    teamsReady: teamsToLock.length,
+    leftoverParked: leftoverTeams.length,
+  };
 }
 
 module.exports = {
@@ -876,6 +909,7 @@ module.exports = {
   previewSchedule,
   generateSchedule,
   lockSchedule,
+  selectCompetitionTeams,
   resyncClue1TeamBindings,
   syncFirstCheckpointAllowLists,
   syncSecondCheckpointAllowLists,

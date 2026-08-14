@@ -1,17 +1,17 @@
 const STEPS = [
-  ['1 · Clues', 'Bootstrap, save Clue 1→Final, print 10 Orange / 10 green / 10 blue shared QRs'],
-  ['2 · Locations', 'Confirm 4 starting points (Library · Chanakya · Design · Vyas)'],
-  ['3 · Teams', '40 teams · one login link each · shared password · leader + 3 players'],
-  ['4 · Schedule', 'Preview → Generate → Lock (needs CP1+CP2+CP3 on every team)'],
+  ['1 · Clues', 'Save setup (teams / starts / places), Update Clue 1→4, print shared Orange/Green/Blue/Purple QRs'],
+  ['2 · Locations', 'Confirm starting points match your saved start count'],
+  ['3 · Teams', 'Match overall team count · one login link per team · leader + players'],
+  ['4 · Schedule', 'Preview → Generate → Lock (needs Clue 1–4 bindings on every field team)'],
   ['5 · Live', 'Start round · release desk · mark finish when teams return'],
   ['6 · Results', 'Stop & lock scores → finalize leaderboard'],
 ];
 
 const TERMS = [
-  ['Starting point', 'Gather here (Library · Chanakya · Design · Vyas). Not a hunt scan stop.'],
-  ['Campus place', 'One of 10 hunt scan spots. ~4 teams visit; print 1 shared QR per place × color.'],
-  ['Shared QR + team code', 'All 4 scan the place QR → enter your team code → get your allotted clue.'],
-  ['Orange → Green → Blue → Red', 'Orange scan → Clue 2 → green scan → Clue 3 riddle → blue scan → Final → report to start.'],
+  ['Starting point', 'Gather here before release. Not a hunt scan stop.'],
+  ['Campus place', 'Hunt scan spot. Print 1 shared QR per place × scan color.'],
+  ['Shared QR + team code', 'All members scan the place QR → enter team code → unlock allotted clue.'],
+  ['Orange → Green → Blue → Purple', 'Orange scan → Clue 2 → green → Clue 3 → blue → Prop hunt → purple → Final → report to start.'],
   ['Scoring', '≈50 per clue · hints −15 · late still advances at 0 · ties broken by time/hints/fails.'],
   ['Finish', 'Players report to their start with team number. Organizer marks reached on Live (not a player QR).'],
   ['Team login', 'Share /team/CC001 + that team’s unique password. Names unlock after password. No hopping teams.'],

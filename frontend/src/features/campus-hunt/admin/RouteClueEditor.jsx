@@ -91,6 +91,7 @@ export default function RouteClueEditor({
   campusStations,
   campusStarts,
   onChanged,
+  stationCount = null,
   teamCapacity = 40,
   teamSize = 4,
   teamsPerWait,
@@ -105,7 +106,10 @@ export default function RouteClueEditor({
   const perWait = Math.max(1, Number(teamsPerWait) || geometry.teamsPerWait);
   const perStation = Math.max(1, Number(teamsPerStation) || geometry.teamsPerStation);
   const teamSlots = useMemo(() => buildTeamSlots(perWait), [perWait]);
-  const stations = useMemo(() => resolveStations(campusStations), [campusStations]);
+  const stations = useMemo(
+    () => resolveStations(campusStations, stationCount),
+    [campusStations, stationCount],
+  );
   const starts = useMemo(() => resolveStarts(campusStarts), [campusStarts]);
   const activeStartCodes = useMemo(
     () => new Set(starts.map((s) => String(s.code || '').toUpperCase())),
