@@ -25,12 +25,13 @@ export default function SecondStopPosterPrint({
       title={placeCount
         ? `SECOND SCAN shared QRs · ${placeCount} place${placeCount === 1 ? '' : 's'}`
         : undefined}
-      blurb={`Small green cards — tuck anywhere. Finding them early does nothing until Clue 2. One shared QR per selected place; after ${teamSize}/${teamSize} scans, teams enter their team code for Clue 3.`}
+      blurb={`Small green cards on one A3 cut sheet — tuck anywhere. Finding them early does nothing until Clue 2. One shared QR per selected place; after ${teamSize}/${teamSize} scans, teams enter their team code for Clue 3.`}
       needMoreHint="Save setup or Update Clue 2 for this setup — shared QRs appear after either step."
       skippedSummaryKey="secondSkipped"
       campusStations={campusStations}
       stationCount={stationCount}
       teamSize={teamSize}
+      printLayout="a3-single"
     />
   );
 }

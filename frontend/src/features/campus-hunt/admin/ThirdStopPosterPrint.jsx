@@ -25,12 +25,13 @@ export default function ThirdStopPosterPrint({
       title={placeCount
         ? `THIRD SCAN shared QRs · ${placeCount} place${placeCount === 1 ? '' : 's'}`
         : undefined}
-      blurb={`Small blue cards — tuck anywhere. Finding them early does nothing until after Clue 3 riddle. One shared QR per selected place; after ${teamSize}/${teamSize} scans, teams enter their team code for the prop hunt.`}
+      blurb={`Small blue cards on one A3 cut sheet — tuck anywhere. Finding them early does nothing until after Clue 3 riddle. One shared QR per selected place; after ${teamSize}/${teamSize} scans, teams enter their team code for the prop hunt.`}
       needMoreHint="Save setup or Update Clue 3 for this setup — shared QRs appear after either step."
       skippedSummaryKey="thirdSkipped"
       campusStations={campusStations}
       stationCount={stationCount}
       teamSize={teamSize}
+      printLayout="a3-single"
     />
   );
 }

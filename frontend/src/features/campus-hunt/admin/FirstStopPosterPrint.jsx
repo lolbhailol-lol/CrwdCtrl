@@ -25,12 +25,13 @@ export default function FirstStopPosterPrint({
       title={placeCount
         ? `Clue 1 shared QRs · ${placeCount} place${placeCount === 1 ? '' : 's'}`
         : undefined}
-      blurb={`One Orange FIRST SCAN QR per selected place. All ${teamSize} members at that spot scan the same poster, then enter their team code for their allotted clue.`}
+      blurb={`One Orange FIRST SCAN QR per selected place — print all on one A3 cut sheet. All ${teamSize} members at that spot scan the same poster, then enter their team code for their allotted clue.`}
       needMoreHint="Save setup or Update Clue 1 for this setup — shared QRs appear after either step."
       skippedSummaryKey="skippedUnwanted"
       campusStations={campusStations}
       stationCount={stationCount}
       teamSize={teamSize}
+      printLayout="a3-single"
     />
   );
 }

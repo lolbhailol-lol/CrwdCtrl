@@ -292,3 +292,148 @@ export function posterPrintCss(theme) {
     }
   `;
 }
+
+/** A3 portrait — all station QRs on one page with dashed cut guides. */
+export function a3GridPosterPrintCss(theme, { columns = 2, cardCount = 4 } = {}) {
+  const t = theme || STAGE_THEMES.clue1;
+  const compact = cardCount > 4;
+  const tight = cardCount > 6;
+  return `
+    * { box-sizing: border-box; }
+    @page { size: A3 portrait; margin: 7mm; }
+    body {
+      margin: 0;
+      font: 12px/1.25 system-ui, sans-serif;
+      color: #111;
+      background: #fff;
+    }
+    .sheet-a3 {
+      width: 100%;
+      min-height: 100%;
+      padding: 0;
+      page-break-after: avoid;
+    }
+    .sheet-head {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 5mm;
+      padding-bottom: 3mm;
+      border-bottom: 2.5px solid ${t.hex};
+    }
+    .sheet-head h2 { margin: 0; font-size: ${compact ? '15px' : '18px'}; }
+    .sheet-head p { margin: 2px 0 0; color: #555; font-size: ${compact ? '9px' : '10px'}; }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: ${t.hex};
+      color: ${t.ink};
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+    .cut-banner {
+      margin: 0 0 4mm;
+      text-align: center;
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: #666;
+    }
+    .grid-a3 {
+      display: grid;
+      grid-template-columns: repeat(${columns}, 1fr);
+      gap: 0;
+      width: 100%;
+      border: 1px dashed #999;
+    }
+    .card {
+      width: 100%;
+      min-height: ${tight ? '58mm' : compact ? '68mm' : '88mm'};
+      border: 1px dashed #aaa;
+      border-radius: 0;
+      padding: ${tight ? '3mm 2.5mm' : compact ? '3.5mm 3mm' : '4mm 3.5mm'};
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      page-break-inside: avoid;
+      background: linear-gradient(180deg, ${t.softBg} 0%, #fff 42%);
+      position: relative;
+    }
+    .card::before {
+      content: '✂ cut';
+      position: absolute;
+      top: 2mm;
+      right: 2.5mm;
+      font-size: 7px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      color: #aaa;
+    }
+    .place {
+      margin: 0;
+      font-size: ${tight ? '7px' : '8px'};
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: #666;
+    }
+    .eyebrow {
+      margin: 1px 0 0;
+      font-size: ${tight ? '7px' : '8px'};
+      font-weight: 800;
+      color: ${t.muted};
+      text-transform: uppercase;
+    }
+    h1 {
+      margin: 2px 0 0;
+      font-size: ${tight ? '11px' : compact ? '13px' : '15px'};
+      line-height: 1.15;
+      max-width: 100%;
+      overflow-wrap: anywhere;
+    }
+    .code {
+      margin: 1px 0 0;
+      font-size: ${tight ? '10px' : '11px'};
+      font-weight: 800;
+      letter-spacing: .04em;
+    }
+    img {
+      display: block;
+      margin: 2px auto 0;
+      width: ${tight ? '28mm' : compact ? '32mm' : '38mm'};
+      height: ${tight ? '28mm' : compact ? '32mm' : '38mm'};
+    }
+    .paste {
+      margin: 2px 0 0;
+      font-family: ui-monospace, monospace;
+      font-size: ${tight ? '9px' : '10px'};
+      letter-spacing: .06em;
+      font-weight: 700;
+    }
+    .note {
+      margin: 1px 0 0;
+      font-size: ${tight ? '7px' : '8px'};
+      color: #444;
+      line-height: 1.2;
+    }
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .sheet-a3 { page-break-after: avoid; page-break-inside: avoid; }
+    }
+  `;
+}
+
+export function posterGridColumns(cardCount) {
+  if (cardCount <= 1) return 1;
+  if (cardCount <= 4) return 2;
+  if (cardCount <= 6) return 3;
+  if (cardCount <= 9) return 3;
+  return 4;
+}

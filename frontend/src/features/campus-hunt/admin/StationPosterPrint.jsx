@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import QRCode from 'qrcode';
 import { adminListStationQr } from '../services/campusHunt.api';
 import { resolveStations, STATION_TARGET_COUNT } from './campusHuntFormat';
-import { posterPrintCss } from '../types/stageTheme';
+import { posterPrintCss, a3GridPosterPrintCss, posterGridColumns } from '../types/stageTheme';
 
 const POSTERS_PER_PLACE = 1;
 
@@ -31,6 +31,8 @@ export default function StationPosterPrint({
   campusStations,
   stationCount = null,
   teamSize = 4,
+  /** 'default' = one page per place · 'a3-single' = all QRs on one A3 cut sheet */
+  printLayout = 'default',
 }) {
   const [packs, setPacks] = useState([]);
   const [summary, setSummary] = useState(null);
@@ -99,45 +101,83 @@ export default function StationPosterPrint({
   const printPacks = async (selectedPacks) => {
     if (!selectedPacks?.length) return;
     setMessage('');
-    const sheets = [];
+    const allCards = [];
     for (const pack of selectedPacks) {
       const posters = [...(pack.posters || [])];
       // eslint-disable-next-line no-await-in-loop
-      const cards = await Promise.all(posters.map(async (poster) => {
+      for (const poster of posters) {
         const payload = typeof poster.payload === 'string'
           ? poster.payload
           : JSON.stringify(poster.payload || {});
+        const cardCountHint = selectedPacks.reduce(
+          (sum, p) => sum + (p.posters?.length || 0),
+          0,
+        );
+        const qrPx = cardCountHint <= 4 ? 180 : cardCountHint <= 6 ? 150 : 128;
+        // eslint-disable-next-line no-await-in-loop
         const qr = await QRCode.toDataURL(payload, {
-          width: 180,
+          width: qrPx,
           margin: 1,
           color: { dark: '#111213', light: '#ffffff' },
         });
         const paste = poster.pasteHint || (poster.pasteCode ? `CH-${poster.pasteCode}` : '');
-        return `
-          <article class="card">
-            <p class="badge">${escapeHtml(colorLabel)} · ${escapeHtml(scanLabel)}</p>
-            <p class="place">${escapeHtml(pack.locationName)}</p>
-            <p class="eyebrow">Shared station QR</p>
-            <h1>${escapeHtml(pack.locationName)}</h1>
-            <p class="code">${escapeHtml(pack.code || poster.stationCode || '')}</p>
-            <img src="${qr}" alt="Station QR" width="180" height="180" />
-            <p class="paste">${escapeHtml(paste)}</p>
-            <p class="note">All ${people} scan → enter team code → allotted clue</p>
-          </article>
-        `;
-      }));
-      sheets.push(`
-        <section class="sheet">
+        allCards.push({
+          pack,
+          html: `
+            <article class="card">
+              <p class="badge">${escapeHtml(colorLabel)} · ${escapeHtml(scanLabel)}</p>
+              <p class="place">${escapeHtml(pack.locationName)}</p>
+              <p class="eyebrow">Shared station QR</p>
+              <h1>${escapeHtml(pack.locationName)}</h1>
+              <p class="code">${escapeHtml(pack.code || poster.stationCode || '')}</p>
+              <img src="${qr}" alt="Station QR" width="${qrPx}" height="${qrPx}" />
+              <p class="paste">${escapeHtml(paste)}</p>
+              <p class="note">All ${people} scan → team code → clue</p>
+            </article>
+          `,
+        });
+      }
+    }
+
+    if (!allCards.length) return;
+
+    let bodyHtml = '';
+    let css = posterPrintCss(theme);
+    let docTitle = `${colorLabel} · ${scanLabel}`;
+
+    if (printLayout === 'a3-single') {
+      const columns = posterGridColumns(allCards.length);
+      css = a3GridPosterPrintCss(theme, { columns, cardCount: allCards.length });
+      docTitle = `${colorLabel} · ${scanLabel} · A3 cut sheet`;
+      bodyHtml = `
+        <section class="sheet-a3">
           <div class="sheet-head">
             <div>
-              <p class="badge">${escapeHtml(colorLabel)} · ${escapeHtml(scanLabel)} · shared QR</p>
-              <h2>${escapeHtml(pack.locationName)}</h2>
-              <p>1 QR for this place · all teams scan the same poster</p>
+              <p class="badge">${escapeHtml(colorLabel)} · ${escapeHtml(scanLabel)} · A3</p>
+              <h2>All ${allCards.length} shared QRs — one page</h2>
+              <p>Cut along dashed lines · tape one card per campus place</p>
             </div>
           </div>
-          <div class="grid">${cards.join('')}</div>
+          <p class="cut-banner">✂ Cut on dashed lines · ${allCards.length} place${allCards.length === 1 ? '' : 's'}</p>
+          <div class="grid-a3">${allCards.map((c) => c.html).join('')}</div>
         </section>
-      `);
+      `;
+    } else {
+      bodyHtml = selectedPacks.map((pack) => {
+        const cards = allCards.filter((c) => c.pack === pack).map((c) => c.html);
+        return `
+          <section class="sheet">
+            <div class="sheet-head">
+              <div>
+                <p class="badge">${escapeHtml(colorLabel)} · ${escapeHtml(scanLabel)} · shared QR</p>
+                <h2>${escapeHtml(pack.locationName)}</h2>
+                <p>1 QR for this place · all teams scan the same poster</p>
+              </div>
+            </div>
+            <div class="grid">${cards.join('')}</div>
+          </section>
+        `;
+      }).join('');
     }
 
     const popup = window.open('', '_blank', 'width=1100,height=900');
@@ -145,11 +185,14 @@ export default function StationPosterPrint({
       setError('Allow popups to print cards');
       return;
     }
-    popup.document.write(`<!doctype html><html><head><title>${escapeHtml(colorLabel)} · ${escapeHtml(scanLabel)}</title>
-      <style>${posterPrintCss(theme)}</style></head><body>${sheets.join('')}<script>window.print()</script></body></html>`);
+    popup.document.write(`<!doctype html><html><head><title>${escapeHtml(docTitle)}</title>
+      <style>${css}</style></head><body>${bodyHtml}<script>window.print()</script></body></html>`);
     popup.document.close();
-    const count = selectedPacks.reduce((sum, pack) => sum + (pack.posters?.length || 0), 0);
-    setMessage(`Print sheet opened · ${count} ${colorLabel} QRs`);
+    setMessage(
+      printLayout === 'a3-single'
+        ? `A3 cut sheet opened · ${allCards.length} ${colorLabel} QRs on one page`
+        : `Print sheet opened · ${allCards.length} ${colorLabel} QRs`,
+    );
   };
 
   return (
@@ -179,7 +222,9 @@ export default function StationPosterPrint({
             onClick={() => printPacks(displayPacks)}
             className={`rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-40 ${theme.buttonClass}`}
           >
-            Print {stats.posterCount || targetPosters} QRs
+            {printLayout === 'a3-single'
+              ? `Print all on A3 (${stats.posterCount || targetPosters})`
+              : `Print ${stats.posterCount || targetPosters} QRs`}
           </button>
         </div>
       </div>
