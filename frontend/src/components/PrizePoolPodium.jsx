@@ -46,7 +46,10 @@ function toPrizeChunks(text) {
  * - "Worth ₹9,000+" / "Total prize pool: ₹9,000+"
  */
 export function parsePrizePlace(line) {
-  const text = String(line || '').trim();
+  // Drop medal/bullet emoji so "🥇 1st Prize: ₹6,000" parses as a place (not a duplicate "other" row)
+  const text = String(line || '')
+    .replace(/^[\s]*(?:🥇|🥈|🥉|🏆|🎖️|🏅|•|●|◦|▪|–|-|\*)+\s*/u, '')
+    .trim();
   if (!text) return null;
 
   // Format: "35,000/- (1st)" or "14,000/- (1st male & female)"
@@ -136,8 +139,14 @@ export function parsePrizePool(text) {
     places.push(p);
   }
 
-  // If we only got "other" lines that look like prize amounts, keep them as fallback text
-  const others = parsed.filter((p) => p.kind === 'other');
+  // Keep non-place notes only; drop lines that merely restate 1st/2nd/3rd when podium exists
+  const others = parsed.filter((p) => {
+    if (p.kind !== 'other') return false;
+    if (places.length >= 1 && /\b(1st|2nd|3rd|first|second|third)\b/i.test(p.amount || '')) {
+      return false;
+    }
+    return true;
+  });
 
   return {
     places,
