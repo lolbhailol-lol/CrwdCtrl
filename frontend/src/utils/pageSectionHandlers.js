@@ -1,11 +1,15 @@
 import { useCallback } from 'react';
 import { communityPath, eventShowPath, festPath, runClubPath, sportRunPath, trekPath } from './slugRoutes';
+import { buildFestDetailNavState } from './detailPageCache';
+import { prefetchFestDetail } from '../services/api/fests.api';
 
 export function usePageSectionHandlers(navigate, { toggleFavorite } = {}) {
     const onItemClick = useCallback((item) => {
         const id = item.id || item._id;
         if (item._type === 'fest') {
-            navigate(festPath(item));
+            prefetchFestDetail(item);
+            const eventData = buildFestDetailNavState(item);
+            navigate(festPath(item), { state: eventData ? { eventData } : undefined });
         } else if (item._type === 'trek') {
             navigate(trekPath(item), { state: { trek: item } });
         } else if (item._type === 'community') {

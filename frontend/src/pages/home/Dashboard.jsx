@@ -44,6 +44,7 @@ import { API_BASE_URL, publicFetchJSONRetry as fetchJSON } from '../../services/
 import { fetchCatalogJSON, invalidateCatalogCache } from '../../services/api/catalogCache';
 import { communityPath, competitionPath, eventShowPath, festPath, runClubPath, sportRunPath, trekPath } from '../../utils/slugRoutes';
 import { buildFestDetailNavState } from '../../utils/detailPageCache';
+import { prefetchFestDetail } from '../../services/api/fests.api';
 
 const HOME_JSON_LD = [
     webPageSchema({
@@ -1113,6 +1114,7 @@ const Dashboard = () => {
     const navigateToFestDetail = useCallback((item) => {
         const id = item._id || item.id;
         const rawFest = fests.find((f) => String(f._id || f.id) === String(id));
+        if (rawFest) prefetchFestDetail(rawFest);
         const eventData = rawFest ? buildFestDetailNavState(rawFest) : null;
         navigate(festPath(item), { state: eventData ? { eventData } : undefined });
     }, [fests, navigate]);

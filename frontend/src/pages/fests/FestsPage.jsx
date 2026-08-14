@@ -25,7 +25,7 @@ import SportsIcon from '../../assets/mobile-icons/spor.svg';
 import { buildSearchKeywordsFromCatalog } from '../../utils/buildSearchKeywords';
 import { navigateToSearchResult } from '../../utils/searchNavigation';
 import { usePageContentLoading } from '../../hooks/usePageContentLoading';
-import { fetchRawPublicFests } from '../../services/api/fests.api';
+import { fetchRawPublicFests, prefetchFestDetail } from '../../services/api/fests.api';
 import Seo from '../../components/Seo';
 import FaqSection from '../../components/FaqSection';
 import { breadcrumbSchema, faqSchema, itemListSchema } from '../../utils/seo';
@@ -84,6 +84,7 @@ const FestEventCard = ({ fest, isDark, isFavorite, onToggleFavorite, onViewDetai
         <div
             className="card-surface card-carousel-fest lg:w-auto rounded-2xl lg:rounded-3xl overflow-hidden cursor-pointer snap-start shrink-0 transition-all duration-200 active:scale-[0.98]"
             onClick={onViewDetails}
+            onPointerDown={() => prefetchFestDetail(fest)}
         >
             {/* Image */}
             <div className="relative aspect-video lg:aspect-8/5 overflow-hidden">
@@ -147,6 +148,7 @@ const FestSection = ({ title, fests, loading, isDark, isFavorite, toggleFavorite
                                 isFavorite={isFavorite(fest._id)}
                                 onToggleFavorite={() => toggleFavorite(fest._id, fest)}
                                 onViewDetails={() => {
+                                    prefetchFestDetail(fest);
                                     const eventData = buildFestDetailNavState(fest);
                                     navigate(festPath(fest), {
                                         state: eventData ? { eventData } : undefined,

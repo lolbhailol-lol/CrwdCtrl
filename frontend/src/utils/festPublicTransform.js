@@ -128,30 +128,49 @@ export function groupCompetitionsByType(competitions, festData) {
   return grouped;
 }
 
+/** True when transformed fest data already has competition cards to paint. */
+export function festHasCompetitionGroups(eventData) {
+  const comps = eventData?.competitions;
+  if (!comps) return false;
+  if (Array.isArray(comps)) {
+    return comps.some((c) => c && (c.name || c.title || c.id || c._id));
+  }
+  return Object.values(comps).some(
+    (list) => Array.isArray(list) && list.some((c) => c && (c.name || c.title || c.id || c._id)),
+  );
+}
+
+export function isFestPlaceholderCopy(value) {
+  const text = String(value || '').trim();
+  if (!text) return true;
+  return /^(untitled event|unknown college|no description available|date tba|venue tba|tbd|tba|-)$/i.test(text);
+}
+
 export function transformFestPublicData(festData) {
   if (!festData || !(festData._id || festData.id)) return null;
 
   const registration = mapFestRegistration(festData.registration);
   const externalLink = registration.externalLink || festData.registrationLink || '';
+  const cover = festData.coverImage || '';
 
   return {
     id: festData._id || festData.id,
-    title: festData.festName || 'Untitled Event',
-    subtitle: festData.subtitle || festData.collegeName || 'Unknown College',
+    title: festData.festName || '',
+    subtitle: festData.subtitle || festData.collegeName || '',
     displaySubtitle: festData.subtitle || '',
-    collegeName: festData.collegeName || 'Unknown College',
-    festival_name: festData.festName || 'Untitled Event',
-    organizing_body: festData.collegeName || 'Unknown College',
+    collegeName: festData.collegeName || '',
+    festival_name: festData.festName || '',
+    organizing_body: festData.collegeName || '',
     type: festData.festType || 'cultural',
     category: festData.festType || 'cultural',
-    description: festData.description || 'No description available',
-    overview: festData.description || 'No description available',
-    dateTime: festData.festDate || 'Date TBA',
-    date: festData.festDate || 'Date TBA',
-    venue: festData.venue || 'Venue TBA',
-    location: festData.venue || 'Venue TBA',
-    image: festData.coverImage || '/placeholder-image.jpg',
-    heroImage: festData.coverImage || '/placeholder-image.jpg',
+    description: festData.description || '',
+    overview: festData.description || '',
+    dateTime: festData.festDate || '',
+    date: festData.festDate || '',
+    venue: festData.venue || '',
+    location: festData.venue || '',
+    image: cover,
+    heroImage: cover,
     galleryImages: festData.galleryImages || [],
     ticketPrice: formatTicketPrice(festData),
     feeAmount: festData.feeAmount || 0,

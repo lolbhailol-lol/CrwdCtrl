@@ -11,7 +11,7 @@ import Footer from './components/layout/Footer'
 import Navbar from './components/layout/Navbar'
 import Sidebar from './components/layout/Sidebar'
 import ProfileSidebar from './components/layout/ProfileSidebar'
-import { removeHtmlBootSplash, BOOT_SPLASH_MS, shouldShowBootSplash } from './utils/bootSplash'
+import { removeHtmlBootSplash, BOOT_SPLASH_MS, BOOT_SPLASH_SHORT_MAX_MS, shouldShowBootSplash, isShortBootSplash } from './utils/bootSplash'
 import { isCategoryHubRoute } from './utils/categoryHubRoutes'
 import { MobileSearchProvider, useMobileSearchOptional } from './context/MobileSearchContext'
 import MobileSearchHost from './components/MobileSearchHost'
@@ -342,6 +342,18 @@ function App() {
       removeHtmlBootSplash();
       clearChunkReloadFlag();
       return undefined;
+    }
+    if (isShortBootSplash()) {
+      const finish = () => {
+        removeHtmlBootSplash();
+        clearChunkReloadFlag();
+      };
+      window.addEventListener('crwdctrl:detail-ready', finish);
+      const maxWait = window.setTimeout(finish, BOOT_SPLASH_SHORT_MAX_MS);
+      return () => {
+        window.removeEventListener('crwdctrl:detail-ready', finish);
+        window.clearTimeout(maxWait);
+      };
     }
     const delay = Math.max(0, BOOT_SPLASH_MS - performance.now());
     const timer = window.setTimeout(() => {

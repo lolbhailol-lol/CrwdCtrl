@@ -5,7 +5,13 @@ export default function FestOrganizerProtectedRoute({ children }) {
     const location = useLocation();
     const token = getFestOrganizerToken();
     if (!token) {
-        return <Navigate to="/fest-organizer/login" replace state={{ from: location.pathname }} />;
+        return (
+            <Navigate
+                to="/fest-organizer/login"
+                replace
+                state={{ from: `${location.pathname}${location.search}${location.hash}` }}
+            />
+        );
     }
     return children;
 }

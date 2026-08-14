@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
-import { shouldShowBootSplash, removeHtmlBootSplash, BOOT_SPLASH_TOTAL_MS, hasAuthCallbackParams } from './utils/bootSplash'
+import { shouldShowBootSplash, removeHtmlBootSplash, BOOT_SPLASH_TOTAL_MS, BOOT_SPLASH_SHORT_MAX_MS, isShortBootSplash, hasAuthCallbackParams } from './utils/bootSplash'
 import { clearOAuthRedirectMarkers } from './utils/authBootstrap'
 import { initThemeClass } from './utils/themeInit'
 import { initSentry } from './utils/sentry'
@@ -38,8 +38,8 @@ if (isNativeApp()) {
 if (!shouldShowBootSplash()) {
   removeHtmlBootSplash()
 } else {
-  // Safety net if App.jsx fails before its splash timer runs
-  window.setTimeout(removeHtmlBootSplash, BOOT_SPLASH_TOTAL_MS + 400)
+  const safety = (isShortBootSplash() ? BOOT_SPLASH_SHORT_MAX_MS : BOOT_SPLASH_TOTAL_MS) + 400
+  window.setTimeout(removeHtmlBootSplash, safety)
 }
 
 // PWA service worker — web only (not Capacitor native shell)

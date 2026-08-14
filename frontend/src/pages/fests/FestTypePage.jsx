@@ -14,7 +14,7 @@ import CustomPageSectionsRenderer from '../../components/CustomPageSectionsRende
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, itemListSchema } from '../../utils/seo';
 import { usePageSectionHandlers } from '../../utils/pageSectionHandlers';
-import { fetchRawPublicFests } from '../../services/api/fests.api';
+import { fetchRawPublicFests, prefetchFestDetail } from '../../services/api/fests.api';
 import { readFestsCacheByType, writeFestsCache } from '../../utils/festsSessionCache';
 import { usePageContentLoading } from '../../hooks/usePageContentLoading';
 import { festPath } from '../../utils/slugRoutes';
@@ -105,6 +105,7 @@ export default function FestTypePage({
     const { toggleFavorite, isFavorite } = useFavorites();
 
     const openFestDetails = (fest) => {
+        prefetchFestDetail(fest);
         const eventData = buildFestDetailNavState(fest);
         navigate(festPath(fest), { state: eventData ? { eventData } : undefined });
     };
@@ -205,7 +206,11 @@ export default function FestTypePage({
                                         {featured.map((fest) => {
                                             const img = fest.coverImage || fest.galleryImages?.[0] || fest.festImages?.[0];
                                             return (
-                                                <div key={fest._id} className="card-surface card-carousel-fest rounded-2xl overflow-hidden snap-start">
+                                                <div
+                                                    key={fest._id}
+                                                    className="card-surface card-carousel-fest rounded-2xl overflow-hidden snap-start"
+                                                    onPointerDown={() => prefetchFestDetail(fest)}
+                                                >
                                                     <div className="fest-card-image">
                                                         {img ? (
                                                             <img
@@ -259,6 +264,7 @@ export default function FestTypePage({
                                             <div
                                                 key={fest._id}
                                                 onClick={() => openFestDetails(fest)}
+                                                onPointerDown={() => prefetchFestDetail(fest)}
                                                 className="card-surface flex rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition-all"
                                             >
                                                 <div className="relative list-card-thumb shrink-0">

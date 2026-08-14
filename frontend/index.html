@@ -26,7 +26,6 @@
       try {
         var p = location.pathname || '';
         var ua = navigator.userAgent || '';
-        var inApp = /Instagram|FBAN|FBAV|FB_IAB|Messenger|WhatsApp|Line\/|Telegram|TikTok|BytedanceWebview|MicroMessenger/i.test(ua);
         var hunt = /^\/campus-hunt(\/|$)/.test(p) || /^\/campus-hunt-volunteer(\/|$)/.test(p);
         var deep = /^\/trek(\/|$)/.test(p)
           || /^\/treks\/community(\/|$)/.test(p)
@@ -44,10 +43,14 @@
           var nav = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
           isReload = (nav && nav.type === 'reload') || (performance.navigation && performance.navigation.type === 1);
         } catch (e) {}
-        // Instagram: never show boot splash — it commonly sticks as a black screen
-        // Deep links: skip on first open only; keep logo splash on refresh
-        // Campus Hunt: skip even on refresh — players reopen mid-mission
-        if (inApp || hunt || (deep && !isReload)) document.documentElement.classList.add('skip-boot-splash');
+        // Instagram / FB: never show boot splash — it commonly sticks as a black screen
+        var stuckSplash = /Instagram|FBAN|FBAV|FB_IAB|Messenger/i.test(ua);
+        if (stuckSplash || hunt) {
+          document.documentElement.classList.add('skip-boot-splash');
+        } else if (deep && !isReload) {
+          // WhatsApp / shared fest links: tiny logo, then the page — no black spinner
+          document.documentElement.classList.add('short-boot-splash');
+        }
       } catch (e) {}
     })();
   </script>
@@ -213,12 +216,22 @@
     html.dark #boot-splash {
       background: #161718;
     }
-    /* Shared content deep links — never flash the brand logo */
+    /* Shared Instagram links — never flash the brand logo */
     html.skip-boot-splash #boot-splash {
       display: none !important;
     }
     html.skip-boot-splash #boot-fallback {
       display: none !important;
+    }
+    html.short-boot-splash .boot-logo-assemble {
+      --boot-logo-size: clamp(6.25rem, 36vw, 8.5rem);
+      animation: bootLogoSettle 0.18s cubic-bezier(0.22, 1, 0.36, 1) 0.04s both;
+    }
+    html.short-boot-splash .boot-logo-slice {
+      animation-duration: 0.26s;
+    }
+    html.short-boot-splash #boot-splash.boot-splash-out {
+      transition-duration: 0.18s;
     }
     .boot-splash-inner {
       display: flex;
@@ -430,6 +443,7 @@
       var fallback = document.getElementById('boot-fallback');
       var reloadBtn = document.getElementById('boot-fallback-reload');
       var skipSplash = document.documentElement.classList.contains('skip-boot-splash');
+      var shortSplash = document.documentElement.classList.contains('short-boot-splash');
 
       function showFallback() {
         if (!fallback || fallback.hidden === false) return;
@@ -467,6 +481,8 @@
 
       if (skipSplash) {
         dismissBootSplash();
+      } else if (shortSplash) {
+        setTimeout(dismissBootSplash, 1100);
       }
 
       function reloadFresh() {

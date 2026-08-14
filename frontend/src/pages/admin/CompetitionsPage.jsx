@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Loader, RefreshCw, Search, Upload } from 'lucide-react';
+import { Loader, QrCode, RefreshCw, Search, Upload } from 'lucide-react';
 import CompetitionModal from '../../components/admin/Competition_Modal';
 import CompetitionBulkImport from '../../components/admin/CompetitionBulkImport';
+import CompetitionCheckinQrPrint from '../../components/admin/CompetitionCheckinQrPrint';
 import { adminFetchJSON } from '../../services/api/admin.api.js';
 
 export default function CompetitionsPage() {
@@ -9,6 +10,7 @@ export default function CompetitionsPage() {
   const [selectedFest, setSelectedFest] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [showBulkImport, setShowBulkImport] = useState(false);
+  const [showQrPrint, setShowQrPrint] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
@@ -46,7 +48,7 @@ export default function CompetitionsPage() {
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-3xl font-bold mb-2">Competition Management</h1>
-          <p className="text-gray-400">Manage competitions across all fests</p>
+          <p className="text-gray-400">Manage competitions, then print check-in QRs to hand to organizers</p>
         </div>
         <button
           type="button"
@@ -117,17 +119,30 @@ export default function CompetitionsPage() {
                     </p>
                   </div>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedFest(fest);
-                    setShowBulkImport(true);
-                  }}
-                  className="mt-3 w-full flex items-center justify-center gap-2 rounded-lg border border-gray-700 px-3 py-2 text-xs text-gray-300 hover:border-[#0ECCEE] hover:text-[#0ECCEE] transition-colors"
-                >
-                  <Upload size={14} />
-                  Bulk Import Rulebooks
-                </button>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedFest(fest);
+                      setShowQrPrint(true);
+                    }}
+                    className="flex items-center justify-center gap-1.5 rounded-lg border border-gray-700 px-3 py-2 text-xs text-gray-300 hover:border-[#0ECCEE] hover:text-[#0ECCEE] transition-colors"
+                  >
+                    <QrCode size={14} />
+                    Print QRs
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedFest(fest);
+                      setShowBulkImport(true);
+                    }}
+                    className="flex items-center justify-center gap-1.5 rounded-lg border border-gray-700 px-3 py-2 text-xs text-gray-300 hover:border-[#0ECCEE] hover:text-[#0ECCEE] transition-colors"
+                  >
+                    <Upload size={14} />
+                    Import
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -153,6 +168,16 @@ export default function CompetitionsPage() {
           }}
           onImported={() => {
             fetchFests();
+          }}
+        />
+      )}
+
+      {showQrPrint && selectedFest && (
+        <CompetitionCheckinQrPrint
+          fest={selectedFest}
+          onClose={() => {
+            setShowQrPrint(false);
+            setSelectedFest(null);
           }}
         />
       )}

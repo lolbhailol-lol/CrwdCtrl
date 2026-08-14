@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Phone, Instagram, Check, Moon, Sun, Mail, ArrowLeft, Ticket, Zap, Share2 } from 'lucide-react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from '../../components/layout/Sidebar';
@@ -17,12 +18,12 @@ import { publicFetchJSONRetry as fetchJSON, resolveUrl } from '../../services/ap
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { openExternalUrl, shareContent } from '../../utils/externalLink';
-import { competitionPath, competitionRegistrationPath, festRegisterPath, festPath } from '../../utils/slugRoutes';
+import { competitionPath, competitionRegistrationPath, festRegisterPath, festPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
 import { resolveCompetitionFee, buildRegistrationPrefetch, saveRegistrationPrefetch } from '../../utils/festPublicTransform';
 import { fetchMyRegistrations } from '../../services/api/auth.api';
 import { trackBookNowClick } from '../../services/analyticsService';
 import PrizePoolPodium from '../../components/PrizePoolPodium';
-import DetailPageLoader from '../../components/DetailPageLoader';
+import { signalDetailPageReady } from '../../utils/bootSplash';
 import {
     loadCompetitionDetailCache,
     saveCompetitionDetailCache,
@@ -332,11 +333,12 @@ function EventPage() {
     const [expandedRules, setExpandedRules] = useState({});
     const seededCompetition = (() => {
         const fromState = location.state?.competition;
-        if (fromState) {
+        if (fromState && (!competitionId || entityMatchesRouteParam(fromState, competitionId, ['name', 'title']))) {
             return buildCompetitionData(fromState, { useFestRegistrationFallback: true });
         }
         const cached = competitionId ? loadCompetitionDetailCache(competitionId) : null;
         if (!cached) return null;
+        if (!entityMatchesRouteParam(cached, competitionId, ['name', 'title'])) return null;
         if (isBuiltCompetitionDetail(cached)) return cached;
         return buildCompetitionData(cached, { useFestRegistrationFallback: true });
     })();
@@ -556,9 +558,11 @@ function EventPage() {
         }
     }, [isAuthenticated, showLogin, showRegister]);
 
-    if (!competitionData && !fetchDone) {
-        return <DetailPageLoader label="" />;
-    }
+    useEffect(() => {
+        if (competitionData?.title || (fetchDone && error)) {
+            signalDetailPageReady();
+        }
+    }, [competitionData?.title, fetchDone, error]);
 
     if (fetchDone && error && !competitionData) {
         return (
@@ -607,8 +611,12 @@ function EventPage() {
 
     const eventData = competitionData;
 
-    if (!eventData) {
-        return <DetailPageLoader label="" />;
+    if (!eventData?.title) {
+        return null;
+    }
+
+    if (!fetchDone && !seededCompetition) {
+        return null;
     }
 
     // Get fest name from location state or URL params
@@ -1135,16 +1143,16 @@ function EventPage() {
                     <div className="block md:hidden w-full">
                             <div className="mx-auto w-full flex flex-col flex-1 overflow-x-clip">
                                 <div className="relative w-full h-[396px] shrink-0 overflow-hidden bg-[#1A1B1D]">
+                                    {eventData?.image ? (
                                     <img
-                                        src={getImageUrl(eventData?.image, { preset: 'hero' }) || '/default-image.jpg'}
-                                        alt={eventData?.title || 'Competition'}
+                                        src={getImageUrl(eventData.image, { preset: 'hero' })}
+                                        alt={eventData.title || 'Competition'}
                                         className="absolute inset-0 w-full h-full object-cover content-image"
                                         loading="eager"
                                         fetchPriority="high"
                                         decoding="async"
-                                        onError={(e) => {
-                                            e.target.src = '/default-image.jpg';
-                                        }}
+                                    />
+                                    ) : null}
                                     />
                                     <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-black/30 pointer-events-none" />
                                     <div
@@ -1231,92 +1239,6 @@ function EventPage() {
                                 </div>
                             )}
 
-                            {/* Mobile Registration Button - Hidden, using fixed footer instead */}
-                            <div className="hidden px-4 py-4">
-                                <div className="flex gap-2 relative">
-                                    <button
-                                        onClick={handleRegister}
-                                        disabled={registrationInfo.isDisabled}
-                                        className={`flex-1 py-3 px-4 rounded-full font-semibold transition ${isRegistered
-                                            ? 'bg-green-500 text-white hover:opacity-90'
-                                            : registrationInfo.isDisabled
-                                            ? 'bg-gray-500 text-white cursor-not-allowed opacity-60'
-                                            : 'bg-linear-to-r from-[#0060DF] to-[#00C2CB] text-white hover:opacity-90'
-                                            }`}
-                                        title={registrationInfo.isDisabled ? registrationInfo.buttonText : ''}
-                                    >
-                                        {isRegistered ? (
-                                            <span className="flex items-center justify-center gap-2">
-                                                <Check className="w-4 h-4" />
-                                                Register Again
-                                            </span>
-                                        ) : (
-                                            registrationInfo.buttonText
-                                        )}
-                                    </button>
-                                    <div className="relative">
-                                        <button
-                                            onClick={() => setShowShareMenu(!showShareMenu)}
-                                            className={`w-12 h-12 rounded-full flex items-center justify-center transition ${isDark ? 'bg-dark-700 hover:bg-dark-600' : 'bg-gray-100 hover:bg-gray-200'
-                                                }`}
-                                        >
-                                            <img src={ShareIcon} alt="Share" className="w-5 h-5" />
-                                        </button>
-
-                                        {showShareMenu && (
-                                            <div className={`absolute right-0 mt-2 w-48 rounded-lg shadow-lg z-20 ${isDark ? 'bg-dark-700' : 'bg-white'
-                                                } border ${isDark ? 'border-dark-600' : 'border-gray-200'}`}>
-                                                <div className="py-2">
-                                                    <button
-                                                        onClick={() => handleShare('whatsapp')}
-                                                        className={`w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 hover:bg-blue-500 ${isDark ? 'text-gray-200' : 'text-gray-700'
-                                                            }`}
-                                                    >
-                                                        Share on WhatsApp
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleShare('facebook')}
-                                                        className={`w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 hover:bg-blue-500 ${isDark ? 'text-gray-200' : 'text-gray-700'
-                                                            }`}
-                                                    >
-                                                        Share on Facebook
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleShare('twitter')}
-                                                        className={`w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 hover:bg-blue-500 ${isDark ? 'text-gray-200' : 'text-gray-700'
-                                                            }`}
-                                                    >
-                                                        Share on Twitter
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleShare('copy')}
-                                                        className={`w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 hover:bg-blue-500 ${isDark ? 'text-gray-200' : 'text-gray-700'
-                                                            }`}
-                                                    >
-                                                        Copy Link
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Warning: Form Not Configured */}
-                                {registrationInfo.notConfigured && (
-                                    <div className={`mt-4 p-4 rounded-lg border ${isDark ? 'bg-yellow-900/20 border-yellow-800' : 'bg-yellow-50 border-yellow-200'}`}>
-                                        <div className="flex items-start gap-3">
-                                            <span className="text-yellow-500 text-lg">⚠️</span>
-                                            <div>
-                                                <p className={`font-semibold ${isDark ? 'text-yellow-300' : 'text-yellow-800'}`}>Registration Form Not Ready</p>
-                                                <p className={`text-sm mt-1 ${isDark ? 'text-yellow-200/80' : 'text-yellow-700'}`}>
-                                                    This competition's registration form hasn't been set up yet. Please contact the organizers to complete the configuration.
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                            
                             {/* Mobile Competition Rounds - Only show if rounds exist */}
                             {eventData?.rounds?.roundsList?.length > 0 && (
                             <div className="px-4 py-5">
@@ -1516,15 +1438,14 @@ function EventPage() {
                             <div className="w-1/2 shrink-0 space-y-6">
                                 {/* Event Image Card */}
                                 <div className={`rounded-3xl overflow-hidden shadow-sm ${isDark ? 'bg-[#111213]' : 'bg-white'} p-2`}>
-                                    <div className="rounded-2xl overflow-hidden">
+                                    <div className="rounded-2xl overflow-hidden bg-[#1A1B1D] min-h-80">
+                                    {eventData?.image ? (
                                     <img
-                                        src={getImageUrl(eventData?.image, { preset: 'hero' }) || '/default-image.jpg'}
-                                        alt={eventData?.title || 'Competition'}
+                                        src={getImageUrl(eventData.image, { preset: 'hero' })}
+                                        alt={eventData.title || 'Competition'}
                                         className="w-full h-80 object-cover"
-                                        onError={(e) => {
-                                            e.target.src = '/default-image.jpg';
-                                        }}
                                     />
+                                    ) : null}
                                     </div>
                                 </div>
 
@@ -1675,7 +1596,6 @@ function EventPage() {
                                         </div>
                                     ) : null}
 
-                                        {/* Register button — trek/run style */}
                                         <button
                                             onClick={handleRegister}
                                             disabled={registrationInfo.isDisabled}
@@ -1855,16 +1775,14 @@ function EventPage() {
                         </div>
                 </main>
 
-                {/* Spacer for fixed mobile footer */}
-                <div className="md:hidden h-24"></div>
+                <div className="md:hidden h-28" aria-hidden="true" />
 
-
-            {/* Fixed mobile sticky fee + Register — same pattern as treks / runs */}
+            {typeof document !== 'undefined' && createPortal(
             <div
-                className="fixed bottom-0 left-0 right-0 z-40 md:hidden px-2"
+                className="fixed inset-x-0 bottom-0 z-100040 md:hidden px-2 pointer-events-none"
                 style={{ paddingBottom: 'max(var(--safe-bottom), 6px)' }}
             >
-                <div className={`mx-auto w-full max-w-md flex items-center justify-between gap-4 rounded-[30px] px-5 py-3.5 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'}`}>
+                <div className={`pointer-events-auto mx-auto w-full max-w-md flex items-center justify-between gap-4 rounded-[30px] px-5 py-3.5 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'}`}>
                     {eventData.feeKnown ? (
                     <div className="min-w-0 shrink-0">
                         <p className={`text-xs font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Registration Fee</p>
@@ -1911,7 +1829,9 @@ function EventPage() {
                         )}
                     </button>
                 </div>
-            </div>
+            </div>,
+            document.body,
+            )}
 
             {/* Login Modal */}
             {showLogin && (

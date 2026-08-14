@@ -407,7 +407,7 @@ exports.getAllFests = async (req, res) => {
         const { page = 1, limit = 200, festType, college, search, sortBy = 'priority' } = req.query;
 
         // Create cache key based on query parameters
-        const cacheKey = JSON.stringify({ page, limit, festType, college, search, sortBy });
+        const cacheKey = JSON.stringify({ page, limit, festType, college, search, sortBy, v: 'comps-1' });
         
         // Check cache first
         const cachedData = getFromCache('fests', cacheKey);
@@ -451,15 +451,32 @@ exports.getAllFests = async (req, res) => {
 
         const fests = await FestOrganizer.find(filter)
             .select('festName collegeName festType festDate venue coverImage images festImages description status ticketPrice highlights startDate endDate duration estimatedParticipants registration.mode priority homeSection homePriority showOnHomeSlide')
-            .lean() // Returns plain JS objects, 40-60% faster
+            .lean()
             .sort(sortOptions)
             .skip(skip)
             .limit(parseInt(limit));
 
+        const festIds = fests.map((f) => f._id).filter(Boolean);
+        const comps = festIds.length
+            ? await Competition.find({ fest: { $in: festIds } })
+                .select('name coverImage competitionType registrationFee feeAmount prizePool fest')
+                .lean()
+            : [];
+        const competitionsByFest = new Map();
+        for (const comp of comps) {
+            const key = String(comp.fest);
+            if (!competitionsByFest.has(key)) competitionsByFest.set(key, []);
+            competitionsByFest.get(key).push(comp);
+        }
+        const festsWithCompetitions = fests.map((fest) => ({
+            ...fest,
+            competitions: competitionsByFest.get(String(fest._id)) || [],
+        }));
+
         const total = await FestOrganizer.countDocuments(filter);
 
         const responseData = {
-            fests,
+            fests: festsWithCompetitions,
             pagination: {
                 currentPage: parseInt(page),
                 totalPages: Math.ceil(total / parseInt(limit)),

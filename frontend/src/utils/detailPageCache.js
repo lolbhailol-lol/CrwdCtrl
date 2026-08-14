@@ -1,4 +1,4 @@
-import { transformFestPublicData } from './festPublicTransform';
+import { transformFestPublicData, festHasCompetitionGroups } from './festPublicTransform';
 import { toSlug } from './slugRoutes';
 
 const FEST_PREFIX = 'crwdctrl_detail_fest:';
@@ -66,6 +66,15 @@ export function loadCompetitionDetailCache(compId) {
 export function buildFestDetailNavState(fest) {
   const eventData = transformFestPublicData(fest);
   if (!eventData) return null;
-  saveFestDetailCache(eventData.id, eventData);
+  const cached =
+    loadFestDetailCache(eventData.id)
+    || loadFestDetailCache(toSlug(eventData.title || eventData.festName || ''));
+  // List cards do not include competitions — never overwrite a complete detail cache.
+  if (festHasCompetitionGroups(cached) && !festHasCompetitionGroups(eventData)) {
+    return cached;
+  }
+  if (festHasCompetitionGroups(eventData)) {
+    saveFestDetailCache(eventData.id, eventData);
+  }
   return eventData;
 }

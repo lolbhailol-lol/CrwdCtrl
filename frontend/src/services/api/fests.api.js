@@ -1,12 +1,37 @@
 /**
  * Public fest listing — raw API shapes for fest pages and detail views.
  */
-import { publicFetch } from './client.js';
+import { publicFetch, publicFetchJSONRetry } from './client.js';
+import { transformFestPublicData } from '../../utils/festPublicTransform';
+import { saveFestDetailCache } from '../../utils/detailPageCache';
 
 function parseFestsPayload(data) {
   if (Array.isArray(data?.fests)) return data.fests;
   if (Array.isArray(data)) return data;
   return [];
+}
+
+const festDetailPrefetch = new Map();
+
+/** Warm fest detail cache (with competitions) before the user lands on view-details. */
+export function prefetchFestDetail(fest) {
+  const id = fest?._id || fest?.id;
+  if (!id) return;
+  const key = String(id);
+  if (festDetailPrefetch.has(key)) return festDetailPrefetch.get(key);
+  const pending = publicFetchJSONRetry(`/fests/${id}/public`, { retries: 1 })
+    .then((res) => {
+      const raw = res?.data || res;
+      const eventData = transformFestPublicData(raw);
+      if (eventData) saveFestDetailCache(eventData.id, eventData);
+      return eventData;
+    })
+    .catch(() => null)
+    .finally(() => {
+      festDetailPrefetch.delete(key);
+    });
+  festDetailPrefetch.set(key, pending);
+  return pending;
 }
 
 export async function fetchRawPublicFests(options = {}) {

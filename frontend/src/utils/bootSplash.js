@@ -73,36 +73,37 @@ export function hasAuthCallbackParams() {
 
 /**
  * Show branded splash on first open (navigate) and refresh — not on back/forward.
- * Shared content deep links skip splash on first open (WhatsApp / Instagram lag),
- * but still show the logo on a full page refresh.
+ * Shared fest/competition WhatsApp links get a very short logo, then the page.
+ * Instagram still skips splash (it can stick as a black screen).
  */
 export function shouldShowBootSplash() {
   try {
     if (hasAuthCallbackParams()) return false;
     if (hasPaymentReturnContext()) return false;
 
-    // Instagram / FB / WhatsApp: splash + timers often leave a blank black shell
+    try {
+      if (typeof document !== 'undefined' && document.documentElement.classList.contains('skip-boot-splash')) {
+        return false;
+      }
+    } catch { /* ignore */ }
+
     try {
       const ua = navigator.userAgent || '';
-      if (/Instagram|FBAN|FBAV|FB_IAB|Messenger|WhatsApp|Line\/|Telegram|TikTok|BytedanceWebview|MicroMessenger/i.test(ua)) {
+      if (/Instagram|FBAN|FBAV|FB_IAB|Messenger/i.test(ua)) {
         return false;
       }
     } catch { /* ignore */ }
 
     const [nav] = performance.getEntriesByType?.('navigation') ?? [];
-    const isReload = nav?.type === 'reload' || performance.navigation?.type === 1;
     const isBackForward = nav?.type === 'back_forward' || performance.navigation?.type === 2;
 
-    // Hunt players reopen constantly — never hold them on the logo
     if (/^\/campus-hunt(\/|$)/.test(window.location.pathname || '')
       || /^\/campus-hunt-volunteer(\/|$)/.test(window.location.pathname || '')) {
       return false;
     }
 
-    // Deep-linked content: skip splash on open, keep logo on refresh
-    if (isSharedContentDeepLink() && !isReload) return false;
-
     if (isBackForward) return false;
+    if (isSharedContentDeepLink()) return true;
     if (nav?.type === 'reload' || nav?.type === 'navigate') return true;
 
     const legacyType = performance.navigation?.type;
@@ -114,28 +115,40 @@ export function shouldShowBootSplash() {
   }
 }
 
+export function isShortBootSplash() {
+  try {
+    if (typeof document !== 'undefined' && document.documentElement.classList.contains('short-boot-splash')) {
+      return true;
+    }
+    return isSharedContentDeepLink();
+  } catch {
+    return false;
+  }
+}
+
 export function removeHtmlBootSplash() {
   const el = document.getElementById('boot-splash');
   if (!el) return;
-  // Deep links / Instagram skip class — drop instantly (no fade lag)
-  if (
-    document.documentElement.classList.contains('skip-boot-splash')
-    || isSharedContentDeepLink()
-  ) {
+  if (document.documentElement.classList.contains('skip-boot-splash')) {
     el.remove();
     return;
   }
   if (el.dataset.removing === '1') return;
   el.dataset.removing = '1';
   el.classList.add('boot-splash-out');
+  const fade = isShortBootSplash() ? BOOT_SPLASH_SHORT_FADE_MS : BOOT_SPLASH_FADE_MS;
   const remove = () => el.remove();
   el.addEventListener('transitionend', remove, { once: true });
-  window.setTimeout(remove, BOOT_SPLASH_FADE_MS + 80);
+  window.setTimeout(remove, fade + 80);
 }
 
 /** Total splash cycle — assemble, brief hold, fade (~1.9s) */
 export const BOOT_SPLASH_TOTAL_MS = 1900;
 export const BOOT_SPLASH_FADE_MS = 320;
+/** WhatsApp / shared fest links — tiny logo then the page */
+export const BOOT_SPLASH_SHORT_MS = 380;
+export const BOOT_SPLASH_SHORT_FADE_MS = 180;
+export const BOOT_SPLASH_SHORT_MAX_MS = 1100;
 /** When fade-out starts and main app appears */
 export const BOOT_SPLASH_MS = BOOT_SPLASH_TOTAL_MS - BOOT_SPLASH_FADE_MS;
 
@@ -143,4 +156,13 @@ export const BOOT_SPLASH_MS = BOOT_SPLASH_TOTAL_MS - BOOT_SPLASH_FADE_MS;
 export function getBootSplashIsDark() {
   if (typeof document === 'undefined') return false;
   return document.documentElement.classList.contains('dark');
+}
+
+export function signalDetailPageReady() {
+  try {
+    window.dispatchEvent(new Event('crwdctrl:detail-ready'));
+  } catch {
+    /* ignore */
+  }
+  removeHtmlBootSplash();
 }

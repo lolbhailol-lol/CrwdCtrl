@@ -9,25 +9,26 @@ import locationIcon from '../../assets/location-.svg';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useDialog } from '../../context/DialogContext';
 import { useAuth } from '../../context/AuthContext';
-import { useRegisteredEvents } from '../../context/RegisteredEventsContext';
 import { useFavorites } from '../../context/FavoritesContext';
-import { getImageUrl, aarohanLogoImg } from '../../utils/imageImports';
+import { getImageUrl } from '../../utils/imageImports';
 import CardFavoriteButton from '../../components/CardFavoriteButton';
 import CardShareButton from '../../components/CardShareButton';
 import { shareContent } from '../../utils/externalLink';
 import {
   transformFestPublicData,
   buildCompetitionNavPayload,
-  isFestRegistrationDisabled,
   resolveCompetitionFee,
+  isFestPlaceholderCopy,
+  festHasCompetitionGroups,
 } from '../../utils/festPublicTransform';
 import CrwdCtrlLogin from '../auth/login';
 import CrwdCtrlRegister from '../auth/register';
 import { publicFetchJSONRetry as fetchJSON } from '../../services/api/client';
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
-import { festPath, competitionPath } from '../../utils/slugRoutes';
+import { festPath, competitionPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
 import { loadFestDetailCache, saveFestDetailCache, saveCompetitionDetailCache } from '../../utils/detailPageCache';
+import { signalDetailPageReady } from '../../utils/bootSplash';
 import DetailPageLoader from '../../components/DetailPageLoader';
 
 function formatCompetitionTabLabel(tab) {
@@ -101,48 +102,16 @@ function CompetitionScrollCard({ comp, isDark, isFavorite, onToggleFavorite, onC
   );
 }
 
-function FestRegisterCard({
-  isDark,
-  registrationOpen,
-  registered,
-  registerLabel,
-  registerButtonClass,
-  onRegister,
-  className = '',
-}) {
-  return (
-    <div className={className}>
-      {registrationOpen && !registered && (
-        <p className={`text-xs font-medium text-center mb-2 flex items-center justify-center gap-2 ${isDark ? 'text-[#0ECCEE]' : 'text-sky-700'}`}>
-          <span aria-hidden>📋</span>
-          Registrations open for competition
-        </p>
-      )}
-      <button
-        type="button"
-        onClick={onRegister}
-        disabled={!registrationOpen}
-        className={`w-full h-[60px] px-6 font-semibold flex items-center justify-center gap-2 transition rounded-[60px] shadow-lg ${registerButtonClass}`}
-      >
-        {registerLabel}
-        {registrationOpen && !registered && <ChevronRight size={18} />}
-      </button>
-    </div>
-  );
-}
-
 function EventDetailsPage() {
   const { isDark } = useDarkMode();
   const { toast } = useDialog();
   const { isAuthenticated } = useAuth();
-  const { isRegistered } = useRegisteredEvents();
   const { toggleFavorite, isFavorite } = useFavorites();
   const { eventId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const [activeTab, setActiveTab] = useState('GROUP');
   const [currentArtist, setCurrentArtist] = useState(0);
-  const [currentHeroImage, setCurrentHeroImage] = useState('');
   const [showLogin, setShowLogin] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
   const [showFullOverview, setShowFullOverview] = useState(false);
@@ -150,11 +119,18 @@ function EventDetailsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const seededFest = (() => {
     const fromState = location.state?.eventData?.title ? location.state.eventData : null;
-    if (fromState) return fromState;
-    return eventId ? loadFestDetailCache(eventId) : null;
+    if (fromState && (!eventId || entityMatchesRouteParam(fromState, eventId, ['title', 'festName', 'festival_name']))) {
+      return fromState;
+    }
+    const cached = eventId ? loadFestDetailCache(eventId) : null;
+    if (cached && entityMatchesRouteParam(cached, eventId, ['title', 'festName', 'festival_name'])) {
+      return cached;
+    }
+    return null;
   })();
   const [eventData, setEventData] = useState(seededFest);
-  const [fetchDone, setFetchDone] = useState(Boolean(seededFest));
+  const [currentHeroImage, setCurrentHeroImage] = useState(seededFest?.heroImage || seededFest?.image || '');
+  const [fetchDone, setFetchDone] = useState(false);
   const [error, setError] = useState(null);
   const eventsRef = useRef(null);
 
@@ -236,11 +212,15 @@ function EventDetailsPage() {
 
   useEffect(() => {
     if (!eventData || !eventId) return;
+    if (!festHasCompetitionGroups(eventData) && !fetchDone) return;
     const canonical = festPath({ id: eventData.id, _id: eventData.id, festName: eventData.title, title: eventData.title });
     if (canonical && window.location.pathname !== canonical) {
-      navigate(`${canonical}${window.location.search || ''}`, { replace: true });
+      navigate(`${canonical}${window.location.search || ''}`, {
+        replace: true,
+        state: { ...location.state, eventData },
+      });
     }
-  }, [eventData, eventId, navigate]);
+  }, [eventData, eventId, navigate, location.state, fetchDone]);
 
   // 🔄 Listen for admin updates and refetch data
   useEffect(() => {
@@ -304,6 +284,7 @@ function EventDetailsPage() {
 
   // Get available competition tabs based on event data
   const availableTabs = Object.keys(eventData?.competitions || {});
+  const visibleTab = availableTabs.includes(activeTab) ? activeTab : (availableTabs[0] || '');
 
   // Set initial active tab to the first available tab
   useEffect(() => {
@@ -342,9 +323,14 @@ function EventDetailsPage() {
     setShowLogin(true);
   };
 
-  if (!eventData && !fetchDone) {
-    return <DetailPageLoader label="" />;
-  }
+  useEffect(() => {
+    const ready =
+      festHasCompetitionGroups(eventData)
+      || (fetchDone && Boolean(eventData?.title || error));
+    if (ready) {
+      signalDetailPageReady();
+    }
+  }, [eventData, fetchDone, error]);
 
   if (fetchDone && error && !eventData) {
     return (
@@ -386,15 +372,16 @@ function EventDetailsPage() {
     );
   }
 
-  if (!eventData) {
+  if (!eventData?.title) {
+    return <DetailPageLoader label="" />;
+  }
+
+  // Wait until competitions are in the payload (or the fetch finished with none).
+  if (!festHasCompetitionGroups(eventData) && !fetchDone) {
     return <DetailPageLoader label="" />;
   }
 
   const pageEvent = eventData;
-
-  const handleRegister = () => {
-    navigate(`/competition-list/${pageEvent.id}`);
-  };
 
   const prefetchCompetition = (competition) => {
     const payload = buildCompetitionNavPayload(competition, pageEvent);
@@ -441,14 +428,6 @@ function EventDetailsPage() {
   const primaryInstagram = getPrimaryInstagram(pageEvent.contacts);
   const galleryPreview = pageEvent.galleryImages || [];
   const galleryExtraCount = Math.max(0, galleryPreview.length - 3);
-  const registrationOpen = !isFestRegistrationDisabled(pageEvent?.registration?.mode);
-  const registerLabel = pageEvent?.registration?.mode === 'NOT_STARTED'
-    ? 'Registration Not Open Yet'
-    : pageEvent?.registration?.mode === 'CLOSED'
-    ? 'Registration Closed'
-    : isRegistered(pageEvent.id)
-    ? 'Register Again'
-    : 'Register Now';
 
   const handleFestFavorite = () => {
     toggleFavorite(pageEvent.id, {
@@ -476,15 +455,15 @@ function EventDetailsPage() {
     });
   };
 
-  const registerButtonClass = registrationOpen && !isRegistered(pageEvent.id)
-    ? 'bg-linear-to-r from-[#0060DF] to-[#00C2CB] text-white hover:opacity-95'
-    : isRegistered(pageEvent.id)
-    ? 'bg-green-600 text-white'
-    : 'bg-gray-400 text-white cursor-not-allowed';
-
   const canonicalPath = festPath({ id: pageEvent.id, _id: pageEvent.id, festName: pageEvent.title, title: pageEvent.title });
-  const festDescription = `${pageEvent.title}${pageEvent.collegeName && pageEvent.collegeName !== 'Unknown College' ? ` by ${pageEvent.collegeName}` : ''} — ${pageEvent.description}`;
+  const festDescription = `${pageEvent.title}${!isFestPlaceholderCopy(pageEvent.collegeName) ? ` by ${pageEvent.collegeName}` : ''}${pageEvent.description ? ` — ${pageEvent.description}` : ''}`;
   const heroImage = currentHeroImage || pageEvent.heroImage || pageEvent.image;
+  const overviewText = isFestPlaceholderCopy(pageEvent.overview) ? '' : pageEvent.overview;
+  const dateLabel = isFestPlaceholderCopy(pageEvent.dateTime) ? '' : pageEvent.dateTime;
+  const venueLabel = isFestPlaceholderCopy(pageEvent.venue) ? '' : pageEvent.venue;
+  const collegeLabel = isFestPlaceholderCopy(pageEvent.collegeName || pageEvent.subtitle)
+    ? ''
+    : (pageEvent.collegeName || pageEvent.subtitle);
 
   return (
     <div className={`crwdctrl-page min-h-screen overflow-x-clip ${isDark ? 'bg-black' : 'bg-white'}`}>
@@ -505,12 +484,9 @@ function EventDetailsPage() {
             description: pageEvent.description,
             url: canonicalPath,
             image: pageEvent.heroImage || pageEvent.image,
-            location: pageEvent.venue && pageEvent.venue !== 'Venue TBA' ? pageEvent.venue : undefined,
+            location: venueLabel || undefined,
             price: pageEvent.ticketPrice,
-            organizerName:
-              pageEvent.collegeName && pageEvent.collegeName !== 'Unknown College'
-                ? pageEvent.collegeName
-                : undefined,
+            organizerName: collegeLabel || undefined,
             availabilityUrl: canonicalPath,
           }),
         ]}
@@ -524,23 +500,15 @@ function EventDetailsPage() {
               {/* Left Column - Event Details */}
               <div className="md:col-span-2 space-y-4 sm:space-y-6">
                 {/* Hero Image */}
-                <div className="relative rounded-2xl overflow-hidden">
+                <div className="relative rounded-2xl overflow-hidden bg-[#1A1B1D]">
+                  {heroImage ? (
                   <img
-                    src={getImageUrl(currentHeroImage, { preset: 'hero' })}
+                    src={getImageUrl(heroImage, { preset: 'hero' })}
                     alt={pageEvent.title}
                     className="w-full h-64 sm:h-80 xl:h-96 object-cover"
-                    onError={(e) => {
-                      handleImageErrorWithFallback(e, 400, 300, '#2A2B2E', pageEvent.title || 'Event');
-                    }}
                   />
-                  {pageEvent.id === 'fest_001' && (
-                    <div className="absolute top-3 sm:top-4 left-3 sm:left-4 pt-70">
-                      <img
-                        src={aarohanLogoImg}
-                        alt="Aarohan Logo"
-                        className="w-12 h-12 sm:w-16 sm:h-16 object-contain bg-white/90 rounded-lg p-2 shadow-sm"
-                      />
-                    </div>
+                  ) : (
+                    <div className="w-full h-64 sm:h-80 xl:h-96" />
                   )}
                   <div className="absolute top-3 sm:top-4 right-3 sm:right-4 flex flex-col space-y-2">
                     {pageEvent.galleryImages?.map((img, idx) => (
@@ -563,11 +531,12 @@ function EventDetailsPage() {
                 </div>
 
                 {/* Fest Overview */}
+                {overviewText ? (
                 <div className={`${isDark ? 'bg-[#111213]' : 'bg-gray-100'} rounded-2xl p-4 sm:p-6 transition-colors duration-300`}>
                   <h2 className={`text-xl sm:text-2xl font-bold mb-3 sm:mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>About Us</h2>
                   <p className={`${isDark ? 'text-gray-300' : 'text-gray-700'} leading-relaxed text-sm sm:text-base`}>
-                    {showFullOverview ? pageEvent.overview : `${pageEvent.overview.substring(0, 200)}...`}
-                    {pageEvent.overview.length > 200 && (
+                    {showFullOverview || overviewText.length <= 200 ? overviewText : `${overviewText.substring(0, 200)}...`}
+                    {overviewText.length > 200 && (
                       <button
                         onClick={toggleReadMore}
                         className="text-blue-500 ml-1 font-semibold hover:text-blue-600 transition-colors"
@@ -577,6 +546,7 @@ function EventDetailsPage() {
                     )}
                   </p>
                 </div>
+                ) : null}
 
                 {/* Competitions */}
                 {availableTabs.length > 0 && (
@@ -593,7 +563,7 @@ function EventDetailsPage() {
                           type="button"
                           onClick={() => setActiveTab(tab)}
                           className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${
-                            activeTab === tab
+                            visibleTab === tab
                               ? isDark
                                 ? 'border border-[#0ECCEE] text-[#0ECCEE] bg-[#0ECCEE]/10'
                                 : 'border border-sky-400 text-sky-600 bg-white'
@@ -610,7 +580,7 @@ function EventDetailsPage() {
                     {/* Competition Cards — horizontal scroll */}
                     <div className="overflow-x-auto scrollbar-hide -mx-1 px-1">
                       <div className="flex gap-4 pb-1">
-                        {pageEvent.competitions[activeTab]?.map((comp, idx) => (
+                        {pageEvent.competitions[visibleTab]?.map((comp, idx) => (
                           <CompetitionScrollCard
                             key={comp.id || idx}
                             comp={comp}
@@ -660,18 +630,22 @@ function EventDetailsPage() {
               <div className="lg:col-span-1 space-y-4 sm:space-y-5">
                 <div className={`sticky top-24 ${isDark ? 'bg-[#111213]' : 'bg-gray-100'} rounded-2xl p-4 sm:p-6 mb-10 pt-6 sm:pt-8 pb-8 sm:pb-10 transition-colors duration-300`}>
                   <div className="flex items-start justify-between mb-4 sm:mb-6">
-                    <h1 className={`text-lg sm:text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{pageEvent.title}<br />{pageEvent.subtitle}</h1>
+                    <h1 className={`text-lg sm:text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{pageEvent.title}{collegeLabel ? <><br />{collegeLabel}</> : null}</h1>
                   </div>
 
                   <div className="space-y-3 sm:space-y-4 mb-4 sm:mb-6">
+                    {dateLabel ? (
                     <div className="flex items-center space-x-3">
-                      <img src={calendarIcon} alt="Calendar" className={`w-[18px] h-[18px] ${isDark ? 'invert brightness-200' : ''}`}/>                      <span className={`text-sm sm:text-base ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{pageEvent.venue}</span>
-                      <span className={`text-sm sm:text-base ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{pageEvent.dateTime}</span>
+                      <img src={calendarIcon} alt="Calendar" className={`w-[18px] h-[18px] ${isDark ? 'invert brightness-200' : ''}`}/>
+                      <span className={`text-sm sm:text-base ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{dateLabel}</span>
                     </div>
+                    ) : null}
+                    {venueLabel ? (
                     <div className="flex items-center space-x-3">
                       <img src={locationIcon} alt="Location" className={`w-4 h-4 sm:w-5 sm:h-5 ${isDark ? 'filter brightness-150 invert' : ''}`} />
-                      <span className={`text-sm sm:text-base ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{pageEvent.venue}</span>
+                      <span className={`text-sm sm:text-base ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{venueLabel}</span>
                     </div>
+                    ) : null}
                     <div className="flex items-center space-x-3">
                       <div className={`w-4 h-4 sm:w-5 sm:h-5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>🎭</div>
                       <span className={`text-sm sm:text-base ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{pageEvent.theme}</span>
@@ -683,27 +657,6 @@ function EventDetailsPage() {
                   </div>
 
                   <div className="flex space-x-2">
-                    <button
-                      onClick={handleRegister}
-                      className={`flex-1 font-semibold py-2.5 sm:py-3 rounded-xl transition text-sm sm:text-base ${
-                        isFestRegistrationDisabled(pageEvent?.registration?.mode)
-                          ? 'bg-gray-500 hover:bg-gray-600 text-white cursor-not-allowed'
-                          : isRegistered(pageEvent.id)
-                          ? 'bg-green-600 hover:bg-green-700 text-white'
-                          : 'bg-linear-to-r from-[#0060DF] to-[#00C2CB] hover:opacity-90 text-white'
-                      }`}
-                      disabled={isFestRegistrationDisabled(pageEvent?.registration?.mode)}
-                      title={pageEvent?.registration?.mode === 'NOT_STARTED' ? 'Registration Not Open Yet' :
-                             pageEvent?.registration?.mode === 'CLOSED' ? 'Registration Closed' : ''}
-                    >
-                      {pageEvent?.registration?.mode === 'NOT_STARTED'
-                        ? 'Registration Not Open Yet'
-                        : pageEvent?.registration?.mode === 'CLOSED'
-                        ? 'Registration Closed'
-                        : isRegistered(pageEvent.id)
-                        ? '✓ Register Again'
-                        : 'Register Now'}
-                    </button>
                     <button
                       onClick={handleShare}
                       className={`p-2.5 sm:p-3 ${isDark ? 'bg-[#111213] hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} rounded-xl transition`}
@@ -886,14 +839,13 @@ function EventDetailsPage() {
       <div className={`md:hidden pb-8 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
         {/* Hero with overlay controls — full bleed, overlaps into content sheet */}
         <div className="relative h-[320px] overflow-hidden bg-[#1A1B1D]">
+          {heroImage ? (
           <img
-            src={getImageUrl(currentHeroImage, { preset: 'hero' })}
+            src={getImageUrl(heroImage, { preset: 'hero' })}
             alt={pageEvent.title}
             className="absolute inset-0 w-full h-full object-cover object-[center_30%]"
-            onError={(e) => {
-              handleImageErrorWithFallback(e, 400, 320, '#2A2B2E', pageEvent.title || 'Event');
-            }}
           />
+          ) : null}
           <div className="absolute inset-x-0 top-0 flex items-center justify-between px-4 pt-[max(0.75rem,var(--safe-top))] pb-3 bg-linear-to-b from-black/35 to-transparent z-10">
             <button
               type="button"
@@ -934,9 +886,11 @@ function EventDetailsPage() {
               <h1 className={`text-2xl font-bold leading-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 {pageEvent.title}
               </h1>
+              {collegeLabel ? (
               <p className={`text-sm font-semibold mt-1 ${isDark ? 'text-gray-400' : 'text-gray-700'}`}>
-                {pageEvent.collegeName || pageEvent.subtitle}
+                {collegeLabel}
               </p>
+              ) : null}
             </div>
             {primaryPhone && (
               <a
@@ -949,22 +903,29 @@ function EventDetailsPage() {
             )}
           </div>
 
+          {(dateLabel || venueLabel) ? (
           <div className="space-y-3 mb-5">
+            {dateLabel ? (
             <div className="flex items-center gap-3">
               <Calendar size={18} className={isDark ? 'text-gray-500' : 'text-gray-400'} />
-              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{pageEvent.dateTime}</p>
+              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{dateLabel}</p>
             </div>
+            ) : null}
+            {venueLabel ? (
             <div className="flex items-center gap-3">
               <MapPin size={18} className={isDark ? 'text-gray-500' : 'text-gray-400'} />
-              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{pageEvent.venue}</p>
+              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{venueLabel}</p>
             </div>
+            ) : null}
           </div>
+          ) : null}
 
+          {overviewText ? (
           <div>
             <h2 className={`text-base font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>About Us</h2>
             <p className={`text-sm leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-              {showFullOverview ? pageEvent.overview : `${pageEvent.overview.substring(0, 160)}${pageEvent.overview.length > 160 ? '...' : ''}`}
-              {pageEvent.overview.length > 160 && (
+              {showFullOverview || overviewText.length <= 160 ? overviewText : `${overviewText.substring(0, 160)}...`}
+              {overviewText.length > 160 && (
                 <button
                   type="button"
                   onClick={toggleReadMore}
@@ -975,6 +936,7 @@ function EventDetailsPage() {
               )}
             </p>
           </div>
+          ) : null}
         </div>
 
         {/* Artists Over the Years */}
@@ -1037,7 +999,7 @@ function EventDetailsPage() {
                   type="button"
                   onClick={() => setActiveTab(tab)}
                   className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition ${
-                    activeTab === tab
+                    visibleTab === tab
                       ? isDark
                         ? 'border border-[#0ECCEE] text-[#0ECCEE] bg-[#0ECCEE]/10'
                         : 'border border-sky-400 text-sky-600 bg-white'
@@ -1052,7 +1014,7 @@ function EventDetailsPage() {
             </div>
             <div className="overflow-x-auto scrollbar-hide -mx-4 px-4">
               <div className="flex gap-4 pb-1">
-                {pageEvent.competitions[activeTab]?.map((comp, idx) => (
+                {pageEvent.competitions[visibleTab]?.map((comp, idx) => (
                   <CompetitionScrollCard
                     key={comp.id || idx}
                     comp={comp}
@@ -1206,8 +1168,6 @@ function EventDetailsPage() {
             </div>
           </section>
         )}
-
-        <div className="h-8 md:hidden" style={{ paddingBottom: 'var(--safe-bottom)' }} />
       </div>
 
       {/* Gallery Lightbox */}

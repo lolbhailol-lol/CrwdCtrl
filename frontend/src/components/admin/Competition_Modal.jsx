@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
-import { X, Plus, Edit2, Trash2, ChevronRight, ChevronLeft, Upload, Loader } from 'lucide-react';
+import { X, Plus, Edit2, Trash2, ChevronRight, ChevronLeft, Upload, Loader, Printer } from 'lucide-react';
+import CompetitionCheckinQrPrint, { printCompetitionCheckinSheets } from './CompetitionCheckinQrPrint';
 import { buildPriceBreakdown, parseTicketPrice } from '../../utils/platformFee';
 import { adminFetch, adminFetchJSON } from '../../services/api/admin.api.js';
 import { useDialog } from '../../context/DialogContext';
@@ -225,6 +226,7 @@ const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onA
 export default function CompetitionModal({ fest, onClose, onSaved }) {
   const [competitions, setCompetitions] = useState([]);
   const [showForm, setShowForm] = useState(false);
+  const [showQrPrint, setShowQrPrint] = useState(false);
   const [selectedCompetition, setSelectedCompetition] = useState(null);
   const [error, setError] = useState('');
   const { confirm, alert: showAlert } = useDialog();
@@ -289,6 +291,16 @@ export default function CompetitionModal({ fest, onClose, onSaved }) {
             <p className="text-sm text-gray-400 mt-1">Manage competitions for this fest</p>
           </div>
           <div className="flex gap-3">
+            {competitions.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowQrPrint(true)}
+                className="px-4 py-2 border border-gray-700 text-gray-200 rounded-lg font-semibold hover:border-[#0ECCEE] hover:text-[#0ECCEE] transition-colors flex items-center gap-2"
+              >
+                <Printer size={18} />
+                Print QRs
+              </button>
+            )}
             <button
               onClick={() => {
                 setSelectedCompetition(null);
@@ -352,6 +364,18 @@ export default function CompetitionModal({ fest, onClose, onSaved }) {
                     </div>
                     <div className="flex gap-2 ml-4">
                       <button
+                        type="button"
+                        onClick={() => {
+                          printCompetitionCheckinSheets({ fest, competitions: [comp] }).catch((err) => {
+                            showAlert({ title: 'Print failed', message: err.message || 'Allow popups to print this QR' });
+                          });
+                        }}
+                        className="p-2 bg-[#1D1E20] border border-gray-600 hover:border-[#0ECCEE] rounded transition-colors"
+                        title="Print check-in QR"
+                      >
+                        <Printer size={18} />
+                      </button>
+                      <button
                         onClick={() => {
                           setSelectedCompetition(comp);
                           setShowForm(true);
@@ -376,6 +400,12 @@ export default function CompetitionModal({ fest, onClose, onSaved }) {
           )}
         </div>
       </div>
+      {showQrPrint && (
+        <CompetitionCheckinQrPrint
+          fest={fest}
+          onClose={() => setShowQrPrint(false)}
+        />
+      )}
     </div>
   );
 }

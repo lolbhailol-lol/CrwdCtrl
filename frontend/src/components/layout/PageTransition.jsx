@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigationType } from 'react-router-dom';
 import PageTransitionSkeleton from '../PageTransitionSkeleton';
 import { SKELETON_LOADING_MS, SKELETON_LOADING_SAFETY_MS } from '../../constants/skeletonLoading';
+import { isSharedContentDeepLink } from '../../utils/bootSplash';
 
 function resetScrollToTop() {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
@@ -211,7 +212,10 @@ export function PageTransitionProvider({ children }) {
  */
 export function PageTransitionContent({ children }) {
     const { contentVisible } = usePageTransition();
+    const location = useLocation();
+    const navType = useNavigationType();
     const ref = useRef(null);
+    const isFirst = useRef(true);
 
     useLayoutEffect(() => {
         if (contentVisible) return;
@@ -221,6 +225,23 @@ export function PageTransitionContent({ children }) {
             active.blur();
         }
     }, [contentVisible]);
+
+    useLayoutEffect(() => {
+        if (isFirst.current) {
+            isFirst.current = false;
+            const el = ref.current;
+            if (el && isSharedContentDeepLink(location.pathname)) {
+                el.classList.add('page-transition-enter');
+            }
+            return;
+        }
+        if (navType === 'REPLACE') return;
+        const el = ref.current;
+        if (!el) return;
+        el.classList.remove('page-transition-enter', 'page-transition-enter-back');
+        void el.offsetWidth;
+        el.classList.add(navType === 'POP' ? 'page-transition-enter-back' : 'page-transition-enter');
+    }, [location.pathname, navType]);
 
     return (
         <div
