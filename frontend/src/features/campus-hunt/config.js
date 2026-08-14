@@ -40,6 +40,7 @@ export const CAMPUS_HUNT_PATHS = {
   offline: '/campus-hunt/offline',
   offlineLogin: '/campus-hunt/offline/login',
   offlinePlay: '/campus-hunt/offline/play',
+  offlineInstall: (token) => `/campus-hunt/offline/i/${token}`,
 };
 
 export const ISSUE_CATEGORIES = [

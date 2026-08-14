@@ -8,7 +8,7 @@ import {
   adminResyncClue1,
 } from '../services/campusHunt.api';
 import { downloadOfflinePacks } from '../offline/downloadOfflinePacks';
-import { CAMPUS_HUNT_PATHS } from '../config';
+import OfflineInstallCards from '../offline/components/OfflineInstallCards';
 import { STAGE_THEMES } from '../types/stageTheme';
 import { resolveStations, resolveStarts } from './campusHuntFormat';
 
@@ -526,6 +526,7 @@ export default function DryRunHuddleChecklist({
   const [exportMessage, setExportMessage] = useState('');
   const [exportWarnings, setExportWarnings] = useState([]);
   const [importBusy, setImportBusy] = useState(false);
+  const [installs, setInstalls] = useState([]);
   const autoFixAttempted = useRef(false);
 
   useEffect(() => {
@@ -645,6 +646,7 @@ export default function DryRunHuddleChecklist({
     try {
       const res = await adminExportOfflinePacks(eventId);
       const data = res.data || res;
+      setInstalls(Array.isArray(data.installs) ? data.installs : []);
       await downloadOfflinePacks(data, { perTeam });
       const warnings = [
         ...(data.warnings || []),
@@ -655,7 +657,7 @@ export default function DryRunHuddleChecklist({
       setExportWarnings(warnings);
       setExportMessage(
         data.teamCount
-          ? `Exported ${data.teamCount} team pack${data.teamCount === 1 ? '' : 's'}. Load one JSON per team on all 4 phones before fest.`
+          ? `Ready: ${data.teamCount} team install link${data.teamCount === 1 ? '' : 's'}. WhatsApp each link to that team. They open it once on Wi‑Fi, then airplane mode at the fest.`
           : 'No complete team packs — finish Round 1 bindings and team passwords first.',
       );
     } catch (err) {
@@ -804,7 +806,7 @@ export default function DryRunHuddleChecklist({
             onClick={() => exportOffline(false)}
             className="rounded-xl border border-[#0ECCEE]/40 bg-[#0ECCEE]/15 px-4 py-2 text-xs font-bold text-[#0ECCEE] disabled:opacity-50"
           >
-            {exportBusy ? 'Exporting…' : 'Export offline packs'}
+            {exportBusy ? 'Exporting…' : 'Create team install links'}
           </button>
           <button
             type="button"
@@ -826,16 +828,13 @@ export default function DryRunHuddleChecklist({
 
       <div className="mt-3 rounded-lg border border-white/10 bg-white/3 px-3 py-2 text-[11px] text-white/70 print:hidden">
         <p>
-          <strong className="text-white">Offline fest mode:</strong>
+          <strong className="text-white">How teams play (no laptop at venue):</strong>
           {' '}
-          export packs here (laptop, before fest) → share each team JSON to all 4 phones →
-          {' '}
-          <a href={CAMPUS_HUNT_PATHS.offline} className="text-[#0ECCEE] underline" target="_blank" rel="noreferrer">
-            /campus-hunt/offline
-          </a>
-          {' '}
-          → airplane mode on venue.
+          Click <strong>Create team install links</strong> → WhatsApp each team their link
+          → they open it once at home on Wi‑Fi and Add to Home Screen
+          → at the fest they use airplane mode. Same posters, same hunt.
         </p>
+        <OfflineInstallCards installs={installs} />
         <label className="mt-2 flex cursor-pointer items-center gap-2 text-[11px] text-white/60">
           <span className="font-semibold text-white/80">After fest · import results</span>
           <input

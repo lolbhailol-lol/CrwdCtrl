@@ -9,6 +9,7 @@ import {
 } from '../offlineDb';
 import { hydrateState } from '../offlineEngine';
 import { CAMPUS_HUNT_PATHS } from '../../config';
+import { armOfflineNetworkGuard } from '../offlineNetworkGuard';
 
 export default function OfflineHuntLoginPage() {
   const navigate = useNavigate();
@@ -19,6 +20,8 @@ export default function OfflineHuntLoginPage() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => armOfflineNetworkGuard(), []);
 
   useEffect(() => {
     let cancelled = false;

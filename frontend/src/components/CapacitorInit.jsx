@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { initCapacitorApp } from '../utils/capacitorApp';
 import { initNativePushNavigation, initNativePushForegroundRefresh } from '../utils/nativePush';
 import { initCashfreeNativeGateway } from '../utils/bootstrapCashfreeNative';
+import { isNativeApp } from '../utils/capacitorPlatform';
 import {
   getPendingPayment,
   shouldResumePendingPayment,
@@ -20,6 +21,11 @@ export default function CapacitorInit() {
 
   useEffect(() => {
     initCashfreeNativeGateway().catch(() => {});
+    if (isNativeApp()) {
+      import('../features/campus-hunt/offline/sqliteEventStore')
+        .then(({ openOfflineSqlite }) => openOfflineSqlite())
+        .catch(() => {});
+    }
   }, []);
 
   /** Drop abandoned checkout flags on cold app open — prevents random "Confirming payment…" later. */

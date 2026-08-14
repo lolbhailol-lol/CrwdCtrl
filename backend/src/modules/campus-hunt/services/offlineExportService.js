@@ -8,6 +8,7 @@ const CampusHuntTeam = require('../models/CampusHuntTeam');
 const CampusHuntChallenge = require('../models/CampusHuntChallenge');
 const CampusHuntCheckpoint = require('../models/CampusHuntCheckpoint');
 const CampusHuntStartingPoint = require('../models/CampusHuntStartingPoint');
+const CampusHuntOfflineInstall = require('../models/CampusHuntOfflineInstall');
 const { decryptCredential } = require('../utils/credentialCipher');
 const { selectCompetitionTeams } = require('./startScheduleService');
 const { buildStationQrPayload } = require('./checkpointService');
@@ -264,6 +265,8 @@ async function exportOfflinePacks(eventId) {
     warnings.push('No complete team bundles — finish Clue 1–4 bindings and team passwords first.');
   }
 
+  const installs = await publishInstallLinks(eventId, bundles);
+
   return {
     event: {
       id: String(event._id),
@@ -274,8 +277,53 @@ async function exportOfflinePacks(eventId) {
     bundleVersion: OFFLINE_BUNDLE_VERSION,
     teamCount: bundles.length,
     bundles,
+    installs,
     warnings,
     incompleteTeams,
+  };
+}
+
+async function publishInstallLinks(eventId, bundles) {
+  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  const installs = [];
+  for (const entry of bundles) {
+    await CampusHuntOfflineInstall.deleteMany({
+      eventId,
+      teamCode: entry.teamCode,
+    });
+    const token = crypto.randomBytes(18).toString('base64url');
+    await CampusHuntOfflineInstall.create({
+      token,
+      eventId,
+      teamCode: entry.teamCode,
+      bundle: entry.bundle,
+      expiresAt,
+    });
+    installs.push({
+      teamCode: entry.teamCode,
+      teamName: entry.teamName,
+      token,
+      password: entry.bundle?.team?.password || '',
+      expiresAt: expiresAt.toISOString(),
+    });
+  }
+  return installs;
+}
+
+async function getInstallBundle(token) {
+  const row = await CampusHuntOfflineInstall.findOne({
+    token: String(token || '').trim(),
+    expiresAt: { $gt: new Date() },
+  }).lean();
+  if (!row) {
+    const err = new Error('This install link is invalid or expired. Ask admin to export packs again.');
+    err.status = 404;
+    throw err;
+  }
+  return {
+    teamCode: row.teamCode,
+    expiresAt: row.expiresAt,
+    bundle: row.bundle,
   };
 }
 
@@ -348,5 +396,6 @@ async function importOfflineResults(eventId, payload) {
 module.exports = {
   exportOfflinePacks,
   importOfflineResults,
+  getInstallBundle,
   bundleSigningKey,
 };

@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import OfflineBundleLoader, { OfflineNavLinks } from '../components/OfflineBundleLoader';
 import { loadOfflineBundle } from '../offlineDb';
 import { CAMPUS_HUNT_PATHS } from '../../config';
+import { OfflineStorageBadge } from '../components/OfflineScoreBoard';
+import { armOfflineNetworkGuard } from '../offlineNetworkGuard';
 
 export default function OfflineHuntLandingPage() {
   const navigate = useNavigate();
@@ -24,17 +26,20 @@ export default function OfflineHuntLandingPage() {
     navigate(CAMPUS_HUNT_PATHS.offlineLogin);
   };
 
+  useEffect(() => armOfflineNetworkGuard(), []);
+
   return (
     <div className="min-h-screen bg-[#0b0c0d] px-4 py-8 text-white">
       <div className="mx-auto max-w-lg">
         <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#0ECCEE]">
-          Airplane mode · no Wi‑Fi needed
+          Offline Event Mode · airplane mode
         </p>
         <h1 className="mt-2 text-2xl font-bold">Offline Campus Hunt</h1>
         <p className="mt-2 text-sm text-white/60">
-          Load your team pack once on each phone. After that, play in airplane mode —
-          scan campus posters, sync with QR handoffs between teammates.
+          This does not replace online CrwdCtrl. Load the event pack on this phone,
+          then turn on airplane mode. Clues, timers, QR scans, and scoring run locally.
         </p>
+        <OfflineStorageBadge />
 
         {existing?.team?.teamCode ? (
           <div className="mt-4 rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm">

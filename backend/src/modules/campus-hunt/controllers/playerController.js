@@ -942,11 +942,25 @@ async function rewindStep(req, res, next) {
   }
 }
 
+async function getOfflineInstallPack(req, res, next) {
+  try {
+    const { getInstallBundle } = require('../services/offlineExportService');
+    const data = await getInstallBundle(req.params.token);
+    return res.json({ success: true, data });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, message: err.message });
+    }
+    return next(err);
+  }
+}
+
 module.exports = {
   getStatus,
   listColleges,
   listProfileEntries,
   getPublicLeaderboard,
+  getOfflineInstallPack,
   getMyTeam,
   getTeamProgress,
   streamTeamProgress,

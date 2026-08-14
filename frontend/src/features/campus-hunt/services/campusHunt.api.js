@@ -952,6 +952,11 @@ export async function adminImportOfflineResults(eventId, body) {
   });
 }
 
+/** Public: one-time-prep install link (home Wi‑Fi). After save, play is local. */
+export async function fetchOfflineInstallPack(token) {
+  return publicFetchJSON(`${BASE}/offline-install/${encodeURIComponent(token)}`);
+}
+
 export async function adminApplyPenalty(teamId, body) {
   return adminFetchJSON(`${BASE}/admin/teams/${teamId}/penalty`, {
     method: 'POST',

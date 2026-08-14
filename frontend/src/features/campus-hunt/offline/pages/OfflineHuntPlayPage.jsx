@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import PlayerPlayScreen from '../../player/PlayerPlayScreen';
 import OfflineHandoffDock from '../components/OfflineHandoffDock';
+import OfflineScoreBoard from '../components/OfflineScoreBoard';
 import { CAMPUS_HUNT_PATHS } from '../../config';
 import {
   loadOfflineBundle,
@@ -9,7 +10,9 @@ import {
   loadOfflineTeamState,
   saveOfflineSession,
   saveOfflineTeamState,
+  appendOfflinePlayLog,
 } from '../offlineDb';
+import { armOfflineNetworkGuard } from '../offlineNetworkGuard';
 import {
   applyTeamSync,
   collectMemberProof,
@@ -65,6 +68,11 @@ export default function OfflineHuntPlayPage() {
     setState(nextState);
     const pack = bundleRef.current;
     if (pack) setPlayData(buildPlayData(pack, nextSession, nextState));
+    void appendOfflinePlayLog({
+      teamCode: nextSession.teamCode,
+      action: 'state',
+      payload: { stage: nextState.currentStage, score: nextState.score, seq: nextState.seq },
+    });
     return nextState;
   }, []);
 
@@ -88,6 +96,11 @@ export default function OfflineHuntPlayPage() {
     }
     return buildPlayData(bundle, session, next);
   }, [bundle, session, state, persistState]);
+
+  useEffect(() => {
+    const disarm = armOfflineNetworkGuard();
+    return () => disarm();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -281,6 +294,13 @@ export default function OfflineHuntPlayPage() {
           ) : null
         }
       />
+      <div className="mx-auto max-w-lg px-4 pb-4">
+        <OfflineScoreBoard
+          state={state}
+          teamCode={bundle.team.teamCode}
+          teamName={bundle.team.teamName}
+        />
+      </div>
       <OfflineHandoffDock
         isLeader={session.role === 'leader'}
         atCheckpoint={Boolean(cp)}

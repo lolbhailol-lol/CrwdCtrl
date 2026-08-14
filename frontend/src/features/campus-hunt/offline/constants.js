@@ -17,3 +17,7 @@ export const OFFLINE_STORES = {
   STATE: 'team_state',
   SESSION: 'session',
 };
+
+/** Native Capacitor SQLite (SQLCipher) database name. */
+export const OFFLINE_SQLITE_DB = 'crwdctrl_offline_event';
+export const OFFLINE_SQLITE_VERSION = 1;

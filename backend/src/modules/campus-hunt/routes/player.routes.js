@@ -17,6 +17,7 @@ const {
   listColleges,
   listProfileEntries,
   getPublicLeaderboard,
+  getOfflineInstallPack,
   getMyTeam,
   getTeamProgress,
   streamTeamProgress,
@@ -32,6 +33,7 @@ const {
 
 const router = express.Router();
 
+router.get('/offline-install/:token', campusHuntLoginLimiter, getOfflineInstallPack);
 router.get('/colleges', listColleges);
 router.get('/profile-entries', optionalAuthenticateToken, listProfileEntries);
 router.get('/events/:eventId/leaderboard/public', getPublicLeaderboard);

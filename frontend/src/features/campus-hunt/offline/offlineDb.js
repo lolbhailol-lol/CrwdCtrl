@@ -1,10 +1,28 @@
+/**
+ * Offline Event Mode storage facade.
+ *
+ * Android Capacitor app → encrypted SQLCipher (@capacitor-community/sqlite)
+ * Browser / PWA testing → IndexedDB
+ *
+ * Gameplay never talks to Express, MongoDB, Firebase, or Railway.
+ */
+
 import {
   OFFLINE_DB_NAME,
   OFFLINE_DB_VERSION,
   OFFLINE_STORES,
 } from './constants';
+import { isNativeApp } from '../../../utils/capacitorPlatform';
+import {
+  isSqliteAvailable,
+  sqliteAppendPlayLog,
+  sqliteDelete,
+  sqliteGet,
+  sqliteSet,
+  sqliteStorageInfo,
+} from './sqliteEventStore';
 
-function openOfflineDb() {
+function openIdb() {
   return new Promise((resolve, reject) => {
     if (typeof indexedDB === 'undefined') {
       reject(new Error('IndexedDB is not available in this browser'));
@@ -25,7 +43,7 @@ function openOfflineDb() {
 }
 
 async function idbGet(storeName, key) {
-  const db = await openOfflineDb();
+  const db = await openIdb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(storeName, 'readonly');
     const req = tx.objectStore(storeName).get(key);
@@ -35,7 +53,7 @@ async function idbGet(storeName, key) {
 }
 
 async function idbSet(storeName, key, value) {
-  const db = await openOfflineDb();
+  const db = await openIdb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(storeName, 'readwrite');
     tx.objectStore(storeName).put(value, key);
@@ -45,7 +63,7 @@ async function idbSet(storeName, key, value) {
 }
 
 async function idbDelete(storeName, key) {
-  const db = await openOfflineDb();
+  const db = await openIdb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(storeName, 'readwrite');
     tx.objectStore(storeName).delete(key);
@@ -54,44 +72,106 @@ async function idbDelete(storeName, key) {
   });
 }
 
+function useSqlite() {
+  return isNativeApp() && isSqliteAvailable();
+}
+
+async function storeGet(storeName, key) {
+  if (useSqlite()) {
+    try {
+      return await sqliteGet(storeName, key);
+    } catch {
+      return idbGet(storeName, key);
+    }
+  }
+  return idbGet(storeName, key);
+}
+
+async function storeSet(storeName, key, value) {
+  if (useSqlite()) {
+    try {
+      return await sqliteSet(storeName, key, value);
+    } catch {
+      return idbSet(storeName, key, value);
+    }
+  }
+  return idbSet(storeName, key, value);
+}
+
+async function storeDelete(storeName, key) {
+  if (useSqlite()) {
+    try {
+      return await sqliteDelete(storeName, key);
+    } catch {
+      return idbDelete(storeName, key);
+    }
+  }
+  return idbDelete(storeName, key);
+}
+
 const BUNDLE_KEY = 'active';
 
 export async function saveOfflineBundle(bundle) {
   if (!bundle?.team?.teamCode) {
     throw new Error('Invalid offline bundle — missing team code');
   }
-  await idbSet(OFFLINE_STORES.BUNDLE, BUNDLE_KEY, bundle);
+  await storeSet(OFFLINE_STORES.BUNDLE, BUNDLE_KEY, bundle);
+  await appendOfflinePlayLog({
+    teamCode: bundle.team.teamCode,
+    action: 'bundle_loaded',
+    payload: { eventId: bundle.event?.id, team: bundle.team.teamCode },
+  });
   return bundle;
 }
 
 export async function loadOfflineBundle() {
-  return idbGet(OFFLINE_STORES.BUNDLE, BUNDLE_KEY);
+  return storeGet(OFFLINE_STORES.BUNDLE, BUNDLE_KEY);
 }
 
 export async function clearOfflineBundle() {
-  return idbDelete(OFFLINE_STORES.BUNDLE, BUNDLE_KEY);
+  return storeDelete(OFFLINE_STORES.BUNDLE, BUNDLE_KEY);
 }
 
 export async function saveOfflineTeamState(teamCode, state) {
-  await idbSet(OFFLINE_STORES.STATE, String(teamCode), state);
+  await storeSet(OFFLINE_STORES.STATE, String(teamCode), state);
   return state;
 }
 
 export async function loadOfflineTeamState(teamCode) {
-  return idbGet(OFFLINE_STORES.STATE, String(teamCode));
+  return storeGet(OFFLINE_STORES.STATE, String(teamCode));
 }
 
 export async function saveOfflineSession(session) {
-  await idbSet(OFFLINE_STORES.SESSION, 'current', session);
+  await storeSet(OFFLINE_STORES.SESSION, 'current', session);
   return session;
 }
 
 export async function loadOfflineSession() {
-  return idbGet(OFFLINE_STORES.SESSION, 'current');
+  return storeGet(OFFLINE_STORES.SESSION, 'current');
 }
 
 export async function clearOfflineSession() {
-  return idbDelete(OFFLINE_STORES.SESSION, 'current');
+  return storeDelete(OFFLINE_STORES.SESSION, 'current');
+}
+
+export async function appendOfflinePlayLog(entry) {
+  if (!useSqlite()) return;
+  try {
+    await sqliteAppendPlayLog(entry);
+  } catch {
+    /* play log is best-effort */
+  }
+}
+
+export async function getOfflineStorageInfo() {
+  if (useSqlite()) {
+    try {
+      return await sqliteStorageInfo();
+    } catch {
+      return { backend: 'browser', encrypted: false, native: true };
+    }
+  }
+  return { backend: 'browser', encrypted: false, native: false };
 }
 
 export { createInitialTeamState } from './offlineEngine';

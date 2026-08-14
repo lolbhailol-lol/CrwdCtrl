@@ -24,6 +24,7 @@
     "android:aab": "powershell -ExecutionPolicy Bypass -File scripts/android-aab.ps1"
   },
   "dependencies": {
+    "@capacitor-community/sqlite": "^8.1.1",
     "@capacitor-firebase/authentication": "^8.3.0",
     "@capacitor-mlkit/barcode-scanning": "^8.1.0",
     "@capacitor/android": "^8.4.0",

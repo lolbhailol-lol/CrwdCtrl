@@ -15,6 +15,7 @@ import {
   OfflineHuntLandingPage,
   OfflineHuntLoginPage,
   OfflineHuntPlayPage,
+  OfflineHuntInstallPage,
 } from './lazyPages';
 
 /**
@@ -23,6 +24,7 @@ import {
  */
 export const campusHuntRoutes = isCampusHuntEnabled() ? (
   <>
+    <Route path="/campus-hunt/offline/i/:token" element={<OfflineHuntInstallPage />} />
     <Route path="/campus-hunt/offline" element={<OfflineHuntLandingPage />} />
     <Route path="/campus-hunt/offline/login" element={<OfflineHuntLoginPage />} />
     <Route path="/campus-hunt/offline/play" element={<OfflineHuntPlayPage />} />

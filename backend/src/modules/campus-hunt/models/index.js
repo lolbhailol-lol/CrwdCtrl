@@ -18,6 +18,7 @@ function registerModels() {
   require('./CampusHuntFinaleMissionRun');
   require('./CampusHuntFinaleMissionConfig');
   require('./CampusHuntGridSession');
+  require('./CampusHuntOfflineInstall');
 }
 
 module.exports = {
