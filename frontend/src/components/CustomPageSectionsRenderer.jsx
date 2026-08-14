@@ -28,14 +28,18 @@ export default function CustomPageSectionsRenderer({
     onToggleFavorite,
     onItemClick,
     getShareUrl,
+    sections: sectionsProp,
 }) {
-    const [sections, setSections] = useState([]);
+    const [fetchedSections, setFetchedSections] = useState([]);
+    const hasProvidedSections = Array.isArray(sectionsProp);
+    const sections = hasProvidedSections ? sectionsProp : fetchedSections;
 
     const loadSections = useCallback(() => {
+        if (hasProvidedSections) return;
         fetchPageSections(targetPage)
-            .then((list) => setSections(list))
-            .catch(() => setSections([]));
-    }, [targetPage]);
+            .then((list) => setFetchedSections(list))
+            .catch(() => setFetchedSections([]));
+    }, [targetPage, hasProvidedSections]);
 
     useEffect(() => {
         loadSections();

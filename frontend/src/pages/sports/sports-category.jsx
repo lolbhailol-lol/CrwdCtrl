@@ -38,6 +38,8 @@ import { fetchCatalogJSON } from '../../services/api/catalogCache';
 import Seo from '../../components/Seo';
 import FaqSection from '../../components/FaqSection';
 import { breadcrumbSchema, faqSchema, itemListSchema } from '../../utils/seo';
+import { usePublicConfig } from '../../hooks/usePublicConfig';
+import AnnouncementBanner from '../../components/AnnouncementBanner';
 import { SPORTS_FAQ } from '../../constants/faqs';
 
 const SPORTS_DESCRIPTION =
@@ -158,6 +160,7 @@ export default function SportsCategoryPage() {
     const { isDark } = useDarkMode();
     const { toggleFavorite, isFavorite } = useFavorites();
     const { unreadCount } = useNotifications();
+    const publicConfig = usePublicConfig();
 
     const cached = readSportsCache();
     const [sportsEvents, setSportsEvents] = useState(cached?.events || []);
@@ -448,6 +451,7 @@ export default function SportsCategoryPage() {
             />
 
             <main className="pb-8">
+                <AnnouncementBanner announcement={publicConfig.announcement} />
                 <div className="max-w-2xl lg:max-w-none mx-auto lg:mx-0">
                 {!loading && loadError && !hasSportsContent ? (
                     <LoadFailed />
@@ -458,7 +462,7 @@ export default function SportsCategoryPage() {
                 {/* ── Upcoming Activities (Weekend Plans card style) ── */}
                 <div className="mt-5">
                     <HomeCarouselSection
-                        title="Upcoming Activities"
+                        title={publicConfig.labels.sports.upcoming}
                         items={filteredActivities}
                         isDark={isDark}
                         wideCard
@@ -466,10 +470,10 @@ export default function SportsCategoryPage() {
                         emptyFallback={
                             <section className="home-section-block">
                                 <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                    Upcoming Activities
+                                    {publicConfig.labels.sports.upcoming}
                                 </h2>
                                 <div className={`mx-4 text-center py-10 rounded-3xl ${isDark ? 'bg-black text-gray-400' : 'bg-[#F2F4F7] text-gray-500'}`}>
-                                    <p className="text-sm">No upcoming sports activities yet</p>
+                                    <p className="text-sm">{publicConfig.emptyStates.sports.upcoming}</p>
                                 </div>
                             </section>
                         }
@@ -489,7 +493,7 @@ export default function SportsCategoryPage() {
 
                 {/* ── Explore Run Clubs ── */}
                 <section className="home-section-block">
-                    <h2 className={sectionTitle}>Explore Run Clubs</h2>
+                    <h2 className={sectionTitle}>{publicConfig.labels.sports.runClubs}</h2>
                     {loading ? (
                         <CompactPortraitCardsRowSkeleton count={3} withShare />
                     ) : runClubs.length === 0 ? (
@@ -498,7 +502,7 @@ export default function SportsCategoryPage() {
                                 isDark ? 'bg-[#111213] text-gray-500' : 'bg-[#F5F6FA] text-gray-400'
                             }`}
                         >
-                            No run clubs added yet
+                            {publicConfig.emptyStates.sports.runClubs}
                         </div>
                     ) : (
                         <div

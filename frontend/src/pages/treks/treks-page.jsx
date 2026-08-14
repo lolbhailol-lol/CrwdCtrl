@@ -37,6 +37,8 @@ import { formatTrekCardDate } from '../../utils/trekDateDisplay';
 import { communityPath, competitionPath, festPath, trekPath } from '../../utils/slugRoutes';
 import ContentImage from '../../components/ContentImage';
 import { preloadImages } from '../../utils/preloadImages';
+import { usePublicConfig } from '../../hooks/usePublicConfig';
+import AnnouncementBanner from '../../components/AnnouncementBanner';
 
 const TREKS_DESCRIPTION =
     'Discover treks, hiking trips and adventure communities near you. Browse upcoming treks, join trekking communities and book your next outdoor adventure on CrwdCtrl.';
@@ -308,6 +310,7 @@ function TreksPage() {
     const navigate = useNavigate();
     const { toggleFavorite, isFavorite } = useFavorites();
     const { unreadCount } = useNotifications();
+    const publicConfig = usePublicConfig();
 
     const cached = readTreksCache();
     const initialCommList = cached ? mapTrekCommunities(cached.commData) : [];
@@ -591,6 +594,8 @@ function TreksPage() {
                 )}
                 {loading && <HeroBannerSkeleton />}
 
+                <AnnouncementBanner announcement={publicConfig.announcement} />
+
                 <div className="max-w-2xl lg:max-w-none mx-auto lg:mx-0 crwdctrl-hub-body">
                     {!loading && !hasTrekContent ? (
                         <ComingSoon />
@@ -599,14 +604,14 @@ function TreksPage() {
                     {/* ── Explore the Communities — Figma: w-40 h-52 (160×208) cards ── */}
                     <section className="home-section-block">
                         <h2 className={`home-section-heading font-inter ${isDark ? 'text-white' : 'text-black'}`}>
-                            Explore the Communities
+                            {publicConfig.labels.treks.communities}
                         </h2>
                         {loading ? (
                             <div className="carousel-scroll-gutter overflow-x-auto scrollbar-hide">
                                 <CompactPortraitCardsRowSkeleton count={3} className="" />
                             </div>
                         ) : exploreCommunities.length === 0 ? (
-                            <EmptyState label="No communities added yet" />
+                            <EmptyState label={publicConfig.emptyStates.treks.communities} />
                         ) : (
                             <div
                                 className="carousel-scroll-gutter overflow-x-auto scrollbar-hide"
@@ -633,14 +638,14 @@ function TreksPage() {
                     {/* ── Upcoming Weekend Plans — Figma: size-80 (320px) card ── */}
                     <section className="home-section-block">
                         <h2 className={`home-section-heading font-inter ${isDark ? 'text-white' : 'text-black'}`}>
-                            Upcoming Weekend Plans
+                            {publicConfig.labels.treks.weekendPlans}
                         </h2>
                         {loading ? (
                             <div className="carousel-scroll-gutter overflow-x-auto scrollbar-hide">
                                 <WideActivityCardsRowSkeleton count={2} className="" />
                             </div>
                         ) : weekendTreks.length === 0 ? (
-                            <EmptyState label="No weekend plans added yet" />
+                            <EmptyState label={publicConfig.emptyStates.treks.weekendPlans} />
                         ) : (
                             <>
                                 <div
@@ -672,7 +677,7 @@ function TreksPage() {
                     {/* ── Browse by Trek Categories — Figma: size-20 rounded-full circles ── */}
                     <section className="home-section-block">
                         <h2 className={`home-section-heading font-inter ${isDark ? 'text-white' : 'text-black'}`}>
-                            Browse by Trek Categories
+                            {publicConfig.labels.treks.browseCategories}
                         </h2>
                         <div
                             className="overflow-x-auto scrollbar-hide pl-4 pr-4"
@@ -744,7 +749,7 @@ function TreksPage() {
                                 ) : (
                                     <div className={`mx-4 py-6 text-center rounded-2xl text-sm
                                         ${isDark ? 'bg-[#111213] text-gray-400' : 'bg-gray-50 text-gray-500'}`}>
-                                        No treks in this category yet
+                                        {publicConfig.emptyStates.treks.category}
                                     </div>
                                 )}
                             </div>
@@ -754,14 +759,14 @@ function TreksPage() {
                     {/* ── Beginner Friendly — same w-40 h-52, Name + Date + share ── */}
                     <section className="home-section-block">
                         <h2 className={`home-section-heading font-inter ${isDark ? 'text-white' : 'text-black'}`}>
-                            Beginner Friendly
+                            {publicConfig.labels.treks.beginner}
                         </h2>
                         {loading ? (
                             <div className="carousel-scroll-gutter overflow-x-auto scrollbar-hide">
                                 <CompactPortraitCardsRowSkeleton count={3} className="" />
                             </div>
                         ) : beginnerTreks.length === 0 ? (
-                            <EmptyState label="No beginner treks added yet" />
+                            <EmptyState label={publicConfig.emptyStates.treks.beginner} />
                         ) : (
                             <div
                                 className="carousel-scroll-gutter overflow-x-auto scrollbar-hide"

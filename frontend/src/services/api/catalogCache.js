@@ -69,6 +69,12 @@ export async function fetchCatalogJSON(path, options = {}) {
   return promise;
 }
 
+/** Seed the in-memory catalog cache (e.g. /config/public from GET /home). */
+export function seedCatalogCache(path, data, headers = {}) {
+  if (!path || data == null) return;
+  cache.set(cacheKey(path), { data, headers, ts: Date.now() });
+}
+
 export function invalidateCatalogCache() {
   cache.clear();
   inFlight.clear();

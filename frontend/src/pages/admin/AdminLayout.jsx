@@ -22,6 +22,7 @@ import {
   TicketPercent,
   Bell,
   MapPinned,
+  Type,
 } from 'lucide-react';
 import { isCampusHuntAdminEnabled } from '../../features/campus-hunt/config';
 
@@ -63,6 +64,7 @@ export default function AdminLayout() {
     { icon: Users, label: 'Event Organizers', path: '/admin/event-organizers' },
     { icon: Layers, label: 'Home & Sections', path: '/admin/sections' },
     { icon: LayoutGrid, label: 'Page Sections', path: '/admin/page-sections' },
+    { icon: Type, label: 'App Copy', path: '/admin/app-copy' },
     { icon: TicketPercent, label: 'Coupons', path: '/admin/coupons' },
     { icon: Bell, label: 'Notifications', path: '/admin/notifications' },
     { icon: FileText, label: 'Registrations', path: '/admin/registrations' },

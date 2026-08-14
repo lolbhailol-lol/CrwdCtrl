@@ -63,12 +63,13 @@ export function isCloudinaryUrl(url) {
 // g_auto is only valid with cropping modes; it errors with limit/fit/scale/pad
 const GRAVITY_SAFE_CROPS = ['fill', 'lfill', 'fill_pad', 'crop', 'thumb', 'auto'];
 
-function buildTransform({ width, height, crop, quality = 'eco' }) {
+function buildTransform({ width, height, crop, quality = 'eco', dpr = '2.0' }) {
     const parts = [`c_${crop}`, `w_${width}`];
     if (height) parts.push(`h_${height}`);
     if (GRAVITY_SAFE_CROPS.includes(crop)) parts.push('g_auto');
     // eco for cards (faster), good for heroes; cap DPR so 3× phones don't download 3× pixels
-    parts.push(`q_auto:${quality}`, 'f_auto', 'dpr_2.0');
+    parts.push(`q_auto:${quality}`, 'f_auto');
+    if (dpr) parts.push(`dpr_${dpr}`);
     return parts.join(',');
 }
 
@@ -93,6 +94,14 @@ function stripCloudinaryTransforms(pathAfterUpload) {
     return kept.join('/');
 }
 
+function applyCloudinaryTransform(url, transform) {
+    const uploadIdx = url.indexOf(CLOUDINARY_UPLOAD);
+    const prefix = url.slice(0, uploadIdx + CLOUDINARY_UPLOAD.length);
+    const rawPath = url.slice(uploadIdx + CLOUDINARY_UPLOAD.length);
+    const cleanPath = stripCloudinaryTransforms(rawPath);
+    return `${prefix}${transform}/${cleanPath}`;
+}
+
 /**
  * @param {string} url
  * @param {keyof typeof IMAGE_PRESETS | string} [preset='card']
@@ -101,12 +110,34 @@ export function optimizeImageUrl(url, preset = 'card') {
     if (!url || !isCloudinaryUrl(url)) return url;
 
     const config = IMAGE_PRESETS[preset] || IMAGE_PRESETS.card;
-    const transform = buildTransform(config);
+    return applyCloudinaryTransform(url, buildTransform(config));
+}
 
-    const uploadIdx = url.indexOf(CLOUDINARY_UPLOAD);
-    const prefix = url.slice(0, uploadIdx + CLOUDINARY_UPLOAD.length);
-    const rawPath = url.slice(uploadIdx + CLOUDINARY_UPLOAD.length);
-    const cleanPath = stripCloudinaryTransforms(rawPath);
+const SRCSET_WIDTH_FACTORS = [0.5, 0.75, 1, 1.5];
 
-    return `${prefix}${transform}/${cleanPath}`;
+/**
+ * Cloudinary srcset without dpr_ — the browser picks a candidate from `sizes`.
+ * Returns undefined for non-Cloudinary URLs so callers can omit the attribute.
+ */
+export function buildCloudinarySrcSet(url, preset = 'card') {
+    if (!url || !isCloudinaryUrl(url)) return undefined;
+    const config = IMAGE_PRESETS[preset] || IMAGE_PRESETS.card;
+    const widths = [...new Set(
+        SRCSET_WIDTH_FACTORS
+            .map((factor) => Math.round(config.width * factor))
+            .filter((width) => width >= 64),
+    )].sort((a, b) => a - b);
+
+    return widths
+        .map((width) => {
+            const height = config.height
+                ? Math.max(1, Math.round(config.height * (width / config.width)))
+                : undefined;
+            const transformed = applyCloudinaryTransform(
+                url,
+                buildTransform({ ...config, width, height, dpr: '' }),
+            );
+            return `${transformed} ${width}w`;
+        })
+        .join(', ');
 }

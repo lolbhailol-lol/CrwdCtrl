@@ -11,6 +11,7 @@ const QUICK_LINKS = [
   { label: 'Events', path: '/admin/events', description: 'Events and show ticketing' },
   { label: 'Home & Sections', path: '/admin/sections', description: 'Carousels, page placement, priorities' },
   { label: 'Page Sections', path: '/admin/page-sections', description: 'Create custom scrolling sections for any page' },
+  { label: 'App Copy', path: '/admin/app-copy', description: 'Section titles, announcement banner, empty-state text' },
   { label: 'Registrations', path: '/admin/registrations', description: 'Fest, trek, run, and event sign-ups' },
   { label: 'User Logins', path: '/admin/user-logins', description: 'User accounts and login activity' },
   { label: 'Scanner Access', path: '/admin/scanner-access', description: 'Volunteer scanner codes for events' },

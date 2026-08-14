@@ -19,6 +19,7 @@ import { readFestsCacheByType, writeFestsCache } from '../../utils/festsSessionC
 import { usePageContentLoading } from '../../hooks/usePageContentLoading';
 import { festPath } from '../../utils/slugRoutes';
 import { buildFestDetailNavState } from '../../utils/detailPageCache';
+import { usePublicConfig } from '../../hooks/usePublicConfig';
 
 const FEST_TYPE_SEO = {
     cultural: {
@@ -103,6 +104,7 @@ export default function FestTypePage({
     const navigate = useNavigate();
     const { isDark } = useDarkMode();
     const { toggleFavorite, isFavorite } = useFavorites();
+    const publicConfig = usePublicConfig();
 
     const openFestDetails = (fest) => {
         prefetchFestDetail(fest);
@@ -195,7 +197,7 @@ export default function FestTypePage({
                     <>
                         {featured.length > 0 && (
                             <section className="mb-6">
-                                <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-black'}`}>Featured Fests</h2>
+                                <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-black'}`}>{publicConfig.labels.fests.featured}</h2>
                                 <div
                                     ref={scrollRef}
                                     className="carousel-scroll-gutter overflow-x-auto scrollbar-hide"

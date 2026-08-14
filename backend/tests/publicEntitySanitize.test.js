@@ -8,6 +8,7 @@ const {
   sanitizePublicCompetition,
   sanitizePublicRunClub,
   sanitizePublicEventShow,
+  sanitizePublicPlatformEvent,
 } = require('../src/utils/publicEntitySanitize');
 
 test('sanitizePublicTrek removes secrets and keeps booking fields', () => {
@@ -106,4 +107,17 @@ test('sanitizePublicRunClub and sanitizePublicEventShow strip sensitive fields',
   assert.equal(show.scannerAccess, undefined);
   assert.equal(show.registration.organizerEmail, undefined);
   assert.equal(show.registration.paymentQR, 'qr');
+});
+
+test('sanitizePublicPlatformEvent strips createdBy', () => {
+  const result = sanitizePublicPlatformEvent({
+    title: 'Open mic',
+    createdBy: 'admin-user-id',
+    scannerAccess: { code: 'x' },
+    price: 199,
+  });
+  assert.equal(result.createdBy, undefined);
+  assert.equal(result.scannerAccess, undefined);
+  assert.equal(result.title, 'Open mic');
+  assert.equal(result.price, 199);
 });

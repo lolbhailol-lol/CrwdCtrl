@@ -33,6 +33,8 @@ import { FESTS_FAQ } from '../../constants/faqs';
 import { festPath } from '../../utils/slugRoutes';
 import { buildFestDetailNavState } from '../../utils/detailPageCache';
 import { readFestsCache, writeFestsCache } from '../../utils/festsSessionCache';
+import { usePublicConfig } from '../../hooks/usePublicConfig';
+import AnnouncementBanner from '../../components/AnnouncementBanner';
 
 const FESTS_DESCRIPTION =
     'Browse and register for college fests near you — cultural, technical and sports festivals. Find upcoming and ongoing fests, competitions and events on CrwdCtrl.';
@@ -169,6 +171,7 @@ export default function FestsPage() {
     const { isDark } = useDarkMode();
     const { toggleFavorite, isFavorite } = useFavorites();
     const { unreadCount } = useNotifications();
+    const publicConfig = usePublicConfig();
 
     const cached = readFestsCache();
     const [fests, setFests] = useState(cached || []);
@@ -333,6 +336,8 @@ export default function FestsPage() {
                     isDark={isDark}
                 />
 
+                <AnnouncementBanner announcement={publicConfig.announcement} />
+
                 <div className="crwdctrl-hub-body">
                 {/* ── Sub-category tiles: Cultural / Tech / Sports ── */}
                 <section className="home-section-block mt-3 mb-6 lg:mt-3 lg:mb-10">
@@ -353,7 +358,7 @@ export default function FestsPage() {
 
                 {/* ── Ongoing Events ── */}
                 <FestSection
-                    title="Ongoing Events"
+                    title={publicConfig.labels.fests.ongoing}
                     fests={ongoingFests}
                     loading={loading}
                     isDark={isDark}
@@ -364,7 +369,7 @@ export default function FestsPage() {
 
                 {/* ── Upcoming Events ── */}
                 <FestSection
-                    title="Upcoming Events"
+                    title={publicConfig.labels.fests.upcoming}
                     fests={upcomingFests}
                     loading={loading}
                     isDark={isDark}
@@ -387,7 +392,7 @@ export default function FestsPage() {
                 {/* ── Last Year Hits ── */}
                 {lastYearFests.length > 0 && (
                     <FestSection
-                        title="Last Year Hits"
+                        title={publicConfig.labels.fests.lastYearHits}
                         fests={lastYearFests}
                         loading={loading}
                         isDark={isDark}
@@ -403,7 +408,7 @@ export default function FestsPage() {
                                    ${isDark ? 'bg-[#111213] text-gray-400' : 'bg-white text-gray-500 shadow-sm'}`}>
                         <div className="text-5xl mb-3">🎪</div>
                         <p className="text-base lg:text-lg font-semibold mb-1">
-                            No fests available yet
+                            {publicConfig.emptyStates.fests.none}
                         </p>
                     </div>
                 )}

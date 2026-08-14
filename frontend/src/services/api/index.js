@@ -5,3 +5,4 @@ export * from './search.api.js';
 export * from './payment.api.js';
 export * from './fests.api.js';
 export * from './public.api.js';
+export * from './config.api.js';

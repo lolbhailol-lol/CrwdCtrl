@@ -141,6 +141,14 @@ function sanitizePublicEventShow(show) {
   return copy;
 }
 
+function sanitizePublicPlatformEvent(event) {
+  if (!event || typeof event !== 'object') return event;
+  const copy = clonePlain(event);
+  delete copy.createdBy;
+  delete copy.scannerAccess;
+  return copy;
+}
+
 module.exports = {
   sanitizePublicEntity,
   sanitizePublicTrek,
@@ -150,5 +158,6 @@ module.exports = {
   sanitizePublicFest,
   sanitizePublicCompetition,
   sanitizePublicEventShow,
+  sanitizePublicPlatformEvent,
   stripRegistrationSecrets,
 };

@@ -13,6 +13,7 @@ import {
   AdminEventsPage,
   SectionManager,
   PageSectionsPage,
+  AppCopyPage,
   CouponsPage,
   AdminNotificationsPage,
   AdminProtectedRoute,
@@ -50,6 +51,7 @@ export const adminRoutes = (
       {adminTheatreRedirect}
       <Route path="sections" element={<SectionManager />} />
       <Route path="page-sections" element={<PageSectionsPage />} />
+      <Route path="app-copy" element={<AppCopyPage />} />
       <Route path="coupons" element={<CouponsPage />} />
       <Route path="notifications" element={<AdminNotificationsPage />} />
       {campusHuntAdminChildRoutes()}

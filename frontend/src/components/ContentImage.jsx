@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, forwardRef } from 'react';
 import { getImageUrl } from '../utils/imageImports';
-import { optimizeImageUrl, IMAGE_PRESET_SIZES } from '../utils/imageOptimizer';
+import { optimizeImageUrl, IMAGE_PRESET_SIZES, buildCloudinarySrcSet } from '../utils/imageOptimizer';
 
 const PLACEHOLDER_LIGHT = 'bg-[#E8EAED]';
 const PLACEHOLDER_DARK = 'dark:bg-[#1A1B1D]';
@@ -26,6 +26,7 @@ const ContentImage = forwardRef(function ContentImage({
     const resolved = getImageUrl(src) || (typeof src === 'string' ? src.trim() : '') || null;
     const optimized = resolved ? optimizeImageUrl(resolved, preset) : null;
     const preferredSrc = optimized || resolved;
+    const srcSet = resolved ? buildCloudinarySrcSet(resolved, preset) : undefined;
     const localRef = useRef(null);
     const [displaySrc, setDisplaySrc] = useState(preferredSrc);
     const [usedFallback, setUsedFallback] = useState(false);
@@ -86,6 +87,7 @@ const ContentImage = forwardRef(function ContentImage({
             <img
                 ref={setRefs}
                 src={displaySrc}
+                srcSet={!usedFallback ? srcSet : undefined}
                 alt={alt}
                 loading={loading}
                 fetchPriority={resolvedPriority}
@@ -111,6 +113,7 @@ const ContentImage = forwardRef(function ContentImage({
             <img
                 ref={setRefs}
                 src={displaySrc}
+                srcSet={!usedFallback ? srcSet : undefined}
                 alt={alt}
                 loading={loading}
                 fetchPriority={resolvedPriority}

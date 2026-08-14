@@ -1,6 +1,7 @@
 import { invalidateCatalogCache } from '../services/api/catalogCache';
 
 const TREKS_PAGE_SESSION_KEY = 'crwdctrl_treks_page_v1';
+const PUBLIC_CONFIG_LOCAL_KEY = 'crwdctrl_public_config_v1';
 
 /**
  * After admin priority / section edits: drop catalog + treks session cache
@@ -10,6 +11,11 @@ export function notifyAdminDataUpdated() {
     invalidateCatalogCache();
     try {
         sessionStorage.removeItem(TREKS_PAGE_SESSION_KEY);
+    } catch {
+        /* ignore */
+    }
+    try {
+        localStorage.removeItem(PUBLIC_CONFIG_LOCAL_KEY);
     } catch {
         /* ignore */
     }

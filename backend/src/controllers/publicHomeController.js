@@ -4,7 +4,8 @@ const SportsEvent = require('../model/sports_model');
 const RunClub = require('../model/run_club_model');
 const EventShow = require('../model/event_show_model');
 const festOrganizerController = require('./festOrganizerController');
-const { readHomeSectionLabels, DEFAULT_HOME_SECTION_LABELS } = require('./siteSettingController');
+const { readHomeSectionLabels, readPublicConfig, DEFAULT_HOME_SECTION_LABELS } = require('./siteSettingController');
+const homepageSectionCtrl = require('./homepageSectionController');
 const {
   sanitizePublicTrek,
   sanitizePublicSportsEvent,
@@ -54,7 +55,7 @@ const safe = async (fn, fallback) => {
  * can fall back instead of treating empty arrays as a healthy catalog.
  */
 exports.getHomeFeed = async (_req, res) => {
-  const [festsBody, treks, communities, sports, runClubs, eventShows, sectionLabels] = await Promise.all([
+  const [festsBody, treks, communities, sports, runClubs, eventShows, sectionLabels, homepageSections, config] = await Promise.all([
     safe(() => captureHandler(festOrganizerController.getAllFests), null),
     safe(() => Trek.find({ status: 'published' }).sort({ trekDate: 1, createdAt: -1 }).limit(50).lean(), []),
     safe(() => TrekCommunity.find({ status: 'published' }).sort({ trekPagePriority: 1, createdAt: -1 }).limit(50).lean(), []),
@@ -62,6 +63,8 @@ exports.getHomeFeed = async (_req, res) => {
     safe(() => RunClub.find({ status: 'published', showOnSportsPage: { $ne: false }, showInRunClubs: { $ne: false } }).sort({ runClubPriority: 1, createdAt: -1 }).limit(100).lean(), []),
     safe(() => EventShow.find({ status: 'published' }).sort({ pagePriority: 1, createdAt: -1 }).limit(100).lean(), []),
     safe(() => readHomeSectionLabels(), { ...DEFAULT_HOME_SECTION_LABELS }),
+    safe(() => homepageSectionCtrl.listEnabledForPage('home'), []),
+    safe(() => readPublicConfig(), null),
   ]);
 
   const festsOk = festsBody != null && Array.isArray(festsBody.fests);
@@ -79,7 +82,9 @@ exports.getHomeFeed = async (_req, res) => {
     sports: Array.isArray(sports) ? sports.map(sanitizePublicSportsEvent) : [],
     runClubs: Array.isArray(runClubs) ? runClubs.map(sanitizePublicRunClub) : [],
     eventShows: Array.isArray(eventShows) ? eventShows.map(sanitizePublicEventShow) : [],
+    homepageSections: Array.isArray(homepageSections) ? homepageSections : [],
     sectionLabels: sectionLabels || { ...DEFAULT_HOME_SECTION_LABELS },
+    config: config || null,
     timestamp: new Date().toISOString(),
   });
 };

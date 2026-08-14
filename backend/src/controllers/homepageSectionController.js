@@ -138,26 +138,31 @@ async function clearEntitySectionAssignments(targetPage, slug) {
     );
 }
 
-function buildPublicQuery(req) {
-    const query = { enabled: true };
-    const page = req.query.page;
-    if (page && TARGET_PAGES.includes(page)) {
-        query.targetPage = page;
-    }
-    return query;
-}
-
 /** GET /page-sections or /homepage-sections — public list of enabled sections */
 exports.listPublic = async (req, res) => {
     try {
-        const sections = await HomepageSection.find(buildPublicQuery(req))
-            .sort({ displayOrder: 1, createdAt: 1 })
-            .select('slug title cardSize displayOrder targetPage featuredItem')
-            .lean();
+        const sections = await exports.listEnabledForPage(req.query.page);
         res.json({ sections });
     } catch (error) {
         console.error('listPublic page sections error:', error);
         res.status(500).json({ success: false, message: 'Failed to fetch page sections' });
+    }
+};
+
+/** Enabled sections for a page. Never throws. Used by GET /home to avoid a second client round-trip. */
+exports.listEnabledForPage = async (page) => {
+    try {
+        const query = { enabled: true };
+        if (page && TARGET_PAGES.includes(page)) {
+            query.targetPage = page;
+        }
+        return await HomepageSection.find(query)
+            .sort({ displayOrder: 1, createdAt: 1 })
+            .select('slug title cardSize displayOrder targetPage featuredItem')
+            .lean();
+    } catch (error) {
+        console.error('listEnabledForPage error:', error);
+        return [];
     }
 };
 

@@ -7,5 +7,7 @@ router.get('/home-section-labels', adminAuth, ctrl.getHomeSectionLabels);
 router.put('/home-section-labels', adminAuth, ctrl.updateHomeSectionLabels);
 router.get('/home-featured-slots', adminAuth, ctrl.getHomeFeaturedSlots);
 router.put('/home-featured-slots', adminAuth, ctrl.updateHomeFeaturedSlots);
+router.get('/app-copy', adminAuth, ctrl.getAppCopy);
+router.put('/app-copy', adminAuth, ctrl.updateAppCopy);
 
 module.exports = router;

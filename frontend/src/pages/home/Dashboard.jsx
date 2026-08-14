@@ -34,6 +34,7 @@ import { buildHomeCarouselItems } from '../../utils/homeCarouselItems';
 import { mapHomeCarouselDisplayItems } from '../../utils/mapHomeCarouselDisplayItems';
 import { isOnHomeHero } from '../../utils/pageSections';
 import CustomPageSectionsRenderer from '../../components/CustomPageSectionsRenderer';
+import AnnouncementBanner from '../../components/AnnouncementBanner';
 import Seo from '../../components/Seo';
 import FaqSection from '../../components/FaqSection';
 import { faqSchema, itemListSchema, webPageSchema } from '../../utils/seo';
@@ -42,6 +43,8 @@ import { mapEventShow } from '../../constants/eventsPage';
 import { getCoverImageUrl } from '../../utils/coverImages';
 import { API_BASE_URL, publicFetchJSONRetry as fetchJSON } from '../../services/api/client';
 import { fetchCatalogJSON, invalidateCatalogCache } from '../../services/api/catalogCache';
+import { seedPublicConfigCache } from '../../services/api/config.api';
+import { usePublicConfig } from '../../hooks/usePublicConfig';
 import { communityPath, competitionPath, eventShowPath, festPath, runClubPath, sportRunPath, trekPath } from '../../utils/slugRoutes';
 import { buildFestDetailNavState } from '../../utils/detailPageCache';
 import { prefetchFestDetail } from '../../services/api/fests.api';
@@ -302,8 +305,10 @@ const Dashboard = () => {
     const [homeSports, setHomeSports] = useState([]);
     const [homeRunClubs, setHomeRunClubs] = useState([]);
     const [homeEventShows, setHomeEventShows] = useState([]);
+    const [homePageSections, setHomePageSections] = useState(null);
     // Admin-customisable headings for the fixed home carousels (fallback to defaults).
     const [sectionLabels, setSectionLabels] = useState({ ongoing: 'Ongoing Events', happening: 'Happening near you' });
+    const publicConfig = usePublicConfig();
     const [festError, setFestError] = useState(null);
     /** Set when home feed fetch failed (aggregate + fallback) — show Retry, not fake empty catalog */
     const [homeFeedError, setHomeFeedError] = useState(null);
@@ -357,6 +362,12 @@ const Dashboard = () => {
                     setHomeEventShows(Array.isArray(data.eventShows) ? data.eventShows : []);
                     if (data.sectionLabels && typeof data.sectionLabels === 'object') {
                         setSectionLabels((prev) => ({ ...prev, ...data.sectionLabels }));
+                    }
+                    if (Array.isArray(data.homepageSections)) {
+                        setHomePageSections(data.homepageSections);
+                    }
+                    if (data.config && typeof data.config === 'object') {
+                        seedPublicConfigCache(data.config);
                     }
                 }
 
@@ -527,6 +538,12 @@ const Dashboard = () => {
             if (d.sectionLabels && typeof d.sectionLabels === 'object') {
                 setSectionLabels((prev) => ({ ...prev, ...d.sectionLabels }));
             }
+            if (Array.isArray(d.homepageSections)) {
+                setHomePageSections(d.homepageSections);
+            }
+            if (d.config && typeof d.config === 'object') {
+                seedPublicConfigCache(d.config);
+            }
         };
 
         // Paint the secondary sections (treks/communities/sports/run clubs/events)
@@ -578,6 +595,8 @@ const Dashboard = () => {
                     runClubs: Array.isArray(d.runClubs) ? d.runClubs : [],
                     eventShows: Array.isArray(d.eventShows) ? d.eventShows : [],
                     sectionLabels: d.sectionLabels && typeof d.sectionLabels === 'object' ? d.sectionLabels : undefined,
+                    homepageSections: Array.isArray(d.homepageSections) ? d.homepageSections : undefined,
+                    config: d.config && typeof d.config === 'object' ? d.config : undefined,
                 };
                 const auxCount =
                     auxPayload.communities.length +
@@ -1334,10 +1353,12 @@ const Dashboard = () => {
                 )}
                 {(isFestsLoading || !homeAuxLoaded) && <HeroBannerSkeleton />}
 
+                <AnnouncementBanner announcement={publicConfig.announcement} />
+
                 <div className="max-w-2xl lg:max-w-none mx-auto lg:mx-0 crwdctrl-hub-body">
                     {/* Ongoing Events */}
                     <HomeCarouselSection
-                        title={sectionLabels.ongoing}
+                        title={publicConfig.labels.home.ongoing || sectionLabels.ongoing}
                         items={trendingItems}
                         isDark={isDark}
                         tallCard
@@ -1347,14 +1368,14 @@ const Dashboard = () => {
                             (homeFeedError || festError) && trendingItems.length === 0 ? (
                                 <section className="home-section-block">
                                     <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                        {sectionLabels.ongoing}
+                                        {publicConfig.labels.home.ongoing || sectionLabels.ongoing}
                                     </h2>
                                     <div className="px-4"><AutoRetryError isDark={isDark} onRetry={forceRefreshData} /></div>
                                 </section>
                             ) : (
                                 <section className="home-section-block">
                                     <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                        {sectionLabels.ongoing}
+                                        {publicConfig.labels.home.ongoing || sectionLabels.ongoing}
                                     </h2>
                                     <div className={`mx-4 text-center py-10 rounded-3xl ${isDark ? 'bg-black text-gray-400' : 'bg-[#F2F4F7] text-gray-500'}`}>
                                         <p className="text-sm">No ongoing events right now</p>
@@ -1370,7 +1391,7 @@ const Dashboard = () => {
 
                     {/* Happening Near You */}
                     <HomeCarouselSection
-                        title={sectionLabels.happening}
+                        title={publicConfig.labels.home.happening || sectionLabels.happening}
                         items={happeningItems}
                         isDark={isDark}
                         wideCard
@@ -1379,17 +1400,17 @@ const Dashboard = () => {
                             (homeFeedError || festError) && happeningItems.length === 0 ? (
                                 <section className="home-section-block">
                                     <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                        {sectionLabels.happening}
+                                        {publicConfig.labels.home.happening || sectionLabels.happening}
                                     </h2>
                                     <div className="px-4"><AutoRetryError isDark={isDark} onRetry={forceRefreshData} /></div>
                                 </section>
                             ) : (
                                 <section className="home-section-block">
                                     <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                        {sectionLabels.happening}
+                                        {publicConfig.labels.home.happening || sectionLabels.happening}
                                     </h2>
                                     <div className={`mx-4 text-center py-10 rounded-3xl ${isDark ? 'bg-black text-gray-400' : 'bg-[#F2F4F7] text-gray-500'}`}>
-                                        <p className="text-sm">No events happening near you right now</p>
+                                        <p className="text-sm">{publicConfig.emptyStates.home.happening}</p>
                                     </div>
                                 </section>
                             )
@@ -1402,6 +1423,7 @@ const Dashboard = () => {
 
                     <CustomPageSectionsRenderer
                         targetPage="home"
+                        sections={homePageSections ?? undefined}
                         fests={fests}
                         treks={homeTreks}
                         communities={homeCommunities}

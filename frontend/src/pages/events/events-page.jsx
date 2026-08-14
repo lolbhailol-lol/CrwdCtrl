@@ -34,6 +34,8 @@ import FaqSection from '../../components/FaqSection';
 import { breadcrumbSchema, faqSchema, itemListSchema } from '../../utils/seo';
 import { EVENTS_FAQ } from '../../constants/faqs';
 import { eventShowPath } from '../../utils/slugRoutes';
+import { usePublicConfig } from '../../hooks/usePublicConfig';
+import AnnouncementBanner from '../../components/AnnouncementBanner';
 
 const EVENTS_DESCRIPTION =
     'Discover events, shows and meetups near you — concerts, stand-up comedy, workshops and more. Find and book tickets to events around you on CrwdCtrl.';
@@ -193,6 +195,7 @@ export default function EventsPage() {
     const navigate = useNavigate();
     const { toggleFavorite, isFavorite } = useFavorites();
     const { unreadCount } = useNotifications();
+    const publicConfig = usePublicConfig();
 
     const cached = readEventsCache();
     const [shows, setShows] = useState(() => (Array.isArray(cached?.shows) ? cached.shows.map(mapEventShow) : []));
@@ -444,17 +447,19 @@ export default function EventsPage() {
                 )}
                 {loading && <HeroBannerSkeleton />}
 
+                <AnnouncementBanner announcement={publicConfig.announcement} />
+
                 <div className="max-w-2xl lg:max-w-none mx-auto lg:mx-0 crwdctrl-hub-body">
                     <section className="home-section-block">
                         <h2 className={`home-section-heading font-inter ${isDark ? 'text-white' : 'text-black'}`}>
-                            In the Spotlight
+                            {publicConfig.labels.events.spotlight}
                         </h2>
                         {loading ? (
                             <div className="carousel-scroll-gutter overflow-x-auto scrollbar-hide">
                                 <CompactPortraitCardsRowSkeleton count={3} className="" />
                             </div>
                         ) : spotlightShows.length === 0 ? (
-                            <EmptyState label="No spotlight events yet" />
+                            <EmptyState label={publicConfig.emptyStates.events.spotlight} />
                         ) : (
                             <div
                                 className="carousel-scroll-gutter overflow-x-auto scrollbar-hide"
@@ -479,14 +484,14 @@ export default function EventsPage() {
 
                     <section className="home-section-block">
                         <h2 className={`home-section-heading font-inter ${isDark ? 'text-white' : 'text-black'}`}>
-                            Upcoming Shows
+                            {publicConfig.labels.events.upcoming}
                         </h2>
                         {loading ? (
                             <div className="carousel-scroll-gutter overflow-x-auto scrollbar-hide">
                                 <WideActivityCardsRowSkeleton count={2} className="" />
                             </div>
                         ) : upcomingShows.length === 0 ? (
-                            <EmptyState label="No upcoming shows yet" />
+                            <EmptyState label={publicConfig.emptyStates.events.upcoming} />
                         ) : (
                             <>
                                 <div
@@ -516,14 +521,14 @@ export default function EventsPage() {
 
                     <section className="home-section-block">
                         <h2 className={`home-section-heading font-inter ${isDark ? 'text-white' : 'text-black'}`}>
-                            Community Events
+                            {publicConfig.labels.events.community}
                         </h2>
                         {loading ? (
                             <div className="carousel-scroll-gutter overflow-x-auto scrollbar-hide">
                                 <CompactPortraitCardsRowSkeleton count={3} className="" />
                             </div>
                         ) : communityShows.length === 0 ? (
-                            <EmptyState label="No community events yet" />
+                            <EmptyState label={publicConfig.emptyStates.events.community} />
                         ) : (
                             <div
                                 className="carousel-scroll-gutter overflow-x-auto scrollbar-hide"
