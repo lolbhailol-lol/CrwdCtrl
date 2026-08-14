@@ -3966,6 +3966,28 @@ async function exportOfflinePacks(req, res, next) {
   }
 }
 
+/** Import offline hunt results JSON from a team leader phone. */
+async function importOfflineResults(req, res, next) {
+  try {
+    const { importOfflineResults: ingest } = require('../services/offlineExportService');
+    const imported = await ingest(req.params.eventId, req.body);
+    await writeAudit({
+      eventId: req.params.eventId,
+      ...adminActor(req),
+      action: 'offline_results_imported',
+      targetType: 'team',
+      targetId: imported.teamCode,
+      after: imported,
+    });
+    return res.json({ success: true, data: imported });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, message: err.message });
+    }
+    return next(err);
+  }
+}
+
 module.exports = {
   listEvents,
   createEvent,
@@ -4040,4 +4062,5 @@ module.exports = {
   bootstrapRound1,
   repairTeamRosters,
   exportOfflinePacks,
+  importOfflineResults,
 };

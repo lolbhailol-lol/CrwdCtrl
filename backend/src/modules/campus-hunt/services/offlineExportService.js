@@ -15,6 +15,7 @@ const { CLUE_HOW_TO, DEFAULT_SCORING_CONFIG } = require('../constants');
 const {
   OFFLINE_BUNDLE_VERSION,
   OFFLINE_BUNDLE_TYPE,
+  OFFLINE_QR_TYPES,
 } = require('../constants/offlineBundle');
 
 function bundleSigningKey(eventId, teamCode) {
@@ -278,7 +279,74 @@ async function exportOfflinePacks(eventId) {
   };
 }
 
+function canonicalPayload(payload) {
+  const { sig: _sig, ...rest } = payload || {};
+  return JSON.stringify(rest);
+}
+
+function verifyResultsSignature(eventId, payload) {
+  const teamCode = String(payload?.team || '').trim().toUpperCase();
+  if (!teamCode) return false;
+  const key = bundleSigningKey(String(eventId), teamCode);
+  const expected = crypto
+    .createHmac('sha256', key)
+    .update(canonicalPayload(payload))
+    .digest('hex')
+    .slice(0, 20);
+  return Boolean(payload?.sig) && payload.sig === expected;
+}
+
+/**
+ * Import a leader results JSON after an offline fest.
+ */
+async function importOfflineResults(eventId, payload) {
+  const body = payload?.t ? payload : (payload?.data || payload);
+  if (body?.t !== OFFLINE_QR_TYPES.RESULTS_EXPORT) {
+    const err = new Error('Not an offline results file');
+    err.status = 400;
+    throw err;
+  }
+  if (String(body.event) !== String(eventId)) {
+    const err = new Error('Results are for a different event');
+    err.status = 403;
+    throw err;
+  }
+  if (!verifyResultsSignature(eventId, body)) {
+    const err = new Error('Results signature is invalid');
+    err.status = 403;
+    throw err;
+  }
+
+  const team = await CampusHuntTeam.findOne({
+    eventId,
+    teamCode: String(body.team || '').toUpperCase(),
+  });
+  if (!team) {
+    const err = new Error(`Team ${body.team} not found`);
+    err.status = 404;
+    throw err;
+  }
+
+  const score = Math.max(0, Number(body.score) || 0);
+  const now = new Date();
+  team.currentScore = score;
+  team.finalScore = score;
+  team.currentStage = 'SCORE_LOCKED';
+  team.status = 'finished';
+  team.scoreLockedAt = now;
+  team.finishedAt = body.finishedAt ? new Date(body.finishedAt) : now;
+  await team.save();
+
+  return {
+    teamCode: team.teamCode,
+    teamName: team.teamName,
+    score,
+    stage: team.currentStage,
+  };
+}
+
 module.exports = {
   exportOfflinePacks,
+  importOfflineResults,
   bundleSigningKey,
 };

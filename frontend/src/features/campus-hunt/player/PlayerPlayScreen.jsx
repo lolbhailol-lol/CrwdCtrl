@@ -73,7 +73,17 @@ export default function PlayerPlayScreen({
   eventSlug,
   onLeaveRound,
   pollError,
+  actions = null,
+  offlineMode = false,
+  checkpointExtra = null,
+  roundLabel = null,
+  backTo = null,
+  backLabel = '← All rounds',
 }) {
+  const submitChallengeAnswerFn = actions?.submitChallengeAnswer || submitChallengeAnswer;
+  const requestChallengeHintFn = actions?.requestChallengeHint || requestChallengeHint;
+  const scanStationCheckpointFn = actions?.scanStationCheckpoint || scanStationCheckpoint;
+  const confirmStationCheckpointFn = actions?.confirmStationCheckpoint || confirmStationCheckpoint;
   const team = data?.team;
   const challenges = data?.challenges || [];
   const serverTime = data?.serverTime || team?.serverTime;
@@ -81,9 +91,8 @@ export default function PlayerPlayScreen({
   const isLeader = Boolean(team?.isLeader);
   const teamCapacity = Math.max(2, Number(data?.event?.teamCapacity) || 0);
   const finaleCapacity = Math.max(1, Number(data?.event?.finaleCapacity) || 0);
-  const round1Label = teamCapacity
-    ? `Round 1 · ${teamCapacity} teams`
-    : 'Round 1';
+  const round1Label = roundLabel
+    || (teamCapacity ? `Round 1 · ${teamCapacity} teams` : 'Round 1');
   const finalsHint = finaleCapacity
     ? `Top finishers move toward Finals (${finaleCapacity} teams). Organizers handle Survival picks — stay tuned on the leaderboard.`
     : 'Top finishers move toward Finals. Organizers handle Survival picks — stay tuned on the leaderboard.';
@@ -337,7 +346,7 @@ export default function PlayerPlayScreen({
     const attempts = Number(activeChallenge?.attempts || 0);
     const requestId = `${team.id}-c${activeNum}-a${attempts}`;
     const result = await runAction(() =>
-      submitChallengeAnswer(team.id, activeNum, answer, requestId));
+      submitChallengeAnswerFn(team.id, activeNum, answer, requestId));
     if (!result.ok) return;
     const resData = result.payload;
     if (resData?.correct) {
@@ -404,7 +413,7 @@ export default function PlayerPlayScreen({
     if (!activeNum || !isLeader) return;
     if (!window.confirm('Use Hint? This will cost 15 points.')) return;
     const result = await runAction(() =>
-      requestChallengeHint(team.id, activeNum, `hint-${team.id}-${activeNum}`));
+      requestChallengeHintFn(team.id, activeNum, `hint-${team.id}-${activeNum}`));
     if (result.ok) setHintPreview(result.payload?.hint || '');
   };
 
@@ -413,7 +422,7 @@ export default function PlayerPlayScreen({
     if (!value) return;
     if (value === lastScanRawRef.current && busyRef.current) return;
     lastScanRawRef.current = value;
-    const result = await runAction(() => scanStationCheckpoint(team.id, value));
+    const result = await runAction(() => scanStationCheckpointFn(team.id, value));
     if (!result.ok) {
       if (result.error) {
         setFeedback(result.error.message || 'Scan failed — use the station poster QR');
@@ -460,7 +469,7 @@ export default function PlayerPlayScreen({
       setFeedback('Enter your team code');
       return;
     }
-    const result = await runAction(() => confirmStationCheckpoint(team.id, {
+    const result = await runAction(() => confirmStationCheckpointFn(team.id, {
       teamCode: code,
       checkpointId: checkpointStatus?.checkpointId,
     }));
@@ -522,8 +531,8 @@ export default function PlayerPlayScreen({
         {/* Top bar — stage + team + score */}
         <header className="mb-5">
           <CampusHuntBackLink
-            to={eventSlug ? CAMPUS_HUNT_PATHS.play(eventSlug) : '/'}
-            label="← All rounds"
+            to={backTo || (eventSlug ? CAMPUS_HUNT_PATHS.play(eventSlug) : '/')}
+            label={backLabel}
             forceTo
             onBeforeNavigate={onLeaveRound}
             className="mb-3"
@@ -724,7 +733,10 @@ export default function PlayerPlayScreen({
                   })}
                 </p>
                 <p className="mt-1 text-xs text-white/50">
-                  All {Number(checkpointStatus.requiredCount || team?.teamSize || 4)} scan the same poster · phones update live
+                  All {Number(checkpointStatus.requiredCount || team?.teamSize || 4)} scan the same poster
+                  {offlineMode
+                    ? ' · then leader collects proof QRs'
+                    : ' · phones update live'}
                 </p>
               </div>
 
@@ -815,17 +827,24 @@ export default function PlayerPlayScreen({
               {checkpointStatus.youScanned
                 && Number(checkpointStatus.verifiedCount || 0) < Number(checkpointStatus.requiredCount || team?.teamSize || 4)
                 && !checkpointStatus.awaitingTeamCodeConfirm && (
-                <p className="text-center text-sm text-emerald-300/90">
-                  You scanned · waiting for {checkpointStatus.membersNeeded} more
-                  {' · '}
-                  <button
-                    type="button"
-                    className="underline"
-                    onClick={() => onRefresh?.({ force: true })}
-                  >
-                    Refresh
-                  </button>
-                </p>
+                <div className="space-y-2">
+                  <p className="text-center text-sm text-emerald-300/90">
+                    You scanned · waiting for {checkpointStatus.membersNeeded} more
+                    {offlineMode ? '' : (
+                      <>
+                        {' · '}
+                        <button
+                          type="button"
+                          className="underline"
+                          onClick={() => onRefresh?.({ force: true })}
+                        >
+                          Refresh
+                        </button>
+                      </>
+                    )}
+                  </p>
+                  {checkpointExtra}
+                </div>
               )}
 
               {(checkpointStatus.awaitingTeamCodeConfirm
@@ -929,7 +948,9 @@ export default function PlayerPlayScreen({
                 You&apos;ll scan the Orange card together next.
               </p>
               <p className="rounded-xl bg-black/25 px-3 py-2 text-xs text-white/45">
-                Keep this screen open — it unlocks the Orange scan automatically.
+                {offlineMode
+                  ? 'After your leader solves Clue 1, scan their Team QR to unlock the Orange scan.'
+                  : 'Keep this screen open — it unlocks the Orange scan automatically.'}
               </p>
             </motion.section>
           )}

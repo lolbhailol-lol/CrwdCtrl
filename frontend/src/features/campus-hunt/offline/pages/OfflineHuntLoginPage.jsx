@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  createInitialTeamState,
   loadOfflineBundle,
   loadOfflineSession,
   loadOfflineTeamState,
   saveOfflineSession,
   saveOfflineTeamState,
 } from '../offlineDb';
+import { hydrateState } from '../offlineEngine';
 import { CAMPUS_HUNT_PATHS } from '../../config';
 
 export default function OfflineHuntLoginPage() {
@@ -74,10 +74,8 @@ export default function OfflineHuntLoginPage() {
     try {
       const teamCode = bundle.team.teamCode;
       let state = await loadOfflineTeamState(teamCode);
-      if (!state) {
-        state = createInitialTeamState(bundle);
-        await saveOfflineTeamState(teamCode, state);
-      }
+      state = hydrateState(bundle, state);
+      await saveOfflineTeamState(teamCode, state);
       const session = {
         teamCode,
         memberKey: member.memberKey,

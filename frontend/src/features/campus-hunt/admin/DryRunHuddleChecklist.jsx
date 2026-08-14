@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   adminExportOfflinePacks,
+  adminImportOfflineResults,
   adminListChallenges,
   adminListCheckpoints,
   adminListTeams,
@@ -524,6 +525,7 @@ export default function DryRunHuddleChecklist({
   const [exportBusy, setExportBusy] = useState(false);
   const [exportMessage, setExportMessage] = useState('');
   const [exportWarnings, setExportWarnings] = useState([]);
+  const [importBusy, setImportBusy] = useState(false);
   const autoFixAttempted = useRef(false);
 
   useEffect(() => {
@@ -663,6 +665,23 @@ export default function DryRunHuddleChecklist({
     }
   }, [eventId, exportBusy]);
 
+  const importOffline = useCallback(async (file) => {
+    if (!eventId || !file || importBusy) return;
+    setImportBusy(true);
+    setError('');
+    try {
+      const parsed = JSON.parse(await file.text());
+      const payload = parsed?.t ? parsed : (parsed?.data || parsed);
+      const res = await adminImportOfflineResults(eventId, payload);
+      const row = res.data || res;
+      setExportMessage(`Imported ${row.teamCode}: ${row.score} pts (score locked).`);
+    } catch (err) {
+      setError(err.message || 'Could not import results');
+    } finally {
+      setImportBusy(false);
+    }
+  }, [eventId, importBusy]);
+
   useEffect(() => {
     if (!eventId) {
       setLoading(false);
@@ -789,6 +808,14 @@ export default function DryRunHuddleChecklist({
           </button>
           <button
             type="button"
+            disabled={exportBusy || !eventId}
+            onClick={() => exportOffline(true)}
+            className="rounded-xl border border-white/15 px-3 py-2 text-xs font-semibold text-white/80 disabled:opacity-50"
+          >
+            Download each team
+          </button>
+          <button
+            type="button"
             onClick={() => window.print()}
             className="rounded-xl bg-[#0ECCEE] px-4 py-2 text-xs font-bold text-black"
           >
@@ -809,6 +836,21 @@ export default function DryRunHuddleChecklist({
           {' '}
           → airplane mode on venue.
         </p>
+        <label className="mt-2 flex cursor-pointer items-center gap-2 text-[11px] text-white/60">
+          <span className="font-semibold text-white/80">After fest · import results</span>
+          <input
+            type="file"
+            accept=".json,application/json"
+            disabled={importBusy || !eventId}
+            className="text-[10px] file:mr-2 file:rounded file:border-0 file:bg-white/15 file:px-2 file:py-1 file:text-[10px] file:text-white"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = '';
+              if (file) importOffline(file);
+            }}
+          />
+          {importBusy ? <span>Importing…</span> : null}
+        </label>
         {exportMessage ? (
           <p className="mt-1 text-emerald-300">{exportMessage}</p>
         ) : null}

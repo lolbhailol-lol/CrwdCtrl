@@ -944,6 +944,14 @@ export async function adminExportOfflinePacks(eventId) {
   return adminFetchJSON(`${BASE}/admin/events/${eventId}/offline-export`);
 }
 
+/** Import a leader's offline results JSON after the fest. */
+export async function adminImportOfflineResults(eventId, body) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/offline-import`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 export async function adminApplyPenalty(teamId, body) {
   return adminFetchJSON(`${BASE}/admin/teams/${teamId}/penalty`, {
     method: 'POST',

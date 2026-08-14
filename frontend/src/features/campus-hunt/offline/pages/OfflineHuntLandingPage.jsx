@@ -66,7 +66,8 @@ export default function OfflineHuntLandingPage() {
         <ol className="mt-8 list-decimal space-y-2 pl-5 text-xs text-white/55">
           <li>Admin exports offline packs from the plant sheet (laptop, before fest).</li>
           <li>AirDrop / USB / share each team JSON to all 4 phones on that team.</li>
-          <li>Load file here → enter team password → pick your name → play.</li>
+          <li>Load file here → enter team password → pick your name.</li>
+          <li>Airplane mode at the venue. Leader submits clues; everyone scans posters + proof QRs.</li>
         </ol>
       </div>
     </div>

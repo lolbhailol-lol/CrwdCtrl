@@ -94,24 +94,4 @@ export async function clearOfflineSession() {
   return idbDelete(OFFLINE_STORES.SESSION, 'current');
 }
 
-export function createInitialTeamState(bundle) {
-  const startingScore = Number(bundle?.event?.startingScore) > 0
-    ? Number(bundle.event.startingScore)
-    : 100;
-  return {
-    teamCode: bundle.team.teamCode,
-    currentStage: 'CLUE1_ACTIVE',
-    score: startingScore,
-    penalties: [],
-    clueProgress: {
-      clue1: { solved: false, attempts: 0 },
-      clue2: { solved: false, attempts: 0 },
-      clue3: { solved: false, attempts: 0 },
-      clue4: { solved: false, attempts: 0 },
-      clue5: { solved: false, attempts: 0 },
-    },
-    checkpointScans: {},
-    memberProofs: {},
-    updatedAt: new Date().toISOString(),
-  };
-}
+export { createInitialTeamState } from './offlineEngine';
