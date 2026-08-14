@@ -4,6 +4,7 @@ import OfflineQrCard from './OfflineQrCard';
 
 export default function OfflineHandoffDock({
   isLeader,
+  waiting = false,
   atCheckpoint,
   youScanned,
   awaitingConfirm,
@@ -47,13 +48,19 @@ export default function OfflineHandoffDock({
         <div className="mx-auto flex max-w-lg flex-wrap gap-2">
           {isLeader ? (
             <>
-              <button
-                type="button"
-                onClick={() => setSheet('sync')}
-                className="flex-1 rounded-xl bg-[#0ECCEE] px-3 py-2.5 text-xs font-bold text-black"
-              >
-                Show Team QR
-              </button>
+              {!waiting ? (
+                <button
+                  type="button"
+                  onClick={() => setSheet('sync')}
+                  className="flex-1 rounded-xl bg-[#0ECCEE] px-3 py-2.5 text-xs font-bold text-black"
+                >
+                  Show Team QR
+                </button>
+              ) : (
+                <p className="w-full text-center text-xs text-white/50">
+                  Start Round 1 above when the team is at the desk.
+                </p>
+              )}
               {atCheckpoint ? (
                 <button
                   type="button"

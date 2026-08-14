@@ -143,7 +143,7 @@ export default function OfflineHuntLoginPage() {
           </form>
         ) : (
           <div className="mt-6 space-y-2">
-            <p className="text-xs text-white/55">Tap your name to start (offline, no network).</p>
+            <p className="text-xs text-white/55">Tap your name. The hunt does not start yet.</p>
             {roster.map((member) => (
               <button
                 key={member.memberKey}

@@ -60,7 +60,8 @@ export default function OfflineHuntInstallPage() {
         </p>
         <h1 className="mt-2 text-2xl font-bold">Install on this phone</h1>
         <p className="mt-2 text-sm text-white/60">
-          One link per team. Do this on Wi‑Fi today. At the fest: airplane mode — no laptop, no internet.
+          One link per team. Do this on Wi‑Fi today. The hunt does not start from this link.
+          At the fest: airplane mode → home-screen icon → password → name → wait at start until the leader starts Round 1.
         </p>
         <OfflineStorageBadge />
 
@@ -85,7 +86,7 @@ export default function OfflineHuntInstallPage() {
                 {' '}(iPhone: Share → Add to Home Screen).
               </li>
               <li>All 4 teammates must open this same link on their own phones.</li>
-              <li>At the venue: airplane mode → tap the home-screen icon → team password → your name.</li>
+              <li>At the venue: airplane mode → tap the home-screen icon → team password → your name. Wait on the hub. Leader starts Round 1 at the start desk.</li>
             </ol>
             <button
               type="button"

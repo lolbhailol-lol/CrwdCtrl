@@ -79,7 +79,7 @@ export function huntProgressFromStage(stage) {
     if (i < index) status = 'done';
     else if (i === index) {
       if (s === 'FINISH_COMPLETED' || s === 'SCORE_LOCKED') status = 'done';
-      else if (s === 'WAITING') status = 'waiting';
+      else if (s === 'WAITING') status = 'active';
       else if (s === 'CLUE_1_COMPLETED' && i === 1) status = 'done';
       else if (
         ['CLUE_2_COMPLETED', 'CLUE_2_FAILED', 'CLUE_2_TIMEOUT'].includes(s)

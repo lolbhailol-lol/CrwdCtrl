@@ -13,16 +13,19 @@ import {
   appendOfflinePlayLog,
 } from '../offlineDb';
 import { armOfflineNetworkGuard } from '../offlineNetworkGuard';
+import OfflineHuntBriefing from '../components/OfflineHuntBriefing';
 import {
   applyTeamSync,
   collectMemberProof,
   confirmStation,
   ensureClueActive,
   hydrateState,
+  isHuntWaiting,
   markReachedStart,
   pendingCheckpointKey,
   requestHint,
   scanStation,
+  startHunt,
   submitAnswer,
   tickTimers,
 } from '../offlineEngine';
@@ -52,7 +55,8 @@ export default function OfflineHuntPlayPage() {
   const [playData, setPlayData] = useState(null);
   const [proofPayload, setProofPayload] = useState('');
   const [teamSyncPayload, setTeamSyncPayload] = useState('');
-  const [resultsPayload, setResultsPayload] = useState('');
+  const [startError, setStartError] = useState('');
+  const [starting, setStarting] = useState(false);
   const stateRef = useRef(null);
   const sessionRef = useRef(null);
   const bundleRef = useRef(null);
@@ -88,7 +92,9 @@ export default function OfflineHuntPlayPage() {
 
   const refresh = useCallback(async () => {
     if (!bundle || !session || !state) return null;
-    let next = tickTimers(bundle, ensureClueActive(bundle, state), new Date());
+    let next = isHuntWaiting(state)
+      ? state
+      : tickTimers(bundle, ensureClueActive(bundle, state), new Date());
     if (next.seq !== state.seq || next.currentStage !== state.currentStage) {
       await persistState(next, session);
     } else {
@@ -117,7 +123,9 @@ export default function OfflineHuntPlayPage() {
         }
         let teamState = await loadOfflineTeamState(sess.teamCode);
         teamState = hydrateState(pack, teamState);
-        teamState = tickTimers(pack, ensureClueActive(pack, teamState), new Date());
+        if (!isHuntWaiting(teamState)) {
+          teamState = tickTimers(pack, ensureClueActive(pack, teamState), new Date());
+        }
         await saveOfflineTeamState(sess.teamCode, teamState);
         if (cancelled) return;
         setBundle(pack);
@@ -237,6 +245,19 @@ export default function OfflineHuntPlayPage() {
     await persistState(result.state, sessionRef.current);
   };
 
+  const onStartHunt = async () => {
+    setStartError('');
+    setStarting(true);
+    try {
+      const result = startHunt(bundleRef.current, sessionRef.current, stateRef.current);
+      await persistState(result.state, sessionRef.current);
+    } catch (err) {
+      setStartError(err.message || 'Could not start the hunt');
+    } finally {
+      setStarting(false);
+    }
+  };
+
   const onMarkReached = async () => {
     const result = markReachedStart(bundleRef.current, sessionRef.current, stateRef.current);
     await persistState(result.state, sessionRef.current);
@@ -266,8 +287,41 @@ export default function OfflineHuntPlayPage() {
 
   const cp = playData.checkpointStatus;
   const stage = state.currentStage;
+  const waiting = isHuntWaiting(state);
   const atStartReport = stage === 'CLUE_5_COMPLETED' || stage === 'CLUE_5_FAILED';
   const locked = stage === 'SCORE_LOCKED' || stage === 'FINISH_COMPLETED';
+
+  if (waiting) {
+    return (
+      <>
+        <OfflineHuntBriefing
+          bundle={bundle}
+          session={session}
+          state={state}
+          onStartHunt={onStartHunt}
+          starting={starting}
+          error={startError}
+          onSwitchPerson={() => navigate(CAMPUS_HUNT_PATHS.offlineLogin)}
+        />
+        <OfflineHandoffDock
+          isLeader={session.role === 'leader'}
+          waiting
+          atCheckpoint={false}
+          youScanned={false}
+          awaitingConfirm={false}
+          atStartReport={false}
+          locked={false}
+          proofPayload=""
+          teamSyncPayload={teamSyncPayload}
+          resultsPayload=""
+          onCollectProof={onCollectProof}
+          onScanTeamSync={onScanTeamSync}
+          onMarkReached={onMarkReached}
+          onDownloadResults={onDownloadResults}
+        />
+      </>
+    );
+  }
 
   return (
     <div className="pb-28">

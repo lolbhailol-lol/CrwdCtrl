@@ -121,9 +121,10 @@ export function createInitialTeamState(bundle) {
     : (bundle?.event?.scoringConfig?.startingScore || 100);
   return {
     teamCode: bundle.team.teamCode,
-    currentStage: 'CLUE_1_ACTIVE',
+    currentStage: 'WAITING',
     score: startingScore,
     seq: 0,
+    huntStartedAt: null,
     clueProgress: {
       1: emptyClue(),
       2: emptyClue(),
@@ -142,11 +143,56 @@ export function createInitialTeamState(bundle) {
   };
 }
 
+function clue1NeverPlayed(state) {
+  const row = state?.clueProgress?.[1];
+  if (!row) return true;
+  if (Number(row.attempts) > 0 || row.completedAt) return false;
+  return !['COMPLETED', 'FAILED', 'TIMED_OUT'].includes(row.state);
+}
+
 export function hydrateState(bundle, state) {
   if (!state || !state.clueProgress?.[1] || String(state.currentStage || '').includes('CLUE1_')) {
     return createInitialTeamState(bundle);
   }
+  // Packs opened before the waiting hub: if Clue 1 was never actually played, park at WAITING.
+  if (state.currentStage === 'CLUE_1_ACTIVE' && clue1NeverPlayed(state) && !state.huntStartedAt) {
+    const next = clone(state);
+    next.currentStage = 'WAITING';
+    next.clueProgress[1] = emptyClue();
+    next.huntStartedAt = null;
+    return next;
+  }
   return state;
+}
+
+export function isHuntWaiting(state) {
+  return String(state?.currentStage || 'WAITING') === 'WAITING';
+}
+
+export function startHunt(bundle, session, state, now = new Date()) {
+  assertLeader(session);
+  let next = clone(state);
+  if (next.currentStage === 'SCORE_LOCKED') {
+    throw huntError('Score is locked', 409, 'SCORE_LOCKED');
+  }
+  if (next.currentStage !== 'WAITING') {
+    next = ensureClueActive(bundle, next, now);
+    return {
+      state: next,
+      meta: { alreadyStarted: true, message: 'Hunt already started — show Team QR to teammates.' },
+    };
+  }
+  if (!canTransition(next.currentStage, 'CLUE_1_ACTIVE')) {
+    throw huntError('Cannot start the hunt from this stage', 409, 'WRONG_STAGE');
+  }
+  next.currentStage = 'CLUE_1_ACTIVE';
+  next.huntStartedAt = now.toISOString();
+  bump(next);
+  next = ensureClueActive(bundle, next, now);
+  return {
+    state: next,
+    meta: { message: 'Hunt started — show Team QR so teammates unlock Clue 1.' },
+  };
 }
 
 export function getClue(bundle, n) {

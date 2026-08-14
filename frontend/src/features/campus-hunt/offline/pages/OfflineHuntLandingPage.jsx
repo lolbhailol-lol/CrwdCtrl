@@ -72,7 +72,7 @@ export default function OfflineHuntLandingPage() {
           <li>Admin exports offline packs from the plant sheet (laptop, before fest).</li>
           <li>AirDrop / USB / share each team JSON to all 4 phones on that team.</li>
           <li>Load file here → enter team password → pick your name.</li>
-          <li>Airplane mode at the venue. Leader submits clues; everyone scans posters + proof QRs.</li>
+          <li>Airplane mode at the venue. Login shows the hub — hunt starts only when the leader taps Start Round 1.</li>
         </ol>
       </div>
     </div>
