@@ -68,6 +68,161 @@ function placeKey(label) {
   return String(label || '').split(' · ')[0].trim().toUpperCase();
 }
 
+function teamsAtPlace(propRows, stage, stationCode) {
+  const code = String(stationCode || '').toUpperCase();
+  return propRows
+    .filter((row) => placeKey(row[stage]) === code)
+    .map((row) => row.teamCode)
+    .filter(Boolean);
+}
+
+function LocationPlantCard({
+  row,
+  people,
+  posterCols,
+}) {
+  const qrs = posterCols.filter((col) => row[col.key]);
+  const stageTeams = {
+    orange: row.orangeTeams || [],
+    green: row.greenTeams || [],
+    blue: row.blueTeams || [],
+    purple: row.purpleTeams || [],
+  };
+
+  return (
+    <article
+      className="huddle-keep huddle-location-card rounded-lg border border-white/12 bg-white/3 p-3 print:rounded-none print:border print:border-black/35 print:p-2.5"
+    >
+      <header className="mb-2 flex flex-wrap items-baseline justify-between gap-2 border-b border-white/15 pb-1.5 print:border-black/25">
+        <div>
+          <h4 className="text-[15px] font-bold print:text-[12px]">
+            {row.code}
+            <span className="ml-1.5 font-semibold text-white/75 print:text-black/75">
+              {row.name}
+            </span>
+          </h4>
+          <p className="mt-0.5 text-[10px] text-white/45 print:text-[8px] print:text-black/50">
+            Walk this spot · tape all 4 colors · plant props next to purple QR only
+          </p>
+        </div>
+        <label className="huddle-check flex items-center gap-1.5 text-[10px] font-semibold print:text-[9px]">
+          <input type="checkbox" className="h-3.5 w-3.5 print:h-3 print:w-3" />
+          Location done
+        </label>
+      </header>
+
+      <div className="mb-2 rounded border border-white/10 bg-black/20 px-2 py-1.5 text-[10px] leading-snug text-white/75 print:border-black/20 print:bg-gray-50 print:text-[8.5px] print:text-black/80">
+        <strong className="text-white print:text-black">Step 1 — Tape QR posters</strong>
+        {' '}
+        (shared — any team listed can scan, then enter their team code)
+      </div>
+
+      <ul className="mb-3 space-y-1.5">
+        {qrs.length ? qrs.map((col) => {
+          const teams = stageTeams[col.key] || [];
+          return (
+            <li
+              key={col.key}
+              className="rounded border border-white/8 px-2 py-1.5 print:border-black/15 print:py-1"
+              style={{ background: `${col.theme.hex}18` }}
+            >
+              <label className="huddle-check flex items-start gap-2 text-[10px] print:text-[8.5px]">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-3.5 w-3.5 shrink-0 print:h-3 print:w-3"
+                  style={{ accentColor: col.theme.hex }}
+                />
+                <span>
+                  <ColorChip
+                    theme={col.theme}
+                    short={`${col.theme.colorName} · ${col.theme.scanLabel}`}
+                  />
+                  <span className="mt-1 block text-white/80 print:text-black/80">
+                    {col.key === 'purple'
+                      ? `After prop CODE typed on phone · then all ${people} scan + team code → Final`
+                      : `After ${col.when.toLowerCase().replace(/^after /, '')} · unlocks ${col.unlocks}`}
+                  </span>
+                  {teams.length > 0 ? (
+                    <span className="mt-1 block font-mono text-[9px] text-white/55 print:text-[8px] print:text-black/60">
+                      Teams:
+                      {' '}
+                      {teams.join(', ')}
+                    </span>
+                  ) : (
+                    <span className="mt-1 block text-[9px] italic text-white/40 print:text-black/45">
+                      Shared poster — keep taped even if no team listed yet
+                    </span>
+                  )}
+                </span>
+              </label>
+            </li>
+          );
+        }) : (
+          <li className="text-[10px] text-amber-200 print:text-[8.5px] print:text-amber-900">
+            No QR bindings — open Clues → Save setup → Update Clues 1–4, then refresh.
+          </li>
+        )}
+      </ul>
+
+      <div className="mb-1.5 rounded border border-purple-400/25 bg-purple-500/10 px-2 py-1.5 text-[10px] leading-snug text-purple-100 print:border-purple-800 print:bg-purple-50 print:text-[8.5px] print:text-purple-950">
+        <strong>Step 2 — Plant props (Clue 4)</strong>
+        {' '}
+        Hide silly objects with sticker words · place within arm’s reach of
+        {' '}
+        <strong>purple QR</strong>
+        {' '}
+        · leader types word first, then team scans purple
+      </div>
+
+      {row.propsHere.length ? (
+        <ul className="space-y-1.5">
+          {row.propsHere.map((p) => (
+            <li
+              key={`${p.teamCode}-${p.propCode}`}
+              className="rounded border border-purple-400/20 px-2 py-1.5 print:border-black/20 print:py-1"
+              style={{ background: `${T.clue4.hex}22` }}
+            >
+              <label className="huddle-check flex flex-wrap items-start gap-x-2 gap-y-1 text-[10px] print:text-[8.5px]">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-3.5 w-3.5 shrink-0 print:h-3 print:w-3"
+                  style={{ accentColor: T.clue4.hex }}
+                />
+                <span className="min-w-0 flex-1">
+                  <span
+                    className="font-mono text-[13px] font-black tracking-wider print:text-[11px]"
+                    style={{ color: T.clue4.hex }}
+                  >
+                    {p.propCode}
+                  </span>
+                  <span className="mx-1.5 text-white/35 print:text-black/35">→</span>
+                  <span className="font-mono font-bold text-white print:text-black">{p.teamCode}</span>
+                  <span className="mt-1 block text-[9px] leading-snug text-white/60 print:text-[8px] print:text-black/65">
+                    ☐ Pick visible object · ☐ Sticker shows exact word
+                    {' '}
+                    <strong>{p.propCode}</strong>
+                    {' '}
+                    · ☐ Purple QR visible beside it
+                  </span>
+                </span>
+              </label>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-[10px] text-white/45 print:text-[8.5px] print:text-black/50">
+          No props planted here — teams don’t use this place as their purple stop.
+          {row.purple ? ' Still tape the purple QR poster above.' : ''}
+        </p>
+      )}
+
+      <p className="mt-2 border-t border-white/10 pt-1.5 text-[9px] text-white/40 print:border-black/15 print:text-[7.5px] print:text-black/50">
+        Do not mix poster colors · do not move posters mid-hunt · START desks have no hunt QRs
+      </p>
+    </article>
+  );
+}
+
 /**
  * Printable dry-run plant sheet — location → QR colors → props, with setup explained.
  */
@@ -257,10 +412,19 @@ export default function DryRunHuddleChecklist({
 
     return base.map((row) => {
       const propsHere = propRows.filter((r) => placeKey(r.purple) === String(row.code).toUpperCase());
-      return { ...row, propsHere };
+      return {
+        ...row,
+        propsHere,
+        orangeTeams: teamsAtPlace(propRows, 'orange', row.code),
+        greenTeams: teamsAtPlace(propRows, 'green', row.code),
+        blueTeams: teamsAtPlace(propRows, 'blue', row.code),
+        purpleTeams: propsHere.map((p) => p.teamCode),
+      };
     });
   }, [qrByPlace, stations, propRows]);
 
+  const propCount = propRows.filter((r) => r.propCode && r.propCode !== '—').length;
+  const expectedPosterCount = stations.length * 4;
   const posterCount = placeRows.reduce(
     (sum, row) => sum + [row.orange, row.green, row.blue, row.purple].filter(Boolean).length,
     0,
@@ -275,11 +439,18 @@ export default function DryRunHuddleChecklist({
             Ops plant sheet · printable
           </p>
           <h2 className="mt-1 text-lg font-bold print:mt-0 print:text-[16px] print:leading-tight">
-            Where to put each QR & prop
+            Campus plant checklist · location by location
           </h2>
           <p className="mt-1 max-w-2xl text-xs text-white/55 print:mt-0.5 print:max-w-none print:text-[9px] print:leading-snug print:text-black/65">
-            Walk campus with this sheet. Each place gets up to four shared posters (one color each).
-            Props only go at the purple stop for that team.
+            Print this and walk each place. Tape
+            {' '}
+            <strong>{stations.length} places × 4 QR colors = {expectedPosterCount} posters</strong>
+            {' '}
+            + plant
+            {' '}
+            <strong>{propCount} prop objects</strong>
+            {' '}
+            with sticker codes at purple stops only.
           </p>
         </div>
         <button
@@ -410,10 +581,18 @@ export default function DryRunHuddleChecklist({
           </div>
 
           <div className="mt-2 huddle-prep-grid grid gap-x-4 md:grid-cols-2">
-            <CheckRow id="m1" accent="#0ECCEE">Printed all {posterCount || (loading ? '…' : 0)} station posters</CheckRow>
+            <CheckRow id="m1" accent="#0ECCEE">
+              Printed {expectedPosterCount} QR posters ({stations.length} places × 4 colors)
+            </CheckRow>
+            <CheckRow id="m1b" accent="#0ECCEE">
+              Prepared {propCount} prop objects + sticker codes
+            </CheckRow>
             <CheckRow id="m2" accent="#0ECCEE">Team links + password · phones on play screen</CheckRow>
             <CheckRow id="m3" accent="#0ECCEE">Schedule locked · Round started · finish desk staffed</CheckRow>
-            <CheckRow id="m4" accent="#0ECCEE">Walked every place below before release</CheckRow>
+            <CheckRow id="m4" accent="#0ECCEE">Walked every location card below · checked each box</CheckRow>
+            <CheckRow id="m5" accent={T.clue4.hex}>
+              Purple: teams type prop word FIRST, then scan purple QR
+            </CheckRow>
           </div>
         </section>
       </div>
@@ -421,116 +600,35 @@ export default function DryRunHuddleChecklist({
       {/* PER LOCATION — main plant sheet */}
       <div className="huddle-print-block huddle-print-break mt-4 space-y-3 print:mt-0 print:space-y-2">
         <section>
-          <SectionTitle n="2" note="One card per campus place — tape what’s listed">
-            Plant by location
+          <SectionTitle n="2" note={`${stations.length} cards — one per campus place`}>
+            Plant by location (detailed)
           </SectionTitle>
-          <p className="mb-2 text-[10px] text-white/50 print:mb-1.5 print:text-[8.5px] print:text-black/55">
-            At each place: tape the colored posters listed. If props are listed, plant those objects with the exact CODE sticker, and put the purple QR next to them.
+          <p className="mb-3 text-[10px] text-white/50 print:mb-2 print:text-[8.5px] print:text-black/55">
+            At each place: complete Step 1 (4 QR posters) then Step 2 (props only if listed).
+            Team lists come from your live schedule — reprint after clue updates.
           </p>
 
-          <div className="huddle-place-grid grid gap-2 md:grid-cols-2 print:gap-1.5">
-            {placeRows.map((row) => {
-              const qrs = QR_COLS.filter((col) => row[col.key]);
-              return (
-                <article
-                  key={row.code}
-                  className="huddle-keep rounded-lg border border-white/12 bg-white/3 p-2.5 print:rounded-none print:border print:border-black/35 print:p-2"
-                >
-                  <header className="mb-1.5 flex items-baseline justify-between gap-2 border-b border-white/15 pb-1 print:border-black/25">
-                    <h4 className="text-[13px] font-bold print:text-[11px]">
-                      {row.code}
-                      <span className="ml-1.5 font-semibold text-white/70 print:text-black/70">
-                        {row.name}
-                      </span>
-                    </h4>
-                    <span className="text-[9px] text-white/40 print:text-[8px] print:text-black/45">
-                      ☐ done
-                    </span>
-                  </header>
-
-                  <p className="mb-1 text-[9px] font-bold uppercase tracking-wide text-white/45 print:text-[8px] print:text-black/50">
-                    Tape these QR posters
-                  </p>
-                  <ul className="mb-2 space-y-1">
-                    {qrs.length ? qrs.map((col) => (
-                      <li
-                        key={col.key}
-                        className="flex items-start gap-2 rounded px-1.5 py-1 text-[10px] print:text-[8.5px]"
-                        style={{ background: `${col.theme.hex}22` }}
-                      >
-                        <span className="mt-0.5 shrink-0 font-mono text-[11px] print:text-[9px]">☐</span>
-                        <span>
-                          <ColorChip
-                            theme={col.theme}
-                            short={`${col.theme.colorName} · ${col.theme.scanLabel}`}
-                          />
-                          <span className="mt-0.5 block text-white/70 print:text-black/70">
-                            For
-                            {' '}
-                            <strong className="text-white print:text-black">{col.theme.label}</strong>
-                            {' '}
-                            — teams scan after
-                            {' '}
-                            {col.when.toLowerCase().replace(/^after /, '')}
-                            . Unlocks
-                            {' '}
-                            {col.unlocks}.
-                          </span>
-                        </span>
-                      </li>
-                    )) : (
-                      <li className="text-[10px] text-white/45 print:text-[8.5px] print:text-black/50">
-                        No active QR bindings for this place.
-                      </li>
-                    )}
-                  </ul>
-
-                  <p className="mb-1 text-[9px] font-bold uppercase tracking-wide text-white/45 print:text-[8px] print:text-black/50">
-                    Plant props here (Clue 4)
-                  </p>
-                  {row.propsHere.length ? (
-                    <ul className="space-y-1">
-                      {row.propsHere.map((p) => (
-                        <li
-                          key={`${p.teamCode}-${p.propCode}`}
-                          className="flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded px-1.5 py-1 text-[10px] print:text-[8.5px]"
-                          style={{ background: `${T.clue4.hex}28` }}
-                        >
-                          <span className="font-mono">☐</span>
-                          <span
-                            className="font-mono text-[12px] font-black tracking-wider print:text-[10px]"
-                            style={{ color: T.clue4.hex }}
-                          >
-                            {p.propCode}
-                          </span>
-                          <span className="font-mono text-white/70 print:text-black/70">
-                            {p.teamCode}
-                          </span>
-                          {p.variant ? (
-                            <span className="text-white/40 print:text-black/45">{p.variant}</span>
-                          ) : null}
-                          <span className="w-full text-[9px] text-white/55 print:text-[8px] print:text-black/55">
-                            Sticker = exact CODE · purple QR within arm’s reach of this prop
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-[10px] text-white/40 print:text-[8.5px] print:text-black/45">
-                      {row.purple
-                        ? 'No team’s purple stop here — still tape purple QR if listed above (shared poster).'
-                        : 'No props at this place.'}
-                    </p>
-                  )}
-                </article>
-              );
-            })}
+          <div className="huddle-place-grid grid gap-3 print:grid-cols-1 print:gap-2">
+            {placeRows.map((row) => (
+              <LocationPlantCard
+                key={row.code}
+                row={row}
+                people={people}
+                posterCols={QR_COLS}
+              />
+            ))}
           </div>
+
+          {!placeRows.length && !loading ? (
+            <p className="text-xs text-amber-200 print:text-amber-900">
+              No campus places configured — set places in Clues → Save setup.
+            </p>
+          ) : null}
         </section>
       </div>
 
-      {/* QUICK REFERENCE TABLES */}
-      <div className="huddle-print-block huddle-print-break mt-4 space-y-3 print:mt-0 print:space-y-2">
+      {/* QUICK REFERENCE TABLES — hidden on print to save paper; location cards are the walk sheet */}
+      <div className="huddle-print-block huddle-screen-only mt-4 space-y-3 print:hidden">
         <section className="huddle-keep">
           <SectionTitle n="3" note="Quick glance — which colors at which place">
             QR summary
@@ -664,6 +762,37 @@ export default function DryRunHuddleChecklist({
         </section>
       </div>
 
+      {/* Print-only: team routes summary on last page */}
+      <div className="huddle-print-only mt-4 hidden space-y-2 print:block">
+        <SectionTitle n="3" note="Verify prop word + purple place per team">
+          Team routes (print copy)
+        </SectionTitle>
+        <table className="huddle-table w-full border-collapse text-left text-[9px]">
+          <thead>
+            <tr>
+              <th className="huddle-th">Team</th>
+              <th className="huddle-th" style={{ color: T.clue1.hex }}>Orange</th>
+              <th className="huddle-th" style={{ color: T.clue2.hex }}>Green</th>
+              <th className="huddle-th" style={{ color: T.clue3.hex }}>Blue</th>
+              <th className="huddle-th" style={{ color: T.clue4.hex }}>Prop</th>
+              <th className="huddle-th" style={{ color: T.clue4.hex }}>Purple</th>
+            </tr>
+          </thead>
+          <tbody>
+            {propRows.map((r) => (
+              <tr key={`print-route-${r.teamCode}`}>
+                <td className="huddle-td font-mono font-bold">{r.teamCode}</td>
+                <td className="huddle-td">{r.orange}</td>
+                <td className="huddle-td">{r.green}</td>
+                <td className="huddle-td">{r.blue}</td>
+                <td className="huddle-td font-mono font-bold" style={{ color: T.clue4.hex }}>{r.propCode}</td>
+                <td className="huddle-td">{r.purple}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
       <style>{`
         @media print {
           @page {
@@ -698,8 +827,21 @@ export default function DryRunHuddleChecklist({
           }
           .huddle-place-grid {
             display: grid !important;
-            grid-template-columns: 1fr 1fr !important;
-            gap: 8px !important;
+            grid-template-columns: 1fr !important;
+            gap: 10px !important;
+          }
+          .huddle-location-card {
+            break-inside: avoid;
+            page-break-inside: avoid;
+            margin-bottom: 6px !important;
+          }
+          .huddle-screen-only {
+            display: none !important;
+          }
+          .huddle-print-only {
+            display: block !important;
+            break-before: page;
+            page-break-before: always;
           }
           .huddle-prep-grid {
             display: grid !important;
