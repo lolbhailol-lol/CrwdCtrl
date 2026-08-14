@@ -12,6 +12,7 @@ import { getRunClubOrganizerSession, setRunClubOrganizerSession } from '../../ut
 import { sportRunPath } from '../../utils/slugRoutes';
 import TrekDetailBoxesEditor from '../../components/admin/TrekDetailBoxesEditor';
 import MultiContactListField from '../../components/admin/MultiContactListField';
+import SelectFieldOptionsEditor from '../../components/admin/SelectFieldOptionsEditor';
 import {
     normalizeRunDetailBoxes,
     sanitizeDetailBoxesPayload,
@@ -531,7 +532,9 @@ export default function RunClubOrganizerEventEditorPage() {
                 <div className="flex items-center justify-between gap-3">
                     <div>
                         <h2 className="font-semibold">Registration form</h2>
-                        <p className="text-xs text-gray-500 mt-0.5">Extra questions beyond name / phone defaults</p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                            Extra questions beyond name / phone defaults. For a dropdown, add a coupon next to an option to show it on booking page 1 and auto-apply if coupon rules pass.
+                        </p>
                     </div>
                     <button
                         type="button"
@@ -608,15 +611,12 @@ export default function RunClubOrganizerEventEditorPage() {
                                 </label>
                             </div>
                             {field.type === 'select' ? (
-                                <input
-                                    value={(field.options || []).join(', ')}
-                                    onChange={(e) =>
-                                        updateSchemaField(idx, {
-                                            options: e.target.value.split(',').map((s) => s.trim()).filter(Boolean),
-                                        })
-                                    }
-                                    className="w-full rounded-lg bg-[#161718] border border-gray-700 px-3 py-2 text-sm"
-                                    placeholder="Options, comma separated"
+                                <SelectFieldOptionsEditor
+                                    key={field.id || idx}
+                                    options={field.options || []}
+                                    optionCoupons={field.optionCoupons || {}}
+                                    onChange={(patch) => updateSchemaField(idx, patch)}
+                                    inputClass="w-full rounded-lg bg-[#161718] border border-gray-700 px-3 py-2 text-sm"
                                 />
                             ) : null}
                         </div>

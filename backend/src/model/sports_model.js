@@ -173,6 +173,8 @@ const sportsEventSchema = new mongoose.Schema(
                 type:        { type: String, enum: ['text','email','tel','number','textarea','select','file','date'], default: 'text' },
                 required:    { type: Boolean, default: false },
                 options:     [String],
+                /** option label → coupon code; booking page 1 auto-applies if coupon rules pass */
+                optionCoupons: { type: mongoose.Schema.Types.Mixed, default: {} },
                 placeholder: String,
             }],
         },

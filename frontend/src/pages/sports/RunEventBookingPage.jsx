@@ -48,6 +48,12 @@ import {
     resolveOptionalAddOn,
     formatInr,
 } from '../../utils/sportsTiers';
+import {
+    firstPageCouponFields,
+    hasAutoCouponOptions,
+    resolveFormAutoCouponCode,
+    selectOptionLabels,
+} from '../../utils/formOptionCoupons';
 
 const runDetailCache = createDetailCache('crwdctrl_run_detail_v1_');
 
@@ -167,6 +173,10 @@ export default function RunEventBookingPage() {
     const [showCouponField, setShowCouponField] = useState(false);
     const [showTierIncludes, setShowTierIncludes] = useState(false);
     const retryCheckoutRef = useRef(null);
+    const couponSourceRef = useRef(null);
+    const couponCodeRef = useRef('');
+    const couponReqIdRef = useRef(0);
+    const applyCouponRef = useRef(async () => {});
 
     const requireLogin = event?.registration?.requireLogin !== false;
     const loggedIn = isAuthed();
@@ -247,6 +257,15 @@ export default function RunEventBookingPage() {
     const maxSelectablePeople = onePersonFreeLimit ? 1 : maxPeople;
 
     const regSchema = useMemo(() => mergeRunFormFields(reg.formSchema || []), [reg.formSchema]);
+    const page1CouponFields = useMemo(() => firstPageCouponFields(reg.formSchema || []), [reg.formSchema]);
+    const step2Fields = useMemo(
+        () => regSchema.filter((field) => !hasAutoCouponOptions(field)),
+        [regSchema],
+    );
+    const autoCouponCode = useMemo(
+        () => resolveFormAutoCouponCode(reg.formSchema || [], extraFields),
+        [reg.formSchema, extraFields],
+    );
 
     const formInstructions = reg.formInstructions || '';
 
@@ -374,12 +393,7 @@ export default function RunEventBookingPage() {
         if (people !== 1) setPeople(1);
     }, [onePersonFreeLimit, people]);
 
-    // Re-price coupon when tier or Ice Bath add-on changes
-    useEffect(() => {
-        setCouponInfo(null);
-        setCouponError('');
-        setCouponJustApplied(false);
-    }, [selectedTierId, addOnSelected, people]);
+    couponCodeRef.current = couponCode;
 
     useEffect(() => {
         const evId = id || event?._id || event?.id;
@@ -421,9 +435,24 @@ export default function RunEventBookingPage() {
 
     const inp = `w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-600 hover:border-gray-500 text-white placeholder-gray-400' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900 placeholder-gray-500'}`;
 
-    const renderField = (field) => {
+    const setExtraFieldValue = (fieldName, v, { couponSelect } = {}) => {
+        if (couponSelect && couponSourceRef.current === 'cleared') {
+            couponSourceRef.current = null;
+        }
+        setExtraFields((f) => ({ ...f, [fieldName]: v }));
+    };
+
+    const clearAppliedCoupon = () => {
+        couponSourceRef.current = 'cleared';
+        setCouponInfo(null);
+        setCouponCode('');
+        setCouponJustApplied(false);
+        setCouponError('');
+    };
+
+    const renderField = (field, { couponSelect } = {}) => {
         const val = extraFields[field.fieldName] || '';
-        const onChange = (v) => setExtraFields((f) => ({ ...f, [field.fieldName]: v }));
+        const onChange = (v) => setExtraFieldValue(field.fieldName, v, { couponSelect });
 
         if (field.type === 'textarea') {
             return (
@@ -433,10 +462,36 @@ export default function RunEventBookingPage() {
             );
         }
         if (field.type === 'select') {
+            const labels = selectOptionLabels(field);
+            if (couponSelect) {
+                return (
+                    <div className="flex flex-wrap gap-2">
+                        {labels.map((o) => {
+                            const selected = val === o;
+                            return (
+                                <button
+                                    key={o}
+                                    type="button"
+                                    onClick={() => onChange(selected ? '' : o)}
+                                    className={`px-3 py-2 rounded-xl border text-sm font-medium transition-colors ${
+                                        selected
+                                            ? 'border-[#0ECCEE] bg-[#0ECCEE]/15 text-[#0ECCEE]'
+                                            : isDark
+                                                ? 'border-gray-700 bg-[#0E0F10] text-gray-200 hover:border-gray-500'
+                                                : 'border-gray-200 bg-gray-50 text-gray-800 hover:border-gray-300'
+                                    }`}
+                                >
+                                    {o}
+                                </button>
+                            );
+                        })}
+                    </div>
+                );
+            }
             return (
                 <select value={val} onChange={(e) => onChange(e.target.value)} onFocus={scrollFieldIntoView} className={inp}>
                     <option value="">Select...</option>
-                    {(field.options || []).map((o) => <option key={o} value={o}>{o}</option>)}
+                    {labels.map((o) => <option key={o} value={o}>{o}</option>)}
                 </select>
             );
         }
@@ -525,21 +580,22 @@ export default function RunEventBookingPage() {
         return regData;
     };
 
-    const applyCoupon = async () => {
+    const applyCoupon = useCallback(async (opts = {}) => {
+        const silent = Boolean(opts.silent);
+        const source = opts.source || 'manual';
+        const code = String(opts.code ?? couponCodeRef.current).trim();
         setCouponError('');
         setCouponJustApplied(false);
         setError((prev) => (prev && /failed to fetch|network error/i.test(prev) ? '' : prev));
-        const code = couponCode.trim();
         if (!code) {
             setCouponInfo(null);
             return;
         }
         const eventId = event?._id || event?.id || id;
         if (!eventId) {
-            setCouponError('Event not loaded yet — wait a moment and try again.');
+            if (!silent) setCouponError('Event not loaded yet — wait a moment and try again.');
             return;
         }
-        // Tiered FitRanger-style events 400 without tierId — never omit it.
         const urlTier = (() => {
             try {
                 return new URLSearchParams(window.location.search).get('tier') || '';
@@ -560,6 +616,7 @@ export default function RunEventBookingPage() {
             : fee;
         const effectiveAddOnFee = optionalAddOn && addOnSelected ? optionalAddOn.fee : 0;
         const ticketTotal = (effectiveFee + effectiveAddOnFee) * Math.max(1, Number(people) || 1);
+        const reqId = ++couponReqIdRef.current;
         setCouponLoading(true);
         try {
             const { data } = await publicFetchJSONRetry('/payment/coupon-validate', {
@@ -572,29 +629,61 @@ export default function RunEventBookingPage() {
                     addOnSelected: Boolean(addOnSelected && optionalAddOn),
                     expectedTicketTotal: ticketTotal,
                 },
-                retries: 3,
-                timeout: 20000,
+                retries: silent ? 1 : 3,
+                timeout: silent ? 12000 : 20000,
             });
-            setCouponInfo(data);
+            if (reqId !== couponReqIdRef.current) return;
             if (data.couponApplied) {
+                couponSourceRef.current = source;
+                setCouponCode(String(data.couponCode || code).toUpperCase());
+                setCouponInfo(data);
                 setCouponJustApplied(true);
                 window.setTimeout(() => setCouponJustApplied(false), 1600);
+            } else {
+                setCouponInfo(null);
+                if (source === 'form') setCouponError('');
             }
         } catch (e) {
+            if (reqId !== couponReqIdRef.current) return;
             setCouponInfo(null);
             const msg = e?.message || 'Invalid coupon';
             const network = e?.isNetworkError || e?.code === 'ERR_NETWORK' || /failed to fetch|network error|timeout/i.test(msg);
             setCouponError(
                 network
-                    ? (isInAppBrowser()
-                        ? 'Instagram browser blocked the request. Tap Apply again, or open this page in Chrome/Safari.'
-                        : 'Could not reach the server. Check your connection and tap Apply again.')
+                    ? (silent
+                        ? ''
+                        : (isInAppBrowser()
+                            ? 'Instagram browser blocked the request. Tap Apply again, or open this page in Chrome/Safari.'
+                            : 'Could not reach the server. Check your connection and tap Apply again.'))
                     : msg,
             );
         } finally {
-            setCouponLoading(false);
+            if (reqId === couponReqIdRef.current) setCouponLoading(false);
         }
-    };
+    }, [event, id, selectedTierId, location.state?.tierId, addOnSelected, optionalAddOn, people, fee]);
+
+    applyCouponRef.current = applyCoupon;
+
+    useEffect(() => {
+        if (!event || loadingEvent || chargePerPerson <= 0) return;
+        if (couponSourceRef.current === 'cleared') return;
+        const manual = couponSourceRef.current === 'manual';
+        const code = (manual ? couponCodeRef.current : autoCouponCode).trim();
+        if (!code) {
+            if (couponSourceRef.current === 'form') {
+                setCouponInfo(null);
+                setCouponCode('');
+                setCouponError('');
+                couponSourceRef.current = null;
+            }
+            return;
+        }
+        applyCouponRef.current({
+            code,
+            source: manual ? 'manual' : 'form',
+            silent: true,
+        });
+    }, [autoCouponCode, people, selectedTierId, addOnSelected, event, loadingEvent, chargePerPerson]);
 
     useEffect(() => {
         const evId = id || event?._id || event?.id;
@@ -693,6 +782,14 @@ export default function RunEventBookingPage() {
         const isFreeRun = isFreeFlow;
         // Free run: only 2 steps — party size → confirm (skip details form)
         if (step === 1 && isFreeRun) {
+            const missingPage1 = page1CouponFields.filter((f) => {
+                if (!f.required) return false;
+                return !String(extraFields[f.fieldName] || '').trim();
+            });
+            if (missingPage1.length > 0) {
+                setError(`Please select: ${missingPage1.map((f) => f.label).join(', ')}`);
+                return;
+            }
             const formData = {
                 ...profileToRunFormData(user),
                 ...extraFields,
@@ -730,7 +827,18 @@ export default function RunEventBookingPage() {
             return;
         }
 
-        if (step === 1) { setStep(2); return; }
+        if (step === 1) {
+            const missingPage1 = page1CouponFields.filter((f) => {
+                if (!f.required) return false;
+                return !String(extraFields[f.fieldName] || '').trim();
+            });
+            if (missingPage1.length > 0) {
+                setError(`Please select: ${missingPage1.map((f) => f.label).join(', ')}`);
+                return;
+            }
+            setStep(2);
+            return;
+        }
 
         if (step === 2) {
             const mergedFields = {
@@ -1280,7 +1388,6 @@ export default function RunEventBookingPage() {
                                     <button
                                         type="button"
                                         onClick={() => {
-                                            setCouponInfo(null);
                                             setAddOnSelected((v) => !v);
                                         }}
                                         className={`w-full text-left rounded-2xl border px-3.5 py-3.5 transition-all active:scale-[0.99] ${
@@ -1338,44 +1445,80 @@ export default function RunEventBookingPage() {
                                     </button>
                                 ) : null}
 
-                                <div className={`flex items-center justify-between gap-3 pt-1 ${(selectedTier || optionalAddOn) ? `border-t ${isDark ? 'border-gray-800' : 'border-gray-100'} pt-3` : ''}`}>
-                                    <div>
-                                        <p className={`text-[11px] mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>People</p>
-                                        <div className="flex items-center">
-                                            <button
-                                                type="button"
-                                                onClick={() => { setCouponInfo(null); setPeople((p) => Math.max(1, p - 1)); }}
-                                                disabled={onePersonFreeLimit || people <= 1}
-                                                className={`w-8 h-8 rounded-l-lg flex items-center justify-center border transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-700 hover:border-[#0ECCEE]' : 'bg-white border-gray-300 hover:border-[#0ECCEE]'}`}
-                                            >
-                                                <ChevronLeft size={14} className={isDark ? 'text-gray-300' : 'text-gray-700'} />
-                                            </button>
-                                            <div className={`w-10 h-8 flex items-center justify-center border-y ${isDark ? 'bg-[#1D1E20] border-gray-700' : 'bg-white border-gray-300'}`}>
-                                                <span className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{people}</span>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => { setCouponInfo(null); setPeople((p) => Math.min(maxSelectablePeople, p + 1)); }}
-                                                disabled={onePersonFreeLimit || people >= maxSelectablePeople}
-                                                className={`w-8 h-8 rounded-r-lg flex items-center justify-center border transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-700 hover:border-[#0ECCEE]' : 'bg-white border-gray-300 hover:border-[#0ECCEE]'}`}
-                                            >
-                                                <ChevronRight size={14} className={isDark ? 'text-gray-300' : 'text-gray-700'} />
-                                            </button>
+                                <div className={`pt-1 ${(selectedTier || optionalAddOn) ? `border-t ${isDark ? 'border-gray-800' : 'border-gray-100'} pt-3` : ''}`}>
+                                    <p className={`text-[11px] mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>People</p>
+                                    <div className="flex items-center">
+                                        <button
+                                            type="button"
+                                            onClick={() => { setPeople((p) => Math.max(1, p - 1)); }}
+                                            disabled={onePersonFreeLimit || people <= 1}
+                                            className={`w-8 h-8 rounded-l-lg flex items-center justify-center border transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-700 hover:border-[#0ECCEE]' : 'bg-white border-gray-300 hover:border-[#0ECCEE]'}`}
+                                        >
+                                            <ChevronLeft size={14} className={isDark ? 'text-gray-300' : 'text-gray-700'} />
+                                        </button>
+                                        <div className={`w-10 h-8 flex items-center justify-center border-y ${isDark ? 'bg-[#1D1E20] border-gray-700' : 'bg-white border-gray-300'}`}>
+                                            <span className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{people}</span>
                                         </div>
-                                        {onePersonFreeLimit ? (
-                                            <p className={`text-[10px] mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                                Free run: 1 person per login.
+                                        <button
+                                            type="button"
+                                            onClick={() => { setPeople((p) => Math.min(maxSelectablePeople, p + 1)); }}
+                                            disabled={onePersonFreeLimit || people >= maxSelectablePeople}
+                                            className={`w-8 h-8 rounded-r-lg flex items-center justify-center border transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-700 hover:border-[#0ECCEE]' : 'bg-white border-gray-300 hover:border-[#0ECCEE]'}`}
+                                        >
+                                            <ChevronRight size={14} className={isDark ? 'text-gray-300' : 'text-gray-700'} />
+                                        </button>
+                                    </div>
+                                    {onePersonFreeLimit ? (
+                                        <p className={`text-[10px] mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                            Free run: 1 person per login.
+                                        </p>
+                                    ) : null}
+                                </div>
+
+                                {page1CouponFields.length > 0 ? (
+                                    <div className={`space-y-3 pt-1 border-t ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
+                                        {page1CouponFields.map((field) => (
+                                            <div key={field.id || field.fieldName}>
+                                                <p className={`text-[11px] mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                                    {field.label}
+                                                    {field.required ? <span className="text-red-400 ml-0.5">*</span> : null}
+                                                </p>
+                                                {renderField(field, { couponSelect: true })}
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : null}
+
+                                <div className={`flex items-start justify-between gap-3 pt-1 ${(page1CouponFields.length || selectedTier || optionalAddOn) ? `border-t ${isDark ? 'border-gray-800' : 'border-gray-100'} pt-3` : ''}`}>
+                                    <div className="min-w-0">
+                                        <p className={`text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Total</p>
+                                        {couponInfo?.couponApplied ? (
+                                            <p className={`text-[10px] mt-0.5 ${isDark ? 'text-emerald-400/80' : 'text-emerald-700'}`}>
+                                                Coupon {couponInfo.couponCode} · save {formatInr(couponInfo.discountAmount || 0)}
+                                            </p>
+                                        ) : couponError && autoCouponCode ? (
+                                            <p className={`text-[10px] mt-0.5 ${isDark ? 'text-amber-400/80' : 'text-amber-700'}`}>
+                                                {couponError}
+                                            </p>
+                                        ) : couponLoading && autoCouponCode ? (
+                                            <p className={`text-[10px] mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                                Checking coupon…
                                             </p>
                                         ) : null}
                                     </div>
                                     <div className="text-right">
-                                        <p className={`text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Total</p>
                                         {chargePerPerson > 0 ? (
                                             <>
                                                 <p className={`text-xl font-bold tabular-nums leading-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                    {formatInr(baseFee)}
+                                                    {formatInr(couponInfo?.couponApplied
+                                                        ? Number(couponInfo.amountAfterDiscount ?? baseFee)
+                                                        : baseFee)}
                                                 </p>
-                                                {people > 1 || addOnFeePerPerson > 0 ? (
+                                                {couponInfo?.couponApplied ? (
+                                                    <p className={`text-[10px] line-through ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                                        {formatInr(couponInfo.amountBeforeDiscount ?? baseFee)}
+                                                    </p>
+                                                ) : (people > 1 || addOnFeePerPerson > 0) ? (
                                                     <p className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                                                         {formatInr(chargePerPerson)} × {people}
                                                     </p>
@@ -1403,7 +1546,7 @@ export default function RunEventBookingPage() {
                             )}
 
                             <div className="space-y-4">
-                                {regSchema.map((field) => (
+                                {step2Fields.map((field) => (
                                     <div key={field.id || field.fieldName}>
                                         <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                                             {field.label}
@@ -1468,12 +1611,7 @@ export default function RunEventBookingPage() {
                                                 </div>
                                                 <button
                                                     type="button"
-                                                    onClick={() => {
-                                                        setCouponInfo(null);
-                                                        setCouponCode('');
-                                                        setCouponJustApplied(false);
-                                                        setCouponError('');
-                                                    }}
+                                                    onClick={clearAppliedCoupon}
                                                     className={`text-[11px] font-semibold shrink-0 ${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-800'}`}
                                                 >
                                                     Change
@@ -1486,6 +1624,7 @@ export default function RunEventBookingPage() {
                                                 <input
                                                     value={couponCode}
                                                     onChange={(e) => {
+                                                        couponSourceRef.current = 'cleared';
                                                         setCouponCode(e.target.value.toUpperCase());
                                                         setCouponInfo(null);
                                                         setCouponError('');
@@ -1499,7 +1638,7 @@ export default function RunEventBookingPage() {
                                                 />
                                                 <button
                                                     type="button"
-                                                    onClick={applyCoupon}
+                                                    onClick={() => applyCoupon({ source: 'manual' })}
                                                     disabled={couponLoading || !couponCode.trim()}
                                                     className="h-10 px-3.5 rounded-lg bg-[#0ECCEE] text-black text-sm font-bold disabled:opacity-50"
                                                 >
@@ -1675,7 +1814,7 @@ export default function RunEventBookingPage() {
                                             </div>
                                             <button
                                                 type="button"
-                                                onClick={() => { setCouponInfo(null); setCouponCode(''); setCouponJustApplied(false); setCouponError(''); }}
+                                                onClick={clearAppliedCoupon}
                                                 className={`text-[11px] font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
                                             >
                                                 Change
@@ -1684,8 +1823,8 @@ export default function RunEventBookingPage() {
                                     </div>
                                 ) : (
                                     <div className="flex gap-2">
-                                        <input value={couponCode} onChange={(e) => { setCouponCode(e.target.value.toUpperCase()); setCouponError(''); }} placeholder="Enter coupon" className={`flex-1 px-3 py-2 rounded-lg border ${isDark ? 'bg-[#1D1E20] border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'}`} />
-                                        <button type="button" onClick={applyCoupon} disabled={couponLoading} className="px-3 py-2 rounded-lg bg-[#0ECCEE] text-black font-semibold text-sm">
+                                        <input value={couponCode} onChange={(e) => { couponSourceRef.current = 'cleared'; setCouponCode(e.target.value.toUpperCase()); setCouponError(''); }} placeholder="Enter coupon" className={`flex-1 px-3 py-2 rounded-lg border ${isDark ? 'bg-[#1D1E20] border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'}`} />
+                                        <button type="button" onClick={() => applyCoupon({ source: 'manual' })} disabled={couponLoading} className="px-3 py-2 rounded-lg bg-[#0ECCEE] text-black font-semibold text-sm">
                                             {couponLoading ? 'Applying...' : 'Apply'}
                                         </button>
                                     </div>

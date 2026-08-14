@@ -36,10 +36,10 @@ const {
     searchTokensForQuery,
 } = require('../utils/runClubPiiCrypto');
 const RunClubManagerProfileInvite = require('../model/run_club_manager_profile_invite_model');
+const { sanitizeFormSchema } = require('../utils/formSchemaSanitize');
 
 const TOKEN_TTL = process.env.RUN_CLUB_ORGANIZER_JWT_TTL || '30d';
 const STATUSES = new Set(['draft', 'published', 'completed', 'cancelled']);
-const FIELD_TYPES = new Set(['text', 'email', 'tel', 'number', 'textarea', 'select', 'file', 'date']);
 
 function startOfToday() {
     const d = new Date();
@@ -57,28 +57,6 @@ function normalizeImageUrl(value) {
     if (typeof value === 'object' && value.url) return String(value.url).trim();
     if (typeof value === 'object' && value.secure_url) return String(value.secure_url).trim();
     return '';
-}
-
-function sanitizeFormSchema(formSchema) {
-    if (!Array.isArray(formSchema)) return [];
-    return formSchema
-        .filter((f) => f && (f.label || f.fieldName))
-        .map((f) => ({
-            id: String(f.id || `f_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`),
-            label: String(f.label || '').trim(),
-            fieldName: String(f.fieldName || f.label || '')
-                .toLowerCase()
-                .trim()
-                .replace(/[^a-z0-9]+/g, '_')
-                .replace(/^_+|_+$/g, ''),
-            type: FIELD_TYPES.has(f.type) ? f.type : 'text',
-            required: Boolean(f.required),
-            options: Array.isArray(f.options)
-                ? f.options.map((o) => String(o || '').trim()).filter(Boolean)
-                : [],
-            placeholder: String(f.placeholder || '').trim(),
-        }))
-        .filter((f) => f.label && f.fieldName);
 }
 
 function sanitizeOrganizerEventBody(body = {}, { partial = false, existing = null } = {}) {

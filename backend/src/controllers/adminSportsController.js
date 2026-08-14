@@ -9,6 +9,7 @@ const {
 } = require('../utils/sportsPricing');
 const { ensureUniqueSlug, toSlug, mergePreviousSlugs } = require('../utils/slug');
 const { contactsFromBody } = require('../utils/runContacts');
+const { sanitizeFormSchema } = require('../utils/formSchemaSanitize');
 
 const SPORT_TYPES = new Set(['run_club', 'football', 'cricket', 'badminton', 'marathon', 'gymkhana', 'other']);
 const STATUSES = new Set(['draft', 'published', 'completed', 'cancelled']);
@@ -202,17 +203,7 @@ function sanitizeSportsPayload(body = {}) {
             qrAutoConfirm: Boolean(r.qrAutoConfirm),
             requireLogin: r.requireLogin !== false,
             formSchema: Array.isArray(r.formSchema)
-                ? r.formSchema
-                    .filter((f) => f && (f.label || f.fieldName))
-                    .map((f) => ({
-                        id: String(f.id || `f_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`),
-                        label: String(f.label || '').trim(),
-                        fieldName: String(f.fieldName || f.label || '').toLowerCase().replace(/\s+/g, '_'),
-                        type: ['text', 'email', 'tel', 'number', 'textarea', 'select', 'file', 'date'].includes(f.type) ? f.type : 'text',
-                        required: Boolean(f.required),
-                        options: Array.isArray(f.options) ? f.options.map((o) => String(o || '').trim()).filter(Boolean) : [],
-                        placeholder: String(f.placeholder || '').trim(),
-                    }))
+                ? sanitizeFormSchema(r.formSchema)
                 : [],
         };
     }

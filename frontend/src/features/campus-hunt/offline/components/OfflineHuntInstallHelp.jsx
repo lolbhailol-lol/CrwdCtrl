@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { isInAppBrowser } from '../../../config/apiBase';
+import { isInAppBrowser } from '../../../../config/apiBase';
 import { applyOfflineHuntManifest } from '../offlineHuntManifest';
 
 function openInChrome() {

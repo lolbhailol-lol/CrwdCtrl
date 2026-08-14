@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { ArrowLeft, Share2, X, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import CardFavoriteButton from '../../components/CardFavoriteButton';
@@ -869,11 +870,12 @@ export default function RunClubDetailPage() {
             </div>
             </div>
 
+            {typeof document !== 'undefined' && createPortal(
             <div
-                className="fixed bottom-0 left-0 right-0 z-50 px-2"
+                className="fixed inset-x-0 bottom-0 z-100040 px-2 pointer-events-none"
                 style={{ paddingBottom: 'max(var(--safe-bottom), 6px)' }}
             >
-                <div className={`mx-auto w-full max-w-md md:max-w-2xl rounded-[30px] px-3 py-3 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'}`}>
+                <div className={`pointer-events-auto mx-auto w-full max-w-md md:max-w-2xl rounded-[30px] px-3 py-3 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'}`}>
                     {(() => {
                         const closed = club?.registration?.status === 'closed';
                         const extLink = club?.registration?.mode === 'external_link'
@@ -909,7 +911,9 @@ export default function RunClubDetailPage() {
                         );
                     })()}
                 </div>
-            </div>
+            </div>,
+            document.body,
+            )}
 
             {galleryOpen && galleryImages.length > 0 && (
                 <GalleryLightbox

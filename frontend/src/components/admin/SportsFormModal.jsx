@@ -11,6 +11,7 @@ import { adminFetch, adminFetchJSON } from '../../services/api/admin.api.js';
 import { normalizeRunDetailBoxes, sanitizeDetailBoxesPayload, RUN_DETAIL_BOX_PRESETS } from '../../utils/trekDetailBoxes';
 import { createEmptyTier, sanitizeSportsTiers, sanitizeOptionalAddOn } from '../../utils/sportsTiers';
 import { contactsFromEvent, contactsToPayload } from '../../utils/runContacts';
+import SelectFieldOptionsEditor from './SelectFieldOptionsEditor';
 
 const EMPTY = {
     title: '',
@@ -766,7 +767,7 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
 
                                 <div>
                                     <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Extra Form Fields</p>
-                                    <p className="text-[10px] text-gray-600 mb-2">Default fields: Full Name · Contact No. · E-mail. Add extra below.</p>
+                                    <p className="text-[10px] text-gray-600 mb-2">Default fields: Full Name · Contact No. · E-mail. Dropdown options can auto-apply a coupon on booking page 1 if that coupon’s rules pass.</p>
                                     <div className="space-y-2">
                                         {(form.registration?.formSchema || []).map((field, idx) => (
                                             <div key={field.id || idx} className="bg-[#1D1E20] rounded-lg p-3 space-y-2">
@@ -800,9 +801,17 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                                                     </label>
                                                 </div>
                                                 {field.type === 'select' && (
-                                                    <input type="text" value={(field.options || []).join(', ')} placeholder="Options: A, B, C"
-                                                        onChange={(e) => { const u = [...(form.registration?.formSchema || [])]; u[idx] = { ...field, options: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) }; set('registration', { ...form.registration, formSchema: u }); }}
-                                                        className="w-full bg-[#111213] border border-gray-600 rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-[#0ECCEE]" />
+                                                    <SelectFieldOptionsEditor
+                                                        key={field.id || idx}
+                                                        options={field.options || []}
+                                                        optionCoupons={field.optionCoupons || {}}
+                                                        onChange={(patch) => {
+                                                            const u = [...(form.registration?.formSchema || [])];
+                                                            u[idx] = { ...field, ...patch };
+                                                            set('registration', { ...form.registration, formSchema: u });
+                                                        }}
+                                                        inputClass="w-full bg-[#111213] border border-gray-600 rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-[#0ECCEE]"
+                                                    />
                                                 )}
                                             </div>
                                         ))}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { ArrowLeft, Share2, Heart, ChevronRight, ChevronDown, Check } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
@@ -382,11 +383,12 @@ export default function RunEventDetailPage() {
                 )}
             </div>
 
+            {typeof document !== 'undefined' && createPortal(
             <div
-                className="fixed bottom-0 left-0 right-0 z-50 px-2"
+                className="fixed inset-x-0 bottom-0 z-100040 px-2 pointer-events-none"
                 style={{ paddingBottom: 'max(var(--safe-bottom), 6px)' }}
             >
-                <div className={`mx-auto w-full max-w-md md:max-w-2xl flex items-center justify-between gap-4 rounded-[30px] px-5 py-3.5 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'}`}>
+                <div className={`pointer-events-auto mx-auto w-full max-w-md md:max-w-2xl flex items-center justify-between gap-4 rounded-[30px] px-5 py-3.5 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'}`}>
                     <div className="min-w-0 shrink-0">
                         <p className={`text-xs font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                             {isTiersPricing(event) ? 'From' : 'Registration Fee'}
@@ -478,9 +480,12 @@ export default function RunEventDetailPage() {
                         );
                     })()}
                 </div>
+            </div>,
+            document.body,
+            )}
 
                 {tierSheetOpen && (
-                    <div className="fixed inset-0 z-60 flex items-end justify-center">
+                    <div className="fixed inset-0 z-100050 flex items-end justify-center">
                         <button
                             type="button"
                             aria-label="Close"
@@ -640,9 +645,8 @@ export default function RunEventDetailPage() {
                         </div>
                     </div>
                 )}
-            </div>
 
-            <div className={`relative -mt-10 flex-1 rounded-t-3xl z-10 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
+            <div className={`relative -mt-10 flex-1 rounded-t-3xl z-10 pb-28 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
                 <div className="px-4 pt-5 pb-3">
                     <h1 className={`text-[26px] font-bold leading-8 wrap-break-word ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         {event.title || 'Run Name'}
