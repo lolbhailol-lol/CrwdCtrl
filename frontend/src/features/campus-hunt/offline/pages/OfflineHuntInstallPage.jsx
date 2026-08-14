@@ -4,6 +4,7 @@ import { fetchOfflineInstallPack } from '../../services/campusHunt.api';
 import { loadOfflineBundle, saveOfflineBundle } from '../offlineDb';
 import { CAMPUS_HUNT_PATHS } from '../../config';
 import { OfflineStorageBadge } from '../components/OfflineScoreBoard';
+import OfflineHuntInstallHelp from '../components/OfflineHuntInstallHelp';
 
 export default function OfflineHuntInstallPage() {
   const { token } = useParams();
@@ -45,7 +46,7 @@ export default function OfflineHuntInstallPage() {
         setStatus('error');
         setError(
           err.message
-          || 'Need Wi‑Fi once to install this team pack. Open this same link at home, then use airplane mode at the fest.',
+          || 'Need Wi‑Fi once to install this team pack. Open this same link in Chrome at home, then use airplane mode at the fest.',
         );
       }
     })();
@@ -58,10 +59,10 @@ export default function OfflineHuntInstallPage() {
         <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#0ECCEE]">
           Offline Event Mode
         </p>
-        <h1 className="mt-2 text-2xl font-bold">Install on this phone</h1>
+        <h1 className="mt-2 text-2xl font-bold">Install Hunt on this phone</h1>
         <p className="mt-2 text-sm text-white/60">
-          One link per team. Do this on Wi‑Fi today. The hunt does not start from this link.
-          At the fest: airplane mode → home-screen icon → password → name → wait at start until the leader starts Round 1.
+          This link only installs your team pack. It is not the main CrwdCtrl website.
+          Do this on Wi‑Fi in Chrome. At the fest, tap the Hunt icon — not CrwdCtrl.
         </p>
         <OfflineStorageBadge />
 
@@ -80,23 +81,20 @@ export default function OfflineHuntInstallPage() {
               <p className="text-sm text-white/70">{team.teamName}</p>
               <p className="mt-2 text-xs text-emerald-100/80">Pack saved on this phone.</p>
             </div>
-            <ol className="list-decimal space-y-2 pl-5 text-sm text-white/70">
-              <li>
-                Chrome: menu → <strong className="text-white">Add to Home screen</strong>
-                {' '}(iPhone: Share → Add to Home Screen).
-              </li>
-              <li>All 4 teammates must open this same link on their own phones.</li>
-              <li>At the venue: airplane mode → tap the home-screen icon → team password → your name. Wait on the hub. Leader starts Round 1 at the start desk.</li>
-            </ol>
+            <OfflineHuntInstallHelp packReady teamCode={team.teamCode} />
             <button
               type="button"
               onClick={() => navigate(CAMPUS_HUNT_PATHS.offlineLogin)}
-              className="w-full rounded-xl bg-[#0ECCEE] py-3 text-sm font-bold text-black"
+              className="w-full rounded-xl bg-white/10 py-3 text-sm font-semibold text-white"
             >
               Continue to team login
             </button>
           </div>
-        ) : null}
+        ) : (
+          <div className="mt-8">
+            <OfflineHuntInstallHelp packReady={false} />
+          </div>
+        )}
       </div>
     </div>
   );

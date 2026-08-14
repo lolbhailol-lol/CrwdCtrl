@@ -27,6 +27,22 @@
         var p = location.pathname || '';
         var ua = navigator.userAgent || '';
         var hunt = /^\/campus-hunt(\/|$)/.test(p) || /^\/campus-hunt-volunteer(\/|$)/.test(p);
+        var offlineHunt = /^\/campus-hunt\/offline(\/|$)/.test(p);
+        if (offlineHunt) {
+          function swapHuntManifest() {
+            var links = document.querySelectorAll('link[rel="manifest"]');
+            for (var i = 0; i < links.length; i++) {
+              links[i].setAttribute('href', '/offline-hunt.webmanifest');
+            }
+            return links.length > 0;
+          }
+          if (!swapHuntManifest()) {
+            var obs = new MutationObserver(function () {
+              if (swapHuntManifest()) obs.disconnect();
+            });
+            obs.observe(document.documentElement, { childList: true, subtree: true });
+          }
+        }
         var deep = /^\/trek(\/|$)/.test(p)
           || /^\/treks\/community(\/|$)/.test(p)
           || /^\/view-details(\/|$)/.test(p)

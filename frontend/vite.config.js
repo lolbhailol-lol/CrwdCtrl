@@ -64,6 +64,7 @@ export default defineConfig(({ mode }) => ({
         name: 'CrwdCtrl — Discover College Fests',
         short_name: 'CrwdCtrl',
         description: 'Discover and register for college fests, competitions, and events near you.',
+        id: '/',
         theme_color: '#0E0E0F',
         background_color: '#ffffff',
         display: 'standalone',
@@ -96,7 +97,7 @@ export default defineConfig(({ mode }) => ({
       },
       workbox: {
         // Bump when changing runtime cache strategy so installed devices drop old SW caches
-        cacheId: 'crwdctrl-v3',
+        cacheId: 'crwdctrl-v4',
         // Ensure new builds activate quickly and old caches are removed.
         cleanupOutdatedCaches: true,
         clientsClaim: true,
@@ -108,6 +109,19 @@ export default defineConfig(({ mode }) => ({
           /^\/api\//,
         ],
         runtimeCaching: [
+          {
+            // Keep Hunt shell for airplane-mode play (days after install)
+            urlPattern: ({ url, request }) => (
+              request.mode === 'navigate'
+              && String(url.pathname || '').startsWith('/campus-hunt/offline')
+            ),
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'offline-hunt-pages',
+              networkTimeoutSeconds: 3,
+              expiration: { maxEntries: 30, maxAgeSeconds: 30 * 24 * 60 * 60 },
+            },
+          },
           {
             // Always prefer network for HTML navigations after deploy
             urlPattern: ({ request }) => request.mode === 'navigate',

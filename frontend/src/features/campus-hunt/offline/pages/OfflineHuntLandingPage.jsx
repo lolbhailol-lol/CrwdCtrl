@@ -5,6 +5,7 @@ import { loadOfflineBundle } from '../offlineDb';
 import { CAMPUS_HUNT_PATHS } from '../../config';
 import { OfflineStorageBadge } from '../components/OfflineScoreBoard';
 import { armOfflineNetworkGuard } from '../offlineNetworkGuard';
+import OfflineHuntInstallHelp from '../components/OfflineHuntInstallHelp';
 
 export default function OfflineHuntLandingPage() {
   const navigate = useNavigate();
@@ -40,6 +41,10 @@ export default function OfflineHuntLandingPage() {
           then turn on airplane mode. Clues, timers, QR scans, and scoring run locally.
         </p>
         <OfflineStorageBadge />
+
+        <div className="mt-6">
+          <OfflineHuntInstallHelp packReady={Boolean(existing?.team?.teamCode)} teamCode={existing?.team?.teamCode} />
+        </div>
 
         {existing?.team?.teamCode ? (
           <div className="mt-4 rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm">

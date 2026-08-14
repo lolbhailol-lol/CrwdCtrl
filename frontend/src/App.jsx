@@ -22,6 +22,7 @@ import PWAInstallPrompt from './components/PWAInstallPrompt'
 import RouteTracker from './components/RouteTracker'
 import GoogleOneTap from './components/GoogleOneTap'
 import CapacitorInit from './components/CapacitorInit'
+import OfflineHuntBootGate from './features/campus-hunt/offline/OfflineHuntBootGate'
 import PageTransitionProvider, { PageTransitionContent, usePageTransition } from './components/layout/PageTransition'
 import { useGlobalSmoothScroll } from './hooks/useGlobalSmoothScroll'
 import { prepareLogin, resolvePostLoginRedirect, currentAppPath } from './utils/loginFlow'
@@ -429,6 +430,7 @@ function App() {
                 <MobileSearchProvider>
                 <PageTransitionProvider>
                   <CapacitorInit />
+                  <OfflineHuntBootGate />
                   <RouteTracker />
                   <GoogleOneTap />
                   <AdSenseLoader />
