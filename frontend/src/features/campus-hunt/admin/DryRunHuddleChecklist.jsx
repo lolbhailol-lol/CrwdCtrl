@@ -81,6 +81,10 @@ export default function DryRunHuddleChecklist({
     () => resolveStations(campusStations, stationCount),
     [campusStations, stationCount],
   );
+  const activeStationCodes = useMemo(
+    () => new Set(stations.map((s) => String(s.code || '').toUpperCase())),
+    [stations],
+  );
   const starts = useMemo(() => resolveStarts(campusStarts), [campusStarts]);
   const people = Math.max(2, Math.min(8, Number(teamSize) || 3));
 
@@ -124,12 +128,15 @@ export default function DryRunHuddleChecklist({
 
         setPropRows(source.map((t) => {
           const prop = clueById.get(String(t.clue4ChallengeId || ''));
+          const purple = placeLabel(cpById.get(String(t.fourthCheckpointId || '')));
+          const purpleCode = placeKey(purple);
           return {
             teamCode: t.teamCode,
             orange: placeLabel(cpById.get(String(t.firstCheckpointId || ''))),
             green: placeLabel(cpById.get(String(t.secondCheckpointId || ''))),
             blue: placeLabel(cpById.get(String(t.thirdCheckpointId || ''))),
-            purple: placeLabel(cpById.get(String(t.fourthCheckpointId || ''))),
+            purple,
+            purpleOutOfLayout: Boolean(purpleCode && !activeStationCodes.has(purpleCode)),
             propCode: String(prop?.answer || '').toUpperCase() || '—',
             variant: prop?.variantKey || '',
           };
@@ -189,6 +196,7 @@ export default function DryRunHuddleChecklist({
     (sum, row) => sum + [row.orange, row.green, row.blue, row.purple].filter(Boolean).length,
     0,
   );
+  const stalePurpleCount = propRows.filter((row) => row.purpleOutOfLayout).length;
 
   return (
     <section className="dry-run-huddle rounded-2xl border border-white/12 bg-[#0f1114] p-4 text-white print:rounded-none print:border-0 print:bg-white print:p-0 print:text-black">
@@ -215,6 +223,13 @@ export default function DryRunHuddleChecklist({
       </div>
 
       {error ? <p className="mt-2 text-sm text-red-300 print:text-red-700">{error}</p> : null}
+      {stalePurpleCount > 0 ? (
+        <p className="mt-2 rounded-lg border border-amber-400/35 bg-amber-500/10 px-3 py-2 text-xs text-amber-100 print:border-amber-700 print:bg-amber-50 print:text-amber-950">
+          {stalePurpleCount} team{stalePurpleCount === 1 ? '' : 's'} still point at places outside your
+          {' '}{stations.length}-place layout (e.g. S05/S06). Open <strong>Clues</strong> →
+          {' '}<strong>Save setup</strong> again, or tap <strong>Update Clue 4 for this setup</strong>.
+        </p>
+      ) : null}
       {loading ? <p className="mt-2 text-xs text-white/45 print:hidden">Loading live bindings…</p> : null}
 
       {/* SETUP EXPLAINED */}
@@ -547,7 +562,17 @@ export default function DryRunHuddleChecklist({
                   >
                     {r.propCode}
                   </td>
-                  <td className="huddle-td" style={{ background: `${T.clue4.hex}18` }}>{r.purple}</td>
+                  <td
+                    className={`huddle-td ${r.purpleOutOfLayout ? 'text-amber-200 ring-1 ring-inset ring-amber-400/40' : ''}`}
+                    style={{ background: `${T.clue4.hex}18` }}
+                  >
+                    {r.purple}
+                    {r.purpleOutOfLayout ? (
+                      <span className="mt-0.5 block text-[9px] font-semibold text-amber-200/90 print:text-amber-800">
+                        not in layout
+                      </span>
+                    ) : null}
+                  </td>
                 </tr>
               ))}
             </tbody>

@@ -1047,6 +1047,27 @@ async function bootstrapRound1Defaults({
     challengeNumbers,
   );
 
+  const layoutOnly = Array.isArray(challengeNumbers) && challengeNumbers.length === 0;
+  let clue4Reconciled = { updated: 0, skipped: 0 };
+  let teamBindingsResynced = null;
+  if (layoutOnly) {
+    clue4Reconciled = await reconcileClue4ToActiveLayout(
+      event,
+      round,
+      routes,
+      startingPoints,
+      huntStations,
+      teamGroups,
+    );
+    const { resyncClue1TeamBindings } = require('./startScheduleService');
+    teamBindingsResynced = await resyncClue1TeamBindings({
+      eventId: event._id,
+      roundId: round._id,
+      actor,
+      reason: 'layout_save_clue4_reconcile',
+    });
+  }
+
   const updatingAllClues = challengeNumbers == null;
   const updatingClue1 = updatingAllClues
     || (Array.isArray(challengeNumbers) && challengeNumbers.map(Number).includes(1));
@@ -1099,6 +1120,10 @@ async function bootstrapRound1Defaults({
       checkpoints: content.checkpointCount,
       clues: content.clueCount,
       challengeNumbers: challengeNumbers == null ? 'all' : challengeNumbers,
+      clue4Reconciled,
+      teamBindingsResynced: teamBindingsResynced
+        ? { updated: teamBindingsResynced.updated, incomplete: teamBindingsResynced.incomplete }
+        : null,
       teamsCreated: teams.created,
       publicLeaderboardLive: event.publicLeaderboardLive,
       releaseIntervalMinutes: 5,
@@ -1121,6 +1146,8 @@ async function bootstrapRound1Defaults({
     })),
     checkpointsCreated: content.checkpointCount,
     cluesCreated: content.clueCount,
+    clue4Reconciled,
+    teamBindingsResynced,
     teams,
     scheduleHint: {
       releaseIntervalMinutes: 5,
@@ -1132,6 +1159,93 @@ async function bootstrapRound1Defaults({
         + 'Team 1 @ first release, Team 2 +5 min, …',
     },
   };
+}
+
+async function reconcileClue4ToActiveLayout(
+  event,
+  round,
+  routes,
+  startingPoints,
+  huntStations,
+  teamGroups,
+) {
+  if (!routes?.length || !huntStations?.length || !teamGroups?.length) {
+    return { updated: 0, skipped: 0 };
+  }
+
+  const capacity = Number(event.teamCapacity) || 40;
+  const perStation = teamsPerStationFor(capacity, huntStations.length);
+  const shared = await ensureSharedStationCheckpoints(
+    event,
+    round,
+    routes[0],
+    huntStations,
+    perStation,
+  );
+
+  const pointsByCode = new Map(
+    startingPoints.map((point) => [String(point.code || '').toUpperCase(), point]),
+  );
+  const activeCodes = new Set(huntStations.map((s) => String(s.code).toUpperCase()));
+  const starts = resolveCampusStarts(event);
+
+  let updated = 0;
+  let skipped = 0;
+
+  for (let routeIndex = 0; routeIndex < routes.length; routeIndex += 1) {
+    const route = routes[routeIndex];
+    const key = route.routeKey;
+    const startIndex = ROUTE_KEYS.indexOf(key);
+    const stationIndex = startIndex >= 0 ? startIndex : routeIndex;
+    const startStation = starts[stationIndex] || WAIT_POINTS[stationIndex] || WAIT_POINTS[0];
+    const startingPoint = pointsByCode.get(startStation.code) || startingPoints[stationIndex];
+    if (!startingPoint) {
+      skipped += teamGroups.length;
+      // eslint-disable-next-line no-continue
+      continue;
+    }
+
+    const fourthStops = rotatingFourthStops(stationIndex, huntStations, teamGroups);
+
+    for (const group of teamGroups) {
+      const fourthStation = fourthStops[group.slot];
+      if (!fourthStation || !activeCodes.has(String(fourthStation.code).toUpperCase())) {
+        skipped += 1;
+        // eslint-disable-next-line no-continue
+        continue;
+      }
+      const fourthCheckpoint = shared.map.get(`4:${fourthStation.code}`);
+      if (!fourthCheckpoint) {
+        skipped += 1;
+        // eslint-disable-next-line no-continue
+        continue;
+      }
+
+      const variantKey = `${startStation.code}-${group.wave}`;
+      const propAnswer = propCodeForTeam(stationIndex, group.localTeamNumber);
+
+      // eslint-disable-next-line no-await-in-loop
+      const result = await CampusHuntChallenge.updateOne(
+        {
+          eventId: event._id,
+          routeId: route._id,
+          challengeNumber: 4,
+          variantKey,
+          active: { $ne: false },
+        },
+        {
+          $set: {
+            fourthCheckpointId: fourthCheckpoint._id,
+            answer: propAnswer,
+            acceptedAnswers: [propAnswer, propAnswer.toLowerCase()],
+          },
+        },
+      );
+      if (result.matchedCount) updated += 1;
+    }
+  }
+
+  return { updated, skipped };
 }
 
 async function syncSharedStationQrs(event, round, routes) {
@@ -1148,6 +1262,7 @@ async function syncSharedStationQrs(event, round, routes) {
 module.exports = {
   bootstrapRound1Defaults,
   syncSharedStationQrs,
+  reconcileClue4ToActiveLayout,
   DEFAULT_LOCATIONS,
   CAMPUS_STATIONS,
   WAIT_POINTS,

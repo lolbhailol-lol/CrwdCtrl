@@ -130,7 +130,7 @@ export default function CampusStationNamesEditor({
         `Setup saved · ${format.teamCapacity} teams × ${format.teamSize}/team · `
         + `${result.data.startCount} start(s) · ${result.data.stationCount} place(s)`
         + (renamed ? ` · ${renamed} rename(s)` : '')
-        + ' · open each clue and tap Update',
+        + ' · purple stops rebinding to active places · open each clue and tap Update',
       );
       onChanged?.({
         ...result.data,

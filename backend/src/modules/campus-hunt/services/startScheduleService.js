@@ -8,7 +8,7 @@ const CampusHuntCheckpoint = require('../models/CampusHuntCheckpoint');
 const CampusHuntTeamProgress = require('../models/CampusHuntTeamProgress');
 const CampusHuntCheckpointVerification = require('../models/CampusHuntCheckpointVerification');
 const { writeAudit } = require('./auditService');
-const { normalizeWaitCode } = require('./stationCatalogService');
+const { normalizeWaitCode, resolveCampusStations } = require('./stationCatalogService');
 
 function scheduleError(message, code = 'INVALID_START_SCHEDULE', status = 409) {
   const error = new Error(message);
@@ -268,7 +268,7 @@ async function previewSchedule({
   const CampusHuntEvent = require('../models/CampusHuntEvent');
   const [round, event, teams, startingPointsRaw, routes, variants, clue2Variants, clue3Variants, clue4Variants] = await Promise.all([
     CampusHuntRound.findOne({ _id: roundId, eventId }),
-    CampusHuntEvent.findById(eventId).select('startCount teamCapacity').lean(),
+    CampusHuntEvent.findById(eventId).select('startCount teamCapacity stationCount campusStations').lean(),
     CampusHuntTeam.find({ eventId }).select('_id teamCode teamName routeId'),
     // Do NOT require roundId match — Locations may have been created under an older Round 1 id.
     CampusHuntStartingPoint.find({ eventId, active: { $ne: false } }),
@@ -323,6 +323,23 @@ async function previewSchedule({
     return forRound.length ? forRound : rows;
   };
 
+  const activeStationCodes = new Set(
+    resolveCampusStations(event).map((s) => String(s.code).toUpperCase()),
+  );
+  const pickedClue4 = pickChallenges(clue4Variants);
+  const fourthIds = pickedClue4.map((row) => row.fourthCheckpointId).filter(Boolean);
+  const fourthCheckpoints = fourthIds.length
+    ? await CampusHuntCheckpoint.find({ _id: { $in: fourthIds } })
+      .select('stationCode active')
+      .lean()
+    : [];
+  const fourthCpById = new Map(fourthCheckpoints.map((cp) => [String(cp._id), cp]));
+  const clue4InLayout = pickedClue4.filter((row) => {
+    const cp = fourthCpById.get(String(row.fourthCheckpointId || ''));
+    if (!cp || cp.active === false) return false;
+    return activeStationCodes.has(String(cp.stationCode || '').toUpperCase());
+  });
+
   const assignments = buildDeterministicSchedule({
     teams: teamsToAssign,
     startingPoints: canonicalStarts,
@@ -330,7 +347,7 @@ async function previewSchedule({
     variants: pickChallenges(variants),
     clue2Variants: pickChallenges(clue2Variants),
     clue3Variants: pickChallenges(clue3Variants),
-    clue4Variants: pickChallenges(clue4Variants),
+    clue4Variants: clue4InLayout.length ? clue4InLayout : pickedClue4,
     startsAt: startsAt || round.startsAt,
     releaseIntervalMinutes: interval,
     assignmentStrategy: strategy,
