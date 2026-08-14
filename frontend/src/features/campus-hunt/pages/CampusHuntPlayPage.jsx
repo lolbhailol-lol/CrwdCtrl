@@ -138,8 +138,17 @@ export default function CampusHuntPlayPage() {
 
   if (loading || !eventId) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0b0c0d] text-white">
-        Loading your team…
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-[#0b0c0d] px-4 text-center text-white">
+        <p>Loading your team…</p>
+        {eventId ? (
+          <button
+            type="button"
+            onClick={() => hunt.refresh?.({ force: true })}
+            className="text-sm text-[#0ECCEE] underline"
+          >
+            Taking too long? Retry
+          </button>
+        ) : null}
       </div>
     );
   }
@@ -164,8 +173,15 @@ export default function CampusHuntPlayPage() {
 
   if (activeRound && !roundsReady && !error) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0b0c0d] text-white">
-        Loading rounds…
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-[#0b0c0d] px-4 text-center text-white">
+        <p>Loading rounds…</p>
+        <button
+          type="button"
+          onClick={() => hunt.refresh?.({ force: true })}
+          className="rounded-xl bg-[#0ECCEE] px-5 py-2.5 text-sm font-semibold text-black"
+        >
+          Retry
+        </button>
       </div>
     );
   }
@@ -239,6 +255,7 @@ export default function CampusHuntPlayPage() {
         <FinalePlayScreen
           data={finale.data}
           teamMeta={finale.teamMeta || hunt.data?.team}
+          eventMeta={hunt.data?.event}
           teamId={finale.teamId || hunt.data?.team?.id}
           onRefresh={finale.refresh}
           onActionResult={finale.applyActionData}

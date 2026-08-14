@@ -114,17 +114,28 @@ export function useHuntTeam(eventId, { enabled = true } = {}) {
   const [pollError, setPollError] = useState(null);
   const [burstUntil, setBurstUntil] = useState(0);
   const teamIdRef = useRef(null);
-  const fetchGenRef = useRef(0);
+  /** Full /me/team loads — soft progress must not invalidate these. */
+  const hardGenRef = useRef(0);
+  /** Lightweight /progress polls only. */
+  const softGenRef = useRef(0);
   const pausePollUntilRef = useRef(0);
   const dataRef = useRef(null);
   const fingerprintRef = useRef('');
+  const bootstrappedRef = useRef(false);
 
   useEffect(() => {
     dataRef.current = data;
     fingerprintRef.current = progressFingerprint(data);
+    if (data?.team?.id && Array.isArray(data?.rounds)) {
+      bootstrappedRef.current = true;
+    }
   }, [data]);
 
   const applyMerged = useCallback((incoming, { soft = false } = {}) => {
+    // Never let a progress poll become the first board — it has no rounds/event.
+    if (soft && !bootstrappedRef.current && !dataRef.current?.rounds) {
+      return;
+    }
     const merged = soft
       ? mergeProgress(dataRef.current, incoming)
       : {
@@ -139,18 +150,22 @@ export function useHuntTeam(eventId, { enabled = true } = {}) {
   }, []);
 
   const refresh = useCallback(async ({ soft = false } = {}) => {
-    if (!eventId || !enabled) return;
-    const gen = ++fetchGenRef.current;
+    if (!eventId || !enabled) {
+      setLoading(false);
+      return;
+    }
+    const gen = ++hardGenRef.current;
     if (!soft) setError(null);
     try {
       const res = await fetchMyTeam(eventId);
-      if (gen !== fetchGenRef.current) return;
-      applyMerged(res.data, { soft });
+      if (gen !== hardGenRef.current) return;
+      applyMerged(res.data, { soft: false });
       teamIdRef.current = res.data?.team?.id || null;
+      bootstrappedRef.current = Boolean(res.data?.team?.id && Array.isArray(res.data?.rounds));
       setError(null);
       setPollError(null);
     } catch (err) {
-      if (gen !== fetchGenRef.current) return;
+      if (gen !== hardGenRef.current) return;
       if (err?.code === 'AUTH_401' || err?.status === 401) {
         // Soft mid-play: keep board; hard first-load can clear
         if (soft && dataRef.current) {
@@ -160,6 +175,7 @@ export function useHuntTeam(eventId, { enabled = true } = {}) {
           setData(null);
           teamIdRef.current = null;
           fingerprintRef.current = '';
+          bootstrappedRef.current = false;
         }
       } else if (soft) {
         setPollError(err.message || 'Failed to refresh');
@@ -167,30 +183,39 @@ export function useHuntTeam(eventId, { enabled = true } = {}) {
         setError(err.message || 'Failed to load team');
       }
     } finally {
-      if (gen === fetchGenRef.current) setLoading(false);
+      // Always clear the enter/load spinner for this hard request (or a newer one).
+      if (gen === hardGenRef.current || bootstrappedRef.current) {
+        setLoading(false);
+      }
     }
   }, [eventId, enabled, applyMerged]);
 
   /**
    * Soft progress poll. Interval calls skip during pausePollUntil;
    * manual Refresh passes `{ force: true }` and always runs.
+   * Uses softGenRef so it never cancels the initial /me/team bootstrap.
    */
   const refreshProgress = useCallback(async ({ force = false } = {}) => {
     if (!enabled) return;
     if (!force && Date.now() < pausePollUntilRef.current) return;
     if (force) pausePollUntilRef.current = 0;
     const teamId = teamIdRef.current;
+    // Don't race another /me/team while the enter bootstrap is still loading.
+    if (!bootstrappedRef.current) {
+      if (force) return refresh({ soft: false });
+      return undefined;
+    }
     if (!teamId) return refresh({ soft: true });
-    const gen = ++fetchGenRef.current;
+    const gen = ++softGenRef.current;
     try {
       const res = await fetchTeamProgress(teamId);
-      if (gen !== fetchGenRef.current) return;
+      if (gen !== softGenRef.current) return;
       applyMerged(res.data, { soft: !force });
       teamIdRef.current = res.data?.team?.id || teamId;
       setError(null);
       setPollError(null);
     } catch (err) {
-      if (gen !== fetchGenRef.current) return;
+      if (gen !== softGenRef.current) return;
       if (err?.code === 'AUTH_401' || err?.status === 401) {
         if (dataRef.current) {
           setPollError('Session issue — tap Refresh if the board looks stuck');
@@ -207,7 +232,7 @@ export function useHuntTeam(eventId, { enabled = true } = {}) {
   const applyActionData = useCallback((payload) => {
     const next = progressFromActionData(payload);
     if (!next) return false;
-    fetchGenRef.current += 1;
+    softGenRef.current += 1;
     const cp = next.checkpointStatus;
     const pendingScan = Boolean(
       cp?.checkpointId
@@ -228,11 +253,14 @@ export function useHuntTeam(eventId, { enabled = true } = {}) {
 
   useEffect(() => {
     if (!eventId || !enabled) {
-      if (!enabled) setLoading(false);
+      setLoading(false);
       return undefined;
     }
     // Silent revalidate when board already exists — no full-page loading flash
-    if (!dataRef.current) setLoading(true);
+    if (!dataRef.current) {
+      bootstrappedRef.current = false;
+      setLoading(true);
+    }
     refresh();
     return undefined;
   }, [refresh, eventId, enabled]);
@@ -327,7 +355,10 @@ export function useHuntTeam(eventId, { enabled = true } = {}) {
     loading,
     error,
     pollError,
-    refresh: () => refresh({ soft: true }),
+    refresh: (opts) => {
+      const hard = Boolean(opts && typeof opts === 'object' && (opts.force || opts.soft === false));
+      return refresh({ soft: !hard });
+    },
     refreshProgress,
     applyActionData,
     setData,

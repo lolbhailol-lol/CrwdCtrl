@@ -102,6 +102,7 @@ function MissionCard({ mission, disabled, busy, starting, onStart, isLeader }) {
 export default function FinalePlayScreen({
   data,
   teamMeta,
+  eventMeta,
   teamId,
   onRefresh,
   onActionResult,
@@ -122,6 +123,11 @@ export default function FinalePlayScreen({
   const isLeader = Boolean(data?.isLeader ?? teamMeta?.isLeader);
   const roundClosed = Boolean(round?.closed || round?.status === 'locked' || round?.status === 'finalized');
   const waitingForRelease = Boolean(data?.waitingForRelease);
+  const finaleCapacity = Math.max(
+    1,
+    Number(eventMeta?.finaleCapacity || data?.event?.finaleCapacity || round?.qualification?.finaleTeams) || 0,
+  );
+  const finaleLabel = finaleCapacity ? `Finals · ${finaleCapacity} teams` : 'Finals';
 
   const completedCount = useMemo(() => {
     const fromMissions = missions.filter((m) => m.status === 'completed').length;
@@ -256,7 +262,7 @@ export default function FinalePlayScreen({
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#0ECCEE]">
-                Finals · 12 teams
+                {finaleLabel}
               </p>
               <h1 className="mt-1 truncate text-[1.35rem] font-semibold tracking-tight text-white">
                 {teamLabel}

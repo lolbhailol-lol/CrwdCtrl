@@ -218,7 +218,7 @@ async function getMyTeam(req, res, next) {
     const progress = await buildPlayerProgress(team, userId, isLeader);
 
     const event = await CampusHuntEvent.findById(eventId)
-      .select('slug name college playerRoundAccess teamSize')
+      .select('slug name college playerRoundAccess teamSize teamCapacity finaleCapacity')
       .lean();
     const rounds = await CampusHuntRound.find({ eventId })
       .select('name roundNumber status')
@@ -255,6 +255,8 @@ async function getMyTeam(req, res, next) {
           name: event.name,
           college: event.college,
           teamSize: Math.max(2, Math.min(8, Number(event.teamSize) || 4)),
+          teamCapacity: Math.max(2, Math.min(200, Number(event.teamCapacity) || 40)),
+          finaleCapacity: Math.max(1, Math.min(200, Number(event.finaleCapacity) || 12)),
           playerRoundAccess: roundsHub.access,
         } : null,
         rounds: roundsHub.cards,

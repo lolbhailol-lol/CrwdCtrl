@@ -63,6 +63,14 @@ export default function PlayerPlayScreen({
   const serverTime = data?.serverTime || team?.serverTime;
   const checkpointStatus = data?.checkpointStatus;
   const isLeader = Boolean(team?.isLeader);
+  const teamCapacity = Math.max(2, Number(data?.event?.teamCapacity) || 0);
+  const finaleCapacity = Math.max(1, Number(data?.event?.finaleCapacity) || 0);
+  const round1Label = teamCapacity
+    ? `Round 1 · ${teamCapacity} teams`
+    : 'Round 1';
+  const finalsHint = finaleCapacity
+    ? `Top finishers move toward Finals (${finaleCapacity} teams). Organizers handle Survival picks — stay tuned on the leaderboard.`
+    : 'Top finishers move toward Finals. Organizers handle Survival picks — stay tuned on the leaderboard.';
   const activeNum = activeChallengeNumber(team?.currentStage);
   const hasStartGate = Boolean(team?.startStatus || team?.scheduledStartAt);
   const released = Boolean(
@@ -423,7 +431,7 @@ export default function PlayerPlayScreen({
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#0ECCEE]">
-                Round 1 · 40 teams
+                {round1Label}
               </p>
               <h1 className="mt-1 truncate text-[1.35rem] font-semibold tracking-tight text-white">
                 {teamPrimaryLabel(team)}
@@ -492,7 +500,7 @@ export default function PlayerPlayScreen({
                 Score locked · {team.finalScore ?? team.currentScore ?? 0} pts
               </p>
               <p className="mt-2 text-sm text-white/60">
-                Top finishers move toward Finals (12 teams). Organizers handle Survival picks — stay tuned on the leaderboard.
+                {finalsHint}
               </p>
             </section>
           )}

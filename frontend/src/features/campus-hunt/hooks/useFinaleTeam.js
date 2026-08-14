@@ -50,14 +50,17 @@ export function useFinaleTeam(eventId) {
   const [burstUntil, setBurstUntil] = useState(0);
   const teamIdRef = useRef(null);
   const teamMetaLoadedRef = useRef(false);
-  const fetchGenRef = useRef(0);
+  const hardGenRef = useRef(0);
+  const softGenRef = useRef(0);
   const pausePollUntilRef = useRef(0);
   const dataRef = useRef(null);
   const fingerprintRef = useRef('');
+  const bootstrappedRef = useRef(false);
 
   useEffect(() => {
     dataRef.current = data;
     fingerprintRef.current = finaleFingerprint(data);
+    if (data?.entry) bootstrappedRef.current = true;
   }, [data]);
 
   const applyMerged = useCallback((next) => {
@@ -72,10 +75,17 @@ export function useFinaleTeam(eventId) {
     soft = false,
     force = false,
   } = {}) => {
-    if (!eventId) return;
+    if (!eventId) {
+      setLoading(false);
+      return;
+    }
+    // Soft polls must not race the first board load.
+    if (soft && !force && !bootstrappedRef.current) return;
     if (!force && soft && Date.now() < pausePollUntilRef.current) return;
     if (force) pausePollUntilRef.current = 0;
-    const gen = ++fetchGenRef.current;
+
+    const isHard = !soft || includeTeam;
+    const gen = isHard ? ++hardGenRef.current : ++softGenRef.current;
     if (!soft) setError(null);
     try {
       const needTeam = includeTeam || !teamMetaLoadedRef.current;
@@ -85,21 +95,22 @@ export function useFinaleTeam(eventId) {
           fetchMyTeam(eventId),
           fetchFinaleMe(eventId),
         ]);
-        if (gen !== fetchGenRef.current) return;
+        if (isHard ? gen !== hardGenRef.current : gen !== softGenRef.current) return;
         setTeamMeta(teamRes.data?.team || null);
         nextData = finaleRes.data;
         teamIdRef.current = teamRes.data?.team?.id || null;
         teamMetaLoadedRef.current = true;
       } else {
         const finaleRes = await fetchFinaleMe(eventId);
-        if (gen !== fetchGenRef.current) return;
+        if (isHard ? gen !== hardGenRef.current : gen !== softGenRef.current) return;
         nextData = finaleRes.data;
       }
       applyMerged(nextData);
+      bootstrappedRef.current = Boolean(nextData?.entry);
       setError(null);
       setPollError(null);
     } catch (err) {
-      if (gen !== fetchGenRef.current) return;
+      if (isHard ? gen !== hardGenRef.current : gen !== softGenRef.current) return;
       if (err?.code === 'AUTH_401' || err?.status === 401) {
         if (soft && dataRef.current) {
           setPollError('Session issue — tap Refresh if the board looks stuck');
@@ -109,6 +120,7 @@ export function useFinaleTeam(eventId) {
           teamIdRef.current = null;
           teamMetaLoadedRef.current = false;
           fingerprintRef.current = '';
+          bootstrappedRef.current = false;
         }
       } else if (soft) {
         setPollError(finalePlayerMessage(err) || 'Failed to refresh');
@@ -116,14 +128,16 @@ export function useFinaleTeam(eventId) {
         setError(finalePlayerMessage(err) || 'Failed to load finale');
       }
     } finally {
-      if (gen === fetchGenRef.current) setLoading(false);
+      if (isHard && (gen === hardGenRef.current || bootstrappedRef.current)) {
+        setLoading(false);
+      }
     }
   }, [eventId, applyMerged]);
 
   const applyActionData = useCallback((payload) => {
     const next = finaleFromActionData(payload);
     if (!next) return false;
-    fetchGenRef.current += 1;
+    softGenRef.current += 1;
     pausePollUntilRef.current = Date.now() + 800;
     applyMerged(next);
     setBurstUntil(Date.now() + 5000);
@@ -141,10 +155,14 @@ export function useFinaleTeam(eventId) {
       setPollError(null);
       teamMetaLoadedRef.current = false;
       fingerprintRef.current = '';
+      bootstrappedRef.current = false;
       return undefined;
     }
     // Silent revalidate when board already exists
-    if (!dataRef.current) setLoading(true);
+    if (!dataRef.current) {
+      bootstrappedRef.current = false;
+      setLoading(true);
+    }
     teamMetaLoadedRef.current = false;
     refresh({ includeTeam: true });
     return undefined;
