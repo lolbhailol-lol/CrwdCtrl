@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   adminListChallenges,
+  adminListCheckpoints,
   adminListRoutes,
+  adminListStartingPoints,
   adminUpsertChallenge,
 } from '../services/campusHunt.api';
+import { syncAfterClueSave } from './clueSaveSync';
 import {
   CAMPUS_STARTS,
   buildTeamSlots,
@@ -13,6 +16,7 @@ import {
   fourthStopArrivalPlan,
   fourthStopForLocalTeam,
   globalTeamNumber,
+  propCodeForTeam,
   resolveStations,
   resolveStarts,
   routeClueDefaults,
@@ -36,6 +40,35 @@ function id(value) {
 
 function routeKey(route) {
   return String(route?.routeKey || '').toUpperCase().trim();
+}
+
+function variantKeyFor(code, waveId) {
+  return `${code}-${waveId}`.toUpperCase();
+}
+
+function resolveFourthCheckpoint(checkpoints, { placeName, stationCode }) {
+  const code = String(stationCode || '').toUpperCase().trim();
+  if (code) {
+    const sharedCode = `ST-${code}-4`;
+    const byCode = checkpoints.find((cp) => (
+      String(cp.code || '').toUpperCase() === sharedCode
+      && cp.active !== false
+    ));
+    if (byCode) return byCode;
+  }
+  if (placeName) {
+    const byPlace = checkpoints.find((cp) => (
+      String(cp.progressionKey || '') === '4'
+      && String(cp.locationName || '').toLowerCase() === String(placeName).toLowerCase()
+      && cp.active !== false
+    ));
+    if (byPlace) return byPlace;
+  }
+  return checkpoints.find((cp) => (
+    String(cp.progressionKey || '') === '4'
+    && cp.active !== false
+    && String(cp.stationCode || '').toUpperCase() === code
+  )) || null;
 }
 
 function pathLabel(route, starts = CAMPUS_STARTS) {
@@ -117,6 +150,9 @@ export default function RouteClueEditor({
   );
   const [routes, setRoutes] = useState([]);
   const [challenges, setChallenges] = useState([]);
+  const [checkpoints, setCheckpoints] = useState([]);
+  const [startingPoints, setStartingPoints] = useState([]);
+  const [propCodes, setPropCodes] = useState({});
   const [selectedRouteId, setSelectedRouteId] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -184,12 +220,16 @@ export default function RouteClueEditor({
   }, [number, selectedRoute, selectedWait, stations, teamSlots, perWait]);
 
   const refresh = useCallback(async () => {
-    const [routeResult, challengeResult] = await Promise.all([
+    const [routeResult, challengeResult, checkpointResult, pointResult] = await Promise.all([
       adminListRoutes(eventId),
       adminListChallenges(eventId),
+      adminListCheckpoints(eventId),
+      adminListStartingPoints(eventId),
     ]);
     const routeList = routeResult.data?.routes || [];
     setRoutes(routeList);
+    setCheckpoints(checkpointResult.data?.checkpoints || []);
+    setStartingPoints(pointResult.data?.startingPoints || pointResult.data?.points || []);
     const list = (challengeResult.data?.challenges || []).filter(
       (challenge) => Number(challenge.challengeNumber) === number,
     );
@@ -211,8 +251,30 @@ export default function RouteClueEditor({
   }, [refresh]);
 
   useEffect(() => {
+    if (!selectedRouteId || number !== 4 || !selectedRoute) return;
+    const code = routeKey(selectedRoute);
+    const next = {};
+    teamSlots.forEach((slot) => {
+      const key = `${code}-${slot.id}`;
+      const vk = variantKeyFor(code, slot.id);
+      const existing = challenges.find((row) => (
+        id(row.routeId) === selectedRouteId
+        && String(row.variantKey || '').toUpperCase() === vk
+      ));
+      const place = fourthStopForLocalTeam(slot.localTeamNumber, selectedWait, stations);
+      const stationIndex = stations.findIndex((s) => s.name === place);
+      next[key] = existing?.answer || propCodeForTeam(stationIndex, slot.localTeamNumber);
+    });
+    setPropCodes(next);
+  }, [selectedRouteId, selectedRoute, challenges, number, teamSlots, selectedWait, stations]);
+
+  useEffect(() => {
     if (!selectedRouteId) return;
-    const existing = challenges.find(
+    const routeVariants = challenges.filter((row) => (
+      id(row.routeId) === selectedRouteId
+      && String(row.variantKey || '').toUpperCase() !== 'DEFAULT'
+    ));
+    const existing = routeVariants[0] || challenges.find(
       (challenge) => id(challenge.routeId) === selectedRouteId,
     );
     const place = editorDestination;
@@ -279,14 +341,86 @@ export default function RouteClueEditor({
     setBusy(true);
     setMessage('');
     try {
-      const answer = (form.answer || (number === 2 || number === 4 ? '' : editorDestination)).trim();
+      const routeCode = routeKey(selectedRoute);
+      const startingPoint = startingPoints.find(
+        (point) => String(point.code || '').toUpperCase() === routeCode,
+      );
+
+      if (number === 4) {
+        const prompt = form.prompt.trim();
+        if (!prompt) {
+          setMessage('Enter clue text for the prop hunt');
+          setBusy(false);
+          return;
+        }
+        let saved = 0;
+        const failures = [];
+        for (const slot of teamSlots) {
+          const vk = variantKeyFor(routeCode, slot.id);
+          const codeKey = `${routeCode}-${slot.id}`;
+          const place = fourthStopForLocalTeam(slot.localTeamNumber, selectedWait, stations);
+          const station = stations.find((s) => s.name === place);
+          const answer = String(propCodes[codeKey] || form.answer || '').trim().toUpperCase();
+          if (!answer) {
+            failures.push(`Team ${globalTeamNumber(selectedWait, slot.localTeamNumber, perWait)}: prop code required`);
+            continue;
+          }
+          const fourthCp = resolveFourthCheckpoint(checkpoints, {
+            placeName: place,
+            stationCode: station?.code,
+          });
+          if (!fourthCp) {
+            failures.push(`${place}: no purple FOURTH SCAN QR — Update Clue 4 for this setup first`);
+            continue;
+          }
+          await adminUpsertChallenge(eventId, {
+            roundId,
+            routeId: selectedRouteId,
+            challengeNumber: 4,
+            type: 'timed_search',
+            variantKey: vk,
+            startingPointId: id(startingPoint),
+            fourthCheckpointId: id(fourthCp),
+            prompt,
+            answer,
+            acceptedAnswers: [answer, answer.toLowerCase()],
+            hintText: form.hintText.trim(),
+            destinationInstruction: (
+              form.destinationInstruction
+              || `Prop found — stay at ${place}. Find the shared purple FOURTH SCAN QR. `
+                + `All ${people} members scan, then enter your team code to unlock Final.`
+            ).trim(),
+            basePoints: Number(form.basePoints) || 0,
+            maxAttempts: Number(form.maxAttempts) || 3,
+            timerSeconds: Number(form.timerSeconds) || 180,
+            hintCost: Number(form.hintCost) || 15,
+            active: form.active,
+          });
+          saved += 1;
+        }
+        if (!saved) {
+          setMessage(failures[0] || 'Could not save Clue 4');
+          setBusy(false);
+          return;
+        }
+        const sync = await syncAfterClueSave(eventId, { roundId });
+        const bound = sync?.data?.updated ?? sync?.data?.teamsUpdated ?? 0;
+        setMessage(
+          `Saved ${saved} prop codes · ${pathLabel(selectedRoute, starts)} · bound ${bound} teams`
+          + (failures.length ? ` (${failures.length} skipped)` : ''),
+        );
+        await refresh();
+        onChanged?.();
+        setBusy(false);
+        return;
+      }
+
+      const answer = (form.answer || editorDestination).trim();
       if (!answer) {
         setMessage(
-          number === 2
-            ? 'Enter the 3-digit code answer'
-            : number === 4
-              ? 'Enter the prop code answer'
-              : 'Enter the answer',
+          number === 5
+            ? `Enter the Final word (usually ${clue5Word})`
+            : 'Enter the answer',
         );
         setBusy(false);
         return;
@@ -303,11 +437,9 @@ export default function RouteClueEditor({
         hintText: form.hintText.trim(),
         destinationInstruction: (
           form.destinationInstruction
-          || (number === 2
-            ? `Go to your next assigned campus place. All ${people} members scan there.`
-            : number === 5
-              ? `Report to your start — ${takesTo}. Ask the organizer to mark your team reached.`
-              : `Go to ${takesTo}. All ${people} members scan there.`)
+          || (number === 5
+            ? `Report to your start — ${takesTo}. Ask the organizer to mark your team reached.`
+            : `Go to ${takesTo}. All ${people} members scan there.`)
         ).trim(),
         basePoints: Number(form.basePoints) || 0,
         maxAttempts: Number(form.maxAttempts) || 3,
@@ -322,16 +454,13 @@ export default function RouteClueEditor({
         while (body.memberPrompts.length < people) body.memberPrompts.push('');
         body.prompt = body.prompt
           || `Combine all ${people} pieces to form the answer.`;
+        body.startingPointId = id(startingPoint);
       }
       await adminUpsertChallenge(eventId, body);
       setMessage(
-        number === 2
-          ? `Saved · ${pathLabel(selectedRoute, starts)} timed clue (${stations.length} second stops fan out by team)`
-          : number === 4
-            ? `Saved · ${pathLabel(selectedRoute, starts)} prop hunt → ${takesTo}`
-          : number === 5
-            ? `Saved · ${pathLabel(selectedRoute, starts)} word ${clue5Word} → return ${takesTo}`
-            : `Saved · ${pathLabel(selectedRoute, starts)} → ${takesTo}`,
+        number === 5
+          ? `Saved · ${pathLabel(selectedRoute, starts)} word ${clue5Word} → return ${takesTo}`
+          : `Saved · ${pathLabel(selectedRoute, starts)} → ${takesTo}`,
       );
       await refresh();
       onChanged?.();
@@ -470,7 +599,13 @@ export default function RouteClueEditor({
 
       <div className="flex flex-wrap gap-2">
         {orderedRoutes.map((route) => {
-          const configured = challenges.some((challenge) => id(challenge.routeId) === id(route));
+          const routeVariants = challenges.filter((challenge) => (
+            id(challenge.routeId) === id(route)
+            && String(challenge.variantKey || '').toUpperCase() !== 'DEFAULT'
+          ));
+          const configured = number === 4
+            ? routeVariants.length >= teamSlots.length
+            : challenges.some((challenge) => id(challenge.routeId) === id(route));
           const active = selectedRouteId === id(route);
           const wait = waitIndexForStart(routeKey(route));
           const from = globalTeamNumber(wait, 1, perWait);
@@ -514,10 +649,13 @@ export default function RouteClueEditor({
             <span className="font-semibold text-[#0ECCEE]">
               {starts[selectedWait]?.name || CAMPUS_STARTS[selectedWait]?.name || pathLabel(selectedRoute, starts)}
             </span>
-            {' '}— {number === 4 ? 'fourth' : 'second'} stops:
+            {' '}— {number === 4 ? 'fourth' : 'second'} stops
+            {number === 4 ? ' · prop codes' : ''}:
           </p>
           <div className="space-y-1">
-            {startTeamRows.map((row) => (
+            {startTeamRows.map((row) => {
+              const codeKey = `${routeKey(selectedRoute)}-${row.id}`;
+              return (
               <div
                 key={`${routeKey(selectedRoute)}-${row.id}`}
                 className="flex flex-wrap items-center gap-2 border-t border-white/5 py-2 first:border-0"
@@ -528,8 +666,21 @@ export default function RouteClueEditor({
                 <p className="min-w-0 flex-1 text-sm text-white/70">
                   → <span className="font-semibold text-[#0ECCEE]">{row.place}</span>
                 </p>
+                {number === 4 && (
+                  <input
+                    value={propCodes[codeKey] || ''}
+                    onChange={(event) => {
+                      const value = event.target.value.toUpperCase().replace(/\s+/g, '');
+                      setPropCodes((prev) => ({ ...prev, [codeKey]: value }));
+                    }}
+                    aria-label={`Prop code for team ${row.teamNumber}`}
+                    className={`w-24 ${inputClass} py-1.5 text-center font-mono tracking-wider`}
+                    placeholder="WOOF"
+                  />
+                )}
               </div>
-            ))}
+              );
+            })}
           </div>
         </section>
       )}
@@ -588,11 +739,9 @@ export default function RouteClueEditor({
                 onChange={(event) => setForm((value) => ({ ...value, prompt: event.target.value }))}
                 className={`mt-1 min-h-24 ${inputClass}`}
                 placeholder={
-                  number === 2
-                    ? 'Find the hidden 3-digit number…'
-                    : number === 4
-                      ? 'CRAZY PROP HUNT — find the planted prop code…'
-                      : `Clue that leads toward ${takesTo}`
+                  number === 4
+                    ? 'CRAZY PROP HUNT — find the planted prop code…'
+                    : `Clue that leads toward ${takesTo}`
                 }
               />
             </label>
@@ -615,31 +764,30 @@ export default function RouteClueEditor({
               ))}
             </div>
           )}
+          {number !== 4 && (
           <label className="block text-xs text-white/55">
-            {number === 2
-              ? 'Correct 3-digit code'
-              : number === 4
-                ? 'Correct prop code'
-              : number === 5
-                ? `Correct word (usually ${clue5Word})`
-                : `Correct answer (usually ${takesTo})`}
+            {number === 5
+              ? `Correct word (usually ${clue5Word})`
+              : `Correct answer (usually ${editorDestination})`}
             <input
               required
               value={form.answer}
               onChange={(event) => setForm((value) => ({ ...value, answer: event.target.value }))}
               className={`mt-1 ${inputClass}`}
               placeholder={
-                number === 2
-                  ? 'e.g. 482'
-                  : number === 4
-                    ? 'e.g. PROP7'
-                    : number === 5
-                      ? clue5Word
-                      : takesTo
+                number === 5
+                  ? clue5Word
+                  : editorDestination
               }
-              inputMode={number === 2 ? 'numeric' : 'text'}
+              inputMode="text"
             />
           </label>
+          )}
+          {number === 4 && (
+            <p className="text-[11px] text-white/45">
+              Set each team&apos;s prop sticker code in the board above (e.g. WOOF, NEON).
+            </p>
+          )}
           <label className="block text-xs text-white/55">
             After they solve — go where?
             <input
@@ -649,19 +797,17 @@ export default function RouteClueEditor({
                 destinationInstruction: event.target.value,
               }))}
               placeholder={
-                number === 2
-                  ? `Go to your next assigned campus place. All ${people} members scan there.`
-                  : number === 4
-                    ? `Stay at ${takesTo}. Find the shared purple FOURTH SCAN QR.`
+                number === 4
+                  ? `Stay at your fourth stop. Find the shared purple FOURTH SCAN QR.`
                   : number === 5
                     ? `Report to your start — ${takesTo}. Ask the organizer to mark your team reached.`
                     : `Go to ${takesTo}. All ${people} members scan there.`
               }
               className={`mt-1 ${inputClass}`}
             />
-            {(number === 2 || number === 4) && (
+            {(number === 4) && (
               <span className="mt-1 block text-[11px] text-white/40">
-                Team-specific place is shown in the boards above (10 places · shared QR each).
+                Team-specific place is shown in the board above (shared purple QR each).
               </span>
             )}
           </label>
@@ -688,7 +834,7 @@ export default function RouteClueEditor({
               />
             </label>
             <label className="block text-xs text-white/55">
-              {number === 2 || number === 4 ? 'Solve timer (sec)' : 'Timer (sec)'}
+              {number === 4 ? 'Solve timer (sec)' : 'Timer (sec)'}
               <input
                 type="number"
                 min="0"
@@ -699,7 +845,7 @@ export default function RouteClueEditor({
                 }))}
                 className={`mt-1 ${inputClass}`}
               />
-              {(number === 2 || number === 4) && (
+              {number === 4 && (
                 <span className="mt-1 block text-[11px] text-white/40">
                   Players get a short read window, then this timer starts (default 180 = 3:00).
                 </span>
@@ -726,10 +872,8 @@ export default function RouteClueEditor({
           >
             {busy
               ? 'Saving…'
-              : number === 2
-                ? `Save · ${pathLabel(selectedRoute, starts)} timed clue`
-                : number === 4
-                  ? `Save · prop hunt → ${takesTo}`
+              : number === 4
+                ? `Save · ${pathLabel(selectedRoute, starts)} prop hunt (${teamSlots.length} teams)`
                 : number === 5
                   ? `Save · ${clue5Word} → return ${takesTo}`
                   : `Save · → ${takesTo}`}

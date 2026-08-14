@@ -403,6 +403,17 @@ export const CLUE5_WORDS = {
 /** @deprecated use CLUE5_WORDS */
 export const CLUE4_WORDS = CLUE5_WORDS;
 
+const PROP_CODES = [
+  'BANANA', 'WOOF', 'NEON', 'QUACK', 'SOCK', 'EGG', 'YEET', 'ZOOM',
+  'BLOOP', 'ZAP', 'GOOF', 'BONK', 'YIKES', 'NOPE', 'YAY', 'BOOP',
+];
+
+/** Default planted prop sticker code — matches backend bootstrap rotation. */
+export function propCodeForTeam(stationIndex, localTeamNumber) {
+  const i = (Number(stationIndex) || 0) * 11 + (Number(localTeamNumber) || 1);
+  return PROP_CODES[Math.abs(i) % PROP_CODES.length];
+}
+
 export function clue5WordForStart(startCode) {
   const code = String(startCode || 'A').toUpperCase().charAt(0);
   return CLUE5_WORDS[code] || 'QUEST';

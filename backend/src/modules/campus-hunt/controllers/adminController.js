@@ -40,6 +40,8 @@ const {
 const { releaseTeamIfDue, releaseDueTeams } = require('../services/teamReleaseService');
 const { bootstrapRound1Defaults } = require('../services/round1BootstrapService');
 const { bulkSaveClue2 } = require('../services/clue2BulkSaveService');
+const { bulkSaveClue4 } = require('../services/clue4BulkSaveService');
+const { bulkSaveClue5 } = require('../services/clue5BulkSaveService');
 const { bulkSaveClue1, bulkSaveClue3 } = require('../services/clueVariantBulkSaveService');
 const {
   resolveCampusStations,
@@ -942,6 +944,95 @@ async function bulkSaveClue3Variants(req, res, next) {
       return res.status(400).json({
         success: false,
         message: data.errors[0]?.message || 'Clue 3 save failed',
+        data,
+      });
+    }
+    return res.json({ success: true, data });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, message: err.message, code: err.code });
+    }
+    return next(err);
+  }
+}
+
+/** One-shot Clue 4 save: all prop codes + purple QR bind + team resync. */
+async function bulkSaveClue4Variants(req, res, next) {
+  try {
+    let roundId = req.body.roundId;
+    if (!roundId) {
+      const round = await CampusHuntRound.findOne({
+        eventId: req.params.eventId,
+        roundNumber: 1,
+      }).select('_id');
+      roundId = round?._id;
+    }
+    if (!roundId) {
+      return res.status(404).json({ success: false, message: 'Round 1 not found' });
+    }
+    const variants = Array.isArray(req.body.variants) ? req.body.variants : [];
+    if (!variants.length) {
+      return res.status(400).json({
+        success: false,
+        message: 'variants array required (prop codes per team)',
+      });
+    }
+    const data = await bulkSaveClue4({
+      eventId: req.params.eventId,
+      roundId,
+      actor: adminActor(req),
+      prompt: req.body.prompt,
+      scoring: req.body.scoring || {},
+      variants,
+    });
+    if (data.saved === 0 && data.errors?.length) {
+      return res.status(400).json({
+        success: false,
+        message: data.errors[0]?.message || 'Clue 4 save failed',
+        data,
+      });
+    }
+    return res.json({ success: true, data });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, message: err.message, code: err.code });
+    }
+    return next(err);
+  }
+}
+
+/** One-shot Clue 5 / Final save: all start routes in one request. */
+async function bulkSaveClue5Variants(req, res, next) {
+  try {
+    let roundId = req.body.roundId;
+    if (!roundId) {
+      const round = await CampusHuntRound.findOne({
+        eventId: req.params.eventId,
+        roundNumber: 1,
+      }).select('_id');
+      roundId = round?._id;
+    }
+    if (!roundId) {
+      return res.status(404).json({ success: false, message: 'Round 1 not found' });
+    }
+    const routes = Array.isArray(req.body.routes) ? req.body.routes : [];
+    if (!routes.length) {
+      return res.status(400).json({
+        success: false,
+        message: 'routes array required (one Final per start path)',
+      });
+    }
+    const data = await bulkSaveClue5({
+      eventId: req.params.eventId,
+      roundId,
+      actor: adminActor(req),
+      scoring: req.body.scoring || {},
+      routes,
+    });
+    if (data.saved === 0 && data.errors?.length) {
+      return res.status(400).json({
+        success: false,
+        message: data.errors[0]?.message || 'Clue 5 save failed',
         data,
       });
     }
@@ -2002,6 +2093,7 @@ async function upsertChallenge(req, res, next) {
       firstCheckpointId,
       secondCheckpointId,
       thirdCheckpointId,
+      fourthCheckpointId,
       difficulty,
       active,
     } = req.body;
@@ -2014,9 +2106,9 @@ async function upsertChallenge(req, res, next) {
     }
 
     const cn = Number(challengeNumber);
-    const normalizedVariantKey = (cn === 1 || cn === 2 || cn === 3)
-      ? String(variantKey || '').trim().toUpperCase()
-      : 'DEFAULT';
+    const normalizedVariantKey = cn === 5
+      ? 'DEFAULT'
+      : String(variantKey || '').trim().toUpperCase() || 'DEFAULT';
     if (cn === 1 && (!normalizedVariantKey || !firstCheckpointId)) {
       return res.status(400).json({
         success: false,
@@ -2097,6 +2189,32 @@ async function upsertChallenge(req, res, next) {
         });
       }
     }
+    if (cn === 4) {
+      if (!normalizedVariantKey || normalizedVariantKey === 'DEFAULT') {
+        return res.status(400).json({
+          success: false,
+          message: 'Clue 4 requires a team variantKey (e.g. A-T1), not DEFAULT',
+        });
+      }
+      if (!fourthCheckpointId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Clue 4 requires fourthCheckpointId (shared purple QR for that place)',
+        });
+      }
+      const checkpoint = await CampusHuntCheckpoint.findOne({
+        _id: fourthCheckpointId,
+        eventId: req.params.eventId,
+        progressionKey: '4',
+        active: true,
+      });
+      if (!checkpoint) {
+        return res.status(400).json({
+          success: false,
+          message: 'Clue 4 fourth checkpoint must be an active shared CP4 for this place',
+        });
+      }
+    }
     const challenge = await CampusHuntChallenge.findOneAndUpdate(
       {
         eventId: req.params.eventId,
@@ -2127,12 +2245,25 @@ async function upsertChallenge(req, res, next) {
           firstCheckpointId: firstCheckpointId || undefined,
           secondCheckpointId: secondCheckpointId || undefined,
           thirdCheckpointId: thirdCheckpointId || undefined,
+          fourthCheckpointId: fourthCheckpointId || undefined,
           difficulty: difficulty || 'medium',
           active: active !== false,
         },
       },
       { upsert: true, new: true, setDefaultsOnInsert: true },
     );
+
+    if (cn === 4 && normalizedVariantKey !== 'DEFAULT') {
+      await CampusHuntChallenge.updateMany(
+        {
+          eventId: req.params.eventId,
+          routeId,
+          challengeNumber: 4,
+          variantKey: 'DEFAULT',
+        },
+        { $set: { active: false } },
+      );
+    }
 
     await writeAudit({
       eventId: req.params.eventId,
@@ -3793,6 +3924,8 @@ module.exports = {
   bulkSaveClue2Variants,
   bulkSaveClue1Variants,
   bulkSaveClue3Variants,
+  bulkSaveClue4Variants,
+  bulkSaveClue5Variants,
   setRoundReleasesPaused,
   setStartingPointPaused,
   manualReleaseTeam,

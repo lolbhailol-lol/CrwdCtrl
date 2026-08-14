@@ -1280,4 +1280,6 @@ module.exports = {
   caesarShift,
   threeDigitCodeForTeam,
   stationForLocalTeam,
+  routeClueDefaults,
+  CLUE5_WORDS,
 };

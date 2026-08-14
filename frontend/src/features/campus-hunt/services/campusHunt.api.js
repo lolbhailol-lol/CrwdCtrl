@@ -675,6 +675,20 @@ export async function adminBulkSaveClue3(eventId, body = {}) {
   });
 }
 
+export async function adminBulkSaveClue4(eventId, body = {}) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/clue4/bulk-save`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminBulkSaveClue5(eventId, body = {}) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/clue5/bulk-save`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 export async function adminGetStartDashboard(eventId) {
   return adminFetchJSON(`${BASE}/admin/events/${eventId}/start-dashboard`);
 }

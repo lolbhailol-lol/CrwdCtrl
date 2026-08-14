@@ -39,6 +39,8 @@ router.post('/events/:eventId/resync-clue1', adminController.resyncClue1Bindings
 router.post('/events/:eventId/clue1/bulk-save', adminController.bulkSaveClue1Variants);
 router.post('/events/:eventId/clue2/bulk-save', adminController.bulkSaveClue2Variants);
 router.post('/events/:eventId/clue3/bulk-save', adminController.bulkSaveClue3Variants);
+router.post('/events/:eventId/clue4/bulk-save', adminController.bulkSaveClue4Variants);
+router.post('/events/:eventId/clue5/bulk-save', adminController.bulkSaveClue5Variants);
 router.get('/events/:eventId/start-dashboard', adminController.getStartDashboard);
 router.post('/rounds/:roundId/releases/pause', adminController.setRoundReleasesPaused);
 router.post('/rounds/:roundId/releases/resume', adminController.setRoundReleasesPaused);

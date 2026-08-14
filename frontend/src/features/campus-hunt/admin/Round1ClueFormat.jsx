@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Clue1VariantManager from './Clue1VariantManager';
 import Clue2VariantManager from './Clue2VariantManager';
 import Clue3VariantManager from './Clue3VariantManager';
-import RouteClueEditor from './RouteClueEditor';
+import Clue4VariantManager from './Clue4VariantManager';
+import Clue5VariantManager from './Clue5VariantManager';
 import CheckpointManager from './CheckpointManager';
 import CampusStationNamesEditor from './CampusStationNamesEditor';
 import FirstStopPosterPrint from './FirstStopPosterPrint';
@@ -287,11 +288,9 @@ function ClueBox({
             </>
           ) : clue.number === 4 ? (
             <>
-              <RouteClueEditor
+              <Clue4VariantManager
                 eventId={eventId}
                 roundId={roundId}
-                challengeNumber={clue.number}
-                clueLabel={clue.label}
                 campusStations={campusStations}
                 campusStarts={campusStarts}
                 stationCount={stationCount}
@@ -314,30 +313,23 @@ function ClueBox({
             </>
           ) : (
             <>
-              <RouteClueEditor
+              <Clue5VariantManager
                 eventId={eventId}
                 roundId={roundId}
-                challengeNumber={clue.number}
-                clueLabel={clue.label}
-                campusStations={campusStations}
                 campusStarts={campusStarts}
-                stationCount={stationCount}
                 teamCapacity={teamCapacity}
                 teamSize={teamSize}
                 teamsPerWait={teamsPerWait}
-                teamsPerStation={teamsPerStation}
                 onChanged={() => {
                   onClueContentChanged?.();
                   onChanged?.();
                 }}
               />
-              {clue.number === 5 && (
-                <p className="rounded-xl border border-red-400/25 bg-red-500/10 px-3 py-2 text-xs text-red-100">
-                  After teams solve the Final word they report to their start.
-                  Mark them reached on the <span className="font-semibold">Live → Finish desk</span> tab
-                  (not here).
-                </p>
-              )}
+              <p className="rounded-xl border border-red-400/25 bg-red-500/10 px-3 py-2 text-xs text-red-100">
+                After teams solve the Final word they report to their start.
+                Mark them reached on the <span className="font-semibold">Live → Finish desk</span> tab
+                (not here).
+              </p>
             </>
           )}
           {clue.showCheckpoints !== false && (
@@ -511,9 +503,8 @@ export default function Round1ClueFormat({
           <p className="mt-0.5 text-[11px] text-white/40">
             Save setup for teams / starts / places, then open each clue and tap
             {' '}
-            <span className="text-white/70">Update Clue N for this setup</span>
-            {' '}
-            one by one. After all {geometry.teamSize} members scan a card, they pick it up so the next team only finds theirs.
+            <span className="text-white/70">Save Clue N</span>
+            {' '}— one fast request per clue, updates players immediately.
           </p>
         </div>
         <button
@@ -575,7 +566,6 @@ export default function Round1ClueFormat({
             data?.campusStartsCatalog || data?.campusStarts || campusStarts,
             nextStart,
           ));
-          bumpClues();
           bumpCheckpoints();
           onChanged?.();
         }}
