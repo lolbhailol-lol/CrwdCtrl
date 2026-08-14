@@ -1139,6 +1139,22 @@ html:not(.dark) .crwdctrl-footer {
     animation: routeProgress 0.34s ease-in-out infinite;
 }
 
+@keyframes detail-enter {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-detail-enter {
+    animation: detail-enter 180ms ease-out both;
+}
+
 /* Skeleton shimmer — District-style grey loading blocks */
 .skeleton-shimmer-light {
     background: linear-gradient(90deg, #e8eaed 0%, #f2f4f7 45%, #e8eaed 90%);

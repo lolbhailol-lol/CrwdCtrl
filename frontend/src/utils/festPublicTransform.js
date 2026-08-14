@@ -191,6 +191,37 @@ function prioritizeFeaturedArtists(artists = []) {
   return ranked;
 }
 
+const REGISTRATION_PREFETCH_PREFIX = 'crwdctrl_reg_prefetch:';
+
+export function registrationPrefetchKey(festId, competitionId) {
+  return `${REGISTRATION_PREFETCH_PREFIX}${festId}:${competitionId || 'fest'}`;
+}
+
+export function saveRegistrationPrefetch(festId, competitionId, prefetch) {
+  if (!prefetch || !festId) return;
+  try {
+    sessionStorage.setItem(
+      registrationPrefetchKey(festId, competitionId),
+      JSON.stringify({ ...prefetch, savedAt: Date.now() }),
+    );
+  } catch {
+    /* quota / private mode */
+  }
+}
+
+export function loadRegistrationPrefetch(festId, competitionId) {
+  if (!festId) return null;
+  try {
+    const raw = sessionStorage.getItem(registrationPrefetchKey(festId, competitionId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    delete parsed.savedAt;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
 /** Build instant registration state from competition/fest data already on screen */
 export function buildRegistrationPrefetch({ fest, competition } = {}) {
   if (!fest?._id && !fest?.id) return null;
@@ -201,7 +232,7 @@ export function buildRegistrationPrefetch({ fest, competition } = {}) {
       festName: fest.festName || fest.title || fest.festival_name || 'Fest',
       collegeName: fest.collegeName || fest.subtitle || fest.organizing_body || '',
       feeAmount: fest.feeAmount || 0,
-      platformFeePercent: fest.platformFeePercent ?? 3,
+      platformFeePercent: fest.platformFeePercent ?? 0,
       registration: fest.registration || { mode: 'INTERNAL_FORM', formSchema: [], formType: 'SINGLE_STEP' },
     },
     competition: competition

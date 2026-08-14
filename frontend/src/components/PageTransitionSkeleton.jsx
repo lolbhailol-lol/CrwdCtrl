@@ -186,8 +186,10 @@ export default function PageTransitionSkeleton({ pathname }) {
 
     return (
         <div
-            className={`${pageShellClass} fixed inset-0 z-100010 overflow-y-auto overscroll-none transition-colors duration-300 ${
-                isDark ? 'bg-[#161718]' : 'bg-white'
+            className={`${pageShellClass} fixed inset-0 z-100010 overflow-y-auto overscroll-none ${
+                variant === 'detail'
+                    ? 'bg-black'
+                    : `transition-colors duration-300 ${isDark ? 'bg-[#161718]' : 'bg-white'}`
             } ${variant === 'home' ? '' : 'pb-(--footer-nav-clearance) lg:pb-0'}`}
             aria-hidden
             role="presentation"

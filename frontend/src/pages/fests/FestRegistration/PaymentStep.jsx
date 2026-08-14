@@ -5,9 +5,11 @@ import { goToBookings } from '../../../utils/paymentNavigation';
 export function CompletingPaymentStep({
   isDark,
   paymentResumeError,
+  paymentResumeOrderId,
   submissionProgress,
   navigate,
   onReturnToForm,
+  onRetryResume,
 }) {
   return (
     <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex flex-col items-center justify-center px-4">
@@ -16,12 +18,32 @@ export function CompletingPaymentStep({
           <p className={`text-sm mb-2 ${isDark ? 'text-red-300' : 'text-red-600'}`}>
             Payment received, but registration could not be completed.
           </p>
-          <p className={`text-sm mb-6 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{paymentResumeError}</p>
+          <p className={`text-sm mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{paymentResumeError}</p>
+          {paymentResumeOrderId ? (
+            <p className={`text-xs mb-6 font-mono ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+              Order ID: {paymentResumeOrderId}
+            </p>
+          ) : null}
           <div className="flex flex-col gap-3">
+            {onRetryResume ? (
+              <button
+                type="button"
+                onClick={onRetryResume}
+                className="w-full px-6 py-3 bg-[#0ECCEE] text-black rounded-lg font-semibold hover:bg-[#0ECCEE]/80 transition-colors"
+              >
+                Retry registration
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => goToBookings(navigate)}
-              className="w-full px-6 py-3 bg-[#0ECCEE] text-black rounded-lg font-semibold hover:bg-[#0ECCEE]/80 transition-colors"
+              className={`w-full px-6 py-3 rounded-lg font-semibold transition-colors ${
+                onRetryResume
+                  ? isDark
+                    ? 'border border-gray-600 text-gray-200 hover:bg-gray-800'
+                    : 'border border-gray-300 text-gray-800 hover:bg-gray-100'
+                  : 'bg-[#0ECCEE] text-black hover:bg-[#0ECCEE]/80'
+              }`}
             >
               View My Bookings
             </button>
@@ -90,9 +112,20 @@ export default function PaymentStep({
         <div className={`rounded-xl p-5 mb-6 ${isDark ? 'bg-[#111213]' : 'bg-gray-50'}`}>
           <div className="mb-3">
             <p className={`text-sm mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Coupon code</p>
-            <div className="flex gap-2">
-              <input value={couponCode} onChange={(e) => setCouponCode(e.target.value.toUpperCase())} placeholder="Enter coupon" className={`flex-1 px-3 py-2 rounded-lg border ${isDark ? 'bg-[#1D1E20] border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'}`} />
-              <button type="button" onClick={() => setAppliedCouponCode(couponCode.trim().toUpperCase())} className="px-3 py-2 rounded-lg bg-[#0ECCEE] text-black font-semibold text-sm">{Number(priceBreakdown?.couponDiscount || 0) > 0 && (appliedCouponCode || '').toUpperCase() === couponCode.trim().toUpperCase() ? 'Applied' : 'Apply'}</button>
+            <div className={`flex overflow-hidden rounded-xl border ${isDark ? 'border-gray-700' : 'border-gray-300'}`}>
+              <input
+                value={couponCode}
+                onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                placeholder="Enter coupon"
+                className={`flex-1 min-w-0 px-3 py-2.5 text-sm border-0 outline-none focus:ring-0 ${isDark ? 'bg-[#1D1E20] text-white placeholder:text-gray-500' : 'bg-white text-gray-900 placeholder:text-gray-400'}`}
+              />
+              <button
+                type="button"
+                onClick={() => setAppliedCouponCode(couponCode.trim().toUpperCase())}
+                className="shrink-0 px-4 py-2.5 bg-[#0ECCEE] text-black font-semibold text-sm hover:bg-[#0ECCEE]/90 active:scale-[0.98] transition-all"
+              >
+                {Number(priceBreakdown?.couponDiscount || 0) > 0 && (appliedCouponCode || '').toUpperCase() === couponCode.trim().toUpperCase() ? 'Applied' : 'Apply'}
+              </button>
             </div>
             {couponError ? <p className="text-xs text-red-400 mt-1">{couponError}</p> : null}
             {Number(priceBreakdown?.couponDiscount || 0) > 0 ? (

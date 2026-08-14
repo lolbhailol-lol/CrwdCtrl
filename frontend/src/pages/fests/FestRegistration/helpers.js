@@ -56,6 +56,20 @@ export function buildInitialFormData(registration) {
   return initialData;
 }
 
+/** Merge API schema defaults with existing user input — never wipe typed fields on background refresh. */
+export function mergeFormDataWithSchema(prev, registration) {
+  const schemaDefaults = buildInitialFormData(registration);
+  if (!prev || Object.keys(prev).length === 0) return schemaDefaults;
+
+  const merged = { ...schemaDefaults };
+  for (const [key, value] of Object.entries(prev)) {
+    if (Object.prototype.hasOwnProperty.call(merged, key)) {
+      merged[key] = value;
+    }
+  }
+  return merged;
+}
+
 export function compressImage(file) {
   return new Promise((resolve, reject) => {
     const canvas = document.createElement('canvas');

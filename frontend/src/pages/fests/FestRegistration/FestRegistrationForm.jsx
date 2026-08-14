@@ -61,7 +61,7 @@ export default function FestRegistrationForm({
   );
 
   return (
-    <div className="crwdctrl-page crwdctrl-page--content min-h-screen pt-[calc(var(--safe-top)+0.5rem)] sm:pt-[calc(var(--safe-top)+1rem)] pb-40 sm:pb-32 md:pb-20">
+    <div className="crwdctrl-page crwdctrl-page--content min-h-screen pt-[calc(var(--safe-top)+1.25rem)] sm:pt-[calc(var(--safe-top)+1.5rem)] pb-40 sm:pb-32 md:pb-20">
       {paymentModalEl}
       <div className={`max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 transition-opacity duration-300 ${formLocked ? 'opacity-90' : ''}`}>
         {formLocked && (
@@ -72,7 +72,7 @@ export default function FestRegistrationForm({
           </div>
         )}
         {/* Header */}
-        <div className="flex items-start gap-3 sm:gap-4 mb-4 sm:mb-6">
+        <div className="flex items-start gap-3 sm:gap-4 mb-5 sm:mb-6 mt-1 sm:mt-0">
           <button
             onClick={() => navigate(-1)}
             className={`p-2 rounded-lg transition-colors shrink-0 mt-1 ${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-200'}`}
@@ -256,9 +256,20 @@ export default function FestRegistrationForm({
                 <div className={`rounded-xl p-4 border ${isDark ? 'bg-[#111213] border-[#0ECCEE]/30' : 'bg-gray-50 border-[#0ECCEE]/40'}`}>
                   <div className="mb-3">
                     <p className={`text-sm mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Coupon code</p>
-                    <div className="flex gap-2">
-                      <input value={couponCode} onChange={(e) => setCouponCode(e.target.value.toUpperCase())} placeholder="Enter coupon" className={`flex-1 px-3 py-2 rounded-lg border ${isDark ? 'bg-[#1D1E20] border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'}`} />
-                      <button type="button" onClick={() => setAppliedCouponCode(couponCode.trim().toUpperCase())} className="px-3 py-2 rounded-lg bg-[#0ECCEE] text-black font-semibold text-sm">{Number(priceBreakdown?.couponDiscount || 0) > 0 && (appliedCouponCode || '').toUpperCase() === couponCode.trim().toUpperCase() ? 'Applied' : 'Apply'}</button>
+                    <div className={`flex overflow-hidden rounded-xl border ${isDark ? 'border-gray-700' : 'border-gray-300'}`}>
+                      <input
+                        value={couponCode}
+                        onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                        placeholder="Enter coupon"
+                        className={`flex-1 min-w-0 px-3 py-2.5 text-sm border-0 outline-none focus:ring-0 ${isDark ? 'bg-[#1D1E20] text-white placeholder:text-gray-500' : 'bg-white text-gray-900 placeholder:text-gray-400'}`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setAppliedCouponCode(couponCode.trim().toUpperCase())}
+                        className="shrink-0 px-4 py-2.5 bg-[#0ECCEE] text-black font-semibold text-sm hover:bg-[#0ECCEE]/90 active:scale-[0.98] transition-all"
+                      >
+                        {Number(priceBreakdown?.couponDiscount || 0) > 0 && (appliedCouponCode || '').toUpperCase() === couponCode.trim().toUpperCase() ? 'Applied' : 'Apply'}
+                      </button>
                     </div>
                     {couponError ? <p className="text-xs text-red-400 mt-1">{couponError}</p> : null}
                     {Number(priceBreakdown?.couponDiscount || 0) > 0 ? (

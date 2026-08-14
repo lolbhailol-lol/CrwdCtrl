@@ -34,6 +34,9 @@ function shouldSkipPageTransition(pathname) {
         || pathname.startsWith('/run-club-organizer')
         // Fest type pages render their own skeleton — route overlay caused a double load flash
         || pathname.endsWith('-fest')
+        || pathname.startsWith('/view-details')
+        || pathname.startsWith('/competitions-view-details')
+        || pathname.startsWith('/competition/')
     );
 }
 

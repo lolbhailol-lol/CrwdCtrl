@@ -6,7 +6,6 @@ import Navbar from '../../components/layout/Navbar';
 import ProfileSidebar from '../../components/layout/ProfileSidebar';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useDialog } from '../../context/DialogContext';
-import { useRegisteredEvents } from '../../context/RegisteredEventsContext';
 import { useAuth } from '../../context/AuthContext';
 import CalendarIcon from '../../assets/calendar.svg';
 import LocationIcon from '../../assets/location-.svg';
@@ -19,9 +18,16 @@ import Seo from '../../components/Seo';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { openExternalUrl, shareContent } from '../../utils/externalLink';
 import { competitionPath, competitionRegistrationPath, festRegisterPath, festPath } from '../../utils/slugRoutes';
-import { resolveCompetitionFee, buildRegistrationPrefetch } from '../../utils/festPublicTransform';
+import { resolveCompetitionFee, buildRegistrationPrefetch, saveRegistrationPrefetch } from '../../utils/festPublicTransform';
+import { fetchMyRegistrations } from '../../services/api/auth.api';
 import { trackBookNowClick } from '../../services/analyticsService';
 import PrizePoolPodium from '../../components/PrizePoolPodium';
+import DetailPageShell from '../../components/DetailPageShell';
+import {
+    loadCompetitionDetailCache,
+    saveCompetitionDetailCache,
+    isBuiltCompetitionDetail,
+} from '../../utils/detailPageCache';
 
 /**
  * Sanitize round description to remove duplicated content blocks.
@@ -211,6 +217,40 @@ const sanitizeRulesArray = (rules) => {
         .filter((rule) => rule.length > 0);
 };
 
+const stripRulePrefix = (line) =>
+    String(line || '')
+        .replace(/^[\s•●◦▪\-–—*]+/, '')
+        .replace(/^\d+\.\s*/, '')
+        .trim();
+
+/** Turn rule strings (incl. multi-line blobs) into clean one-line bullet items */
+const flattenRulesForDisplay = (rules) => {
+    if (!Array.isArray(rules)) return [];
+
+    const flat = [];
+    for (const rule of rules) {
+        const text = typeof rule === 'string' ? sanitizeRoundDescription(rule).trim() : '';
+        if (!text) continue;
+
+        const lines = text
+            .split(/\n+/)
+            .map(stripRulePrefix)
+            .filter((line) => line.length > 0);
+
+        if (lines.length <= 1) {
+            const single = stripRulePrefix(text);
+            if (single) flat.push(single);
+            continue;
+        }
+
+        for (const line of lines) {
+            if (line.length >= 4) flat.push(line);
+        }
+    }
+
+    return flat;
+};
+
 const buildCompetitionData = (compData, options = {}) => {
     if (!compData) return null;
 
@@ -285,14 +325,32 @@ function EventPage() {
     const [showRegistrationSuccess] = useState(false);
     const [showShareMenu, setShowShareMenu] = useState(false);
     const [expandedRules, setExpandedRules] = useState({});
-    const [competitionData, setCompetitionData] = useState(null);
+    const seededCompetition = (() => {
+        const fromState = location.state?.competition;
+        if (fromState) {
+            const stateId = String(fromState._id || fromState.id || '');
+            if (
+                !competitionId
+                || !stateId
+                || stateId === String(competitionId)
+                || fromState.slug === competitionId
+            ) {
+                return buildCompetitionData(fromState, { useFestRegistrationFallback: true });
+            }
+        }
+        const cached = competitionId ? loadCompetitionDetailCache(competitionId) : null;
+        if (!cached) return null;
+        if (isBuiltCompetitionDetail(cached)) return cached;
+        return buildCompetitionData(cached, { useFestRegistrationFallback: true });
+    })();
+    const [competitionData, setCompetitionData] = useState(seededCompetition);
     const [showLogin, setShowLogin] = useState(false);
     const [showRegister, setShowRegister] = useState(false);
-    const [loading, setLoading] = useState(true);
+    const [fetchDone, setFetchDone] = useState(Boolean(seededCompetition));
     const [error, setError] = useState(null);
     const { isDark } = useDarkMode();
     const { alert: showAlert, toast } = useDialog();
-    const { registeredEvents } = useRegisteredEvents();
+    const [isRegistered, setIsRegistered] = useState(false);
     const { isAuthenticated } = useAuth();
 
     // Fetch competition data from backend API
@@ -303,8 +361,10 @@ function EventPage() {
                 const stateCompetition = location.state?.competition;
                 if (stateCompetition) {
                     console.log('Using competition data from navigation state:', stateCompetition);
-                    setCompetitionData(buildCompetitionData(stateCompetition));
-                    setLoading(false);
+                    const built = buildCompetitionData(stateCompetition, { useFestRegistrationFallback: true });
+                    setCompetitionData(built);
+                    if (competitionId) saveCompetitionDetailCache(competitionId, built);
+                    setFetchDone(true);
                     return;
                 }
                 
@@ -314,7 +374,6 @@ function EventPage() {
             }
 
             try {
-                setLoading(true);
                 setError(null);
                 
                 console.log('ViewDetails - Fetching competition data for ID:', competitionId);
@@ -340,7 +399,9 @@ function EventPage() {
                 console.log('🔍 Full registration object:', compData.registration);
 
                 if (compData) {
-                    setCompetitionData(buildCompetitionData(compData, { useFestRegistrationFallback: true }));
+                    const built = buildCompetitionData(compData, { useFestRegistrationFallback: true });
+                    setCompetitionData(built);
+                    if (competitionId) saveCompetitionDetailCache(competitionId, built);
                 } else {
                     setError('Competition not found');
                 }
@@ -369,18 +430,56 @@ function EventPage() {
                 const stateCompetition = location.state?.competition;
                 if (stateCompetition) {
                     console.log('API failed, using competition data from navigation state:', stateCompetition);
-                    setCompetitionData(buildCompetitionData(stateCompetition));
+                    const built = buildCompetitionData(stateCompetition, { useFestRegistrationFallback: true });
+                    setCompetitionData(built);
+                    if (competitionId) saveCompetitionDetailCache(competitionId, built);
                 } else {
-                    setError(errorMessage);
-                    console.log('No fallback data available, showing error:', errorMessage);
+                    const cached = competitionId ? loadCompetitionDetailCache(competitionId) : null;
+                    if (cached) {
+                        setCompetitionData(
+                            isBuiltCompetitionDetail(cached)
+                                ? cached
+                                : buildCompetitionData(cached, { useFestRegistrationFallback: true }),
+                        );
+                    } else {
+                        setError(errorMessage);
+                        console.log('No fallback data available, showing error:', errorMessage);
+                    }
                 }
             } finally {
-                setLoading(false);
+                setFetchDone(true);
             }
         };
 
         fetchCompetitionData();
     }, [competitionId, navigate, location.state]);
+
+    // Check real backend registration status when logged in
+    useEffect(() => {
+        const compId = competitionData?.id || competitionId;
+        if (!isAuthenticated || !compId) {
+            setIsRegistered(false);
+            return undefined;
+        }
+
+        let cancelled = false;
+
+        (async () => {
+            try {
+                const data = await fetchMyRegistrations({ cacheBust: true });
+                const targetId = String(compId);
+                const found = (data?.registrations || []).some((reg) => {
+                    const cid = reg.competitionId?._id || reg.competitionId;
+                    return cid && String(cid) === targetId;
+                });
+                if (!cancelled) setIsRegistered(found);
+            } catch {
+                if (!cancelled) setIsRegistered(false);
+            }
+        })();
+
+        return () => { cancelled = true; };
+    }, [isAuthenticated, competitionData?.id, competitionId]);
 
     // 🔄 Listen for admin updates and refetch data
     useEffect(() => {
@@ -460,20 +559,11 @@ function EventPage() {
         }
     }, [isAuthenticated, showLogin, showRegister]);
 
-    // Loading state
-    if (loading) {
-        return (
-            <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500 mx-auto mb-4"></div>
-                    <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Loading competition...</h2>
-                </div>
-            </div>
-        );
+    if (!competitionData && !fetchDone) {
+        return <DetailPageShell onBack={() => navigate(-1)} />;
     }
 
-    // Error state
-    if (error || !competitionData) {
+    if (fetchDone && (error || !competitionData)) {
         return (
             <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
                 <div className="text-center max-w-md mx-auto p-6">
@@ -685,8 +775,6 @@ function EventPage() {
         }];
     })();
 
-    const isRegistered = registeredEvents.some(event => event.id === eventData?.id);
-
     // Helper function to check if custom internal form is properly configured
     const isCustomFormConfigured = () => {
         if (eventData?.registrationType !== 'custom' || eventData?.registration?.status !== 'internal_form') {
@@ -855,7 +943,7 @@ function EventPage() {
                         festName: eventData?.fest?.festName || passedEventData?.festival_name || passedEventData?.title,
                         collegeName: eventData?.fest?.collegeName || passedEventData?.collegeName || passedEventData?.subtitle,
                         feeAmount: eventData?.fest?.feeAmount ?? 0,
-                        platformFeePercent: eventData?.fest?.platformFeePercent,
+                        platformFeePercent: eventData?.fest?.platformFeePercent ?? 0,
                         registration: eventData?.fest?.registration,
                     },
                     competition: {
@@ -867,6 +955,10 @@ function EventPage() {
                         registration: eventData?.registration,
                     },
                 });
+                const festRefId = eventData?.festId || eventData?.fest?._id;
+                if (festRefId && prefetch) {
+                    saveRegistrationPrefetch(festRefId, compId, prefetch);
+                }
                 navigate(path, {
                     state: {
                         festId: eventData?.festId || eventData?.fest?._id,
@@ -907,22 +999,11 @@ function EventPage() {
     // Component for rendering rules with read more functionality
     const RulesList = ({ rules, ruleKey, maxItems = 5 }) => {
         const isExpanded = expandedRules[ruleKey];
-        const normalizedRules = (rules || [])
-            .map((rule) => (typeof rule === 'string' ? sanitizeRoundDescription(rule).trim() : ''))
-            .filter((rule) => rule.length > 0);
-        
-        // Check if this is a message field (single item with line breaks)
-        const isMessageField = normalizedRules.length === 1 && normalizedRules[0].includes('\n');
-        
-        // For message fields, check character length; for rule arrays, check item count
-        const shouldTruncate = isMessageField 
-            ? normalizedRules[0].length > 300  // Truncate if message is longer than 300 characters
-            : normalizedRules.length > maxItems;
-            
-        const displayRules = shouldTruncate && !isExpanded 
-            ? (isMessageField 
-                ? [normalizedRules[0].substring(0, 300) + '...'] 
-                : normalizedRules.slice(0, maxItems))
+        const normalizedRules = flattenRulesForDisplay(rules);
+
+        const shouldTruncate = normalizedRules.length > maxItems;
+        const displayRules = shouldTruncate && !isExpanded
+            ? normalizedRules.slice(0, maxItems)
             : normalizedRules;
 
         const toggleExpanded = () => {
@@ -934,41 +1015,34 @@ function EventPage() {
 
         return (
             <div>
-                <div className={`space-y-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                    {displayRules?.map((rule, index) => {
-                        // Check if this is a message field (single item with formatting)
-                        const isCurrentMessageField = displayRules.length === 1 && rule.includes('\n');
-                        
-                        if (isCurrentMessageField) {
-                            return (
-                                <div 
-                                    key={index} 
-                                    className="leading-relaxed whitespace-pre-wrap"
-                                    style={{ whiteSpace: 'pre-wrap' }}
-                                >
+                <ul className="space-y-3 text-sm list-none p-0 m-0">
+                    {displayRules.length > 0 ? (
+                        displayRules.map((rule, index) => (
+                            <li key={index} className="flex items-start gap-2.5">
+                                <span
+                                    className="mt-[0.45rem] size-1.5 shrink-0 rounded-full bg-[#0ECCEE]"
+                                    aria-hidden
+                                />
+                                <span className={`flex-1 min-w-0 leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                                     {rule}
-                                </div>
-                            );
-                        } else {
-                            return (
-                                <div key={index} className="leading-relaxed">
-                                    • {rule}
-                                </div>
-                            );
-                        }
-                    }) || <div>Rules will be updated soon</div>}
-                </div>
+                                </span>
+                            </li>
+                        ))
+                    ) : (
+                        <li className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                            Rules will be updated soon
+                        </li>
+                    )}
+                </ul>
                 {shouldTruncate && (
                     <button
                         onClick={toggleExpanded}
                         className={`mt-3 text-sm font-medium transition-colors ${isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'
                             }`}
                     >
-                        {isExpanded 
-                            ? 'Read Less' 
-                            : (isMessageField 
-                                ? 'Read More' 
-                                : `Show More (${normalizedRules.length - maxItems} more rules)`)}
+                        {isExpanded
+                            ? 'Read Less'
+                            : `Show More (${normalizedRules.length - maxItems} more rules)`}
                     </button>
                 )}
             </div>
@@ -1030,7 +1104,7 @@ function EventPage() {
         eventData.description || eventData.subtitle || `${eventData.title} — a competition on CrwdCtrl.`;
 
     return (
-        <div className={`crwdctrl-page flex flex-col min-h-screen pb-28 transition-colors ${isDark ? 'bg-[#0c0d0e]' : 'bg-white'}`}>
+        <div className={`crwdctrl-page flex flex-col min-h-screen pb-28 ${isDark ? 'bg-black' : 'bg-white'}`}>
             <Seo
                 title={eventData.title}
                 description={competitionDescription}
@@ -1056,7 +1130,7 @@ function EventPage() {
                 ]}
             />
 
-            <main className="flex-1 w-full">
+            <main className="flex-1 w-full animate-detail-enter">
                     {/* Mobile — full-bleed hero (no side gutters) */}
                     <div className="block md:hidden w-full">
                             <div className="mx-auto w-full flex flex-col flex-1 overflow-x-clip">
@@ -1237,9 +1311,9 @@ function EventPage() {
                             
                             {/* Mobile Competition Rounds - Only show if rounds exist */}
                             {eventData?.rounds?.roundsList?.length > 0 && (
-                            <div className="px-4 py-4">
-                                <div className={`${isDark ? 'bg-[#111213]' : 'bg-white'} rounded-lg p-4 shadow-sm`}>
-                                    <h2 className={`text-xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Competition Rounds</h2>
+                            <div className="px-4 py-5">
+                                <div className={`${isDark ? 'bg-[#111213]' : 'bg-white'} rounded-xl p-4 sm:p-5 shadow-sm`}>
+                                    <h2 className={`text-xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Competition Rounds</h2>
                                     {eventData?.rounds?.description && (() => {
                                         const desc = sanitizeRoundDescription(eventData.rounds.description);
 
@@ -1325,9 +1399,9 @@ function EventPage() {
                             )}
 
                             {/* Mobile Common Rules */}
-                            <div className="px-4 py-4">
-                                <div className={`${isDark ? 'bg-[#111213]' : 'bg-white'} rounded-lg p-4 shadow-sm`}>
-                                    <h2 className={`text-xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Rules and Guidelines</h2>
+                            <div className="px-4 py-5">
+                                <div className={`${isDark ? 'bg-[#111213]' : 'bg-white'} rounded-xl p-4 sm:p-5 shadow-sm`}>
+                                    <h2 className={`text-xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Rules and Guidelines</h2>
                                     <RulesList
                                         rules={commonRules}
                                         ruleKey={`mobile-common-rules-${eventData?.id}`}

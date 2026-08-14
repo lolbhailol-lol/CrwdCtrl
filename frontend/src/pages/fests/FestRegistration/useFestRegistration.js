@@ -32,7 +32,8 @@ import { parseTicketPrice } from '../../../utils/platformFee';
 import { fetchPaymentQuote as fetchPaymentQuoteApi } from '../../../services/api/payment.api';
 import { API_BASE_URL } from '../../../services/api/client';
 import { festRegisterPath } from '../../../utils/slugRoutes';
-import { getInitialFestRegistrationUi, generateFieldId, compressImage, buildInitialFormData } from './helpers';
+import { loadRegistrationPrefetch, saveRegistrationPrefetch } from '../../../utils/festPublicTransform';
+import { getInitialFestRegistrationUi, generateFieldId, compressImage, buildInitialFormData, mergeFormDataWithSchema } from './helpers';
 
 export default function useFestRegistration() {
   const { festId } = useParams();
@@ -43,7 +44,8 @@ export default function useFestRegistration() {
   const competitionPaymentResumeRef = useRef(false);
   const handleSubmitRef = useRef(null);
   const competitionId = searchParams.get('competition') || location.state?.competitionId || null;
-  const registrationPrefetch = location.state?.prefetch ?? null;
+  const storedPrefetch = festId ? loadRegistrationPrefetch(festId, competitionId) : null;
+  const registrationPrefetch = location.state?.prefetch ?? storedPrefetch ?? null;
   const initialUi = getInitialFestRegistrationUi(location.pathname, location.search);
   const {
     isAuthenticated,
@@ -93,6 +95,13 @@ export default function useFestRegistration() {
   // True once we've waited long enough for Firebase -> backend JWT sync to finish
   const [authSyncExpired, setAuthSyncExpired] = useState(false);
   const [paymentResumeError, setPaymentResumeError] = useState('');
+  const [paymentResumeOrderId, setPaymentResumeOrderId] = useState('');
+
+  useEffect(() => {
+    if (location.state?.prefetch && festId) {
+      saveRegistrationPrefetch(festId, competitionId, location.state.prefetch);
+    }
+  }, [location.state?.prefetch, festId, competitionId]);
 
   useEffect(() => {
     if (!firebaseUser || resolveAuthToken(authToken)) {
@@ -211,8 +220,8 @@ export default function useFestRegistration() {
         clearRegistrationDraft(draftKey);
         clearCashfreeReturnParams();
       } catch (err) {
-        clearPendingPayment();
-        setCompletingPayment(false);
+        setPaymentResumeError(err.message || 'Could not complete registration after payment.');
+        setPaymentResumeOrderId(pending.orderId);
         setPaymentError(err.message || 'Could not complete registration after payment.');
       } finally {
         setPaymentLoading(false);
@@ -232,6 +241,93 @@ export default function useFestRegistration() {
     refreshNotifications,
   ]);
 
+  const completeCompetitionPaymentResume = async (orderIdOverride) => {
+    const pending = getPendingPayment();
+    const orderId = orderIdOverride || pending?.orderId;
+    if (!orderId) {
+      throw new Error('No pending payment found. Your booking may already be complete — check My Bookings.');
+    }
+
+    setPaymentResumeOrderId(orderId);
+    setPaymentResumeError('');
+    setPaymentError('');
+    setError('');
+    setSubmissionProgress('Verifying payment...');
+
+    const submitToken = resolveAuthToken(authToken) || localStorage.getItem('crwdctrl_token');
+    if (!submitToken) {
+      throw new Error('Please log in to complete your registration.');
+    }
+
+    const { ok, data: verifyData } = await verifyPaymentWithRetry(
+      API_BASE_URL,
+      orderId,
+      { token: submitToken },
+    );
+    if (!ok || !verifyData?.verified) {
+      throw new Error(verifyData?.message || 'Payment could not be verified.');
+    }
+
+    const verifiedFields = buildVerifiedPaymentFields(verifyData, orderId);
+    setPaymentFields(verifiedFields);
+
+    const draft = loadRegistrationDraft(draftKey);
+    const hasDraftAnswers = draft && (
+      Object.keys(draft.formData || {}).length > 0
+      || Object.keys(draft.stepData || {}).length > 0
+    );
+
+    if (hasDraftAnswers) {
+      applyRegistrationDraft(draft, {
+        setFormData,
+        setStepData,
+        setCurrentStep,
+        setCompletedSteps,
+      });
+    }
+
+    setSubmissionProgress(hasDraftAnswers
+      ? 'Submitting your registration...'
+      : 'Completing registration...');
+
+    const { regId } = await finalizeCompetitionAfterPayment({
+      competitionId,
+      verifiedFields,
+      token: submitToken,
+      draft,
+      tryFormSubmit: hasDraftAnswers
+        ? async () => {
+            const result = await handleSubmitRef.current?.(
+              { preventDefault: () => {} },
+              { paidResume: true, verifiedPaymentOverride: verifiedFields, draft },
+            );
+            return result?.regId || null;
+          }
+        : null,
+    });
+
+    if (regId) setRegistrationId(regId);
+    clearRegistrationDraft(draftKey);
+    clearPendingPayment();
+    clearCashfreeReturnParams();
+    setCompletingPayment(false);
+    setSuccess(true);
+    refreshNotifications();
+  };
+
+  const retryPaymentResume = async () => {
+    setPaymentResumeError('');
+    setSubmissionProgress('Retrying registration...');
+    try {
+      await completeCompetitionPaymentResume(paymentResumeOrderId);
+    } catch (err) {
+      setPaymentResumeError(err.message || 'Could not complete registration after payment.');
+      setPaymentError(err.message || 'Could not complete registration after payment.');
+    } finally {
+      setSubmissionProgress('');
+    }
+  };
+
   // Resume competition registration after Cashfree redirect checkout
   useEffect(() => {
     if (competitionPaymentResumeRef.current || authLoading || isAuthProcessing || isRedirectProcessing) return;
@@ -246,72 +342,10 @@ export default function useFestRegistration() {
 
     competitionPaymentResumeRef.current = true;
     setCompletingPayment(true);
-    setPaymentResumeError('');
-    setSubmissionProgress('Verifying payment...');
-    setPaymentError('');
-    setError('');
 
     (async () => {
       try {
-        const submitToken = resolveAuthToken(authToken) || localStorage.getItem('crwdctrl_token');
-        if (!submitToken) {
-          throw new Error('Please log in to complete your registration.');
-        }
-
-        const { ok, data: verifyData } = await verifyPaymentWithRetry(
-          API_BASE_URL,
-          pending.orderId,
-          { token: submitToken },
-        );
-        if (!ok || !verifyData?.verified) {
-          throw new Error(verifyData?.message || 'Payment could not be verified.');
-        }
-
-        const verifiedFields = buildVerifiedPaymentFields(verifyData, pending.orderId);
-        setPaymentFields(verifiedFields);
-
-        const draft = loadRegistrationDraft(draftKey);
-        const hasDraftAnswers = draft && (
-          Object.keys(draft.formData || {}).length > 0
-          || Object.keys(draft.stepData || {}).length > 0
-        );
-
-        if (hasDraftAnswers) {
-          applyRegistrationDraft(draft, {
-            setFormData,
-            setStepData,
-            setCurrentStep,
-            setCompletedSteps,
-          });
-        }
-
-        setSubmissionProgress(hasDraftAnswers
-          ? 'Submitting your registration...'
-          : 'Completing registration...');
-
-        const { regId } = await finalizeCompetitionAfterPayment({
-          competitionId,
-          verifiedFields,
-          token: submitToken,
-          draft,
-          tryFormSubmit: hasDraftAnswers
-            ? async () => {
-                const result = await handleSubmitRef.current?.(
-                  { preventDefault: () => {} },
-                  { paidResume: true, verifiedPaymentOverride: verifiedFields, draft },
-                );
-                return result?.regId || null;
-              }
-            : null,
-        });
-
-        if (regId) setRegistrationId(regId);
-        clearRegistrationDraft(draftKey);
-        clearPendingPayment();
-        clearCashfreeReturnParams();
-        setCompletingPayment(false);
-        setSuccess(true);
-        refreshNotifications();
+        await completeCompetitionPaymentResume(pending.orderId);
       } catch (err) {
         setPaymentResumeError(err.message || 'Could not complete registration after payment.');
         setPaymentError(err.message || 'Could not complete registration after payment.');
@@ -648,6 +682,12 @@ export default function useFestRegistration() {
       }
 
       setFest(data);
+      if (festId) {
+        saveRegistrationPrefetch(festId, competitionId, {
+          fest: data,
+          competition: competition || null,
+        });
+      }
 
       console.log('🔍 DEBUG - Fest registration data loaded:', {
         mode: data.registration?.mode,
@@ -662,30 +702,9 @@ export default function useFestRegistration() {
         fullStepsData: data.registration?.steps
       });
 
-      // Initialize form data with empty values using stable field IDs
-      const initialData = {};
-      const schemaFields = data.registration?.formType === 'MULTI_STEP' && data.registration?.steps?.length
-        ? data.registration.steps.flatMap((step) => step.fields || [])
-        : (data.registration?.formSchema || []);
-      schemaFields.forEach(field => {
-          const fieldId = generateFieldId(field);
-          console.log('🔧 Initializing field:', { fieldId, type: field.type, label: field.label });
-          // Initialize fields based on type
-          if (field.type === 'file' || field.type === 'image') {
-            initialData[fieldId] = null;
-          } else if (field.type === 'checkbox') {
-            initialData[fieldId] = [];
-          } else if (field.type === 'category_competition_selector') {
-            initialData[fieldId] = { category: '', competition: '' };
-          } else if (field.type === 'group') {
-            initialData[fieldId] = [];
-          } else {
-            initialData[fieldId] = '';
-          }
-        });
-      setFormData(initialData);
+      // Merge schema with existing user input — do not wipe fields on background refresh
+      setFormData((prev) => mergeFormDataWithSchema(prev, data.registration));
       restoreRegistrationDraft();
-      console.log('✅ Form initialized with', Object.keys(initialData).length, 'fields');
     } catch (err) {
       console.error('❌ Error fetching fest details:', err);
       setError(err.message);
@@ -715,21 +734,18 @@ export default function useFestRegistration() {
       });
       setCompetition(competitionData);
 
-      // Fetch fest details
       const cacheBuster = Date.now();
       const festResponse = await fetch(`${API_BASE_URL}/fests/${festId}/public?_cb=${cacheBuster}`, {
-        credentials: 'omit', // ✅ iOS/Safari fix - no credentials for public API
+        credentials: 'omit',
         mode: 'cors',
-        headers: { 'Accept': 'application/json' }
+        headers: { 'Accept': 'application/json' },
       });
       if (!festResponse.ok) {
         throw new Error('Failed to fetch fest details');
       }
       const festData = await festResponse.json();
-      
-      // ✅ CRITICAL: Validate registration mode for competition registration
+
       if (competitionData.registrationType === 'fest') {
-        // Competition uses fest registration - check fest mode
         if (festData.registration?.mode !== 'INTERNAL_FORM') {
           console.error('❌ Fest registration mode invalid for competition:', festData.registration?.mode);
           setError(`Competition registration is not available. Fest mode: ${festData.registration?.mode || 'NOT_SET'}`);
@@ -737,7 +753,6 @@ export default function useFestRegistration() {
           return;
         }
       } else if (competitionData.registrationType === 'custom') {
-        // Competition has its own registration - check competition mode
         if (competitionData.registration?.status !== 'internal_form') {
           console.error('❌ Competition registration status invalid:', competitionData.registration?.status);
           setError(`Competition registration is not available. Status: ${competitionData.registration?.status || 'NOT_SET'}`);
@@ -745,8 +760,14 @@ export default function useFestRegistration() {
           return;
         }
       }
-      
+
       setFest(festData);
+      if (festId) {
+        saveRegistrationPrefetch(festId, competitionId, {
+          fest: festData,
+          competition: competitionData,
+        });
+      }
       console.log('🔍 DEBUG - Competition fest registration data loaded:', {
         mode: festData.registration?.mode,
         formType: festData.registration?.formType,
@@ -759,30 +780,8 @@ export default function useFestRegistration() {
         }))
       });
 
-      // Initialize form data with empty values using stable field IDs
-      const initialData = {};
-      const schemaFields = festData.registration?.formType === 'MULTI_STEP' && festData.registration?.steps?.length
-        ? festData.registration.steps.flatMap((step) => step.fields || [])
-        : (festData.registration?.formSchema || []);
-      schemaFields.forEach(field => {
-          const fieldId = generateFieldId(field);
-          console.log('🔧 Initializing field:', { fieldId, type: field.type, label: field.label });
-          // Initialize fields based on type
-          if (field.type === 'file' || field.type === 'image') {
-            initialData[fieldId] = null;
-          } else if (field.type === 'checkbox') {
-            initialData[fieldId] = [];
-          } else if (field.type === 'category_competition_selector') {
-            initialData[fieldId] = { category: '', competition: '' };
-          } else if (field.type === 'group') {
-            initialData[fieldId] = [];
-          } else {
-            initialData[fieldId] = '';
-          }
-        });
-      setFormData(initialData);
+      setFormData((prev) => mergeFormDataWithSchema(prev, festData.registration));
       restoreRegistrationDraft();
-      console.log('✅ Form initialized with', Object.keys(initialData).length, 'fields');
     } catch (err) {
       console.error('❌ Error fetching competition/fest details:', err);
       setError(err.message);
@@ -1651,6 +1650,8 @@ export default function useFestRegistration() {
     authSyncExpired,
     paymentResumeError,
     setPaymentResumeError,
+    paymentResumeOrderId,
+    retryPaymentResume,
     isCompetitionRegistration,
     draftKey,
     registrationDisplayName,

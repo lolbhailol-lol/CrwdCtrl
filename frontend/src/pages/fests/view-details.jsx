@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Calendar, MapPin, Heart } from "lucide-react";
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { Phone, Instagram, Mail, ArrowLeft, Share, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import shareIcon from '../../assets/share.svg';
@@ -27,6 +27,8 @@ import { publicFetchJSONRetry as fetchJSON } from '../../services/api/client';
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { festPath, competitionPath } from '../../utils/slugRoutes';
+import DetailPageShell from '../../components/DetailPageShell';
+import { loadFestDetailCache, saveFestDetailCache, saveCompetitionDetailCache } from '../../utils/detailPageCache';
 
 function formatCompetitionTabLabel(tab) {
   if (!tab || tab === 'OTHER') return 'Other';
@@ -56,7 +58,7 @@ function getPrimaryInstagram(contacts = []) {
   return null;
 }
 
-function CompetitionScrollCard({ comp, isDark, isFavorite, onToggleFavorite, onClick }) {
+function CompetitionScrollCard({ comp, isDark, isFavorite, onToggleFavorite, onClick, onPointerDown }) {
   const compName = typeof comp.name === 'string' ? comp.name : 'Competition';
   const feeLabel = formatCompFee(comp);
   const feeIsFree = feeLabel === 'Free';
@@ -65,6 +67,7 @@ function CompetitionScrollCard({ comp, isDark, isFavorite, onToggleFavorite, onC
     <button
       type="button"
       onClick={onClick}
+      onPointerDown={onPointerDown}
       className={`card-surface w-46 shrink-0 text-left rounded-2xl overflow-hidden transition active:scale-[0.98] flex flex-col ${
         isDark ? 'bg-black!' : 'bg-white'
       }`}
@@ -136,6 +139,7 @@ function EventDetailsPage() {
   const { toggleFavorite, isFavorite } = useFavorites();
   const { eventId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState('GROUP');
   const [currentArtist, setCurrentArtist] = useState(0);
   const [currentHeroImage, setCurrentHeroImage] = useState('');
@@ -144,13 +148,23 @@ function EventDetailsPage() {
   const [showFullOverview, setShowFullOverview] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
-  const [eventData, setEventData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const seededFest = (() => {
+    const fromState = location.state?.eventData?.title ? location.state.eventData : null;
+    if (fromState) return fromState;
+    return eventId ? loadFestDetailCache(eventId) : null;
+  })();
+  const [eventData, setEventData] = useState(seededFest);
+  const [fetchDone, setFetchDone] = useState(Boolean(seededFest));
   const [error, setError] = useState(null);
   const eventsRef = useRef(null);
 
   // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
   
+  // Prefetch competition detail chunk so fest → competition feels instant
+  useEffect(() => {
+    import('../competitions/Competitions-view-details');
+  }, []);
+
   // Fetch event data from backend API
   useEffect(() => {
     const fetchEventData = async () => {
@@ -161,7 +175,6 @@ function EventDetailsPage() {
       }
 
       try {
-        setLoading(true);
         setError(null);
         
         console.log('ViewDetails - Fetching event data for ID:', eventId);
@@ -193,6 +206,7 @@ function EventDetailsPage() {
         if (transformedData) {
           setEventData(transformedData);
           setCurrentHeroImage(transformedData.heroImage || transformedData.image);
+          saveFestDetailCache(eventId, transformedData);
           
           // Debug: Check if registrationLink is properly mapped
           console.log('ViewDetails - Transformed Registration Link:', transformedData.registrationLink);
@@ -205,8 +219,12 @@ function EventDetailsPage() {
         console.error('ViewDetails - Error status:', err.response?.status);
         console.error('ViewDetails - Error message:', err.response?.data?.message);
         console.error('ViewDetails - Error details:', err.response?.data);
-        
-        if (err.response?.status === 404) {
+
+        const cached = eventId ? loadFestDetailCache(eventId) : null;
+        if (cached) {
+          setEventData(cached);
+          setCurrentHeroImage(cached.heroImage || cached.image);
+        } else if (err.response?.status === 404) {
           setError('Fest not found - it may not be approved yet or the link might be incorrect');
         } else if (err.response?.status === 400) {
           setError('Invalid fest ID format');
@@ -214,7 +232,7 @@ function EventDetailsPage() {
           setError('Failed to load event details');
         }
       } finally {
-        setLoading(false);
+        setFetchDone(true);
       }
     };
 
@@ -329,20 +347,11 @@ function EventDetailsPage() {
     setShowLogin(true);
   };
 
-  // Loading state
-  if (loading) {
-    return (
-      <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500 mx-auto mb-4"></div>
-          <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Loading event...</h2>
-        </div>
-      </div>
-    );
+  if (!eventData && !fetchDone) {
+    return <DetailPageShell onBack={() => navigate(-1)} />;
   }
 
-  // Error state
-  if (error || !eventData) {
+  if (fetchDone && (error || !eventData)) {
     return (
       <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
         <div className="text-center max-w-md mx-auto p-6">
@@ -387,7 +396,15 @@ function EventDetailsPage() {
     navigate(`/competition-list/${eventData.id}`);
   };
 
+  const prefetchCompetition = (competition) => {
+    const payload = buildCompetitionNavPayload(competition, eventData);
+    const compId = competition?.id || competition?._id;
+    if (compId && payload) saveCompetitionDetailCache(compId, payload);
+    import('../competitions/Competitions-view-details');
+  };
+
   const handleCompetitionRegister = (competition) => {
+    prefetchCompetition(competition);
     navigate(competitionPath(competition), {
       state: {
         competition: buildCompetitionNavPayload(competition, eventData),
@@ -470,7 +487,7 @@ function EventDetailsPage() {
   const festDescription = `${eventData.title}${eventData.collegeName && eventData.collegeName !== 'Unknown College' ? ` by ${eventData.collegeName}` : ''} — ${eventData.description}`;
 
   return (
-    <div className="crwdctrl-page min-h-screen overflow-x-clip transition-colors duration-300">
+    <div className={`crwdctrl-page min-h-screen overflow-x-clip ${isDark ? 'bg-black' : 'bg-white'}`}>
       <Seo
         title={eventData.title}
         description={festDescription}
@@ -498,6 +515,7 @@ function EventDetailsPage() {
           }),
         ]}
       />
+      <div className="animate-detail-enter">
       {/* Desktop Version - Show at 768px and above */}
       <div className="hidden md:block">
         <div className={`transition-all duration-300`}>
@@ -606,6 +624,7 @@ function EventDetailsPage() {
                               type: 'Competition',
                             })}
                             onClick={() => handleCompetitionRegister(comp)}
+                            onPointerDown={() => prefetchCompetition(comp)}
                           />
                         ))}
                       </div>
@@ -1047,6 +1066,7 @@ function EventDetailsPage() {
                       type: 'Competition',
                     })}
                     onClick={() => handleCompetitionRegister(comp)}
+                    onPointerDown={() => prefetchCompetition(comp)}
                   />
                 ))}
               </div>
@@ -1189,6 +1209,7 @@ function EventDetailsPage() {
         )}
 
         <div className="h-8 md:hidden" style={{ paddingBottom: 'var(--safe-bottom)' }} />
+      </div>
       </div>
 
       {/* Gallery Lightbox */}

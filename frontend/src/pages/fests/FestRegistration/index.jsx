@@ -18,6 +18,8 @@ export default function FestRegistration() {
     submissionProgress,
     setCompletingPayment,
     setPaymentResumeError,
+    paymentResumeOrderId,
+    retryPaymentResume,
     registrationId,
     loading,
     waitingOnAuth,
@@ -48,8 +50,10 @@ export default function FestRegistration() {
       <CompletingPaymentStep
         isDark={isDark}
         paymentResumeError={paymentResumeError}
+        paymentResumeOrderId={paymentResumeOrderId}
         submissionProgress={submissionProgress}
         navigate={navigate}
+        onRetryResume={isCompetitionRegistration ? retryPaymentResume : undefined}
         onReturnToForm={() => {
           setCompletingPayment(false);
           setPaymentResumeError('');
