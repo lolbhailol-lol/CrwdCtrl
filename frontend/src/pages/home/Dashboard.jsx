@@ -43,6 +43,7 @@ import { getCoverImageUrl } from '../../utils/coverImages';
 import { API_BASE_URL, publicFetchJSONRetry as fetchJSON } from '../../services/api/client';
 import { fetchCatalogJSON, invalidateCatalogCache } from '../../services/api/catalogCache';
 import { communityPath, competitionPath, eventShowPath, festPath, runClubPath, sportRunPath, trekPath } from '../../utils/slugRoutes';
+import { saveFestDetailCache } from '../../utils/detailPageCache';
 
 const HOME_JSON_LD = [
     webPageSchema({
@@ -1111,7 +1112,11 @@ const Dashboard = () => {
 
     const navigateToHomeItem = useCallback((item) => {
         if (item._type === 'fest') {
-            navigate(festPath(item));
+            const festData = transformedFests.find(
+                (f) => String(f.id) === String(item._id || item.id),
+            );
+            if (festData) saveFestDetailCache(festData.id, festData);
+            navigate(festPath(item), { state: festData ? { eventData: festData } : undefined });
         } else if (item._type === 'trek') {
             navigate(trekPath(item), { state: { trek: item } });
         } else if (item._type === 'community') {
@@ -1142,7 +1147,7 @@ const Dashboard = () => {
         } else if (item._type === 'events') {
             navigate(eventShowPath(item));
         }
-    }, [navigate]);
+    }, [navigate, transformedFests]);
 
     const getHomeItemShareUrl = useCallback((item) => {
         const origin = window.location.origin;
@@ -1175,13 +1180,17 @@ const Dashboard = () => {
         if (type === 'competition') {
             navigate(competitionPath({ _id: id, id, name: result.title, title: result.title }));
         } else if (type === 'fest') {
-            navigate(`/view-details/${id}`);
+            const festData = transformedFests.find((f) => String(f.id) === String(id));
+            if (festData) saveFestDetailCache(festData.id, festData);
+            navigate(festPath({ id, _id: id, festName: result.title, title: result.title }), {
+                state: festData ? { eventData: festData } : undefined,
+            });
         } else if (type === 'trek' || type === 'community' || type === 'sport') {
             navigateToHomeItem(result);
         } else {
             navigate(`/view-details/${id}`);
         }
-    }, [navigate, navigateToHomeItem]);
+    }, [navigate, navigateToHomeItem, transformedFests]);
 
     const searchKeywordCatalog = useMemo(
         () => buildSearchKeywordsFromCatalog({

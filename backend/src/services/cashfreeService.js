@@ -86,11 +86,85 @@ async function fetchPaymentsForOrder(orderId) {
   return response.data;
 }
 
-async function verifyCashfreePayment({ orderId, paymentId }) {
-  const order = await fetchOrder(orderId);
+function mapOrderStatus(orderStatus) {
+  const s = String(orderStatus || '').toUpperCase();
+  if (s === 'PAID') return 'paid';
+  if (['ACTIVE', 'PENDING', 'PENDING_VBV', 'PENDING_CAPTURE', 'FLAGGED'].includes(s)) return 'pending';
+  if (['EXPIRED', 'CANCELLED', 'TERMINATED', 'USER_DROPPED'].includes(s)) return 'cancelled';
+  if (s === 'FAILED') return 'failed';
+  return 'pending';
+}
 
-  if (order.order_status !== 'PAID') {
-    return { verified: false, message: `Order status is ${order.order_status || 'pending'}` };
+function buildVerifyMessages(status, orderStatus) {
+  switch (status) {
+    case 'paid':
+      return {
+        code: 'PAYMENT_PAID',
+        message: 'Payment confirmed.',
+        retryable: false,
+      };
+    case 'pending':
+      return {
+        code: 'PAYMENT_PENDING',
+        message: 'Payment is still processing. Please wait a moment and try again.',
+        retryable: true,
+      };
+    case 'cancelled':
+      return {
+        code: 'PAYMENT_CANCELLED',
+        message: 'Payment was cancelled. You can try again when ready.',
+        retryable: false,
+      };
+    case 'failed':
+      return {
+        code: 'PAYMENT_FAILED',
+        message: 'Payment failed. If money was deducted it will be refunded automatically.',
+        retryable: false,
+      };
+    case 'not_found':
+      return {
+        code: 'ORDER_NOT_FOUND',
+        message: 'Payment order not found.',
+        retryable: false,
+      };
+    default:
+      return {
+        code: 'PAYMENT_UNKNOWN',
+        message: `Order status is ${orderStatus || 'unknown'}`,
+        retryable: true,
+      };
+  }
+}
+
+async function verifyCashfreePayment({ orderId, paymentId }) {
+  let order;
+  try {
+    order = await fetchOrder(orderId);
+  } catch (err) {
+    if (err.response?.status === 404) {
+      const meta = buildVerifyMessages('not_found', null);
+      return {
+        verified: false,
+        status: 'not_found',
+        orderId,
+        ...meta,
+      };
+    }
+    throw err;
+  }
+
+  const orderStatus = order.order_status || 'pending';
+  const status = mapOrderStatus(orderStatus);
+
+  if (status !== 'paid') {
+    const meta = buildVerifyMessages(status, orderStatus);
+    return {
+      verified: false,
+      status,
+      orderId,
+      orderStatus,
+      ...meta,
+    };
   }
 
   const paymentsRaw = await fetchPaymentsForOrder(orderId);
@@ -98,24 +172,53 @@ async function verifyCashfreePayment({ orderId, paymentId }) {
 
   if (paymentId) {
     const match = payments.find(
-      (p) => String(p.cf_payment_id) === String(paymentId) && p.payment_status === 'SUCCESS'
+      (p) => String(p.cf_payment_id) === String(paymentId) && p.payment_status === 'SUCCESS',
     );
     if (!match) {
-      return { verified: false, message: 'Payment ID not found or not successful' };
+      return {
+        verified: false,
+        status: 'failed',
+        code: 'PAYMENT_ID_MISMATCH',
+        message: 'Payment ID not found or not successful',
+        retryable: true,
+        orderId,
+        orderStatus,
+      };
     }
-    return { verified: true, orderId, paymentId: match.cf_payment_id, orderStatus: order.order_status };
+    return {
+      verified: true,
+      status: 'paid',
+      code: 'PAYMENT_PAID',
+      message: 'Payment confirmed.',
+      retryable: false,
+      orderId,
+      paymentId: match.cf_payment_id,
+      orderStatus,
+    };
   }
 
   const successPayment = payments.find((p) => p.payment_status === 'SUCCESS');
   if (!successPayment) {
-    return { verified: false, message: 'No successful payment found for this order' };
+    return {
+      verified: false,
+      status: 'pending',
+      code: 'PAYMENT_PENDING',
+      message: 'No successful payment found for this order yet.',
+      retryable: true,
+      orderId,
+      orderStatus,
+    };
   }
 
   return {
     verified: true,
+    status: 'paid',
+    code: 'PAYMENT_PAID',
+    message: 'Payment confirmed.',
+    retryable: false,
     orderId,
     paymentId: successPayment.cf_payment_id,
-    orderStatus: order.order_status,
+    orderStatus,
   };
 }
 

@@ -31,6 +31,7 @@ import FaqSection from '../../components/FaqSection';
 import { breadcrumbSchema, faqSchema, itemListSchema } from '../../utils/seo';
 import { FESTS_FAQ } from '../../constants/faqs';
 import { festPath } from '../../utils/slugRoutes';
+import { buildFestDetailNavState } from '../../utils/detailPageCache';
 import { readFestsCache, writeFestsCache } from '../../utils/festsSessionCache';
 
 const FESTS_DESCRIPTION =
@@ -145,7 +146,12 @@ const FestSection = ({ title, fests, loading, isDark, isFavorite, toggleFavorite
                                 isDark={isDark}
                                 isFavorite={isFavorite(fest._id)}
                                 onToggleFavorite={() => toggleFavorite(fest._id, fest)}
-                                onViewDetails={() => navigate(festPath(fest))}
+                                onViewDetails={() => {
+                                    const eventData = buildFestDetailNavState(fest);
+                                    navigate(festPath(fest), {
+                                        state: eventData ? { eventData } : undefined,
+                                    });
+                                }}
                             />
                         ))
                     }

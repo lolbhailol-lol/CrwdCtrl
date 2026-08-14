@@ -1,4 +1,4 @@
-/** Session cache for fest / competition detail pages — instant paint on revisit & back nav */
+import { transformFestPublicData } from './festPublicTransform';
 
 const FEST_PREFIX = 'crwdctrl_detail_fest:';
 const COMP_PREFIX = 'crwdctrl_detail_comp:';
@@ -53,4 +53,59 @@ export function saveCompetitionDetailCache(compId, data) {
 export function loadCompetitionDetailCache(compId) {
   if (!compId) return null;
   return read(`${COMP_PREFIX}${compId}`);
+}
+
+/** Minimal shape so detail pages render immediately without skeleton screens */
+export function createFestDetailStub(festId) {
+  return {
+    id: festId,
+    title: '',
+    subtitle: '',
+    collegeName: '',
+    description: '',
+    overview: '',
+    dateTime: '',
+    venue: '',
+    heroImage: '',
+    image: '',
+    galleryImages: [],
+    artists: [],
+    contacts: [],
+    competitions: {},
+    registration: { mode: 'NOT_STARTED' },
+    ticketPrice: 'Free',
+  };
+}
+
+export function createCompetitionDetailStub(competitionId) {
+  return {
+    id: competitionId,
+    title: '',
+    subtitle: '',
+    date: '',
+    time: '',
+    venue: 'TBD',
+    entryFee: '—',
+    feeAmount: 0,
+    feeLabel: '—',
+    feeIsFree: false,
+    feeKnown: false,
+    prize: '',
+    image: '',
+    contact: { phone: '', instagram: '', email: '' },
+    description: '',
+    commonRules: [],
+    commonRulesMessage: '',
+    registrationType: 'fest',
+    registration: { status: 'not_started' },
+    rounds: { description: '', list: [], roundsList: [] },
+  };
+}
+
+/** Cache + navigation state for instant fest detail paint */
+export function buildFestDetailNavState(fest) {
+  const eventData = transformFestPublicData(fest);
+  if (!eventData) return null;
+  saveFestDetailCache(eventData.id, eventData);
+  return eventData;
 }

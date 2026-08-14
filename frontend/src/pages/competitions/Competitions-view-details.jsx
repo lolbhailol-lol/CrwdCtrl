@@ -22,11 +22,11 @@ import { resolveCompetitionFee, buildRegistrationPrefetch, saveRegistrationPrefe
 import { fetchMyRegistrations } from '../../services/api/auth.api';
 import { trackBookNowClick } from '../../services/analyticsService';
 import PrizePoolPodium from '../../components/PrizePoolPodium';
-import DetailPageShell from '../../components/DetailPageShell';
 import {
     loadCompetitionDetailCache,
     saveCompetitionDetailCache,
     isBuiltCompetitionDetail,
+    createCompetitionDetailStub,
 } from '../../utils/detailPageCache';
 
 /**
@@ -559,11 +559,7 @@ function EventPage() {
         }
     }, [isAuthenticated, showLogin, showRegister]);
 
-    if (!competitionData && !fetchDone) {
-        return <DetailPageShell onBack={() => navigate(-1)} />;
-    }
-
-    if (fetchDone && (error || !competitionData)) {
+    if (fetchDone && error && !competitionData) {
         return (
             <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
                 <div className="text-center max-w-md mx-auto p-6">
@@ -608,7 +604,7 @@ function EventPage() {
         );
     }
 
-    const eventData = competitionData;
+    const eventData = competitionData ?? createCompetitionDetailStub(competitionId);
 
     // Get fest name from location state or URL params
     const festName = location.state?.eventData?.festival_name || location.state?.eventData?.title || '';
@@ -1130,7 +1126,7 @@ function EventPage() {
                 ]}
             />
 
-            <main className="flex-1 w-full animate-detail-enter">
+            <main className="flex-1 w-full">
                     {/* Mobile — full-bleed hero (no side gutters) */}
                     <div className="block md:hidden w-full">
                             <div className="mx-auto w-full flex flex-col flex-1 overflow-x-clip">

@@ -1,4 +1,8 @@
 import { lazyWithRetry } from '../../utils/lazyWithRetry';
+import ViewDetailsPage from '../../pages/fests/view-details';
+import CompetitionsViewDetails from '../../pages/competitions/Competitions-view-details';
+
+export { ViewDetailsPage, CompetitionsViewDetails };
 
 export const Dashboard = lazyWithRetry(() => import('../../pages/home/Dashboard'));
 export const Booking = lazyWithRetry(() => import('../../pages/profile/booking'));
@@ -7,7 +11,6 @@ export const CulturalFestPage = lazyWithRetry(() => import('../../pages/fests/cu
 export const TechFestPage = lazyWithRetry(() => import('../../pages/fests/tech-fest'));
 export const SportsFestPage = lazyWithRetry(() => import('../../pages/fests/sports-fest'));
 export const SportsCategoryPage = lazyWithRetry(() => import('../../pages/sports/sports-category'));
-export const ViewDetailsPage = lazyWithRetry(() => import('../../pages/fests/view-details'));
 export const FavoritesPage = lazyWithRetry(() => import('../../pages/profile/favorites'));
 export const EditProfile = lazyWithRetry(() => import('../../pages/profile/edit-profile'));
 export const HelpCenter = lazyWithRetry(() => import('../../pages/profile/help-center'));
@@ -17,7 +20,6 @@ export const ProfilePage = lazyWithRetry(() => import('../../pages/profile/profi
 export const CrwdCtrlLogin = lazyWithRetry(() => import('../../pages/auth/login'));
 export const CrwdCtrlRegister = lazyWithRetry(() => import('../../pages/auth/register'));
 export const EmailVerification = lazyWithRetry(() => import('../../pages/auth/EmailVerification'));
-export const CompetitionsViewDetails = lazyWithRetry(() => import('../../pages/competitions/Competitions-view-details'));
 export const CompetitionListPage = lazyWithRetry(() => import('../../pages/competitions/competition-list'));
 export const TermsAndConditions = lazyWithRetry(() => import('../../pages/legal/terms-and-conditions'));
 export const PrivacyPolicy = lazyWithRetry(() => import('../../pages/legal/privacy-policy'));
