@@ -262,17 +262,22 @@ const buildCompetitionData = (compData, options = {}) => {
 
     return {
         id: compData._id || compData.id,
-        title: compData.name || compData.title || 'Competition',
+        title: compData.name || compData.title || '',
         subtitle: sanitizeRoundDescription(compData.subtitle || compData.description || ''),
         date: compData.dateTime || compData.date || '',
         time: compData.time || '',
-        venue: compData.venue || 'TBD',
-        entryFee: fee.known ? fee.label : (compData.registrationFee || compData.entryFee || 'Free'),
+        venue: compData.venue && String(compData.venue).trim().toUpperCase() !== 'TBD'
+            ? compData.venue
+            : '',
+        entryFee: fee.known ? fee.label : (compData.registrationFee || compData.entryFee || ''),
         feeAmount: fee.amount ?? 0,
-        feeLabel: fee.known ? fee.label : '—',
+        feeLabel: fee.known ? fee.label : '',
         feeIsFree: fee.isFree,
         feeKnown: fee.known,
-        prize: compData.prizePool || compData.prize || 'TBD',
+        prize: (() => {
+            const raw = String(compData.prizePool || compData.prize || '').trim();
+            return !raw || /^(tbd|tba|n\/a|na|-)$/i.test(raw) ? '' : raw;
+        })(),
         image: compData.coverImage || compData.image,
         contact: compData.contact || { phone: '', instagram: '', email: '' },
         description: sanitizeRoundDescription(compData.description || ''),
@@ -1183,14 +1188,16 @@ function EventPage() {
                                         {eventData.subtitle}
                                     </p>
                                 ) : null}
+                                {eventData.feeKnown ? (
                                 <div className={`text-sm space-y-1 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                                     <p>
                                         <span className="font-semibold">Registration fee: </span>
-                                        <span className={`font-bold ${eventData?.feeIsFree ? 'text-green-500' : 'text-[#0ECCEE]'}`}>
-                                            {eventData?.feeLabel || (eventData?.feeAmount > 0 ? `₹${Number(eventData.feeAmount).toLocaleString('en-IN')}` : 'Free')}
+                                        <span className={`font-bold ${eventData.feeIsFree ? 'text-green-500' : 'text-[#0ECCEE]'}`}>
+                                            {eventData.feeLabel}
                                         </span>
                                     </p>
                                 </div>
+                                ) : null}
                             </div>
 
                             {/* Mobile Event Details */}
@@ -1400,6 +1407,7 @@ function EventPage() {
                             )}
 
                             {/* Mobile Common Rules */}
+                            {commonRules.length > 0 ? (
                             <div className="px-4 py-5">
                                 <div className={`${isDark ? 'bg-[#111213]' : 'bg-white'} rounded-xl p-4 sm:p-5 shadow-sm`}>
                                     <h2 className={`text-xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Rules and Guidelines</h2>
@@ -1410,6 +1418,7 @@ function EventPage() {
                                     />
                                 </div>
                             </div>
+                            ) : null}
 
                             {/* Mobile Contact Details — same layout as fest view-details */}
                             {contactList.length > 0 ? (
@@ -1529,6 +1538,7 @@ function EventPage() {
                                     )}
 
                                     {/* Common Rules */}
+                                    {commonRules.length > 0 ? (
                                     <div className={`${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'} rounded-2xl p-6`}>
                                         <h2 className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Rules and Guidelines</h2>
                                         <RulesList
@@ -1537,6 +1547,7 @@ function EventPage() {
                                             maxItems={5}
                                         />
                                     </div>
+                                    ) : null}
                                 </div>
 
                                 {/* Contact Details — same layout as fest view-details */}
@@ -1645,22 +1656,24 @@ function EventPage() {
                                     )}
 
                                     <div className="flex items-center gap-3 mb-4">
+                                    {eventData.feeKnown ? (
                                         <div className="flex items-center gap-2.5 px-4 py-3 rounded-full border bg-[#0ECCEE]/10 border-[#0ECCEE]/30">
                                             <div className="w-7 h-7 rounded-full flex items-center justify-center bg-[#0ECCEE]/20">
-                                                {eventData?.feeIsFree
+                                                {eventData.feeIsFree
                                                     ? <Zap className="w-3.5 h-3.5 text-[#0ECCEE]" />
                                                     : <Ticket className="w-3.5 h-3.5 text-[#0ECCEE]" />
                                                 }
                                             </div>
                                             <div>
-                                                <span className={`text-base font-bold leading-tight block ${eventData?.feeIsFree ? 'text-green-500' : 'text-[#0ECCEE]'}`}>
-                                                    {eventData?.feeLabel || (eventData?.feeAmount > 0 ? `₹${Number(eventData.feeAmount).toLocaleString('en-IN')}` : 'Free')}
+                                                <span className={`text-base font-bold leading-tight block ${eventData.feeIsFree ? 'text-green-500' : 'text-[#0ECCEE]'}`}>
+                                                    {eventData.feeLabel}
                                                 </span>
                                                 <span className={`text-[10px] leading-none ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                                    {eventData?.feeIsFree ? 'No Entry Fee' : 'Registration Fee'}
+                                                    {eventData.feeIsFree ? 'No Entry Fee' : 'Registration Fee'}
                                                 </span>
                                             </div>
                                         </div>
+                                    ) : null}
 
                                         {/* Register button — trek/run style */}
                                         <button
@@ -1852,18 +1865,18 @@ function EventPage() {
                 style={{ paddingBottom: 'max(var(--safe-bottom), 6px)' }}
             >
                 <div className={`mx-auto w-full max-w-md flex items-center justify-between gap-4 rounded-[30px] px-5 py-3.5 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'}`}>
+                    {eventData.feeKnown ? (
                     <div className="min-w-0 shrink-0">
                         <p className={`text-xs font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Registration Fee</p>
-                        {!eventData?.feeKnown ? (
-                            <p className={`mt-0.5 text-2xl font-bold leading-none ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>—</p>
-                        ) : eventData?.feeIsFree ? (
+                        {eventData.feeIsFree ? (
                             <p className="mt-0.5 text-2xl font-bold leading-none text-green-500">Free</p>
                         ) : (
                             <p className={`mt-0.5 text-2xl font-bold leading-none truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                {eventData?.feeLabel || `₹${Number(eventData.feeAmount || 0).toLocaleString('en-IN')}`}
+                                {eventData.feeLabel}
                             </p>
                         )}
                     </div>
+                    ) : null}
                     <button
                         type="button"
                         onClick={() => {

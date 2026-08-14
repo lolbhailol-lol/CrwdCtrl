@@ -17,6 +17,8 @@ import { usePageSectionHandlers } from '../../utils/pageSectionHandlers';
 import { fetchRawPublicFests } from '../../services/api/fests.api';
 import { readFestsCacheByType, writeFestsCache } from '../../utils/festsSessionCache';
 import { usePageContentLoading } from '../../hooks/usePageContentLoading';
+import { festPath } from '../../utils/slugRoutes';
+import { buildFestDetailNavState } from '../../utils/detailPageCache';
 
 const FEST_TYPE_SEO = {
     cultural: {
@@ -102,6 +104,11 @@ export default function FestTypePage({
     const { isDark } = useDarkMode();
     const { toggleFavorite, isFavorite } = useFavorites();
 
+    const openFestDetails = (fest) => {
+        const eventData = buildFestDetailNavState(fest);
+        navigate(festPath(fest), { state: eventData ? { eventData } : undefined });
+    };
+
     const cached = readFestsCacheByType(festType);
     const [fests, setFests] = useState(cached || []);
     const [loading, setLoading] = useState(!cached?.length);
@@ -151,7 +158,7 @@ export default function FestTypePage({
             url: canonicalPath,
             items: fests
                 .filter((fest) => fest?._id && fest?.festName)
-                .map((fest) => ({ name: fest.festName, url: `/view-details/${fest._id}` })),
+                .map((fest) => ({ name: fest.festName, url: festPath(fest) })),
         }),
     ];
 
@@ -222,7 +229,7 @@ export default function FestTypePage({
                                                         <p className={`card-event-title line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>{toCardText(fest.festName)}</p>
                                                         <p className={`card-event-subtitle mb-3 line-clamp-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{toCardText(fest.collegeName)}</p>
                                                         <button
-                                                            onClick={() => navigate(`/view-details/${fest._id}`)}
+                                                            onClick={() => openFestDetails(fest)}
                                                             className="w-full h-11 rounded-2xl bg-[#0ECCEE] text-black text-sm font-medium shadow-md"
                                                         >
                                                             View details
@@ -251,7 +258,7 @@ export default function FestTypePage({
                                         return (
                                             <div
                                                 key={fest._id}
-                                                onClick={() => navigate(`/view-details/${fest._id}`)}
+                                                onClick={() => openFestDetails(fest)}
                                                 className="card-surface flex rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition-all"
                                             >
                                                 <div className="relative list-card-thumb shrink-0">

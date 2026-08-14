@@ -8,6 +8,7 @@ import {
   shouldResumePendingPayment,
   hasCashfreeReturnParams,
   hasPaymentReturnExpected,
+  discardStalePaymentRecovery,
 } from '../utils/deepLinks';
 import { resolveBrowseBackPath } from '../utils/categoryHubRoutes';
 /**
@@ -19,6 +20,18 @@ export default function CapacitorInit() {
 
   useEffect(() => {
     initCashfreeNativeGateway().catch(() => {});
+  }, []);
+
+  /** Drop abandoned checkout flags on cold app open — prevents random "Confirming payment…" later. */
+  useEffect(() => {
+    if (location.pathname === '/payment/return') return;
+    if (hasCashfreeReturnParams(location.search)) return;
+    if (!getPendingPayment() && !hasPaymentReturnExpected()) return;
+    discardStalePaymentRecovery({
+      pathname: location.pathname,
+      search: location.search,
+      navigationState: location.state,
+    });
   }, []);
 
   useEffect(() => {

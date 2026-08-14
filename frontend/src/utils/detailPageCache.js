@@ -1,4 +1,5 @@
 import { transformFestPublicData } from './festPublicTransform';
+import { toSlug } from './slugRoutes';
 
 const FEST_PREFIX = 'crwdctrl_detail_fest:';
 const COMP_PREFIX = 'crwdctrl_detail_comp:';
@@ -36,8 +37,11 @@ export function isBuiltCompetitionDetail(data) {
 }
 
 export function saveFestDetailCache(festId, eventData) {
-  if (!festId || !eventData?.title) return;
-  write(`${FEST_PREFIX}${festId}`, eventData);
+  if (!eventData?.title) return;
+  const id = festId || eventData.id || eventData._id;
+  if (id) write(`${FEST_PREFIX}${id}`, eventData);
+  const slug = toSlug(eventData.title || eventData.festName || '');
+  if (slug && slug !== String(id)) write(`${FEST_PREFIX}${slug}`, eventData);
 }
 
 export function loadFestDetailCache(festId) {
@@ -46,60 +50,16 @@ export function loadFestDetailCache(festId) {
 }
 
 export function saveCompetitionDetailCache(compId, data) {
-  if (!compId || !data) return;
-  write(`${COMP_PREFIX}${compId}`, data);
+  if (!data) return;
+  const id = compId || data.id || data._id;
+  if (id) write(`${COMP_PREFIX}${id}`, data);
+  const slug = toSlug(data.title || data.name || '');
+  if (slug && slug !== String(id)) write(`${COMP_PREFIX}${slug}`, data);
 }
 
 export function loadCompetitionDetailCache(compId) {
   if (!compId) return null;
   return read(`${COMP_PREFIX}${compId}`);
-}
-
-/** Minimal shape so detail pages render immediately without skeleton screens */
-export function createFestDetailStub(festId) {
-  return {
-    id: festId,
-    title: '',
-    subtitle: '',
-    collegeName: '',
-    description: '',
-    overview: '',
-    dateTime: '',
-    venue: '',
-    heroImage: '',
-    image: '',
-    galleryImages: [],
-    artists: [],
-    contacts: [],
-    competitions: {},
-    registration: { mode: 'NOT_STARTED' },
-    ticketPrice: 'Free',
-  };
-}
-
-export function createCompetitionDetailStub(competitionId) {
-  return {
-    id: competitionId,
-    title: '',
-    subtitle: '',
-    date: '',
-    time: '',
-    venue: 'TBD',
-    entryFee: '—',
-    feeAmount: 0,
-    feeLabel: '—',
-    feeIsFree: false,
-    feeKnown: false,
-    prize: '',
-    image: '',
-    contact: { phone: '', instagram: '', email: '' },
-    description: '',
-    commonRules: [],
-    commonRulesMessage: '',
-    registrationType: 'fest',
-    registration: { status: 'not_started' },
-    rounds: { description: '', list: [], roundsList: [] },
-  };
 }
 
 /** Cache + navigation state for instant fest detail paint */
