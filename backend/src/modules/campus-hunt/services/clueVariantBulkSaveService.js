@@ -16,6 +16,7 @@ const { writeAudit } = require('./auditService');
 const {
   stationForLocalTeam,
   WAIT_POINTS,
+  syncSharedStationQrs,
 } = require('./round1BootstrapService');
 
 function waitIndexFromCode(code) {
@@ -218,6 +219,8 @@ async function bulkSaveClue1({
     }
   }
 
+  const sharedQr = await syncSharedStationQrs(event, round, ctx.routes);
+
   const sync = await resyncClue1TeamBindings({
     eventId,
     roundId: round._id,
@@ -231,7 +234,7 @@ async function bulkSaveClue1({
     action: 'clue1_bulk_saved',
     targetType: 'round',
     targetId: round._id,
-    after: { saved, errors: errors.length, teamsUpdated: sync.updated },
+    after: { saved, errors: errors.length, teamsUpdated: sync.updated, sharedQr },
   });
 
   return {
@@ -240,6 +243,7 @@ async function bulkSaveClue1({
     errors,
     teamsUpdated: sync.updated,
     firstPostersBound: sync.postersBound,
+    sharedQr,
   };
 }
 
@@ -381,6 +385,8 @@ async function bulkSaveClue3({
     }
   }
 
+  const sharedQr = await syncSharedStationQrs(event, round, ctx.routes);
+
   const sync = await resyncClue1TeamBindings({
     eventId,
     roundId: round._id,
@@ -399,6 +405,7 @@ async function bulkSaveClue3({
       errors: errors.length,
       thirdPostersBound: sync.thirdPostersBound,
       teamsUpdated: sync.updated,
+      sharedQr,
     },
   });
 
@@ -408,6 +415,7 @@ async function bulkSaveClue3({
     errors,
     teamsUpdated: sync.updated,
     thirdPostersBound: sync.thirdPostersBound,
+    sharedQr,
   };
 }
 

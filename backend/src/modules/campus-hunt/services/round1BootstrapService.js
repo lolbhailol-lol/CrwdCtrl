@@ -1134,8 +1134,20 @@ async function bootstrapRound1Defaults({
   };
 }
 
+async function syncSharedStationQrs(event, round, routes) {
+  if (!event || !round || !Array.isArray(routes) || !routes.length) {
+    return { created: 0, retired: 0 };
+  }
+  const huntStations = resolveCampusStations(event);
+  if (!huntStations.length) return { created: 0, retired: 0 };
+  const capacity = Number(event.teamCapacity) || 40;
+  const perStation = teamsPerStationFor(capacity, huntStations.length);
+  return ensureSharedStationCheckpoints(event, round, routes[0], huntStations, perStation);
+}
+
 module.exports = {
   bootstrapRound1Defaults,
+  syncSharedStationQrs,
   DEFAULT_LOCATIONS,
   CAMPUS_STATIONS,
   WAIT_POINTS,

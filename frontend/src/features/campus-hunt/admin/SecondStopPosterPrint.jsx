@@ -26,7 +26,7 @@ export default function SecondStopPosterPrint({
         ? `SECOND SCAN shared QRs · ${placeCount} place${placeCount === 1 ? '' : 's'}`
         : undefined}
       blurb={`Small green cards — tuck anywhere. Finding them early does nothing until Clue 2. One shared QR per selected place; after ${teamSize}/${teamSize} scans, teams enter their team code for Clue 3.`}
-      needMoreHint="Update Clue 2 for this setup + Save Clue 2, then refresh."
+      needMoreHint="Save setup or Update Clue 2 for this setup — shared QRs appear after either step."
       skippedSummaryKey="secondSkipped"
       campusStations={campusStations}
       stationCount={stationCount}

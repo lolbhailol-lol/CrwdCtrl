@@ -76,13 +76,22 @@ export default function StationPosterPrint({
     return packs.filter((pack) => activeCodes.has(String(pack.code || '').toUpperCase()));
   }, [packs, activeCodes]);
 
+  const displayPacks = useMemo(() => {
+    if (visiblePacks.length) return visiblePacks;
+    return activeStations.map((station) => ({
+      code: station.code,
+      locationName: station.name,
+      posters: [],
+    }));
+  }, [visiblePacks, activeStations]);
+
   const stats = useMemo(() => {
-    const posterCount = visiblePacks.reduce((sum, pack) => sum + (pack.posters?.length || 0), 0);
-    const readyPlaces = visiblePacks.filter(
+    const posterCount = displayPacks.reduce((sum, pack) => sum + (pack.posters?.length || 0), 0);
+    const readyPlaces = displayPacks.filter(
       (pack) => (pack.posters?.length || 0) >= POSTERS_PER_PLACE,
     ).length;
     return { posterCount, readyPlaces };
-  }, [visiblePacks]);
+  }, [displayPacks]);
 
   const skippedCount = skippedSummaryKey ? Number(summary?.[skippedSummaryKey] || 0) : 0;
   const heading = title || `${scanLabel} shared QRs · ${placeTarget} place${placeTarget === 1 ? '' : 's'}`;
@@ -167,7 +176,7 @@ export default function StationPosterPrint({
           <button
             type="button"
             disabled={busy || stats.posterCount === 0}
-            onClick={() => printPacks(visiblePacks)}
+            onClick={() => printPacks(displayPacks)}
             className={`rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-40 ${theme.buttonClass}`}
           >
             Print {stats.posterCount || targetPosters} QRs
@@ -202,7 +211,7 @@ export default function StationPosterPrint({
       {message && <p className={`mt-2 text-sm ${theme.textClass}`}>{message}</p>}
 
       <div className="mt-4 space-y-2">
-        {visiblePacks.map((pack) => {
+        {displayPacks.map((pack) => {
           const posters = pack.posters || [];
           const ready = posters.length >= POSTERS_PER_PLACE;
           return (

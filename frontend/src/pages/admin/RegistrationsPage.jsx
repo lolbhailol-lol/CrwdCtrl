@@ -1,16 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     AlertCircle, Calendar, Flag, Footprints, Loader2,
-    Mail, Mountain, Phone, Search, User,
+    Mail, Mountain, Phone, Search, Theater, User,
 } from 'lucide-react';
 import { adminFetchJSON } from '../../services/api/admin.api.js';
+import { primaryCoverUrl } from '../../utils/coverImages';
 import { normalizeImageUrl } from '../../utils/uploadUrls';
 
 const TABS = [
     { id: 'fests', label: 'Fests', icon: Flag },
     { id: 'treks', label: 'Treks', icon: Mountain },
     { id: 'runs', label: 'Runs', icon: Footprints },
+    { id: 'events', label: 'Events', icon: Theater },
 ];
+
+const EVENT_MODE_LABEL = {
+    internal_form: { label: 'Internal form', cls: 'bg-emerald-500/15 text-emerald-400' },
+    organizer_qr: { label: 'QR payment', cls: 'bg-amber-500/15 text-amber-400' },
+    external_link: { label: 'External link', cls: 'bg-sky-500/15 text-sky-400' },
+};
 
 const FEST_MODE_LABEL = {
     INTERNAL_FORM: { label: 'Internal form', cls: 'bg-emerald-500/15 text-emerald-400' },
@@ -174,6 +182,7 @@ export default function RegistrationsPage() {
     const [fests, setFests] = useState([]);
     const [treks, setTreks] = useState([]);
     const [runs, setRuns] = useState([]);
+    const [events, setEvents] = useState([]);
 
     const [selectedId, setSelectedId] = useState(null);
     const [registrations, setRegistrations] = useState([]);
@@ -185,14 +194,16 @@ export default function RegistrationsPage() {
         setLoading(true);
         setError('');
         try {
-            const [festData, trekData, sportData] = await Promise.all([
+            const [festData, trekData, sportData, eventData] = await Promise.all([
                 adminFetchJSON('/admin/fests?limit=500'),
                 adminFetchJSON('/admin/treks?limit=500'),
                 adminFetchJSON('/admin/sports?limit=500'),
+                adminFetchJSON('/admin/events?limit=500'),
             ]);
             setFests(festData.fests || []);
             setTreks(trekData.treks || []);
             setRuns((sportData.events || []).filter((e) => e.runClubId));
+            setEvents(eventData.shows || []);
         } catch (err) {
             setError(err.message || 'Failed to load events');
         } finally {
@@ -202,7 +213,20 @@ export default function RegistrationsPage() {
 
     useEffect(() => { fetchLists(); }, [fetchLists]);
 
-    const currentList = tab === 'fests' ? fests : tab === 'treks' ? treks : runs;
+    const currentList = tab === 'fests'
+        ? fests
+        : tab === 'treks'
+            ? treks
+            : tab === 'events'
+                ? events
+                : runs;
+
+    const tabCounts = {
+        fests: fests.length,
+        treks: treks.length,
+        runs: runs.length,
+        events: events.length,
+    };
 
     const filteredEvents = useMemo(() => {
         const q = eventSearch.trim().toLowerCase();
@@ -213,6 +237,9 @@ export default function RegistrationsPage() {
             }
             if (tab === 'treks') {
                 return [item.trekName, item.city, item.destination].some((v) => String(v || '').toLowerCase().includes(q));
+            }
+            if (tab === 'events') {
+                return [item.title, item.displayName, item.venue, item.city, item.organizer].some((v) => String(v || '').toLowerCase().includes(q));
             }
             return [item.title, item.city, item.runCategory].some((v) => String(v || '').toLowerCase().includes(q));
         });
@@ -234,6 +261,9 @@ export default function RegistrationsPage() {
             } else if (type === 'treks') {
                 const data = await adminFetchJSON(`/admin/treks/${id}/bookings`);
                 setRegistrations((data.bookings || []).map((b) => ({ ...b, _kind: 'trek' })));
+            } else if (type === 'events') {
+                const data = await adminFetchJSON(`/admin/events/${id}/registrations?limit=500`);
+                setRegistrations((data.registrations || []).map((r) => ({ ...r, _kind: 'event' })));
             } else {
                 const data = await adminFetchJSON(`/category-registrations/admin/all?category=sports&eventId=${id}&limit=500`);
                 setRegistrations((data.registrations || []).map((r) => ({ ...r, _kind: 'run' })));
@@ -264,6 +294,10 @@ export default function RegistrationsPage() {
             setRegistrations([]);
             return;
         }
+        if (tab === 'events' && item.registration?.mode === 'external_link') {
+            setRegistrations([]);
+            return;
+        }
         fetchRegistrations(tab, id);
     };
 
@@ -276,6 +310,11 @@ export default function RegistrationsPage() {
                 });
             } else if (kind === 'trek') {
                 await adminFetchJSON(`/admin/treks/bookings/${regId}/status`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ status }),
+                });
+            } else if (kind === 'event') {
+                await adminFetchJSON(`/admin/events/registrations/${regId}/status`, {
                     method: 'PUT',
                     body: JSON.stringify({ status }),
                 });
@@ -302,23 +341,36 @@ export default function RegistrationsPage() {
         });
     }, [registrations, userSearch, statusFilter]);
 
-    const statusOptions = tab === 'fests'
+    const statusOptions = tab === 'fests' || tab === 'events'
         ? ['pending', 'approved', 'rejected']
         : tab === 'treks'
             ? ['confirmed', 'cancelled']
             : ['pending', 'confirmed', 'cancelled'];
 
     const panelTitle = selectedItem
-        ? (tab === 'fests' ? selectedItem.festName : tab === 'treks' ? selectedItem.trekName : selectedItem.title)
+        ? (tab === 'fests'
+            ? selectedItem.festName
+            : tab === 'treks'
+                ? selectedItem.trekName
+                : selectedItem.title || selectedItem.displayName)
         : null;
 
     const festUsesExternal = tab === 'fests' && selectedItem && selectedItem.registration?.mode !== 'INTERNAL_FORM';
+    const eventUsesExternal = tab === 'events' && selectedItem && selectedItem.registration?.mode === 'external_link';
+
+    const selectLabel = tab === 'fests'
+        ? 'fest'
+        : tab === 'treks'
+            ? 'trek'
+            : tab === 'events'
+                ? 'event'
+                : 'run';
 
     return (
         <div className="max-w-6xl mx-auto space-y-5">
             <div>
                 <h1 className="text-2xl font-bold text-white">Registrations</h1>
-                <p className="text-sm text-gray-500 mt-0.5">View sign-ups for fests, treks, and runs</p>
+                <p className="text-sm text-gray-500 mt-0.5">View sign-ups for fests, treks, runs, and events</p>
             </div>
 
             {error && (
@@ -344,7 +396,7 @@ export default function RegistrationsPage() {
                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
                             tab === t.id ? 'bg-black/20 text-black' : 'bg-white/8 text-gray-500'
                         }`}>
-                            {tab === 'fests' ? fests.length : tab === 'treks' ? treks.length : runs.length}
+                            {tabCounts[t.id]}
                         </span>
                     </button>
                 ))}
@@ -355,7 +407,7 @@ export default function RegistrationsPage() {
                 <div className="rounded-2xl border border-white/8 bg-[#17181A] overflow-hidden">
                     <div className="px-4 py-3 border-b border-white/6">
                         <h2 className="text-sm font-bold text-white">
-                            {tab === 'fests' ? 'Select fest' : tab === 'treks' ? 'Select trek' : 'Select run'}
+                            Select {selectLabel}
                         </h2>
                         <div className="relative mt-2">
                             <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" />
@@ -411,6 +463,22 @@ export default function RegistrationsPage() {
                                         />
                                     );
                                 }
+                                if (tab === 'events') {
+                                    const mode = item.registration?.mode || 'external_link';
+                                    const modeInfo = EVENT_MODE_LABEL[mode] || EVENT_MODE_LABEL.external_link;
+                                    return (
+                                        <EventPickerCard
+                                            key={id}
+                                            active={selectedId === id}
+                                            onClick={() => handleSelectEvent(item)}
+                                            image={normalizeImageUrl(primaryCoverUrl(item.coverImages, item.poster))}
+                                            fallbackIcon={Theater}
+                                            title={item.displayName || item.title}
+                                            subtitle={[item.venue, item.city].filter(Boolean).join(' · ')}
+                                            badge={modeInfo}
+                                        />
+                                    );
+                                }
                                 return (
                                     <EventPickerCard
                                         key={id}
@@ -436,7 +504,7 @@ export default function RegistrationsPage() {
                     {!selectedItem ? (
                         <div className="flex-1 flex flex-col items-center justify-center text-gray-600 p-8">
                             <Calendar size={40} className="mb-3 opacity-40" />
-                            <p className="text-sm">Select a {tab === 'fests' ? 'fest' : tab === 'treks' ? 'trek' : 'run'} to view registrations</p>
+                            <p className="text-sm">Select a {selectLabel} to view registrations</p>
                         </div>
                     ) : festUsesExternal ? (
                         <div className="flex-1 flex flex-col items-center justify-center text-gray-500 p-8 text-center">
@@ -450,6 +518,24 @@ export default function RegistrationsPage() {
                             {selectedItem.registration?.externalLink && (
                                 <a
                                     href={selectedItem.registration.externalLink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="mt-3 text-sm text-[#0ECCEE] hover:underline"
+                                >
+                                    Open external form
+                                </a>
+                            )}
+                        </div>
+                    ) : eventUsesExternal ? (
+                        <div className="flex-1 flex flex-col items-center justify-center text-gray-500 p-8 text-center">
+                            <Theater size={40} className="mb-3 opacity-40" />
+                            <p className="text-sm font-medium text-gray-300">{panelTitle}</p>
+                            <p className="text-xs mt-1 max-w-sm">
+                                This event uses an external registration link — sign-ups are not stored here.
+                            </p>
+                            {(selectedItem.registrationLink || selectedItem.registration?.externalLink) && (
+                                <a
+                                    href={selectedItem.registrationLink || selectedItem.registration?.externalLink}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="mt-3 text-sm text-[#0ECCEE] hover:underline"
@@ -540,6 +626,30 @@ export default function RegistrationsPage() {
                                                         ...(bd.people ? [{ label: 'People', value: String(bd.people) }] : []),
                                                     ]}
                                                     submittedAt={reg.createdAt}
+                                                />
+                                            );
+                                        }
+                                        if (reg._kind === 'event') {
+                                            return (
+                                                <RegistrationCard
+                                                    key={reg._id}
+                                                    name={reg.user?.name}
+                                                    email={reg.user?.email}
+                                                    phone={reg.user?.phone}
+                                                    status={reg.status}
+                                                    statusOptions={statusOptions}
+                                                    onStatusChange={(s) => updateStatus(reg._id, s, 'event')}
+                                                    paymentStatus={reg.paymentStatus}
+                                                    amountPaid={reg.amountPaid}
+                                                    paymentId={reg.payment_id || reg.payment_order_id}
+                                                    responses={reg.responses}
+                                                    extraRows={[
+                                                        ...(reg.tierName ? [{ label: 'Package', value: reg.tierName }] : []),
+                                                        ...(reg.reRegistrationCount > 0
+                                                            ? [{ label: 'Re-registrations', value: String(reg.reRegistrationCount) }]
+                                                            : []),
+                                                    ]}
+                                                    submittedAt={reg.submittedAt || reg.createdAt}
                                                 />
                                             );
                                         }

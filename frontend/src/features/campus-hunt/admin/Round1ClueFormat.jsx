@@ -576,6 +576,7 @@ export default function Round1ClueFormat({
             nextStart,
           ));
           bumpClues();
+          bumpCheckpoints();
           onChanged?.();
         }}
       />

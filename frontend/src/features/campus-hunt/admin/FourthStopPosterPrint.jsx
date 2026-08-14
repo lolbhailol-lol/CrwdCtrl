@@ -26,7 +26,7 @@ export default function FourthStopPosterPrint({
         ? `FOURTH SCAN shared QRs · ${placeCount} place${placeCount === 1 ? '' : 's'}`
         : undefined}
       blurb={`Small purple cards — tuck near the planted prop. Finding them early does nothing until after the prop hunt. One shared QR per selected place; after ${teamSize}/${teamSize} scans, teams enter their team code for Final.`}
-      needMoreHint="Update Clue 4 for this setup + Save Clue 4, then refresh."
+      needMoreHint="Save setup or Update Clue 4 for this setup — shared QRs appear after either step."
       skippedSummaryKey="fourthSkipped"
       campusStations={campusStations}
       stationCount={stationCount}

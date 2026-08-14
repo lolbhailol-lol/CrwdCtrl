@@ -17,6 +17,7 @@ const {
   stationForLocalTeam,
   threeDigitCodeForTeam,
   WAIT_POINTS,
+  syncSharedStationQrs,
 } = require('./round1BootstrapService');
 
 const SHARED_PROMPT =
@@ -246,6 +247,8 @@ async function bulkSaveClue2({
     { $set: { active: false } },
   );
 
+  const sharedQr = await syncSharedStationQrs(event, round, routes);
+
   const sync = await resyncClue1TeamBindings({
     eventId,
     roundId: round._id,
@@ -264,6 +267,7 @@ async function bulkSaveClue2({
       errors: errors.length,
       secondPostersBound: sync.secondPostersBound,
       teamsUpdated: sync.updated,
+      sharedQr,
     },
   });
 
@@ -274,6 +278,7 @@ async function bulkSaveClue2({
     teamsUpdated: sync.updated,
     secondPostersBound: sync.secondPostersBound,
     scoring: clue2Scoring,
+    sharedQr,
   };
 }
 

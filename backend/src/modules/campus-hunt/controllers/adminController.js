@@ -2352,6 +2352,13 @@ async function updateCheckpoint(req, res, next) {
  * Build 1 shared QR print pack per campus place for a progression (1|2|3).
  * Prefer ST-* checkpoints over legacy team-bound posters.
  */
+function progressionStage(raw) {
+  const text = String(raw || '').trim().toUpperCase();
+  if (/^[1-4]$/.test(text)) return text;
+  const fromKey = text.match(/^([1-4])[-_]/);
+  return fromKey ? fromKey[1] : text;
+}
+
 function buildSharedPrintPacks({
   stations,
   huntStations,
@@ -2360,7 +2367,7 @@ function buildSharedPrintPacks({
   targetPosters = 1,
 }) {
   const packsByCode = new Map(
-    huntStations.map((station) => [station.code, {
+    huntStations.map((station) => [String(station.code || '').toUpperCase(), {
       code: station.code,
       locationName: station.name,
       posters: [],
@@ -2370,27 +2377,32 @@ function buildSharedPrintPacks({
   const want = String(progressionKey).toUpperCase();
 
   for (const station of stations) {
-    const key = String(station.progressionKey || '').toUpperCase();
+    const key = progressionStage(station.progressionKey || station.checkpointKey);
     if (key !== want) continue;
     if (station.active === false) {
       skipped += 1;
       continue;
     }
     const place = String(station.locationName || '').trim();
-    if (!place || waitNameSet.has(place.toLowerCase())) {
+    const stationCode = String(station.stationCode || '').toUpperCase().trim();
+    if (!place && !stationCode) {
+      skipped += 1;
+      continue;
+    }
+    // Skip wait-point names only when we cannot tie the row to a campus station code.
+    if (place && waitNameSet.has(place.toLowerCase()) && !stationCode) {
       skipped += 1;
       continue;
     }
 
     let pack = null;
-    const stationCode = String(station.stationCode || '').toUpperCase().trim();
     if (stationCode && packsByCode.has(stationCode)) {
       pack = packsByCode.get(stationCode);
-    } else {
+    } else if (place) {
       const matched = huntStations.find(
         (row) => row.name.toLowerCase() === place.toLowerCase(),
       );
-      if (matched) pack = packsByCode.get(matched.code);
+      if (matched) pack = packsByCode.get(String(matched.code || '').toUpperCase());
     }
     if (!pack) {
       skipped += 1;
@@ -2420,7 +2432,7 @@ function buildSharedPrintPacks({
   }
 
   const printPacks = huntStations.map((station) => {
-    const pack = packsByCode.get(station.code);
+    const pack = packsByCode.get(String(station.code || '').toUpperCase());
     const posters = [...(pack?.posters || [])];
     return {
       code: station.code,

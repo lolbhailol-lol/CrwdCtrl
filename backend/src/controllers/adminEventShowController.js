@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const EventShow = require('../model/event_show_model');
+const EventShowRegistration = require('../model/event_show_registration_model');
 const { sanitizeEventPlatformFeePercent } = require('../utils/trekRegistrationFee');
 const { sanitizeCoverImages, primaryCoverUrl } = require('../utils/sanitizeCoverImages');
 const { setExclusiveEventsPageHero } = require('../utils/featuredPlacement');
@@ -186,5 +187,94 @@ exports.deleteEventShow = async (req, res) => {
         res.json({ message: 'Event deleted successfully' });
     } catch (error) {
         res.status(500).json({ message: 'Failed to delete event' });
+    }
+};
+
+function responsesToObject(responses) {
+    if (!responses) return {};
+    if (responses instanceof Map) return Object.fromEntries(responses);
+    if (typeof responses.toObject === 'function') return responses.toObject();
+    return { ...responses };
+}
+
+function formatAdminEventRegistration(reg) {
+    const responses = responsesToObject(reg.responses);
+    const user = reg.user && typeof reg.user === 'object' ? reg.user : null;
+    const formName = String(
+        responses.leader_name || responses.full_name || responses.name || '',
+    ).trim();
+    const formEmail = String(responses.email || '').trim();
+    const formPhone = String(
+        responses.phone || responses.contact_no || responses.mobile || '',
+    ).trim();
+
+    return {
+        ...reg,
+        user: {
+            name: formName || user?.name || '',
+            email: formEmail || user?.email || '',
+            phone: formPhone || user?.phone || '',
+        },
+        responses,
+        reRegistrationCount: Number(reg.reRegistrationCount) || (reg.additionalEntries?.length || 0),
+    };
+}
+
+exports.getEventShowRegistrations = async (req, res) => {
+    try {
+        const { eventShowId } = req.params;
+        if (!mongoose.Types.ObjectId.isValid(eventShowId)) {
+            return res.status(400).json({ message: 'Invalid event ID' });
+        }
+
+        const event = await EventShow.findById(eventShowId).select('title displayName registration').lean();
+        if (!event) return res.status(404).json({ message: 'Event not found' });
+
+        const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 500));
+        const regs = await EventShowRegistration.find({ eventShow: eventShowId })
+            .populate('user', 'name email phone')
+            .sort({ createdAt: -1 })
+            .limit(limit)
+            .lean();
+
+        const registrations = regs.map(formatAdminEventRegistration);
+        res.json({ registrations, total: registrations.length, event });
+    } catch (error) {
+        console.error('adminEventShow getEventShowRegistrations error:', error);
+        res.status(500).json({ message: 'Failed to fetch event registrations' });
+    }
+};
+
+exports.updateEventShowRegistrationStatus = async (req, res) => {
+    try {
+        const { registrationId } = req.params;
+        if (!mongoose.Types.ObjectId.isValid(registrationId)) {
+            return res.status(400).json({ message: 'Invalid registration ID' });
+        }
+
+        const status = String(req.body.status || '').toLowerCase();
+        if (!['pending', 'approved', 'rejected'].includes(status)) {
+            return res.status(400).json({ message: 'Invalid status' });
+        }
+
+        const reg = await EventShowRegistration.findById(registrationId);
+        if (!reg) return res.status(404).json({ message: 'Registration not found' });
+
+        reg.status = status;
+        if (status === 'approved' && reg.paymentStatus === 'pending') {
+            reg.paymentStatus = 'paid';
+        }
+        if (status === 'rejected' && reg.paymentStatus === 'pending') {
+            reg.paymentStatus = 'failed';
+        }
+        await reg.save();
+
+        res.json({
+            message: 'Registration status updated',
+            registration: formatAdminEventRegistration(reg.toObject()),
+        });
+    } catch (error) {
+        console.error('adminEventShow updateEventShowRegistrationStatus error:', error);
+        res.status(500).json({ message: 'Failed to update registration status' });
     }
 };
