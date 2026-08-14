@@ -196,6 +196,117 @@ function LocationTeamMatrix({ row, posterCols }) {
   );
 }
 
+function LocationWriteHereBox({ codesHere, propsHere }) {
+  const hasGreen = codesHere?.length > 0;
+  const hasPurple = propsHere?.length > 0;
+
+  if (!hasGreen && !hasPurple) {
+    return (
+      <div className="mb-3 rounded-lg border border-white/12 bg-black/15 px-2.5 py-2 print:border-black/25 print:bg-gray-50">
+        <p className="text-[10px] font-bold uppercase tracking-wide text-white/70 print:text-[9px] print:text-black/70">
+          Write / hide at this location
+        </p>
+        <p className="mt-1 text-[10px] text-white/50 print:text-[8.5px] print:text-black/55">
+          No 3-digit marks or props here — tape all 4 QR posters only.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="mb-3 rounded-lg border-2 px-2.5 py-2 print:border-black/40 print:py-1.5"
+      style={{ borderColor: `${T.clue2.hex}66`, background: `${T.clue2.hex}10` }}
+    >
+      <p className="text-[11px] font-black uppercase tracking-wide print:text-[10px]" style={{ color: T.clue2.hex }}>
+        Write / hide at this location
+      </p>
+      <p className="mt-0.5 text-[9px] text-white/55 print:text-[8px] print:text-black/60">
+        Copy these exactly — one per team listed below
+      </p>
+
+      {hasGreen ? (
+        <div className="mt-2 rounded border border-emerald-400/35 bg-emerald-500/10 px-2 py-1.5 print:border-emerald-700 print:bg-emerald-50">
+          <p className="text-[10px] font-bold print:text-[9px]" style={{ color: T.clue2.hex }}>
+            Near GREEN QR — write or tape 3-digit number
+          </p>
+          <ul className="mt-1.5 space-y-1">
+            {codesHere.map((c) => (
+              <li
+                key={`write-green-${c.teamCode}`}
+                className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded border border-white/10 bg-black/20 px-2 py-1 print:border-black/15 print:bg-white"
+              >
+                <label className="huddle-check flex flex-1 flex-wrap items-center gap-2 text-[10px] print:text-[8.5px]">
+                  <input
+                    type="checkbox"
+                    className="h-3.5 w-3.5 shrink-0 print:h-3 print:w-3"
+                    style={{ accentColor: T.clue2.hex }}
+                  />
+                  <span className="font-bold text-white print:text-black">
+                    Team #{c.teamNumber}
+                  </span>
+                  <span className="font-mono text-[9px] text-white/55 print:text-black/55">
+                    {c.teamCode}
+                  </span>
+                  <span className="text-[9px] text-white/45 print:text-black/50">write</span>
+                  <span
+                    className="font-mono text-[18px] font-black tracking-[0.2em] print:text-[15px]"
+                    style={{ color: T.clue2.hex }}
+                  >
+                    {c.clue2Code}
+                  </span>
+                  <span className="text-[9px] text-white/45 print:text-black/50">near green QR</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {hasPurple ? (
+        <div
+          className="mt-2 rounded border px-2 py-1.5 print:border-purple-800 print:bg-purple-50"
+          style={{ borderColor: `${T.clue4.hex}55`, background: `${T.clue4.hex}14` }}
+        >
+          <p className="text-[10px] font-bold print:text-[9px]" style={{ color: T.clue4.hex }}>
+            On PURPLE prop — sticker word (exact spelling)
+          </p>
+          <ul className="mt-1.5 space-y-1">
+            {propsHere.map((p) => (
+              <li
+                key={`write-purple-${p.teamCode}`}
+                className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded border border-white/10 bg-black/20 px-2 py-1 print:border-black/15 print:bg-white"
+              >
+                <label className="huddle-check flex flex-1 flex-wrap items-center gap-2 text-[10px] print:text-[8.5px]">
+                  <input
+                    type="checkbox"
+                    className="h-3.5 w-3.5 shrink-0 print:h-3 print:w-3"
+                    style={{ accentColor: T.clue4.hex }}
+                  />
+                  <span className="font-bold text-white print:text-black">
+                    Team #{p.teamNumber ?? '?'}
+                  </span>
+                  <span className="font-mono text-[9px] text-white/55 print:text-black/55">
+                    {p.teamCode}
+                  </span>
+                  <span className="text-[9px] text-white/45 print:text-black/50">sticker</span>
+                  <span
+                    className="font-mono text-[14px] font-black tracking-wider print:text-[12px]"
+                    style={{ color: T.clue4.hex }}
+                  >
+                    {p.propCode}
+                  </span>
+                  <span className="text-[9px] text-white/45 print:text-black/50">beside purple QR</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function LocationPlantCard({
   row,
   people,
@@ -237,6 +348,8 @@ function LocationPlantCard({
         </label>
       </header>
 
+      <LocationWriteHereBox codesHere={row.codesHere} propsHere={row.propsHere} />
+
       <LocationTeamMatrix row={row} posterCols={posterCols} />
 
       <div className="mb-2 rounded border border-white/10 bg-black/20 px-2 py-1.5 text-[10px] leading-snug text-white/75 print:border-black/20 print:bg-gray-50 print:text-[8.5px] print:text-black/80">
@@ -271,6 +384,8 @@ function LocationPlantCard({
                       ? `After prop CODE typed on phone · then all ${people} scan + team code → Final`
                       : col.key === 'green'
                         ? `Hide each team’s 3-digit mark near this green QR · leader finds code · then all ${people} scan`
+                      : col.key === 'blue'
+                        ? `No 3-digit mark here · teams solve Clue 3 riddle on phone · then all ${people} scan + team code`
                       : `After ${col.when.toLowerCase().replace(/^after /, '')} · unlocks ${col.unlocks}`}
                   </span>
                   {teams.length > 0 ? (
@@ -310,47 +425,6 @@ function LocationPlantCard({
           </li>
         )}
       </ul>
-
-      {row.codesHere?.length > 0 ? (
-        <div
-          className="mb-3 rounded border px-2 py-2 print:border-black/25 print:py-1.5"
-          style={{ borderColor: `${T.clue2.hex}55`, background: `${T.clue2.hex}14` }}
-        >
-          <p className="text-[10px] font-bold print:text-[9px]" style={{ color: T.clue2.hex }}>
-            Clue 2 — 3-digit marks to hide at this place (green zone)
-          </p>
-          <p className="mt-0.5 text-[9px] text-white/55 print:text-[8px] print:text-black/60">
-            Write or tape each number where only that team will look · eye level near green QR
-          </p>
-          <ul className="mt-2 space-y-1">
-            {row.codesHere.map((c) => (
-              <li
-                key={`clue2-${c.teamCode}`}
-                className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded border border-white/10 bg-black/20 px-2 py-1 print:border-black/15 print:bg-white print:py-0.5"
-              >
-                <label className="huddle-check flex flex-1 flex-wrap items-center gap-2 text-[10px] print:text-[8.5px]">
-                  <input
-                    type="checkbox"
-                    className="h-3.5 w-3.5 shrink-0 print:h-3 print:w-3"
-                    style={{ accentColor: T.clue2.hex }}
-                  />
-                  <span className="font-bold text-white print:text-black">
-                    Team #{c.teamNumber}
-                    {' '}
-                    <span className="font-mono font-normal text-white/60 print:text-black/55">
-                      {c.teamCode}
-                    </span>
-                  </span>
-                  <span className="font-mono text-[14px] font-black tracking-widest print:text-[12px]" style={{ color: T.clue2.hex }}>
-                    {c.clue2Code}
-                  </span>
-                  <span className="text-[9px] text-white/50 print:text-black/50">☐ hidden near green QR</span>
-                </label>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
 
       <div className="mb-1.5 rounded border border-purple-400/25 bg-purple-500/10 px-2 py-1.5 text-[10px] leading-snug text-purple-100 print:border-purple-800 print:bg-purple-50 print:text-[8.5px] print:text-purple-950">
         <strong>Step 2 — Plant props (Clue 4)</strong>
@@ -752,12 +826,19 @@ export default function DryRunHuddleChecklist({
                 <strong>Green SECOND SCAN</strong>
                 {' '}
                 → all {people} + team code → Clue 3.
+                {' '}
+                <strong className="text-emerald-300 print:text-emerald-800">
+                  Hide each team’s 3-digit mark near the green QR only
+                </strong>
+                {' '}
+                (not at blue).
               </li>
               <li>
                 Solve
                 {' '}
                 <ColorChip theme={T.clue3} short="Clue 3" />
                 {' '}
+                (Caesar riddle on phone — no hidden number)
                 →
                 {' '}
                 <strong>Blue THIRD SCAN</strong>
@@ -820,8 +901,9 @@ export default function DryRunHuddleChecklist({
             Plant by location (detailed)
           </SectionTitle>
           <p className="mb-3 text-[10px] text-white/50 print:mb-2 print:text-[8.5px] print:text-black/55">
-            At each place: complete Step 1 (4 QR posters) then Step 2 (props only if listed).
-            Each card shows <strong>team numbers (#1–#8)</strong> and codes for every scan color at that spot.
+            At each place: check <strong>Write / hide at this location</strong> first (3-digit numbers + prop stickers),
+            then Step 1 (4 QR posters), then Step 2 (props if listed).
+            Each card shows team numbers (#1–#8) for every scan color at that spot.
           </p>
 
           {/* Print: quick location × team numbers grid */}
@@ -832,7 +914,7 @@ export default function DryRunHuddleChecklist({
                   <th className="huddle-th w-[14%]">Place</th>
                   <th className="huddle-th w-[18%]" style={{ color: T.clue1.hex }}>① Orange · team #</th>
                   <th className="huddle-th w-[18%]" style={{ color: T.clue2.hex }}>② Green · # + 3-digit</th>
-                  <th className="huddle-th w-[18%]" style={{ color: T.clue3.hex }}>③ Blue · team #</th>
+                  <th className="huddle-th w-[18%]" style={{ color: T.clue3.hex }}>③ Blue · team # only</th>
                   <th className="huddle-th w-[32%]" style={{ color: T.clue4.hex }}>④ Purple · team # + prop</th>
                 </tr>
               </thead>
