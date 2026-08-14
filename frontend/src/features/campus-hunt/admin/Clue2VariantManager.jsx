@@ -6,8 +6,13 @@ import {
   adminListRoutes,
   adminListStartingPoints,
   adminBulkSaveClue2,
-  adminUpdateEvent,
+  adminSaveClueScoring,
 } from '../services/campusHunt.api';
+import {
+  CLUE2_DEFAULT_SETTINGS,
+  coerceClueScoring,
+  loadClueSettings,
+} from './clueSettings';
 import {
   CAMPUS_STARTS,
   STATION_TARGET_COUNT,
@@ -25,20 +30,7 @@ import {
 
 const inputClass = 'w-full rounded-lg border border-white/15 bg-[#161718] px-3 py-2 text-sm text-white';
 
-const DEFAULT_SETTINGS = {
-  timerStartDelaySeconds: 20,
-  timerSeconds: 180,
-  maxAttempts: 3,
-  hintCost: 15,
-  allowLateSubmit: true,
-  awardMode: 'time_bands_total',
-  basePoints: 0,
-  speedBonusBands: [
-    { maxSeconds: 60, bonus: 50 },
-    { maxSeconds: 120, bonus: 30 },
-    { maxSeconds: 180, bonus: 10 },
-  ],
-};
+const DEFAULT_SETTINGS = CLUE2_DEFAULT_SETTINGS;
 
 const SHARED_PROMPT =
   'A staff mark hides in plain sight nearby. '
@@ -162,14 +154,7 @@ export default function Clue2VariantManager({
     );
     setVariants(list);
 
-    const clue2 = overview.data?.event?.scoringConfig?.clue2 || {};
-    setSettings({
-      ...DEFAULT_SETTINGS,
-      ...clue2,
-      speedBonusBands: clue2.speedBonusBands?.length
-        ? clue2.speedBonusBands
-        : DEFAULT_SETTINGS.speedBonusBands,
-    });
+    setSettings(loadClueSettings(overview.data?.event?.scoringConfig, 'clue2', DEFAULT_SETTINGS, list[0]));
 
     const nextCodes = {};
     arrivalPlan.forEach((place) => {
@@ -200,26 +185,13 @@ export default function Clue2VariantManager({
     setError('');
     setMessage('');
     try {
-      const overview = await adminGetOverview(eventId);
-      const prev = overview.data?.event?.scoringConfig || {};
-      await adminUpdateEvent(eventId, {
-        scoringConfig: {
-          ...prev,
-          clue2: {
-            ...DEFAULT_SETTINGS,
-            ...settings,
-            timerStartDelaySeconds: Number(settings.timerStartDelaySeconds) || 20,
-            timerSeconds: Number(settings.timerSeconds) || 180,
-            maxAttempts: Number(settings.maxAttempts) || 3,
-            hintCost: Number(settings.hintCost) || 15,
-            allowLateSubmit: settings.allowLateSubmit !== false,
-            awardMode: 'time_bands_total',
-            basePoints: 0,
-            speedBonusBands: settings.speedBonusBands || DEFAULT_SETTINGS.speedBonusBands,
-          },
-        },
+      const scoring = coerceClueScoring(settings, DEFAULT_SETTINGS);
+      await adminSaveClueScoring(eventId, 2, {
+        roundId,
+        scoring,
       });
-      setMessage(`Saved Clue 2 defaults for all ${teamCapacity} teams`);
+      await refresh();
+      setMessage(`Saved Clue 2 timer & hint settings for all ${teamCapacity} teams`);
       onChanged?.();
     } catch (err) {
       setError(err.message || 'Could not save defaults');
@@ -243,18 +215,7 @@ export default function Clue2VariantManager({
     setMessage(`Saving all ${teamCapacity} Clue 2 codes…`);
 
     try {
-      const clue2Scoring = {
-        ...DEFAULT_SETTINGS,
-        ...settings,
-        timerStartDelaySeconds: Number(settings.timerStartDelaySeconds) || 20,
-        timerSeconds: Number(settings.timerSeconds) || 180,
-        maxAttempts: Number(settings.maxAttempts) || 3,
-        hintCost: Number(settings.hintCost) || 15,
-        allowLateSubmit: true,
-        awardMode: 'time_bands_total',
-        basePoints: 0,
-        speedBonusBands: settings.speedBonusBands || DEFAULT_SETTINGS.speedBonusBands,
-      };
+      const clue2Scoring = coerceClueScoring(settings, DEFAULT_SETTINGS);
 
       const variantsPayload = [];
       const failures = [];
@@ -404,7 +365,7 @@ export default function Clue2VariantManager({
           onClick={saveDefaults}
           className="mt-3 rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
         >
-          {busy ? 'Saving…' : 'Save defaults'}
+          {busy ? 'Saving…' : 'Save settings only'}
         </button>
       </section>
 

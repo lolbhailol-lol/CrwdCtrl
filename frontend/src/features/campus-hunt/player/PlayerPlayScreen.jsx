@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ScoreChip from '../components/ScoreChip';
 import CountdownTimer from '../components/CountdownTimer';
@@ -47,6 +47,22 @@ function needsStationScan(stage) {
 function needsStartReport(stage) {
   return stage === 'CLUE_5_COMPLETED' || stage === 'CLUE_5_FAILED';
 }
+
+function revealAnswerLabel(challengeNumber) {
+  if (challengeNumber === 2) return '3-digit code';
+  if (challengeNumber === 4) return 'Prop code';
+  if (challengeNumber === 5) return 'Final word';
+  return 'Answer';
+}
+
+const CHECKPOINT_REVEAL_STAGE = {
+  CLUE_2_COMPLETED: 2,
+  CLUE_2_FAILED: 2,
+  CLUE_2_TIMEOUT: 2,
+  CLUE_4_COMPLETED: 4,
+  CLUE_4_FAILED: 4,
+  CLUE_4_TIMEOUT: 4,
+};
 
 const panel = 'rounded-2xl border border-white/[0.08] bg-[#121416]/85 p-4 backdrop-blur-sm';
 
@@ -103,6 +119,19 @@ export default function PlayerPlayScreen({
   const [claimCode, setClaimCode] = useState('');
   const [awardedFlash, setAwardedFlash] = useState(null);
   const prevStageRef = useRef(team?.currentStage);
+  const lastTimerRevealKeyRef = useRef('');
+  const timerExpiredHandledRef = useRef('');
+
+  const handleTimerExpired = useCallback(async () => {
+    const key = `${team?.id || ''}-${activeNum || ''}-${activeChallenge?.expiresAt || ''}`;
+    if (timerExpiredHandledRef.current === key) return;
+    timerExpiredHandledRef.current = key;
+    const next = await onRefresh?.({ force: true, burst: true });
+    if (next?.team && onActionResult?.(next)) return;
+    if (!next?.team) {
+      void onRefresh?.({ force: true, burst: true });
+    }
+  }, [team?.id, activeNum, activeChallenge?.expiresAt, onRefresh, onActionResult]);
 
   useEffect(() => {
     if (!showSuccess) return undefined;
@@ -120,6 +149,7 @@ export default function PlayerPlayScreen({
     const stage = team?.currentStage;
     if (!stage || stage === prevStageRef.current) return;
     prevStageRef.current = stage;
+    timerExpiredHandledRef.current = '';
     setShowScanner(false);
     setShowPaste(false);
     setAnswer('');
@@ -128,6 +158,16 @@ export default function PlayerPlayScreen({
   }, [team?.currentStage]);
 
   const atCheckpoint = !waitingForRelease && needsStationScan(team?.currentStage) && !activeNum;
+
+  const timerRevealAtCheckpoint = useMemo(() => {
+    const n = CHECKPOINT_REVEAL_STAGE[team?.currentStage];
+    if (!n || !atCheckpoint) return null;
+    const ch = challenges.find((c) => c.challengeNumber === n);
+    if (ch?.failureReason === 'REVEALED_ZERO_POINTS' && ch?.revealedAnswer) {
+      return { n, answer: ch.revealedAnswer };
+    }
+    return null;
+  }, [team?.currentStage, atCheckpoint, challenges]);
 
   // Auto-open camera on scan stages so the main action is one tap away
   useEffect(() => {
@@ -143,6 +183,49 @@ export default function PlayerPlayScreen({
     if (claimCode) return;
     if (team?.teamCode) setClaimCode(String(team.teamCode).toUpperCase());
   }, [checkpointStatus?.awaitingTeamCodeConfirm, team?.teamCode, claimCode]);
+
+  // Auto-sync when server marks timer expired (backup if countdown onComplete missed)
+  useEffect(() => {
+    if (!activeChallenge?.timeExpired) return undefined;
+    if (![2, 4, 5].includes(activeChallenge.challengeNumber)) return undefined;
+    void handleTimerExpired();
+    return undefined;
+  }, [
+    activeChallenge?.timeExpired,
+    activeChallenge?.challengeNumber,
+    handleTimerExpired,
+  ]);
+
+  // Flash revealed answer when timer auto-advances to scan / start report
+  useEffect(() => {
+    if (!team) return undefined;
+    const atCp = !waitingForRelease && needsStationScan(team.currentStage) && !activeNum;
+    const stageReveal = CHECKPOINT_REVEAL_STAGE[team.currentStage];
+    let reveal = null;
+    if (stageReveal && atCp) {
+      const ch = challenges.find((c) => c.challengeNumber === stageReveal);
+      if (ch?.failureReason === 'REVEALED_ZERO_POINTS' && ch?.revealedAnswer) {
+        reveal = { n: stageReveal, answer: ch.revealedAnswer };
+      }
+    }
+    const atStart = !waitingForRelease && needsStartReport(team.currentStage) && !activeNum;
+    if (!reveal && atStart) {
+      const ch5 = challenges.find((c) => c.challengeNumber === 5);
+      if (ch5?.failureReason === 'REVEALED_ZERO_POINTS' && ch5?.revealedAnswer) {
+        reveal = { n: 5, answer: ch5.revealedAnswer };
+      }
+    }
+    if (!reveal?.answer) return undefined;
+    const key = `${reveal.n}:${reveal.answer}`;
+    if (lastTimerRevealKeyRef.current === key) return undefined;
+    lastTimerRevealKeyRef.current = key;
+    setSuccessText(
+      `Time's up — ${revealAnswerLabel(reveal.n)}: ${reveal.answer} · 0 pts`,
+    );
+    setShowSuccess(true);
+    setAwardedFlash(null);
+    return undefined;
+  }, [team, challenges, activeNum, waitingForRelease]);
 
   const applyResult = (resData) => {
     const applied = onActionResult?.(resData);
@@ -201,6 +284,16 @@ export default function PlayerPlayScreen({
 
   const locked = team.currentStage === 'SCORE_LOCKED';
   const atStartReport = !waitingForRelease && needsStartReport(team.currentStage) && !activeNum;
+
+  const timerRevealAtStart = useMemo(() => {
+    if (!atStartReport) return null;
+    const ch = challenges.find((c) => c.challengeNumber === 5);
+    if (ch?.failureReason === 'REVEALED_ZERO_POINTS' && ch?.revealedAnswer) {
+      return ch.revealedAnswer;
+    }
+    return null;
+  }, [atStartReport, challenges]);
+
   const checkpointTheme = themeForPlayerContext({
     stage: team.currentStage,
     checkpointKey: checkpointStatus?.checkpointKey,
@@ -594,6 +687,20 @@ export default function PlayerPlayScreen({
                 </div>
               </div>
 
+              {timerRevealAtCheckpoint && (
+                <div className="rounded-xl bg-amber-500/10 px-3 py-3 text-sm">
+                  <p className="text-amber-100/80">
+                    Time&apos;s up — {revealAnswerLabel(timerRevealAtCheckpoint.n)} revealed (0 pts)
+                  </p>
+                  <p className="mt-1 font-mono text-2xl font-semibold tracking-wide">
+                    {timerRevealAtCheckpoint.answer}
+                  </p>
+                  <p className="mt-1 text-xs text-amber-100/70">
+                    Scan the station QR below with your whole team to continue.
+                  </p>
+                </div>
+              )}
+
               <div className="h-2 overflow-hidden rounded-full bg-white/10">
                 <div
                   className="h-full rounded-full transition-[width] duration-300 ease-out"
@@ -776,6 +883,16 @@ export default function PlayerPlayScreen({
 
           {atStartReport && (
             <section className={`${panel} space-y-3 text-center`} style={{ borderColor: '#EF444455' }}>
+              {timerRevealAtStart && (
+                <div className="rounded-xl bg-amber-500/10 px-3 py-3 text-left text-sm">
+                  <p className="text-amber-100/80">
+                    Time&apos;s up — {revealAnswerLabel(5)} revealed (0 pts)
+                  </p>
+                  <p className="mt-1 text-center font-mono text-2xl font-semibold tracking-wide">
+                    {timerRevealAtStart}
+                  </p>
+                </div>
+              )}
               <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-red-300/80">
                 Team number
               </p>
@@ -849,7 +966,7 @@ export default function PlayerPlayScreen({
                     expiresAt={activeChallenge.timerStartsAt}
                     serverTime={serverTime}
                     label="Starts in"
-                    onComplete={() => onRefresh?.({ force: true })}
+                    onComplete={() => onRefresh?.({ force: true, burst: true })}
                   />
                 )}
                 {activeChallenge.expiresAt
@@ -861,9 +978,10 @@ export default function PlayerPlayScreen({
                     expiresAt={activeChallenge.expiresAt}
                     serverTime={serverTime}
                     label={activeChallenge.timeExpired ? 'Time up' : 'Left'}
+                    expiredLabel="0:00"
                     onComplete={
-                      activeChallenge.allowLateSubmit
-                        ? () => onRefresh?.({ force: true })
+                      [2, 4, 5].includes(activeChallenge.challengeNumber)
+                        ? handleTimerExpired
                         : undefined
                     }
                   />
@@ -871,12 +989,6 @@ export default function PlayerPlayScreen({
               </div>
 
               <ClueHowTo challenge={activeChallenge} />
-
-              {activeChallenge.timeExpired && activeChallenge.allowLateSubmit && (
-                <p className="rounded-xl bg-amber-500/10 px-3 py-2 text-sm text-amber-100/90">
-                  Timer ended — you can still submit for 0 points.
-                </p>
-              )}
 
               {activeChallenge.prompt == null && activeChallenge.challengeNumber === 1 ? (
                 <p className="text-sm text-white/50">Clue 1 is only on the Team Leader phone.</p>
@@ -896,6 +1008,17 @@ export default function PlayerPlayScreen({
                   <p className="text-[10px] uppercase tracking-wide text-white/40">Your fragment</p>
                   <p className="mt-2 font-mono text-3xl font-semibold tracking-[0.18em]">
                     {activeChallenge.memberCode}
+                  </p>
+                </div>
+              )}
+
+              {activeChallenge.revealedAnswer && (
+                <div className="rounded-xl bg-amber-500/10 px-3 py-2 text-sm">
+                  <p className="text-amber-100/80">
+                    {revealAnswerLabel(activeChallenge.challengeNumber)} revealed (0 pts)
+                  </p>
+                  <p className="mt-0.5 font-mono text-2xl font-semibold tracking-wide">
+                    {activeChallenge.revealedAnswer}
                   </p>
                 </div>
               )}
@@ -922,7 +1045,12 @@ export default function PlayerPlayScreen({
                 </div>
               )}
 
-              {isLeader && activeChallenge.state === 'ACTIVE' && (
+              {isLeader
+                && activeChallenge.state === 'ACTIVE'
+                && !(
+                  activeChallenge.timeExpired
+                  && [2, 4, 5].includes(activeChallenge.challengeNumber)
+                ) && (
                 <form onSubmit={onSubmit} className="space-y-3">
                   <input
                     value={answer}

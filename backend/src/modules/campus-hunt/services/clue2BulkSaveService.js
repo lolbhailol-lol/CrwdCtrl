@@ -11,6 +11,7 @@ const CampusHuntCheckpoint = require('../models/CampusHuntCheckpoint');
 const CampusHuntChallenge = require('../models/CampusHuntChallenge');
 const { DEFAULT_SCORING_CONFIG } = require('../constants');
 const { resolveCampusStations } = require('./stationCatalogService');
+const { persistClueScoring } = require('./clueScoringPersistService');
 const { resyncClue1TeamBindings } = require('./startScheduleService');
 const { writeAudit } = require('./auditService');
 const {
@@ -91,28 +92,11 @@ async function bulkSaveClue2({
 
   const stations = resolveCampusStations(event);
   const cluePrompt = String(prompt || '').trim() || SHARED_PROMPT;
-  const clue2Scoring = {
-    ...DEFAULT_SCORING_CONFIG.clue2,
-    ...(event.scoringConfig?.clue2?.toObject?.() || event.scoringConfig?.clue2 || {}),
-    ...scoring,
-    timerSeconds: Number(scoring.timerSeconds ?? event.scoringConfig?.clue2?.timerSeconds) || 180,
-    timerStartDelaySeconds:
-      Number(scoring.timerStartDelaySeconds ?? event.scoringConfig?.clue2?.timerStartDelaySeconds) || 20,
-    maxAttempts: Number(scoring.maxAttempts ?? event.scoringConfig?.clue2?.maxAttempts) || 3,
-    hintCost: Number(scoring.hintCost ?? event.scoringConfig?.hintCost) || 15,
-    allowLateSubmit: scoring.allowLateSubmit !== false,
-    awardMode: 'time_bands_total',
-    basePoints: 0,
-    speedBonusBands:
-      (Array.isArray(scoring.speedBonusBands) && scoring.speedBonusBands.length)
-        ? scoring.speedBonusBands
-        : DEFAULT_SCORING_CONFIG.clue2.speedBonusBands,
-  };
-
-  if (!event.scoringConfig) event.scoringConfig = { ...DEFAULT_SCORING_CONFIG };
-  event.scoringConfig.clue2 = clue2Scoring;
-  event.markModified('scoringConfig');
-  await event.save();
+  const { scoring: clue2Scoring } = await persistClueScoring({
+    eventId,
+    clueNumber: 2,
+    scoring,
+  });
 
   if (typeof CampusHuntChallenge.ensureChallengeIndexes === 'function') {
     await CampusHuntChallenge.ensureChallengeIndexes();

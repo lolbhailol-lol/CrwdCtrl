@@ -68,12 +68,132 @@ function placeKey(label) {
   return String(label || '').split(' · ')[0].trim().toUpperCase();
 }
 
+/** CC001 → 1, CC008 → 8 */
+function teamNumberFromCode(teamCode) {
+  const m = String(teamCode || '').match(/CC0*(\d+)/i);
+  return m ? Number(m[1]) : null;
+}
+
+function formatTeamNumbers(teamCodes = []) {
+  const nums = teamCodes
+    .map((code) => teamNumberFromCode(code))
+    .filter((n) => n != null)
+    .sort((a, b) => a - b);
+  if (!nums.length) return '—';
+  return nums.map((n) => `#${n}`).join(', ');
+}
+
+function formatTeamLabel(teamCode) {
+  const n = teamNumberFromCode(teamCode);
+  return n != null ? `#${n} · ${teamCode}` : teamCode;
+}
+
 function teamsAtPlace(propRows, stage, stationCode) {
   const code = String(stationCode || '').toUpperCase();
   return propRows
     .filter((row) => placeKey(row[stage]) === code)
     .map((row) => row.teamCode)
-    .filter(Boolean);
+    .filter(Boolean)
+    .sort((a, b) => (teamNumberFromCode(a) || 0) - (teamNumberFromCode(b) || 0));
+}
+
+function teamsAtPlaceDetailed(propRows, stage, stationCode) {
+  const code = String(stationCode || '').toUpperCase();
+  return propRows
+    .filter((row) => placeKey(row[stage]) === code)
+    .map((row) => ({
+      teamCode: row.teamCode,
+      teamNumber: row.teamNumber ?? teamNumberFromCode(row.teamCode),
+      clue2Code: stage === 'green' ? row.clue2Code : undefined,
+      propCode: stage === 'purple' ? row.propCode : undefined,
+    }))
+    .sort((a, b) => (a.teamNumber || 0) - (b.teamNumber || 0));
+}
+
+function LocationTeamMatrix({ row, posterCols }) {
+  const stages = posterCols
+    .filter((col) => row[col.key])
+    .map((col) => ({
+      key: col.key,
+      theme: col.theme,
+      label: `${col.theme.scanLabel}`,
+      teams: row[`${col.key}TeamsDetailed`] || [],
+    }));
+
+  const hasAny = stages.some((s) => s.teams.length > 0);
+  if (!hasAny) return null;
+
+  return (
+    <div className="mb-3 overflow-x-auto rounded border border-white/12 bg-black/25 print:border-black/30 print:bg-gray-50">
+      <p className="border-b border-white/10 px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-white/70 print:border-black/20 print:text-[8px] print:text-black">
+        Team numbers at this location
+      </p>
+      <table className="w-full border-collapse text-left text-[10px] print:text-[8.5px]">
+        <thead>
+          <tr className="border-b border-white/10 text-[9px] uppercase tracking-wide text-white/45 print:border-black/20 print:text-[7.5px] print:text-black/55">
+            <th className="px-2 py-1 font-semibold">Scan</th>
+            <th className="px-2 py-1 font-semibold">Team #</th>
+            <th className="px-2 py-1 font-semibold">Code</th>
+            <th className="px-2 py-1 font-semibold">Clue 2 / Prop</th>
+          </tr>
+        </thead>
+        <tbody>
+          {stages.flatMap((stage) => (
+            stage.teams.length
+              ? stage.teams.map((t, idx) => (
+                <tr
+                  key={`${stage.key}-${t.teamCode}`}
+                  className="border-b border-white/5 last:border-0 print:border-black/10"
+                  style={{ background: idx === 0 ? `${stage.theme.hex}12` : undefined }}
+                >
+                  {idx === 0 ? (
+                    <td
+                      className="px-2 py-1 align-top font-semibold"
+                      rowSpan={stage.teams.length}
+                      style={{ color: stage.theme.hex }}
+                    >
+                      {stage.label}
+                    </td>
+                  ) : null}
+                  <td className="px-2 py-1 font-bold text-white print:text-black">
+                    {t.teamNumber != null ? `#${t.teamNumber}` : '—'}
+                  </td>
+                  <td className="px-2 py-1 font-mono text-[9px] text-white/70 print:text-[8px] print:text-black/75">
+                    {t.teamCode}
+                  </td>
+                  <td
+                    className="px-2 py-1 font-mono text-[9px] font-bold print:text-[8px]"
+                    style={{
+                      color: stage.key === 'purple'
+                        ? T.clue4.hex
+                        : stage.key === 'green'
+                          ? T.clue2.hex
+                          : undefined,
+                    }}
+                  >
+                    {stage.key === 'purple' && t.propCode && t.propCode !== '—'
+                      ? t.propCode
+                      : stage.key === 'green' && t.clue2Code && t.clue2Code !== '—'
+                        ? t.clue2Code
+                        : '—'}
+                  </td>
+                </tr>
+              ))
+              : [(
+                <tr key={`${stage.key}-empty`} className="border-b border-white/5 print:border-black/10">
+                  <td className="px-2 py-1 font-semibold" style={{ color: stage.theme.hex }}>
+                    {stage.label}
+                  </td>
+                  <td className="px-2 py-1 text-white/40 print:text-black/45" colSpan={3}>
+                    Shared poster — tape even if no teams listed yet
+                  </td>
+                </tr>
+              )]
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 function LocationPlantCard({
@@ -87,6 +207,12 @@ function LocationPlantCard({
     green: row.greenTeams || [],
     blue: row.blueTeams || [],
     purple: row.purpleTeams || [],
+  };
+  const stageTeamsDetailed = {
+    orange: row.orangeTeamsDetailed || [],
+    green: row.greenTeamsDetailed || [],
+    blue: row.blueTeamsDetailed || [],
+    purple: row.purpleTeamsDetailed || [],
   };
 
   return (
@@ -111,6 +237,8 @@ function LocationPlantCard({
         </label>
       </header>
 
+      <LocationTeamMatrix row={row} posterCols={posterCols} />
+
       <div className="mb-2 rounded border border-white/10 bg-black/20 px-2 py-1.5 text-[10px] leading-snug text-white/75 print:border-black/20 print:bg-gray-50 print:text-[8.5px] print:text-black/80">
         <strong className="text-white print:text-black">Step 1 — Tape QR posters</strong>
         {' '}
@@ -120,6 +248,7 @@ function LocationPlantCard({
       <ul className="mb-3 space-y-1.5">
         {qrs.length ? qrs.map((col) => {
           const teams = stageTeams[col.key] || [];
+          const detailed = stageTeamsDetailed[col.key] || [];
           return (
             <li
               key={col.key}
@@ -140,14 +269,32 @@ function LocationPlantCard({
                   <span className="mt-1 block text-white/80 print:text-black/80">
                     {col.key === 'purple'
                       ? `After prop CODE typed on phone · then all ${people} scan + team code → Final`
+                      : col.key === 'green'
+                        ? `Hide each team’s 3-digit mark near this green QR · leader finds code · then all ${people} scan`
                       : `After ${col.when.toLowerCase().replace(/^after /, '')} · unlocks ${col.unlocks}`}
                   </span>
                   {teams.length > 0 ? (
-                    <span className="mt-1 block font-mono text-[9px] text-white/55 print:text-[8px] print:text-black/60">
-                      Teams:
-                      {' '}
-                      {teams.join(', ')}
-                    </span>
+                    <>
+                      <span className="mt-1 block text-[10px] font-bold text-white print:text-[9px] print:text-black">
+                        Team numbers:
+                        {' '}
+                        {formatTeamNumbers(teams)}
+                      </span>
+                      <span className="mt-0.5 block font-mono text-[9px] text-white/55 print:text-[8px] print:text-black/60">
+                        {teams.map((code) => formatTeamLabel(code)).join(' · ')}
+                      </span>
+                      {col.key === 'green' && detailed.some((t) => t.clue2Code && t.clue2Code !== '—') ? (
+                        <span
+                          className="mt-1 block rounded border border-emerald-400/30 bg-emerald-500/10 px-1.5 py-1 font-mono text-[10px] font-bold leading-relaxed print:border-emerald-700 print:bg-emerald-50 print:text-[9px]"
+                          style={{ color: T.clue2.hex }}
+                        >
+                          {detailed
+                            .filter((t) => t.clue2Code && t.clue2Code !== '—')
+                            .map((t) => `#${t.teamNumber} → ${t.clue2Code}`)
+                            .join(' · ')}
+                        </span>
+                      ) : null}
+                    </>
                   ) : (
                     <span className="mt-1 block text-[9px] italic text-white/40 print:text-black/45">
                       Shared poster — keep taped even if no team listed yet
@@ -163,6 +310,47 @@ function LocationPlantCard({
           </li>
         )}
       </ul>
+
+      {row.codesHere?.length > 0 ? (
+        <div
+          className="mb-3 rounded border px-2 py-2 print:border-black/25 print:py-1.5"
+          style={{ borderColor: `${T.clue2.hex}55`, background: `${T.clue2.hex}14` }}
+        >
+          <p className="text-[10px] font-bold print:text-[9px]" style={{ color: T.clue2.hex }}>
+            Clue 2 — 3-digit marks to hide at this place (green zone)
+          </p>
+          <p className="mt-0.5 text-[9px] text-white/55 print:text-[8px] print:text-black/60">
+            Write or tape each number where only that team will look · eye level near green QR
+          </p>
+          <ul className="mt-2 space-y-1">
+            {row.codesHere.map((c) => (
+              <li
+                key={`clue2-${c.teamCode}`}
+                className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded border border-white/10 bg-black/20 px-2 py-1 print:border-black/15 print:bg-white print:py-0.5"
+              >
+                <label className="huddle-check flex flex-1 flex-wrap items-center gap-2 text-[10px] print:text-[8.5px]">
+                  <input
+                    type="checkbox"
+                    className="h-3.5 w-3.5 shrink-0 print:h-3 print:w-3"
+                    style={{ accentColor: T.clue2.hex }}
+                  />
+                  <span className="font-bold text-white print:text-black">
+                    Team #{c.teamNumber}
+                    {' '}
+                    <span className="font-mono font-normal text-white/60 print:text-black/55">
+                      {c.teamCode}
+                    </span>
+                  </span>
+                  <span className="font-mono text-[14px] font-black tracking-widest print:text-[12px]" style={{ color: T.clue2.hex }}>
+                    {c.clue2Code}
+                  </span>
+                  <span className="text-[9px] text-white/50 print:text-black/50">☐ hidden near green QR</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       <div className="mb-1.5 rounded border border-purple-400/25 bg-purple-500/10 px-2 py-1.5 text-[10px] leading-snug text-purple-100 print:border-purple-800 print:bg-purple-50 print:text-[8.5px] print:text-purple-950">
         <strong>Step 2 — Plant props (Clue 4)</strong>
@@ -196,7 +384,13 @@ function LocationPlantCard({
                     {p.propCode}
                   </span>
                   <span className="mx-1.5 text-white/35 print:text-black/35">→</span>
-                  <span className="font-mono font-bold text-white print:text-black">{p.teamCode}</span>
+                  <span className="font-bold text-white print:text-black">
+                    {p.teamNumber != null ? `#${p.teamNumber}` : ''}
+                    {' '}
+                    <span className="font-mono font-normal text-white/70 print:text-black/70">
+                      {p.teamCode}
+                    </span>
+                  </span>
                   <span className="mt-1 block text-[9px] leading-snug text-white/60 print:text-[8px] print:text-black/65">
                     ☐ Pick visible object · ☐ Sticker shows exact word
                     {' '}
@@ -258,9 +452,14 @@ export default function DryRunHuddleChecklist({
 
   const buildPropRows = useCallback((teams, challenges, checkpoints) => {
     const cpById = new Map(checkpoints.map((c) => [String(c.id || c._id), c]));
-    const clueById = new Map(
+    const clue4ById = new Map(
       challenges
         .filter((c) => Number(c.challengeNumber) === 4)
+        .map((c) => [String(c.id || c._id), c]),
+    );
+    const clue2ById = new Map(
+      challenges
+        .filter((c) => Number(c.challengeNumber) === 2)
         .map((c) => [String(c.id || c._id), c]),
     );
     const layoutTeams = teams
@@ -269,16 +468,19 @@ export default function DryRunHuddleChecklist({
     const source = layoutTeams.length ? layoutTeams : teams.slice(0, 12);
 
     return source.map((t) => {
-      const prop = clueById.get(String(t.clue4ChallengeId || ''));
+      const prop = clue4ById.get(String(t.clue4ChallengeId || ''));
+      const clue2 = clue2ById.get(String(t.clue2ChallengeId || ''));
       const purple = placeLabel(cpById.get(String(t.fourthCheckpointId || '')));
       const purpleCode = placeKey(purple);
       return {
         teamCode: t.teamCode,
+        teamNumber: teamNumberFromCode(t.teamCode),
         orange: placeLabel(cpById.get(String(t.firstCheckpointId || ''))),
         green: placeLabel(cpById.get(String(t.secondCheckpointId || ''))),
         blue: placeLabel(cpById.get(String(t.thirdCheckpointId || ''))),
         purple,
         purpleOutOfLayout: Boolean(purpleCode && !activeStationCodes.has(purpleCode)),
+        clue2Code: String(clue2?.answer || '').trim() || '—',
         propCode: String(prop?.answer || '').toUpperCase() || '—',
         variant: prop?.variantKey || '',
       };
@@ -412,13 +614,27 @@ export default function DryRunHuddleChecklist({
 
     return base.map((row) => {
       const propsHere = propRows.filter((r) => placeKey(r.purple) === String(row.code).toUpperCase());
+      const codesHere = propRows
+        .filter((r) => placeKey(r.green) === String(row.code).toUpperCase())
+        .filter((r) => r.clue2Code && r.clue2Code !== '—')
+        .map((r) => ({
+          teamCode: r.teamCode,
+          teamNumber: r.teamNumber,
+          clue2Code: r.clue2Code,
+        }))
+        .sort((a, b) => (a.teamNumber || 0) - (b.teamNumber || 0));
       return {
         ...row,
         propsHere,
+        codesHere,
         orangeTeams: teamsAtPlace(propRows, 'orange', row.code),
         greenTeams: teamsAtPlace(propRows, 'green', row.code),
         blueTeams: teamsAtPlace(propRows, 'blue', row.code),
         purpleTeams: propsHere.map((p) => p.teamCode),
+        orangeTeamsDetailed: teamsAtPlaceDetailed(propRows, 'orange', row.code),
+        greenTeamsDetailed: teamsAtPlaceDetailed(propRows, 'green', row.code),
+        blueTeamsDetailed: teamsAtPlaceDetailed(propRows, 'blue', row.code),
+        purpleTeamsDetailed: teamsAtPlaceDetailed(propRows, 'purple', row.code),
       };
     });
   }, [qrByPlace, stations, propRows]);
@@ -605,8 +821,74 @@ export default function DryRunHuddleChecklist({
           </SectionTitle>
           <p className="mb-3 text-[10px] text-white/50 print:mb-2 print:text-[8.5px] print:text-black/55">
             At each place: complete Step 1 (4 QR posters) then Step 2 (props only if listed).
-            Team lists come from your live schedule — reprint after clue updates.
+            Each card shows <strong>team numbers (#1–#8)</strong> and codes for every scan color at that spot.
           </p>
+
+          {/* Print: quick location × team numbers grid */}
+          <div className="huddle-print-only mb-3 hidden overflow-x-auto print:block">
+            <table className="huddle-table w-full border-collapse text-left text-[8.5px]">
+              <thead>
+                <tr>
+                  <th className="huddle-th w-[14%]">Place</th>
+                  <th className="huddle-th w-[18%]" style={{ color: T.clue1.hex }}>① Orange · team #</th>
+                  <th className="huddle-th w-[18%]" style={{ color: T.clue2.hex }}>② Green · # + 3-digit</th>
+                  <th className="huddle-th w-[18%]" style={{ color: T.clue3.hex }}>③ Blue · team #</th>
+                  <th className="huddle-th w-[32%]" style={{ color: T.clue4.hex }}>④ Purple · team # + prop</th>
+                </tr>
+              </thead>
+              <tbody>
+                {placeRows.map((row) => (
+                  <tr key={`print-grid-${row.code}`}>
+                    <td className="huddle-td font-semibold">
+                      {row.code}
+                      <span className="block font-normal text-black/60">{row.name}</span>
+                    </td>
+                    <td className="huddle-td">
+                      <span className="font-bold">{formatTeamNumbers(row.orangeTeams)}</span>
+                      {row.orangeTeams?.length ? (
+                        <span className="mt-0.5 block font-mono text-[7.5px] text-black/55">
+                          {row.orangeTeams.join(', ')}
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="huddle-td">
+                      <span className="font-bold">{formatTeamNumbers(row.greenTeams)}</span>
+                      {row.codesHere?.length ? (
+                        <span
+                          className="mt-0.5 block font-mono text-[7.5px] font-bold leading-snug"
+                          style={{ color: T.clue2.hex }}
+                        >
+                          {row.codesHere.map((c) => `#${c.teamNumber}=${c.clue2Code}`).join(' · ')}
+                        </span>
+                      ) : row.greenTeams?.length ? (
+                        <span className="mt-0.5 block font-mono text-[7.5px] text-black/55">
+                          {row.greenTeams.join(', ')}
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="huddle-td">
+                      <span className="font-bold">{formatTeamNumbers(row.blueTeams)}</span>
+                      {row.blueTeams?.length ? (
+                        <span className="mt-0.5 block font-mono text-[7.5px] text-black/55">
+                          {row.blueTeams.join(', ')}
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="huddle-td">
+                      <span className="font-bold">{formatTeamNumbers(row.purpleTeams)}</span>
+                      {row.propsHere?.length ? (
+                        <span className="mt-0.5 block text-[7.5px] leading-snug text-black/70">
+                          {row.propsHere.map((p) => (
+                            `#${p.teamNumber ?? '?'} ${p.propCode !== '—' ? p.propCode : ''}`.trim()
+                          )).join(' · ')}
+                        </span>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
           <div className="huddle-place-grid grid gap-3 print:grid-cols-1 print:gap-2">
             {placeRows.map((row) => (
@@ -658,15 +940,44 @@ export default function DryRunHuddleChecklist({
                     {row.code}
                     <span className="font-normal text-white/50 print:text-black/50"> · {row.name}</span>
                   </td>
-                  {QR_COLS.map((col) => (
+                  {QR_COLS.map((col) => {
+                    const teamKey = `${col.key}Teams`;
+                    const teams = row[teamKey] || [];
+                    return (
                     <td
                       key={col.key}
                       className="huddle-td font-semibold"
                       style={{ background: row[col.key] ? `${col.theme.hex}28` : undefined }}
                     >
-                      {row[col.key] ? '☐ tape' : '—'}
+                      {row[col.key] ? (
+                        <>
+                          <span className="block">☐ tape</span>
+                          {teams.length > 0 ? (
+                            <span className="mt-0.5 block text-[10px] font-bold">
+                              {formatTeamNumbers(teams)}
+                            </span>
+                          ) : null}
+                          {col.key === 'green' && row.codesHere?.length ? (
+                            <span
+                              className="mt-0.5 block font-mono text-[9px] font-bold leading-snug"
+                              style={{ color: T.clue2.hex }}
+                            >
+                              {row.codesHere.map((c) => `#${c.teamNumber}=${c.clue2Code}`).join(' · ')}
+                            </span>
+                          ) : null}
+                          {col.key === 'purple' && row.propsHere?.length ? (
+                            <span
+                              className="mt-0.5 block font-mono text-[9px] font-bold leading-snug"
+                              style={{ color: T.clue4.hex }}
+                            >
+                              {row.propsHere.map((p) => `#${p.teamNumber}=${p.propCode}`).join(' · ')}
+                            </span>
+                          ) : null}
+                        </>
+                      ) : '—'}
                     </td>
-                  ))}
+                    );
+                  })}
                 </tr>
               ))}
             </tbody>
@@ -674,22 +985,70 @@ export default function DryRunHuddleChecklist({
         </section>
 
         <section className="huddle-keep">
-          <SectionTitle n="4" note="Prop CODE sticker + purple QR at that purple stop">
+          <SectionTitle n="4" note="3-digit mark to hide at each team’s green (2nd) stop">
+            Clue 2 code checklist
+          </SectionTitle>
+          <table className="huddle-table w-full border-collapse text-left text-[11px] print:text-[8.5px]">
+            <thead>
+              <tr>
+                <th className="huddle-th w-[8%]">#</th>
+                <th className="huddle-th w-[10%]">Team</th>
+                <th className="huddle-th w-[12%]" style={{ color: T.clue2.hex }}>3-digit</th>
+                <th className="huddle-th w-[40%]">Hide at (green / 2nd stop)</th>
+                <th className="huddle-th w-[15%]">☐ Mark hidden</th>
+                <th className="huddle-th w-[15%]">☐ Green QR</th>
+              </tr>
+            </thead>
+            <tbody>
+              {propRows.map((r) => (
+                <tr key={`clue2-${r.teamCode}`}>
+                  <td className="huddle-td font-bold">
+                    {r.teamNumber != null ? `#${r.teamNumber}` : '—'}
+                  </td>
+                  <td className="huddle-td font-mono font-bold">{r.teamCode}</td>
+                  <td
+                    className="huddle-td font-mono text-[12px] font-black tracking-wider print:text-[10px]"
+                    style={{ color: T.clue2.hex }}
+                  >
+                    {r.clue2Code && r.clue2Code !== '—' ? r.clue2Code : '—'}
+                  </td>
+                  <td className="huddle-td">{r.green}</td>
+                  <td className="huddle-td">☐</td>
+                  <td className="huddle-td">☐</td>
+                </tr>
+              ))}
+              {!propRows.length && !loading ? (
+                <tr>
+                  <td className="huddle-td" colSpan={6}>
+                    No Clue 2 bindings — save Clue 2 in admin first.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </section>
+
+        <section className="huddle-keep">
+          <SectionTitle n="5" note="Prop CODE sticker + purple QR at that purple stop">
             Prop checklist
           </SectionTitle>
           <table className="huddle-table w-full border-collapse text-left text-[11px] print:text-[8.5px]">
             <thead>
               <tr>
-                <th className="huddle-th w-[12%]">Team</th>
+                <th className="huddle-th w-[8%]">#</th>
+                <th className="huddle-th w-[10%]">Team</th>
                 <th className="huddle-th w-[16%]" style={{ color: T.clue4.hex }}>CODE</th>
-                <th className="huddle-th w-[40%]">Plant at (purple stop)</th>
-                <th className="huddle-th w-[16%]">☐ Prop</th>
-                <th className="huddle-th w-[16%]">☐ Purple</th>
+                <th className="huddle-th w-[38%]">Plant at (purple stop)</th>
+                <th className="huddle-th w-[14%]">☐ Prop</th>
+                <th className="huddle-th w-[14%]">☐ Purple</th>
               </tr>
             </thead>
             <tbody>
               {propRows.map((r) => (
                 <tr key={`prop-${r.teamCode}`}>
+                  <td className="huddle-td font-bold">
+                    {r.teamNumber != null ? `#${r.teamNumber}` : '—'}
+                  </td>
                   <td className="huddle-td font-mono font-bold">{r.teamCode}</td>
                   <td
                     className="huddle-td font-mono text-[12px] font-black tracking-wider print:text-[10px]"
@@ -704,7 +1063,7 @@ export default function DryRunHuddleChecklist({
               ))}
               {!propRows.length && !loading ? (
                 <tr>
-                  <td className="huddle-td" colSpan={5}>
+                  <td className="huddle-td" colSpan={6}>
                     No Clue 4 bindings — bootstrap / resync first.
                   </td>
                 </tr>
@@ -714,26 +1073,37 @@ export default function DryRunHuddleChecklist({
         </section>
 
         <section className="huddle-keep">
-          <SectionTitle n="5" note="Each team’s stop order (verify before open)">
+          <SectionTitle n="6" note="Each team’s stop order (verify before open)">
             Team routes
           </SectionTitle>
           <table className="huddle-table w-full border-collapse text-left text-[10px] print:text-[8px]">
             <thead>
               <tr>
+                <th className="huddle-th w-[6%]">#</th>
                 <th className="huddle-th w-[8%]">Team</th>
                 <th className="huddle-th w-[18%]" style={{ color: T.clue1.hex }}>① Orange</th>
                 <th className="huddle-th w-[18%]" style={{ color: T.clue2.hex }}>② Green</th>
+                <th className="huddle-th w-[8%]" style={{ color: T.clue2.hex }}>Clue 2</th>
                 <th className="huddle-th w-[18%]" style={{ color: T.clue3.hex }}>③ Blue</th>
-                <th className="huddle-th w-[12%]" style={{ color: T.clue4.hex }}>Prop</th>
-                <th className="huddle-th w-[26%]" style={{ color: T.clue4.hex }}>④ Purple</th>
+                <th className="huddle-th w-[10%]" style={{ color: T.clue4.hex }}>Prop</th>
+                <th className="huddle-th w-[22%]" style={{ color: T.clue4.hex }}>④ Purple</th>
               </tr>
             </thead>
             <tbody>
               {propRows.map((r) => (
                 <tr key={`route-${r.teamCode}`}>
+                  <td className="huddle-td font-bold">
+                    {r.teamNumber != null ? `#${r.teamNumber}` : '—'}
+                  </td>
                   <td className="huddle-td font-mono font-bold">{r.teamCode}</td>
                   <td className="huddle-td" style={{ background: `${T.clue1.hex}18` }}>{r.orange}</td>
                   <td className="huddle-td" style={{ background: `${T.clue2.hex}18` }}>{r.green}</td>
+                  <td
+                    className="huddle-td font-mono text-[11px] font-black tracking-wider print:text-[9px]"
+                    style={{ background: `${T.clue2.hex}28`, color: T.clue2.hex }}
+                  >
+                    {r.clue2Code && r.clue2Code !== '—' ? r.clue2Code : '—'}
+                  </td>
                   <td className="huddle-td" style={{ background: `${T.clue3.hex}18` }}>{r.blue}</td>
                   <td
                     className="huddle-td font-mono font-black"
@@ -767,23 +1137,31 @@ export default function DryRunHuddleChecklist({
         <SectionTitle n="3" note="Verify prop word + purple place per team">
           Team routes (print copy)
         </SectionTitle>
-        <table className="huddle-table w-full border-collapse text-left text-[9px]">
-          <thead>
-            <tr>
-              <th className="huddle-th">Team</th>
-              <th className="huddle-th" style={{ color: T.clue1.hex }}>Orange</th>
-              <th className="huddle-th" style={{ color: T.clue2.hex }}>Green</th>
-              <th className="huddle-th" style={{ color: T.clue3.hex }}>Blue</th>
-              <th className="huddle-th" style={{ color: T.clue4.hex }}>Prop</th>
-              <th className="huddle-th" style={{ color: T.clue4.hex }}>Purple</th>
-            </tr>
-          </thead>
-          <tbody>
-            {propRows.map((r) => (
-              <tr key={`print-route-${r.teamCode}`}>
-                <td className="huddle-td font-mono font-bold">{r.teamCode}</td>
+          <table className="huddle-table w-full border-collapse text-left text-[9px]">
+            <thead>
+              <tr>
+                <th className="huddle-th w-[8%]">#</th>
+                <th className="huddle-th w-[10%]">Code</th>
+                <th className="huddle-th" style={{ color: T.clue1.hex }}>Orange</th>
+                <th className="huddle-th" style={{ color: T.clue2.hex }}>Green</th>
+                <th className="huddle-th" style={{ color: T.clue2.hex }}>Clue 2</th>
+                <th className="huddle-th" style={{ color: T.clue3.hex }}>Blue</th>
+                <th className="huddle-th" style={{ color: T.clue4.hex }}>Prop</th>
+                <th className="huddle-th" style={{ color: T.clue4.hex }}>Purple</th>
+              </tr>
+            </thead>
+            <tbody>
+              {propRows.map((r) => (
+                <tr key={`print-route-${r.teamCode}`}>
+                  <td className="huddle-td font-bold">
+                    {r.teamNumber != null ? `#${r.teamNumber}` : '—'}
+                  </td>
+                  <td className="huddle-td font-mono font-bold">{r.teamCode}</td>
                 <td className="huddle-td">{r.orange}</td>
-                <td className="huddle-td">{r.green}</td>
+                  <td className="huddle-td">{r.green}</td>
+                  <td className="huddle-td font-mono font-bold" style={{ color: T.clue2.hex }}>
+                    {r.clue2Code && r.clue2Code !== '—' ? r.clue2Code : '—'}
+                  </td>
                 <td className="huddle-td">{r.blue}</td>
                 <td className="huddle-td font-mono font-bold" style={{ color: T.clue4.hex }}>{r.propCode}</td>
                 <td className="huddle-td">{r.purple}</td>

@@ -682,6 +682,13 @@ export async function adminBulkSaveClue4(eventId, body = {}) {
   });
 }
 
+export async function adminSaveClueScoring(eventId, clueNumber, body = {}) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/clue-scoring/${clueNumber}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+}
+
 export async function adminBulkSaveClue5(eventId, body = {}) {
   return adminFetchJSON(`${BASE}/admin/events/${eventId}/clue5/bulk-save`, {
     method: 'POST',

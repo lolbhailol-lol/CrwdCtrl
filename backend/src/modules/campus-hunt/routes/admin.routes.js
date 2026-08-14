@@ -41,6 +41,7 @@ router.post('/events/:eventId/clue2/bulk-save', adminController.bulkSaveClue2Var
 router.post('/events/:eventId/clue3/bulk-save', adminController.bulkSaveClue3Variants);
 router.post('/events/:eventId/clue4/bulk-save', adminController.bulkSaveClue4Variants);
 router.post('/events/:eventId/clue5/bulk-save', adminController.bulkSaveClue5Variants);
+router.put('/events/:eventId/clue-scoring/:clueNumber', adminController.saveClueScoringSettings);
 router.get('/events/:eventId/start-dashboard', adminController.getStartDashboard);
 router.post('/rounds/:roundId/releases/pause', adminController.setRoundReleasesPaused);
 router.post('/rounds/:roundId/releases/resume', adminController.setRoundReleasesPaused);

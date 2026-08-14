@@ -309,7 +309,7 @@ const CLUE_HOW_TO = {
     steps: [
       'Read the instructions carefully (20 seconds).',
       'Then a 3-minute timer starts — find the hidden 3-digit number.',
-      'Faster correct submit = more points. After 3:00 you can still submit for 0 pts.',
+      'Faster correct submit = more points. When the timer ends the answer is revealed (0 points).',
       'After the correct number: go straight to your next location.',
       'Find the shared green SECOND SCAN QR — all members scan, then enter your team code.',
       'That unlocks Clue 3 (Caesar riddle) on your phone.',
@@ -329,7 +329,7 @@ const CLUE_HOW_TO = {
     steps: [
       'Read the brief, then hunt as a team for the silly planted prop at your next stop.',
       'Find the sticker / tag on the prop and type its short code (leader submits).',
-      'Faster find = more points. After the timer you can still submit for 0 pts.',
+      'Faster find = more points. When the timer ends the prop code is revealed (0 points).',
       'Then scan the shared purple FOURTH SCAN QR at that same place — all members, then team code.',
       'That unlocks the Final collaborative word.',
     ],
@@ -339,7 +339,7 @@ const CLUE_HOW_TO = {
     steps: [
       'Each teammate sees their own code fragment on their phone.',
       'Say the codes in order and rebuild the one word.',
-      'Leader submits the word. Faster = bonus points; after the timer you still can submit for 0 pts.',
+      'Leader submits the word. Faster = bonus points; when the timer ends the word is revealed (0 points).',
       'Then report to your start location and ask the organizer to mark your team reached.',
     ],
   },

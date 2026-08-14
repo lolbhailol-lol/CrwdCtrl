@@ -32,8 +32,39 @@ function awaitingRoundOpen(data) {
   ));
 }
 
+function activeTimedClue(data) {
+  const stage = String(data?.team?.currentStage || '');
+  const match = stage.match(/^CLUE_(\d)_ACTIVE$/);
+  if (!match) return null;
+  const n = Number(match[1]);
+  if (![2, 4, 5].includes(n)) return null;
+  const ch = (data?.challenges || []).find((c) => Number(c.challengeNumber) === n);
+  if (!ch?.expiresAt || ch.instructionPhase) return null;
+  return ch;
+}
+
+function timedClueRemainingMs(challenge, serverTime) {
+  if (!challenge?.expiresAt) return null;
+  const end = new Date(challenge.expiresAt).getTime();
+  const serverMs = serverTime ? new Date(serverTime).getTime() : Date.now();
+  const skew = serverMs - Date.now();
+  return Math.max(0, end - (Date.now() + skew));
+}
+
 function pollIntervalMs(data, burstUntil) {
-  if (burstUntil && Date.now() < burstUntil) return 1000;
+  if (burstUntil && Date.now() < burstUntil) return 500;
+
+  const timed = activeTimedClue(data);
+  if (timed) {
+    if (timed.timeExpired) return 500;
+    const remaining = timedClueRemainingMs(timed, data?.serverTime);
+    if (remaining != null) {
+      if (remaining <= 0) return 500;
+      if (remaining <= 10000) return 500;
+      if (remaining <= 60000) return 1000;
+    }
+    return 1500;
+  }
 
   const stage = String(data?.team?.currentStage || '');
   const waiting = ['WAITING', 'READY'].includes(data?.team?.startStatus);
@@ -78,7 +109,16 @@ function progressFingerprint(data) {
     cp?.awaitingTeamCodeConfirm ? 1 : 0,
     cp?.youScanned ? 1 : 0,
     cp?.status || '',
-    ...challenges.map((c) => `${c.number}:${c.state}:${c.attemptsLeft ?? c.attempts ?? ''}`),
+    data.serverTime || '',
+    ...challenges.map((c) => [
+      c.challengeNumber ?? c.number,
+      c.state,
+      c.failureReason || '',
+      c.timeExpired ? 1 : 0,
+      c.revealedAnswer || '',
+      c.revealedLocation || '',
+      c.attemptsLeft ?? c.attempts ?? '',
+    ].join(':')),
   ].join('|');
 }
 
@@ -220,27 +260,32 @@ export function useHuntTeam(eventId, { enabled = true, initialData = null } = {}
    * manual Refresh passes `{ force: true }` and always runs.
    * Uses softGenRef so it never cancels the initial /me/team bootstrap.
    */
-  const refreshProgress = useCallback(async ({ force = false } = {}) => {
-    if (!enabled) return;
-    if (!force && Date.now() < pausePollUntilRef.current) return;
+  const refreshProgress = useCallback(async ({ force = false, burst = false } = {}) => {
+    if (!enabled) return null;
+    if (burst) setBurstUntil(Date.now() + 15000);
+    if (!force && Date.now() < pausePollUntilRef.current) return null;
     if (force) pausePollUntilRef.current = 0;
     const teamId = teamIdRef.current;
     // Don't race another /me/team while the enter bootstrap is still loading.
     if (!bootstrappedRef.current) {
       if (force) return refresh({ soft: false });
-      return undefined;
+      return null;
     }
-    if (!teamId) return refresh({ soft: true });
+    if (!teamId) {
+      await refresh({ soft: true });
+      return dataRef.current;
+    }
     const gen = ++softGenRef.current;
     try {
       const res = await fetchTeamProgress(teamId);
-      if (gen !== softGenRef.current) return;
+      if (gen !== softGenRef.current) return null;
       applyMerged(res.data, { soft: !force });
       teamIdRef.current = res.data?.team?.id || teamId;
       setError(null);
       setPollError(null);
+      return res.data;
     } catch (err) {
-      if (gen !== softGenRef.current) return;
+      if (gen !== softGenRef.current) return null;
       if (err?.code === 'AUTH_401' || err?.status === 401) {
         if (dataRef.current) {
           setPollError('Session issue — tap Refresh if the board looks stuck');
@@ -250,6 +295,7 @@ export function useHuntTeam(eventId, { enabled = true, initialData = null } = {}
       } else {
         setPollError(err.message || 'Failed to refresh');
       }
+      return null;
     }
   }, [refresh, enabled, applyMerged]);
 
@@ -310,6 +356,8 @@ export function useHuntTeam(eventId, { enabled = true, initialData = null } = {}
     data?.checkpointStatus?.requiredCount,
     data?.checkpointStatus?.checkpointId,
     data?.checkpointStatus?.awaitingTeamCodeConfirm,
+    data?.challenges,
+    data?.serverTime,
     burstUntil,
     refreshProgress,
   ]);

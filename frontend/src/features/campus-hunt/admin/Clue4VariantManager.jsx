@@ -5,8 +5,13 @@ import {
   adminListRoutes,
   adminListStartingPoints,
   adminBulkSaveClue4,
-  adminUpdateEvent,
+  adminSaveClueScoring,
 } from '../services/campusHunt.api';
+import {
+  CLUE4_DEFAULT_SETTINGS,
+  coerceClueScoring,
+  loadClueSettings,
+} from './clueSettings';
 import {
   CAMPUS_STARTS,
   TARGET_TEAMS_PER_STATION,
@@ -25,19 +30,7 @@ import { STAGE_THEMES } from '../types/stageTheme';
 const THEME = STAGE_THEMES.clue4;
 const inputClass = 'w-full rounded-lg border border-white/15 bg-[#161718] px-3 py-2 text-sm text-white';
 
-const DEFAULT_SETTINGS = {
-  timerStartDelaySeconds: 15,
-  timerSeconds: 180,
-  maxAttempts: 3,
-  hintCost: 15,
-  allowLateSubmit: true,
-  basePoints: 0,
-  speedBonusBands: [
-    { maxSeconds: 60, bonus: 50 },
-    { maxSeconds: 120, bonus: 30 },
-    { maxSeconds: 180, bonus: 10 },
-  ],
-};
+const DEFAULT_SETTINGS = CLUE4_DEFAULT_SETTINGS;
 
 const SHARED_PROMPT =
   'CRAZY PROP HUNT — hunt as a team for the silly planted prop in plain sight. '
@@ -127,14 +120,7 @@ export default function Clue4VariantManager({
     );
     setVariants(list);
 
-    const clue4 = overview.data?.event?.scoringConfig?.clue4 || {};
-    setSettings({
-      ...DEFAULT_SETTINGS,
-      ...clue4,
-      speedBonusBands: clue4.speedBonusBands?.length
-        ? clue4.speedBonusBands
-        : DEFAULT_SETTINGS.speedBonusBands,
-    });
+    setSettings(loadClueSettings(overview.data?.event?.scoringConfig, 'clue4', DEFAULT_SETTINGS, list[0]));
 
     const nextCodes = {};
     arrivalPlan.forEach((place) => {
@@ -174,17 +160,7 @@ export default function Clue4VariantManager({
     setMessage(`Saving all ${teamCapacity} Clue 4 prop codes…`);
 
     try {
-      const clue4Scoring = {
-        ...DEFAULT_SETTINGS,
-        ...settings,
-        timerStartDelaySeconds: Number(settings.timerStartDelaySeconds) || 15,
-        timerSeconds: Number(settings.timerSeconds) || 180,
-        maxAttempts: Number(settings.maxAttempts) || 3,
-        hintCost: Number(settings.hintCost) || 15,
-        allowLateSubmit: true,
-        basePoints: 0,
-        speedBonusBands: settings.speedBonusBands || DEFAULT_SETTINGS.speedBonusBands,
-      };
+      const clue4Scoring = coerceClueScoring(settings, DEFAULT_SETTINGS);
 
       const variantsPayload = [];
       const failures = [];
@@ -264,25 +240,13 @@ export default function Clue4VariantManager({
     setBusy(true);
     setError('');
     try {
-      const overview = await adminGetOverview(eventId);
-      const prev = overview.data?.event?.scoringConfig || {};
-      await adminUpdateEvent(eventId, {
-        scoringConfig: {
-          ...prev,
-          clue4: {
-            ...DEFAULT_SETTINGS,
-            ...settings,
-            timerStartDelaySeconds: Number(settings.timerStartDelaySeconds) || 15,
-            timerSeconds: Number(settings.timerSeconds) || 180,
-            maxAttempts: Number(settings.maxAttempts) || 3,
-            hintCost: Number(settings.hintCost) || 15,
-            allowLateSubmit: true,
-            basePoints: 0,
-            speedBonusBands: settings.speedBonusBands || DEFAULT_SETTINGS.speedBonusBands,
-          },
-        },
+      const scoring = coerceClueScoring(settings, DEFAULT_SETTINGS);
+      await adminSaveClueScoring(eventId, 4, {
+        roundId,
+        scoring,
       });
-      setMessage(`Saved Clue 4 timer defaults for all ${teamCapacity} teams`);
+      await refresh();
+      setMessage(`Saved Clue 4 timer & hint settings for all ${teamCapacity} teams`);
       onChanged?.();
     } catch (err) {
       setError(err.message || 'Could not save defaults');

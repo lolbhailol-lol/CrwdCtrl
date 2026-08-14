@@ -1,11 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  adminGetOverview,
   adminListChallenges,
   adminListCheckpoints,
   adminListRoutes,
   adminListStartingPoints,
   adminBulkSaveClue1,
+  adminSaveClueScoring,
 } from '../services/campusHunt.api';
+import {
+  CLUE1_DEFAULT_SETTINGS,
+  coerceClueScoring,
+  loadClueSettings,
+} from './clueSettings';
 import {
   CAMPUS_STARTS,
   TARGET_TEAMS_PER_STATION,
@@ -249,19 +256,26 @@ export default function Clue1VariantManager({
   const [activeStartCode, setActiveStartCode] = useState('');
   const [hydrated, setHydrated] = useState(false);
   const [ready, setReady] = useState(false);
+  const [settings, setSettings] = useState(CLUE1_DEFAULT_SETTINGS);
 
   const refresh = useCallback(async () => {
-    const [challengeResult, routeResult, pointResult, checkpointResult] = await Promise.all([
+    const [overview, challengeResult, routeResult, pointResult, checkpointResult] = await Promise.all([
+      adminGetOverview(eventId),
       adminListChallenges(eventId),
       adminListRoutes(eventId),
       adminListStartingPoints(eventId),
       adminListCheckpoints(eventId),
     ]);
-    setVariants(
-      (challengeResult.data?.challenges || []).filter(
-        (challenge) => Number(challenge.challengeNumber) === 1,
-      ),
+    const list = (challengeResult.data?.challenges || []).filter(
+      (challenge) => Number(challenge.challengeNumber) === 1,
     );
+    setSettings(loadClueSettings(
+      overview.data?.event?.scoringConfig,
+      'clue1',
+      CLUE1_DEFAULT_SETTINGS,
+      list[0],
+    ));
+    setVariants(list);
     setRoutes(routeResult.data?.routes || []);
     setPoints(pointResult.data?.startingPoints || pointResult.data?.points || []);
     setCheckpoints(checkpointResult.data?.checkpoints || []);
@@ -342,6 +356,26 @@ export default function Clue1VariantManager({
 
   const expectedVariantCount = orderedPoints.length * teamSlots.length;
 
+  const saveDefaults = async () => {
+    if (!eventId) return;
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      await adminSaveClueScoring(eventId, 1, {
+        roundId,
+        scoring: coerceClueScoring(settings, CLUE1_DEFAULT_SETTINGS),
+      });
+      await refresh();
+      setMessage(`Saved Clue 1 attempt & hint settings for all ${teamCapacity} teams`);
+      onChanged?.();
+    } catch (err) {
+      setError(err.message || 'Could not save settings');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const saveAll = async () => {
     if (!roundId) {
       setError('Round 1 must exist before saving clues.');
@@ -416,6 +450,7 @@ export default function Clue1VariantManager({
 
       const result = await adminBulkSaveClue1(eventId, {
         roundId,
+        scoring: coerceClueScoring(settings, CLUE1_DEFAULT_SETTINGS),
         variants: variantsPayload,
       });
       const saved = result.data?.saved ?? 0;
@@ -465,6 +500,43 @@ export default function Clue1VariantManager({
           Saved {savedVariantCount}/{expectedVariantCount || teamCapacity}
         </span>
       </div>
+
+      <section className="rounded-2xl border border-white/15 bg-white/5 p-4">
+        <h2 className="text-base font-semibold text-white">Defaults for all teams</h2>
+        <p className="mt-1 text-xs text-white/50">
+          Max wrong tries before location reveal, and hint point cost.
+        </p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <label className="block text-xs text-white/55">
+            Max attempts
+            <input
+              type="number"
+              min="1"
+              value={settings.maxAttempts}
+              onChange={(e) => setSettings((s) => ({ ...s, maxAttempts: e.target.value }))}
+              className={`mt-1 ${inputClass}`}
+            />
+          </label>
+          <label className="block text-xs text-white/55">
+            Hint cost (pts)
+            <input
+              type="number"
+              min="0"
+              value={settings.hintCost}
+              onChange={(e) => setSettings((s) => ({ ...s, hintCost: e.target.value }))}
+              className={`mt-1 ${inputClass}`}
+            />
+          </label>
+        </div>
+        <button
+          type="button"
+          disabled={busy || !eventId}
+          onClick={saveDefaults}
+          className="mt-3 rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+        >
+          {busy ? 'Saving…' : 'Save settings only'}
+        </button>
+      </section>
 
       <section className="rounded-2xl border border-white/15 bg-white/5 p-4">
         <h2 className="text-base font-semibold text-white">1. Write clues</h2>

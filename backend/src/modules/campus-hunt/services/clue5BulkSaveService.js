@@ -7,8 +7,7 @@ const CampusHuntRound = require('../models/CampusHuntRound');
 const CampusHuntRoute = require('../models/CampusHuntRoute');
 const CampusHuntStartingPoint = require('../models/CampusHuntStartingPoint');
 const CampusHuntChallenge = require('../models/CampusHuntChallenge');
-const { DEFAULT_SCORING_CONFIG } = require('../constants');
-const { writeAudit } = require('./auditService');
+const { persistClueScoring } = require('./clueScoringPersistService');
 const { routeClueDefaults, CLUE5_WORDS } = require('./round1BootstrapService');
 
 /**
@@ -61,20 +60,11 @@ async function bulkSaveClue5({
   }
 
   const teamSize = Math.max(2, Math.min(8, Number(event.teamSize) || 4));
-  const clue5Scoring = {
-    ...DEFAULT_SCORING_CONFIG.clue5,
-    ...(event.scoringConfig?.clue5?.toObject?.() || event.scoringConfig?.clue5 || {}),
-    ...scoring,
-    basePoints: Number(scoring.basePoints ?? event.scoringConfig?.clue5?.basePoints) || 50,
-    maxAttempts: Number(scoring.maxAttempts ?? event.scoringConfig?.clue5?.maxAttempts) || 3,
-    timerSeconds: Number(scoring.timerSeconds ?? event.scoringConfig?.clue5?.timerSeconds) || 300,
-    hintCost: Number(scoring.hintCost ?? event.scoringConfig?.hintCost) || 15,
-  };
-
-  if (!event.scoringConfig) event.scoringConfig = { ...DEFAULT_SCORING_CONFIG };
-  event.scoringConfig.clue5 = clue5Scoring;
-  event.markModified('scoringConfig');
-  await event.save();
+  const { scoring: clue5Scoring } = await persistClueScoring({
+    eventId,
+    clueNumber: 5,
+    scoring,
+  });
 
   let saved = 0;
   const errors = [];
@@ -134,9 +124,7 @@ async function bulkSaveClue5({
             basePoints: clue5Scoring.basePoints,
             maxAttempts: clue5Scoring.maxAttempts,
             timerSeconds: clue5Scoring.timerSeconds,
-            speedBonusBands: clue5Scoring.speedBonusBands
-              || DEFAULT_SCORING_CONFIG.clue5.speedBonusBands
-              || [],
+            speedBonusBands: clue5Scoring.speedBonusBands || [],
             hintCost: clue5Scoring.hintCost,
             difficulty: 'hard',
             variantKey: 'DEFAULT',

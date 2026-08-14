@@ -147,6 +147,7 @@ function scoringForChallenge(event, challengeNumber) {
         : (defaults.speedBonusBands || [])
     );
   }
+  merged.hintCost = Number(merged.hintCost ?? cfg.hintCost) || 15;
   return merged;
 }
 
@@ -214,6 +215,7 @@ function publicChallengeView(challenge, progress, {
   now = new Date(),
   scoring = null,
   revealedLocation = null,
+  revealedAnswer = null,
   teamStage = null,
 } = {}) {
   const n = challenge.challengeNumber;
@@ -298,9 +300,12 @@ function publicChallengeView(challenge, progress, {
             ? 'Report to your start location. Ask the organizer to mark your team reached.'
             : ''))
       : undefined,
-    // Never echo canonical answer string into client messages path — only location label for reveal
+    // Answer strings only after timer/attempt reveal (0 pts) — never on active timed clues
     revealedLocation: revealed && n === 1
       ? (revealedLocation || null)
+      : undefined,
+    revealedAnswer: revealed && n !== 1
+      ? (revealedAnswer || null)
       : undefined,
     state,
     attempts,
@@ -770,6 +775,38 @@ async function submitAnswer({
   };
 }
 
+/** Timed clues 2/4/5: when the timer ends, reveal the answer at 0 pts and advance to scan. */
+async function finalizeTimerReveal({ team, challenge, progress, now }) {
+  const updatedProgress = await CampusHuntTeamProgress.findOneAndUpdate(
+    { _id: progress._id, state: 'ACTIVE' },
+    {
+      $set: {
+        state: 'COMPLETED',
+        failureReason: 'REVEALED_ZERO_POINTS',
+        awardedPoints: 0,
+        completedAt: now,
+        submittedAt: now,
+      },
+    },
+    { new: true },
+  );
+
+  if (!updatedProgress) return null;
+
+  const nextStage = resolvedStageForChallenge(challenge.challengeNumber, 'completed');
+  let updatedTeam = team;
+  if (nextStage && canTransition(team.currentStage, nextStage)) {
+    updatedTeam = await CampusHuntTeam.findOneAndUpdate(
+      { _id: team._id, currentStage: team.currentStage },
+      { $set: { currentStage: nextStage } },
+      { new: true },
+    ) || team;
+  }
+
+  notifyTeam(updatedTeam);
+  return { progress: updatedProgress, team: updatedTeam };
+}
+
 async function finalizeTimeout({ team, challenge, progress, now }) {
   const updatedProgress = await CampusHuntTeamProgress.findOneAndUpdate(
     { _id: progress._id, state: 'ACTIVE' },
@@ -1127,19 +1164,32 @@ async function buildPlayerProgress(team, userId, isLeader) {
   const byNumber2 = new Map(refreshed.map((p) => [p.challengeNumber, p]));
   const eventForTimeout = await CampusHuntEvent.findById(team.eventId).select('scoringConfig');
 
-  // Auto-timeout challenges without late submit. Clue 2/4 stay ACTIVE for late 0-pt submit.
+  // Auto-reveal timed clues 2/4/5; auto-timeout others without late submit.
   for (const ch of challenges) {
     const p = byNumber2.get(ch.challengeNumber);
     const scoringRow = scoringForChallenge(eventForTimeout, ch.challengeNumber);
-    if (scoringRow.allowLateSubmit || ch.challengeNumber === 2 || ch.challengeNumber === 4 || ch.challengeNumber === 5) {
+    const n = ch.challengeNumber;
+    if (
+      (n === 2 || n === 4 || n === 5)
+      && p?.state === 'ACTIVE'
+      && p.expiresAt
+      && isExpired(p.expiresAt, now)
+      && team.currentStage === requiredStageForChallenge(n)
+    ) {
+      // eslint-disable-next-line no-await-in-loop
+      await finalizeTimerReveal({ team, challenge: ch, progress: p, now });
+      continue;
+    }
+    if (scoringRow.allowLateSubmit || n === 2 || n === 4 || n === 5) {
       continue;
     }
     if (
       p?.state === 'ACTIVE'
       && p.expiresAt
       && isExpired(p.expiresAt, now)
-      && team.currentStage === requiredStageForChallenge(ch.challengeNumber)
+      && team.currentStage === requiredStageForChallenge(n)
     ) {
+      // eslint-disable-next-line no-await-in-loop
       await finalizeTimeout({ team, challenge: ch, progress: p, now });
     }
   }
@@ -1160,10 +1210,15 @@ async function buildPlayerProgress(team, userId, isLeader) {
       hintText = secret?.hintText || '';
     }
     let revealedLocation = null;
-    if (p?.failureReason === 'REVEALED_ZERO_POINTS' && Number(ch.challengeNumber) === 1) {
+    let revealedAnswer = null;
+    if (p?.failureReason === 'REVEALED_ZERO_POINTS') {
       // eslint-disable-next-line no-await-in-loop
       const secret = await CampusHuntChallenge.findById(ch._id).select('+answer');
-      revealedLocation = secret?.answer || ch.destinationInstruction || null;
+      if (Number(ch.challengeNumber) === 1) {
+        revealedLocation = secret?.answer || ch.destinationInstruction || null;
+      } else if ([2, 4, 5].includes(Number(ch.challengeNumber))) {
+        revealedAnswer = secret?.answer || null;
+      }
     }
     const expose = canExposeChallengeContent(
       ch.challengeNumber,
@@ -1178,6 +1233,7 @@ async function buildPlayerProgress(team, userId, isLeader) {
       now,
       scoring,
       revealedLocation,
+      revealedAnswer,
       teamStage: teamFresh.currentStage,
     });
     if (
@@ -1260,6 +1316,7 @@ module.exports = {
   canExposeChallengeContent,
   buildPlayerProgress,
   finalizeTimeout,
+  finalizeTimerReveal,
   scoringForChallenge,
   normalizeAnswer,
 };

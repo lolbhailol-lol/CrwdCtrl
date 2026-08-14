@@ -10,6 +10,7 @@ const CampusHuntStartingPoint = require('../models/CampusHuntStartingPoint');
 const CampusHuntCheckpoint = require('../models/CampusHuntCheckpoint');
 const CampusHuntChallenge = require('../models/CampusHuntChallenge');
 const { DEFAULT_SCORING_CONFIG } = require('../constants');
+const { persistClueScoring } = require('./clueScoringPersistService');
 const { resolveCampusStations } = require('./stationCatalogService');
 const { resyncClue1TeamBindings } = require('./startScheduleService');
 const { writeAudit } = require('./auditService');
@@ -88,20 +89,17 @@ async function bulkSaveClue1({
   eventId,
   roundId,
   actor = {},
+  scoring = {},
   variants = [],
 }) {
   const ctx = await loadContext(eventId, roundId);
-  const { event, round } = ctx;
-  const clue1Scoring = {
-    ...DEFAULT_SCORING_CONFIG.clue1,
-    ...(event.scoringConfig?.clue1?.toObject?.() || event.scoringConfig?.clue1 || {}),
-    basePoints: 50,
-    awardMode: 'flat_base',
-  };
-  if (!event.scoringConfig) event.scoringConfig = { ...DEFAULT_SCORING_CONFIG };
-  event.scoringConfig.clue1 = clue1Scoring;
-  event.markModified('scoringConfig');
-  await event.save();
+  const { round } = ctx;
+  const { scoring: clue1Scoring } = await persistClueScoring({
+    eventId,
+    clueNumber: 1,
+    scoring,
+  });
+  const event = await CampusHuntEvent.findById(eventId);
 
   let saved = 0;
   const errors = [];
@@ -200,8 +198,9 @@ async function bulkSaveClue1({
               || `Go to ${place}. Find the shared orange FIRST SCAN QR. `
                 + `All ${Math.max(2, Math.min(8, Number(event.teamSize) || 4))} members scan, then enter your team code to unlock Clue 2.`,
             hintText: String(row.hintText || '').trim() || `Ask staff for the way to ${place}.`,
-            basePoints: 50,
-            maxAttempts: 3,
+            basePoints: clue1Scoring.basePoints,
+            maxAttempts: clue1Scoring.maxAttempts,
+            hintCost: clue1Scoring.hintCost,
             difficulty: 'medium',
             variantKey,
             active: true,
@@ -254,20 +253,17 @@ async function bulkSaveClue3({
   eventId,
   roundId,
   actor = {},
+  scoring = {},
   variants = [],
 }) {
   const ctx = await loadContext(eventId, roundId);
-  const { event, round } = ctx;
-  const clue3Scoring = {
-    ...DEFAULT_SCORING_CONFIG.clue3,
-    ...(event.scoringConfig?.clue3?.toObject?.() || event.scoringConfig?.clue3 || {}),
-    basePoints: 50,
-    awardMode: 'flat_base',
-  };
-  if (!event.scoringConfig) event.scoringConfig = { ...DEFAULT_SCORING_CONFIG };
-  event.scoringConfig.clue3 = clue3Scoring;
-  event.markModified('scoringConfig');
-  await event.save();
+  const { round } = ctx;
+  const { scoring: clue3Scoring } = await persistClueScoring({
+    eventId,
+    clueNumber: 3,
+    scoring,
+  });
+  const event = await CampusHuntEvent.findById(eventId);
 
   let saved = 0;
   const errors = [];
@@ -365,9 +361,9 @@ async function bulkSaveClue3({
             hintText:
               String(row.hintText || '').trim()
               || 'Caesar shift of 3 — A becomes D, B becomes E… Spaces stay spaces.',
-            basePoints: 50,
-            maxAttempts: 3,
-            hintCost: Number(event.scoringConfig?.hintCost) || 15,
+            basePoints: clue3Scoring.basePoints,
+            maxAttempts: clue3Scoring.maxAttempts,
+            hintCost: clue3Scoring.hintCost,
             difficulty: 'medium',
             variantKey,
             active: true,

@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   adminBulkSaveClue5,
+  adminGetOverview,
   adminListChallenges,
   adminListRoutes,
   adminListStartingPoints,
+  adminSaveClueScoring,
 } from '../services/campusHunt.api';
+import {
+  CLUE5_DEFAULT_SETTINGS,
+  coerceClueScoring,
+  loadClueSettings,
+} from './clueSettings';
 import {
   CAMPUS_STARTS,
   TEAMS_PER_WAIT,
@@ -76,6 +83,7 @@ export default function Clue5VariantManager({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [settings, setSettings] = useState(CLUE5_DEFAULT_SETTINGS);
 
   const orderedPoints = useMemo(() => {
     const order = CAMPUS_STARTS.map((s) => s.code);
@@ -86,7 +94,8 @@ export default function Clue5VariantManager({
 
   const refresh = useCallback(async () => {
     if (!eventId) return;
-    const [challengeResult, routeResult, pointResult] = await Promise.all([
+    const [overview, challengeResult, routeResult, pointResult] = await Promise.all([
+      adminGetOverview(eventId),
       adminListChallenges(eventId),
       adminListRoutes(eventId),
       adminListStartingPoints(eventId),
@@ -99,6 +108,12 @@ export default function Clue5VariantManager({
       (row) => Number(row.challengeNumber) === 5,
     );
     setChallenges(list);
+    setSettings(loadClueSettings(
+      overview.data?.event?.scoringConfig,
+      'clue5',
+      CLUE5_DEFAULT_SETTINGS,
+      list[0],
+    ));
 
     const order = CAMPUS_STARTS.map((s) => s.code);
     const ordered = [...pointList]
@@ -140,6 +155,26 @@ export default function Clue5VariantManager({
     }));
   };
 
+  const saveDefaults = async () => {
+    if (!eventId) return;
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      await adminSaveClueScoring(eventId, 5, {
+        roundId,
+        scoring: coerceClueScoring(settings, CLUE5_DEFAULT_SETTINGS),
+      });
+      await refresh();
+      setMessage('Saved Final clue timer & hint settings');
+      onChanged?.();
+    } catch (err) {
+      setError(err.message || 'Could not save settings');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const saveAll = async () => {
     if (!eventId || !roundId) {
       setError('Create Round 1 first');
@@ -179,6 +214,7 @@ export default function Clue5VariantManager({
 
       const result = await adminBulkSaveClue5(eventId, {
         roundId,
+        scoring: coerceClueScoring(settings, CLUE5_DEFAULT_SETTINGS),
         routes: routesPayload,
       });
       const saved = result.data?.saved ?? 0;
@@ -218,6 +254,50 @@ export default function Clue5VariantManager({
           Saved {savedCount}/{orderedPoints.length || starts.length} starts
         </span>
       </div>
+
+      <section className="rounded-2xl border border-white/15 bg-white/5 p-4">
+        <h2 className="text-base font-semibold text-white">Defaults for all teams</h2>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <label className="block text-xs text-white/55">
+            Solve timer (sec)
+            <input
+              type="number"
+              min="1"
+              value={settings.timerSeconds}
+              onChange={(e) => setSettings((s) => ({ ...s, timerSeconds: e.target.value }))}
+              className={`mt-1 ${inputClass}`}
+            />
+          </label>
+          <label className="block text-xs text-white/55">
+            Max attempts
+            <input
+              type="number"
+              min="1"
+              value={settings.maxAttempts}
+              onChange={(e) => setSettings((s) => ({ ...s, maxAttempts: e.target.value }))}
+              className={`mt-1 ${inputClass}`}
+            />
+          </label>
+          <label className="block text-xs text-white/55">
+            Hint cost (pts)
+            <input
+              type="number"
+              min="0"
+              value={settings.hintCost}
+              onChange={(e) => setSettings((s) => ({ ...s, hintCost: e.target.value }))}
+              className={`mt-1 ${inputClass}`}
+            />
+          </label>
+        </div>
+        <button
+          type="button"
+          disabled={busy || !eventId}
+          onClick={saveDefaults}
+          className="mt-3 rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+        >
+          {busy ? 'Saving…' : 'Save settings only'}
+        </button>
+      </section>
 
       <p className="text-xs text-white/50">
         Each start path has one Final word. All {people} teammates get code fragments on their phones.

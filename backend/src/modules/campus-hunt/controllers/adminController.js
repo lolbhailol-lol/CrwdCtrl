@@ -43,6 +43,7 @@ const { bulkSaveClue2 } = require('../services/clue2BulkSaveService');
 const { bulkSaveClue4 } = require('../services/clue4BulkSaveService');
 const { bulkSaveClue5 } = require('../services/clue5BulkSaveService');
 const { bulkSaveClue1, bulkSaveClue3 } = require('../services/clueVariantBulkSaveService');
+const { saveClueScoring } = require('../services/clueScoringPersistService');
 const {
   resolveCampusStations,
   updateCampusStations,
@@ -896,6 +897,7 @@ async function bulkSaveClue1Variants(req, res, next) {
       eventId: req.params.eventId,
       roundId,
       actor: adminActor(req),
+      scoring: req.body.scoring || {},
       variants,
     });
     if (data.saved === 0 && data.errors?.length) {
@@ -938,6 +940,7 @@ async function bulkSaveClue3Variants(req, res, next) {
       eventId: req.params.eventId,
       roundId,
       actor: adminActor(req),
+      scoring: req.body.scoring || {},
       variants,
     });
     if (data.saved === 0 && data.errors?.length) {
@@ -1036,6 +1039,36 @@ async function bulkSaveClue5Variants(req, res, next) {
         data,
       });
     }
+    return res.json({ success: true, data });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, message: err.message, code: err.code });
+    }
+    return next(err);
+  }
+}
+
+/** Save timer / hint / attempt defaults for a clue and sync to challenge docs. */
+async function saveClueScoringSettings(req, res, next) {
+  try {
+    const clueNumber = Number(req.params.clueNumber);
+    if (!Number.isInteger(clueNumber) || clueNumber < 1 || clueNumber > 5) {
+      return res.status(400).json({ success: false, message: 'Invalid clue number' });
+    }
+    let roundId = req.body.roundId;
+    if (!roundId) {
+      const round = await CampusHuntRound.findOne({
+        eventId: req.params.eventId,
+        roundNumber: 1,
+      }).select('_id');
+      roundId = round?._id;
+    }
+    const data = await saveClueScoring({
+      eventId: req.params.eventId,
+      roundId,
+      clueNumber,
+      scoring: req.body.scoring || req.body,
+    });
     return res.json({ success: true, data });
   } catch (err) {
     if (err.status) {
@@ -3926,6 +3959,7 @@ module.exports = {
   bulkSaveClue3Variants,
   bulkSaveClue4Variants,
   bulkSaveClue5Variants,
+  saveClueScoringSettings,
   setRoundReleasesPaused,
   setStartingPointPaused,
   manualReleaseTeam,

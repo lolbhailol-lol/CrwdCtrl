@@ -3,6 +3,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const RESOLVED = new Set(['COMPLETED', 'FAILED', 'TIMEOUT', 'TIMED_OUT']);
 
+function revealAnswerLabel(challengeNumber) {
+  if (challengeNumber === 2) return '3-digit code';
+  if (challengeNumber === 4) return 'Prop code';
+  if (challengeNumber === 5) return 'Final word';
+  return 'Answer';
+}
+
 /**
  * Read-only review of clues the team already finished.
  * Does not undo progress — just lets players re-read passed clues.
@@ -72,6 +79,11 @@ export default function PassedCluesPanel({ challenges = [], isLeader, currentAct
                       {ch.revealedLocation && (
                         <p className="text-xs text-amber-200">
                           Revealed location: {ch.revealedLocation} (0 pts)
+                        </p>
+                      )}
+                      {ch.revealedAnswer && (
+                        <p className="text-xs text-amber-200">
+                          Revealed {revealAnswerLabel(ch.challengeNumber)}: {ch.revealedAnswer} (0 pts)
                         </p>
                       )}
                       {ch.destinationInstruction && (

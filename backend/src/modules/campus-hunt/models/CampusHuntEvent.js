@@ -21,6 +21,7 @@ const clueScoringSchema = new mongoose.Schema(
   {
     basePoints: { type: Number, required: true },
     maxAttempts: { type: Number, default: 3 },
+    hintCost: { type: Number, default: DEFAULT_SCORING_CONFIG.hintCost },
     timerSeconds: { type: Number, default: 0 },
     /** Clue 2: seconds to read instructions before the solve timer starts. */
     timerStartDelaySeconds: { type: Number, default: 0 },

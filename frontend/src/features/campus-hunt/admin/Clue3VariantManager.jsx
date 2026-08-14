@@ -1,11 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  adminGetOverview,
   adminListChallenges,
   adminListCheckpoints,
   adminListRoutes,
   adminListStartingPoints,
   adminBulkSaveClue3,
+  adminSaveClueScoring,
 } from '../services/campusHunt.api';
+import {
+  CLUE3_DEFAULT_SETTINGS,
+  coerceClueScoring,
+  loadClueSettings,
+} from './clueSettings';
 import {
   CAMPUS_STARTS,
   STATION_TARGET_COUNT,
@@ -98,6 +105,7 @@ export default function Clue3VariantManager({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [settings, setSettings] = useState(CLUE3_DEFAULT_SETTINGS);
 
   const orderedPoints = useMemo(() => {
     const order = CAMPUS_STARTS.map((s) => s.code);
@@ -110,7 +118,8 @@ export default function Clue3VariantManager({
 
   const refresh = useCallback(async () => {
     if (!eventId) return;
-    const [challengeResult, routeResult, pointResult, checkpointResult] = await Promise.all([
+    const [overview, challengeResult, routeResult, pointResult, checkpointResult] = await Promise.all([
+      adminGetOverview(eventId),
       adminListChallenges(eventId),
       adminListRoutes(eventId),
       adminListStartingPoints(eventId),
@@ -123,6 +132,12 @@ export default function Clue3VariantManager({
       (row) => Number(row.challengeNumber) === 3 && String(row.variantKey || '') !== 'DEFAULT',
     );
     setVariants(list);
+    setSettings(loadClueSettings(
+      overview.data?.event?.scoringConfig,
+      'clue3',
+      CLUE3_DEFAULT_SETTINGS,
+      list[0],
+    ));
 
     const nextPacks = {};
     arrivalPlan.forEach((place) => {
@@ -143,6 +158,26 @@ export default function Clue3VariantManager({
   useEffect(() => {
     refresh().catch((err) => setError(err.message || 'Could not load Clue 3'));
   }, [refresh]);
+
+  const saveDefaults = async () => {
+    if (!eventId) return;
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      await adminSaveClueScoring(eventId, 3, {
+        roundId,
+        scoring: coerceClueScoring(settings, CLUE3_DEFAULT_SETTINGS),
+      });
+      await refresh();
+      setMessage(`Saved Clue 3 attempt & hint settings for all ${teamCapacity} teams`);
+      onChanged?.();
+    } catch (err) {
+      setError(err.message || 'Could not save settings');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const saveAll = async () => {
     if (!eventId || !roundId) {
@@ -204,6 +239,7 @@ export default function Clue3VariantManager({
 
       const result = await adminBulkSaveClue3(eventId, {
         roundId,
+        scoring: coerceClueScoring(settings, CLUE3_DEFAULT_SETTINGS),
         variants: variantsPayload,
       });
       const saved = result.data?.saved ?? 0;
@@ -249,6 +285,40 @@ export default function Clue3VariantManager({
           Saved {savedCount}/{teamCapacity}
         </span>
       </div>
+
+      <section className="rounded-2xl border border-white/15 bg-white/5 p-4">
+        <h2 className="text-base font-semibold text-white">Defaults for all teams</h2>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <label className="block text-xs text-white/55">
+            Max attempts
+            <input
+              type="number"
+              min="1"
+              value={settings.maxAttempts}
+              onChange={(e) => setSettings((s) => ({ ...s, maxAttempts: e.target.value }))}
+              className={`mt-1 ${inputClass}`}
+            />
+          </label>
+          <label className="block text-xs text-white/55">
+            Hint cost (pts)
+            <input
+              type="number"
+              min="0"
+              value={settings.hintCost}
+              onChange={(e) => setSettings((s) => ({ ...s, hintCost: e.target.value }))}
+              className={`mt-1 ${inputClass}`}
+            />
+          </label>
+        </div>
+        <button
+          type="button"
+          disabled={busy || !eventId}
+          onClick={saveDefaults}
+          className="mt-3 rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+        >
+          {busy ? 'Saving…' : 'Save settings only'}
+        </button>
+      </section>
 
       <p className="text-xs text-white/50">
         After green SECOND SCAN + team code, teams get this Caesar riddle on their phone.

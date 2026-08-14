@@ -8,8 +8,7 @@ const CampusHuntRoute = require('../models/CampusHuntRoute');
 const CampusHuntStartingPoint = require('../models/CampusHuntStartingPoint');
 const CampusHuntCheckpoint = require('../models/CampusHuntCheckpoint');
 const CampusHuntChallenge = require('../models/CampusHuntChallenge');
-const { DEFAULT_SCORING_CONFIG } = require('../constants');
-const { resolveCampusStations } = require('./stationCatalogService');
+const { persistClueScoring } = require('./clueScoringPersistService');
 const { resyncClue1TeamBindings } = require('./startScheduleService');
 const { writeAudit } = require('./auditService');
 const {
@@ -92,27 +91,11 @@ async function bulkSaveClue4({
   const stations = resolveCampusStations(event);
   const teamSize = Math.max(2, Math.min(8, Number(event.teamSize) || 4));
   const cluePrompt = String(prompt || '').trim() || SHARED_PROMPT;
-  const clue4Scoring = {
-    ...DEFAULT_SCORING_CONFIG.clue4,
-    ...(event.scoringConfig?.clue4?.toObject?.() || event.scoringConfig?.clue4 || {}),
-    ...scoring,
-    timerSeconds: Number(scoring.timerSeconds ?? event.scoringConfig?.clue4?.timerSeconds) || 180,
-    timerStartDelaySeconds:
-      Number(scoring.timerStartDelaySeconds ?? event.scoringConfig?.clue4?.timerStartDelaySeconds) || 15,
-    maxAttempts: Number(scoring.maxAttempts ?? event.scoringConfig?.clue4?.maxAttempts) || 3,
-    hintCost: Number(scoring.hintCost ?? event.scoringConfig?.hintCost) || 15,
-    allowLateSubmit: scoring.allowLateSubmit !== false,
-    basePoints: 0,
-    speedBonusBands:
-      (Array.isArray(scoring.speedBonusBands) && scoring.speedBonusBands.length)
-        ? scoring.speedBonusBands
-        : DEFAULT_SCORING_CONFIG.clue4.speedBonusBands,
-  };
-
-  if (!event.scoringConfig) event.scoringConfig = { ...DEFAULT_SCORING_CONFIG };
-  event.scoringConfig.clue4 = clue4Scoring;
-  event.markModified('scoringConfig');
-  await event.save();
+  const { scoring: clue4Scoring } = await persistClueScoring({
+    eventId,
+    clueNumber: 4,
+    scoring,
+  });
 
   if (typeof CampusHuntChallenge.ensureChallengeIndexes === 'function') {
     await CampusHuntChallenge.ensureChallengeIndexes();
