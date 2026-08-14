@@ -13,8 +13,11 @@ import {
   adminUpdateStartingPoint,
 } from '../services/campusHunt.api';
 import {
+  clue5WordForStart,
   firstStopForLocalTeam,
+  fourthStopForLocalTeam,
   globalTeamNumber,
+  resolveStations,
   secondStopForLocalTeam,
   thirdStopForLocalTeam,
   waitIndexForStart,
@@ -86,6 +89,10 @@ export default function StartingSystemPanel({
   const teamCapacity = Math.max(2, Number(eventMeta?.teamCapacity) || 40);
   const startCount = Math.max(1, Math.min(4, Number(eventMeta?.startCount) || 4));
   const teamsPerWait = Math.max(1, Math.ceil(teamCapacity / startCount));
+  const activeStations = useMemo(
+    () => resolveStations(eventMeta?.campusStations, eventMeta?.stationCount),
+    [eventMeta?.campusStations, eventMeta?.stationCount],
+  );
   const [points, setPoints] = useState([]);
   const [dashboard, setDashboard] = useState(null);
   const [preview, setPreview] = useState(null);
@@ -817,21 +824,32 @@ export default function StartingSystemPanel({
                   <span className="font-semibold text-white">
                     Team 1–{teamCapacity}
                   </span>
-                  {' '}— split across {startCount} start{startCount === 1 ? '' : 's'}
-                  (~{teamsPerWait} per start, sorted by team code).
+                  {startCount === 1
+                    ? ' — all meet at the same starting point, leave one team per wave.'
+                    : (
+                      <>
+                        {' '}— split across {startCount} starts
+                        (~{teamsPerWait} per start, sorted by team code).
+                      </>
+                    )}
                 </li>
                 <li>
-                  <span className="font-semibold text-white">Meet here</span>
-                  {' '}— where the team gathers before the hunt
-                  ({startNames.join(', ') || 'active starts'}).
+                  <span className="font-semibold text-emerald-200">Meet here</span>
+                  {' '}— starting point only ({startNames.join(', ') || 'active starts'}).
+                  Not a campus scan place.
                 </li>
                 <li>
                   <span className="font-semibold text-white">Leave turn</span>
-                  {' '}— which turn they leave that place. Turn 1 = first group, Turn 2 ={' '}
-                  {schedule.releaseIntervalMinutes || 5} minutes later, …
-                  {startCount > 1
-                    ? ` (same turn leaves from all ${startCount} places together).`
-                    : '.'}
+                  {startCount === 1
+                    ? ' — Turn 1 = first team leaves, Turn 2 = next team '
+                      + `${schedule.releaseIntervalMinutes || 5} min later, …`
+                    : (
+                      <>
+                        {' '}— which turn they leave that place. Turn 1 = first group, Turn 2 ={' '}
+                        {schedule.releaseIntervalMinutes || 5} minutes later, …
+                        {` (same turn leaves from all ${startCount} places together).`}
+                      </>
+                    )}
                 </li>
                 <li>
                   <span className="font-semibold text-white">Leave time</span>
@@ -839,26 +857,37 @@ export default function StartingSystemPanel({
                 </li>
                 <li>
                   <span className="font-semibold text-amber-100">Orange place</span>
-                  {' '}— campus spot for their Orange QR card (after solving Clue 1).
+                  {' '}— 1st campus scan (Clue 1).
                 </li>
                 <li>
                   <span className="font-semibold text-emerald-200">Green place</span>
-                  {' '}— next campus spot (green card after Clue 2).
+                  {' '}— 2nd campus scan (Clue 2).
                 </li>
                 <li>
                   <span className="font-semibold text-sky-200">Blue place</span>
-                  {' '}— third campus spot (after Clue 3 riddle).
+                  {' '}— 3rd campus scan (Clue 3).
+                </li>
+                <li>
+                  <span className="font-semibold text-purple-200">Purple place</span>
+                  {' '}— 4th campus scan after prop hunt (Clue 4).
+                </li>
+                <li>
+                  <span className="font-semibold text-rose-200">Final</span>
+                  {' '}— one-word puzzle on phones, then report back to Meet here.
                 </li>
               </ul>
-              {previewRows.some((r) => !r.firstStopName || !r.secondStopName || !r.thirdStopName) && (
+              {previewRows.some((r) => (
+                !r.firstStopName || !r.secondStopName || !r.thirdStopName || !r.fourthStopName
+              )) && (
                 <p className="mt-2 rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-                  Orange/green/blue places below are the <strong>planned path</strong>.
-                  To bind real QR cards, open <strong>Clues</strong>, save Clue 1 / 2 / 3, then Preview again.
+                  Orange → purple below are the <strong>planned path</strong> across campus places
+                  (Food Court, Student Centre, … — not starting points).
+                  To bind real QR cards, open <strong>Clues</strong>, save Clue 1–4, then Preview again.
                 </p>
               )}
             </div>
             <div className="overflow-x-auto rounded-xl border border-white/10">
-              <table className="w-full min-w-[760px] text-left text-xs">
+              <table className="w-full min-w-[1080px] text-left text-xs">
                 <thead className="bg-white/5 text-white/55">
                   <tr>
                     <th className="px-3 py-2">Team</th>
@@ -868,6 +897,8 @@ export default function StartingSystemPanel({
                     <th>Orange place</th>
                     <th>Green place</th>
                     <th>Blue place</th>
+                    <th>Purple place</th>
+                    <th>Final</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -921,13 +952,21 @@ export default function StartingSystemPanel({
                       const waitIdx = row._waitIdx;
                       const waveNum = wave || 1;
                       const OrangePlace = row.firstStopName
-                        || firstStopForLocalTeam(waveNum, waitIdx);
+                        || firstStopForLocalTeam(waveNum, waitIdx, activeStations);
                       const greenPlace = row.secondStopName
-                        || secondStopForLocalTeam(waveNum, waitIdx);
+                        || secondStopForLocalTeam(waveNum, waitIdx, activeStations);
                       const bluePlace = row.thirdStopName
-                        || thirdStopForLocalTeam(waveNum, waitIdx);
+                        || thirdStopForLocalTeam(waveNum, waitIdx, activeStations);
+                      const purplePlace = row.fourthStopName
+                        || fourthStopForLocalTeam(waveNum, waitIdx, activeStations);
+                      const startCode = waitLetter(code) || code.charAt(0) || 'A';
+                      const finalWord = clue5WordForStart(startCode);
+                      const finalLabel = `${finalWord} → ${gatherName}`;
                       const fromClues = Boolean(
-                        row.firstStopName || row.secondStopName || row.thirdStopName,
+                        row.firstStopName
+                        || row.secondStopName
+                        || row.thirdStopName
+                        || row.fourthStopName,
                       );
                       return (
                         <tr
@@ -974,6 +1013,12 @@ export default function StartingSystemPanel({
                           </td>
                           <td className="text-sky-200/90">
                             {bluePlace}
+                          </td>
+                          <td className="text-purple-200/90">
+                            {purplePlace}
+                          </td>
+                          <td className="text-rose-200/90">
+                            {finalLabel}
                           </td>
                         </tr>
                       );

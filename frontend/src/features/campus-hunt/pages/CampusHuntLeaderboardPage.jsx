@@ -133,8 +133,25 @@ export default function CampusHuntLeaderboardPage() {
   const mineRow = isDark ? 'bg-[#0ECCEE]/10' : 'bg-[#0ECCEE]/15';
   const accent = 'text-[#0ECCEE]';
 
+  // iOS Safari: pinch/double-tap while scrolling the board often zooms the page — lock scale here only.
+  useEffect(() => {
+    const meta = document.querySelector('meta[name="viewport"]');
+    if (!meta) return undefined;
+    const prev = meta.getAttribute('content') || '';
+    meta.setAttribute(
+      'content',
+      'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover',
+    );
+    return () => {
+      if (prev) meta.setAttribute('content', prev);
+    };
+  }, []);
+
   return (
-    <div className={`min-h-screen px-4 py-6 transition-colors duration-300 ${pageBg}`}>
+    <div
+      className={`campus-hunt-leaderboard min-h-[100dvh] touch-pan-y overscroll-y-contain px-4 py-6 transition-colors duration-300 ${pageBg}`}
+      style={{ WebkitOverflowScrolling: 'touch' }}
+    >
       <div className="mx-auto max-w-lg space-y-5">
         <CampusHuntBackLink
           to="/"
@@ -183,7 +200,7 @@ export default function CampusHuntLeaderboardPage() {
               <select
                 value={college}
                 onChange={(e) => onCollegeChange(e.target.value)}
-                className={`mt-1 w-full rounded-xl border px-3 py-2.5 text-sm ${selectCls}`}
+                className={`mt-1 w-full rounded-xl border px-3 py-2.5 text-base ${selectCls}`}
               >
                 {colleges.map((c) => (
                   <option key={c.college} value={c.college}>
@@ -199,7 +216,7 @@ export default function CampusHuntLeaderboardPage() {
                 <select
                   value={eventId}
                   onChange={(e) => setEventId(e.target.value)}
-                  className={`mt-1 w-full rounded-xl border px-3 py-2.5 text-sm ${selectCls}`}
+                  className={`mt-1 w-full rounded-xl border px-3 py-2.5 text-base ${selectCls}`}
                 >
                   {events.map((ev) => (
                     <option key={ev.id} value={ev.id}>
@@ -230,7 +247,7 @@ export default function CampusHuntLeaderboardPage() {
                   key={mode}
                   type="button"
                   onClick={() => setBoardMode(mode)}
-                  className={`flex-1 rounded-lg py-2 text-xs font-semibold uppercase tracking-wide ${
+                  className={`flex-1 rounded-lg py-2.5 text-sm font-semibold uppercase tracking-wide ${
                     boardMode === mode ? 'bg-[#0ECCEE] text-black' : muted
                   }`}
                 >
@@ -247,7 +264,7 @@ export default function CampusHuntLeaderboardPage() {
               </span>
               <span>{updatedAt ? `Updated ${updatedAt}` : '…'}</span>
             </div>
-            <div className={`divide-y ${rowDivider}`}>
+            <div className={`divide-y ${rowDivider} [-webkit-overflow-scrolling:touch]`}>
               {rows.map((row) => {
                 const mine = myTeamId && row.teamId === myTeamId;
                 return (

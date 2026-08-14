@@ -120,6 +120,13 @@ export default function CampusHuntEventControl() {
     finaleTeams: overview?.event?.finaleCapacity
       ?? round1?.qualification?.finaleTeams,
   });
+  const huntLayoutMeta = useMemo(() => ({
+    ...(overview?.event || {}),
+    campusStations: overview?.campusStations,
+    campusStarts: overview?.campusStarts,
+    stationCount: overview?.stationCount ?? overview?.event?.stationCount,
+    startCount: overview?.startCount ?? overview?.event?.startCount,
+  }), [overview]);
   const formatStages = buildStagesFromFormat(competitionFormat);
   const readiness = overview?.readiness;
   const cluesReady = Boolean(readiness?.routesReady);
@@ -467,7 +474,7 @@ export default function CampusHuntEventControl() {
                   eventId={eventId}
                   roundId={round1?._id}
                   mode="setup"
-                  eventMeta={overview?.event}
+                  eventMeta={huntLayoutMeta}
                   onChanged={() => refresh().catch(() => {})}
                 />
               </section>
@@ -572,7 +579,7 @@ export default function CampusHuntEventControl() {
                 eventId={eventId}
                 roundId={round1?._id}
                 mode="schedule"
-                eventMeta={overview?.event}
+                eventMeta={huntLayoutMeta}
                 onChanged={() => refresh().catch(() => {})}
               />
 
@@ -674,7 +681,7 @@ export default function CampusHuntEventControl() {
                   eventId={eventId}
                   roundId={round1?._id}
                   mode="live"
-                  eventMeta={overview?.event}
+                  eventMeta={huntLayoutMeta}
                   onChanged={() => refresh().catch(() => {})}
                 />
               </section>
@@ -693,7 +700,7 @@ export default function CampusHuntEventControl() {
                 </p>
                 <FinishReturnBoard
                   eventId={eventId}
-                  eventMeta={overview?.event}
+                  eventMeta={huntLayoutMeta}
                   reloadKey={lastRefresh || 0}
                   onChanged={() => refresh().catch(() => {})}
                 />
