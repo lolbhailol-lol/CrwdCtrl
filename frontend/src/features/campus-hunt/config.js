@@ -39,6 +39,8 @@ export const CAMPUS_HUNT_PATHS = {
   adminEvent: (eventId) => `/admin/campus-hunt/${eventId}`,
   offline: '/campus-hunt/offline',
   offlineLogin: '/campus-hunt/offline/login',
+  offlineTeam: '/campus-hunt/offline/team',
+  offlineRounds: '/campus-hunt/offline/rounds',
   offlinePlay: '/campus-hunt/offline/play',
   offlineInstall: (token) => `/campus-hunt/offline/i/${token}`,
 };

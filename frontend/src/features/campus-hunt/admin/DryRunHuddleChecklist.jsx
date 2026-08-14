@@ -830,9 +830,9 @@ export default function DryRunHuddleChecklist({
         <p>
           <strong className="text-white">How teams play (no laptop at venue):</strong>
           {' '}
-          Click <strong>Create team install links</strong> → WhatsApp each team their link
-          → they open it once at home on Wi‑Fi and Add to Home Screen
-          → at the fest they use airplane mode. Same posters, same hunt.
+          Click <strong>Create team install links</strong> → Copy WhatsApp / Share for each team.
+          The message tells them to add the <strong>Hunt</strong> icon (not CrwdCtrl), why it is a new app,
+          how to play, and how to test with data off + camera scan.
         </p>
         <OfflineInstallCards installs={installs} />
         <label className="mt-2 flex cursor-pointer items-center gap-2 text-[11px] text-white/60">

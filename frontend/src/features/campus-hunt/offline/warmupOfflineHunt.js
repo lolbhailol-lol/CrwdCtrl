@@ -3,6 +3,8 @@ import { CAMPUS_HUNT_PATHS } from '../config';
 const HUNT_SHELL_PATHS = [
   CAMPUS_HUNT_PATHS.offline,
   CAMPUS_HUNT_PATHS.offlineLogin,
+  CAMPUS_HUNT_PATHS.offlineTeam,
+  CAMPUS_HUNT_PATHS.offlineRounds,
   CAMPUS_HUNT_PATHS.offlinePlay,
   '/offline-hunt.webmanifest',
 ];
@@ -15,6 +17,8 @@ export async function warmupOfflineHunt() {
   const imports = Promise.allSettled([
     import('./pages/OfflineHuntLandingPage'),
     import('./pages/OfflineHuntLoginPage'),
+    import('./pages/OfflineHuntTeamPage'),
+    import('./pages/OfflineHuntRoundsPage'),
     import('./pages/OfflineHuntPlayPage'),
     import('../player/PlayerPlayScreen'),
   ]);

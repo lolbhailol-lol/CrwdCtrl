@@ -154,8 +154,7 @@ export function hydrateState(bundle, state) {
   if (!state || !state.clueProgress?.[1] || String(state.currentStage || '').includes('CLUE1_')) {
     return createInitialTeamState(bundle);
   }
-  // Packs opened before the waiting hub: if Clue 1 was never actually played, park at WAITING.
-  if (state.currentStage === 'CLUE_1_ACTIVE' && clue1NeverPlayed(state) && !state.huntStartedAt) {
+  if (!state.huntStartedAt && clue1NeverPlayed(state)) {
     const next = clone(state);
     next.currentStage = 'WAITING';
     next.clueProgress[1] = emptyClue();

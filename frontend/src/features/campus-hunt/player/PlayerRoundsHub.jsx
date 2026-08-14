@@ -30,6 +30,8 @@ export default function PlayerRoundsHub({
   eventName,
   lastRound = null,
   onSwitchPerson,
+  intro,
+  switchLabel = 'Not you? Switch person on this phone',
 }) {
   const cards = Array.isArray(rounds) ? rounds : [];
 
@@ -81,7 +83,7 @@ export default function PlayerRoundsHub({
           ) : null}
         </div>
         <p className="mt-4 text-sm text-white/60">
-          Choose a round. Round 1 opens when organizers go live.
+          {intro || 'Choose a round. Round 1 opens when organizers go live.'}
         </p>
 
         <div className="mt-6 space-y-3">
@@ -165,7 +167,7 @@ export default function PlayerRoundsHub({
             onClick={onSwitchPerson}
             className="mt-6 w-full py-2 text-center text-xs text-white/35 transition hover:text-white/60"
           >
-            Not you? Switch person on this phone
+            {switchLabel}
           </button>
         )}
       </div>

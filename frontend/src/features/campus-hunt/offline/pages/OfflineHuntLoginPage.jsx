@@ -39,7 +39,7 @@ export default function OfflineHuntLoginPage() {
         }
         setBundle(pack);
         if (session?.teamCode === pack.team?.teamCode && session?.memberKey) {
-          navigate(CAMPUS_HUNT_PATHS.offlinePlay, { replace: true });
+          navigate(CAMPUS_HUNT_PATHS.offlineTeam, { replace: true });
         }
       } catch (err) {
         if (!cancelled) setError(err.message || 'Could not read offline pack');
@@ -92,7 +92,7 @@ export default function OfflineHuntLoginPage() {
       };
       await saveOfflineSession(session);
       setSelected(member);
-      navigate(CAMPUS_HUNT_PATHS.offlinePlay);
+      navigate(CAMPUS_HUNT_PATHS.offlineTeam);
     } catch (err) {
       setError(err.message || 'Could not start offline session');
     } finally {
@@ -143,7 +143,7 @@ export default function OfflineHuntLoginPage() {
           </form>
         ) : (
           <div className="mt-6 space-y-2">
-            <p className="text-xs text-white/55">Tap your name. The hunt does not start yet.</p>
+            <p className="text-xs text-white/55">Tap your name. You will see the team page next — not Clue 1.</p>
             {roster.map((member) => (
               <button
                 key={member.memberKey}

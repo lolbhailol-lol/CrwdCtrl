@@ -14,6 +14,8 @@ import {
   CampusHuntEventControl,
   OfflineHuntLandingPage,
   OfflineHuntLoginPage,
+  OfflineHuntTeamPage,
+  OfflineHuntRoundsPage,
   OfflineHuntPlayPage,
   OfflineHuntInstallPage,
 } from './lazyPages';
@@ -27,6 +29,8 @@ export const campusHuntRoutes = isCampusHuntEnabled() ? (
     <Route path="/campus-hunt/offline/i/:token" element={<OfflineHuntInstallPage />} />
     <Route path="/campus-hunt/offline" element={<OfflineHuntLandingPage />} />
     <Route path="/campus-hunt/offline/login" element={<OfflineHuntLoginPage />} />
+    <Route path="/campus-hunt/offline/team" element={<OfflineHuntTeamPage />} />
+    <Route path="/campus-hunt/offline/rounds" element={<OfflineHuntRoundsPage />} />
     <Route path="/campus-hunt/offline/play" element={<OfflineHuntPlayPage />} />
     <Route path="/campus-hunt/leaderboard" element={<CampusHuntLeaderboardPage />} />
     <Route path="/campus-hunt/enter" element={<CampusHuntEnterPage />} />

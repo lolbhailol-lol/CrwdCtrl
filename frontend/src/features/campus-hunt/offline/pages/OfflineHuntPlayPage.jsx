@@ -302,7 +302,8 @@ export default function OfflineHuntPlayPage() {
           onStartHunt={onStartHunt}
           starting={starting}
           error={startError}
-          onSwitchPerson={() => navigate(CAMPUS_HUNT_PATHS.offlineLogin)}
+          onBackToRounds={() => navigate(CAMPUS_HUNT_PATHS.offlineRounds)}
+          onSwitchPerson={() => navigate(CAMPUS_HUNT_PATHS.offlineTeam)}
         />
         <OfflineHandoffDock
           isLeader={session.role === 'leader'}
@@ -331,12 +332,12 @@ export default function OfflineHuntPlayPage() {
         onRefresh={refresh}
         onActionResult={applyResult}
         eventSlug={bundle.event.slug}
-        onLeaveRound={() => navigate(CAMPUS_HUNT_PATHS.offlineLogin)}
+        onLeaveRound={() => navigate(CAMPUS_HUNT_PATHS.offlineRounds)}
         actions={actions}
         offlineMode
         roundLabel="Offline Round 1 · airplane mode"
-        backTo={CAMPUS_HUNT_PATHS.offlineLogin}
-        backLabel="← Switch person"
+        backTo={CAMPUS_HUNT_PATHS.offlineRounds}
+        backLabel="← Rounds"
         checkpointExtra={
           session.role !== 'leader' && cp?.youScanned ? (
             <p className="text-center text-xs text-white/55">
