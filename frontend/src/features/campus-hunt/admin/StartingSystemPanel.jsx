@@ -104,12 +104,40 @@ export default function StartingSystemPanel({
     releaseIntervalMinutes: 5,
     assignmentStrategy: 'route_balanced',
   });
+  const [scheduleHydrated, setScheduleHydrated] = useState(false);
   const [liveSearch, setLiveSearch] = useState('');
   const [liveFilter, setLiveFilter] = useState('waiting'); // waiting | all | released
 
   useEffect(() => {
     setDraft((prev) => ({ ...prev, capacity: teamsPerWait }));
   }, [teamsPerWait]);
+
+  useEffect(() => {
+    setScheduleHydrated(false);
+    setGenerated(false);
+    setPreview(null);
+  }, [eventId]);
+
+  // Load saved date / interval from the round when dashboard arrives
+  useEffect(() => {
+    if (scheduleHydrated || !dashboard?.round) return;
+    const round = dashboard.round;
+    const next = {};
+    if (round.startsAt) {
+      const at = new Date(round.startsAt);
+      if (!Number.isNaN(at.getTime())) next.startsAt = dateTimeLocal(at);
+    }
+    if (round.releaseIntervalMinutes != null && Number(round.releaseIntervalMinutes) > 0) {
+      next.releaseIntervalMinutes = Number(round.releaseIntervalMinutes);
+    }
+    if (Object.keys(next).length) {
+      setSchedule((prev) => ({ ...prev, ...next }));
+    }
+    if (round.scheduleStatus === 'locked' || round.startsAt) {
+      setGenerated(true);
+    }
+    setScheduleHydrated(true);
+  }, [dashboard, scheduleHydrated]);
 
   const ensureDefaultLocations = async () => {
     const defaults = [
@@ -223,6 +251,62 @@ export default function StartingSystemPanel({
     assignmentStrategy: schedule.assignmentStrategy,
     ...extra,
   });
+
+  /** One-tap: preview + generate so date/interval are saved on teams. */
+  const saveScheduleDateAndInterval = async () => {
+    if (!roundId || !schedule.startsAt || points.length < 1) {
+      setMessage(
+        !roundId
+          ? 'Create Round 1 first'
+          : points.length < 1
+            ? 'Add starting points first'
+            : 'Pick a first-release date/time',
+      );
+      return;
+    }
+    const roundStatus = dashboard?.round?.status;
+    const scheduleLocked = dashboard?.round?.scheduleStatus === 'locked';
+    const liveOrLocked = roundStatus === 'live' || roundStatus === 'locked' || scheduleLocked;
+    let forceResetProgress = false;
+    if (liveOrLocked) {
+      const ok = window.confirm(
+        'Save this date & interval?\n\n'
+        + 'Updates every team’s unlock time. Teams already hunting stay as they are '
+        + 'unless you choose to reset them next.',
+      );
+      if (!ok) return;
+      forceResetProgress = window.confirm(
+        'Also force-reset in-progress teams back to WAITING?\n\n'
+        + 'Only say OK if you intentionally want to wipe live progress.',
+      );
+    }
+
+    setBusy('save-schedule');
+    setMessage('');
+    try {
+      const previewResult = await adminPreviewStartSchedule(eventId, scheduleBody());
+      setPreview(previewResult.data || null);
+      await adminGenerateStartSchedule(eventId, scheduleBody({
+        confirm: true,
+        forceResetProgress,
+        reason: forceResetProgress
+          ? 'Saved date & interval from schedule panel (force reset)'
+          : 'Saved date & interval from schedule panel',
+      }));
+      setGenerated(true);
+      setMessage(
+        forceResetProgress
+          ? 'Date & interval saved (progress reset). Lock schedule when ready.'
+          : 'Date & interval saved on all teams. Lock schedule when ready.',
+      );
+      await refresh();
+      onChanged?.();
+    } catch (error) {
+      setMessage(error.message || 'Could not save schedule');
+    } finally {
+      setBusy('');
+    }
+  };
 
   const createPoint = async (event) => {
     event.preventDefault();
@@ -577,6 +661,20 @@ export default function StartingSystemPanel({
           </label>
         </div>
 
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={Boolean(busy) || !roundId || points.length < 1 || !schedule.startsAt}
+            onClick={saveScheduleDateAndInterval}
+            className="rounded-lg bg-[#0ECCEE] px-4 py-2.5 text-sm font-bold text-black disabled:opacity-40"
+          >
+            {busy === 'save-schedule' ? 'Saving…' : 'Save date & interval'}
+          </button>
+          <p className="text-[11px] text-white/45">
+            Writes first release time + stagger minutes onto every team (Preview + Generate).
+          </p>
+        </div>
+
         {waveTiming.length > 0 && (
           <div className="mt-4 rounded-xl border border-[#0ECCEE]/25 bg-[#0ECCEE]/5 p-3">
             <p className="text-sm font-semibold text-[#0ECCEE]">
@@ -705,7 +803,9 @@ export default function StartingSystemPanel({
           </button>
         </div>
         <p className="mt-2 text-[11px] text-white/45">
-          Order: Preview → Generate → Lock. Then use Start Round 1 at the bottom of this page.
+          Tip: use <strong className="text-white/70">Save date &amp; interval</strong> after
+          picking the time, or Preview → Generate → Lock. Then Start Round 1 — players unlock
+          live without refreshing.
         </p>
 
         {preview && (

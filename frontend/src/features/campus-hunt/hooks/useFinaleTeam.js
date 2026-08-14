@@ -128,7 +128,8 @@ export function useFinaleTeam(eventId) {
         setError(finalePlayerMessage(err) || 'Failed to load finale');
       }
     } finally {
-      if (isHard && (gen === hardGenRef.current || bootstrappedRef.current)) {
+      // Only the latest hard request may clear the spinner — never a stale one.
+      if (isHard && gen === hardGenRef.current) {
         setLoading(false);
       }
     }

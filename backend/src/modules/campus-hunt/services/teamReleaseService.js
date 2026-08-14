@@ -131,6 +131,12 @@ async function releaseTeamIfDue({
       actualStartAt: released.actualStartAt,
     },
   });
+  try {
+    const { publishTeamProgress } = require('./teamProgressBus');
+    publishTeamProgress(released._id);
+  } catch {
+    /* SSE is best-effort — players still poll */
+  }
   return { team: released, released: true, alreadyReleased: false };
 }
 

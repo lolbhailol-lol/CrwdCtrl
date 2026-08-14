@@ -32,6 +32,140 @@ function id(value) {
   return String(value?._id || value?.id || value || '');
 }
 
+function teamSharedPassword(team) {
+  const access = team?.access || {};
+  return String(
+    access.teamPassword
+    || access.sharedScannerPassword
+    || access.leader?.password
+    || '',
+  ).trim();
+}
+
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/** Cut-out stamp cards: code + password + where to log in. */
+function buildTeamStampSheets(stamps, { eventName = '' } = {}) {
+  const cards = stamps.map((stamp) => {
+    const code = escapeHtml(stamp.teamCode);
+    const pass = escapeHtml(stamp.password);
+    const name = stamp.teamName && !/^team\s*\d+$/i.test(stamp.teamName)
+      ? escapeHtml(stamp.teamName)
+      : '';
+    return `
+      <article class="stamp">
+        <p class="brand">CrwdCtrl · Campus Hunt</p>
+        ${eventName ? `<p class="event">${escapeHtml(eventName)}</p>` : ''}
+        <p class="label">Team code</p>
+        <p class="code">${code}</p>
+        ${name ? `<p class="name">${name}</p>` : ''}
+        <p class="label">Password</p>
+        <p class="pass">${pass}</p>
+        <ol class="steps">
+          <li>Open <strong>CrwdCtrl</strong></li>
+          <li>Go to <strong>My Profile</strong></li>
+          <li>Tap <strong>Campus Hunt login</strong></li>
+          <li>Enter this team code + password, then tap your name</li>
+        </ol>
+      </article>`;
+  }).join('');
+
+  return `<!doctype html><html><head><title>Team login stamps</title>
+    <style>
+      @page { margin: 10mm; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font: 13px/1.35 system-ui, sans-serif;
+        color: #111;
+        background: #fff;
+      }
+      .sheet {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+      }
+      .stamp {
+        break-inside: avoid;
+        page-break-inside: avoid;
+        border: 2px dashed #0b0c0d;
+        border-radius: 14px;
+        padding: 14px 16px;
+        min-height: 210px;
+        background:
+          radial-gradient(circle at 1px 1px, #e5e7eb 1px, transparent 0);
+        background-size: 10px 10px;
+      }
+      .brand {
+        margin: 0;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: #0ECCEE;
+      }
+      .event {
+        margin: 2px 0 0;
+        font-size: 11px;
+        color: #555;
+      }
+      .label {
+        margin: 12px 0 0;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: #666;
+      }
+      .code {
+        margin: 2px 0 0;
+        font: 700 28px/1.1 ui-monospace, monospace;
+        letter-spacing: 0.06em;
+      }
+      .name {
+        margin: 2px 0 0;
+        font-size: 13px;
+        color: #333;
+      }
+      .pass {
+        margin: 2px 0 0;
+        display: inline-block;
+        font: 700 20px/1.2 ui-monospace, monospace;
+        background: #ecfeff;
+        border: 1px solid #a5f3fc;
+        border-radius: 8px;
+        padding: 4px 8px;
+      }
+      .steps {
+        margin: 12px 0 0;
+        padding-left: 18px;
+        font-size: 12px;
+        color: #222;
+      }
+      .steps li { margin: 3px 0; }
+      .hint {
+        margin: 0 0 12px;
+        font-size: 12px;
+        color: #444;
+      }
+      @media print {
+        .no-print { display: none !important; }
+        .stamp { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      }
+    </style>
+  </head><body>
+    <p class="hint no-print">Cut along the dashed borders. Hand one stamp to each team.</p>
+    <div class="sheet">${cards}</div>
+    <script>window.print()</script>
+  </body></html>`;
+}
+
 function toLocalDateTime(value) {
   if (!value) return '';
   const date = new Date(value);
@@ -222,16 +356,21 @@ function TeamDetailCard({
         li{margin:8px 0}
         .steps{font-size:15px;margin:12px 0 0;padding-left:18px}
         .pass{font-family:ui-monospace,monospace;background:#ecfeff;padding:2px 6px;border-radius:6px}
+        .code{font:700 28px/1.1 ui-monospace,monospace;letter-spacing:0.06em}
       </style>
       </head><body>
       <h1>${team.teamCode}${team.teamName ? ` — ${team.teamName}` : ''}</h1>
       <div class="box">
-        <strong>How to log in</strong>
+        <strong>Where to log in</strong>
         <ol class="steps">
-          <li>Open the link below</li>
-          <li>Enter password: <span class="pass">${pass}</span></li>
+          <li>Open <strong>CrwdCtrl</strong></li>
+          <li>Go to <strong>My Profile</strong></li>
+          <li>Tap <strong>Campus Hunt login</strong></li>
+          <li>Team code: <span class="code">${team.teamCode}</span></li>
+          <li>Password: <span class="pass">${pass}</span></li>
           <li>Tap your name</li>
         </ol>
+        <p style="margin:14px 0 0;font-size:13px;color:#555">Or open this direct link:</p>
         <code>${teamUrl}</code>
       </div>
       <h2>Who to tap (same password)</h2>
@@ -1058,6 +1197,72 @@ export default function TeamManagerPanel({
   )).length;
   const rostersIncomplete = readiness?.rostersIncomplete ?? Math.max(0, teamsForSchedule - localRostersReady);
 
+  const printAllTeamStamps = async () => {
+    const targets = layoutTeams.length ? layoutTeams : sortedTeams;
+    if (!targets.length) {
+      setMsg('Create teams first');
+      return;
+    }
+
+    setBusy(true);
+    setMsg('Preparing team stamps…');
+    try {
+      const stamps = [];
+      const missing = [];
+
+      for (const team of targets) {
+        let password = teamSharedPassword(team);
+        if (!password && !team.access?.vaultUnreadable) {
+          try {
+            // eslint-disable-next-line no-await-in-loop
+            const res = await adminRevealTeamAccess(id(team));
+            password = teamSharedPassword({ access: res.data?.access || {} });
+          } catch {
+            /* fall through */
+          }
+        }
+        if (!password) {
+          missing.push(team.teamCode || id(team));
+          continue;
+        }
+        stamps.push({
+          teamCode: team.teamCode,
+          teamName: team.teamName,
+          password,
+        });
+      }
+
+      if (!stamps.length) {
+        setMsg(
+          missing.length
+            ? `No printable passwords — set passwords first (${missing.slice(0, 5).join(', ')}${missing.length > 5 ? '…' : ''})`
+            : 'No teams to print',
+        );
+        return;
+      }
+
+      const popup = window.open('', '_blank', 'width=900,height=1100');
+      if (!popup) {
+        setMsg('Allow popups to print team stamps');
+        return;
+      }
+      popup.document.write(buildTeamStampSheets(stamps, {
+        eventName: eventMeta?.name || '',
+      }));
+      popup.document.close();
+
+      setMsg(
+        missing.length
+          ? `Printed ${stamps.length} stamps · skipped ${missing.length} without password`
+          : `Printed ${stamps.length} team stamps`,
+      );
+    } catch (err) {
+      setMsg(err.message || 'Could not print stamps');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <section className="rounded-xl border border-[#0ECCEE]/30 bg-[#0ECCEE]/10 p-4">
@@ -1148,13 +1353,16 @@ export default function TeamManagerPanel({
         </p>
         <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs text-white/55">
           <li>
-            Share each team&apos;s link:{' '}
-            <span className="font-mono text-white/70">
-              /campus-hunt/{eventMeta?.slug || 'EVENT'}/team/CC001
-            </span>
+            Print stamps below — each card has team code + password
           </li>
-          <li>Players open that link → type password → tap their name</li>
-          <li>Use “Set password for all teams” below so everyone has the same password</li>
+          <li>
+            Tell players: open <strong className="text-white/70">CrwdCtrl</strong>
+            {' → '}
+            <strong className="text-white/70">My Profile</strong>
+            {' → '}
+            <strong className="text-white/70">Campus Hunt login</strong>
+          </li>
+          <li>Enter team code + password → tap their name</li>
         </ol>
         {activeStarts.length > 0 && (
           <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -1177,8 +1385,16 @@ export default function TeamManagerPanel({
             No active starts yet — Save setup (starts & places) on Clues, then Schedule / Update Clue 1.
           </p>
         )}
-        {eventMeta?.slug && (
-          <div className="mt-3 flex flex-wrap items-center gap-2">
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={busy || !teams.length}
+            onClick={printAllTeamStamps}
+            className="rounded-lg bg-[#0ECCEE] px-3 py-2 text-xs font-bold text-black disabled:opacity-40"
+          >
+            {busy ? 'Preparing…' : `Print all ${layoutTeams.length || teams.length} team stamps`}
+          </button>
+          {eventMeta?.slug && (
             <button
               type="button"
               onClick={() => {
@@ -1195,8 +1411,8 @@ export default function TeamManagerPanel({
             >
               Copy all team URLs
             </button>
-          </div>
-        )}
+          )}
+        </div>
         <div className="mt-4 rounded-lg border border-[#0ECCEE]/25 bg-[#0ECCEE]/10 p-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-[#0ECCEE]/80">
             Set password for all teams

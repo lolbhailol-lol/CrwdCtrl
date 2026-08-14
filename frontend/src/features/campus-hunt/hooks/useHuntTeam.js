@@ -29,16 +29,13 @@ function pollIntervalMs(data, burstUntil) {
   if (burstUntil && Date.now() < burstUntil) return 1000;
 
   const stage = String(data?.team?.currentStage || '');
-  const scheduledAt = data?.team?.scheduledStartAt
-    ? new Date(data.team.scheduledStartAt).getTime()
-    : 0;
   const waiting = ['WAITING', 'READY'].includes(data?.team?.startStatus);
-  const nearRelease = waiting && scheduledAt > 0 && scheduledAt - Date.now() <= 2 * 60 * 1000;
   const awaitingClaim = Boolean(data?.checkpointStatus?.awaitingTeamCodeConfirm);
 
+  // Fast while waiting so admin release / start shows without a manual refresh
+  if (waiting) return 2000;
   // Fast only while teammates may still be scanning / claiming
   if (isPendingScan(data) || awaitingClaim) return 1000;
-  if (nearRelease) return 2000;
   // Safety net while playing (SSE is primary)
   if (isActivelyPlaying(data)) return 3000;
   if (stage === 'SCORE_LOCKED') return 15000;
@@ -55,6 +52,8 @@ function progressFingerprint(data) {
     data.team.startStatus,
     data.team.currentScore,
     data.team.scheduledStartAt,
+    data.team.actualStartAt,
+    data.team.releasePaused ? 1 : 0,
     cp?.checkpointId || '',
     cp?.verifiedCount ?? '',
     cp?.requiredCount ?? '',
@@ -183,8 +182,8 @@ export function useHuntTeam(eventId, { enabled = true } = {}) {
         setError(err.message || 'Failed to load team');
       }
     } finally {
-      // Always clear the enter/load spinner for this hard request (or a newer one).
-      if (gen === hardGenRef.current || bootstrappedRef.current) {
+      // Only the latest hard request may clear the spinner — never a stale one.
+      if (gen === hardGenRef.current) {
         setLoading(false);
       }
     }
