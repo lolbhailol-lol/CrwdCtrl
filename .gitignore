@@ -45,6 +45,8 @@ backend/uploads/payment-screenshots/*
 # Temporary files
 tmp/
 temp/
+_tmp_*/
+drive-download*.zip
 
 # Local generated reports / Generation Explores exports — never push
 reports/

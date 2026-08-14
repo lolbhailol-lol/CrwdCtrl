@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@sentry/node": "^10.57.0",
+    "adm-zip": "^0.6.0",
     "axios": "^1.13.2",
     "bcryptjs": "^3.0.3",
     "cloudinary": "^2.8.0",
@@ -25,6 +26,7 @@
     "mongoose": "^8.19.3",
     "multer": "^2.0.2",
     "nodemailer": "^7.0.11",
+    "pdf-parse": "^2.4.5",
     "resend": "^6.18.0"
   },
   "devDependencies": {

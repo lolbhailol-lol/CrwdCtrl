@@ -8,6 +8,7 @@ const CampusHuntRoute = require('../models/CampusHuntRoute');
 const CampusHuntStartingPoint = require('../models/CampusHuntStartingPoint');
 const CampusHuntChallenge = require('../models/CampusHuntChallenge');
 const { persistClueScoring } = require('./clueScoringPersistService');
+const { writeAudit } = require('./auditService');
 const { routeClueDefaults, CLUE5_WORDS } = require('./round1BootstrapService');
 
 /**

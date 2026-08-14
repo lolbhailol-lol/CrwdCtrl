@@ -12,6 +12,9 @@ import {
   VolunteerCheckpointPage,
   CampusHuntAdminDashboard,
   CampusHuntEventControl,
+  OfflineHuntLandingPage,
+  OfflineHuntLoginPage,
+  OfflineHuntPlayPage,
 } from './lazyPages';
 
 /**
@@ -20,6 +23,9 @@ import {
  */
 export const campusHuntRoutes = isCampusHuntEnabled() ? (
   <>
+    <Route path="/campus-hunt/offline" element={<OfflineHuntLandingPage />} />
+    <Route path="/campus-hunt/offline/login" element={<OfflineHuntLoginPage />} />
+    <Route path="/campus-hunt/offline/play" element={<OfflineHuntPlayPage />} />
     <Route path="/campus-hunt/leaderboard" element={<CampusHuntLeaderboardPage />} />
     <Route path="/campus-hunt/enter" element={<CampusHuntEnterPage />} />
     <Route path="/campus-hunt/grid" element={<CampusHuntGridPage />} />

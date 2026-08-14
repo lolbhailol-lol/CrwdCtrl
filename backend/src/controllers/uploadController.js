@@ -72,6 +72,24 @@ const upload = multer({
 });
 
 // Generic file upload (for registration forms)
+const zipUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 15 * 1024 * 1024, // 15MB for rulebook zip archives
+  },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    const allowed =
+      file.mimetype === 'application/zip' ||
+      file.mimetype === 'application/x-zip-compressed' ||
+      ext === '.zip';
+    if (!allowed) {
+      return cb(httpError('Only .zip files are allowed for rulebook import'));
+    }
+    cb(null, true);
+  },
+});
+
 const fileUpload = multer({
   storage: multer.memoryStorage(),
   limits: {
@@ -271,6 +289,7 @@ exports.uploadMultiple = upload.fields([
   { name: 'image', maxCount: 10 },
   { name: 'file', maxCount: 10 },
 ]);
+exports.uploadRulebookZip = zipUpload.single('zip');
 
 exports.multerErrorHandler = (err, req, res, next) => {
   if (err instanceof multer.MulterError) {

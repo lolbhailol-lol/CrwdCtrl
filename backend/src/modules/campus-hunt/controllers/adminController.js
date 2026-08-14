@@ -387,9 +387,17 @@ async function getEventOverview(req, res, next) {
 async function createRound(req, res, next) {
   try {
     const { eventId } = req.params;
+    const roundNumber = req.body.roundNumber ?? 1;
+    const existing = await CampusHuntRound.findOne({ eventId, roundNumber });
+    if (existing) {
+      return res.json({
+        success: true,
+        data: { round: existing, existing: true },
+      });
+    }
     const round = await CampusHuntRound.create({
       eventId,
-      roundNumber: req.body.roundNumber ?? 1,
+      roundNumber,
       name: req.body.name || 'THE_HUNT',
       status: req.body.status || 'scheduled',
       startsAt: req.body.startsAt,
@@ -3932,6 +3940,32 @@ async function updateEventCampusStations(req, res, next) {
   }
 }
 
+/** Export offline hunt packs — one JSON bundle per team for airplane-mode play. */
+async function exportOfflinePacks(req, res, next) {
+  try {
+    const { exportOfflinePacks: buildPacks } = require('../services/offlineExportService');
+    const data = await buildPacks(req.params.eventId);
+    await writeAudit({
+      eventId: req.params.eventId,
+      ...adminActor(req),
+      action: 'offline_packs_exported',
+      targetType: 'event',
+      targetId: req.params.eventId,
+      after: {
+        teamCount: data.teamCount,
+        incomplete: data.incompleteTeams?.length || 0,
+        warnings: data.warnings?.length || 0,
+      },
+    });
+    return res.json({ success: true, data });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, message: err.message });
+    }
+    return next(err);
+  }
+}
+
 module.exports = {
   listEvents,
   createEvent,
@@ -4005,4 +4039,5 @@ module.exports = {
   listAudit,
   bootstrapRound1,
   repairTeamRosters,
+  exportOfflinePacks,
 };

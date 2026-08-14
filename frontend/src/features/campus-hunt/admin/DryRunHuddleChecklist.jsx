@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  adminExportOfflinePacks,
   adminListChallenges,
   adminListCheckpoints,
   adminListTeams,
   adminResyncClue1,
 } from '../services/campusHunt.api';
+import { downloadOfflinePacks } from '../offline/downloadOfflinePacks';
+import { CAMPUS_HUNT_PATHS } from '../config';
 import { STAGE_THEMES } from '../types/stageTheme';
 import { resolveStations, resolveStarts } from './campusHuntFormat';
 
@@ -518,6 +521,9 @@ export default function DryRunHuddleChecklist({
   const [qrByPlace, setQrByPlace] = useState([]);
   const [fixBusy, setFixBusy] = useState(false);
   const [fixMessage, setFixMessage] = useState('');
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportMessage, setExportMessage] = useState('');
+  const [exportWarnings, setExportWarnings] = useState([]);
   const autoFixAttempted = useRef(false);
 
   useEffect(() => {
@@ -627,6 +633,35 @@ export default function DryRunHuddleChecklist({
       setFixBusy(false);
     }
   }, [eventId, fixBusy, loadSheet, stations.length]);
+
+  const exportOffline = useCallback(async (perTeam = false) => {
+    if (!eventId || exportBusy) return;
+    setExportBusy(true);
+    setExportMessage('');
+    setExportWarnings([]);
+    setError('');
+    try {
+      const res = await adminExportOfflinePacks(eventId);
+      const data = res.data || res;
+      await downloadOfflinePacks(data, { perTeam });
+      const warnings = [
+        ...(data.warnings || []),
+        ...(data.incompleteTeams?.length
+          ? [`${data.incompleteTeams.length} team(s) skipped — finish clue/checkpoint bindings first.`]
+          : []),
+      ];
+      setExportWarnings(warnings);
+      setExportMessage(
+        data.teamCount
+          ? `Exported ${data.teamCount} team pack${data.teamCount === 1 ? '' : 's'}. Load one JSON per team on all 4 phones before fest.`
+          : 'No complete team packs — finish Round 1 bindings and team passwords first.',
+      );
+    } catch (err) {
+      setError(err.message || 'Could not export offline packs');
+    } finally {
+      setExportBusy(false);
+    }
+  }, [eventId, exportBusy]);
 
   useEffect(() => {
     if (!eventId) {
@@ -743,13 +778,47 @@ export default function DryRunHuddleChecklist({
             with sticker codes at purple stops only.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => window.print()}
-          className="rounded-xl bg-[#0ECCEE] px-4 py-2 text-xs font-bold text-black print:hidden"
-        >
-          Print plant sheet
-        </button>
+        <div className="flex flex-wrap items-center gap-2 print:hidden">
+          <button
+            type="button"
+            disabled={exportBusy || !eventId}
+            onClick={() => exportOffline(false)}
+            className="rounded-xl border border-[#0ECCEE]/40 bg-[#0ECCEE]/15 px-4 py-2 text-xs font-bold text-[#0ECCEE] disabled:opacity-50"
+          >
+            {exportBusy ? 'Exporting…' : 'Export offline packs'}
+          </button>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="rounded-xl bg-[#0ECCEE] px-4 py-2 text-xs font-bold text-black"
+          >
+            Print plant sheet
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-3 rounded-lg border border-white/10 bg-white/3 px-3 py-2 text-[11px] text-white/70 print:hidden">
+        <p>
+          <strong className="text-white">Offline fest mode:</strong>
+          {' '}
+          export packs here (laptop, before fest) → share each team JSON to all 4 phones →
+          {' '}
+          <a href={CAMPUS_HUNT_PATHS.offline} className="text-[#0ECCEE] underline" target="_blank" rel="noreferrer">
+            /campus-hunt/offline
+          </a>
+          {' '}
+          → airplane mode on venue.
+        </p>
+        {exportMessage ? (
+          <p className="mt-1 text-emerald-300">{exportMessage}</p>
+        ) : null}
+        {exportWarnings.length ? (
+          <ul className="mt-1 list-disc pl-4 text-amber-200/90">
+            {exportWarnings.map((w) => (
+              <li key={w}>{w}</li>
+            ))}
+          </ul>
+        ) : null}
       </div>
 
       {error ? <p className="mt-2 text-sm text-red-300 print:text-red-700">{error}</p> : null}

@@ -5,6 +5,10 @@ const Competition = require('../model/competition_model');
 const { parseTicketPrice } = require('../utils/platformFee');
 const User = require('../model/usermodel'); // Check if your file is userModel.js or user.js
 const { sendEventBroadcast } = require('../services/emailService');
+const {
+  parseRulebookZip,
+  buildCompetitionFromImportRow,
+} = require('../services/rulebookImportService');
 
 // ✅ In-memory cache for fests (same as in festOrganizerController)
 const festsCache = {
@@ -490,6 +494,141 @@ exports.createCompetition = async (req, res) => {
     res.status(500).json({ 
       message: 'Failed to create competition', 
       error: error.message 
+    });
+  }
+};
+
+/* =========================
+   BULK IMPORT COMPETITIONS (RULEBOOK ZIP)
+========================= */
+exports.previewCompetitionImport = async (req, res) => {
+  try {
+    const { festId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(festId)) {
+      return res.status(400).json({ message: 'Invalid fest ID' });
+    }
+
+    if (!req.file?.buffer) {
+      return res.status(400).json({ message: 'Please upload a rulebook zip file' });
+    }
+
+    const fest = await FestOrganizer.findById(festId).select('_id festName').lean();
+    if (!fest) {
+      return res.status(404).json({ message: 'Fest not found' });
+    }
+
+    const parsed = await parseRulebookZip(req.file.buffer);
+    const existing = await Competition.find({ fest: festId }).select('name').lean();
+    const existingNames = new Set(existing.map((c) => c.name.trim().toLowerCase()));
+
+    const items = parsed.items.map((item) => {
+      const duplicate =
+        item.parsed?.name &&
+        existingNames.has(item.parsed.name.trim().toLowerCase());
+      return {
+        ...item,
+        duplicate,
+      };
+    });
+
+    res.json({
+      fest,
+      summary: {
+        total: parsed.total,
+        ok: parsed.ok,
+        skipped: parsed.skipped,
+        errors: parsed.errors,
+        duplicates: items.filter((item) => item.duplicate).length,
+      },
+      items,
+    });
+  } catch (error) {
+    logger.error('Preview competition import error:', error);
+    res.status(500).json({
+      message: 'Failed to preview rulebook import',
+      error: error.message,
+    });
+  }
+};
+
+exports.confirmCompetitionImport = async (req, res) => {
+  try {
+    const { festId } = req.params;
+    const { competitions } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(festId)) {
+      return res.status(400).json({ message: 'Invalid fest ID' });
+    }
+
+    if (!Array.isArray(competitions) || competitions.length === 0) {
+      return res.status(400).json({ message: 'No competitions provided for import' });
+    }
+
+    const fest = await FestOrganizer.findById(festId);
+    if (!fest) {
+      return res.status(404).json({ message: 'Fest not found' });
+    }
+
+    const existing = await Competition.find({ fest: festId }).select('name').lean();
+    const existingNames = new Set(existing.map((c) => c.name.trim().toLowerCase()));
+
+    const created = [];
+    const skipped = [];
+    const errors = [];
+
+    for (const row of competitions) {
+      const nameKey = row.name?.trim().toLowerCase();
+      if (!nameKey) {
+        errors.push({ name: row.name || 'Unknown', error: 'Missing competition name' });
+        continue;
+      }
+
+      if (existingNames.has(nameKey)) {
+        skipped.push({ name: row.name, reason: 'Already exists' });
+        continue;
+      }
+
+      try {
+        const doc = buildCompetitionFromImportRow(row, festId, getCompetitionBaseFee);
+        const competition = new Competition(doc);
+        const saved = await competition.save();
+        fest.competitions.push(saved._id);
+        existingNames.add(nameKey);
+        created.push({ id: saved._id, name: saved.name });
+      } catch (rowError) {
+        errors.push({
+          name: row.name || 'Unknown',
+          error: rowError.message || 'Failed to create competition',
+        });
+      }
+    }
+
+    if (created.length) {
+      await fest.save();
+      clearFestsCache();
+      try {
+        const { clearAllCaches } = require('./festOrganizerController');
+        clearAllCaches();
+      } catch (cacheError) {
+        logger.warn('Could not clear public cache after bulk import:', cacheError.message);
+      }
+    }
+
+    res.status(201).json({
+      message: `Imported ${created.length} competition(s)`,
+      created: created.length,
+      skipped: skipped.length,
+      errors: errors.length,
+      createdItems: created,
+      skippedItems: skipped,
+      errorItems: errors,
+    });
+  } catch (error) {
+    logger.error('Confirm competition import error:', error);
+    res.status(500).json({
+      message: 'Failed to import competitions',
+      error: error.message,
     });
   }
 };

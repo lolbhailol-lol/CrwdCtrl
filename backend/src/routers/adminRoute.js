@@ -130,6 +130,20 @@ router.post(
   adminFestCtrl.createCompetition
 );
 
+router.post(
+  '/fests/:festId/competitions/import/preview',
+  adminAuth,
+  uploadCtrl.uploadRulebookZip,
+  uploadCtrl.multerErrorHandler,
+  adminFestCtrl.previewCompetitionImport
+);
+
+router.post(
+  '/fests/:festId/competitions/import/confirm',
+  adminAuth,
+  adminFestCtrl.confirmCompetitionImport
+);
+
 // ===== LIST ALL COMPETITIONS =====
 router.get('/competitions', adminAuth, async (req, res) => {
   try {

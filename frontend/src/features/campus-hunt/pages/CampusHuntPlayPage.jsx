@@ -199,18 +199,33 @@ export default function CampusHuntPlayPage() {
 
   if (error && !hunt.data) {
     const sessionGone = /auth|login|session|401/i.test(String(error));
+    const networkIssue = /network|timeout|fetch|signal|slow/i.test(String(error));
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-[#0b0c0d] px-4 text-center text-white">
         <p className="text-lg font-semibold">
-          {sessionGone ? 'Hunt session expired' : 'No team assigned'}
+          {sessionGone
+            ? 'Hunt session expired'
+            : networkIssue
+              ? 'Could not reach hunt server'
+              : 'No team assigned'}
         </p>
         <p className="text-sm text-white/60">{error}</p>
-        <Link
-          to={teamLoginFallback}
-          className="rounded-xl bg-[#0ECCEE] px-5 py-2.5 text-sm font-semibold text-black"
-        >
-          Open team login
-        </Link>
+        {networkIssue ? (
+          <button
+            type="button"
+            onClick={() => hunt.refresh({ force: true })}
+            className="rounded-xl bg-[#0ECCEE] px-5 py-2.5 text-sm font-semibold text-black"
+          >
+            Retry
+          </button>
+        ) : (
+          <Link
+            to={teamLoginFallback}
+            className="rounded-xl bg-[#0ECCEE] px-5 py-2.5 text-sm font-semibold text-black"
+          >
+            Open team login
+          </Link>
+        )}
       </div>
     );
   }

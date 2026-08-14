@@ -37,6 +37,9 @@ export const CAMPUS_HUNT_PATHS = {
   volunteerCheckpoint: '/campus-hunt-volunteer/checkpoint',
   admin: '/admin/campus-hunt',
   adminEvent: (eventId) => `/admin/campus-hunt/${eventId}`,
+  offline: '/campus-hunt/offline',
+  offlineLogin: '/campus-hunt/offline/login',
+  offlinePlay: '/campus-hunt/offline/play',
 };
 
 export const ISSUE_CATEGORIES = [

@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Loader, RefreshCw, Search } from 'lucide-react';
+import { Loader, RefreshCw, Search, Upload } from 'lucide-react';
 import CompetitionModal from '../../components/admin/Competition_Modal';
+import CompetitionBulkImport from '../../components/admin/CompetitionBulkImport';
 import { adminFetchJSON } from '../../services/api/admin.api.js';
 
 export default function CompetitionsPage() {
   const [fests, setFests] = useState([]);
   const [selectedFest, setSelectedFest] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [showBulkImport, setShowBulkImport] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
@@ -94,24 +96,39 @@ export default function CompetitionsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredFests.map((fest) => (
-              <button
+              <div
                 key={fest._id}
-                type="button"
-                className="text-left bg-[#1D1E20] p-4 rounded-lg border border-gray-700 hover:border-[#0ECCEE] transition-colors"
-                onClick={() => {
-                  setSelectedFest(fest);
-                  setShowModal(true);
-                }}
+                className="bg-[#1D1E20] p-4 rounded-lg border border-gray-700 hover:border-[#0ECCEE] transition-colors"
               >
-                <h3 className="font-semibold text-lg mb-2">{fest.festName}</h3>
-                <p className="text-gray-400 text-sm">{fest.collegeName}</p>
-                <div className="flex items-center justify-between mt-2">
-                  <p className="text-gray-500 text-xs capitalize">{fest.festType}</p>
-                  <p className="text-xs text-[#0ECCEE]">
-                    {fest.competitions?.length || 0} competition{(fest.competitions?.length || 0) === 1 ? '' : 's'}
-                  </p>
-                </div>
-              </button>
+                <button
+                  type="button"
+                  className="text-left w-full"
+                  onClick={() => {
+                    setSelectedFest(fest);
+                    setShowModal(true);
+                  }}
+                >
+                  <h3 className="font-semibold text-lg mb-2">{fest.festName}</h3>
+                  <p className="text-gray-400 text-sm">{fest.collegeName}</p>
+                  <div className="flex items-center justify-between mt-2">
+                    <p className="text-gray-500 text-xs capitalize">{fest.festType}</p>
+                    <p className="text-xs text-[#0ECCEE]">
+                      {fest.competitions?.length || 0} competition{(fest.competitions?.length || 0) === 1 ? '' : 's'}
+                    </p>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedFest(fest);
+                    setShowBulkImport(true);
+                  }}
+                  className="mt-3 w-full flex items-center justify-center gap-2 rounded-lg border border-gray-700 px-3 py-2 text-xs text-gray-300 hover:border-[#0ECCEE] hover:text-[#0ECCEE] transition-colors"
+                >
+                  <Upload size={14} />
+                  Bulk Import Rulebooks
+                </button>
+              </div>
             ))}
           </div>
         )}
@@ -123,6 +140,19 @@ export default function CompetitionsPage() {
           onClose={() => {
             setShowModal(false);
             setSelectedFest(null);
+          }}
+        />
+      )}
+
+      {showBulkImport && selectedFest && (
+        <CompetitionBulkImport
+          fest={selectedFest}
+          onClose={() => {
+            setShowBulkImport(false);
+            setSelectedFest(null);
+          }}
+          onImported={() => {
+            fetchFests();
           }}
         />
       )}

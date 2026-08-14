@@ -135,4 +135,7 @@ export const VolunteerLoginPage = lazyWithRetry(() => import('../../features/cam
 export const VolunteerCheckpointPage = lazyWithRetry(() => import('../../features/campus-hunt/pages/VolunteerCheckpointPage'));
 export const CampusHuntAdminDashboard = lazyWithRetry(() => import('../../features/campus-hunt/admin/CampusHuntAdminDashboard'));
 export const CampusHuntEventControl = lazyWithRetry(() => import('../../features/campus-hunt/admin/CampusHuntEventControl'));
+export const OfflineHuntLandingPage = lazyWithRetry(() => import('../../features/campus-hunt/offline/pages/OfflineHuntLandingPage'));
+export const OfflineHuntLoginPage = lazyWithRetry(() => import('../../features/campus-hunt/offline/pages/OfflineHuntLoginPage'));
+export const OfflineHuntPlayPage = lazyWithRetry(() => import('../../features/campus-hunt/offline/pages/OfflineHuntPlayPage'));
 

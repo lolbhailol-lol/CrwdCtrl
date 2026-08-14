@@ -1,6 +1,7 @@
 import { userApiCall } from '../../../services/api/auth.api';
 import { adminFetchJSON } from '../../../services/api/admin.api';
 import { publicFetchJSON, resolveUrl } from '../../../services/api/client';
+import { getApiBaseCandidates } from '../../../config/apiBase.js';
 import { gridClientHeaders } from '../grid/laptopOnly';
 import {
   clearHuntAuth,
@@ -21,6 +22,19 @@ function withGridClientHeaders(options = {}) {
   };
 }
 
+function huntFetchTimeout(options = {}) {
+  if (options.timeout) return options.timeout;
+  const fromEnv = parseInt(import.meta.env.VITE_API_TIMEOUT, 10);
+  if (Number.isFinite(fromEnv) && fromEnv > 0) return fromEnv;
+  return 30000;
+}
+
+function isHuntNetworkError(err) {
+  return err?.name === 'AbortError'
+    || err?.name === 'TypeError'
+    || /failed to fetch|load failed|network|timeout|networkerror/i.test(String(err?.message || ''));
+}
+
 /** Authenticated hunt player API — uses campus_hunt_player_token only. */
 async function huntJson(url, options = {}) {
   let token = resolveHuntToken();
@@ -32,38 +46,89 @@ async function huntJson(url, options = {}) {
     throw err;
   }
 
-  const doFetch = (bearerToken) => fetch(resolveUrl(url), {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(bearerToken ? { Authorization: `Bearer ${bearerToken}` } : {}),
-      ...(options.headers || {}),
-    },
-    credentials: options.credentials ?? 'include',
-    mode: options.mode ?? 'cors',
-  });
-
-  let response = await doFetch(token);
-  let data = await response.json().catch(() => ({}));
-
-  if (response.status === 401) {
-    clearHuntAuth();
-    redirectCampusHuntAuthLoss();
-    const err = new Error(data.message || 'Hunt session expired — open your team link again');
-    err.status = 401;
-    err.code = data.code || 'AUTH_401';
-    err.data = data;
-    throw err;
+  const timeout = huntFetchTimeout(options);
+  const maxRetries = options.retries ?? 3;
+  const bases = getApiBaseCandidates();
+  const method = String(options.method ?? 'GET').toUpperCase();
+  let body = options.body;
+  if (body != null && typeof body === 'object' && !(body instanceof FormData) && !(body instanceof Blob)) {
+    body = JSON.stringify(body);
   }
 
-  if (!response.ok) {
-    const err = new Error(data.message || data.error || 'Request failed');
-    err.status = response.status;
-    err.code = data.code;
-    err.data = data;
-    throw err;
-  }
-  return data;
+  const attempt = async (retryCount = 0, baseIndex = 0) => {
+    if (options.signal?.aborted) {
+      const err = new Error('Request aborted');
+      err.code = 'ECONNABORTED';
+      throw err;
+    }
+
+    const base = bases[Math.min(baseIndex, bases.length - 1)];
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    if (options.signal) {
+      options.signal.addEventListener('abort', () => controller.abort(), { once: true });
+    }
+
+    try {
+      const response = await fetch(resolveUrl(url, base), {
+        ...options,
+        method,
+        body: body != null && method !== 'GET' && method !== 'HEAD' ? body : undefined,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          ...(options.headers || {}),
+        },
+        credentials: options.credentials ?? 'include',
+        mode: options.mode ?? 'cors',
+        cache: 'no-store',
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      const data = await response.json().catch(() => ({}));
+
+      if (response.status === 401) {
+        clearHuntAuth();
+        redirectCampusHuntAuthLoss();
+        const err = new Error(data.message || 'Hunt session expired — open your team link again');
+        err.status = 401;
+        err.code = data.code || 'AUTH_401';
+        err.data = data;
+        throw err;
+      }
+
+      if (!response.ok) {
+        const err = new Error(data.message || data.error || 'Request failed');
+        err.status = response.status;
+        err.code = data.code;
+        err.data = data;
+        if (response.status >= 500 && retryCount < maxRetries) {
+          await new Promise((resolve) => setTimeout(resolve, 800 * (retryCount + 1)));
+          return attempt(retryCount + 1, baseIndex < bases.length - 1 ? baseIndex + 1 : baseIndex);
+        }
+        throw err;
+      }
+      return data;
+    } catch (err) {
+      clearTimeout(timeoutId);
+      if (err?.status === 401 || err?.code === 'AUTH_401') throw err;
+      if (isHuntNetworkError(err) && retryCount < maxRetries) {
+        await new Promise((resolve) => setTimeout(resolve, 800 * (retryCount + 1)));
+        const nextBase = baseIndex < bases.length - 1 ? baseIndex + 1 : baseIndex;
+        return attempt(retryCount + 1, nextBase);
+      }
+      if (err?.name === 'AbortError' || isHuntNetworkError(err)) {
+        const networkErr = new Error('Network slow — check signal and tap Retry');
+        networkErr.code = 'NETWORK_ERROR';
+        networkErr.isNetworkError = true;
+        throw networkErr;
+      }
+      throw err;
+    }
+  };
+
+  return attempt();
 }
 
 async function userJson(url, options = {}) {
@@ -872,6 +937,11 @@ export async function adminUpdateCheckpoint(checkpointId, body) {
 /** Station QR payloads + short paste codes (ops / production camera fallback) */
 export async function adminListStationQr(eventId) {
   return adminFetchJSON(`${BASE}/admin/events/${eventId}/station-qr`);
+}
+
+/** Offline hunt packs — one JSON bundle per team for airplane-mode play. */
+export async function adminExportOfflinePacks(eventId) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/offline-export`);
 }
 
 export async function adminApplyPenalty(teamId, body) {
