@@ -143,21 +143,29 @@ const resolvePricedEntity = async ({
   }
 
   if (resolvedCompetitionId) {
-    const competition = await Competition.findById(resolvedCompetitionId).select('name feeAmount registrationFee');
+    const competition = await Competition.findById(resolvedCompetitionId)
+      .select('name feeAmount registrationFee fest')
+      .populate('fest', 'platformFeePercent')
+      .lean();
     if (!competition) return null;
     return {
       entityType: 'competition',
       ticketPrice: parseTicketPrice(competition.feeAmount) || parseTicketPrice(competition.registrationFee),
-      notes: { competitionId: competition._id.toString() },
+      platformFeePercent: resolveTrekPlatformFeePercent(competition.fest?.platformFeePercent, 3),
+      notes: {
+        competitionId: competition._id.toString(),
+        festId: competition.fest?._id?.toString?.() || '',
+      },
     };
   }
 
   if (resolvedFestId) {
-    const fest = await FestOrganizer.findById(resolvedFestId).select('festName feeAmount');
+    const fest = await FestOrganizer.findById(resolvedFestId).select('festName feeAmount platformFeePercent').lean();
     if (!fest) return null;
     return {
       entityType: 'fest',
       ticketPrice: fest.feeAmount,
+      platformFeePercent: resolveTrekPlatformFeePercent(fest.platformFeePercent, 3),
       notes: { festId: fest._id.toString() },
     };
   }
@@ -201,7 +209,7 @@ const getPricingForRequest = async (req) => {
   const breakdown =
     pricedEntity.entityType === 'event_show'
       ? buildEventPriceBreakdown(pricedEntity.ticketPrice, pricedEntity.platformFeePercent ?? 2.5)
-      : buildPriceBreakdown(pricedEntity.ticketPrice);
+      : buildPriceBreakdown(pricedEntity.ticketPrice, pricedEntity.platformFeePercent ?? 3);
 
   const coupon = await validateAndPriceCoupon({
     couponCode: pricedEntity.notes?.allowCoupons === false ? '' : couponCode,

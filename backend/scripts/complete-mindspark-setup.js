@@ -41,13 +41,23 @@ const FEE_FIXES = {
   fest.venue = VENUE;
   fest.subtitle = fest.subtitle || "COEP's Flagship Technical Fest";
   fest.competitionsHeading = fest.competitionsHeading || 'Competitions';
-  fest.registrationLink = EXTERNAL_REG;
+  fest.registrationLink = '';
+  fest.platformFeePercent = 0;
   fest.registration = {
     ...fest.registration?.toObject?.() || fest.registration || {},
-    mode: 'EXTERNAL_LINK',
-    externalLink: EXTERNAL_REG,
+    mode: 'INTERNAL_FORM',
+    externalLink: '',
+    formType: 'SINGLE_STEP',
+    formSchema: [
+      { id: 'full_name', type: 'text', label: 'Full Name', fieldName: 'full_name', required: true, placeholder: 'Your full name' },
+      { id: 'email', type: 'email', label: 'Email Address', fieldName: 'email', required: true, placeholder: 'you@email.com' },
+      { id: 'mobile', type: 'tel', label: 'Mobile Number', fieldName: 'mobile', required: true, placeholder: '10-digit mobile number' },
+      { id: 'college', type: 'text', label: 'College / Institute', fieldName: 'college_name', required: true, placeholder: 'Your college name' },
+      { id: 'team_name', type: 'text', label: 'Team Name (if applicable)', fieldName: 'team_name', required: false, placeholder: 'Leave blank for solo events' },
+    ],
     formInstructions:
-      'Register for MindSpark competitions on the official MindSpark website. Individual event schedules will be shared closer to the fest.',
+      'Register for MindSpark competitions on CrwdCtrl. Pay the exact event fee via Cashfree — no extra platform charges.',
+    organizerEmail: process.env.MINDSPARK_ORGANIZER_EMAIL || 'mindspark@coep.ac.in',
   };
   if (!fest.slug) fest.slug = 'mindspark-2026';
 

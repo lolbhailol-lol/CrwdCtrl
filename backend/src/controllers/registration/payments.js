@@ -5,6 +5,7 @@ const { appendPaymentOnlyToSheets } = require('../../services/googleSheetsServic
 const { sendRegistrationThankYouEmail, sendRegistrationConfirmationEmail } = require('../../services/emailService');
 const { consumeCouponUsageForOrder } = require('../../utils/couponPricing');
 const { buildPriceBreakdown, parseTicketPrice } = require('../../utils/platformFee');
+const { resolveTrekPlatformFeePercent } = require('../../utils/trekRegistrationFee');
 const { logger } = require('../../utils/logger');
 const { findByIdOrSlug } = require('../../utils/slug');
 const {
@@ -40,7 +41,8 @@ const payAndRegisterFest = async (req, res) => {
 
     const payment_order_id = paymentCheck.orderId;
     const payment_id = paymentCheck.paymentId;
-    const festTotalAmount = buildPriceBreakdown(fest.feeAmount).totalAmount;
+    const festPlatformFeePercent = resolveTrekPlatformFeePercent(fest.platformFeePercent, 3);
+    const festTotalAmount = buildPriceBreakdown(fest.feeAmount, festPlatformFeePercent).totalAmount;
 
     // Idempotent: if this exact payment already produced a registration, return it
     // so a re-fired resume (double submit / page revisit) succeeds instead of erroring.
@@ -166,7 +168,8 @@ const payAndRegister = async (req, res) => {
     const competition = await Competition.findById(competitionId).populate('fest');
     if (!competition) return res.status(404).json({ error: 'Competition not found' });
     const competitionTicketPrice = parseTicketPrice(competition.feeAmount) || parseTicketPrice(competition.registrationFee);
-    const competitionTotalAmount = buildPriceBreakdown(competitionTicketPrice).totalAmount;
+    const festPlatformFeePercent = resolveTrekPlatformFeePercent(competition.fest?.platformFeePercent, 3);
+    const competitionTotalAmount = buildPriceBreakdown(competitionTicketPrice, festPlatformFeePercent).totalAmount;
 
     if (competitionTicketPrice <= 0) {
       return res.status(400).json({ error: 'This competition does not require payment' });

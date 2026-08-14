@@ -52,6 +52,12 @@ const festOrganizerSchema = new mongoose.Schema(
     default: 0, // numeric INR amount for online payment; 0 = free
   },
 
+  /** CrwdCtrl platform fee % on fest/competition checkout (0 = Cashfree only, no platform fee). */
+  platformFeePercent: {
+    type: Number,
+    default: 3,
+  },
+
   description: {
     type: String,
     required: true,

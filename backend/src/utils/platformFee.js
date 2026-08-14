@@ -7,10 +7,16 @@ const normalizeAmount = (amount) => {
   return Number.isFinite(value) && value > 0 ? value : 0;
 };
 
-const calculatePlatformFee = (ticketPrice) => {
+const calculateFestPlatformFee = (ticketPrice, platformFeePercent = 3) => {
   const normalizedTicketPrice = normalizeAmount(ticketPrice);
-  return Math.ceil(normalizedTicketPrice * PLATFORM_FEE_RATE);
+  const rate = Number(platformFeePercent);
+  if (Number.isFinite(rate) && rate === 0) return 0;
+  const pct = Number.isFinite(rate) && rate > 0 ? rate / 100 : PLATFORM_FEE_RATE;
+  return Math.ceil(normalizedTicketPrice * pct);
 };
+
+const calculatePlatformFee = (ticketPrice, platformFeePercent = 3) =>
+  calculateFestPlatformFee(ticketPrice, platformFeePercent);
 
 const calculateTrekPlatformFee = (ticketPrice, platformFeePercent = 3) => {
   const normalizedTicketPrice = normalizeAmount(ticketPrice);
@@ -59,9 +65,9 @@ const parseTicketPrice = (amount) => {
   return normalizeAmount(numericValue);
 };
 
-const buildPriceBreakdown = (ticketPrice) => {
+const buildPriceBreakdown = (ticketPrice, platformFeePercent = 3) => {
   const normalizedTicketPrice = normalizeAmount(ticketPrice);
-  const platformFee = calculatePlatformFee(normalizedTicketPrice);
+  const platformFee = calculateFestPlatformFee(normalizedTicketPrice, platformFeePercent);
   const totalAmount = normalizedTicketPrice + platformFee;
 
   return {
@@ -177,6 +183,7 @@ module.exports = {
   PLATFORM_FEE_RATE,
   EVENT_PLATFORM_FEE_RATE,
   calculatePlatformFee,
+  calculateFestPlatformFee,
   calculateTrekPlatformFee,
   calculateEventPlatformFee,
   buildPriceBreakdown,

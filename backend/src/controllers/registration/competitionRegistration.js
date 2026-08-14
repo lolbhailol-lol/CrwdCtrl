@@ -4,6 +4,7 @@ const { uploadToCloudinary } = require('../../services/cloudinaryService');
 const { sendRegistrationThankYouEmail, sendRegistrationConfirmationEmail, sendOrganizerNotificationEmail } = require('../../services/emailService');
 const { consumeCouponUsageForOrder } = require('../../utils/couponPricing');
 const { buildPriceBreakdown, parseTicketPrice } = require('../../utils/platformFee');
+const { resolveTrekPlatformFeePercent } = require('../../utils/trekRegistrationFee');
 const { logger } = require('../../utils/logger');
 const {
   parseResponsesBody,
@@ -168,7 +169,8 @@ const submitCustomCompetitionRegistration = async (req, res) => {
     let paymentId = null;
     let paymentStatus = 'free';
     const competitionTicketPrice = parseTicketPrice(competition.feeAmount) || parseTicketPrice(competition.registrationFee);
-    const competitionTotalAmount = buildPriceBreakdown(competitionTicketPrice).totalAmount;
+    const festPlatformFeePercent = resolveTrekPlatformFeePercent(competition.fest?.platformFeePercent, 3);
+    const competitionTotalAmount = buildPriceBreakdown(competitionTicketPrice, festPlatformFeePercent).totalAmount;
 
     if (competitionTicketPrice > 0) {
       const { verifyPaymentForRegistration } = require('../../utils/paymentVerification');
@@ -675,7 +677,8 @@ const submitCompetitionRegistration = async (req, res) => {
     let paymentId = null;
     let paymentStatusRoute = 'free';
     const competitionTicketPrice = parseTicketPrice(competition.feeAmount) || parseTicketPrice(competition.registrationFee);
-    const competitionTotalAmount = buildPriceBreakdown(competitionTicketPrice).totalAmount;
+    const festPlatformFeePercent = resolveTrekPlatformFeePercent(fest?.platformFeePercent, 3);
+    const competitionTotalAmount = buildPriceBreakdown(competitionTicketPrice, festPlatformFeePercent).totalAmount;
     const paymentVerified = competitionTicketPrice > 0;
 
     if (paymentVerified) {

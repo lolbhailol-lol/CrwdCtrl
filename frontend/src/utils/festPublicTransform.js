@@ -108,6 +108,7 @@ export function transformCompetitionItem(comp, festData) {
           _id: festId,
           festName: festData.festName,
           feeAmount: festData.feeAmount || 0,
+          platformFeePercent: festData.platformFeePercent ?? 3,
           registration: mapFestRegistration(festData.registration),
         }
       : null,
@@ -154,6 +155,7 @@ export function transformFestPublicData(festData) {
     galleryImages: festData.galleryImages || [],
     ticketPrice: formatTicketPrice(festData),
     feeAmount: festData.feeAmount || 0,
+    platformFeePercent: festData.platformFeePercent ?? 3,
     status: festData.status || 'upcoming',
     registrationLink: festData.registrationLink || externalLink,
     registration: { ...registration, externalLink },

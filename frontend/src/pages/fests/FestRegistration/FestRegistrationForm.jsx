@@ -262,10 +262,12 @@ export default function FestRegistrationForm({
                       <span>Ticket Price</span>
                       <span>₹{priceBreakdown.ticketPrice}</span>
                     </div>
-                    <div className={`flex justify-between gap-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                      <span>Platform Fee</span>
-                      <span>₹{priceBreakdown.platformFee}</span>
-                    </div>
+                    {Number(priceBreakdown.platformFee || 0) > 0 ? (
+                      <div className={`flex justify-between gap-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        <span>Platform Fee</span>
+                        <span>₹{priceBreakdown.platformFee}</span>
+                      </div>
+                    ) : null}
                     {Number(priceBreakdown.couponDiscount || 0) > 0 ? (
                       <div className="flex justify-between gap-4 text-green-400">
                         <span>Coupon Discount</span>
