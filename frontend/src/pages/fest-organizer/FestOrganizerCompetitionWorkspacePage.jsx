@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
     ArrowLeft, Bell, Check, ChevronDown, Download, GraduationCap,
-    Loader, MapPin, MessageCircle, Phone, Plus, QrCode, RefreshCw,
+    Loader, Mail, MapPin, MessageCircle, Phone, Plus, QrCode, RefreshCw,
     Search, Users, X,
 } from 'lucide-react';
 import {
@@ -10,6 +10,7 @@ import {
     updateFestOrganizerParticipantStatus,
     bulkUpdateFestOrganizerParticipantStatus,
     exportFestOrganizerParticipants,
+    notifyFestOrganizerParticipant,
     updateFestOrganizerCompetitionSlots,
 } from '../../services/api/festOrganizer.api';
 import { useDialog } from '../../context/DialogContext';
@@ -298,6 +299,9 @@ export default function FestOrganizerCompetitionWorkspacePage() {
     const [teamFilter, setTeamFilter] = useState('all'); // all | pending | paid | in
     const [slotsInput, setSlotsInput] = useState('');
     const [slotsBusy, setSlotsBusy] = useState(false);
+    const [notifyOpen, setNotifyOpen] = useState(null);
+    const [notifyForm, setNotifyForm] = useState({ title: '', message: '', inApp: true, email: true });
+    const [notifyBusy, setNotifyBusy] = useState(false);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -449,18 +453,60 @@ export default function FestOrganizerCompetitionWorkspacePage() {
     const doExport = async () => {
         setExporting(true);
         try {
-            const blob = await exportFestOrganizerParticipants(festId, { competitionId });
+            const blob = await exportFestOrganizerParticipants(festId, { competitionId, format: 'xlsx' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `${(competition?.name || 'competition').replace(/[^\w]+/g, '_')}_roster.csv`;
+            a.download = `${(competition?.name || 'competition').replace(/[^\w]+/g, '_')}_roster.xlsx`;
             a.click();
             URL.revokeObjectURL(url);
-            toast('Export downloaded');
+            toast('Excel export downloaded');
         } catch (e) {
             toast(e.message || 'Export failed');
         } finally {
             setExporting(false);
+        }
+    };
+
+    const openNotify = (participant) => {
+        const compLabel = competition?.name || 'your competition';
+        setNotifyForm({
+            title: `Update — ${compLabel}`,
+            message: `Hi! Quick update about ${compLabel}. Please check the fest page or your QR ticket for details.`,
+            inApp: true,
+            email: Boolean(participant?.userEmail),
+        });
+        setNotifyOpen(participant);
+    };
+
+    const sendNotify = async () => {
+        if (!notifyOpen?.id) return;
+        const title = notifyForm.title.trim();
+        const message = notifyForm.message.trim();
+        if (!title || !message) {
+            toast('Title and message required');
+            return;
+        }
+        const channels = [];
+        if (notifyForm.inApp) channels.push('inApp');
+        if (notifyForm.email) channels.push('email');
+        if (!channels.length) {
+            toast('Pick at least one channel');
+            return;
+        }
+        setNotifyBusy(true);
+        try {
+            const res = await notifyFestOrganizerParticipant(festId, notifyOpen.id, {
+                title,
+                message,
+                channels,
+            });
+            toast(res.message || 'Sent');
+            setNotifyOpen(null);
+        } catch (e) {
+            toast(e.message || 'Failed to send');
+        } finally {
+            setNotifyBusy(false);
         }
     };
 
@@ -704,7 +750,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                         className="rounded-2xl border border-white/15 bg-white/5 p-3.5 text-left hover:border-white/30 transition disabled:opacity-50"
                     >
                         {exporting ? <Loader className="animate-spin text-gray-300 mb-2" size={20} /> : <Download size={20} className="text-gray-300 mb-2" />}
-                        <p className="text-sm font-semibold text-white">Export CSV</p>
+                        <p className="text-sm font-semibold text-white">Export Excel</p>
                         <p className="text-[11px] text-gray-500 mt-0.5">Roster for judges / college</p>
                     </button>
                 </div>
@@ -800,6 +846,15 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                                             ) : null}
                                         </div>
                                         <ContactIcons phone={p.userPhone} email={p.userEmail} />
+                                        <button
+                                            type="button"
+                                            onClick={() => openNotify(p)}
+                                            className="p-2 rounded-xl bg-[#0ECCEE]/10 text-[#0ECCEE] shrink-0"
+                                            title="Notify participant"
+                                            aria-label={`Notify ${p.userName || 'participant'}`}
+                                        >
+                                            <Bell size={15} />
+                                        </button>
                                     </div>
                                     <div className="grid grid-cols-2 gap-2">
                                         <button
@@ -924,6 +979,15 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                                         </div>
                                     </div>
                                     <ContactIcons phone={p.userPhone} email={p.userEmail} />
+                                    <button
+                                        type="button"
+                                        onClick={() => openNotify(p)}
+                                        className="p-2 rounded-xl bg-[#0ECCEE]/10 text-[#0ECCEE] shrink-0"
+                                        title="Notify participant"
+                                        aria-label={`Notify ${p.userName || 'participant'}`}
+                                    >
+                                        <Bell size={15} />
+                                    </button>
                                     {p.status === 'pending' ? (
                                         <button
                                             type="button"
@@ -959,6 +1023,68 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                     setTab('people');
                 }}
             />
+
+            {notifyOpen ? (
+                <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/70">
+                    <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#161718] p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                            <div>
+                                <p className="text-[10px] uppercase tracking-wide text-[#0ECCEE]">Notify one</p>
+                                <h3 className="text-sm font-semibold text-white">{notifyOpen.userName || 'Participant'}</h3>
+                                <p className="text-[11px] text-gray-500 truncate">
+                                    {notifyOpen.userEmail || 'No email'}
+                                    {notifyOpen.userPhone ? ` · ${notifyOpen.userPhone}` : ''}
+                                </p>
+                            </div>
+                            <button type="button" onClick={() => setNotifyOpen(null)} className="p-1.5 text-gray-500">
+                                <X size={18} />
+                            </button>
+                        </div>
+                        <input
+                            value={notifyForm.title}
+                            onChange={(e) => setNotifyForm((f) => ({ ...f, title: e.target.value }))}
+                            placeholder="Title"
+                            className="w-full px-3 py-2.5 rounded-xl bg-[#121314] border border-white/10 text-sm text-white"
+                        />
+                        <textarea
+                            value={notifyForm.message}
+                            onChange={(e) => setNotifyForm((f) => ({ ...f, message: e.target.value }))}
+                            rows={4}
+                            placeholder="Message"
+                            className="w-full px-3 py-2.5 rounded-xl bg-[#121314] border border-white/10 text-sm text-white"
+                        />
+                        <div className="flex flex-wrap gap-3 text-xs text-gray-300">
+                            <label className="inline-flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    checked={notifyForm.inApp}
+                                    onChange={(e) => setNotifyForm((f) => ({ ...f, inApp: e.target.checked }))}
+                                />
+                                In-app
+                            </label>
+                            <label className="inline-flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    checked={notifyForm.email}
+                                    onChange={(e) => setNotifyForm((f) => ({ ...f, email: e.target.checked }))}
+                                    disabled={!notifyOpen.userEmail}
+                                />
+                                Email
+                                {!notifyOpen.userEmail ? <span className="text-gray-600">(no email)</span> : null}
+                            </label>
+                        </div>
+                        <button
+                            type="button"
+                            disabled={notifyBusy}
+                            onClick={sendNotify}
+                            className="w-full py-2.5 rounded-xl bg-[#0ECCEE] text-black text-sm font-semibold disabled:opacity-50 inline-flex items-center justify-center gap-2"
+                        >
+                            {notifyBusy ? <Loader className="animate-spin" size={16} /> : <Mail size={16} />}
+                            Send notification
+                        </button>
+                    </div>
+                </div>
+            ) : null}
         </div>
     );
 }

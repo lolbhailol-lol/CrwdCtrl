@@ -1,6 +1,8 @@
 const PENDING_PAYMENT_KEY = 'crwdctrl_pending_payment';
 const PAYMENT_RETURN_EXPECTED_KEY = 'crwdctrl_payment_return_expected';
 const PENDING_MAX_AGE_MS = 30 * 60 * 1000;
+/** Redirect checkout should finish within this window; stale flags must not auto-resume later. */
+const RETURN_EXPECTED_MAX_AGE_MS = 10 * 60 * 1000;
 
 function writeBoth(key, value) {
   try {
@@ -92,11 +94,57 @@ export function clearPendingPayment() {
 
 /** Set when redirect checkout is initiated — resume only after Cashfree return. */
 export function markPaymentReturnExpected() {
-  writeBoth(PAYMENT_RETURN_EXPECTED_KEY, '1');
+  writeBoth(PAYMENT_RETURN_EXPECTED_KEY, JSON.stringify({ ts: Date.now() }));
 }
 
 export function hasPaymentReturnExpected() {
-  return readEither(PAYMENT_RETURN_EXPECTED_KEY) === '1';
+  const raw = readEither(PAYMENT_RETURN_EXPECTED_KEY);
+  if (!raw) return false;
+  if (raw === '1') {
+    removeBoth(PAYMENT_RETURN_EXPECTED_KEY);
+    return false;
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed?.ts || Date.now() - parsed.ts > RETURN_EXPECTED_MAX_AGE_MS) {
+      removeBoth(PAYMENT_RETURN_EXPECTED_KEY);
+      return false;
+    }
+    return true;
+  } catch {
+    removeBoth(PAYMENT_RETURN_EXPECTED_KEY);
+    return false;
+  }
+}
+
+/**
+ * Drop abandoned checkout recovery when the user is intentionally opening registration
+ * (Register Now) — not returning from Cashfree with return query params.
+ */
+export function discardStalePaymentRecovery({ pathname, search = '', navigationState = null } = {}) {
+  if (hasCashfreeReturnParams(search)) return;
+  if (navigationState?.fromPaymentReturn) return;
+
+  if (navigationState?.paymentCancelled) {
+    clearPendingPayment();
+    return;
+  }
+
+  const freshStart =
+    navigationState?.freshRegistration
+    || navigationState?.prefetch
+    || navigationState?.festId
+    || navigationState?.competitionId;
+
+  if (freshStart) {
+    clearPendingPayment();
+    return;
+  }
+
+  // Cold revisit without a Cashfree return signal — never auto-resume an old checkout.
+  if (getPendingPayment() || hasPaymentReturnExpected()) {
+    clearPendingPayment();
+  }
 }
 
 export function pathsMatchPendingReturn(pendingPath, currentPath) {

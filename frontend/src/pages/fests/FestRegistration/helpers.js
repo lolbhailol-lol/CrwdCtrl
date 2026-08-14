@@ -1,9 +1,11 @@
 import {
+  discardStalePaymentRecovery,
   getPendingPayment,
   shouldResumePendingPayment,
 } from '../../../utils/deepLinks';
 
-export function getInitialFestRegistrationUi(pathname, search) {
+export function getInitialFestRegistrationUi(pathname, search, navigationState = null) {
+  discardStalePaymentRecovery({ pathname, search, navigationState });
   const currentPath = `${pathname}${search}`;
   const resumingPayment = shouldResumePendingPayment(
     getPendingPayment(),

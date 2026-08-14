@@ -10,6 +10,7 @@ import {
 } from '../../utils/festPublicTransform';
 import { publicFetchJSONRetry as fetchJSON } from '../../services/api/client';
 import { competitionPath } from '../../utils/slugRoutes';
+import { saveCompetitionDetailCache } from '../../utils/detailPageCache';
 
 const CompetitionListPage = () => {
     const { isDark } = useDarkMode();
@@ -123,9 +124,12 @@ const CompetitionListPage = () => {
     };
 
     const handleCompetitionClick = (competition) => {
+        const payload = buildCompetitionNavPayload(competition, eventData);
+        const compId = competition?.id || competition?._id;
+        if (compId && payload) saveCompetitionDetailCache(compId, payload);
         navigate(competitionPath(competition), {
             state: {
-                competition: buildCompetitionNavPayload(competition, eventData),
+                competition: payload,
                 eventData,
             },
         });

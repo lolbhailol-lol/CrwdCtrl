@@ -6,7 +6,8 @@ const FestOrganizerProfileInvite = require('../model/fest_organizer_profile_invi
 const Registration = require('../model/registration_model');
 const { getJwtSecret } = require('../config/jwtSecret');
 const { performCheckinFromRaw } = require('../services/checkinService');
-const { notifyFestParticipants } = require('../utils/festParticipantOutreach');
+const { notifyFestParticipants, notifyFestParticipant, parseNotifyChannels } = require('../utils/festParticipantOutreach');
+const { participantsToCsv, participantsToXlsx } = require('../utils/festOrganizerExport');
 const {
     normalizeUsername,
     getOrganizerFests,
@@ -943,30 +944,23 @@ exports.exportParticipants = async (req, res) => {
             .sort({ createdAt: -1 })
             .lean();
 
-        const header = ['id', 'name', 'email', 'phone', 'team', 'college', 'status', 'paymentStatus', 'amountPaid', 'checkedIn', 'competition', 'submittedAt'];
-        const lines = [header.join(',')];
-        for (const reg of rows) {
-            const p = formatParticipant(reg);
-            lines.push([
-                p.id,
-                JSON.stringify(p.userName || ''),
-                JSON.stringify(p.userEmail || ''),
-                JSON.stringify(p.userPhone || ''),
-                JSON.stringify(p.teamName || ''),
-                JSON.stringify(p.college || ''),
-                p.status,
-                p.paymentStatus,
-                p.amountPaid,
-                p.checkedIn ? 'yes' : 'no',
-                JSON.stringify(p.competitionName || ''),
-                p.submittedAt ? new Date(p.submittedAt).toISOString() : '',
-            ].join(','));
+        const participants = rows.map(formatParticipant);
+        const safeName = (fest?.festName || 'fest').replace(/[^a-z0-9-_]+/gi, '_');
+        const format = String(req.query.format || 'xlsx').toLowerCase();
+
+        if (format === 'csv') {
+            res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+            res.setHeader('Content-Disposition', `attachment; filename="${safeName}_participants.csv"`);
+            return res.send(participantsToCsv(participants));
         }
 
-        const safeName = (fest?.festName || 'fest').replace(/[^a-z0-9-_]+/gi, '_');
-        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-        res.setHeader('Content-Disposition', `attachment; filename="${safeName}_participants.csv"`);
-        res.send(lines.join('\n'));
+        const buffer = await participantsToXlsx(participants);
+        res.setHeader(
+            'Content-Type',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        );
+        res.setHeader('Content-Disposition', `attachment; filename="${safeName}_participants.xlsx"`);
+        return res.send(buffer);
     } catch (error) {
         console.error('[festOrganizerPortal.exportParticipants]', error);
         res.status(500).json({ success: false, message: 'Export failed' });
@@ -1124,6 +1118,7 @@ exports.sendReminder = async (req, res) => {
             ? String(req.body.competitionId)
             : null;
         const audience = String(req.body.audience || 'approved').trim();
+        const channels = parseNotifyChannels(req.body);
 
         const stats = await notifyFestParticipants({
             festId: req.festId,
@@ -1135,6 +1130,7 @@ exports.sendReminder = async (req, res) => {
             statusFilter: ['approved'],
             competitionId,
             audience,
+            channels,
         });
 
         res.json({
@@ -1160,6 +1156,7 @@ exports.broadcastAnnouncement = async (req, res) => {
             ? String(req.body.competitionId)
             : null;
         const audience = String(req.body.audience || 'approved').trim();
+        const channels = parseNotifyChannels(req.body);
 
         const fest = await FestOrganizer.findById(req.festId).select('festName').lean();
         const stats = await notifyFestParticipants({
@@ -1172,6 +1169,7 @@ exports.broadcastAnnouncement = async (req, res) => {
             statusFilter: ['approved'],
             competitionId,
             audience,
+            channels,
         });
 
         res.json({
@@ -1182,6 +1180,60 @@ exports.broadcastAnnouncement = async (req, res) => {
         });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Failed to broadcast announcement' });
+    }
+};
+
+/** Notify a single registration (competition desk / roster row) */
+exports.notifyParticipant = async (req, res) => {
+    try {
+        const { registrationId } = req.params;
+        if (!mongoose.Types.ObjectId.isValid(registrationId)) {
+            return res.status(400).json({ success: false, message: 'Invalid registration ID' });
+        }
+
+        const title = String(req.body.title || '').trim();
+        const message = String(req.body.message || '').trim();
+        if (!title || !message) {
+            return res.status(400).json({ success: false, message: 'Title and message are required' });
+        }
+
+        const reg = await Registration.findOne({ _id: registrationId, fest: req.festId })
+            .populate('user', 'name email phone phoneNumber')
+            .populate('competitionId', 'name competitionName')
+            .lean();
+        if (!reg) {
+            return res.status(404).json({ success: false, message: 'Participant not found' });
+        }
+
+        const fest = await FestOrganizer.findById(req.festId).select('festName slug').lean();
+        const channels = parseNotifyChannels(req.body);
+        const type = String(req.body.type || 'announcement').trim();
+
+        const delivery = await notifyFestParticipant({
+            registration: reg,
+            festId: req.festId,
+            festName: fest?.festName || 'Fest',
+            title,
+            message,
+            type,
+            link: `/view-details/${fest?.slug || req.festId}`,
+            channels,
+        });
+
+        const parts = [];
+        if (delivery.inApp) parts.push('in-app');
+        if (delivery.email) parts.push('email');
+
+        res.json({
+            success: true,
+            message: parts.length
+                ? `Notification sent (${parts.join(' + ')})`
+                : 'Could not deliver — participant may lack app account and email',
+            delivery,
+        });
+    } catch (error) {
+        console.error('[festOrganizerPortal.notifyParticipant]', error);
+        res.status(500).json({ success: false, message: 'Failed to send notification' });
     }
 };
 

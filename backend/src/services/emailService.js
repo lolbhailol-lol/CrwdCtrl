@@ -305,16 +305,17 @@ const generateTrekParticipantEmailHTML = ({
     name, title, message, trekName, link, kind, groupLink, communityName, product = 'trek', paymentContext = null,
 }) => {
     const isRun = product === 'run';
+    const isFest = product === 'fest';
     const headerLabel = kind === 'registration'
         ? 'Booking update'
         : kind === 'reminder'
-            ? (isRun ? 'Run reminder' : 'Trek reminder')
+            ? (isRun ? 'Run reminder' : isFest ? 'Fest reminder' : 'Trek reminder')
             : kind === 'organizer'
                 ? 'Message from organizer'
-                : (isRun ? 'Run update' : 'Trek update');
-    const fullLink = resolveTicketHref(link || (isRun ? '/sports' : '/treks'));
+                : (isRun ? 'Run update' : isFest ? 'Fest update' : 'Trek update');
+    const fullLink = resolveTicketHref(link || (isRun ? '/sports' : isFest ? '/fests' : '/treks'));
     const bodyMessage = String(message || '').replace(/\n/g, '<br/>');
-    const entityLabel = isRun ? 'Run' : 'Trek';
+    const entityLabel = isRun ? 'Run' : isFest ? 'Fest' : 'Trek';
     const paymentNoticeHtml = paymentContext ? buildPaymentNotice(paymentContext) : '';
 
     return buildEmailShell({
@@ -327,21 +328,26 @@ const generateTrekParticipantEmailHTML = ({
             <p style="margin:0 0 12px;line-height:1.6;">${bodyMessage}</p>
             ${paymentNoticeHtml}
             ${buildDetailsTable([{ label: entityLabel, value: trekName }])}
-            ${buildWhatsAppJoinBlock(groupLink, communityName, { product: isRun ? 'run' : 'trek' })}
+            ${buildWhatsAppJoinBlock(groupLink, communityName, { product: isRun ? 'run' : isFest ? 'fest' : 'trek' })}
         `,
         ctaLabel: isRun && kind === 'registration' && String(title || '').toLowerCase().includes('approved')
             ? 'Download ticket'
-            : 'View booking',
+            : (isFest ? 'View fest' : 'View booking'),
         ctaHref: fullLink,
         footnote: isRun
             ? 'You received this about your run booking on CrwdCtrl.'
-            : 'You received this about your trek on CrwdCtrl.',
+            : isFest
+                ? 'You received this about your fest registration on CrwdCtrl.'
+                : 'You received this about your trek on CrwdCtrl.',
     });
 };
 
-const sendTrekParticipantEmails = async (recipients = []) => {
+const sendTrekParticipantEmails = async (recipients = [], { product = 'trek' } = {}) => {
     const results = { success: 0, failed: 0 };
     const list = Array.isArray(recipients) ? recipients : [];
+    const defaultSubject = product === 'fest'
+        ? 'Update from your fest organizer'
+        : 'Update from your trek organizer';
 
     for (const item of list) {
         if (!item?.email) {
@@ -352,18 +358,20 @@ const sendTrekParticipantEmails = async (recipients = []) => {
             await sendEmail({
                 from: getDefaultFrom(),
                 to: item.email,
-                subject: item.subject || item.title || 'Update from your trek organizer',
-                html: generateTrekParticipantEmailHTML(item),
+                subject: item.subject || item.title || defaultSubject,
+                html: generateTrekParticipantEmailHTML({ ...item, product: item.product || product }),
             });
             results.success += 1;
         } catch (err) {
-            console.error('❌ Trek participant email failed:', item.email, err.message);
+            console.error('❌ Participant email failed:', item.email, err.message);
             results.failed += 1;
         }
     }
 
     return results;
 };
+
+const sendFestParticipantEmails = (recipients = []) => sendTrekParticipantEmails(recipients, { product: 'fest' });
 
 const generateAdminCampaignEmailHTML = ({ name, title, message, link, eventContext = null }) => {
     const escapeHtml = (value) =>
@@ -1336,6 +1344,7 @@ module.exports = {
     sendLoginConfirmationEmail,
     sendEventBroadcast,
     sendTrekParticipantEmails,
+    sendFestParticipantEmails,
     sendAdminCampaignEmails,
     previewAdminCampaignEmailHTML,
 };

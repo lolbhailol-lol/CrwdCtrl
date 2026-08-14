@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
-    Bell, Check, Copy, Loader, Megaphone, MessageCircle, Phone,
+    Bell, Check, Copy, Loader, Mail, Megaphone, MessageCircle, Phone,
     RefreshCw, Search, Users, Zap,
 } from 'lucide-react';
 import {
@@ -107,7 +107,7 @@ export default function FestOrganizerNotificationsPage() {
     const [competitions, setCompetitions] = useState([]);
     const [competitionId, setCompetitionId] = useState(prefillCompetitionId);
     const [contacts, setContacts] = useState([]);
-    const [meta, setMeta] = useState({ total: 0, withPhone: 0 });
+    const [meta, setMeta] = useState({ total: 0, withPhone: 0, withEmail: 0 });
     const [loading, setLoading] = useState(true);
     const [query, setQuery] = useState('');
     const [waMessage, setWaMessage] = useState(TEMPLATES[0].wa);
@@ -115,6 +115,7 @@ export default function FestOrganizerNotificationsPage() {
         title: TEMPLATES[0].title,
         message: TEMPLATES[0].message,
     });
+    const [notifyChannels, setNotifyChannels] = useState({ inApp: true, email: false });
     const [busy, setBusy] = useState('');
     const [waCursor, setWaCursor] = useState(0);
 
@@ -150,11 +151,11 @@ export default function FestOrganizerNotificationsPage() {
                 limit: 300,
             });
             setContacts(data.contacts || []);
-            setMeta({ total: data.total || 0, withPhone: data.withPhone || 0 });
+            setMeta({ total: data.total || 0, withPhone: data.withPhone || 0, withEmail: data.withEmail || 0 });
         } catch (e) {
             toast(e.message || 'Failed to load contacts');
             setContacts([]);
-            setMeta({ total: 0, withPhone: 0 });
+            setMeta({ total: 0, withPhone: 0, withEmail: 0 });
         } finally {
             setLoading(false);
         }
@@ -227,17 +228,28 @@ export default function FestOrganizerNotificationsPage() {
             toast('Title and message required');
             return;
         }
+        const channelParts = [];
+        if (notifyChannels.inApp) channelParts.push('in-app');
+        if (notifyChannels.email) channelParts.push('email');
+        if (!channelParts.length) {
+            toast('Pick at least one channel (in-app or email)');
+            return;
+        }
         const ok = await confirm({
             title: mode === 'reminder' ? 'Send reminder?' : 'Send broadcast?',
-            message: `In-app notification to ~${meta.total} people (${AUDIENCES.find((a) => a.id === audience)?.label || audience})${competitionId ? ' in this competition' : ''}.`,
+            message: `${channelParts.join(' + ')} to ~${meta.total} people (${AUDIENCES.find((a) => a.id === audience)?.label || audience})${competitionId ? ' in this competition' : ''}.`,
         });
         if (!ok) return;
         setBusy(mode);
         try {
+            const channels = [];
+            if (notifyChannels.inApp) channels.push('inApp');
+            if (notifyChannels.email) channels.push('email');
             const payload = {
                 title: title || undefined,
                 message: message || undefined,
                 audience,
+                channels,
             };
             if (competitionId) payload.competitionId = competitionId;
             const data = mode === 'reminder'
@@ -247,8 +259,13 @@ export default function FestOrganizerNotificationsPage() {
                     message: message || 'Update from the fest team.',
                     audience,
                     competitionId: competitionId || undefined,
+                    channels,
                 });
-            toast(data.message || 'Sent');
+            const delivery = data.delivery || {};
+            const sentParts = [];
+            if (delivery.inApp) sentParts.push(`${delivery.inApp} in-app`);
+            if (delivery.email) sentParts.push(`${delivery.email} email`);
+            toast(sentParts.length ? `${data.message || 'Sent'} (${sentParts.join(', ')})` : (data.message || 'Sent'));
         } catch (err) {
             toast(err.message || 'Failed');
         } finally {
@@ -267,7 +284,7 @@ export default function FestOrganizerNotificationsPage() {
                         <Bell className="text-[#0ECCEE]" size={20} /> Connect &amp; notify
                     </h1>
                     <p className="text-xs text-gray-500 mt-1">
-                        WhatsApp · call · in-app — pick who, use a template, tap to connect
+                        WhatsApp · call · in-app · email — pick who, use a template, tap to connect
                     </p>
                 </div>
                 <button type="button" onClick={loadContacts} className="p-2 rounded-xl border border-white/10 text-gray-400" aria-label="Refresh">
@@ -282,6 +299,7 @@ export default function FestOrganizerNotificationsPage() {
                     <p className="text-xs text-gray-400 tabular-nums">
                         <span className="text-white font-medium">{meta.total}</span> people
                         {meta.withPhone ? <> · <span className="text-emerald-300">{meta.withPhone}</span> with phone</> : null}
+                        {meta.withEmail ? <> · <span className="text-sky-300">{meta.withEmail}</span> with email</> : null}
                     </p>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
@@ -343,7 +361,7 @@ export default function FestOrganizerNotificationsPage() {
             <div className="grid grid-cols-2 gap-2">
                 {[
                     { id: 'connect', label: 'WhatsApp & call', icon: MessageCircle },
-                    { id: 'app', label: 'In-app notify', icon: Megaphone },
+                    { id: 'app', label: 'Notify', icon: Megaphone },
                 ].map((t) => {
                     const active = tab === t.id;
                     return (
@@ -505,13 +523,32 @@ export default function FestOrganizerNotificationsPage() {
                     <section className="rounded-2xl border border-[#0ECCEE]/25 bg-linear-to-br from-[#0ECCEE]/10 to-[#161718] p-4 space-y-3">
                         <div className="flex items-center gap-2">
                             <Megaphone size={16} className="text-[#0ECCEE]" />
-                            <h2 className="text-sm font-semibold text-white">In-app notification</h2>
+                            <h2 className="text-sm font-semibold text-white">Notify participants</h2>
                         </div>
                         <p className="text-[11px] text-gray-500">
-                            Sends inside CrwdCtrl to <span className="text-white">{audienceLabel}</span>
+                            Send to <span className="text-white">{audienceLabel}</span>
                             {competitionId ? ' in the selected competition' : ' across the fest'}
                             {' '}(~{meta.total} people).
                         </p>
+                        <div className="flex flex-wrap gap-4 text-xs text-gray-300">
+                            <label className="inline-flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    checked={notifyChannels.inApp}
+                                    onChange={(e) => setNotifyChannels((c) => ({ ...c, inApp: e.target.checked }))}
+                                />
+                                In-app notification
+                            </label>
+                            <label className="inline-flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    checked={notifyChannels.email}
+                                    onChange={(e) => setNotifyChannels((c) => ({ ...c, email: e.target.checked }))}
+                                />
+                                Email
+                                {!meta.withEmail ? <span className="text-gray-600">(none in list)</span> : null}
+                            </label>
+                        </div>
                         <input
                             value={appForm.title}
                             onChange={(e) => setAppForm((f) => ({ ...f, title: e.target.value }))}
@@ -550,8 +587,9 @@ export default function FestOrganizerNotificationsPage() {
                     <div className="rounded-xl border border-white/10 bg-[#161718] px-4 py-3 flex items-start gap-2 text-xs text-gray-400">
                         <Check size={14} className="text-emerald-400 shrink-0 mt-0.5" />
                         <p>
-                            Tip: use <span className="text-white">WhatsApp &amp; call</span> for people who may not open the app —
-                            especially unpaid and still-outside lists.
+                            Tip: use <span className="text-white">WhatsApp &amp; call</span> for urgent nudges, and{' '}
+                            <span className="text-white">email + in-app</span> for formal updates.
+                            Filter by competition above to notify one comp only.
                         </p>
                     </div>
                 </div>

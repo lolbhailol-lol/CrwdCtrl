@@ -7,7 +7,9 @@ export default function DetailPageLoader({ label = 'Loading...' }) {
           className="h-7 w-7 rounded-full border-2 border-white/10 border-t-[#0ECCEE] animate-spin"
           aria-hidden
         />
-        <p className="text-xs font-medium tracking-wide text-white/55">{label}</p>
+        {label ? (
+          <p className="text-xs font-medium tracking-wide text-white/55">{label}</p>
+        ) : null}
       </div>
     </div>
   );

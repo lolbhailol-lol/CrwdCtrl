@@ -76,7 +76,7 @@ export default function PaymentReturn() {
                   if (!merged.has(key)) merged.set(key, value);
                 });
                 const qs = merged.toString();
-                navigate(qs ? `${path}?${qs}` : path, { replace: true });
+                navigate(qs ? `${path}?${qs}` : path, { replace: true, state: { fromPaymentReturn: true } });
               }
               return;
             }
@@ -93,7 +93,7 @@ export default function PaymentReturn() {
         const qs = merged.toString();
         if (!cancelled) {
           setStatus('redirecting');
-          navigate(qs ? `${path}?${qs}` : path, { replace: true });
+          navigate(qs ? `${path}?${qs}` : path, { replace: true, state: { fromPaymentReturn: true } });
         }
         return;
       }

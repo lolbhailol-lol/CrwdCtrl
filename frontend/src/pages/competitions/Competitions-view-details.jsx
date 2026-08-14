@@ -22,11 +22,11 @@ import { resolveCompetitionFee, buildRegistrationPrefetch, saveRegistrationPrefe
 import { fetchMyRegistrations } from '../../services/api/auth.api';
 import { trackBookNowClick } from '../../services/analyticsService';
 import PrizePoolPodium from '../../components/PrizePoolPodium';
+import DetailPageLoader from '../../components/DetailPageLoader';
 import {
     loadCompetitionDetailCache,
     saveCompetitionDetailCache,
     isBuiltCompetitionDetail,
-    createCompetitionDetailStub,
 } from '../../utils/detailPageCache';
 
 /**
@@ -328,15 +328,7 @@ function EventPage() {
     const seededCompetition = (() => {
         const fromState = location.state?.competition;
         if (fromState) {
-            const stateId = String(fromState._id || fromState.id || '');
-            if (
-                !competitionId
-                || !stateId
-                || stateId === String(competitionId)
-                || fromState.slug === competitionId
-            ) {
-                return buildCompetitionData(fromState, { useFestRegistrationFallback: true });
-            }
+            return buildCompetitionData(fromState, { useFestRegistrationFallback: true });
         }
         const cached = competitionId ? loadCompetitionDetailCache(competitionId) : null;
         if (!cached) return null;
@@ -559,6 +551,10 @@ function EventPage() {
         }
     }, [isAuthenticated, showLogin, showRegister]);
 
+    if (!competitionData && !fetchDone) {
+        return <DetailPageLoader label="" />;
+    }
+
     if (fetchDone && error && !competitionData) {
         return (
             <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
@@ -604,7 +600,11 @@ function EventPage() {
         );
     }
 
-    const eventData = competitionData ?? createCompetitionDetailStub(competitionId);
+    const eventData = competitionData;
+
+    if (!eventData) {
+        return <DetailPageLoader label="" />;
+    }
 
     // Get fest name from location state or URL params
     const festName = location.state?.eventData?.festival_name || location.state?.eventData?.title || '';
@@ -957,6 +957,7 @@ function EventPage() {
                 }
                 navigate(path, {
                     state: {
+                        freshRegistration: true,
                         festId: eventData?.festId || eventData?.fest?._id,
                         competitionId: compId,
                         prefetch,
@@ -978,7 +979,9 @@ function EventPage() {
                 if (link) openExternalUrl(link);
                 else showAlert({ title: 'Registration unavailable', message: 'External registration link not available. Please contact the organizers.' });
             } else if (registrationStatus === 'internal_form') {
-                navigate(competitionRegistrationPath(eventData || { id: competitionId }));
+                navigate(competitionRegistrationPath(eventData || { id: competitionId }), {
+                    state: { freshRegistration: true },
+                });
             } else if (registrationStatus === 'not_started') {
                 showAlert({ title: 'Registration not open yet', message: 'Registration has not opened yet for this competition.' });
             } else if (registrationStatus === 'registration_closed') {
@@ -1024,11 +1027,7 @@ function EventPage() {
                                 </span>
                             </li>
                         ))
-                    ) : (
-                        <li className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                            Rules will be updated soon
-                        </li>
-                    )}
+                    ) : null}
                 </ul>
                 {shouldTruncate && (
                     <button
@@ -1177,7 +1176,7 @@ function EventPage() {
                             {/* Mobile Event Header */}
                             <div className="px-4 pt-5 pb-3">
                                 <h1 className={`text-[26px] font-bold leading-8 wrap-break-word mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                    {eventData?.title || 'Competition Title'}
+                                    {eventData.title}
                                 </h1>
                                 {eventData?.subtitle ? (
                                     <p className={`text-sm font-semibold mb-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
@@ -1196,16 +1195,22 @@ function EventPage() {
 
                             {/* Mobile Event Details */}
                             <div className="px-4 py-2">
+                                {(eventData.date || eventData.venue) && (
                                 <div className="space-y-2 mb-4">
+                                    {eventData.date ? (
                                     <div className="flex items-center gap-2 text-blue-600">
                                         <img src={CalendarIcon} alt="Calendar" className={`w-4 h-4 ${isDark ? 'filter invert' : ''}`} />
-                                        <span className="text-sm">{eventData?.date || 'TBD'} {eventData?.time && `| ${eventData.time}`}</span>
+                                        <span className="text-sm">{eventData.date}{eventData.time ? ` | ${eventData.time}` : ''}</span>
                                     </div>
+                                    ) : null}
+                                    {eventData.venue && eventData.venue !== 'TBD' ? (
                                     <div className="flex items-center gap-2 text-blue-600">
                                         <img src={LocationIcon} alt="Location" className={`w-4 h-4 ${isDark ? 'filter invert' : ''}`} />
-                                        <span className="text-sm">{eventData?.venue || 'TBD'}</span>
+                                        <span className="text-sm">{eventData.venue}</span>
                                     </div>
+                                    ) : null}
                                 </div>
+                                )}
                             </div>
 
                             {/* Prize pool — classic medal podium (all fest competitions) */}
@@ -1617,19 +1622,27 @@ function EventPage() {
                                         </div>
                                     )}
 
-                                    <h1 className={`text-3xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>{eventData?.title || 'Competition Title'}</h1>
-                                    <p className={`mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{eventData?.subtitle || 'Competition Subtitle'}</p>
+                                    <h1 className={`text-3xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>{eventData.title}</h1>
+                                    {eventData.subtitle ? (
+                                    <p className={`mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{eventData.subtitle}</p>
+                                    ) : null}
 
+                                    {(eventData.date || (eventData.venue && eventData.venue !== 'TBD')) && (
                                     <div className="space-y-2 mb-4">
+                                        {eventData.date ? (
                                         <div className="flex items-center gap-2 text-blue-600">
                                             <img src={CalendarIcon} alt="Calendar" className={`w-4 h-4 ${isDark ? 'filter invert' : ''}`} />
-                                            <span className="text-sm">{eventData?.date || 'TBD'} {eventData?.time && `| ${eventData.time}`}</span>
+                                            <span className="text-sm">{eventData.date}{eventData.time ? ` | ${eventData.time}` : ''}</span>
                                         </div>
+                                        ) : null}
+                                        {eventData.venue && eventData.venue !== 'TBD' ? (
                                         <div className="flex items-center gap-2 text-blue-600">
                                             <img src={LocationIcon} alt="Location" className={`w-4 h-4 ${isDark ? 'filter invert' : ''}`} />
-                                            <span className="text-sm">{eventData?.venue || 'TBD'}</span>
+                                            <span className="text-sm">{eventData.venue}</span>
                                         </div>
+                                        ) : null}
                                     </div>
+                                    )}
 
                                     <div className="flex items-center gap-3 mb-4">
                                         <div className="flex items-center gap-2.5 px-4 py-3 rounded-full border bg-[#0ECCEE]/10 border-[#0ECCEE]/30">

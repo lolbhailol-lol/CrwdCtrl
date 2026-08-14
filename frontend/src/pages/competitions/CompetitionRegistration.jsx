@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { openCashfreeCheckout, buildVerifiedPaymentFields, classifyCheckoutError } from '../../utils/useCashfree';
 import PaymentErrorModal from '../../components/PaymentErrorModal';
 import {
+    discardStalePaymentRecovery,
     getPendingPayment,
     clearPendingPayment,
     isTrekPaymentPending,
@@ -37,7 +38,8 @@ import { fetchPaymentQuote } from '../../services/api/payment.api';
 import { API_BASE_URL } from '../../services/api/client';
 import { competitionRegistrationPath } from '../../utils/slugRoutes';
 
-function getInitialCompetitionRegistrationUi(pathname, search) {
+function getInitialCompetitionRegistrationUi(pathname, search, navigationState = null) {
+    discardStalePaymentRecovery({ pathname, search, navigationState });
     const currentPath = `${pathname}${search}`;
     const resumingPayment = shouldResumePendingPayment(
         getPendingPayment(),
@@ -66,7 +68,7 @@ export default function CompetitionRegistration() {
             setCompletedSteps,
         });
     };
-    const initialUi = getInitialCompetitionRegistrationUi(location.pathname, location.search);
+    const initialUi = getInitialCompetitionRegistrationUi(location.pathname, location.search, location.state);
     const {
         isAuthenticated,
         isLoading: authLoading,

@@ -1,5 +1,8 @@
 const Registration = require('../model/registration_model');
 const { createNotification } = require('../controllers/notificationController');
+const { sendFestParticipantEmails } = require('../services/emailService');
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 
 function pickPhone(user, responses = {}) {
     return String(
@@ -22,11 +25,33 @@ function pickName(user, responses = {}) {
     ).trim();
 }
 
+function pickEmail(user, responses = {}) {
+    const email = String(user?.email || responses.email || '').trim().toLowerCase();
+    return EMAIL_REGEX.test(email) ? email : '';
+}
+
 function responsesToObject(responses) {
     if (!responses) return {};
     if (responses instanceof Map) return Object.fromEntries(responses);
     if (typeof responses === 'object') return responses;
     return {};
+}
+
+function parseNotifyChannels(body = {}) {
+    const raw = body.channels;
+    if (Array.isArray(raw)) {
+        return {
+            inApp: raw.includes('inApp') || raw.includes('in_app') || raw.includes('app'),
+            email: raw.includes('email'),
+        };
+    }
+    if (body.sendEmail === true) {
+        return { inApp: body.sendInApp !== false, email: true };
+    }
+    return {
+        inApp: body.sendInApp !== false,
+        email: Boolean(body.email),
+    };
 }
 
 /**
@@ -89,8 +114,8 @@ async function listFestContacts({
         const responses = responsesToObject(reg.responses);
         const phone = pickPhone(user, responses);
         const name = pickName(user, responses) || 'Participant';
-        const email = user?.email || responses.email || '';
-        const key = phone || String(user?._id || reg._id);
+        const email = pickEmail(user, responses);
+        const key = phone || email || String(user?._id || reg._id);
         if (seen.has(key)) continue;
         seen.add(key);
         contacts.push({
@@ -112,8 +137,71 @@ async function listFestContacts({
         audience,
         total: contacts.length,
         withPhone: contacts.filter((c) => c.phone).length,
+        withEmail: contacts.filter((c) => c.email).length,
         contacts,
     };
+}
+
+async function notifyFestParticipant({
+    registration,
+    festId,
+    festName,
+    title,
+    message,
+    type = 'announcement',
+    link = null,
+    channels = { inApp: true, email: false },
+    competitionName = '',
+}) {
+    const reg = registration;
+    const user = reg.user && typeof reg.user === 'object' ? reg.user : null;
+    const userId = user?._id || reg.user || null;
+    const responses = responsesToObject(reg.responses);
+    const name = pickName(user, responses) || 'Participant';
+    const email = pickEmail(user, responses);
+    const compName = competitionName
+        || reg.competitionId?.name
+        || reg.competitionId?.competitionName
+        || '';
+
+    const result = { inApp: false, email: false, userId, emailAddress: email || null };
+
+    if (channels.inApp !== false && userId) {
+        try {
+            const created = await createNotification({
+                userId,
+                title,
+                message,
+                type,
+                link: link || `/view-details/${festId}`,
+                metadata: {
+                    festId,
+                    festName,
+                    registrationId: reg._id,
+                    competitionId: reg.competitionId?._id || reg.competitionId || null,
+                    source: 'fest_organizer',
+                },
+            });
+            result.inApp = !!created;
+        } catch (_) { /* continue */ }
+    }
+
+    if (channels.email && email) {
+        const emailResult = await sendFestParticipantEmails([{
+            email,
+            name,
+            subject: title,
+            title,
+            message,
+            trekName: compName ? `${festName} — ${compName}` : (festName || 'Fest'),
+            link: link || `/view-details/${festId}`,
+            kind: type === 'reminder' ? 'reminder' : 'organizer',
+            product: 'fest',
+        }]);
+        result.email = (emailResult?.success || 0) > 0;
+    }
+
+    return result;
 }
 
 async function notifyFestParticipants({
@@ -126,6 +214,7 @@ async function notifyFestParticipants({
     statusFilter = ['approved'],
     competitionId = null,
     audience = null,
+    channels = { inApp: true, email: false },
 }) {
     const filter = audience
         ? buildAudienceFilter({ festId, competitionId, audience })
@@ -137,30 +226,50 @@ async function notifyFestParticipants({
         };
 
     const regs = await Registration.find(filter)
-        .select('user')
+        .populate('user', 'name email phone phoneNumber')
+        .populate('competitionId', 'name competitionName')
         .lean();
 
-    const userIds = [...new Set(regs.map((r) => String(r.user)).filter(Boolean))];
-    let inApp = 0;
-    for (const userId of userIds) {
-        try {
-            const created = await createNotification({
-                userId,
-                title,
-                message,
-                type,
-                link: link || `/view-details/${festId}`,
-                metadata: { festId, festName, source: 'fest_organizer', audience: audience || null },
-            });
-            if (created) inApp += 1;
-        } catch (_) { /* continue */ }
+    const stats = { participants: regs.length, inApp: 0, email: 0, skipped: 0 };
+    const emailed = new Set();
+
+    for (const reg of regs) {
+        const user = reg.user && typeof reg.user === 'object' ? reg.user : null;
+        const userId = user?._id || reg.user;
+        const email = pickEmail(user, responsesToObject(reg.responses));
+        if (!userId && !email) {
+            stats.skipped += 1;
+            continue;
+        }
+
+        const result = await notifyFestParticipant({
+            registration: reg,
+            festId,
+            festName,
+            title,
+            message,
+            type,
+            link,
+            channels: {
+                inApp: channels.inApp !== false && Boolean(userId),
+                email: channels.email && Boolean(email) && !emailed.has(email),
+            },
+        });
+
+        if (result.inApp) stats.inApp += 1;
+        if (result.email) {
+            stats.email += 1;
+            if (email) emailed.add(email);
+        }
     }
 
-    return { participants: userIds.length, inApp };
+    return stats;
 }
 
 module.exports = {
     notifyFestParticipants,
+    notifyFestParticipant,
     listFestContacts,
     buildAudienceFilter,
+    parseNotifyChannels,
 };

@@ -148,15 +148,16 @@ export default function FestOrganizerParticipantsPage() {
 
     const hasFilters = Boolean(status || competitionId || checkInStatus || paymentStatus || search.trim());
 
-    const exportCsv = async () => {
+    const exportExcel = async () => {
         try {
             const blob = await exportFestOrganizerParticipants(festId, {
                 competitionId: competitionId || undefined,
+                format: 'xlsx',
             });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `fest_${festId}_participants.csv`;
+            a.download = `fest_${festId}_participants.xlsx`;
             a.click();
             URL.revokeObjectURL(url);
         } catch (e) {
@@ -213,10 +214,10 @@ export default function FestOrganizerParticipantsPage() {
                     </button>
                     <button
                         type="button"
-                        onClick={exportCsv}
+                        onClick={exportExcel}
                         className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/10 text-sm text-gray-300"
                     >
-                        <Download size={14} /> Export
+                        <Download size={14} /> Export Excel
                     </button>
                     <button
                         type="button"

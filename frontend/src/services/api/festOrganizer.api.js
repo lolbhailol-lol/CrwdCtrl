@@ -329,6 +329,7 @@ export async function updateFestOrganizerParticipantStatus(festId, registrationI
 export async function exportFestOrganizerParticipants(festId, params = {}) {
     const qs = new URLSearchParams();
     if (params.competitionId) qs.set('competitionId', params.competitionId);
+    qs.set('format', params.format || 'xlsx');
     const q = qs.toString();
     const res = await festOrganizerFetch(`/fest-organizer/fests/${festId}/participants/export${q ? `?${q}` : ''}`, {
         rawResponse: true,
@@ -338,6 +339,13 @@ export async function exportFestOrganizerParticipants(festId, params = {}) {
         throw new Error(data.message || 'Export failed');
     }
     return res.blob();
+}
+
+export async function notifyFestOrganizerParticipant(festId, registrationId, body) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/participants/${registrationId}/notify`, {
+        method: 'POST',
+        body,
+    });
 }
 
 export async function festOrganizerCheckin(festId, payload) {

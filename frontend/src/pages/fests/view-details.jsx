@@ -27,7 +27,8 @@ import { publicFetchJSONRetry as fetchJSON } from '../../services/api/client';
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { festPath, competitionPath } from '../../utils/slugRoutes';
-import { loadFestDetailCache, saveFestDetailCache, saveCompetitionDetailCache, createFestDetailStub } from '../../utils/detailPageCache';
+import { loadFestDetailCache, saveFestDetailCache, saveCompetitionDetailCache } from '../../utils/detailPageCache';
+import DetailPageLoader from '../../components/DetailPageLoader';
 
 function formatCompetitionTabLabel(tab) {
   if (!tab || tab === 'OTHER') return 'Other';
@@ -341,6 +342,10 @@ function EventDetailsPage() {
     setShowLogin(true);
   };
 
+  if (!eventData && !fetchDone) {
+    return <DetailPageLoader label="" />;
+  }
+
   if (fetchDone && error && !eventData) {
     return (
       <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
@@ -381,7 +386,11 @@ function EventDetailsPage() {
     );
   }
 
-  const pageEvent = eventData ?? createFestDetailStub(eventId);
+  if (!eventData) {
+    return <DetailPageLoader label="" />;
+  }
+
+  const pageEvent = eventData;
 
   const handleRegister = () => {
     navigate(`/competition-list/${pageEvent.id}`);

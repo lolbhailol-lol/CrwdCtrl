@@ -48,7 +48,7 @@ export default function useFestRegistration() {
   const competitionId = searchParams.get('competition') || location.state?.competitionId || null;
   const storedPrefetch = festId ? loadRegistrationPrefetch(festId, competitionId) : null;
   const registrationPrefetch = location.state?.prefetch ?? storedPrefetch ?? null;
-  const initialUi = getInitialFestRegistrationUi(location.pathname, location.search);
+  const initialUi = getInitialFestRegistrationUi(location.pathname, location.search, location.state);
   const {
     isAuthenticated,
     isLoading: authLoading,
