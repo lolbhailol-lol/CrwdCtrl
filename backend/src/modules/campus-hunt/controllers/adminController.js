@@ -809,6 +809,7 @@ async function resyncClue1Bindings(req, res, next) {
         incomplete: result.incomplete,
         teams: result.teams,
         postersBound: result.postersBound,
+        clue4Fix: result.clue4Fix,
         assignments: result.assignments,
       },
     });

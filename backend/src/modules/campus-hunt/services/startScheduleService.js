@@ -8,7 +8,7 @@ const CampusHuntCheckpoint = require('../models/CampusHuntCheckpoint');
 const CampusHuntTeamProgress = require('../models/CampusHuntTeamProgress');
 const CampusHuntCheckpointVerification = require('../models/CampusHuntCheckpointVerification');
 const { writeAudit } = require('./auditService');
-const { normalizeWaitCode, resolveCampusStations } = require('./stationCatalogService');
+const { normalizeWaitCode, resolveCampusStations, resolveStartCount } = require('./stationCatalogService');
 
 function scheduleError(message, code = 'INVALID_START_SCHEDULE', status = 409) {
   const error = new Error(message);
@@ -258,6 +258,92 @@ function buildDeterministicSchedule({
   });
 }
 
+/**
+ * If Clue 4 still points at removed places (S05/S06…), rebind to active layout.
+ * Safe to call before preview/resync — no-op when already correct.
+ */
+async function ensureClue4MatchesLayout(eventId, roundId) {
+  const {
+    reconcileClue4ToActiveLayout,
+    buildTeamGroups,
+    teamsPerWaitFor,
+  } = require('./round1BootstrapService');
+
+  const [event, round] = await Promise.all([
+    CampusHuntEvent.findById(eventId),
+    CampusHuntRound.findOne({ _id: roundId, eventId }),
+  ]);
+  if (!event || !round) {
+    return { reconciled: false, updated: 0, reason: 'missing_event_or_round' };
+  }
+
+  const huntStations = resolveCampusStations(event);
+  const activeCodes = new Set(huntStations.map((s) => String(s.code).toUpperCase()));
+  if (!activeCodes.size) {
+    return { reconciled: false, updated: 0, reason: 'no_active_places' };
+  }
+
+  const clue4Rows = await CampusHuntChallenge.find({
+    eventId,
+    challengeNumber: 4,
+    active: { $ne: false },
+    fourthCheckpointId: { $exists: true, $ne: null },
+  }).select('fourthCheckpointId').lean();
+
+  if (!clue4Rows.length) {
+    return { reconciled: false, updated: 0, reason: 'no_clue4' };
+  }
+
+  const fourthIds = [...new Set(clue4Rows.map((row) => String(row.fourthCheckpointId)))];
+  const fourthCheckpoints = await CampusHuntCheckpoint.find({ _id: { $in: fourthIds } })
+    .select('stationCode active')
+    .lean();
+
+  const hasStale = fourthCheckpoints.some((cp) => {
+    if (cp.active === false) return false;
+    const code = String(cp.stationCode || '').toUpperCase();
+    return code && !activeCodes.has(code);
+  });
+
+  if (!hasStale) {
+    return { reconciled: false, updated: 0, reason: 'already_ok' };
+  }
+
+  const [routes, startingPointsRaw] = await Promise.all([
+    CampusHuntRoute.find({ eventId, active: { $ne: false } }),
+    CampusHuntStartingPoint.find({ eventId, active: { $ne: false } }),
+  ]);
+  if (!routes.length) {
+    return { reconciled: false, updated: 0, reason: 'no_routes' };
+  }
+
+  let startingPoints = startingPointsRaw.filter(
+    (point) => String(point.roundId) === String(round._id),
+  );
+  if (!startingPoints.length) startingPoints = startingPointsRaw;
+
+  const startCount = resolveStartCount(event);
+  const capacity = Number(event.teamCapacity) || 40;
+  const perWait = teamsPerWaitFor(capacity, startCount);
+  const teamGroups = buildTeamGroups(perWait);
+
+  const result = await reconcileClue4ToActiveLayout(
+    event,
+    round,
+    routes,
+    startingPoints,
+    huntStations,
+    teamGroups,
+  );
+
+  return {
+    reconciled: true,
+    updated: result.updated,
+    skipped: result.skipped,
+    activePlaces: huntStations.length,
+  };
+}
+
 async function previewSchedule({
   eventId,
   roundId,
@@ -265,6 +351,8 @@ async function previewSchedule({
   releaseIntervalMinutes,
   assignmentStrategy,
 }) {
+  await ensureClue4MatchesLayout(eventId, roundId);
+
   const CampusHuntEvent = require('../models/CampusHuntEvent');
   const [round, event, teams, startingPointsRaw, routes, variants, clue2Variants, clue3Variants, clue4Variants] = await Promise.all([
     CampusHuntRound.findOne({ _id: roundId, eventId }),
@@ -347,7 +435,7 @@ async function previewSchedule({
     variants: pickChallenges(variants),
     clue2Variants: pickChallenges(clue2Variants),
     clue3Variants: pickChallenges(clue3Variants),
-    clue4Variants: clue4InLayout.length ? clue4InLayout : pickedClue4,
+    clue4Variants: clue4InLayout.length ? clue4InLayout : [],
     startsAt: startsAt || round.startsAt,
     releaseIntervalMinutes: interval,
     assignmentStrategy: strategy,
@@ -665,6 +753,8 @@ async function resyncClue1TeamBindings({ eventId, roundId, actor = {}, reason = 
   const round = await CampusHuntRound.findOne({ _id: roundId, eventId });
   if (!round) throw scheduleError('Round not found', 'ROUND_NOT_FOUND', 404);
 
+  const clue4Fix = await ensureClue4MatchesLayout(eventId, roundId);
+
   // Hide legacy START-* duplicates so capacity stays 4 waits × 10 = 40.
   await CampusHuntStartingPoint.updateMany(
     {
@@ -771,6 +861,7 @@ async function resyncClue1TeamBindings({ eventId, roundId, actor = {}, reason = 
       secondStopPostersBound: secondPostersBound,
       thirdStopPostersBound: thirdPostersBound,
       fourthStopPostersBound: fourthPostersBound,
+      clue4Fix,
     },
   });
 
@@ -783,6 +874,7 @@ async function resyncClue1TeamBindings({ eventId, roundId, actor = {}, reason = 
     secondPostersBound,
     thirdPostersBound,
     fourthPostersBound,
+    clue4Fix,
     assignments: bound,
   };
 }
@@ -928,6 +1020,7 @@ module.exports = {
   lockSchedule,
   selectCompetitionTeams,
   resyncClue1TeamBindings,
+  ensureClue4MatchesLayout,
   syncFirstCheckpointAllowLists,
   syncSecondCheckpointAllowLists,
   syncThirdCheckpointAllowLists,

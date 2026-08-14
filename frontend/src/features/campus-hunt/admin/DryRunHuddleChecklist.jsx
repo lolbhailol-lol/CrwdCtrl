@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   adminListChallenges,
   adminListCheckpoints,
   adminListTeams,
+  adminResyncClue1,
 } from '../services/campusHunt.api';
 import { STAGE_THEMES } from '../types/stageTheme';
 import { resolveStations, resolveStarts } from './campusHuntFormat';
@@ -92,6 +93,109 @@ export default function DryRunHuddleChecklist({
   const [error, setError] = useState('');
   const [propRows, setPropRows] = useState([]);
   const [qrByPlace, setQrByPlace] = useState([]);
+  const [fixBusy, setFixBusy] = useState(false);
+  const [fixMessage, setFixMessage] = useState('');
+  const autoFixAttempted = useRef(false);
+
+  useEffect(() => {
+    autoFixAttempted.current = false;
+  }, [eventId]);
+
+  const buildPropRows = useCallback((teams, challenges, checkpoints) => {
+    const cpById = new Map(checkpoints.map((c) => [String(c.id || c._id), c]));
+    const clueById = new Map(
+      challenges
+        .filter((c) => Number(c.challengeNumber) === 4)
+        .map((c) => [String(c.id || c._id), c]),
+    );
+    const layoutTeams = teams
+      .filter((t) => /^CC00[1-8]$/i.test(String(t.teamCode || '')))
+      .sort((a, b) => String(a.teamCode).localeCompare(String(b.teamCode)));
+    const source = layoutTeams.length ? layoutTeams : teams.slice(0, 12);
+
+    return source.map((t) => {
+      const prop = clueById.get(String(t.clue4ChallengeId || ''));
+      const purple = placeLabel(cpById.get(String(t.fourthCheckpointId || '')));
+      const purpleCode = placeKey(purple);
+      return {
+        teamCode: t.teamCode,
+        orange: placeLabel(cpById.get(String(t.firstCheckpointId || ''))),
+        green: placeLabel(cpById.get(String(t.secondCheckpointId || ''))),
+        blue: placeLabel(cpById.get(String(t.thirdCheckpointId || ''))),
+        purple,
+        purpleOutOfLayout: Boolean(purpleCode && !activeStationCodes.has(purpleCode)),
+        propCode: String(prop?.answer || '').toUpperCase() || '—',
+        variant: prop?.variantKey || '',
+      };
+    });
+  }, [activeStationCodes]);
+
+  const loadSheet = useCallback(async () => {
+    if (!eventId) return { rows: [], qrRows: [] };
+    const [chRes, cpRes, teamRes] = await Promise.all([
+      adminListChallenges(eventId),
+      adminListCheckpoints(eventId),
+      adminListTeams(eventId),
+    ]);
+    const challenges = Array.isArray(chRes.data) ? chRes.data : (chRes.data?.challenges || []);
+    const checkpoints = Array.isArray(cpRes.data) ? cpRes.data : (cpRes.data?.checkpoints || []);
+    const teams = Array.isArray(teamRes.data) ? teamRes.data : (teamRes.data?.teams || []);
+    const rows = buildPropRows(teams, challenges, checkpoints);
+
+    const byStation = new Map();
+    for (const s of stations) {
+      byStation.set(s.code, {
+        code: s.code,
+        name: s.name,
+        orange: false,
+        green: false,
+        blue: false,
+        purple: false,
+      });
+    }
+    for (const c of checkpoints) {
+      if (c.active === false) continue;
+      const code = String(c.stationCode || '').toUpperCase();
+      if (!code || !byStation.has(code)) continue;
+      const prog = String(c.progressionKey || c.checkpointKey || '');
+      const row = byStation.get(code);
+      if (prog === '1') row.orange = true;
+      if (prog === '2') row.green = true;
+      if (prog === '3') row.blue = true;
+      if (prog === '4') row.purple = true;
+    }
+
+    return { rows, qrRows: [...byStation.values()] };
+  }, [eventId, stations, buildPropRows]);
+
+  const fixPurpleRoutes = useCallback(async () => {
+    if (!eventId || fixBusy) return;
+    setFixBusy(true);
+    setFixMessage('');
+    setError('');
+    try {
+      const result = await adminResyncClue1(eventId, {
+        reason: 'Fix purple routes to match active campus places',
+      });
+      const fix = result.data?.clue4Fix;
+      const updated = result.data?.updated ?? 0;
+      const { rows, qrRows } = await loadSheet();
+      setPropRows(rows);
+      setQrByPlace(qrRows);
+      const stillStale = rows.filter((row) => row.purpleOutOfLayout).length;
+      if (stillStale > 0) {
+        setFixMessage(`Updated ${updated} teams but ${stillStale} still outside layout — open Clues → Update Clue 4.`);
+      } else if (fix?.reconciled) {
+        setFixMessage(`Fixed — purple stops now use your ${stations.length} active places only.`);
+      } else {
+        setFixMessage(`Routes refreshed · ${updated} teams synced.`);
+      }
+    } catch (err) {
+      setError(err.message || 'Could not fix purple routes');
+    } finally {
+      setFixBusy(false);
+    }
+  }, [eventId, fixBusy, loadSheet, stations.length]);
 
   useEffect(() => {
     if (!eventId) {
@@ -103,68 +207,33 @@ export default function DryRunHuddleChecklist({
       setLoading(true);
       setError('');
       try {
-        const [chRes, cpRes, teamRes] = await Promise.all([
-          adminListChallenges(eventId),
-          adminListCheckpoints(eventId),
-          adminListTeams(eventId),
-        ]);
+        const { rows, qrRows } = await loadSheet();
         if (cancelled) return;
 
-        const challenges = Array.isArray(chRes.data) ? chRes.data : (chRes.data?.challenges || []);
-        const checkpoints = Array.isArray(cpRes.data) ? cpRes.data : (cpRes.data?.checkpoints || []);
-        const teams = Array.isArray(teamRes.data) ? teamRes.data : (teamRes.data?.teams || []);
-
-        const cpById = new Map(checkpoints.map((c) => [String(c.id || c._id), c]));
-        const clueById = new Map(
-          challenges
-            .filter((c) => Number(c.challengeNumber) === 4)
-            .map((c) => [String(c.id || c._id), c]),
-        );
-
-        const layoutTeams = teams
-          .filter((t) => /^CC00[1-8]$/i.test(String(t.teamCode || '')))
-          .sort((a, b) => String(a.teamCode).localeCompare(String(b.teamCode)));
-        const source = layoutTeams.length ? layoutTeams : teams.slice(0, 12);
-
-        setPropRows(source.map((t) => {
-          const prop = clueById.get(String(t.clue4ChallengeId || ''));
-          const purple = placeLabel(cpById.get(String(t.fourthCheckpointId || '')));
-          const purpleCode = placeKey(purple);
-          return {
-            teamCode: t.teamCode,
-            orange: placeLabel(cpById.get(String(t.firstCheckpointId || ''))),
-            green: placeLabel(cpById.get(String(t.secondCheckpointId || ''))),
-            blue: placeLabel(cpById.get(String(t.thirdCheckpointId || ''))),
-            purple,
-            purpleOutOfLayout: Boolean(purpleCode && !activeStationCodes.has(purpleCode)),
-            propCode: String(prop?.answer || '').toUpperCase() || '—',
-            variant: prop?.variantKey || '',
-          };
-        }));
-
-        const byStation = new Map();
-        for (const s of stations) {
-          byStation.set(s.code, {
-            code: s.code,
-            name: s.name,
-            orange: false,
-            green: false,
-            blue: false,
-            purple: false,
-          });
+        const staleCount = rows.filter((row) => row.purpleOutOfLayout).length;
+        if (staleCount > 0 && !autoFixAttempted.current) {
+          autoFixAttempted.current = true;
+          try {
+            await adminResyncClue1(eventId, {
+              reason: 'Auto-fix stale purple routes on plant sheet load',
+            });
+            const refreshed = await loadSheet();
+            if (!cancelled) {
+              setPropRows(refreshed.rows);
+              setQrByPlace(refreshed.qrRows);
+              const left = refreshed.rows.filter((row) => row.purpleOutOfLayout).length;
+              if (left === 0) {
+                setFixMessage('Purple routes auto-fixed to your active places.');
+              }
+            }
+            return;
+          } catch {
+            // Fall back to showing stale rows + manual fix button.
+          }
         }
-        for (const c of checkpoints) {
-          if (c.active === false) continue;
-          const code = String(c.stationCode || '').toUpperCase();
-          if (!code || !byStation.has(code)) continue;
-          const prog = String(c.progressionKey || c.checkpointKey || '');
-          const row = byStation.get(code);
-          if (prog === '1') row.orange = true;
-          if (prog === '2') row.green = true;
-          if (prog === '3') row.blue = true;
-          if (prog === '4') row.purple = true;
-        }
-        setQrByPlace([...byStation.values()]);
+
+        setPropRows(rows);
+        setQrByPlace(qrRows);
       } catch (err) {
         if (!cancelled) setError(err.message || 'Could not load plant sheet');
       } finally {
@@ -172,7 +241,7 @@ export default function DryRunHuddleChecklist({
       }
     })();
     return () => { cancelled = true; };
-  }, [eventId, stations]);
+  }, [eventId, loadSheet]);
 
   const placeRows = useMemo(() => {
     const base = qrByPlace.length
@@ -224,11 +293,23 @@ export default function DryRunHuddleChecklist({
 
       {error ? <p className="mt-2 text-sm text-red-300 print:text-red-700">{error}</p> : null}
       {stalePurpleCount > 0 ? (
-        <p className="mt-2 rounded-lg border border-amber-400/35 bg-amber-500/10 px-3 py-2 text-xs text-amber-100 print:border-amber-700 print:bg-amber-50 print:text-amber-950">
-          {stalePurpleCount} team{stalePurpleCount === 1 ? '' : 's'} still point at places outside your
-          {' '}{stations.length}-place layout (e.g. S05/S06). Open <strong>Clues</strong> →
-          {' '}<strong>Save setup</strong> again, or tap <strong>Update Clue 4 for this setup</strong>.
-        </p>
+        <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/35 bg-amber-500/10 px-3 py-2 text-xs text-amber-100 print:border-amber-700 print:bg-amber-50 print:text-amber-950">
+          <p className="min-w-[200px] flex-1">
+            {stalePurpleCount} team{stalePurpleCount === 1 ? '' : 's'} still on old places (S05/S06).
+            {' '}Purple must stay within your {stations.length} active places.
+          </p>
+          <button
+            type="button"
+            disabled={fixBusy || !eventId}
+            onClick={fixPurpleRoutes}
+            className="rounded-lg bg-amber-300 px-3 py-1.5 text-[11px] font-bold text-black disabled:opacity-50 print:hidden"
+          >
+            {fixBusy ? 'Fixing…' : 'Fix purple routes now'}
+          </button>
+        </div>
+      ) : null}
+      {fixMessage ? (
+        <p className="mt-2 text-xs text-emerald-300 print:text-emerald-800">{fixMessage}</p>
       ) : null}
       {loading ? <p className="mt-2 text-xs text-white/45 print:hidden">Loading live bindings…</p> : null}
 

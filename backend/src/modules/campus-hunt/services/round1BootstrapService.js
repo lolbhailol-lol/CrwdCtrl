@@ -1263,6 +1263,8 @@ module.exports = {
   bootstrapRound1Defaults,
   syncSharedStationQrs,
   reconcileClue4ToActiveLayout,
+  buildTeamGroups,
+  teamsPerWaitFor,
   DEFAULT_LOCATIONS,
   CAMPUS_STATIONS,
   WAIT_POINTS,
