@@ -1,14 +1,24 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle, Loader } from 'lucide-react';
-import { getPendingPayment, isStalePendingPayment, clearPendingPayment } from '../../utils/deepLinks';
+import {
+  getPendingPayment,
+  isStalePendingPayment,
+  clearPendingPayment,
+  hasCashfreeReturnParams,
+} from '../../utils/deepLinks';
 import {
   loadEventPayDraft,
   loadEventRegistrationDraft,
   completeEventPayAndRegister,
   clearEventPaymentArtifacts,
 } from '../../utils/eventPaymentRecovery';
-import { verifyPaymentWithRetry, goToBookings } from '../../utils/paymentNavigation';
+import {
+  verifyPaymentWithRetry,
+  goToBookings,
+  classifyVerifyError,
+  clearCashfreeReturnAndPending,
+} from '../../utils/paymentNavigation';
 import { API_BASE_URL } from '../../services/api/client';
 import { resolveAuthToken, getBearerAuthHeaders } from '../../utils/authToken';
 
@@ -33,7 +43,48 @@ export default function PaymentReturn() {
       const returnPath =
         pending?.orderId && !isStalePendingPayment(pending) ? pending.returnPath : null;
 
-      if (returnPath) {
+      if (returnPath && hasCashfreeReturnParams(search)) {
+        const orderId = orderIdFromUrl || pending?.orderId || '';
+        const token = resolveAuthToken();
+
+        if (orderId && token) {
+          try {
+            const verifyResult = await verifyPaymentWithRetry(API_BASE_URL, orderId, {
+              token,
+              kind: 'fest',
+              search,
+            });
+
+            if (verifyResult.status === 'cancelled') {
+              clearCashfreeReturnAndPending(navigate, { pathname: returnPath.split('?')[0], search: '' });
+              if (!cancelled) {
+                setStatus('redirecting');
+                navigate(returnPath.split('?')[0] + (returnPath.includes('?') ? `?${returnPath.split('?')[1]}` : ''), {
+                  replace: true,
+                  state: { paymentCancelled: true },
+                });
+              }
+              return;
+            }
+
+            if (verifyResult.status === 'pending' && !verifyResult.verified) {
+              if (!cancelled) {
+                setStatus('redirecting');
+                const [path, existingQuery] = returnPath.split('?');
+                const merged = new URLSearchParams(existingQuery || '');
+                params.forEach((value, key) => {
+                  if (!merged.has(key)) merged.set(key, value);
+                });
+                const qs = merged.toString();
+                navigate(qs ? `${path}?${qs}` : path, { replace: true });
+              }
+              return;
+            }
+          } catch {
+            /* forward to return path for page-level resume */
+          }
+        }
+
         const [path, existingQuery] = returnPath.split('?');
         const merged = new URLSearchParams(existingQuery || '');
         params.forEach((value, key) => {
@@ -68,11 +119,24 @@ export default function PaymentReturn() {
       if (eventShowId && token) {
         try {
           if (!cancelled) setMessage('Payment received — finishing your registration…');
-          const { ok, data: v } = await verifyPaymentWithRetry(API_BASE_URL, orderId, {
+          const verifyResult = await verifyPaymentWithRetry(API_BASE_URL, orderId, {
             token,
             kind: 'fest',
+            search,
           });
-          if (ok && v?.verified) {
+
+          if (verifyResult.status === 'cancelled') {
+            clearCashfreeReturnAndPending(navigate, { pathname: `/events/${eventShowId}/register`, search: '' });
+            if (!cancelled) {
+              navigate(`/events/${eventShowId}/register`, {
+                replace: true,
+                state: { paymentCancelled: true },
+              });
+            }
+            return;
+          }
+
+          if (verifyResult.ok && verifyResult.verified) {
             const reg = await completeEventPayAndRegister({
               apiBase: API_BASE_URL,
               token,
@@ -100,6 +164,20 @@ export default function PaymentReturn() {
             }, 900);
             return;
           }
+
+          const { kind, message: verifyMsg } = classifyVerifyError(verifyResult);
+          if (kind === 'pending') {
+            if (!cancelled) {
+              navigate(`/events/${eventShowId}/register${search}`, { replace: true });
+            }
+            return;
+          }
+          if (kind === 'cancelled') {
+            clearCashfreeReturnAndPending(navigate, { pathname: `/events/${eventShowId}/register`, search: '' });
+            if (!cancelled) navigate(`/events/${eventShowId}/register`, { replace: true });
+            return;
+          }
+          console.warn('[PaymentReturn] event verify:', verifyMsg);
         } catch (err) {
           console.warn('[PaymentReturn] event recovery failed:', err?.message || err);
         }
@@ -120,7 +198,6 @@ export default function PaymentReturn() {
 
       if (!cancelled) {
         goToBookings(navigate, null);
-        // Pass order for bookings recovery via session flag
         try {
           sessionStorage.setItem(
             'crwdctrl_recover_event_order',

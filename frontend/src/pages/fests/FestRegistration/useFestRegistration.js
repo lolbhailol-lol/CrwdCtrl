@@ -12,6 +12,8 @@ import {
 } from '../../../utils/deepLinks';
 import {
   verifyPaymentWithRetry,
+  classifyVerifyError,
+  clearCashfreeReturnAndPending,
 } from '../../../utils/paymentNavigation';
 import {
   clearRegistrationDraft,
@@ -96,6 +98,7 @@ export default function useFestRegistration() {
   const [authSyncExpired, setAuthSyncExpired] = useState(false);
   const [paymentResumeError, setPaymentResumeError] = useState('');
   const [paymentResumeOrderId, setPaymentResumeOrderId] = useState('');
+  const [paymentResumeWasPaid, setPaymentResumeWasPaid] = useState(false);
 
   useEffect(() => {
     if (location.state?.prefetch && festId) {
@@ -163,6 +166,88 @@ export default function useFestRegistration() {
     if (isAuthenticated && showRegister) setShowRegister(false);
   }, [isAuthenticated, showLogin, showRegister]);
 
+  const buildOrderRegistrationDraft = () => ({
+    formData: getAllFormData(),
+    stepData,
+    currentStep,
+    festId: festId || fest?._id,
+    competitionId: competitionId || competition?._id || null,
+    couponCode: appliedCouponCode || '',
+  });
+
+  const handleVerifyCancelled = () => {
+    restoreRegistrationDraft();
+    clearCashfreeReturnAndPending(navigate, location);
+    setCompletingPayment(false);
+    setPaymentLoading(false);
+    setPaymentResumeError('');
+    setPaymentResumeWasPaid(false);
+    setPaymentError('Payment cancelled.');
+    window.setTimeout(() => setPaymentError(''), 5000);
+  };
+
+  const completeFestPaymentResume = async (orderIdOverride) => {
+    const pending = getPendingPayment();
+    const orderId = orderIdOverride || pending?.orderId;
+    if (!orderId) {
+      throw new Error('No pending payment found. Your booking may already be complete — check My Bookings.');
+    }
+
+    setPaymentResumeOrderId(orderId);
+    setPaymentResumeError('');
+    setPaymentResumeWasPaid(false);
+    setPaymentError('');
+    setError('');
+    setSubmissionProgress('Confirming payment…');
+
+    const submitToken = resolveAuthToken(authToken) || localStorage.getItem('crwdctrl_token');
+    if (!submitToken) {
+      throw new Error('Please log in to complete your registration.');
+    }
+
+    const verifyResult = await verifyPaymentWithRetry(
+      API_BASE_URL,
+      orderId,
+      { token: submitToken, search: location.search },
+    );
+
+    if (verifyResult.status === 'cancelled') {
+      handleVerifyCancelled();
+      return;
+    }
+
+    if (!verifyResult.ok || !verifyResult.verified) {
+      const { kind, message } = classifyVerifyError(verifyResult);
+      if (kind === 'pending' || kind === 'network') {
+        throw new Error(message);
+      }
+      throw new Error(message);
+    }
+
+    setPaymentResumeWasPaid(true);
+    setSubmissionProgress('Completing registration…');
+
+    const regRes = await fetch(`${API_BASE_URL}/registrations/fests/${festId}/pay-and-register`, {
+      method: 'POST',
+      headers: getBearerAuthHeaders(authToken),
+      body: JSON.stringify({ payment_order_id: orderId }),
+    });
+    if (!regRes.ok) {
+      const errData = await regRes.json().catch(() => ({}));
+      throw new Error(errData.error || 'Registration failed after payment. Please retry or check My Bookings.');
+    }
+
+    clearPendingPayment();
+    clearCashfreeReturnAndPending(navigate, location);
+    const regData = await regRes.json().catch(() => ({}));
+    const regId = regData._id || regData.registration?._id || regData.registrationId;
+    setRegistrationId(regId);
+    setCompletingPayment(false);
+    setSuccess(true);
+    refreshNotifications();
+    clearRegistrationDraft(draftKey);
+  };
+
   // Resume fest pay-and-register after Cashfree redirect checkout
   useEffect(() => {
     if (paymentResumeRef.current || authLoading || isAuthProcessing || isRedirectProcessing) return;
@@ -178,7 +263,8 @@ export default function useFestRegistration() {
     setCompletingPayment(true);
     setPaymentLoading(true);
     setPaymentError('');
-    setSubmissionProgress('Verifying payment...');
+    setPaymentResumeError('');
+    setSubmissionProgress('Confirming payment…');
 
     (async () => {
       try {
@@ -191,37 +277,9 @@ export default function useFestRegistration() {
           return;
         }
 
-        const { ok, data: verifyData } = await verifyPaymentWithRetry(
-          API_BASE_URL,
-          pending.orderId,
-          { token },
-        );
-        if (!ok || !verifyData?.verified) {
-          throw new Error(verifyData?.message || 'Payment could not be verified.');
-        }
-
-        const regRes = await fetch(`${API_BASE_URL}/registrations/fests/${festId}/pay-and-register`, {
-          method: 'POST',
-          headers: getBearerAuthHeaders(authToken),
-          body: JSON.stringify({ payment_order_id: pending.orderId }),
-        });
-        if (!regRes.ok) {
-          const errData = await regRes.json().catch(() => ({}));
-          throw new Error(errData.error || 'Registration failed after payment. Please contact support.');
-        }
-
-        clearPendingPayment();
-        const regData = await regRes.json().catch(() => ({}));
-        const regId = regData._id || regData.registration?._id || regData.registrationId;
-        setRegistrationId(regId);
-        setCompletingPayment(false);
-        setSuccess(true);
-        refreshNotifications();
-        clearRegistrationDraft(draftKey);
-        clearCashfreeReturnParams();
+        await completeFestPaymentResume(pending.orderId);
       } catch (err) {
         setPaymentResumeError(err.message || 'Could not complete registration after payment.');
-        setPaymentResumeOrderId(pending.orderId);
         setPaymentError(err.message || 'Could not complete registration after payment.');
       } finally {
         setPaymentLoading(false);
@@ -250,24 +308,34 @@ export default function useFestRegistration() {
 
     setPaymentResumeOrderId(orderId);
     setPaymentResumeError('');
+    setPaymentResumeWasPaid(false);
     setPaymentError('');
     setError('');
-    setSubmissionProgress('Verifying payment...');
+    setSubmissionProgress('Confirming payment…');
 
     const submitToken = resolveAuthToken(authToken) || localStorage.getItem('crwdctrl_token');
     if (!submitToken) {
       throw new Error('Please log in to complete your registration.');
     }
 
-    const { ok, data: verifyData } = await verifyPaymentWithRetry(
+    const verifyResult = await verifyPaymentWithRetry(
       API_BASE_URL,
       orderId,
-      { token: submitToken },
+      { token: submitToken, search: location.search },
     );
-    if (!ok || !verifyData?.verified) {
-      throw new Error(verifyData?.message || 'Payment could not be verified.');
+
+    if (verifyResult.status === 'cancelled') {
+      handleVerifyCancelled();
+      return;
     }
 
+    if (!verifyResult.ok || !verifyResult.verified) {
+      const { kind, message } = classifyVerifyError(verifyResult);
+      throw new Error(message);
+    }
+
+    const verifyData = verifyResult.data;
+    setPaymentResumeWasPaid(true);
     const verifiedFields = buildVerifiedPaymentFields(verifyData, orderId);
     setPaymentFields(verifiedFields);
 
@@ -309,7 +377,7 @@ export default function useFestRegistration() {
     if (regId) setRegistrationId(regId);
     clearRegistrationDraft(draftKey);
     clearPendingPayment();
-    clearCashfreeReturnParams();
+    clearCashfreeReturnAndPending(navigate, location);
     setCompletingPayment(false);
     setSuccess(true);
     refreshNotifications();
@@ -317,9 +385,13 @@ export default function useFestRegistration() {
 
   const retryPaymentResume = async () => {
     setPaymentResumeError('');
-    setSubmissionProgress('Retrying registration...');
+    setSubmissionProgress('Retrying…');
     try {
-      await completeCompetitionPaymentResume(paymentResumeOrderId);
+      if (isCompetitionRegistration) {
+        await completeCompetitionPaymentResume(paymentResumeOrderId);
+      } else {
+        await completeFestPaymentResume(paymentResumeOrderId);
+      }
     } catch (err) {
       setPaymentResumeError(err.message || 'Could not complete registration after payment.');
       setPaymentError(err.message || 'Could not complete registration after payment.');
@@ -1118,7 +1190,9 @@ export default function useFestRegistration() {
       if (effectiveFeeAmount > 0 && !verifiedPaymentFields && !paidResume) {
         setSubmissionProgress('Opening payment gateway...');
 
-        const orderNotes = isCompetitionRegistration ? { competitionId } : { festId };
+        const orderNotes = isCompetitionRegistration
+          ? { competitionId, registrationDraft: buildOrderRegistrationDraft() }
+          : { festId, registrationDraft: buildOrderRegistrationDraft() };
         const orderRes = await fetch(`${API_BASE_URL}/payment/order`, {
           method: 'POST',
           headers: getBearerAuthHeaders(authToken),
@@ -1169,18 +1243,25 @@ export default function useFestRegistration() {
         }
 
         setCompletingPayment(true);
-        setSubmissionProgress('Verifying payment...');
+        setSubmissionProgress('Confirming payment…');
 
-        const { ok, data: verifyData } = await verifyPaymentWithRetry(
+        const verifyResult = await verifyPaymentWithRetry(
           API_BASE_URL,
           orderData.orderId,
-          { token },
+          { token, search: location.search },
         );
-        if (!ok || !verifyData?.verified) {
-          throw new Error(verifyData?.message || 'Payment verification failed. Please contact support.');
+        if (verifyResult.status === 'cancelled') {
+          handleVerifyCancelled();
+          setSubmitting(false);
+          setSubmissionProgress('');
+          return;
+        }
+        if (!verifyResult.ok || !verifyResult.verified) {
+          const { message } = classifyVerifyError(verifyResult);
+          throw new Error(message);
         }
 
-        verifiedPaymentFields = buildVerifiedPaymentFields(verifyData, orderData.orderId);
+        verifiedPaymentFields = buildVerifiedPaymentFields(verifyResult.data, orderData.orderId);
         setPaymentFields(verifiedPaymentFields);
       }
 
@@ -1452,7 +1533,7 @@ export default function useFestRegistration() {
       if (paidResume) {
         clearPendingPayment();
         setPaymentResumeError('');
-        clearCashfreeReturnParams();
+        clearCashfreeReturnAndPending(navigate, location);
       }
 
       return { success: true, regId };
@@ -1522,7 +1603,11 @@ export default function useFestRegistration() {
       const orderRes = await fetch(`${API_BASE_URL}/payment/order`, {
         method: 'POST',
         headers: getBearerAuthHeaders(authToken),
-        body: JSON.stringify({ festId, couponCode: appliedCouponCode || undefined }),
+        body: JSON.stringify({
+          festId,
+          couponCode: appliedCouponCode || undefined,
+          registrationDraft: buildOrderRegistrationDraft(),
+        }),
       });
       if (orderRes.status === 401) {
         clearStoredAuthSession();
@@ -1556,6 +1641,12 @@ export default function useFestRegistration() {
       }
 
       if (checkoutResult?.redirectDeferred) {
+        saveRegistrationDraft(draftKey, {
+          formData: getAllFormData(),
+          stepData,
+          currentStep,
+          completedSteps,
+        });
         setPaymentLoading(false);
         setCompletingPayment(true);
         setSubmissionProgress('Complete payment in the gateway. You will return here automatically.');
@@ -1563,7 +1654,23 @@ export default function useFestRegistration() {
       }
 
       setCompletingPayment(true);
-      setSubmissionProgress('Confirming payment and registering...');
+      setSubmissionProgress('Confirming payment…');
+
+      const verifyResult = await verifyPaymentWithRetry(
+        API_BASE_URL,
+        orderData.orderId,
+        { token, search: location.search },
+      );
+      if (verifyResult.status === 'cancelled') {
+        handleVerifyCancelled();
+        return;
+      }
+      if (!verifyResult.ok || !verifyResult.verified) {
+        const { message } = classifyVerifyError(verifyResult);
+        throw new Error(message);
+      }
+
+      setSubmissionProgress('Completing registration…');
 
       const regRes = await fetch(`${API_BASE_URL}/registrations/fests/${festId}/pay-and-register`, {
         method: 'POST',
@@ -1651,6 +1758,7 @@ export default function useFestRegistration() {
     paymentResumeError,
     setPaymentResumeError,
     paymentResumeOrderId,
+    paymentResumeWasPaid,
     retryPaymentResume,
     isCompetitionRegistration,
     draftKey,

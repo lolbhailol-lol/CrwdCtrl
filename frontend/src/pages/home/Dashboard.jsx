@@ -43,7 +43,7 @@ import { getCoverImageUrl } from '../../utils/coverImages';
 import { API_BASE_URL, publicFetchJSONRetry as fetchJSON } from '../../services/api/client';
 import { fetchCatalogJSON, invalidateCatalogCache } from '../../services/api/catalogCache';
 import { communityPath, competitionPath, eventShowPath, festPath, runClubPath, sportRunPath, trekPath } from '../../utils/slugRoutes';
-import { saveFestDetailCache } from '../../utils/detailPageCache';
+import { buildFestDetailNavState } from '../../utils/detailPageCache';
 
 const HOME_JSON_LD = [
     webPageSchema({
@@ -1110,13 +1110,16 @@ const Dashboard = () => {
     const trendingItems = useMemo(() => buildSectionItems('trending'), [buildSectionItems]);
     const happeningItems = useMemo(() => buildSectionItems('happening'), [buildSectionItems]);
 
+    const navigateToFestDetail = useCallback((item) => {
+        const id = item._id || item.id;
+        const rawFest = fests.find((f) => String(f._id || f.id) === String(id));
+        const eventData = rawFest ? buildFestDetailNavState(rawFest) : null;
+        navigate(festPath(item), { state: eventData ? { eventData } : undefined });
+    }, [fests, navigate]);
+
     const navigateToHomeItem = useCallback((item) => {
         if (item._type === 'fest') {
-            const festData = transformedFests.find(
-                (f) => String(f.id) === String(item._id || item.id),
-            );
-            if (festData) saveFestDetailCache(festData.id, festData);
-            navigate(festPath(item), { state: festData ? { eventData: festData } : undefined });
+            navigateToFestDetail(item);
         } else if (item._type === 'trek') {
             navigate(trekPath(item), { state: { trek: item } });
         } else if (item._type === 'community') {
@@ -1147,7 +1150,7 @@ const Dashboard = () => {
         } else if (item._type === 'events') {
             navigate(eventShowPath(item));
         }
-    }, [navigate, transformedFests]);
+    }, [navigate, navigateToFestDetail]);
 
     const getHomeItemShareUrl = useCallback((item) => {
         const origin = window.location.origin;
@@ -1180,17 +1183,13 @@ const Dashboard = () => {
         if (type === 'competition') {
             navigate(competitionPath({ _id: id, id, name: result.title, title: result.title }));
         } else if (type === 'fest') {
-            const festData = transformedFests.find((f) => String(f.id) === String(id));
-            if (festData) saveFestDetailCache(festData.id, festData);
-            navigate(festPath({ id, _id: id, festName: result.title, title: result.title }), {
-                state: festData ? { eventData: festData } : undefined,
-            });
+            navigateToFestDetail({ id, _id: id, festName: result.title, title: result.title });
         } else if (type === 'trek' || type === 'community' || type === 'sport') {
             navigateToHomeItem(result);
         } else {
             navigate(`/view-details/${id}`);
         }
-    }, [navigate, navigateToHomeItem, transformedFests]);
+    }, [navigate, navigateToHomeItem, navigateToFestDetail]);
 
     const searchKeywordCatalog = useMemo(
         () => buildSearchKeywordsFromCatalog({
@@ -1326,7 +1325,7 @@ const Dashboard = () => {
                             else if (slide._type === 'trek') navigate(trekPath(slide), { state: { trek: slide } });
                             else if (slide._type === 'community') navigate(communityPath(slide));
                             else if (slide._type === 'sport') navigate(sportRunPath(slide));
-                            else navigate(festPath(slide));
+                            else navigateToFestDetail(slide);
                         }}
                         isDark={isDark}
                     />

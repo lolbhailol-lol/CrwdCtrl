@@ -9,7 +9,7 @@ import CrwdCtrlRegister from '../auth/register';
 import { openCashfreeCheckout, classifyCheckoutError } from '../../utils/useCashfree';
 import PaymentErrorModal from '../../components/PaymentErrorModal';
 import { getPendingPayment, clearPendingPayment, shouldResumePendingPayment } from '../../utils/deepLinks';
-import { verifyPaymentWithRetry, goToBookings } from '../../utils/paymentNavigation';
+import { verifyPaymentWithRetry, goToBookings, classifyVerifyError } from '../../utils/paymentNavigation';
 import {
     saveEventRegistrationDraft,
     loadEventRegistrationDraft,
@@ -879,13 +879,16 @@ export default function EventRegistrationPage() {
             openLogin();
             throw new Error('Please log in to complete registration after payment.');
         }
-        const { ok, data: v } = await verifyPaymentWithRetry(API, orderId, { token, kind: 'fest' });
-        if (!ok || !v?.verified) {
-            const unpaid = /pending|ACTIVE|not found|not successful/i.test(v?.message || '');
+        const verifyResult = await verifyPaymentWithRetry(API, orderId, { token, kind: 'fest', search: location.search });
+        if (verifyResult.status === 'cancelled') {
+            throw new Error('Payment was cancelled. Tap Pay to try again.');
+        }
+        if (!verifyResult.ok || !verifyResult.verified) {
+            const { kind, message } = classifyVerifyError(verifyResult);
             throw new Error(
-                unpaid
-                    ? 'Payment was not completed. Tap Pay to try again.'
-                    : (v?.message || 'Payment could not be verified.'),
+                kind === 'pending'
+                    ? 'Payment is still processing. Wait a moment and try again.'
+                    : (message || 'Payment could not be verified.'),
             );
         }
         const data = await completeEventPayAndRegister({

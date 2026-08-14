@@ -17,6 +17,8 @@ import {
 import {
     goToBookings,
     verifyPaymentWithRetry,
+    classifyVerifyError,
+    clearCashfreeReturnAndPending,
 } from '../../utils/paymentNavigation';
 import { buildTrekPriceBreakdown } from '../../utils/platformFee';
 import { resolveTrekPlatformFeePercent } from '../../utils/trekRegistrationFee';
@@ -736,23 +738,38 @@ export default function TrekBookingPage() {
                 const resumePeople = Math.min(maxPeople, Math.max(1, Number(draft.people) || people || 1));
                 if (draft.people) setPeople(resumePeople);
 
-                const { ok, data: v } = await verifyPaymentWithRetry(API, pending.orderId, { kind: 'trek' });
+                const verifyResult = await verifyPaymentWithRetry(API, pending.orderId, {
+                    kind: 'trek',
+                    search: location.search,
+                });
 
-                if (!ok || !v?.verified) {
+                if (verifyResult.status === 'cancelled') {
+                    clearCashfreeReturnAndPending(navigate, location);
                     clearPendingPayment();
-                    const unpaid = /pending|ACTIVE|not found|not successful/i.test(v.message || '');
+                    setStep(2);
+                    setPayDone(false);
+                    setPostPaymentError('');
+                    setError('Payment cancelled.');
+                    setPaying(false);
+                    return;
+                }
+
+                if (!verifyResult.ok || !verifyResult.verified) {
+                    const { kind, message } = classifyVerifyError(verifyResult);
+                    if (kind === 'cancelled' || kind === 'failed') clearPendingPayment();
                     setStep(2);
                     setPayDone(false);
                     setPostPaymentError('');
                     setError(
-                        unpaid
-                            ? 'Payment was not completed. Tap Pay to try again.'
-                            : (v.message || 'Payment verification failed after redirect. Contact support.'),
+                        kind === 'pending'
+                            ? 'Payment is still processing. Wait a moment and tap Pay again.'
+                            : (message || 'Payment verification failed after redirect. Contact support.'),
                     );
                     setPaying(false);
                     return;
                 }
 
+                const v = verifyResult.data;
                 paymentVerified = true;
                 setPostPaymentError('');
 

@@ -10,7 +10,9 @@ import {
   storePendingPayment,
   markPaymentReturnExpected,
   isTrekPaymentPending,
+  hasCashfreeReturnParams,
 } from './deepLinks';
+import { classifyVerifyResponse, clearCashfreeReturnAndPending } from './paymentNavigation';
 
 let cashfreeInstance = null;
 let cashfreeMode = null;
@@ -264,13 +266,16 @@ export function buildVerifiedPaymentFields(verifyData, orderId) {
  * After redirect checkout, verify fest/competition orders with backend.
  * Trek orders use /payment/trek-verify and are resumed on TrekBookingPage.
  */
-export async function verifyPendingCashfreePayment(apiBase, token) {
+export async function verifyPendingCashfreePayment(apiBase, token, { search = '' } = {}) {
   const pending = getPendingPayment();
   if (!pending?.orderId) return null;
 
   if (isTrekPaymentPending(pending)) {
     return null;
   }
+
+  const params = new URLSearchParams(search || (typeof window !== 'undefined' ? window.location.search : ''));
+  const paymentId = params.get('cf_payment_id') || params.get('payment_id') || null;
 
   const res = await fetch(`${apiBase}/payment/verify`, {
     method: 'POST',
@@ -279,14 +284,32 @@ export async function verifyPendingCashfreePayment(apiBase, token) {
       Accept: 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ orderId: pending.orderId }),
+    body: JSON.stringify({
+      payment_order_id: pending.orderId,
+      ...(paymentId ? { payment_id: paymentId } : {}),
+    }),
     credentials: 'include',
   });
 
-  if (!res.ok) return null;
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
+  const classified = classifyVerifyResponse(data, res.status);
+
+  if (classified.status === 'cancelled') {
+    clearCashfreeReturnAndPending();
+    return { cancelled: true, verifyData: data, meta: pending, classified };
+  }
+
+  if (!classified.verified) {
+    if (classified.status === 'pending') {
+      return { pending: true, verifyData: data, meta: pending, classified };
+    }
+    return null;
+  }
+
   clearPendingPayment();
-  return { verifyData: data, meta: pending };
+  return { verifyData: data, meta: pending, classified };
 }
+
+export { clearCashfreeReturnAndPending };
 
 export { isNativeCashfreeAvailable };

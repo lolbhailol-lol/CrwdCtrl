@@ -6,6 +6,7 @@ export function CompletingPaymentStep({
   isDark,
   paymentResumeError,
   paymentResumeOrderId,
+  paymentResumeWasPaid = false,
   submissionProgress,
   navigate,
   onReturnToForm,
@@ -16,7 +17,9 @@ export function CompletingPaymentStep({
       {paymentResumeError ? (
         <div className="text-center max-w-md mx-auto p-6">
           <p className={`text-sm mb-2 ${isDark ? 'text-red-300' : 'text-red-600'}`}>
-            Payment received, but registration could not be completed.
+            {paymentResumeWasPaid
+              ? 'Payment received, but registration could not be completed.'
+              : 'We couldn’t complete your registration.'}
           </p>
           <p className={`text-sm mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{paymentResumeError}</p>
           {paymentResumeOrderId ? (

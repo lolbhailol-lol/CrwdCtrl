@@ -430,11 +430,11 @@ function Booking() {
                 const eventShowId = item.draft?.eventShowId;
                 if (!eventShowId || !item.orderId) continue;
                 try {
-                    const { ok, data: v } = await verifyPaymentWithRetry(API_BASE_URL, item.orderId, {
+                    const verifyResult = await verifyPaymentWithRetry(API_BASE_URL, item.orderId, {
                         token: tokenToUse,
                         kind: 'fest',
                     });
-                    if (!ok || !v?.verified) continue;
+                    if (!verifyResult.ok || !verifyResult.verified) continue;
                     await completeEventPayAndRegister({
                         apiBase: API_BASE_URL,
                         token: tokenToUse,

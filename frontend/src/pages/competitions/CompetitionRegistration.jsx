@@ -13,6 +13,8 @@ import {
 import {
     goToBookings,
     verifyPaymentWithRetry,
+    classifyVerifyError,
+    clearCashfreeReturnAndPending,
 } from '../../utils/paymentNavigation';
 import {
     applyRegistrationDraft,
@@ -53,6 +55,17 @@ export default function CompetitionRegistration() {
     const handleSubmitRef = useRef(null);
     const retryCheckoutRef = useRef(null);
     const draftKey = competitionRegDraftKey(competitionId);
+
+    const restoreRegistrationDraft = () => {
+        const draft = loadRegistrationDraft(draftKey);
+        if (!draft) return;
+        applyRegistrationDraft(draft, {
+            setFormData,
+            setStepData,
+            setCurrentStep,
+            setCompletedSteps,
+        });
+    };
     const initialUi = getInitialCompetitionRegistrationUi(location.pathname, location.search);
     const {
         isAuthenticated,
@@ -355,15 +368,26 @@ export default function CompetitionRegistration() {
                     throw new Error('Please log in to complete your registration.');
                 }
 
-                const { ok, data: verifyData } = await verifyPaymentWithRetry(
+                const verifyResult = await verifyPaymentWithRetry(
                     API_BASE_URL,
                     pending.orderId,
-                    { token: submitToken },
+                    { token: submitToken, search: location.search },
                 );
-                if (!ok || !verifyData?.verified) {
-                    throw new Error(verifyData?.message || 'Payment could not be verified.');
+
+                if (verifyResult.status === 'cancelled') {
+                    restoreRegistrationDraft();
+                    clearCashfreeReturnAndPending(navigate, location);
+                    setCompletingPayment(false);
+                    setError('Payment cancelled.');
+                    return;
                 }
 
+                if (!verifyResult.ok || !verifyResult.verified) {
+                    const { message } = classifyVerifyError(verifyResult);
+                    throw new Error(message);
+                }
+
+                const verifyData = verifyResult.data;
                 const verifiedFields = buildVerifiedPaymentFields(verifyData, pending.orderId);
                 setPaymentFields(verifiedFields);
 
@@ -405,7 +429,7 @@ export default function CompetitionRegistration() {
                 if (regId) setRegistrationId(regId);
                 clearRegistrationDraft(draftKey);
                 clearPendingPayment();
-                clearCashfreeReturnParams();
+                clearCashfreeReturnAndPending(navigate, location);
                 setCompletingPayment(false);
                 setSuccess(true);
             } catch (err) {
@@ -1060,6 +1084,14 @@ export default function CompetitionRegistration() {
                     },
                     body: JSON.stringify({
                         competitionId: competition._id,
+                        registrationDraft: {
+                            formData: getAllFormData(),
+                            stepData,
+                            currentStep,
+                            festId: fest?._id || competition?.fest?._id,
+                            competitionId: competition._id,
+                            couponCode: appliedCouponCode || '',
+                        },
                     }),
                 });
 
@@ -1106,16 +1138,25 @@ export default function CompetitionRegistration() {
                 setCompletingPayment(true);
                 setSubmissionProgress('Verifying payment...');
 
-                const { ok, data: verifyData } = await verifyPaymentWithRetry(
+                const verifyResult = await verifyPaymentWithRetry(
                     API_BASE_URL,
                     orderData.orderId,
-                    { token: submitToken },
+                    { token: submitToken, search: location.search },
                 );
-                if (!ok || !verifyData?.verified) {
-                    throw new Error(verifyData?.message || 'Payment verification failed. Please contact support.');
+                if (verifyResult.status === 'cancelled') {
+                    restoreRegistrationDraft();
+                    clearCashfreeReturnAndPending(navigate, location);
+                    setCompletingPayment(false);
+                    setSubmitting(false);
+                    setSubmissionProgress('');
+                    return;
+                }
+                if (!verifyResult.ok || !verifyResult.verified) {
+                    const { message } = classifyVerifyError(verifyResult);
+                    throw new Error(message);
                 }
 
-                verifiedPaymentFields = buildVerifiedPaymentFields(verifyData, orderData.orderId);
+                verifiedPaymentFields = buildVerifiedPaymentFields(verifyResult.data, orderData.orderId);
                 setPaymentFields(verifiedPaymentFields);
                 console.log('✅ Cashfree payment verified, proceeding with registration');
             } else if (feeAmount === 0) {
@@ -1328,7 +1369,7 @@ export default function CompetitionRegistration() {
             if (paidResume) {
                 clearPendingPayment();
                 setPaymentResumeError('');
-                clearCashfreeReturnParams();
+                clearCashfreeReturnAndPending(navigate, location);
             }
 
             return { success: true, regId };

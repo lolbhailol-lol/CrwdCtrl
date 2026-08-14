@@ -120,6 +120,15 @@ exports.handleCashfreeWebhook = async (req, res) => {
             );
           });
         }
+        if (['fest', 'competition'].includes(updated?.entityType) && updated?.orderTags?.registrationDraft) {
+          const { fulfillFestCompetitionFromPaidOrder } = require('../services/festCompetitionPaymentFulfillment');
+          fulfillFestCompetitionFromPaidOrder(updated).catch((fulfillErr) => {
+            console.error(
+              '[paymentWebhook] Fest/competition fulfill failed:',
+              fulfillErr?.message || fulfillErr,
+            );
+          });
+        }
       } catch (dbErr) {
         console.error('[paymentWebhook] Failed to mark order PAID:', dbErr.message);
       }

@@ -3,7 +3,12 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { initCapacitorApp } from '../utils/capacitorApp';
 import { initNativePushNavigation, initNativePushForegroundRefresh } from '../utils/nativePush';
 import { initCashfreeNativeGateway } from '../utils/bootstrapCashfreeNative';
-import { getPendingPayment } from '../utils/deepLinks';
+import {
+  getPendingPayment,
+  shouldResumePendingPayment,
+  hasCashfreeReturnParams,
+  hasPaymentReturnExpected,
+} from '../utils/deepLinks';
 import { resolveBrowseBackPath } from '../utils/categoryHubRoutes';
 /**
  * Wires Capacitor back button, deep links, and payment return verification.
@@ -52,14 +57,18 @@ export default function CapacitorInit() {
     const pending = getPendingPayment();
     if (!pending?.orderId) return;
 
-    const returnPath = pending.returnPath || '/booking';
+    const currentPath = location.pathname + location.search;
+    const hasReturnSignal =
+      hasCashfreeReturnParams(location.search) || hasPaymentReturnExpected();
+    if (!hasReturnSignal) return;
+    if (!shouldResumePendingPayment(pending, currentPath, location.search)) return;
 
-    // Payment page resumes verify + register — only navigate back here
+    const returnPath = pending.returnPath || '/booking';
     const targetPath = returnPath.split('?')[0];
     if (location.pathname !== targetPath) {
       navigate(returnPath, { replace: true });
     }
-  }, [location.pathname, navigate]);
+  }, [location.pathname, location.search, navigate]);
 
   return null;
 }
