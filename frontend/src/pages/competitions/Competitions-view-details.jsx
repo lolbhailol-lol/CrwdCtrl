@@ -23,6 +23,7 @@ import { resolveCompetitionFee, buildRegistrationPrefetch, saveRegistrationPrefe
 import { fetchMyRegistrations } from '../../services/api/auth.api';
 import { trackBookNowClick } from '../../services/analyticsService';
 import PrizePoolPodium from '../../components/PrizePoolPodium';
+import DetailPageLoader from '../../components/DetailPageLoader';
 import { signalDetailPageReady } from '../../utils/bootSplash';
 import {
     loadCompetitionDetailCache,
@@ -264,7 +265,7 @@ const buildCompetitionData = (compData, options = {}) => {
     return {
         id: compData._id || compData.id,
         title: compData.name || compData.title || '',
-        subtitle: sanitizeRoundDescription(compData.subtitle || compData.description || ''),
+        subtitle: sanitizeRoundDescription(compData.subtitle || ''),
         date: compData.dateTime || compData.date || '',
         time: compData.time || '',
         venue: compData.venue && String(compData.venue).trim().toUpperCase() !== 'TBD'
@@ -330,6 +331,7 @@ function EventPage() {
     const [activeRound, setActiveRound] = useState(0);
     const [showRegistrationSuccess] = useState(false);
     const [showShareMenu, setShowShareMenu] = useState(false);
+    const [showFullAbout, setShowFullAbout] = useState(false);
     const [expandedRules, setExpandedRules] = useState({});
     const seededCompetition = (() => {
         const fromState = location.state?.competition;
@@ -345,7 +347,8 @@ function EventPage() {
     const [competitionData, setCompetitionData] = useState(seededCompetition);
     const [showLogin, setShowLogin] = useState(false);
     const [showRegister, setShowRegister] = useState(false);
-    const [fetchDone, setFetchDone] = useState(Boolean(seededCompetition));
+    // Always wait for public API so header + side columns paint together (avoids partial seed flash)
+    const [fetchDone, setFetchDone] = useState(false);
     const [error, setError] = useState(null);
     const { isDark } = useDarkMode();
     const { alert: showAlert, toast } = useDialog();
@@ -559,10 +562,14 @@ function EventPage() {
     }, [isAuthenticated, showLogin, showRegister]);
 
     useEffect(() => {
-        if (competitionData?.title || (fetchDone && error)) {
+        if (fetchDone && (competitionData?.title || error)) {
             signalDetailPageReady();
         }
     }, [competitionData?.title, fetchDone, error]);
+
+    if (!fetchDone) {
+        return <DetailPageLoader label="" />;
+    }
 
     if (fetchDone && error && !competitionData) {
         return (
@@ -612,11 +619,7 @@ function EventPage() {
     const eventData = competitionData;
 
     if (!eventData?.title) {
-        return null;
-    }
-
-    if (!fetchDone && !seededCompetition) {
-        return null;
+        return <DetailPageLoader label="" />;
     }
 
     // Get fest name from location state or URL params
@@ -1111,6 +1114,33 @@ function EventPage() {
     const competitionDescription =
         eventData.description || eventData.subtitle || `${eventData.title} — a competition on CrwdCtrl.`;
 
+    const aboutText = (
+        eventData?.description
+        || eventData?.rounds?.description
+        || ''
+    ).trim().replace(/\s+/g, ' ');
+
+    const renderAboutBlock = ({ headingClass, bodyClass, className = '' } = {}) => {
+        if (!aboutText) return null;
+        return (
+            <div className={className}>
+                <h2 className={headingClass}>About</h2>
+                <p className={`${bodyClass} ${showFullAbout ? '' : 'line-clamp-3'}`}>
+                    {aboutText}
+                </p>
+                {aboutText.length > 120 ? (
+                    <button
+                        type="button"
+                        onClick={() => setShowFullAbout((v) => !v)}
+                        className="mt-1 text-sm font-semibold text-[#0060DF]"
+                    >
+                        {showFullAbout ? 'read less' : 'read more'}
+                    </button>
+                ) : null}
+            </div>
+        );
+    };
+
     return (
         <div className={`crwdctrl-page flex flex-col min-h-screen pb-28 ${isDark ? 'bg-black' : 'bg-white'}`}>
             <Seo
@@ -1153,7 +1183,6 @@ function EventPage() {
                                         decoding="async"
                                     />
                                     ) : null}
-                                    />
                                     <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-black/30 pointer-events-none" />
                                     <div
                                         className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 z-10"
@@ -1192,10 +1221,15 @@ function EventPage() {
                                     {eventData.title}
                                 </h1>
                                 {eventData?.subtitle ? (
-                                    <p className={`text-sm font-semibold mb-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                    <p className={`text-sm font-semibold mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                                         {eventData.subtitle}
                                     </p>
                                 ) : null}
+                                {renderAboutBlock({
+                                    className: aboutText ? 'mb-3' : '',
+                                    headingClass: `text-base font-bold mb-1.5 ${isDark ? 'text-white' : 'text-gray-900'}`,
+                                    bodyClass: `text-sm leading-relaxed text-left ${isDark ? 'text-gray-400' : 'text-gray-600'}`,
+                                })}
                                 {eventData.feeKnown ? (
                                 <div className={`text-sm space-y-1 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                                     <p>
@@ -1246,6 +1280,9 @@ function EventPage() {
                                     <h2 className={`text-xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Competition Rounds</h2>
                                     {eventData?.rounds?.description && (() => {
                                         const desc = sanitizeRoundDescription(eventData.rounds.description);
+                                        const normalizedDesc = desc.trim().replace(/\s+/g, ' ');
+                                        // Already shown in About (short overview) — don't repeat
+                                        if (normalizedDesc && normalizedDesc === aboutText) return null;
 
                                         return (
                                             <div className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
@@ -1556,8 +1593,14 @@ function EventPage() {
 
                                     <h1 className={`text-3xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>{eventData.title}</h1>
                                     {eventData.subtitle ? (
-                                    <p className={`mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{eventData.subtitle}</p>
+                                    <p className={`mb-3 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{eventData.subtitle}</p>
                                     ) : null}
+
+                                    {renderAboutBlock({
+                                        className: aboutText ? 'mb-4' : '',
+                                        headingClass: `text-lg font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`,
+                                        bodyClass: `text-sm leading-relaxed text-left ${isDark ? 'text-gray-300' : 'text-gray-600'}`,
+                                    })}
 
                                     {(eventData.date || (eventData.venue && eventData.venue !== 'TBD')) && (
                                     <div className="space-y-2 mb-4">
@@ -1692,6 +1735,9 @@ function EventPage() {
                                     <h2 className={`text-2xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>{eventData?.title || 'Competition'} Rounds</h2>
                                     {eventData?.rounds?.description && (() => {
                                         const desc = sanitizeRoundDescription(eventData.rounds.description);
+                                        const normalizedDesc = desc.trim().replace(/\s+/g, ' ');
+                                        // Already shown in About (short overview) — don't repeat
+                                        if (normalizedDesc && normalizedDesc === aboutText) return null;
 
                                         return (
                                             <div className={`text-sm mb-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>

@@ -1,22 +1,35 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Outlet, useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
     LayoutDashboard, Users, QrCode, LogOut, PartyPopper, Bell, Menu, Home,
-    Trophy, IndianRupee, Info, ClipboardList, Mic2, Radio,
+    Trophy, IndianRupee, Info, ClipboardList, Mic2, Radio, Pencil,
 } from 'lucide-react';
 import { clearFestOrganizerSession, getFestOrganizerSession } from '../../utils/festOrganizerSession';
 
-const navForFest = (festId) => [
-    { label: 'Overview', path: `/fest-organizer/fests/${festId}`, icon: LayoutDashboard, end: true, short: 'Home', group: 'primary' },
-    { label: 'Live', path: `/fest-organizer/fests/${festId}/live`, icon: Radio, short: 'Live', group: 'primary' },
-    { label: 'Stall / Leads', path: `/fest-organizer/fests/${festId}/leads`, icon: ClipboardList, short: 'Leads', group: 'primary' },
-    { label: 'Competitions', path: `/fest-organizer/fests/${festId}/competitions`, icon: Trophy, short: 'Comps', group: 'primary' },
-    { label: 'Pro Show', path: `/fest-organizer/fests/${festId}/pro-show`, icon: Mic2, short: 'Pro', group: 'primary' },
-    { label: 'Participants', path: `/fest-organizer/fests/${festId}/participants`, icon: Users, short: 'Guests', group: 'more' },
-    { label: 'Check-in', path: `/fest-organizer/fests/${festId}/scan`, icon: QrCode, short: 'Scan', group: 'more' },
-    { label: 'Revenue', path: `/fest-organizer/fests/${festId}/revenue`, icon: IndianRupee, short: '₹', group: 'more' },
-    { label: 'Connect', path: `/fest-organizer/fests/${festId}/notifications`, icon: Bell, short: 'Msg', group: 'more' },
-    { label: 'Fest info', path: `/fest-organizer/fests/${festId}/info`, icon: Info, short: 'Info', group: 'more' },
+/** MindSpark — hide stall/leads kiosk tools for this fest only */
+const MINDSPARK_FEST_ID = '6a7f1010ed26d983b34e55c2';
+
+function isMindSparkFest(festId, festMeta) {
+    if (String(festId) === MINDSPARK_FEST_ID) return true;
+    const name = String(festMeta?.festName || festMeta?.name || '').toLowerCase();
+    const slug = String(festMeta?.slug || '').toLowerCase();
+    return name.includes('mindspark') || slug.includes('mindspark');
+}
+
+const navForFest = (festId, { hideStallLeads = false } = {}) => [
+    { label: 'Overview', path: `/fest-organizer/fests/${festId}`, icon: LayoutDashboard, end: true, short: 'Home', group: 'ops' },
+    { label: 'Edit fest & comps', path: `/fest-organizer/fests/${festId}/edit-listing`, icon: Pencil, short: 'Edit', group: 'edit' },
+    { label: 'Live', path: `/fest-organizer/fests/${festId}/live`, icon: Radio, short: 'Live', group: 'ops' },
+    ...(!hideStallLeads
+        ? [{ label: 'Stall / Leads', path: `/fest-organizer/fests/${festId}/leads`, icon: ClipboardList, short: 'Leads', group: 'ops' }]
+        : []),
+    { label: 'Competitions', path: `/fest-organizer/fests/${festId}/competitions`, icon: Trophy, short: 'Comps', group: 'ops' },
+    { label: 'Pro Show', path: `/fest-organizer/fests/${festId}/pro-show`, icon: Mic2, short: 'Pro', group: 'ops' },
+    { label: 'Participants', path: `/fest-organizer/fests/${festId}/participants`, icon: Users, short: 'Guests', group: 'ops' },
+    { label: 'Check-in', path: `/fest-organizer/fests/${festId}/scan`, icon: QrCode, short: 'Scan', group: 'ops' },
+    { label: 'Revenue', path: `/fest-organizer/fests/${festId}/revenue`, icon: IndianRupee, short: '₹', group: 'ops' },
+    { label: 'Connect', path: `/fest-organizer/fests/${festId}/notifications`, icon: Bell, short: 'Msg', group: 'ops' },
+    { label: 'Fest info', path: `/fest-organizer/fests/${festId}/info`, icon: Info, short: 'Info', group: 'ops' },
 ];
 
 function pathIsActive(pathname, to, end = false) {
@@ -45,6 +58,28 @@ function OrgNavButton({ to, end = false, className, onNavigate, children, ...res
     );
 }
 
+function NavItem({ item, onNavigate, accent = false }) {
+    return (
+        <OrgNavButton
+            to={item.path}
+            end={item.end}
+            onNavigate={onNavigate}
+            className={({ isActive }) =>
+                `w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition ${
+                    isActive
+                        ? 'bg-[#0ECCEE]/15 text-[#0ECCEE] font-medium'
+                        : accent
+                            ? 'text-[#0ECCEE]/90 hover:bg-[#0ECCEE]/10 hover:text-[#0ECCEE]'
+                            : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                }`
+            }
+        >
+            <item.icon size={16} className="shrink-0" />
+            <span className="truncate">{item.label}</span>
+        </OrgNavButton>
+    );
+}
+
 export default function FestOrganizerLayout() {
     const navigate = useNavigate();
     const location = useLocation();
@@ -60,71 +95,105 @@ export default function FestOrganizerLayout() {
         navigate('/fest-organizer/login', { replace: true });
     };
 
-    const nav = festId ? navForFest(festId) : [];
-    const mobileNav = nav.filter((n) => n.group === 'primary');
     const activeFest = festId
         ? session?.fests?.find((f) => String(f._id) === String(festId))
         : null;
+    const hideStallLeads = festId ? isMindSparkFest(festId, activeFest) : false;
+    const nav = festId ? navForFest(festId, { hideStallLeads }) : [];
+    const overviewItem = nav.find((n) => n.label === 'Overview');
+    const opsNav = nav.filter((n) => n.group === 'ops' && n.label !== 'Overview');
+    const editNav = nav.filter((n) => n.group === 'edit');
+    const mobileNav = [
+        ...(overviewItem ? [overviewItem] : []),
+        ...editNav.filter((n) => n.label === 'Edit fest & comps'),
+        ...opsNav.filter((n) => ['Live', 'Competitions', 'Pro Show'].includes(n.label)),
+    ].slice(0, 5);
+
+    useEffect(() => {
+        if (!hideStallLeads || !festId) return;
+        if (location.pathname.includes(`/fests/${festId}/leads`)) {
+            navigate(`/fest-organizer/fests/${festId}`, { replace: true });
+        }
+    }, [hideStallLeads, festId, location.pathname, navigate]);
 
     return (
         <div className="min-h-dvh bg-[#0c0d0e] text-white flex">
-            <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-[#121314]/95 backdrop-blur border-r border-white/10 transform transition-transform lg:translate-x-0 pt-[var(--safe-top)] ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-                <div className="px-5 py-5 border-b border-white/10">
+            <aside
+                className={`fixed inset-y-0 left-0 z-40 w-64 bg-[#121314] border-r border-white/10 transform transition-transform duration-200 ease-out lg:translate-x-0 pt-[var(--safe-top)] flex flex-col ${
+                    sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+                }`}
+            >
+                <div className="px-4 py-4 border-b border-white/10 shrink-0">
                     <div className="flex items-center gap-3">
-                        <div className="size-10 rounded-2xl bg-linear-to-br from-[#0ECCEE]/25 to-[#053780]/40 border border-[#0ECCEE]/20 flex items-center justify-center">
-                            <PartyPopper className="text-[#0ECCEE]" size={18} />
+                        <div className="size-9 rounded-xl bg-[#0ECCEE]/15 border border-[#0ECCEE]/25 flex items-center justify-center shrink-0">
+                            <PartyPopper className="text-[#0ECCEE]" size={16} />
                         </div>
                         <div className="min-w-0">
-                            <p className="font-semibold text-sm tracking-tight">Fest Organizer</p>
+                            <p className="font-semibold text-sm tracking-tight truncate">Fest Organizer</p>
                             <p className="text-[11px] text-gray-500 truncate">
                                 {session?.organizer?.displayName || session?.organizer?.name || 'Portal'}
                             </p>
                         </div>
                     </div>
                 </div>
-                <nav className="p-3 space-y-1 overflow-y-auto max-h-[calc(100dvh-9rem)] pb-24">
+
+                <nav className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-2.5 py-3 space-y-0.5">
                     <OrgNavButton
                         to="/fest-organizer"
                         end
                         onNavigate={() => setSidebarOpen(false)}
                         className={({ isActive }) =>
-                            `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition ${
+                            `w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition ${
                                 isActive ? 'bg-[#0ECCEE]/15 text-[#0ECCEE]' : 'text-gray-400 hover:bg-white/5 hover:text-white'
                             }`
                         }
                     >
-                        <Home size={16} />
+                        <Home size={16} className="shrink-0" />
                         All fests
                     </OrgNavButton>
 
                     {activeFest ? (
-                        <p className="px-3 pt-4 pb-1 text-[10px] uppercase tracking-wider text-gray-600 truncate">
+                        <p className="px-3 pt-3 pb-1 text-[10px] uppercase tracking-wider text-gray-600 truncate" title={activeFest.festName}>
                             {activeFest.festName}
                         </p>
                     ) : null}
 
-                    {nav.map((item) => (
-                        <OrgNavButton
-                            key={item.path}
-                            to={item.path}
-                            end={item.end}
-                            onNavigate={() => setSidebarOpen(false)}
-                            className={({ isActive }) =>
-                                `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition ${
-                                    isActive ? 'bg-[#0ECCEE]/15 text-[#0ECCEE]' : 'text-gray-400 hover:bg-white/5 hover:text-white'
-                                }`
-                            }
-                        >
-                            <item.icon size={16} />
-                            {item.label}
-                        </OrgNavButton>
+                    {overviewItem ? (
+                        <NavItem item={overviewItem} onNavigate={() => setSidebarOpen(false)} />
+                    ) : null}
+
+                    {editNav.length ? (
+                        <div className="mt-2 mb-1 rounded-xl border border-[#0ECCEE]/20 bg-[#0ECCEE]/5 p-1.5 space-y-0.5">
+                            <p className="px-2 pt-1 pb-0.5 text-[10px] uppercase tracking-wider text-[#0ECCEE]/80">
+                                Content edit
+                            </p>
+                            {editNav.map((item) => (
+                                <NavItem
+                                    key={item.path}
+                                    item={item}
+                                    accent
+                                    onNavigate={() => setSidebarOpen(false)}
+                                />
+                            ))}
+                        </div>
+                    ) : null}
+
+                    {opsNav.length ? (
+                        <p className="px-3 pt-3 pb-1 text-[10px] uppercase tracking-wider text-gray-600">
+                            Ops
+                        </p>
+                    ) : null}
+
+                    {opsNav.map((item) => (
+                        <NavItem key={item.path} item={item} onNavigate={() => setSidebarOpen(false)} />
                     ))}
                 </nav>
-                <div className="absolute bottom-0 inset-x-0 p-3 border-t border-white/10 bg-[#121314] pb-[max(0.75rem,var(--safe-bottom))]">
+
+                <div className="shrink-0 p-2.5 border-t border-white/10 pb-[max(0.75rem,var(--safe-bottom))]">
                     <button
                         type="button"
                         onClick={logout}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-400 hover:bg-white/5 hover:text-white"
+                        className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-gray-400 hover:bg-white/5 hover:text-white"
                     >
                         <LogOut size={16} />
                         Sign out

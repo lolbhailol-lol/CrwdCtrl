@@ -1,22 +1,31 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { ExternalLink, Info, Loader, RefreshCw, Calendar, MapPin, Building2 } from 'lucide-react';
-import { fetchFestOrganizerDashboard } from '../../services/api/festOrganizer.api';
+import { ExternalLink, Info, Loader, Pencil, RefreshCw } from 'lucide-react';
+import {
+    fetchFestOrganizerFestDetails,
+    buildFestOrganizerAdminApi,
+} from '../../services/api/festOrganizer.api';
+import FestFormModal from '../../components/admin/FestFormModal';
 
 export default function FestOrganizerInfoPage() {
     const { festId } = useParams();
     const [fest, setFest] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [showEdit, setShowEdit] = useState(false);
+
+    const adminApi = useMemo(() => buildFestOrganizerAdminApi(festId), [festId]);
 
     const load = async () => {
         setLoading(true);
         setError('');
         try {
-            const data = await fetchFestOrganizerDashboard(festId);
-            setFest(data.fest || null);
+            const data = await fetchFestOrganizerFestDetails(festId);
+            const f = data.fest || null;
+            setFest(f ? { ...f, _id: f._id || f.id || festId } : null);
         } catch (e) {
             setError(e.message || 'Failed to load fest info');
+            setFest(null);
         } finally {
             setLoading(false);
         }
@@ -45,7 +54,7 @@ export default function FestOrganizerInfoPage() {
 
     const publicUrl = fest.slug
         ? `${window.location.origin}/view-details/${fest.slug}`
-        : `${window.location.origin}/view-details/${fest.id}`;
+        : `${window.location.origin}/view-details/${fest._id || fest.id}`;
 
     const rows = [
         ['College', fest.collegeName],
@@ -57,10 +66,11 @@ export default function FestOrganizerInfoPage() {
         ['Status', fest.status],
         ['Ticket label', fest.ticketPrice],
         ['Fee amount', fest.feeAmount ? `₹${fest.feeAmount}` : ''],
-        ['Registration mode', fest.registrationMode],
-        ['Registration status', fest.registrationStatus],
+        ['Registration mode', fest.registration?.mode],
+        ['Artists', Array.isArray(fest.artists) ? fest.artists.length : ''],
+        ['Sponsors', Array.isArray(fest.sponsors) ? fest.sponsors.length : ''],
         ['Slug', fest.slug],
-    ].filter(([, v]) => v);
+    ].filter(([, v]) => v !== '' && v != null);
 
     return (
         <div className="max-w-2xl mx-auto space-y-5">
@@ -69,21 +79,34 @@ export default function FestOrganizerInfoPage() {
                     <h1 className="text-xl font-bold flex items-center gap-2">
                         <Info className="text-[#0ECCEE]" size={20} /> Fest info
                     </h1>
-                    <p className="text-sm text-gray-500 mt-1">Read-only details for this fest</p>
+                    <p className="text-sm text-gray-500 mt-1">
+                        Same edit wizard as main admin (Fest Details → Artists → Contacts → Sponsors → Registration)
+                    </p>
                 </div>
                 <button type="button" onClick={load} className="p-2 rounded-xl border border-white/10 text-gray-400">
                     <RefreshCw size={16} />
                 </button>
             </div>
 
+            <button
+                type="button"
+                onClick={() => setShowEdit(true)}
+                className="w-full rounded-2xl border border-[#0ECCEE]/40 bg-[#0ECCEE]/15 p-4 text-left hover:border-[#0ECCEE]/60 transition flex items-center gap-3"
+            >
+                <div className="size-11 rounded-xl bg-[#0ECCEE]/20 flex items-center justify-center shrink-0">
+                    <Pencil size={18} className="text-[#0ECCEE]" />
+                </div>
+                <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-white">Edit fest (admin form)</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                        Name, images, artists, contacts, sponsors, registration form — identical to Admin → Fests
+                    </p>
+                </div>
+            </button>
+
             <div className="rounded-2xl border border-white/10 bg-[#161718] p-5 space-y-3">
                 <h2 className="text-lg font-semibold text-white">{fest.festName}</h2>
                 {fest.subtitle ? <p className="text-sm text-gray-400">{fest.subtitle}</p> : null}
-                <div className="flex flex-wrap gap-3 text-xs text-gray-500">
-                    {fest.collegeName ? <span className="inline-flex items-center gap-1"><Building2 size={12} />{fest.collegeName}</span> : null}
-                    {fest.city ? <span className="inline-flex items-center gap-1"><MapPin size={12} />{fest.city}</span> : null}
-                    {fest.festDate ? <span className="inline-flex items-center gap-1"><Calendar size={12} />{fest.festDate}</span> : null}
-                </div>
                 <a href={publicUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm text-[#0ECCEE]">
                     <ExternalLink size={14} /> Open public page
                 </a>
@@ -93,7 +116,7 @@ export default function FestOrganizerInfoPage() {
                 {rows.map(([label, value]) => (
                     <div key={label} className="flex items-start justify-between gap-4 px-4 py-3">
                         <p className="text-xs text-gray-500 shrink-0">{label}</p>
-                        <p className="text-sm text-white text-right break-all">{value}</p>
+                        <p className="text-sm text-white text-right break-all">{String(value)}</p>
                     </div>
                 ))}
             </div>
@@ -108,9 +131,17 @@ export default function FestOrganizerInfoPage() {
                 </div>
             ) : null}
 
-            <p className="text-xs text-gray-600 text-center">
-                To edit fest content, ask CrwdCtrl admin (Admin → Fests).
-            </p>
+            {showEdit ? (
+                <FestFormModal
+                    fest={fest}
+                    api={adminApi}
+                    onClose={() => setShowEdit(false)}
+                    onSaved={() => {
+                        setShowEdit(false);
+                        load();
+                    }}
+                />
+            ) : null}
         </div>
     );
 }

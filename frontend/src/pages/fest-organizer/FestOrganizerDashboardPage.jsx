@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
     Users, UserCheck, Clock, IndianRupee, Loader, Bell, QrCode, ExternalLink, RefreshCw,
     Trophy, Calendar, MapPin, Building2, ArrowRight, AlertCircle, CheckCircle2, Mic2, Radio,
+    Pencil,
 } from 'lucide-react';
 import { fetchFestOrganizerDashboard } from '../../services/api/festOrganizer.api';
 import { getImageUrl } from '../../utils/imageImports';
@@ -217,13 +218,14 @@ export default function FestOrganizerDashboardPage() {
                 </button>
             </div>
 
-            {/* Quick ops */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {/* Quick ops + small edit shortcut */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                 {[
                     { label: 'Live feed', desc: 'Fest day updates', to: 'live', icon: Radio, glow: 'from-red-500/15' },
                     { label: 'Competitions', desc: `${stats.competitionCount || comps.length} live`, to: 'competitions', icon: Trophy, glow: 'from-[#0ECCEE]/15' },
                     { label: 'Pro Show', desc: 'Sold · passes · gate', to: 'pro-show', icon: Mic2, glow: 'from-fuchsia-500/10' },
                     { label: 'Connect', desc: 'WA · call · push', to: 'notifications', icon: Bell, glow: 'from-amber-500/10' },
+                    { label: 'Edit listing', desc: 'Fest & comps', to: 'edit-listing', icon: Pencil, glow: 'from-[#0ECCEE]/12' },
                 ].map((item) => (
                     <button
                         key={item.to}
@@ -277,77 +279,6 @@ export default function FestOrganizerDashboardPage() {
                     <CheckCircle2 size={16} /> All competitions clear — nothing pending review
                 </div>
             )}
-
-            {/* Competition health */}
-            <section className="rounded-2xl border border-white/10 bg-[#161718] p-4 space-y-4">
-                <div className="flex items-center justify-between gap-2">
-                    <div>
-                        <h2 className="text-sm font-semibold flex items-center gap-2 text-white">
-                            <Trophy className="text-[#0ECCEE]" size={15} /> Competition health
-                        </h2>
-                        <p className="text-[11px] text-gray-500 mt-0.5">
-                            Overall regs, review queue & check-ins per event
-                        </p>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={() => navigate(`/fest-organizer/fests/${festId}/competitions`)}
-                        className="text-xs font-medium text-[#0ECCEE] inline-flex items-center gap-1"
-                    >
-                        Open hub <ArrowRight size={12} />
-                    </button>
-                </div>
-
-                {comps.length ? (
-                    <div className="space-y-2.5">
-                        {comps.slice(0, 8).map((c) => {
-                            const approved = Number(c.approved) || 0;
-                            const pending = Number(c.pending) || 0;
-                            const inCount = Number(c.checkedIn) || 0;
-                            return (
-                                <button
-                                    key={String(c.id)}
-                                    type="button"
-                                    onClick={() => navigate(`/fest-organizer/fests/${festId}/competitions/${c.id}`)}
-                                    className="w-full rounded-xl border border-white/8 bg-[#121314] p-3 text-left hover:border-[#0ECCEE]/35 transition group"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className="relative w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-[#1a1b1d]">
-                                            <img
-                                                src={getImageUrl(c.coverImage, { preset: 'cardSm' })}
-                                                alt=""
-                                                className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                                                onError={(e) => handleImageErrorWithFallback(e, 56, 56, '#0ea5e9', c.name || 'C')}
-                                            />
-                                        </div>
-                                        <div className="min-w-0 flex-1 space-y-1.5">
-                                            <div className="flex items-start justify-between gap-2">
-                                                <p className="text-sm font-semibold text-white truncate">{c.name}</p>
-                                                <p className="text-xs tabular-nums text-emerald-300 shrink-0">
-                                                    ₹{Number(c.revenue || 0).toLocaleString('en-IN')}
-                                                </p>
-                                            </div>
-                                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-gray-500">
-                                                <span><span className="text-white font-medium tabular-nums">{approved}</span> in</span>
-                                                <span className={pending ? 'text-amber-400' : ''}>
-                                                    <span className="font-medium tabular-nums">{pending}</span> review
-                                                </span>
-                                                <span className="text-emerald-400/90">
-                                                    <span className="font-medium tabular-nums">{inCount}</span> checked in
-                                                </span>
-                                            </div>
-                                            <ProgressBar value={inCount} max={Math.max(approved, 1)} tone="emerald" />
-                                        </div>
-                                        <ArrowRight size={14} className="text-gray-600 group-hover:text-[#0ECCEE] shrink-0" />
-                                    </div>
-                                </button>
-                            );
-                        })}
-                    </div>
-                ) : (
-                    <p className="text-sm text-gray-500 py-8 text-center">No competitions yet</p>
-                )}
-            </section>
 
             {/* Recent */}
             <section className="rounded-2xl border border-white/10 bg-[#161718] p-4 space-y-3">

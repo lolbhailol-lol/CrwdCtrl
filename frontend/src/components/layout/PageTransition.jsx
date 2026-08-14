@@ -216,6 +216,7 @@ export function PageTransitionContent({ children }) {
     const navType = useNavigationType();
     const ref = useRef(null);
     const isFirst = useRef(true);
+    const skipMotion = shouldSkipPageTransition(location.pathname);
 
     useLayoutEffect(() => {
         if (contentVisible) return;
@@ -227,21 +228,27 @@ export function PageTransitionContent({ children }) {
     }, [contentVisible]);
 
     useLayoutEffect(() => {
+        const el = ref.current;
+        if (!el) return;
+
+        // Admin / organizer shells: no slide flash — keep content steady
+        if (skipMotion) {
+            el.classList.remove('page-transition-enter', 'page-transition-enter-back');
+            return;
+        }
+
         if (isFirst.current) {
             isFirst.current = false;
-            const el = ref.current;
-            if (el && isSharedContentDeepLink(location.pathname)) {
+            if (isSharedContentDeepLink(location.pathname)) {
                 el.classList.add('page-transition-enter');
             }
             return;
         }
         if (navType === 'REPLACE') return;
-        const el = ref.current;
-        if (!el) return;
         el.classList.remove('page-transition-enter', 'page-transition-enter-back');
         void el.offsetWidth;
         el.classList.add(navType === 'POP' ? 'page-transition-enter-back' : 'page-transition-enter');
-    }, [location.pathname, navType]);
+    }, [location.pathname, navType, skipMotion]);
 
     return (
         <div

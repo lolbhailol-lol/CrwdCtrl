@@ -37,7 +37,7 @@ export default function FestOrganizerCompetitionsPage() {
     const [rows, setRows] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [festName, setFestName] = useState('');
+    const [fest, setFest] = useState(null);
     const [stats, setStats] = useState(null);
     const [activeTab, setActiveTab] = useState('ALL');
     const [query, setQuery] = useState('');
@@ -47,7 +47,7 @@ export default function FestOrganizerCompetitionsPage() {
         setError('');
         try {
             const data = await fetchFestOrganizerDashboard(festId);
-            setFestName(data.fest?.festName || '');
+            setFest(data.fest ? { ...data.fest, _id: data.fest.id || data.fest._id || festId } : { _id: festId });
             setRows(data.competitions || []);
             setStats(data.stats || null);
         } catch (e) {
@@ -116,20 +116,31 @@ export default function FestOrganizerCompetitionsPage() {
                             <Trophy size={16} />
                             <span className="text-[11px] uppercase tracking-[0.12em] font-semibold">Competition hub</span>
                         </div>
-                        <h1 className="text-xl font-bold tracking-tight text-white">{festName || 'Competitions'}</h1>
+                        <h1 className="text-xl font-bold tracking-tight text-white">{fest?.festName || 'Competitions'}</h1>
                         <p className="text-sm text-gray-400 mt-1">
-                            {needsReview > 0 ? (
-                                <span className="text-amber-300 font-medium">{needsReview} waiting for review</span>
-                            ) : (
-                                <span className="text-emerald-300/90">All clear</span>
-                            )}
-                            {stats ? (
-                                <span className="text-gray-500">
-                                    {' · '}
-                                    {stats.totalRegistrations || 0} entries · {stats.checkedIn || 0} checked in
-                                </span>
-                            ) : null}
+                            Review entries, allot slots, open ops desk
                         </p>
+                        {needsReview > 0 ? (
+                            <p className="text-sm mt-1">
+                                <span className="text-amber-300 font-medium">{needsReview} waiting for review</span>
+                                {stats ? (
+                                    <span className="text-gray-500">
+                                        {' · '}
+                                        {stats.totalRegistrations || 0} entries · {stats.checkedIn || 0} checked in
+                                    </span>
+                                ) : null}
+                            </p>
+                        ) : (
+                            <p className="text-sm text-gray-500 mt-1">
+                                <span className="text-emerald-300/90">All clear</span>
+                                {stats ? (
+                                    <span>
+                                        {' · '}
+                                        {stats.totalRegistrations || 0} entries · {stats.checkedIn || 0} checked in
+                                    </span>
+                                ) : null}
+                            </p>
+                        )}
                     </div>
                     <button
                         type="button"
@@ -206,50 +217,63 @@ export default function FestOrganizerCompetitionsPage() {
                         : 'Open';
 
                     return (
-                        <button
+                        <div
                             key={id}
-                            type="button"
-                            onClick={() => navigate(`/fest-organizer/fests/${festId}/competitions/${id}`)}
-                            className="w-full text-left rounded-2xl bg-[#161718] border border-white/10 hover:border-[#0ECCEE]/45 p-3 transition active:scale-[0.99] group"
+                            className="w-full rounded-2xl bg-[#161718] border border-white/10 hover:border-[#0ECCEE]/45 p-3 transition group"
                         >
-                            <div className="flex gap-3">
-                                <div className="relative w-16 h-16 shrink-0 rounded-xl overflow-hidden bg-[#1a1b1d] ring-1 ring-white/10">
-                                    <img
-                                        src={getImageUrl(c.coverImage || c.image, { preset: 'cardSm' })}
-                                        alt=""
-                                        className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                                        onError={(e) => handleImageErrorWithFallback(e, 64, 64, '#0ea5e9', c.name || 'C')}
-                                    />
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                    <div className="flex items-start justify-between gap-2">
-                                        <div className="min-w-0">
-                                            <p className="text-[15px] font-semibold text-white truncate group-hover:text-[#0ECCEE] transition-colors">
-                                                {c.name}
-                                            </p>
-                                            <p className="text-xs text-gray-500 mt-0.5 truncate">
-                                                <span className={feeLabel(c.feeAmount) === 'Free' ? 'text-emerald-400' : 'text-[#0ECCEE]'}>
-                                                    {feeLabel(c.feeAmount)}
-                                                </span>
-                                                {c.category ? ` · ${formatCategoryLabel(c.category)}` : ''}
-                                            </p>
+                            <button
+                                type="button"
+                                onClick={() => navigate(`/fest-organizer/fests/${festId}/competitions/${id}`)}
+                                className="w-full text-left"
+                            >
+                                <div className="flex gap-3">
+                                    <div className="relative w-16 h-16 shrink-0 rounded-xl overflow-hidden bg-[#1a1b1d] ring-1 ring-white/10">
+                                        <img
+                                            src={getImageUrl(c.coverImage || c.image, { preset: 'cardSm' })}
+                                            alt=""
+                                            className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                                            onError={(e) => handleImageErrorWithFallback(e, 64, 64, '#0ea5e9', c.name || 'C')}
+                                        />
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="min-w-0">
+                                                <p className="text-[15px] font-semibold text-white truncate group-hover:text-[#0ECCEE] transition-colors">
+                                                    {c.name}
+                                                </p>
+                                                <p className="text-xs text-gray-500 mt-0.5 truncate">
+                                                    <span className={feeLabel(c.feeAmount) === 'Free' ? 'text-emerald-400' : 'text-[#0ECCEE]'}>
+                                                        {feeLabel(c.feeAmount)}
+                                                    </span>
+                                                    {c.category ? ` · ${formatCategoryLabel(c.category)}` : ''}
+                                                </p>
+                                            </div>
+                                            <ChevronRight size={18} className="shrink-0 text-gray-600 group-hover:text-[#0ECCEE] mt-0.5" />
                                         </div>
-                                        <ChevronRight size={18} className="shrink-0 text-gray-600 group-hover:text-[#0ECCEE] mt-0.5" />
                                     </div>
                                 </div>
-                            </div>
 
-                            <div className="grid grid-cols-4 gap-1.5 mt-3">
-                                <MiniBox label="Entries" value={total} tone="accent" />
-                                <MiniBox label="Review" value={pending} tone={pending > 0 ? 'warn' : 'default'} />
-                                <MiniBox label="Check-in" value={checkedIn} tone="ok" />
-                                <MiniBox
-                                    label="Slots"
-                                    value={slotsLabel}
-                                    tone={slotsAllotted > 0 && slotsLeft === 0 ? 'warn' : 'default'}
-                                />
+                                <div className="grid grid-cols-4 gap-1.5 mt-3">
+                                    <MiniBox label="Entries" value={total} tone="accent" />
+                                    <MiniBox label="Review" value={pending} tone={pending > 0 ? 'warn' : 'default'} />
+                                    <MiniBox label="Check-in" value={checkedIn} tone="ok" />
+                                    <MiniBox
+                                        label="Slots"
+                                        value={slotsLabel}
+                                        tone={slotsAllotted > 0 && slotsLeft === 0 ? 'warn' : 'default'}
+                                    />
+                                </div>
+                            </button>
+                            <div className="mt-3 pt-3 border-t border-white/8">
+                                <button
+                                    type="button"
+                                    onClick={() => navigate(`/fest-organizer/fests/${festId}/competitions/${id}`)}
+                                    className="w-full inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl border border-white/10 text-xs font-medium text-gray-300"
+                                >
+                                    Ops desk <ChevronRight size={14} />
+                                </button>
                             </div>
-                        </button>
+                        </div>
                     );
                 })}
             </div>

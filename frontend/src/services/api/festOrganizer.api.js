@@ -247,6 +247,95 @@ export async function fetchFestOrganizerCompetitionOps(festId, competitionId) {
     return festOrganizerFetch(`/fest-organizer/fests/${festId}/competitions/${competitionId}/ops`);
 }
 
+export async function fetchFestOrganizerCompetitions(festId) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/competitions`);
+}
+
+export async function createFestOrganizerCompetition(festId, body) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/competitions`, {
+        method: 'POST',
+        body,
+    });
+}
+
+export async function deleteFestOrganizerCompetition(festId, competitionId) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/competitions/${competitionId}`, {
+        method: 'DELETE',
+    });
+}
+
+export async function fetchFestOrganizerCompetitionDetails(festId, competitionId) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/competitions/${competitionId}/details`);
+}
+
+export async function updateFestOrganizerCompetitionDetails(festId, competitionId, body) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/competitions/${competitionId}`, {
+        method: 'PUT',
+        body,
+    });
+}
+
+export async function fetchFestOrganizerFestDetails(festId) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/details`);
+}
+
+export async function updateFestOrganizerFestDetails(festId, body) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/details`, {
+        method: 'PATCH',
+        body,
+    });
+}
+
+export async function uploadFestOrganizerImage(formData) {
+    return festOrganizerFetch('/fest-organizer/upload/image', {
+        method: 'POST',
+        body: formData,
+        timeout: 60000,
+    });
+}
+
+export async function uploadFestOrganizerImages(formData) {
+    return festOrganizerFetch('/fest-organizer/upload/images', {
+        method: 'POST',
+        body: formData,
+        timeout: 90000,
+    });
+}
+
+/** Adapter for admin Competition_Modal / FestFormModal reused in organizer portal */
+export function buildFestOrganizerAdminApi(festId) {
+    return {
+        listCompetitions: async () => fetchFestOrganizerCompetitions(festId),
+        saveCompetition: async ({ competitionId, payload }) => {
+            if (competitionId) {
+                return updateFestOrganizerCompetitionDetails(festId, competitionId, payload);
+            }
+            return createFestOrganizerCompetition(festId, payload);
+        },
+        deleteCompetition: async (competitionId) => deleteFestOrganizerCompetition(festId, competitionId),
+        uploadImage: async (formData) => {
+            const res = await festOrganizerFetch('/fest-organizer/upload/image', {
+                method: 'POST',
+                body: formData,
+                timeout: 60000,
+                rawResponse: true,
+            });
+            return res;
+        },
+        uploadImages: async (formData) => {
+            const res = await festOrganizerFetch('/fest-organizer/upload/images', {
+                method: 'POST',
+                body: formData,
+                timeout: 90000,
+                rawResponse: true,
+            });
+            return res;
+        },
+        saveFest: async ({ payload }) => updateFestOrganizerFestDetails(festId, payload),
+        clearCache: async () => {},
+    };
+}
+
 export async function updateFestOrganizerCompetitionSlots(festId, competitionId, slotsAllotted) {
     return festOrganizerFetch(`/fest-organizer/fests/${festId}/competitions/${competitionId}/slots`, {
         method: 'PATCH',

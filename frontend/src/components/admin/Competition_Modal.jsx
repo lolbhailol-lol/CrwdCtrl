@@ -223,23 +223,39 @@ const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onA
   );
 };
 
-export default function CompetitionModal({ fest, onClose, onSaved }) {
+export default function CompetitionModal({
+  fest,
+  onClose,
+  onSaved,
+  api,
+  initialCompetitionId,
+  initialCompetition,
+  startInCreate,
+}) {
   const [competitions, setCompetitions] = useState([]);
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(
+    Boolean(startInCreate) || Boolean(initialCompetition),
+  );
   const [showQrPrint, setShowQrPrint] = useState(false);
-  const [selectedCompetition, setSelectedCompetition] = useState(null);
+  const [selectedCompetition, setSelectedCompetition] = useState(initialCompetition || null);
   const [error, setError] = useState('');
+  const [openedInitial, setOpenedInitial] = useState(Boolean(initialCompetition) || Boolean(startInCreate));
   const { confirm, alert: showAlert } = useDialog();
 
   const fetchCompetitions = useCallback(async () => {
     try {
+      if (api?.listCompetitions) {
+        const data = await api.listCompetitions(fest._id);
+        setCompetitions(data.competitions || []);
+        return;
+      }
       const data = await adminFetchJSON(`/admin/fests/${fest._id}/competitions`);
       setCompetitions(data.competitions || []);
     } catch (err) {
       console.error('Error fetching competitions:', err);
       setError(err.message || 'Failed to fetch competitions');
     }
-  }, [fest._id]);
+  }, [fest._id, api]);
 
   useEffect(() => {
     if (fest?._id) {
@@ -247,11 +263,27 @@ export default function CompetitionModal({ fest, onClose, onSaved }) {
     }
   }, [fest, fetchCompetitions]);
 
+  useEffect(() => {
+    if (openedInitial || !initialCompetitionId || !competitions.length) return;
+    const match = competitions.find(
+      (c) => String(c._id || c.id) === String(initialCompetitionId),
+    );
+    if (match) {
+      setSelectedCompetition(match);
+      setShowForm(true);
+      setOpenedInitial(true);
+    }
+  }, [competitions, initialCompetitionId, openedInitial]);
+
   const deleteCompetition = async (id) => {
     if (!(await confirm({ title: 'Delete competition?', message: 'Are you sure you want to delete this competition?', confirmText: 'Delete', tone: 'danger' }))) return;
 
     try {
-      await adminFetchJSON(`/admin/competitions/${id}`, { method: 'DELETE' });
+      if (api?.deleteCompetition) {
+        await api.deleteCompetition(id);
+      } else {
+        await adminFetchJSON(`/admin/competitions/${id}`, { method: 'DELETE' });
+      }
       fetchCompetitions();
     } catch (err) {
       console.error('Error deleting competition:', err);
@@ -264,6 +296,7 @@ export default function CompetitionModal({ fest, onClose, onSaved }) {
       <CompetitionForm
         fest={fest}
         competition={selectedCompetition}
+        api={api}
         onClose={() => {
           setShowForm(false);
           setSelectedCompetition(null);
@@ -282,7 +315,7 @@ export default function CompetitionModal({ fest, onClose, onSaved }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[200] p-4">
       <div className="bg-[#111213] rounded-xl w-full max-w-5xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="sticky top-0 bg-[#111213] border-b border-gray-800 p-6 flex items-center justify-between">
@@ -347,13 +380,18 @@ export default function CompetitionModal({ fest, onClose, onSaved }) {
                         <span>Type: <span className="text-white capitalize">{comp.competitionType}</span></span>
                         <span>Venue: <span className="text-white">{comp.venue}</span></span>
                         {(() => {
-                          const breakdown = buildPriceBreakdown(comp.feeAmount || comp.registrationFee);
+                          const feeNum = Number(comp.feeAmount) || 0;
+                          const feeLabel = feeNum > 0
+                            ? `₹${feeNum.toLocaleString('en-IN')}`
+                            : (comp.registrationFee || 'Free');
                           return (
                             <span>
-                              Fee: <span className="text-white">₹{breakdown.ticketPrice}</span>
-                              {breakdown.ticketPrice > 0 && (
-                                <span className="text-gray-500"> · Payable ₹{breakdown.totalAmount}</span>
-                              )}
+                              Fee: <span className="text-white">{feeLabel}</span>
+                              {!api && feeNum > 0 ? (
+                                <span className="text-gray-500">
+                                  {' '}· Payable ₹{buildPriceBreakdown(comp.feeAmount || comp.registrationFee).totalAmount}
+                                </span>
+                              ) : null}
                             </span>
                           );
                         })()}
@@ -411,7 +449,7 @@ export default function CompetitionModal({ fest, onClose, onSaved }) {
 }
 
 // Competition Form Component with Multi-Step Wizard
-function CompetitionForm({ fest, competition, onClose, onSaved }) {
+function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
   const [currentStep, setCurrentStep] = useState(1);
   const [form, setForm] = useState({
     name: '',
@@ -601,7 +639,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
   // Error boundary fallback
   if (hasError) {
     return (
-      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[200] p-4">
         <div className="bg-[#111213] rounded-xl p-6 max-w-md">
           <h3 className="text-xl font-bold text-red-400 mb-4">Error Loading Competition</h3>
           <p className="text-gray-300 mb-4">There was an error loading the competition form. Please try again.</p>
@@ -638,11 +676,13 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
       });
       formData.append('folder', 'crwdctrl/competitions');
 
-      const response = await adminFetch('/admin/upload/images', {
-        method: 'POST',
-        body: formData,
-        credentials: 'include',
-      });
+      const response = api?.uploadImages
+        ? await api.uploadImages(formData)
+        : await adminFetch('/admin/upload/images', {
+            method: 'POST',
+            body: formData,
+            credentials: 'include',
+          });
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -1325,11 +1365,17 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
         ? `/admin/competitions/${competition._id}`
         : `/admin/fests/${fest._id}/competitions`;
 
-      const result = await adminFetchJSON(path, {
-        method: competition ? 'PUT' : 'POST',
-        body: JSON.stringify(payload),
-        credentials: 'include',
-      });
+      const result = api?.saveCompetition
+        ? await api.saveCompetition({
+            festId: fest._id,
+            competitionId: competition?._id || competition?.id || null,
+            payload,
+          })
+        : await adminFetchJSON(path, {
+            method: competition ? 'PUT' : 'POST',
+            body: JSON.stringify(payload),
+            credentials: 'include',
+          });
       console.log('Frontend - Success response:', result);
 
       // ✅ CRITICAL: Clear caches to update website immediately
@@ -1371,10 +1417,14 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
 
       // 5. Clear server-side cache so production website updates instantly
       try {
-        await adminFetch('/admin/clear-cache', {
-          method: 'POST',
-          credentials: 'include',
-        });
+        if (api?.clearCache) {
+          await api.clearCache();
+        } else {
+          await adminFetch('/admin/clear-cache', {
+            method: 'POST',
+            credentials: 'include',
+          });
+        }
         console.log('✅ Server cache cleared');
       } catch (cacheErr) {
         console.warn('⚠️ Could not clear server cache:', cacheErr);
@@ -1397,7 +1447,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
   ];
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[200] p-4">
       <div className="bg-[#111213] rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="sticky top-0 bg-[#111213] border-b border-gray-800 p-6 flex items-center justify-between z-10">
@@ -1584,14 +1634,20 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                   />
                 </div>
 
-                {/* Entry fee amount and automatic platform fee preview */}
+                {/* Entry fee amount */}
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
                     Online Fee Amount (₹) <span className="text-gray-500 font-normal">— for online payment</span>
                   </label>
-                  <p className="text-xs text-gray-500 mb-2">
-                    Enter the base entry fee. The platform fee is added automatically at payment.
-                  </p>
+                  {!api ? (
+                    <p className="text-xs text-gray-500 mb-2">
+                      Enter the base entry fee. The platform fee is added automatically at payment.
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-500 mb-2">
+                      Enter the competition entry fee participants see (e.g. 299).
+                    </p>
+                  )}
                   <input
                     type="number"
                     min="0"
@@ -1601,7 +1657,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                     value={form.feeAmount || 0}
                     onChange={(e) => updateNumericEntryFee(e.target.value)}
                   />
-                  {priceBreakdown.ticketPrice > 0 ? (
+                  {!api && priceBreakdown.ticketPrice > 0 ? (
                     <div className="mt-2 rounded-lg border border-[#0ECCEE]/30 bg-[#0ECCEE]/10 p-3 text-xs text-gray-300">
                       <div className="flex justify-between gap-4">
                         <span>Ticket Price</span>

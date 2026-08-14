@@ -690,7 +690,7 @@ const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onA
   );
 };
 
-export default function FestFormModal({ fest, onClose, onSaved }) {
+export default function FestFormModal({ fest, onClose, onSaved, api }) {
   // STEP STATE: simple multi-step wizard instead of one very long form
   const [step, setStep] = useState(1);
 
@@ -1285,10 +1285,12 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
       formData.append('image', file);
       formData.append('folder', 'crwdctrl/fests');
 
-      const response = await adminFetch('/admin/upload/image', {
-        method: 'POST',
-        body: formData,
-      });
+      const response = api?.uploadImage
+        ? await api.uploadImage(formData)
+        : await adminFetch('/admin/upload/image', {
+            method: 'POST',
+            body: formData,
+          });
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -1329,10 +1331,12 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
       });
       formData.append('folder', 'crwdctrl/fests');
 
-      const response = await adminFetch('/admin/upload/images', {
-        method: 'POST',
-        body: formData,
-      });
+      const response = api?.uploadImages
+        ? await api.uploadImages(formData)
+        : await adminFetch('/admin/upload/images', {
+            method: 'POST',
+            body: formData,
+          });
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -1360,11 +1364,13 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
   setLoading(true);
 
   try {
-    const adminToken = await getAdminToken({ redirectOnFail: false });
-    if (!adminToken) {
-      setError('Admin session expired. Please log in again.');
-      setLoading(false);
-      return;
+    if (!api?.saveFest) {
+      const adminToken = await getAdminToken({ redirectOnFail: false });
+      if (!adminToken) {
+        setError('Admin session expired. Please log in again.');
+        setLoading(false);
+        return;
+      }
     }
 
     console.log('📋 Submitting fest form with data:', form);
@@ -1482,46 +1488,13 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
     console.log('🌐 Making API call to:', path);
     console.log('📤 Method:', fest ? 'PUT' : 'POST');
     console.log('📦 Payload:', payload);
-    console.log('🔍 DEBUG - Registration data in payload:');
-    console.log('  - registration.formType:', payload.registration.formType);
-    console.log('  - registration.formSchema:', payload.registration.formSchema);
-    console.log('  - registration.steps:', payload.registration.steps);
-    console.log('  - form.formType:', form.formType);
-    console.log('  - form.formSchema:', form.formSchema);
-    console.log('  - form.steps:', form.steps);
-    console.log('🔍 DEBUG - Multi-step form validation:');
-    if (form.formType === 'MULTI_STEP') {
-      console.log('  - Is multi-step form: YES');
-      console.log('  - Steps count:', form.steps?.length || 0);
-      console.log('  - Steps data:', form.steps);
-      if (form.steps?.length > 0) {
-        form.steps.forEach((step, index) => {
-          console.log(`    Step ${index + 1}:`, {
-            stepNumber: step.stepNumber,
-            stepTitle: step.stepTitle,
-            fieldsCount: step.fields?.length || 0,
-            fields: step.fields?.map(f => ({ label: f.label, type: f.type, fieldName: f.fieldName }))
-          });
-        });
-      }
-    } else {
-      console.log('  - Is multi-step form: NO (formType:', form.formType, ')');
-    }
-    console.log('🔍 DEBUG - Key fields in payload:');
-    console.log('  - artistsHeading:', payload.artistsHeading, '(type:', typeof payload.artistsHeading, ')');
-    console.log('  - competitionsHeading:', payload.competitionsHeading, '(type:', typeof payload.competitionsHeading, ')');
-    console.log('  - contacts:', payload.contacts, '(type:', typeof payload.contacts, ', length:', payload.contacts?.length, ')');
-    console.log('  - registration.mode:', payload.registration.mode, '(type:', typeof payload.registration.mode, ')');
-    console.log('  - form.artistsHeading:', form.artistsHeading, '(type:', typeof form.artistsHeading, ')');
-    console.log('  - form.competitionsHeading:', form.competitionsHeading, '(type:', typeof form.competitionsHeading, ')');
-    console.log('  - form.contacts:', form.contacts, '(type:', typeof form.contacts, ', length:', form.contacts?.length, ')');
-    console.log('  - form.registrationMode:', form.registrationMode, '(type:', typeof form.registrationMode, ')');
-    console.log('🔑 Admin token:', adminToken ? `Present (${adminToken.substring(0, 20)}...)` : 'Missing');
 
-    const result = await adminFetchJSON(path, {
-      method: fest ? 'PUT' : 'POST',
-      body: JSON.stringify(payload),
-    });
+    const result = api?.saveFest
+      ? await api.saveFest({ festId: fest?._id, payload })
+      : await adminFetchJSON(path, {
+          method: fest ? 'PUT' : 'POST',
+          body: JSON.stringify(payload),
+        });
     console.log('✅ Success result:', result);
 
     // ✅ CRITICAL: Add cache busting to ensure changes are visible immediately
@@ -1559,10 +1532,14 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
 
     // 5. Clear server-side cache so production website updates instantly
     try {
-      await adminFetch('/admin/clear-cache', {
-        method: 'POST',
-        credentials: 'include',
-      });
+      if (api?.clearCache) {
+        await api.clearCache();
+      } else {
+        await adminFetch('/admin/clear-cache', {
+          method: 'POST',
+          credentials: 'include',
+        });
+      }
       console.log('✅ Server cache cleared');
     } catch (cacheErr) {
       console.warn('⚠️ Could not clear server cache:', cacheErr);
@@ -1583,7 +1560,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
 };
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[200] p-4">
       <div className="bg-[#111213] rounded-xl w-full max-w-5xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="sticky top-0 bg-[#111213] border-b border-gray-800 p-6 flex items-center justify-between z-10">
@@ -2153,6 +2130,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                       />
                       <p className="text-xs text-gray-400">Registration confirmation emails will be sent to this email</p>
                     </div>
+                    {!api ? (
                     <div className="space-y-2">
                       <label className="block text-sm font-medium mb-2">
                         Platform fee % <span className="text-gray-400 font-normal text-xs">— 0 = no CrwdCtrl fee</span>
@@ -2168,6 +2146,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                       />
                       <p className="text-xs text-gray-400">Set 0 so participants pay only the competition fee via Cashfree.</p>
                     </div>
+                    ) : null}
                   </div>
                 </div>
 

@@ -119,11 +119,13 @@ export const FestOrganizerScanPage = lazyWithRetry(() => import('../../pages/fes
 export const FestOrganizerNotificationsPage = lazyWithRetry(() => import('../../pages/fest-organizer/FestOrganizerNotificationsPage'));
 export const FestOrganizerCompetitionsPage = lazyWithRetry(() => import('../../pages/fest-organizer/FestOrganizerCompetitionsPage'));
 export const FestOrganizerCompetitionWorkspacePage = lazyWithRetry(() => import('../../pages/fest-organizer/FestOrganizerCompetitionWorkspacePage'));
+export const FestOrganizerCompetitionDetailsPage = lazyWithRetry(() => import('../../pages/fest-organizer/FestOrganizerCompetitionDetailsPage'));
 export const FestOrganizerProbablesPage = lazyWithRetry(() => import('../../pages/fest-organizer/FestOrganizerProbablesPage'));
 export const FestOrganizerRevenuePage = lazyWithRetry(() => import('../../pages/fest-organizer/FestOrganizerRevenuePage'));
 export const FestOrganizerProShowPage = lazyWithRetry(() => import('../../pages/fest-organizer/FestOrganizerProShowPage'));
 export const FestOrganizerLiveUpdatesPage = lazyWithRetry(() => import('../../pages/fest-organizer/FestOrganizerLiveUpdatesPage'));
 export const FestOrganizerInfoPage = lazyWithRetry(() => import('../../pages/fest-organizer/FestOrganizerInfoPage'));
+export const FestOrganizerListingEditPage = lazyWithRetry(() => import('../../pages/fest-organizer/FestOrganizerListingEditPage'));
 export const FestStallInterestPage = lazyWithRetry(() => import('../../pages/stall/FestStallInterestPage'));
 export const FestOrganizerLeadsPage = lazyWithRetry(() => import('../../pages/fest-organizer/FestOrganizerLeadsPage'));
 

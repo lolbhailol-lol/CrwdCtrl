@@ -1399,6 +1399,442 @@ exports.updateCompetitionSlots = async (req, res) => {
     }
 };
 
+const { parseTicketPrice } = require('../utils/platformFee');
+
+function getCompetitionBaseFee(registrationFee, feeAmount) {
+    const numericFeeAmount = parseTicketPrice(feeAmount);
+    return numericFeeAmount || parseTicketPrice(registrationFee);
+}
+
+function sanitizeRulesList(value) {
+    if (Array.isArray(value)) {
+        return value.map((r) => String(r || '').trim()).filter(Boolean);
+    }
+    if (typeof value === 'string') {
+        return value
+            .split(/\n+/)
+            .map((r) => r.replace(/^[-•*\d.)\s]+/, '').trim())
+            .filter(Boolean);
+    }
+    return [];
+}
+
+function sanitizeRounds(value) {
+    if (!Array.isArray(value)) return [];
+    return value
+        .map((round, index) => ({
+            roundNumber: Number(round?.roundNumber) || index + 1,
+            title: String(round?.title || '').trim() || `Round ${index + 1}`,
+            description: String(round?.description || '').trim(),
+            rules: sanitizeRulesList(round?.rules),
+            roundRulesMessage: String(round?.roundRulesMessage || '').trim(),
+            dateTime: String(round?.dateTime || '').trim(),
+            venue: String(round?.venue || '').trim(),
+            offline: round?.offline && typeof round.offline === 'object'
+                ? { rules: sanitizeRulesList(round.offline.rules) }
+                : undefined,
+            online: round?.online && typeof round.online === 'object'
+                ? { rules: sanitizeRulesList(round.online.rules) }
+                : undefined,
+        }))
+        .filter((r) => r.title || r.description || (r.rules && r.rules.length));
+}
+
+function serializeCompetitionDetails(competition) {
+    return {
+        _id: competition._id,
+        id: competition._id,
+        name: competition.name || '',
+        subtitle: competition.subtitle || '',
+        description: competition.description || '',
+        competitionType: competition.competitionType || '',
+        category: competition.category || '',
+        prizePool: competition.prizePool || '',
+        registrationFee: competition.registrationFee || '',
+        feeAmount: Number(competition.feeAmount) || 0,
+        registrationLink: competition.registrationLink || '',
+        registrationType: competition.registrationType || 'fest',
+        registration: competition.registration || { status: 'not_started' },
+        legacyRegistration: competition.legacyRegistration || { status: 'NOT_STARTED' },
+        dateTime: competition.dateTime || '',
+        venue: competition.venue || '',
+        coverImage: competition.coverImage || '',
+        gallery: Array.isArray(competition.gallery) ? competition.gallery : [],
+        commonRules: Array.isArray(competition.commonRules) ? competition.commonRules : [],
+        commonRulesMessage: competition.commonRulesMessage || '',
+        rounds: Array.isArray(competition.rounds) ? competition.rounds : [],
+        contact: {
+            name: competition.contact?.name || '',
+            phone: competition.contact?.phone || '',
+            email: competition.contact?.email || '',
+            instagram: competition.contact?.instagram || '',
+        },
+        slotsAllotted: Math.max(0, Number(competition.slotsAllotted) || 0),
+    };
+}
+
+function applyCompetitionPayload(competition, body = {}) {
+    if (body.name !== undefined) {
+        const name = String(body.name || '').trim();
+        if (!name) {
+            const err = new Error('Competition name is required');
+            err.status = 400;
+            throw err;
+        }
+        competition.name = name;
+    }
+    if (body.subtitle !== undefined) competition.subtitle = String(body.subtitle || '').trim();
+    if (body.description !== undefined) competition.description = String(body.description || '').trim();
+    if (body.competitionType !== undefined) {
+        competition.competitionType = String(body.competitionType || '').trim() || 'other';
+    }
+    if (body.category !== undefined) competition.category = String(body.category || '').trim() || 'OTHER';
+    if (body.prizePool !== undefined) competition.prizePool = String(body.prizePool || '').trim();
+    if (body.registrationFee !== undefined) {
+        competition.registrationFee = String(body.registrationFee || '').trim();
+    }
+    if (body.feeAmount !== undefined || body.registrationFee !== undefined) {
+        competition.feeAmount = getCompetitionBaseFee(
+            body.registrationFee !== undefined ? body.registrationFee : competition.registrationFee,
+            body.feeAmount !== undefined ? body.feeAmount : competition.feeAmount,
+        );
+    }
+    if (body.registrationLink !== undefined) {
+        competition.registrationLink = String(body.registrationLink || '').trim();
+    }
+    if (body.registrationType !== undefined) {
+        competition.registrationType = String(body.registrationType || 'fest').trim() || 'fest';
+    }
+    if (body.dateTime !== undefined) competition.dateTime = String(body.dateTime || '').trim();
+    if (body.venue !== undefined) competition.venue = String(body.venue || '').trim();
+    if (body.coverImage !== undefined) competition.coverImage = String(body.coverImage || '').trim();
+    if (body.gallery !== undefined) {
+        competition.gallery = Array.isArray(body.gallery)
+            ? body.gallery.map((u) => String(u || '').trim()).filter(Boolean)
+            : [];
+    }
+    if (body.commonRules !== undefined) {
+        competition.commonRules = sanitizeRulesList(body.commonRules);
+        competition.markModified('commonRules');
+    }
+    if (body.commonRulesMessage !== undefined) {
+        competition.commonRulesMessage = String(body.commonRulesMessage || '').trim();
+    }
+    if (body.rounds !== undefined) {
+        competition.rounds = sanitizeRounds(body.rounds);
+        competition.markModified('rounds');
+    }
+    if (body.contact !== undefined && body.contact && typeof body.contact === 'object') {
+        competition.contact = {
+            name: String(body.contact.name || '').trim(),
+            phone: String(body.contact.phone || '').trim(),
+            email: String(body.contact.email || '').trim(),
+            instagram: String(body.contact.instagram || '').trim(),
+        };
+        competition.markModified('contact');
+    }
+    if (body.registration !== undefined && body.registration && typeof body.registration === 'object') {
+        const existingRegistration = competition.registration || {};
+        let registrationStatus = body.registration.status || existingRegistration.status;
+        if (registrationStatus === 'STARTED') registrationStatus = 'internal_form';
+        else if (registrationStatus === 'CLOSED') registrationStatus = 'registration_closed';
+        else if (registrationStatus === 'NOT_STARTED') registrationStatus = 'not_started';
+
+        competition.registration = {
+            ...existingRegistration,
+            ...body.registration,
+            status: registrationStatus,
+        };
+        competition.markModified('registration');
+    }
+    if (body.legacyRegistration !== undefined) {
+        competition.legacyRegistration = body.legacyRegistration || { status: 'NOT_STARTED' };
+        competition.markModified('legacyRegistration');
+    }
+    if (body.slotsAllotted !== undefined) {
+        let slots = Number(body.slotsAllotted);
+        if (!Number.isFinite(slots) || slots < 0) slots = 0;
+        slots = Math.floor(slots);
+        competition.slotsAllotted = slots;
+        if (!competition.registration) competition.registration = {};
+        competition.registration.maxRegistrations = slots > 0 ? slots : null;
+        competition.markModified('registration');
+    }
+}
+
+function tryClearPublicCaches() {
+    try {
+        const { clearAllCaches } = require('./festOrganizerController');
+        if (typeof clearAllCaches === 'function') clearAllCaches();
+    } catch (_) { /* ignore */ }
+}
+
+/** List competitions for fest (full docs — same shape as admin modal) */
+exports.listCompetitions = async (req, res) => {
+    try {
+        const Competition = mongoose.model('Competition');
+        const competitions = await Competition.find({ fest: req.festId }).sort({ name: 1 }).lean();
+        res.json({
+            success: true,
+            competitions: competitions.map(serializeCompetitionDetails),
+        });
+    } catch (error) {
+        console.error('[festOrganizerPortal.listCompetitions]', error);
+        res.status(500).json({ success: false, message: 'Failed to load competitions' });
+    }
+};
+
+/** Full competition listing fields for organizer edit (admin-like) */
+exports.getCompetitionDetails = async (req, res) => {
+    try {
+        const { competitionId } = req.params;
+        if (!mongoose.Types.ObjectId.isValid(competitionId)) {
+            return res.status(400).json({ success: false, message: 'Invalid competition ID' });
+        }
+        const Competition = mongoose.model('Competition');
+        const [fest, competition] = await Promise.all([
+            FestOrganizer.findById(req.festId).select('festName slug').lean(),
+            Competition.findOne({ _id: competitionId, fest: req.festId }).lean(),
+        ]);
+        if (!fest) return res.status(404).json({ success: false, message: 'Fest not found' });
+        if (!competition) {
+            return res.status(404).json({ success: false, message: 'Competition not found for this fest' });
+        }
+        res.json({
+            success: true,
+            fest: { id: fest._id, festName: fest.festName, slug: fest.slug || '' },
+            competition: serializeCompetitionDetails(competition),
+        });
+    } catch (error) {
+        console.error('[festOrganizerPortal.getCompetitionDetails]', error);
+        res.status(500).json({ success: false, message: 'Failed to load competition details' });
+    }
+};
+
+/** Create competition (same payload as admin Competition_Modal) */
+exports.createCompetition = async (req, res) => {
+    try {
+        const body = req.body || {};
+        if (!body.name || !body.description || !body.prizePool || !body.registrationFee) {
+            return res.status(400).json({
+                success: false,
+                message: 'Please fill Competition Name, Description, Prize Pool and Registration Fee',
+            });
+        }
+        if (!body.dateTime || String(body.dateTime).trim() === '') {
+            return res.status(400).json({ success: false, message: 'Please fill the Date and Time field' });
+        }
+        if (!body.competitionType) {
+            return res.status(400).json({ success: false, message: 'Please select a Competition Type' });
+        }
+
+        const Competition = mongoose.model('Competition');
+        const fest = await FestOrganizer.findById(req.festId);
+        if (!fest) return res.status(404).json({ success: false, message: 'Fest not found' });
+
+        const competition = new Competition({
+            fest: req.festId,
+            name: String(body.name).trim(),
+            subtitle: String(body.subtitle || '').trim(),
+            competitionType: body.competitionType || 'other',
+            category: body.category || 'OTHER',
+            description: String(body.description || '').trim(),
+            prizePool: String(body.prizePool || '').trim(),
+            dateTime: String(body.dateTime || 'To Be Announced').trim(),
+            venue: String(body.venue || '').trim(),
+            coverImage: String(body.coverImage || '').trim(),
+            gallery: Array.isArray(body.gallery) ? body.gallery : [],
+            commonRules: sanitizeRulesList(body.commonRules),
+            commonRulesMessage: String(body.commonRulesMessage || '').trim(),
+            rounds: sanitizeRounds(body.rounds),
+            registrationFee: String(body.registrationFee || 'Free').trim(),
+            feeAmount: getCompetitionBaseFee(body.registrationFee, body.feeAmount),
+            registrationLink: String(body.registrationLink || '').trim(),
+            contact: body.contact || {},
+            registrationType: body.registrationType || 'fest',
+            registration: body.registration || {
+                status: 'not_started',
+                externalUrl: '',
+                googleSheetsUrl: '',
+                formSchema: [],
+                settings: {
+                    allowMultipleRegistrations: true,
+                    requireEmailVerification: false,
+                    autoConfirmation: true,
+                    maxRegistrations: null,
+                    registrationDeadline: null,
+                },
+            },
+            legacyRegistration: body.legacyRegistration || { status: 'NOT_STARTED' },
+        });
+
+        await competition.save();
+        if (!Array.isArray(fest.competitions)) fest.competitions = [];
+        fest.competitions.push(competition._id);
+        await fest.save();
+        tryClearPublicCaches();
+
+        res.status(201).json({
+            success: true,
+            message: 'Competition created successfully',
+            competition: serializeCompetitionDetails(competition.toObject()),
+        });
+    } catch (error) {
+        console.error('[festOrganizerPortal.createCompetition]', error);
+        if (error.name === 'ValidationError') {
+            return res.status(400).json({
+                success: false,
+                message: 'Validation failed',
+                details: Object.keys(error.errors || {}).join(', '),
+            });
+        }
+        res.status(500).json({ success: false, message: 'Failed to create competition' });
+    }
+};
+
+/** Update public competition details (same fields as admin listing editor, scoped to fest) */
+exports.updateCompetitionDetails = async (req, res) => {
+    try {
+        const { competitionId } = req.params;
+        if (!mongoose.Types.ObjectId.isValid(competitionId)) {
+            return res.status(400).json({ success: false, message: 'Invalid competition ID' });
+        }
+        const Competition = mongoose.model('Competition');
+        const competition = await Competition.findOne({ _id: competitionId, fest: req.festId });
+        if (!competition) {
+            return res.status(404).json({ success: false, message: 'Competition not found for this fest' });
+        }
+
+        applyCompetitionPayload(competition, req.body || {});
+        await competition.save();
+        tryClearPublicCaches();
+        res.json({
+            success: true,
+            message: 'Competition details saved',
+            competition: serializeCompetitionDetails(competition.toObject()),
+        });
+    } catch (error) {
+        console.error('[festOrganizerPortal.updateCompetitionDetails]', error);
+        if (error.status === 400) {
+            return res.status(400).json({ success: false, message: error.message });
+        }
+        res.status(500).json({ success: false, message: 'Failed to save competition details' });
+    }
+};
+
+exports.deleteCompetition = async (req, res) => {
+    try {
+        const { competitionId } = req.params;
+        if (!mongoose.Types.ObjectId.isValid(competitionId)) {
+            return res.status(400).json({ success: false, message: 'Invalid competition ID' });
+        }
+        const Competition = mongoose.model('Competition');
+        const competition = await Competition.findOneAndDelete({ _id: competitionId, fest: req.festId });
+        if (!competition) {
+            return res.status(404).json({ success: false, message: 'Competition not found for this fest' });
+        }
+        await FestOrganizer.updateOne(
+            { _id: req.festId },
+            { $pull: { competitions: competitionId } },
+        );
+        tryClearPublicCaches();
+        res.json({ success: true, message: 'Competition deleted' });
+    } catch (error) {
+        console.error('[festOrganizerPortal.deleteCompetition]', error);
+        res.status(500).json({ success: false, message: 'Failed to delete competition' });
+    }
+};
+
+/** Full fest document for admin-style FestFormModal */
+exports.getFestDetails = async (req, res) => {
+    try {
+        const fest = await FestOrganizer.findById(req.festId).lean();
+        if (!fest) return res.status(404).json({ success: false, message: 'Fest not found' });
+        res.json({
+            success: true,
+            fest: {
+                ...fest,
+                _id: fest._id,
+                id: fest._id,
+            },
+        });
+    } catch (error) {
+        console.error('[festOrganizerPortal.getFestDetails]', error);
+        res.status(500).json({ success: false, message: 'Failed to load fest details' });
+    }
+};
+
+/** Update fest listing fields organizers may edit (admin FestFormModal payload) */
+exports.updateFestDetails = async (req, res) => {
+    try {
+        const fest = await FestOrganizer.findById(req.festId);
+        if (!fest) return res.status(404).json({ success: false, message: 'Fest not found' });
+
+        const body = req.body || {};
+        const stringFields = [
+            'festName', 'subtitle', 'collegeName', 'city', 'venue', 'festDate',
+            'festType', 'category', 'description', 'coverImage', 'ticketPrice',
+            'registrationLink', 'artistsHeading', 'competitionsHeading',
+        ];
+        for (const key of stringFields) {
+            if (body[key] !== undefined) {
+                fest[key] = String(body[key] || '').trim();
+            }
+        }
+        if (body.feeAmount !== undefined) {
+            fest.feeAmount = Math.max(0, Number(body.feeAmount) || 0);
+        }
+        if (body.platformFeePercent !== undefined) {
+            fest.platformFeePercent = Math.max(0, Number(body.platformFeePercent) || 0);
+        }
+        if (body.status !== undefined) {
+            const allowed = ['ongoing', 'upcoming', 'completed', 'beyondcampus', 'lastyearhit'];
+            const status = String(body.status || '').trim();
+            if (allowed.includes(status)) fest.status = status;
+        }
+        if (body.galleryImages !== undefined) {
+            fest.galleryImages = Array.isArray(body.galleryImages)
+                ? body.galleryImages.map((u) => String(u || '').trim()).filter(Boolean)
+                : [];
+            fest.markModified('galleryImages');
+        }
+        if (body.artists !== undefined) {
+            fest.artists = Array.isArray(body.artists) ? body.artists : [];
+            fest.markModified('artists');
+        }
+        if (body.contacts !== undefined) {
+            fest.contacts = Array.isArray(body.contacts) ? body.contacts : [];
+            fest.markModified('contacts');
+        }
+        if (body.sponsors !== undefined) {
+            fest.sponsors = Array.isArray(body.sponsors) ? body.sponsors : [];
+            fest.markModified('sponsors');
+        }
+        if (body.registration !== undefined && body.registration && typeof body.registration === 'object') {
+            fest.registration = {
+                ...(fest.registration || {}),
+                ...body.registration,
+            };
+            fest.markModified('registration');
+        }
+
+        await fest.save();
+        tryClearPublicCaches();
+        res.json({
+            success: true,
+            message: 'Fest details saved',
+            fest: {
+                ...fest.toObject(),
+                _id: fest._id,
+                id: fest._id,
+            },
+        });
+    } catch (error) {
+        console.error('[festOrganizerPortal.updateFestDetails]', error);
+        res.status(500).json({ success: false, message: 'Failed to save fest details' });
+    }
+};
+
 exports.bulkUpdateParticipantStatus = async (req, res) => {
     try {
         const status = String(req.body.status || '').trim().toLowerCase();

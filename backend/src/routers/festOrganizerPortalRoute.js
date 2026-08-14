@@ -4,6 +4,7 @@ const stallCtrl = require('../controllers/festStallLeadController');
 const probableCtrl = require('../controllers/festCompetitionProbableController');
 const proShowCtrl = require('../controllers/festProShowController');
 const liveCtrl = require('../controllers/festLiveUpdateController');
+const uploadCtrl = require('../controllers/uploadController');
 const { authenticateFestOrganizer, requireFestAccess } = require('../middleware/festOrganizerAuth');
 const { authLimiter } = require('../middleware/rateLimiter');
 
@@ -14,7 +15,24 @@ router.post('/auth/signup', authLimiter, ctrl.signup);
 router.get('/me', authenticateFestOrganizer, ctrl.getMe);
 router.get('/logged-in', authenticateFestOrganizer, ctrl.listLoggedInUsers);
 
+router.post(
+    '/upload/image',
+    authenticateFestOrganizer,
+    uploadCtrl.uploadSingle,
+    uploadCtrl.multerErrorHandler,
+    uploadCtrl.uploadImage,
+);
+router.post(
+    '/upload/images',
+    authenticateFestOrganizer,
+    uploadCtrl.uploadMultiple,
+    uploadCtrl.multerErrorHandler,
+    uploadCtrl.uploadMultipleImages,
+);
+
 router.get('/fests/:festId/dashboard', authenticateFestOrganizer, requireFestAccess, ctrl.getDashboard);
+router.get('/fests/:festId/details', authenticateFestOrganizer, requireFestAccess, ctrl.getFestDetails);
+router.patch('/fests/:festId/details', authenticateFestOrganizer, requireFestAccess, ctrl.updateFestDetails);
 router.get('/fests/:festId/live-updates/meta', authenticateFestOrganizer, requireFestAccess, liveCtrl.getLiveUpdateMeta);
 router.get('/fests/:festId/live-updates', authenticateFestOrganizer, requireFestAccess, liveCtrl.listLiveUpdates);
 router.post('/fests/:festId/live-updates', authenticateFestOrganizer, requireFestAccess, liveCtrl.createLiveUpdate);
@@ -31,7 +49,13 @@ router.post('/fests/:festId/competitions/probables', authenticateFestOrganizer, 
 router.patch('/fests/:festId/competitions/probables/:probableId', authenticateFestOrganizer, requireFestAccess, probableCtrl.updateProbable);
 router.delete('/fests/:festId/competitions/probables/:probableId', authenticateFestOrganizer, requireFestAccess, probableCtrl.deleteProbable);
 router.post('/fests/:festId/competitions/probables/:probableId/convert', authenticateFestOrganizer, requireFestAccess, probableCtrl.convertProbable);
+router.get('/fests/:festId/competitions', authenticateFestOrganizer, requireFestAccess, ctrl.listCompetitions);
+router.post('/fests/:festId/competitions', authenticateFestOrganizer, requireFestAccess, ctrl.createCompetition);
 router.get('/fests/:festId/competitions/:competitionId/ops', authenticateFestOrganizer, requireFestAccess, ctrl.getCompetitionOps);
+router.get('/fests/:festId/competitions/:competitionId/details', authenticateFestOrganizer, requireFestAccess, ctrl.getCompetitionDetails);
+router.patch('/fests/:festId/competitions/:competitionId/details', authenticateFestOrganizer, requireFestAccess, ctrl.updateCompetitionDetails);
+router.put('/fests/:festId/competitions/:competitionId', authenticateFestOrganizer, requireFestAccess, ctrl.updateCompetitionDetails);
+router.delete('/fests/:festId/competitions/:competitionId', authenticateFestOrganizer, requireFestAccess, ctrl.deleteCompetition);
 router.patch('/fests/:festId/competitions/:competitionId/slots', authenticateFestOrganizer, requireFestAccess, ctrl.updateCompetitionSlots);
 router.post('/fests/:festId/participants/manual', authenticateFestOrganizer, requireFestAccess, ctrl.createManualParticipant);
 router.patch('/fests/:festId/participants/bulk-status', authenticateFestOrganizer, requireFestAccess, ctrl.bulkUpdateParticipantStatus);
