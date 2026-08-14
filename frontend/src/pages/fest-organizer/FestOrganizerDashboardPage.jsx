@@ -309,6 +309,7 @@ export default function FestOrganizerDashboardPage() {
                                     <p className="text-[11px] text-gray-500 truncate">
                                         {r.competitionName || 'General'}
                                         {r.teamName ? ` · ${r.teamName}` : ''}
+                                        {r.college ? ` · ${r.college}` : ''}
                                         {' · '}
                                         <span className={r.status === 'pending' ? 'text-amber-400' : 'text-gray-400'}>
                                             {r.status}
@@ -316,6 +317,11 @@ export default function FestOrganizerDashboardPage() {
                                         {' · '}
                                         {r.paymentStatus}
                                     </p>
+                                    {Array.isArray(r.highlights) && r.highlights.length ? (
+                                        <p className="text-[10px] text-gray-600 truncate mt-0.5">
+                                            {r.highlights.map((h) => `${h.label}: ${h.value}`).join(' · ')}
+                                        </p>
+                                    ) : null}
                                 </div>
                                 <p className="text-[10px] text-gray-600 shrink-0">{formatWhen(r.createdAt)}</p>
                             </button>

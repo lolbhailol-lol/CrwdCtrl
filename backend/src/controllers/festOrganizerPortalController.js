@@ -695,18 +695,21 @@ exports.getDashboard = async (req, res) => {
         }
 
         const recent = recentRegs.map((reg) => {
-            const responses = responsesToObject(reg.responses);
-            const user = reg.user && typeof reg.user === 'object' ? reg.user : null;
+            const formatted = formatParticipant(reg);
             return {
-                id: reg._id,
-                status: reg.status,
-                paymentStatus: reg.paymentStatus || 'free',
-                amountPaid: Number(reg.amountPaid) || 0,
-                checkedIn: Boolean(reg.checkedIn),
-                competitionName: reg.competitionId?.name || '',
-                userName: user?.name || responses.full_name || responses.name || '',
-                userEmail: user?.email || responses.email || '',
-                createdAt: reg.createdAt,
+                id: formatted.id,
+                status: formatted.status,
+                paymentStatus: formatted.paymentStatus,
+                amountPaid: formatted.amountPaid,
+                checkedIn: formatted.checkedIn,
+                competitionName: formatted.competitionName,
+                userName: formatted.userName,
+                userEmail: formatted.userEmail,
+                userPhone: formatted.userPhone,
+                teamName: formatted.teamName,
+                college: formatted.college,
+                highlights: (formatted.highlights || []).slice(0, 3),
+                createdAt: formatted.createdAt,
             };
         });
 

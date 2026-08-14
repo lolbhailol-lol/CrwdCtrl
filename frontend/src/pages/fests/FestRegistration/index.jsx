@@ -34,9 +34,12 @@ export default function FestRegistration() {
     handleSwitchToLogin,
     couponCode,
     setCouponCode,
+    handleCouponCodeChange,
+    applyCouponCode,
     appliedCouponCode,
     setAppliedCouponCode,
     couponError,
+    couponQuoting,
     priceBreakdown,
     paymentError,
     paymentLoading,
@@ -86,9 +89,12 @@ export default function FestRegistration() {
         competition={competition}
         couponCode={couponCode}
         setCouponCode={setCouponCode}
+        handleCouponCodeChange={handleCouponCodeChange}
+        applyCouponCode={applyCouponCode}
         appliedCouponCode={appliedCouponCode}
         setAppliedCouponCode={setAppliedCouponCode}
         couponError={couponError}
+        couponQuoting={couponQuoting}
         priceBreakdown={priceBreakdown}
         paymentError={paymentError}
         paymentLoading={paymentLoading}
@@ -270,9 +276,12 @@ export default function FestRegistration() {
       priceBreakdown={priceBreakdown}
       couponCode={couponCode}
       setCouponCode={setCouponCode}
+      handleCouponCodeChange={handleCouponCodeChange}
+      applyCouponCode={applyCouponCode}
       appliedCouponCode={appliedCouponCode}
       setAppliedCouponCode={setAppliedCouponCode}
       couponError={couponError}
+      couponQuoting={couponQuoting}
       submitting={r.submitting}
       submissionProgress={submissionProgress}
       handleStepBack={r.handleStepBack}

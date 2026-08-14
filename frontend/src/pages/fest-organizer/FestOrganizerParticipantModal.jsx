@@ -209,17 +209,27 @@ export default function FestOrganizerParticipantModal({ festId, registrationId, 
                             <div className="rounded-xl border border-white/10 overflow-hidden">
                                 <p className="px-3 py-2 text-[10px] uppercase tracking-wider text-gray-500 bg-white/3">Form responses</p>
                                 <div className="divide-y divide-white/5">
-                                    {responses.map(([key, value]) => (
-                                        <div key={key} className="px-3 py-2.5 flex items-start justify-between gap-3">
-                                            <p className="text-[11px] text-gray-500 shrink-0 max-w-[40%] break-words">{key}</p>
-                                            <p className="text-sm text-white text-right break-all">
-                                                {typeof value === 'object' ? JSON.stringify(value) : String(value)}
-                                            </p>
-                                        </div>
-                                    ))}
+                                    {responses.map(([key, value]) => {
+                                        const label = String(key)
+                                            .replace(/[_-]+/g, ' ')
+                                            .replace(/\b\w/g, (c) => c.toUpperCase());
+                                        const display = typeof value === 'object'
+                                            ? (value?.url || value?.secure_url || JSON.stringify(value))
+                                            : String(value);
+                                        return (
+                                            <div key={key} className="px-3 py-2.5 flex items-start justify-between gap-3">
+                                                <p className="text-[11px] text-gray-500 shrink-0 max-w-[40%] break-words">{label}</p>
+                                                <p className="text-sm text-white text-right break-all">{display}</p>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
-                        ) : null}
+                        ) : (
+                            <div className="rounded-xl border border-dashed border-white/10 px-3 py-4 text-center text-xs text-gray-600">
+                                No form answers saved for this registration
+                            </div>
+                        )}
 
                         <div className="flex flex-wrap gap-2 pt-1">
                             {participant.status !== 'approved' ? (

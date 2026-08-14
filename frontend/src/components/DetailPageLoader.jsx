@@ -1,17 +1,36 @@
 import { ArrowLeft } from 'lucide-react';
 
-/** Instant black loader for trek / sports detail pages. */
-export default function DetailPageLoader({ label = 'Loading...' }) {
+/**
+ * Detail-page wait state — light 3D icon + short message
+ * (used while fest / competition / trek / sports details load).
+ */
+export default function DetailPageLoader({
+  label = 'Hang tight — loading details',
+}) {
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black">
-      <div className="flex flex-col items-center gap-3">
-        <div
-          className="h-7 w-7 rounded-full border-2 border-white/10 border-t-[#0ECCEE] animate-spin"
-          aria-hidden
-        />
-        {label ? (
-          <p className="text-xs font-medium tracking-wide text-white/55">{label}</p>
-        ) : null}
+    <div
+      className="fixed inset-0 z-40 flex items-center justify-center bg-[#0a0a0b]"
+      role="status"
+      aria-live="polite"
+      aria-label={label || 'Loading'}
+    >
+      <div className="detail-loader flex flex-col items-center px-6 text-center">
+        <div className="detail-loader-stage" aria-hidden>
+          <div className="detail-loader-orb" />
+          <div className="detail-loader-card">
+            <div className="detail-loader-card-face detail-loader-card-front">
+              <span className="detail-loader-mark">C</span>
+              <span className="detail-loader-shine" />
+            </div>
+            <div className="detail-loader-card-face detail-loader-card-side" />
+            <div className="detail-loader-card-face detail-loader-card-bottom" />
+          </div>
+        </div>
+
+        <p className="mt-7 text-sm font-medium tracking-wide text-white/70">
+          {label || 'Hang tight — loading details'}
+        </p>
+        <p className="mt-1.5 text-xs text-white/35">Almost there</p>
       </div>
     </div>
   );

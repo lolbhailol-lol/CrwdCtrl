@@ -28,10 +28,11 @@ export default function FestRegistrationForm({
   paymentFields,
   priceBreakdown,
   couponCode,
-  setCouponCode,
+  handleCouponCodeChange,
+  applyCouponCode,
   appliedCouponCode,
-  setAppliedCouponCode,
   couponError,
+  couponQuoting,
   submitting,
   submissionProgress,
   handleStepBack,
@@ -259,22 +260,34 @@ export default function FestRegistrationForm({
                     <div className={`flex overflow-hidden rounded-xl border ${isDark ? 'border-gray-700' : 'border-gray-300'}`}>
                       <input
                         value={couponCode}
-                        onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                        onChange={(e) => handleCouponCodeChange(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            applyCouponCode();
+                          }
+                        }}
                         placeholder="Enter coupon"
+                        autoComplete="off"
                         className={`flex-1 min-w-0 px-3 py-2.5 text-sm border-0 outline-none focus:ring-0 ${isDark ? 'bg-[#1D1E20] text-white placeholder:text-gray-500' : 'bg-white text-gray-900 placeholder:text-gray-400'}`}
                       />
                       <button
                         type="button"
-                        onClick={() => setAppliedCouponCode(couponCode.trim().toUpperCase())}
-                        className="shrink-0 px-4 py-2.5 bg-[#0ECCEE] text-black font-semibold text-sm hover:bg-[#0ECCEE]/90 active:scale-[0.98] transition-all"
+                        disabled={couponQuoting || !couponCode.trim()}
+                        onClick={applyCouponCode}
+                        className="shrink-0 px-4 py-2.5 bg-[#0ECCEE] text-black font-semibold text-sm hover:bg-[#0ECCEE]/90 active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                       >
-                        {Number(priceBreakdown?.couponDiscount || 0) > 0 && (appliedCouponCode || '').toUpperCase() === couponCode.trim().toUpperCase() ? 'Applied' : 'Apply'}
+                        {couponQuoting
+                          ? 'Checking…'
+                          : Number(priceBreakdown?.couponDiscount || 0) > 0 && (appliedCouponCode || '').toUpperCase() === couponCode.trim().toUpperCase()
+                            ? 'Applied'
+                            : 'Apply'}
                       </button>
                     </div>
                     {couponError ? <p className="text-xs text-red-400 mt-1">{couponError}</p> : null}
-                    {Number(priceBreakdown?.couponDiscount || 0) > 0 ? (
-                      <div className={`mt-2 rounded-lg border px-3 py-2 text-xs transition-all duration-300 animate-pulse ${isDark ? 'bg-green-900/20 border-green-700/40 text-green-300' : 'bg-green-50 border-green-300 text-green-700'}`}>
-                        Coupon `{appliedCouponCode || couponCode}` applied · You save ₹{priceBreakdown.couponDiscount}
+                    {Number(priceBreakdown?.couponDiscount || 0) > 0 && appliedCouponCode ? (
+                      <div className={`mt-2 rounded-lg border px-3 py-2 text-xs ${isDark ? 'bg-green-900/20 border-green-700/40 text-green-300' : 'bg-green-50 border-green-300 text-green-700'}`}>
+                        Coupon `{appliedCouponCode}` applied · You save ₹{priceBreakdown.couponDiscount}
                       </div>
                     ) : null}
                   </div>

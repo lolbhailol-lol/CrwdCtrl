@@ -437,6 +437,19 @@ export default function FestOrganizerParticipantsPage() {
                                         <p className="text-[11px] text-gray-600 truncate">
                                             {[p.userPhone, p.userEmail].filter(Boolean).join(' · ') || 'No contact'}
                                         </p>
+                                        {Array.isArray(p.highlights) && p.highlights.length ? (
+                                            <div className="flex flex-wrap gap-1 pt-1">
+                                                {p.highlights.slice(0, 3).map((h) => (
+                                                    <span
+                                                        key={h.key}
+                                                        className="text-[10px] px-1.5 py-0.5 rounded-md bg-white/5 text-gray-400 max-w-full truncate"
+                                                        title={`${h.label}: ${h.value}`}
+                                                    >
+                                                        {h.label}: {h.value}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        ) : null}
                                         <div className="flex flex-wrap items-center gap-1.5 pt-1">
                                             <span className={`text-[10px] px-2 py-0.5 rounded-full capitalize ${statusTone(p.status)}`}>
                                                 {p.status}

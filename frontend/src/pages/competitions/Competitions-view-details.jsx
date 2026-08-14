@@ -347,8 +347,7 @@ function EventPage() {
     const [competitionData, setCompetitionData] = useState(seededCompetition);
     const [showLogin, setShowLogin] = useState(false);
     const [showRegister, setShowRegister] = useState(false);
-    // Always wait for public API so header + side columns paint together (avoids partial seed flash)
-    const [fetchDone, setFetchDone] = useState(false);
+    const [fetchDone, setFetchDone] = useState(Boolean(seededCompetition));
     const [error, setError] = useState(null);
     const { isDark } = useDarkMode();
     const { alert: showAlert, toast } = useDialog();
@@ -562,13 +561,13 @@ function EventPage() {
     }, [isAuthenticated, showLogin, showRegister]);
 
     useEffect(() => {
-        if (fetchDone && (competitionData?.title || error)) {
+        if (competitionData?.title || (fetchDone && error)) {
             signalDetailPageReady();
         }
     }, [competitionData?.title, fetchDone, error]);
 
-    if (!fetchDone) {
-        return <DetailPageLoader label="" />;
+    if (!fetchDone && !competitionData?.title) {
+        return <DetailPageLoader label="Hang tight — opening competition" />;
     }
 
     if (fetchDone && error && !competitionData) {
@@ -619,7 +618,7 @@ function EventPage() {
     const eventData = competitionData;
 
     if (!eventData?.title) {
-        return <DetailPageLoader label="" />;
+        return <DetailPageLoader label="Hang tight — opening competition" />;
     }
 
     // Get fest name from location state or URL params
