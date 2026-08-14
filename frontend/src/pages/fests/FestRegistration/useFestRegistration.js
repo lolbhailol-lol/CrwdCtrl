@@ -32,7 +32,7 @@ import { parseTicketPrice } from '../../../utils/platformFee';
 import { fetchPaymentQuote as fetchPaymentQuoteApi } from '../../../services/api/payment.api';
 import { API_BASE_URL } from '../../../services/api/client';
 import { festRegisterPath } from '../../../utils/slugRoutes';
-import { getInitialFestRegistrationUi, generateFieldId, compressImage } from './helpers';
+import { getInitialFestRegistrationUi, generateFieldId, compressImage, buildInitialFormData } from './helpers';
 
 export default function useFestRegistration() {
   const { festId } = useParams();
@@ -43,6 +43,7 @@ export default function useFestRegistration() {
   const competitionPaymentResumeRef = useRef(false);
   const handleSubmitRef = useRef(null);
   const competitionId = searchParams.get('competition') || location.state?.competitionId || null;
+  const registrationPrefetch = location.state?.prefetch ?? null;
   const initialUi = getInitialFestRegistrationUi(location.pathname, location.search);
   const {
     isAuthenticated,
@@ -56,11 +57,15 @@ export default function useFestRegistration() {
 
   const { isDark } = useDarkMode();
   
-  const [fest, setFest] = useState(null);
-  const [competition, setCompetition] = useState(null);
+  const [fest, setFest] = useState(() => registrationPrefetch?.fest ?? null);
+  const [competition, setCompetition] = useState(() => registrationPrefetch?.competition ?? null);
   const [priceBreakdown, setPriceBreakdown] = useState(null);
-  const [formData, setFormData] = useState({});
-  const [loading, setLoading] = useState(true);
+  const [formData, setFormData] = useState(() =>
+    registrationPrefetch?.fest?.registration
+      ? buildInitialFormData(registrationPrefetch.fest.registration)
+      : {},
+  );
+  const [loading, setLoading] = useState(() => !registrationPrefetch?.fest);
   const [submitting, setSubmitting] = useState(false);
   const [submissionProgress, setSubmissionProgress] = useState('');
   const [error, setError] = useState('');
@@ -127,7 +132,13 @@ export default function useFestRegistration() {
     if (draft.completedSteps?.length) setCompletedSteps(new Set(draft.completedSteps));
   };
 
-  const handleCloseLogin = () => setShowLogin(false);
+  const handleCloseLogin = () => {
+    if (isAuthenticated || hasUsableAuthToken(authToken)) {
+      setShowLogin(false);
+      return;
+    }
+    navigate(-1);
+  };
   const handleCloseRegister = () => setShowRegister(false);
   const handleSwitchToRegister = () => {
     setShowLogin(false);
@@ -325,75 +336,45 @@ export default function useFestRegistration() {
     refreshNotifications,
   ]);
 
+  // Refresh fest/competition in background (prefetch makes first paint instant)
   useEffect(() => {
-    const initializeRegistration = async () => {
-      console.log('🔄 Initializing registration...', { 
-        authLoading, 
-        isAuthenticated, 
-        isAuthProcessing,
-        isRedirectProcessing,
-        hasToken: !!authToken,
-        hasLocalToken: !!localStorage.getItem('crwdctrl_token'),
-        hasLocalUser: !!localStorage.getItem('crwdctrl_user')
-      });
+    if (!festId) return;
+    if (!fest) setLoading(true);
+    if (isCompetitionRegistration && competitionId) {
+      fetchCompetitionAndFestDetails();
+    } else {
+      fetchFestDetails();
+    }
+  }, [festId, competitionId, isCompetitionRegistration]);
 
-      // ✅ CRITICAL: Wait for ALL auth processes to finish before making decisions
-      // authLoading = initial load, isAuthProcessing = Firebase restoring session, isRedirectProcessing = OAuth redirect
-      if (authLoading || isAuthProcessing || isRedirectProcessing) {
-        console.log('⏳ Auth still loading, waiting...', { authLoading, isAuthProcessing, isRedirectProcessing });
-        return;
-      }
+  // Google login sheet when session missing; dismiss as soon as token is ready
+  useEffect(() => {
+    if (authLoading || isAuthProcessing || isRedirectProcessing) return;
 
-      const currentPath = `${location.pathname}${location.search}`;
-      const pendingPayment = getPendingPayment();
-      const resumingPayment = pendingPayment
-        && shouldResumePendingPayment(pendingPayment, currentPath, location.search);
+    const currentPath = `${location.pathname}${location.search}`;
+    const pendingPayment = getPendingPayment();
+    const resumingPayment = pendingPayment
+      && shouldResumePendingPayment(pendingPayment, currentPath, location.search);
+    if (resumingPayment) return;
 
-      const usableToken = resolveAuthToken(authToken);
-
-      if (resumingPayment) {
-        if (!usableToken) {
-          if (firebaseUser && !authSyncExpired) {
-            console.log('⏳ Payment return — waiting for session sync...');
-            return;
-          }
-          setLoading(false);
-          return;
-        }
-        console.log('✅ Payment return — loading registration details');
-        proceedWithRegistration();
-        return;
-      }
-
-      if (!usableToken) {
-        // Give the Firebase -> backend JWT sync a bounded window, then fall back to login
-        if (firebaseUser && !authSyncExpired) {
-          console.log('⏳ Firebase user present — waiting for backend session sync...');
-          return;
-        }
-        console.log('❌ No usable auth token, showing login modal');
-        setError('Please log in to register for events');
-        setShowLogin(true);
-        setLoading(false);
-        return;
-      }
-
-      console.log('✅ Usable auth token confirmed, proceeding with registration');
-      proceedWithRegistration();
-    };
-
-    const proceedWithRegistration = () => {
-      console.log('🚀 Proceeding with registration fetch...', { isCompetitionRegistration });
-      if (isCompetitionRegistration) {
-        fetchCompetitionAndFestDetails();
-      } else {
-        fetchFestDetails();
-      }
-    };
-
-    initializeRegistration();
-     
-  }, [festId, competitionId, authLoading, authToken, firebaseUser, authSyncExpired, isAuthProcessing, isRedirectProcessing, location.pathname, location.search]);
+    const usableToken = resolveAuthToken(authToken);
+    if (usableToken) {
+      setShowLogin(false);
+      setError((prev) => (prev === 'Please log in to register for events' ? '' : prev));
+      return;
+    }
+    if (firebaseUser && !authSyncExpired) return;
+    setShowLogin(true);
+  }, [
+    authLoading,
+    authToken,
+    firebaseUser,
+    authSyncExpired,
+    isAuthProcessing,
+    isRedirectProcessing,
+    location.pathname,
+    location.search,
+  ]);
 
   useEffect(() => {
     if (!fest) return;
@@ -683,8 +664,10 @@ export default function useFestRegistration() {
 
       // Initialize form data with empty values using stable field IDs
       const initialData = {};
-      if (data.registration?.formSchema) {
-        data.registration.formSchema.forEach(field => {
+      const schemaFields = data.registration?.formType === 'MULTI_STEP' && data.registration?.steps?.length
+        ? data.registration.steps.flatMap((step) => step.fields || [])
+        : (data.registration?.formSchema || []);
+      schemaFields.forEach(field => {
           const fieldId = generateFieldId(field);
           console.log('🔧 Initializing field:', { fieldId, type: field.type, label: field.label });
           // Initialize fields based on type
@@ -700,7 +683,6 @@ export default function useFestRegistration() {
             initialData[fieldId] = '';
           }
         });
-      }
       setFormData(initialData);
       restoreRegistrationDraft();
       console.log('✅ Form initialized with', Object.keys(initialData).length, 'fields');
@@ -779,8 +761,10 @@ export default function useFestRegistration() {
 
       // Initialize form data with empty values using stable field IDs
       const initialData = {};
-      if (festData.registration?.formSchema) {
-        festData.registration.formSchema.forEach(field => {
+      const schemaFields = festData.registration?.formType === 'MULTI_STEP' && festData.registration?.steps?.length
+        ? festData.registration.steps.flatMap((step) => step.fields || [])
+        : (festData.registration?.formSchema || []);
+      schemaFields.forEach(field => {
           const fieldId = generateFieldId(field);
           console.log('🔧 Initializing field:', { fieldId, type: field.type, label: field.label });
           // Initialize fields based on type
@@ -796,7 +780,6 @@ export default function useFestRegistration() {
             initialData[fieldId] = '';
           }
         });
-      }
       setFormData(initialData);
       restoreRegistrationDraft();
       console.log('✅ Form initialized with', Object.keys(initialData).length, 'fields');

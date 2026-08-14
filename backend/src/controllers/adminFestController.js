@@ -82,6 +82,8 @@ exports.createFest = async (req, res) => {
       festDate,
       venue,
       ticketPrice,
+      feeAmount,
+      platformFeePercent,
       description,
       coverImage,
       galleryImages,
@@ -117,6 +119,8 @@ exports.createFest = async (req, res) => {
       festDate,
       venue,
       ticketPrice,
+      feeAmount: Number(feeAmount) || 0,
+      platformFeePercent: platformFeePercent ?? 3,
       description,
       coverImage: finalCoverImage,
       galleryImages,
@@ -184,7 +188,7 @@ exports.getAllFests = async (req, res) => {
       .sort({ priority: 1, createdAt: -1 }) // Priority first (1 = highest), then by creation date
       .skip(skip)
       .limit(limit)
-      .select('festName collegeName festType festDate venue description coverImage galleryImages status artists sponsors registration createdAt artistsHeading competitionsHeading contacts priority homeSection homePriority showOnHomeSlide') // Include section fields
+      .select('festName collegeName festType festDate venue description coverImage galleryImages status artists sponsors registration createdAt artistsHeading competitionsHeading contacts priority homeSection homePriority showOnHomeSlide feeAmount platformFeePercent ticketPrice')
       .lean(); // Use lean() for better performance
 
     // Calculate pagination info

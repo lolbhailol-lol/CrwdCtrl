@@ -1626,7 +1626,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                     </div>
                     <p className="text-xs text-gray-400 mt-2">
                       {form.registrationType === 'fest' 
-                        ? 'Competition will use the parent fest\'s registration system' 
+                        ? 'Uses the fest’s common registration form and Cashfree checkout (configure in Fest → Registration). Entry fee is set on this competition.' 
                         : 'Competition will have its own independent registration system'
                       }
                     </p>

@@ -191,6 +191,32 @@ function prioritizeFeaturedArtists(artists = []) {
   return ranked;
 }
 
+/** Build instant registration state from competition/fest data already on screen */
+export function buildRegistrationPrefetch({ fest, competition } = {}) {
+  if (!fest?._id && !fest?.id) return null;
+
+  return {
+    fest: {
+      _id: fest._id || fest.id,
+      festName: fest.festName || fest.title || fest.festival_name || 'Fest',
+      collegeName: fest.collegeName || fest.subtitle || fest.organizing_body || '',
+      feeAmount: fest.feeAmount || 0,
+      platformFeePercent: fest.platformFeePercent ?? 3,
+      registration: fest.registration || { mode: 'INTERNAL_FORM', formSchema: [], formType: 'SINGLE_STEP' },
+    },
+    competition: competition
+      ? {
+          _id: competition._id || competition.id,
+          name: competition.name || competition.title,
+          feeAmount: competition.feeAmount ?? 0,
+          registrationFee: competition.registrationFee || competition.entryFee || competition.fee,
+          registrationType: competition.registrationType || 'fest',
+          registration: competition.registration,
+        }
+      : null,
+  };
+}
+
 /** Payload for competitions-view-details navigation state */
 export function buildCompetitionNavPayload(competition, festContext) {
   if (!competition) return null;

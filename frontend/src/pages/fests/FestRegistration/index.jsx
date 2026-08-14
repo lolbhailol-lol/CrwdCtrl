@@ -1,6 +1,4 @@
-import { Loader } from 'lucide-react';
 import CrwdCtrlLogin from '../../auth/login';
-import CrwdCtrlRegister from '../../auth/register';
 import useFestRegistration from './useFestRegistration';
 import FestRegistrationForm from './FestRegistrationForm';
 import PaymentStep, { CompletingPaymentStep } from './PaymentStep';
@@ -73,51 +71,6 @@ export default function FestRegistration() {
     );
   }
 
-  if ((loading || waitingOnAuth) && !success && !completingPayment) {
-    return (
-      <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
-        <Loader className="w-8 h-8 animate-spin text-[#0ECCEE]" />
-      </div>
-    );
-  }
-
-  if (!hasAuth) {
-    return (
-      <>
-        <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center px-4">
-          <div className={`w-full max-w-md rounded-2xl p-8 text-center shadow-xl ${isDark ? 'bg-[#1D1E20]' : 'bg-white'}`}>
-            <h1 className={`text-xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Log in to register</h1>
-            <p className={`text-sm mb-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-              Please log in to register for this fest and receive booking notifications.
-            </p>
-            <button
-              type="button"
-              onClick={() => setShowLogin(true)}
-              className="w-full py-3 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition"
-            >
-              Log in to continue
-            </button>
-          </div>
-        </div>
-        {showLogin && (
-          <div className="fixed inset-0 z-50">
-            <CrwdCtrlLogin
-              googleOnly
-              title="Sign in to register"
-              subtitle="One tap with Google — then finish registration"
-              onClose={handleCloseLogin}
-            />
-          </div>
-        )}
-        {showRegister && (
-          <div className="fixed inset-0 z-50">
-            <CrwdCtrlRegister onClose={handleCloseRegister} onSwitchToLogin={handleSwitchToLogin} />
-          </div>
-        )}
-      </>
-    );
-  }
-
   // Show Cashfree payment UI when fest has a feeAmount (only for fest-only registrations, not competition registrations)
   if (fest && !isCompetitionRegistration && fest.feeAmount > 0 && !success) {
     return (
@@ -139,6 +92,35 @@ export default function FestRegistration() {
         onPay={handleCashfreeFestRegister}
         navigate={navigate}
       />
+    );
+  }
+
+  if (!fest && loading) {
+    return (
+      <>
+        <div className={`crwdctrl-page crwdctrl-page--content min-h-screen pt-[calc(var(--safe-top)+0.5rem)] pb-32 ${isDark ? 'bg-[#0a0b0c]' : 'bg-gray-50'}`}>
+          <div className="max-w-4xl mx-auto px-4 animate-pulse">
+            <div className={`h-8 w-56 rounded-lg mb-6 ${isDark ? 'bg-gray-800' : 'bg-gray-200'}`} />
+            <div className={`rounded-2xl p-6 border space-y-4 ${isDark ? 'bg-[#1D1E20] border-gray-800' : 'bg-white border-gray-200'}`}>
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className={`h-12 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`} />
+              ))}
+            </div>
+          </div>
+        </div>
+        {!hasAuth && (
+          <div className="fixed inset-0 z-50 pointer-events-none">
+            <div className="pointer-events-auto h-full">
+              <CrwdCtrlLogin
+                googleOnly
+                title="Sign in to register"
+                subtitle="Your form is loading — one tap with Google to start"
+                onClose={handleCloseLogin}
+              />
+            </div>
+          </div>
+        )}
+      </>
     );
   }
 
@@ -264,6 +246,8 @@ export default function FestRegistration() {
       fest={fest}
       competition={competition}
       isCompetitionRegistration={isCompetitionRegistration}
+      formLocked={!hasAuth}
+      authSyncing={waitingOnAuth}
       notice={r.notice}
       error={r.error}
       handleSubmit={r.handleSubmit}
@@ -289,7 +273,7 @@ export default function FestRegistration() {
       paymentModal={paymentModal}
       closePaymentModal={closePaymentModal}
       retryCheckoutRef={retryCheckoutRef}
-      showLogin={showLogin}
+      showLogin={showLogin || (!hasAuth && !!fest)}
       showRegister={showRegister}
       handleCloseLogin={handleCloseLogin}
       handleCloseRegister={handleCloseRegister}

@@ -11,6 +11,8 @@ export default function FestRegistrationForm({
   fest,
   competition,
   isCompetitionRegistration,
+  formLocked = false,
+  authSyncing = false,
   notice,
   error,
   handleSubmit,
@@ -61,7 +63,14 @@ export default function FestRegistrationForm({
   return (
     <div className="crwdctrl-page crwdctrl-page--content min-h-screen pt-[calc(var(--safe-top)+0.5rem)] sm:pt-[calc(var(--safe-top)+1rem)] pb-40 sm:pb-32 md:pb-20">
       {paymentModalEl}
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className={`max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 transition-opacity duration-300 ${formLocked ? 'opacity-90' : ''}`}>
+        {formLocked && (
+          <div className={`mb-4 rounded-xl border px-4 py-3 text-sm ${isDark ? 'bg-[#0ECCEE]/10 border-[#0ECCEE]/30 text-[#0ECCEE]' : 'bg-cyan-50 border-cyan-200 text-cyan-800'}`}>
+            {authSyncing
+              ? 'Finishing sign-in…'
+              : 'Preview the form below — sign in with Google to fill and submit.'}
+          </div>
+        )}
         {/* Header */}
         <div className="flex items-start gap-3 sm:gap-4 mb-4 sm:mb-6">
           <button
@@ -97,8 +106,10 @@ export default function FestRegistrationForm({
 
 
         {/* Registration Form */}
-        <div className={`rounded-2xl p-4 sm:p-6 border ${isDark ? 'bg-[#1D1E20] border-gray-700/40' : 'bg-white border-gray-200 shadow-sm'}`}>
-          <form onSubmit={handleSubmit} className="space-y-4">
+        <div className={`rounded-2xl p-4 sm:p-6 border transition-all duration-300 ${
+          isDark ? 'bg-[#1D1E20] border-gray-700/40' : 'bg-white border-gray-200 shadow-sm'
+        } ${formLocked ? 'pointer-events-none select-none blur-[2px] saturate-75' : ''}`}>
+          <form onSubmit={(e) => { if (formLocked) { e.preventDefault(); return; } handleSubmit(e); }} className="space-y-4">
             {/* ✅ NEW: Multi-Step Progress Indicator */}
             {isMultiStepForm() && (
               <div className={`rounded-lg p-4 mb-4 ${isDark ? 'bg-[#111213]' : 'bg-gray-50'}`}>
@@ -354,13 +365,15 @@ export default function FestRegistrationForm({
       </div>
 
       {showLogin && (
-        <div className="fixed inset-0 z-50">
-          <CrwdCtrlLogin
-            googleOnly
-            title="Sign in to register"
-            subtitle="One tap with Google — then finish registration"
-            onClose={handleCloseLogin}
-          />
+        <div className="fixed inset-0 z-50 pointer-events-none">
+          <div className="pointer-events-auto h-full">
+            <CrwdCtrlLogin
+              googleOnly
+              title="Sign in to register"
+              subtitle="Your form is ready below — one tap with Google to start filling it"
+              onClose={handleCloseLogin}
+            />
+          </div>
         </div>
       )}
 

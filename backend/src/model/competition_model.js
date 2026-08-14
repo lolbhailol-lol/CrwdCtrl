@@ -115,6 +115,12 @@ const competitionSchema = new mongoose.Schema(
       title: String,
       description: String,
       rules: [String],
+      offline: {
+        rules: [String],
+      },
+      online: {
+        rules: [String],
+      },
       roundRulesMessage: {
         type: String,
         trim: true,

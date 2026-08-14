@@ -116,19 +116,12 @@ function parseRules(text) {
 
 function parseRounds(text) {
   const structure = extractSection(text, 'EVENT STRUCTURE');
-  if (!structure) return [];
+  const source = structure || text;
+  const { parseRoundsFromStructureText } = require('../utils/competitionRoundsParser');
+  const parsed = parseRoundsFromStructureText(source);
+  if (parsed.length) return parsed;
 
-  const roundMatches = [...structure.matchAll(/Round\s*(\d+)\s*:?\s*([^R]+?)(?=Round\s*\d+\s*:?|$)/gi)];
-  if (roundMatches.length) {
-    return roundMatches.map((match, index) => ({
-      roundNumber: Number(match[1]) || index + 1,
-      title: `Round ${match[1]}`,
-      description: normalizeWhitespace(match[2]),
-      rules: [],
-      dateTime: 'TBA',
-      venue: '',
-    }));
-  }
+  if (!structure) return [];
 
   return [
     {

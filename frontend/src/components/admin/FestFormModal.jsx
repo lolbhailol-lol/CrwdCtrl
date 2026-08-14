@@ -705,6 +705,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
     festType: 'cultural', // cultural | technical | sports
     ticketPrice: '',
     feeAmount: 0,
+    platformFeePercent: 3,
     description: '',
     status: 'upcoming', // ongoing | upcoming | completed | lastyearhit
     registrationLink: '',
@@ -746,7 +747,33 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
     setFormInitialized(false);
   }, [fest?._id]); // Reset when fest ID changes
 
-  // Form builder functions for registration configuration
+  const applyDefaultRegistrationFields = () => {
+    const mk = (id, type, label, fieldName, opts = {}) => ({
+      id,
+      type,
+      label,
+      fieldName,
+      placeholder: opts.placeholder || '',
+      required: opts.required !== false,
+      options: opts.options || [],
+      validation: opts.validation || {},
+    });
+    setForm((prev) => ({
+      ...prev,
+      formType: 'SINGLE_STEP',
+      formSchema: [
+        mk('full_name', 'text', 'Full Name', 'full_name', { placeholder: 'Your full name' }),
+        mk('email', 'email', 'Email Address', 'email', { placeholder: 'you@email.com' }),
+        mk('mobile', 'tel', 'Mobile Number', 'mobile', { placeholder: '10-digit mobile number' }),
+        mk('college', 'text', 'College / Institute', 'college_name', { placeholder: 'Your college name' }),
+        mk('team_name', 'text', 'Team Name (if applicable)', 'team_name', {
+          placeholder: 'Leave blank for solo events',
+          required: false,
+        }),
+      ],
+    }));
+  };
+
   const addFormField = () => {
     const uuid = crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const newField = {
@@ -1081,6 +1108,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
         festType: fest.festType || fest.category || 'cultural',
         ticketPrice: fest.ticketPrice || '',
         feeAmount: fest.feeAmount || 0,
+        platformFeePercent: fest.platformFeePercent ?? 3,
         description: fest.description || fest.overview || '',
         status: fest.status === 'lastyearhit' ? 'completed' : fest.status || 'upcoming',
         registrationLink: fest.registrationLink || fest.websiteLink || '',
@@ -1358,19 +1386,12 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
     // Validate internal form mandatory fields
     if (form.registrationMode === 'INTERNAL_FORM') {
       console.log('🔍 Validating internal form fields...');
-      if (!form.googleSheetsUrl) {
-        console.error('❌ Google Sheets URL missing');
-        setError('Google Sheets URL is required for internal form registration');
-        setLoading(false);
-        return;
-      }
       if (!form.organizerEmail) {
         console.error('❌ Organizer email missing');
         setError('Organizer email is required for internal form registration');
         setLoading(false);
         return;
       }
-      // Validate email format
       const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailPattern.test(form.organizerEmail)) {
         console.error('❌ Invalid organizer email format');
@@ -1378,13 +1399,22 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
         setLoading(false);
         return;
       }
-      // Validate Google Sheets URL format
-      const validUrlPattern = /^https:\/\/docs\.google\.com\/spreadsheets\/(d\/[a-zA-Z0-9-_]+|u\/\d+\/d\/[a-zA-Z0-9-_]+)/;
-      if (!validUrlPattern.test(form.googleSheetsUrl)) {
-        console.error('❌ Invalid Google Sheets URL format');
-        setError('Please provide a valid Google Sheets URL (e.g., https://docs.google.com/spreadsheets/d/your-sheet-id/edit)');
+      const hasFormFields = form.formType === 'MULTI_STEP'
+        ? (form.steps || []).some((step) => (step.fields || []).length > 0)
+        : (form.formSchema || []).length > 0;
+      if (!hasFormFields) {
+        setError('Add at least one form field — this fest form is used for all competitions.');
         setLoading(false);
         return;
+      }
+      if (form.googleSheetsUrl) {
+        const validUrlPattern = /^https:\/\/docs\.google\.com\/spreadsheets\/(d\/[a-zA-Z0-9-_]+|u\/\d+\/d\/[a-zA-Z0-9-_]+)/;
+        if (!validUrlPattern.test(form.googleSheetsUrl)) {
+          console.error('❌ Invalid Google Sheets URL format');
+          setError('Please provide a valid Google Sheets URL (e.g., https://docs.google.com/spreadsheets/d/your-sheet-id/edit)');
+          setLoading(false);
+          return;
+        }
       }
     }
 
@@ -1400,6 +1430,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
       venue: form.venueDetails,
       ticketPrice: form.ticketPrice,
       feeAmount: form.feeAmount || 0,
+      platformFeePercent: Number(form.platformFeePercent ?? 3),
       description: form.description,
       registrationLink: form.registrationLink,
       status: form.status,
@@ -2030,6 +2061,13 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
           {step === 5 && (
           <div className="space-y-4">
             <h4 className="text-lg font-semibold border-b border-gray-700 pb-2">Registration Configuration</h4>
+
+            <div className="rounded-lg border border-cyan-800/40 bg-cyan-950/20 p-4 text-sm text-cyan-100">
+              <p className="font-medium mb-1">Common form for all competitions</p>
+              <p className="text-cyan-200/80 text-xs">
+                When competitions use fest registration (default), this single form and Cashfree checkout apply to every competition under this fest. Per-competition fees are set on each competition.
+              </p>
+            </div>
             
             {/* Registration Mode Selection */}
             <div className="space-y-3">
@@ -2103,8 +2141,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                 <div className="bg-[#1D1E20] p-4 rounded-lg">
                   <h5 className="text-lg font-medium mb-4 text-[#0ECCEE] border-b border-gray-600 pb-2">Basic Configuration</h5>
                   
-                  <div className="grid grid-cols-1 gap-4">
-                    {/* Organizer Email */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <label className="block text-sm font-medium mb-2">Organizer Email *</label>
                       <input
@@ -2116,6 +2153,21 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                       />
                       <p className="text-xs text-gray-400">Registration confirmation emails will be sent to this email</p>
                     </div>
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium mb-2">
+                        Platform fee % <span className="text-gray-400 font-normal text-xs">— 0 = no CrwdCtrl fee</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="10"
+                        step="0.5"
+                        className="w-full px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                        value={form.platformFeePercent ?? 3}
+                        onChange={(e) => setForm({ ...form, platformFeePercent: Number(e.target.value) })}
+                      />
+                      <p className="text-xs text-gray-400">Set 0 so participants pay only the competition fee via Cashfree.</p>
+                    </div>
                   </div>
                 </div>
 
@@ -2125,7 +2177,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                   
                   {/* Google Sheets URL */}
                   <div className="space-y-2">
-                    <label className="block text-sm font-medium mb-2">Google Sheets URL *</label>
+                    <label className="block text-sm font-medium mb-2">Google Sheets URL <span className="text-gray-400 font-normal">(optional)</span></label>
                     <div className="flex gap-2">
                       <input
                         type="url"
@@ -2223,8 +2275,15 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                 {/* Section 4: Form Fields - Single Step */}
                 {form.formType === 'SINGLE_STEP' && (
                   <div className="bg-[#1D1E20] p-4 rounded-lg">
-                    <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
                       <h5 className="text-lg font-medium text-[#0ECCEE] border-b border-gray-600 pb-2 flex-1">Registration Form Fields</h5>
+                      <button
+                        type="button"
+                        onClick={applyDefaultRegistrationFields}
+                        className="px-3 py-1 bg-gray-700 text-white rounded-lg text-sm font-medium hover:bg-gray-600 transition-colors"
+                      >
+                        Use default fields
+                      </button>
                       <button
                         type="button"
                         onClick={addFormField}

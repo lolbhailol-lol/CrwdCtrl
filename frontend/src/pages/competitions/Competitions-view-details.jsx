@@ -19,7 +19,7 @@ import Seo from '../../components/Seo';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { openExternalUrl, shareContent } from '../../utils/externalLink';
 import { competitionPath, competitionRegistrationPath, festRegisterPath, festPath } from '../../utils/slugRoutes';
-import { resolveCompetitionFee } from '../../utils/festPublicTransform';
+import { resolveCompetitionFee, buildRegistrationPrefetch } from '../../utils/festPublicTransform';
 import { trackBookNowClick } from '../../services/analyticsService';
 import PrizePoolPodium from '../../components/PrizePoolPodium';
 
@@ -535,7 +535,7 @@ function EventPage() {
         return sanitizeRulesArray(eventData?.commonRules || []);
     };
 
-    // Function to get round rules (merge nested offline/online — no separate mode labels)
+    // Function to get round rules (flat list — used when no offline/online split)
     const getRoundRules = (roundData) => {
         if (!roundData) return [];
 
@@ -543,13 +543,98 @@ function EventPage() {
             return [sanitizeRoundDescription(roundData.roundRulesMessage)];
         }
 
-        const merged = [
-            ...sanitizeRulesArray(roundData.rules || []),
-            ...sanitizeRulesArray(roundData.offline?.rules || []),
-            ...sanitizeRulesArray(roundData.online?.rules || []),
-        ];
-        // Dedupe while preserving order
-        return [...new Set(merged.map((r) => String(r).trim()).filter(Boolean))];
+        return sanitizeRulesArray(roundData.rules || []);
+    };
+
+    const getRoundModeSections = (roundData) => {
+        if (!roundData) return { offline: [], online: [], general: [] };
+
+        const offline = sanitizeRulesArray(roundData.offline?.rules || []);
+        const online = sanitizeRulesArray(roundData.online?.rules || []);
+        const general = getRoundRules(roundData);
+
+        if (offline.length || online.length) {
+            return { offline, online, general: [] };
+        }
+
+        return { offline: [], online: [], general };
+    };
+
+    const RoundRulesContent = ({ round, roundIndex, variant = 'mobile' }) => {
+        const { offline, online, general } = getRoundModeSections(round);
+        const boxClass = variant === 'mobile'
+            ? `${isDark ? 'bg-dark-700' : 'bg-gray-50'} rounded-lg p-4`
+            : '';
+        const labelClass = `text-sm font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`;
+
+        if (offline.length && online.length) {
+            return (
+                <div className="space-y-3">
+                    <div className={boxClass || `${isDark ? 'bg-[#111213]' : 'bg-gray-50'} rounded-lg p-4`}>
+                        <h4 className={labelClass}>Offline</h4>
+                        <RulesList
+                            rules={offline}
+                            ruleKey={`${variant}-round${roundIndex}-offline-${eventData?.id}`}
+                            maxItems={5}
+                        />
+                    </div>
+                    <div className={boxClass || `${isDark ? 'bg-[#111213]' : 'bg-gray-50'} rounded-lg p-4`}>
+                        <h4 className={labelClass}>Online</h4>
+                        <RulesList
+                            rules={online}
+                            ruleKey={`${variant}-round${roundIndex}-online-${eventData?.id}`}
+                            maxItems={5}
+                        />
+                    </div>
+                </div>
+            );
+        }
+
+        if (offline.length) {
+            return (
+                <div className={boxClass || `${isDark ? 'bg-[#111213]' : 'bg-gray-50'} rounded-lg p-4`}>
+                    <h4 className={labelClass}>Offline</h4>
+                    <RulesList
+                        rules={offline}
+                        ruleKey={`${variant}-round${roundIndex}-offline-${eventData?.id}`}
+                        maxItems={5}
+                    />
+                </div>
+            );
+        }
+
+        if (online.length) {
+            return (
+                <div className={boxClass || `${isDark ? 'bg-[#111213]' : 'bg-gray-50'} rounded-lg p-4`}>
+                    <h4 className={labelClass}>Online</h4>
+                    <RulesList
+                        rules={online}
+                        ruleKey={`${variant}-round${roundIndex}-online-${eventData?.id}`}
+                        maxItems={5}
+                    />
+                </div>
+            );
+        }
+
+        if (general.length > 0) {
+            return variant === 'mobile' ? (
+                <div className={`${isDark ? 'bg-dark-700' : 'bg-gray-50'} rounded-lg p-4`}>
+                    <RulesList
+                        rules={general}
+                        ruleKey={`${variant}-round${roundIndex}-${eventData?.id}`}
+                        maxItems={5}
+                    />
+                </div>
+            ) : (
+                <RulesList
+                    rules={general}
+                    ruleKey={`${variant}-round${roundIndex}-${eventData?.id}`}
+                    maxItems={5}
+                />
+            );
+        }
+
+        return null;
     };
 
     /** Hide generic Offline / Online titles — Final stays on the last round tab */
@@ -725,11 +810,6 @@ function EventPage() {
     const registrationInfo = getRegistrationStatus();
 
     const handleRegister = async () => {
-        if (!isAuthenticated) {
-            setShowLogin(true);
-            return;
-        }
-
         const statusInfo = getRegistrationStatus();
         if (statusInfo.isDisabled) {
             if (statusInfo.notConfigured) {
@@ -769,8 +849,30 @@ function EventPage() {
                 const path = compId
                   ? `${base}${base.includes('?') ? '&' : '?'}competition=${encodeURIComponent(compId)}`
                   : base;
+                const prefetch = buildRegistrationPrefetch({
+                    fest: {
+                        _id: eventData?.festId || eventData?.fest?._id,
+                        festName: eventData?.fest?.festName || passedEventData?.festival_name || passedEventData?.title,
+                        collegeName: eventData?.fest?.collegeName || passedEventData?.collegeName || passedEventData?.subtitle,
+                        feeAmount: eventData?.fest?.feeAmount ?? 0,
+                        platformFeePercent: eventData?.fest?.platformFeePercent,
+                        registration: eventData?.fest?.registration,
+                    },
+                    competition: {
+                        _id: compId,
+                        name: eventData?.title,
+                        feeAmount: eventData?.feeAmount,
+                        registrationFee: eventData?.entryFee,
+                        registrationType: eventData?.registrationType,
+                        registration: eventData?.registration,
+                    },
+                });
                 navigate(path, {
-                    state: { festId: eventData?.festId || eventData?.fest?._id, competitionId: compId },
+                    state: {
+                        festId: eventData?.festId || eventData?.fest?._id,
+                        competitionId: compId,
+                        prefetch,
+                    },
                 });
             } else if (mode === 'NOT_STARTED') {
                 showAlert({ title: 'Registration not open yet', message: 'Registration has not opened yet for this competition.' });
@@ -1192,7 +1294,10 @@ function EventPage() {
                                                 activeRound,
                                                 eventData.rounds.roundsList.length,
                                             );
-                                            const roundRules = getRoundRules(round);
+                                            const hasRoundContent = (() => {
+                                                const { offline, online, general } = getRoundModeSections(round);
+                                                return offline.length + online.length + general.length > 0;
+                                            })();
 
                                             return (
                                                 <>
@@ -1208,14 +1313,8 @@ function EventPage() {
                                                         </h3>
                                                     ) : null}
 
-                                                    {roundRules.length > 0 && (
-                                                        <div className={`${isDark ? 'bg-dark-700' : 'bg-gray-50'} rounded-lg p-4`}>
-                                                            <RulesList
-                                                                rules={roundRules}
-                                                                ruleKey={`mobile-round${activeRound}-${eventData?.id}`}
-                                                                maxItems={5}
-                                                            />
-                                                        </div>
+                                                    {hasRoundContent && (
+                                                        <RoundRulesContent round={round} roundIndex={activeRound} variant="mobile" />
                                                     )}
                                                 </>
                                             );
@@ -1628,7 +1727,10 @@ function EventPage() {
                                                 activeRound,
                                                 eventData.rounds.roundsList.length,
                                             );
-                                            const roundRules = getRoundRules(round);
+                                            const hasRoundContent = (() => {
+                                                const { offline, online, general } = getRoundModeSections(round);
+                                                return offline.length + online.length + general.length > 0;
+                                            })();
 
                                             return (
                                                 <>
@@ -1644,12 +1746,8 @@ function EventPage() {
                                                         </h3>
                                                     ) : null}
 
-                                                    {roundRules.length > 0 && (
-                                                        <RulesList
-                                                            rules={roundRules}
-                                                            ruleKey={`desktop-round${activeRound}-${eventData?.id}`}
-                                                            maxItems={5}
-                                                        />
+                                                    {hasRoundContent && (
+                                                        <RoundRulesContent round={round} roundIndex={activeRound} variant="desktop" />
                                                     )}
                                                 </>
                                             );

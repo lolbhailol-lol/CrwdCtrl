@@ -30,6 +30,32 @@ export function generateFieldId(field) {
   return 'unknown_field';
 }
 
+export function getSchemaFieldsFromRegistration(registration = {}) {
+  if (registration.formType === 'MULTI_STEP' && registration.steps?.length) {
+    return registration.steps.flatMap((step) => step.fields || []);
+  }
+  return registration.formSchema || [];
+}
+
+export function buildInitialFormData(registration) {
+  const initialData = {};
+  getSchemaFieldsFromRegistration(registration).forEach((field) => {
+    const fieldId = generateFieldId(field);
+    if (field.type === 'file' || field.type === 'image') {
+      initialData[fieldId] = null;
+    } else if (field.type === 'checkbox') {
+      initialData[fieldId] = [];
+    } else if (field.type === 'category_competition_selector') {
+      initialData[fieldId] = { category: '', competition: '' };
+    } else if (field.type === 'group') {
+      initialData[fieldId] = [];
+    } else {
+      initialData[fieldId] = '';
+    }
+  });
+  return initialData;
+}
+
 export function compressImage(file) {
   return new Promise((resolve, reject) => {
     const canvas = document.createElement('canvas');
