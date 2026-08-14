@@ -5,6 +5,7 @@ import { loadOfflineBundle, saveOfflineBundle } from '../offlineDb';
 import { CAMPUS_HUNT_PATHS } from '../../config';
 import { OfflineStorageBadge } from '../components/OfflineScoreBoard';
 import OfflineHuntInstallHelp from '../components/OfflineHuntInstallHelp';
+import { warmupOfflineHunt } from '../warmupOfflineHunt';
 
 export default function OfflineHuntInstallPage() {
   const { token } = useParams();
@@ -34,12 +35,18 @@ export default function OfflineHuntInstallPage() {
         await saveOfflineBundle(pack);
         if (cancelled) return;
         setTeam(pack.team);
+        setStatus('warming');
+        await warmupOfflineHunt();
+        if (cancelled) return;
         setStatus('ready');
       } catch (err) {
         if (cancelled) return;
         const existing = await loadOfflineBundle().catch(() => null);
         if (existing?.team?.teamCode) {
           setTeam(existing.team);
+          setStatus('warming');
+          await warmupOfflineHunt().catch(() => {});
+          if (cancelled) return;
           setStatus('ready');
           return;
         }
@@ -74,14 +81,26 @@ export default function OfflineHuntInstallPage() {
           <p className="mt-8 text-sm text-red-300">{error}</p>
         ) : null}
 
+        {status === 'warming' && team ? (
+          <div className="mt-8 space-y-3">
+            <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-4">
+              <p className="font-mono text-lg font-bold text-emerald-200">{team.teamCode}</p>
+              <p className="text-sm text-white/70">{team.teamName}</p>
+              <p className="mt-2 text-xs text-emerald-100/80">Pack saved. Saving Hunt pages for airplane mode…</p>
+            </div>
+          </div>
+        ) : null}
+
         {status === 'ready' && team ? (
           <div className="mt-8 space-y-4">
             <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-4">
               <p className="font-mono text-lg font-bold text-emerald-200">{team.teamCode}</p>
               <p className="text-sm text-white/70">{team.teamName}</p>
-              <p className="mt-2 text-xs text-emerald-100/80">Pack saved on this phone.</p>
+              <p className="mt-2 text-xs text-emerald-100/80">
+                Pack saved. Airplane-mode pages are on this phone. Now add Hunt, then you can turn data off.
+              </p>
             </div>
-            <OfflineHuntInstallHelp packReady teamCode={team.teamCode} />
+            <OfflineHuntInstallHelp packReady teamCode={team.teamCode} offlineReady />
             <button
               type="button"
               onClick={() => navigate(CAMPUS_HUNT_PATHS.offlineLogin)}
@@ -90,7 +109,7 @@ export default function OfflineHuntInstallPage() {
               Continue to team login
             </button>
           </div>
-        ) : (
+        ) : status === 'warming' || status === 'loading' ? null : (
           <div className="mt-8">
             <OfflineHuntInstallHelp packReady={false} />
           </div>

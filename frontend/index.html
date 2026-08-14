@@ -509,6 +509,13 @@
 
       function recoverStaleDeploy() {
         try {
+          if (!navigator.onLine) {
+            showFallback();
+            return;
+          }
+          if (/^\/campus-hunt\/offline(\/|$)/.test(location.pathname || '')) {
+            return;
+          }
           if (sessionStorage.getItem(RECOVER_KEY)) {
             showFallback();
             return;

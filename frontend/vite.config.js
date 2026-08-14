@@ -59,7 +59,7 @@ export default defineConfig(({ mode }) => ({
       // We'll register the SW in `src/main.jsx` to control update behavior.
       injectRegister: null,
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.png', 'logo-crwdctrl.png', 'crwdctrl-mark.png', 'icon-192x192.png', 'icon-512x512.png', 'robots.txt', 'sitemap.xml', 'llms.txt', 'category-icons/*.webp'],
+      includeAssets: ['favicon.png', 'logo-crwdctrl.png', 'crwdctrl-mark.png', 'icon-192x192.png', 'icon-512x512.png', 'robots.txt', 'sitemap.xml', 'llms.txt', 'category-icons/*.webp', 'offline-hunt.webmanifest'],
       manifest: {
         name: 'CrwdCtrl — Discover College Fests',
         short_name: 'CrwdCtrl',
@@ -96,42 +96,24 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff2,webmanifest}'],
+        maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         // Bump when changing runtime cache strategy so installed devices drop old SW caches
-        cacheId: 'crwdctrl-v4',
+        cacheId: 'crwdctrl-v5',
         // Ensure new builds activate quickly and old caches are removed.
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,
         // Don't precache the firebase messaging sw
         navigateFallback: 'index.html',
+        navigateFallbackAllowlist: [/^\/campus-hunt\/offline(?:\/|$|\?)/, /^\//],
         navigateFallbackDenylist: [
           /^\/firebase-messaging-sw\.js$/,
           /^\/api\//,
         ],
         runtimeCaching: [
-          {
-            // Keep Hunt shell for airplane-mode play (days after install)
-            urlPattern: ({ url, request }) => (
-              request.mode === 'navigate'
-              && String(url.pathname || '').startsWith('/campus-hunt/offline')
-            ),
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'offline-hunt-pages',
-              networkTimeoutSeconds: 3,
-              expiration: { maxEntries: 30, maxAgeSeconds: 30 * 24 * 60 * 60 },
-            },
-          },
-          {
-            // Always prefer network for HTML navigations after deploy
-            urlPattern: ({ request }) => request.mode === 'navigate',
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'pages-cache',
-              networkTimeoutSeconds: 5,
-              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 },
-            },
-          },
+          // Do NOT NetworkFirst HTML navigations. That handler wins over
+          // navigateFallback, so airplane mode shows a blank/error page.
           // Intentionally NO /api runtimeCaching rule.
           // Workbox NetworkOnly/NetworkFirst throw uncaught "no-response" when Railway
           // is cold/unreachable; that surfaces as SW errors on iPhone/laptop and can

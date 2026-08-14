@@ -4,7 +4,7 @@
   "short_name": "Hunt",
   "description": "Play Campus Hunt in airplane mode. Not the main CrwdCtrl website.",
   "start_url": "/campus-hunt/offline",
-  "scope": "/campus-hunt/offline/",
+  "scope": "/campus-hunt/offline",
   "display": "standalone",
   "orientation": "portrait",
   "theme_color": "#0b0c0d",

@@ -29,6 +29,10 @@ export function isChunkLoadError(error) {
 
 /** Hard recovery after deploy — drop stale service worker caches and reload fresh HTML */
 export async function recoverFromStaleDeploy() {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+    if (typeof window !== 'undefined' && String(window.location?.pathname || '').startsWith('/campus-hunt/offline')) {
+        return;
+    }
     try {
         if ('caches' in window) {
             const keys = await caches.keys();
@@ -57,6 +61,10 @@ export async function recoverFromStaleDeploy() {
 
 /** Reload once per session when a stale JS chunk fails after deploy */
 export function reloadOnceForChunkError() {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return false;
+    if (typeof window !== 'undefined' && String(window.location?.pathname || '').startsWith('/campus-hunt/offline')) {
+        return false;
+    }
     try {
         if (sessionStorage.getItem(CHUNK_RELOAD_SESSION_KEY)) {
             void recoverFromStaleDeploy();

@@ -55,6 +55,7 @@ export default function OfflineHuntPlayPage() {
   const [playData, setPlayData] = useState(null);
   const [proofPayload, setProofPayload] = useState('');
   const [teamSyncPayload, setTeamSyncPayload] = useState('');
+  const [resultsPayload, setResultsPayload] = useState('');
   const [startError, setStartError] = useState('');
   const [starting, setStarting] = useState(false);
   const stateRef = useRef(null);

@@ -102,8 +102,10 @@ export default function OfflineHuntInstallHelp({ packReady = false, teamCode = '
         <div className="rounded-2xl border border-[#0ECCEE]/35 bg-[#0ECCEE]/10 p-4">
           <p className="text-sm font-bold text-white">Add Hunt — not the main website</p>
           <p className="mt-1 text-xs text-white/65">
-            Stay on this page. The home-screen name should be <strong className="text-white">Hunt</strong>,
-            not CrwdCtrl.
+            Stay on this page until it says airplane-mode pages are saved. Then add
+            {' '}
+            <strong className="text-white">Hunt</strong>
+            , not CrwdCtrl. Do not turn data off until after that.
           </p>
           {packReady && deferredPrompt ? (
             <button
