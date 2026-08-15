@@ -21,6 +21,7 @@ import {
   loadRegistrationDraft,
   saveRegistrationDraft,
   applyRegistrationDraft,
+  saveFestRegistrationSuccess,
 } from '../../../utils/registrationDraft';
 import { useRegistrationSuccessPopup } from '../../../hooks/useSuccessPopup';
 import { finalizeCompetitionAfterPayment } from '../../../utils/competitionPaymentComplete';
@@ -56,7 +57,10 @@ export default function useFestRegistration() {
   const competitionId = searchParams.get('competition') || location.state?.competitionId || null;
   const storedPrefetch = festId ? loadRegistrationPrefetch(festId, competitionId) : null;
   const registrationPrefetch = location.state?.prefetch ?? storedPrefetch ?? null;
-  const initialUi = getInitialFestRegistrationUi(location.pathname, location.search, location.state);
+  const initialUi = getInitialFestRegistrationUi(location.pathname, location.search, location.state, {
+    festId,
+    competitionId,
+  });
   const {
     isAuthenticated,
     isLoading: authLoading,
@@ -84,9 +88,9 @@ export default function useFestRegistration() {
   const [submissionProgress, setSubmissionProgress] = useState('');
   const [error, setError] = useState('');
   const [notice] = useState('');
-  const [success, setSuccess] = useState(false);
+  const [success, setSuccess] = useState(() => Boolean(initialUi.success));
   const [completingPayment, setCompletingPayment] = useState(initialUi.completingPayment);
-  const [registrationId, setRegistrationId] = useState(null);
+  const [registrationId, setRegistrationId] = useState(() => initialUi.registrationId || null);
   const [uploadingFiles, setUploadingFiles] = useState({});
   // Cashfree verified payment fields
   const [paymentFields, setPaymentFields] = useState(null);
@@ -248,16 +252,22 @@ export default function useFestRegistration() {
       throw new Error(errData.error || 'Registration failed after payment. Please retry or check My Bookings.');
     }
 
-    clearPendingPayment();
-    clearCashfreeReturnAndPending(navigate, location);
     const regData = await regRes.json().catch(() => ({}));
     const regId = regData._id || regData.registration?._id || regData.registrationId;
-    setRegistrationId(regId);
+    if (regId) setRegistrationId(regId);
+    saveFestRegistrationSuccess({
+      festId: festId || fest?._id,
+      festMongoId: fest?._id || fest?.id || null,
+      competitionId: null,
+      registrationId: regId,
+    });
     setProcessOverlayMode('success');
     setSubmissionProgress("You're registered!");
-    await sleep(1000);
     setCompletingPayment(false);
     setSuccess(true);
+    clearPendingPayment();
+    clearCashfreeReturnAndPending(navigate, location);
+    await sleep(1000);
     refreshNotifications();
     clearRegistrationDraft(draftKey);
   };
@@ -389,14 +399,20 @@ export default function useFestRegistration() {
     });
 
     if (regId) setRegistrationId(regId);
+    saveFestRegistrationSuccess({
+      festId: festId || fest?._id,
+      festMongoId: fest?._id || fest?.id || null,
+      competitionId: competitionId || competition?._id || null,
+      registrationId: regId,
+    });
     clearRegistrationDraft(draftKey);
-    clearPendingPayment();
-    clearCashfreeReturnAndPending(navigate, location);
     setProcessOverlayMode('success');
     setSubmissionProgress("You're registered!");
-    await sleep(1000);
     setCompletingPayment(false);
     setSuccess(true);
+    clearPendingPayment();
+    clearCashfreeReturnAndPending(navigate, location);
+    await sleep(1000);
     refreshNotifications();
   };
 
@@ -503,9 +519,13 @@ export default function useFestRegistration() {
     if (!fest) return;
     const canonical = festRegisterPath(fest);
     if (window.location.pathname !== canonical) {
-      navigate(`${canonical}${location.search || ''}`, { replace: true });
+      // Keep payment-return / success navigation state across ObjectId ? slug rewrite
+      navigate(`${canonical}${location.search || ''}`, {
+        replace: true,
+        state: location.state,
+      });
     }
-  }, [fest, navigate, location.search]);
+  }, [fest, navigate, location.search, location.state]);
 
   useEffect(() => {
     if (loading || !fest) return;
@@ -1818,7 +1838,14 @@ export default function useFestRegistration() {
       await waitAtLeast(processUiStartedAt.current, 1000);
       setProcessOverlayMode('success');
       setSubmissionProgress('You\'re registered!');
-      await sleep(1000);
+      saveFestRegistrationSuccess({
+        festId: festId || fest?._id,
+        festMongoId: fest?._id || fest?.id || null,
+        competitionId: isCompetitionRegistration
+          ? (competitionId || competition?._id || null)
+          : null,
+        registrationId: regId,
+      });
       setCompletingPayment(false);
       setSubmitting(false);
       setSubmissionProgress('');
@@ -1831,6 +1858,7 @@ export default function useFestRegistration() {
         setPaymentResumeError('');
         clearCashfreeReturnAndPending(navigate, location);
       }
+      await sleep(1000);
 
       return { success: true, regId };
 
@@ -2001,13 +2029,21 @@ export default function useFestRegistration() {
 
       const regData = await regRes.json().catch(() => ({}));
       const regId = regData._id || regData.registration?._id || regData.registrationId;
-      setRegistrationId(regId);
+      if (regId) setRegistrationId(regId);
+      saveFestRegistrationSuccess({
+        festId: festId || fest?._id,
+        festMongoId: fest?._id || fest?.id || null,
+        competitionId: null,
+        registrationId: regId,
+      });
       await waitAtLeast(processUiStartedAt.current, 1000);
       setProcessOverlayMode('success');
       setSubmissionProgress("You're registered!");
-      await sleep(1000);
       setCompletingPayment(false);
       setSuccess(true);
+      clearPendingPayment();
+      clearCashfreeReturnAndPending(navigate, location);
+      await sleep(1000);
       refreshNotifications();
       clearRegistrationDraft(draftKey);
     } catch (err) {

@@ -149,7 +149,19 @@ export function discardStalePaymentRecovery({ pathname, search = '', navigationS
 
 export function pathsMatchPendingReturn(pendingPath, currentPath) {
   if (!pendingPath || !currentPath) return false;
-  return pendingPath.split('?')[0] === currentPath.split('?')[0];
+  const pendingBase = pendingPath.split('?')[0].replace(/\/$/, '') || '/';
+  const currentBase = currentPath.split('?')[0].replace(/\/$/, '') || '/';
+  if (pendingBase === currentBase) return true;
+
+  // Fest register: ObjectId ↔ slug after canonical redirect must still resume payment
+  const festReg = /^\/fest\/[^/]+\/register$/;
+  if (festReg.test(pendingBase) && festReg.test(currentBase)) return true;
+
+  // Legacy competition registration routes (id ↔ slug)
+  const compReg = /^\/competition-registration\/[^/]+$/;
+  if (compReg.test(pendingBase) && compReg.test(currentBase)) return true;
+
+  return false;
 }
 
 export function hasCashfreeReturnParams(search = '') {

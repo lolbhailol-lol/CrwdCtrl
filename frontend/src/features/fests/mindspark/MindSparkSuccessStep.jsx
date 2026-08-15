@@ -32,6 +32,7 @@ export default function MindSparkSuccessStep({
   fest,
   registrationId,
   navigate,
+  competitionId: competitionIdProp,
 }) {
   const compName = competition?.name || 'your competition';
   const festName = fest?.festName || 'MindSpark';
@@ -50,7 +51,11 @@ export default function MindSparkSuccessStep({
       setWhatsapp(fromProps);
       return;
     }
-    const compId = competition?._id || competition?.id || competition?.slug;
+    const compId =
+      competitionIdProp
+      || competition?._id
+      || competition?.id
+      || competition?.slug;
     if (!compId) return;
     let cancelled = false;
     (async () => {
@@ -68,7 +73,7 @@ export default function MindSparkSuccessStep({
       }
     })();
     return () => { cancelled = true; };
-  }, [competition, fest]);
+  }, [competition, fest, competitionIdProp]);
 
   const card = isDark
     ? 'bg-[#111213] border-gray-700/60'

@@ -1,5 +1,5 @@
 import { goToBookings } from '../../../utils/paymentNavigation';
-import { isMindSparkFest, MindSparkSuccessStep } from '../../../features/fests/mindspark';
+import { isMindSparkFest, MindSparkSuccessStep, MINDSPARK_FEST_ID } from '../../../features/fests/mindspark';
 import { RegistrationStatusVisual, SuccessRevealGate } from '../../../components/RegistrationStatusVisual';
 
 export default function SuccessStep({
@@ -9,6 +9,8 @@ export default function SuccessStep({
   fest,
   registrationId,
   navigate,
+  competitionId: competitionIdProp,
+  festId: festIdProp,
 }) {
   const mindSpark =
     isCompetitionRegistration
@@ -16,6 +18,9 @@ export default function SuccessStep({
       isMindSparkFest(fest)
       || isMindSparkFest(competition)
       || isMindSparkFest(competition?.fest)
+      || isMindSparkFest(festIdProp)
+      || String(festIdProp || '').toLowerCase().includes('mindspark')
+      || String(fest?._id || fest?.id || '') === MINDSPARK_FEST_ID
     );
 
   if (mindSpark) {
@@ -26,6 +31,7 @@ export default function SuccessStep({
         fest={fest}
         registrationId={registrationId}
         navigate={navigate}
+        competitionId={competitionIdProp || competition?._id || competition?.id}
       />
     );
   }

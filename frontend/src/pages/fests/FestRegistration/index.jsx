@@ -47,6 +47,8 @@ export default function FestRegistration() {
     closePaymentModal,
     retryCheckoutRef,
     handleCashfreeFestRegister,
+    competitionId,
+    festId,
   } = r;
 
   if (completingPayment && !success) {
@@ -76,6 +78,8 @@ export default function FestRegistration() {
         fest={fest}
         registrationId={registrationId}
         navigate={navigate}
+        competitionId={competitionId}
+        festId={festId}
       />
     );
   }

@@ -167,9 +167,39 @@ async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides 
           userId,
           orderId: payment_order_id,
         });
-        scheduleRegistrationNotification(registration, competition.fest, competition);
-        await sendRegistrationThankYouEmail(user.email, user.name, competition.name);
-        await sendRegistrationConfirmationEmail(user.email, user.name, competition.name, registration._id);
+        const ticketLink = `/registration-details/${registration._id}`;
+        scheduleRegistrationNotification(userId, {
+          title: 'Registration Confirmed!',
+          message: `You've successfully registered for ${competition.name}.`,
+          body: `You've registered for ${competition.name}`,
+          link: ticketLink,
+          metadata: {
+            competitionId: competition._id,
+            festId: competition.fest?._id,
+            registrationId: registration._id,
+          },
+        });
+        await sendRegistrationThankYouEmail(
+          user.email,
+          user.name,
+          competition.fest?.festName || competition.name,
+          { type: 'competition', ticketLink },
+        ).catch(() => {});
+        await sendRegistrationConfirmationEmail(
+          user.email,
+          user.name,
+          competition.fest?.festName || competition.name,
+          competition.name,
+          registration._id.toString(),
+          new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+          {
+            status: 'paid',
+            method: 'cashfree',
+            type: 'competition',
+            ticketLink,
+            groupLink: competition.registration?.whatsappGroupLink || '',
+          },
+        ).catch(() => {});
       } catch (bgErr) {
         logger.error('❌ competition fulfill background error:', bgErr.message);
       }
@@ -227,8 +257,27 @@ async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides 
         userId,
         orderId: payment_order_id,
       });
-      scheduleRegistrationNotification(registration, fest, null);
-      await sendRegistrationThankYouEmail(user.email, user.name, fest.festName);
+      const ticketLink = `/registration-details/${registration._id}`;
+      scheduleRegistrationNotification(userId, {
+        title: 'Fest Registration Confirmed!',
+        message: `You've successfully registered for ${fest.festName}.`,
+        body: `You've registered for ${fest.festName}`,
+        link: ticketLink,
+        metadata: { festId: fest._id, registrationId: registration._id },
+      });
+      await sendRegistrationThankYouEmail(user.email, user.name, fest.festName, {
+        type: 'fest',
+        ticketLink,
+      }).catch(() => {});
+      await sendRegistrationConfirmationEmail(
+        user.email,
+        user.name,
+        fest.festName,
+        null,
+        registration._id.toString(),
+        new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+        { status: 'paid', method: 'cashfree', type: 'fest', ticketLink },
+      ).catch(() => {});
       await appendPaymentOnlyToSheets(fest, registration).catch(() => {});
     } catch (bgErr) {
       logger.error('❌ fest fulfill background error:', bgErr.message);

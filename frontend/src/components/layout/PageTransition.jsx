@@ -232,8 +232,19 @@ export function PageTransitionContent({ children }) {
         if (!el) return;
 
         // Admin / organizer shells: no slide flash — keep content steady
+        // Fest / competition details: soft fade when switching between them
         if (skipMotion) {
-            el.classList.remove('page-transition-enter', 'page-transition-enter-back');
+            const isDetailSwitch =
+                location.pathname.endsWith('-fest')
+                || location.pathname.startsWith('/view-details')
+                || location.pathname.startsWith('/competitions-view-details')
+                || location.pathname.startsWith('/competition/');
+            if (isDetailSwitch && !isFirst.current) {
+                el.classList.remove('page-transition-enter', 'page-transition-enter-back', 'page-transition-detail-fade');
+                void el.offsetWidth;
+                el.classList.add('page-transition-detail-fade');
+            }
+            isFirst.current = false;
             return;
         }
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { Calendar, MapPin, Heart } from "lucide-react";
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { Phone, Instagram, Mail, ArrowLeft, Share, ChevronLeft, ChevronRight, X } from 'lucide-react';
@@ -102,6 +102,18 @@ function CompetitionScrollCard({ comp, isDark, isFavorite, onToggleFavorite, onC
   );
 }
 
+function resolveSeededFest(eventId, location) {
+  const fromState = location?.state?.eventData?.title ? location.state.eventData : null;
+  if (fromState && (!eventId || entityMatchesRouteParam(fromState, eventId, ['title', 'festName', 'festival_name']))) {
+    return fromState;
+  }
+  const cached = eventId ? loadFestDetailCache(eventId) : null;
+  if (cached && entityMatchesRouteParam(cached, eventId, ['title', 'festName', 'festival_name'])) {
+    return cached;
+  }
+  return null;
+}
+
 function EventDetailsPage() {
   const { isDark } = useDarkMode();
   const { toast } = useDialog();
@@ -117,27 +129,41 @@ function EventDetailsPage() {
   const [showFullOverview, setShowFullOverview] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
-  const seededFest = (() => {
-    const fromState = location.state?.eventData?.title ? location.state.eventData : null;
-    if (fromState && (!eventId || entityMatchesRouteParam(fromState, eventId, ['title', 'festName', 'festival_name']))) {
-      return fromState;
-    }
-    const cached = eventId ? loadFestDetailCache(eventId) : null;
-    if (cached && entityMatchesRouteParam(cached, eventId, ['title', 'festName', 'festival_name'])) {
-      return cached;
-    }
-    return null;
-  })();
-  const [eventData, setEventData] = useState(seededFest);
-  const [currentHeroImage, setCurrentHeroImage] = useState(seededFest?.heroImage || seededFest?.image || '');
-  const [fetchDone, setFetchDone] = useState(false);
+  const [eventData, setEventData] = useState(() => resolveSeededFest(eventId, location));
+  const [currentHeroImage, setCurrentHeroImage] = useState(() => {
+    const seed = resolveSeededFest(eventId, location);
+    return seed?.heroImage || seed?.image || '';
+  });
+  const [fetchDone, setFetchDone] = useState(() => Boolean(resolveSeededFest(eventId, location)));
   const [error, setError] = useState(null);
+  const [bodyReady, setBodyReady] = useState(() => Boolean(resolveSeededFest(eventId, location)));
   const eventsRef = useRef(null);
+  const fetchGenRef = useRef(0);
 
   // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
 
+  // Switching fests reuses this page — drop previous hero immediately
+  useLayoutEffect(() => {
+    const seed = resolveSeededFest(eventId, location);
+    fetchGenRef.current += 1;
+    setEventData(seed);
+    setCurrentHeroImage(seed?.heroImage || seed?.image || '');
+    setFetchDone(Boolean(seed));
+    setError(null);
+    setActiveTab('GROUP');
+    setShowFullOverview(false);
+    setLightboxIndex(null);
+    setBodyReady(false);
+    if (seed) {
+      const t = window.setTimeout(() => setBodyReady(true), 16);
+      return () => window.clearTimeout(t);
+    }
+    return undefined;
+  }, [eventId]);
+
   // Fetch event data from backend API
   useEffect(() => {
+    const gen = fetchGenRef.current;
     const fetchEventData = async () => {
       if (!eventId) {
         console.log('ViewDetails - No eventId provided, redirecting to dashboard');
@@ -174,27 +200,24 @@ function EventDetailsPage() {
         console.log('ViewDetails - Registration Link from API:', festData.registrationLink);
 
         const transformedData = transformFestPublicData(festData);
+        if (gen !== fetchGenRef.current) return;
         if (transformedData) {
           setEventData(transformedData);
           setCurrentHeroImage(transformedData.heroImage || transformedData.image);
           saveFestDetailCache(eventId, transformedData);
-          
-          // Debug: Check if registrationLink is properly mapped
-          console.log('ViewDetails - Transformed Registration Link:', transformedData.registrationLink);
-          console.log('ViewDetails - Event data set successfully');
+          setBodyReady(true);
         } else {
           setError('Event not found');
         }
       } catch (err) {
+        if (gen !== fetchGenRef.current) return;
         console.error('ViewDetails - Error fetching event data:', err);
-        console.error('ViewDetails - Error status:', err.response?.status);
-        console.error('ViewDetails - Error message:', err.response?.data?.message);
-        console.error('ViewDetails - Error details:', err.response?.data);
 
         const cached = eventId ? loadFestDetailCache(eventId) : null;
-        if (cached) {
+        if (cached && entityMatchesRouteParam(cached, eventId, ['title', 'festName', 'festival_name'])) {
           setEventData(cached);
           setCurrentHeroImage(cached.heroImage || cached.image);
+          setBodyReady(true);
         } else if (err.response?.status === 404) {
           setError('Fest not found - it may not be approved yet or the link might be incorrect');
         } else if (err.response?.status === 400) {
@@ -203,7 +226,7 @@ function EventDetailsPage() {
           setError('Failed to load event details');
         }
       } finally {
-        setFetchDone(true);
+        if (gen === fetchGenRef.current) setFetchDone(true);
       }
     };
 
@@ -465,7 +488,12 @@ function EventDetailsPage() {
     : (pageEvent.collegeName || pageEvent.subtitle);
 
   return (
-    <div className={`crwdctrl-page min-h-screen overflow-x-clip ${isDark ? 'bg-black' : 'bg-white'}`}>
+    <div
+      key={eventId || eventData?.id || 'fest'}
+      className={`crwdctrl-page min-h-screen overflow-x-clip animate-detail-enter transition-opacity duration-300 ${
+        bodyReady ? 'opacity-100' : 'opacity-90'
+      } ${isDark ? 'bg-black' : 'bg-white'}`}
+    >
       <Seo
         title={pageEvent.title}
         description={festDescription}

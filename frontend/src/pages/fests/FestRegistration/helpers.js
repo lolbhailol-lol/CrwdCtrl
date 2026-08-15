@@ -3,8 +3,40 @@ import {
   getPendingPayment,
   shouldResumePendingPayment,
 } from '../../../utils/deepLinks';
+import {
+  loadFestRegistrationSuccess,
+  clearFestRegistrationSuccess,
+} from '../../../utils/registrationDraft';
 
-export function getInitialFestRegistrationUi(pathname, search, navigationState = null) {
+export function getInitialFestRegistrationUi(pathname, search, navigationState = null, options = {}) {
+  const freshStart =
+    navigationState?.freshRegistration
+    || navigationState?.prefetch
+    || navigationState?.paymentCancelled;
+
+  if (freshStart) {
+    clearFestRegistrationSuccess();
+  }
+
+  const restoredSuccess =
+    !freshStart && (
+      navigationState?.registrationComplete
+        ? {
+            registrationId: navigationState.registrationId || null,
+            festId: options.festId || '',
+            competitionId: options.competitionId || '',
+          }
+        : loadFestRegistrationSuccess(options.festId, options.competitionId)
+    );
+
+  if (restoredSuccess || navigationState?.registrationComplete) {
+    return {
+      completingPayment: false,
+      success: true,
+      registrationId: restoredSuccess?.registrationId || navigationState?.registrationId || null,
+    };
+  }
+
   discardStalePaymentRecovery({ pathname, search, navigationState });
   const currentPath = `${pathname}${search}`;
   const resumingPayment = shouldResumePendingPayment(
@@ -12,7 +44,7 @@ export function getInitialFestRegistrationUi(pathname, search, navigationState =
     currentPath,
     search,
   );
-  return { completingPayment: resumingPayment };
+  return { completingPayment: resumingPayment, success: false, registrationId: null };
 }
 
 export function generateFieldId(field) {

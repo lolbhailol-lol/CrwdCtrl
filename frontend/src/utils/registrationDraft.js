@@ -128,3 +128,76 @@ export function scrollFieldIntoView(e) {
     el.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }, 280);
 }
+
+const FEST_REG_SUCCESS_KEY = 'crwdctrl_fest_reg_success';
+const FEST_REG_SUCCESS_MAX_AGE_MS = 30 * 60 * 1000;
+
+/**
+ * Persist post-payment success so Cashfree return / slug remount still shows
+ * WhatsApp + View bookings instead of dropping back to the form.
+ */
+export function saveFestRegistrationSuccess({
+  festId,
+  festMongoId,
+  competitionId,
+  registrationId,
+}) {
+  if (!festId && !festMongoId && !competitionId) return;
+  try {
+    sessionStorage.setItem(
+      FEST_REG_SUCCESS_KEY,
+      JSON.stringify({
+        festId: festId ? String(festId) : '',
+        festMongoId: festMongoId ? String(festMongoId) : '',
+        competitionId: competitionId ? String(competitionId) : '',
+        registrationId: registrationId ? String(registrationId) : '',
+        ts: Date.now(),
+      }),
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
+export function loadFestRegistrationSuccess(festId, competitionId = null) {
+  try {
+    const raw = sessionStorage.getItem(FEST_REG_SUCCESS_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.ts || Date.now() - parsed.ts > FEST_REG_SUCCESS_MAX_AGE_MS) {
+      sessionStorage.removeItem(FEST_REG_SUCCESS_KEY);
+      return null;
+    }
+
+    const wantComp = competitionId ? String(competitionId) : '';
+    const gotComp = parsed.competitionId ? String(parsed.competitionId) : '';
+
+    // Competition registration: match on competition id (URL may use fest slug or ObjectId)
+    if (wantComp) {
+      if (gotComp && wantComp === gotComp) return parsed;
+      return null;
+    }
+
+    // Fest-only registration
+    if (gotComp) return null;
+    const routeKey = festId ? String(festId) : '';
+    if (!routeKey) return parsed;
+    if (
+      routeKey === String(parsed.festId || '')
+      || routeKey === String(parsed.festMongoId || '')
+    ) {
+      return parsed;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function clearFestRegistrationSuccess() {
+  try {
+    sessionStorage.removeItem(FEST_REG_SUCCESS_KEY);
+  } catch {
+    /* ignore */
+  }
+}

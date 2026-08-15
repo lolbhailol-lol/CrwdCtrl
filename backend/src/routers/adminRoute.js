@@ -290,7 +290,9 @@ router.put(
         console.log('Backend - Processing registration data:', req.body.registration);
 
         // Get existing registration or create new one
-        const existingRegistration = existingCompetition.registration || {};
+        const existingRegistration = existingCompetition.registration && typeof existingCompetition.registration.toObject === 'function'
+          ? existingCompetition.registration.toObject()
+          : { ...(existingCompetition.registration || {}) };
 
         // Handle legacy status migration
         let registrationStatus = req.body.registration.status || existingRegistration.status;
@@ -306,12 +308,28 @@ router.put(
 
         console.log('Backend - Migrated registration status from', req.body.registration.status, 'to', registrationStatus);
 
+        const incoming = {};
+        for (const [key, value] of Object.entries(req.body.registration)) {
+          if (value !== undefined) incoming[key] = value;
+        }
+        const existingSettings =
+          existingRegistration.settings && typeof existingRegistration.settings === 'object'
+            ? existingRegistration.settings
+            : {};
+        const incomingSettings =
+          incoming.settings && typeof incoming.settings === 'object'
+            ? incoming.settings
+            : null;
+
         // Deep merge the registration data with migrated status
         const { withNormalizedPersonFields } = require('../utils/personFields');
         const updatedRegistration = withNormalizedPersonFields({
           ...existingRegistration,
-          ...req.body.registration,
-          status: registrationStatus
+          ...incoming,
+          status: registrationStatus,
+          settings: incomingSettings
+            ? { ...existingSettings, ...incomingSettings }
+            : { ...existingSettings },
         }, { festId: existingCompetition.fest });
 
         console.log('Backend - Merged registration data:', updatedRegistration);

@@ -1802,19 +1802,43 @@ function applyCompetitionPayload(competition, body = {}) {
         competition.markModified('contact');
     }
     if (body.registration !== undefined && body.registration && typeof body.registration === 'object') {
-        const existingRegistration = competition.registration || {};
+        const existingRegistration = competition.registration && typeof competition.registration.toObject === 'function'
+            ? competition.registration.toObject()
+            : { ...(competition.registration || {}) };
         let registrationStatus = body.registration.status || existingRegistration.status;
         if (registrationStatus === 'STARTED') registrationStatus = 'internal_form';
         else if (registrationStatus === 'CLOSED') registrationStatus = 'registration_closed';
         else if (registrationStatus === 'NOT_STARTED') registrationStatus = 'not_started';
 
-        competition.registration = {
+        // Drop undefined keys from JSON/React payloads — Mongoose rejects settings: undefined
+        const incoming = {};
+        for (const [key, value] of Object.entries(body.registration)) {
+            if (value !== undefined) incoming[key] = value;
+        }
+
+        const existingSettings =
+            existingRegistration.settings && typeof existingRegistration.settings === 'object'
+                ? existingRegistration.settings
+                : {};
+        const incomingSettings =
+            incoming.settings && typeof incoming.settings === 'object'
+                ? incoming.settings
+                : null;
+
+        const merged = {
             ...existingRegistration,
-            ...body.registration,
+            ...incoming,
             status: registrationStatus,
+            settings: incomingSettings
+                ? { ...existingSettings, ...incomingSettings }
+                : { ...existingSettings },
         };
+        if (!merged.settings || typeof merged.settings !== 'object') {
+            merged.settings = {};
+        }
+
         const { withNormalizedPersonFields } = require('../utils/personFields');
-        competition.registration = withNormalizedPersonFields(competition.registration, {
+        competition.registration = withNormalizedPersonFields(merged, {
             festId: competition.fest,
         });
         competition.markModified('registration');

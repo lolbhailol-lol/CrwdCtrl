@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Phone, Instagram, Check, Moon, Sun, Mail, ArrowLeft, Ticket, Zap, Share2, Users, Hash } from 'lucide-react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
@@ -432,6 +432,18 @@ const buildCompetitionData = (compData, options = {}) => {
     };
 };
 
+function resolveSeededCompetition(competitionId, location) {
+    const fromState = location?.state?.competition;
+    if (fromState && (!competitionId || entityMatchesRouteParam(fromState, competitionId, ['name', 'title']))) {
+        return buildCompetitionData(fromState, { useFestRegistrationFallback: true });
+    }
+    const cached = competitionId ? loadCompetitionDetailCache(competitionId) : null;
+    if (!cached) return null;
+    if (!entityMatchesRouteParam(cached, competitionId, ['name', 'title'])) return null;
+    if (isBuiltCompetitionDetail(cached)) return cached;
+    return buildCompetitionData(cached, { useFestRegistrationFallback: true });
+}
+
 function EventPage() {
     const { competitionId } = useParams();
     const navigate = useNavigate();
@@ -441,54 +453,56 @@ function EventPage() {
     const [showShareMenu, setShowShareMenu] = useState(false);
     const [showFullAbout, setShowFullAbout] = useState(false);
     const [expandedRules, setExpandedRules] = useState({});
-    const seededCompetition = (() => {
-        const fromState = location.state?.competition;
-        if (fromState && (!competitionId || entityMatchesRouteParam(fromState, competitionId, ['name', 'title']))) {
-            return buildCompetitionData(fromState, { useFestRegistrationFallback: true });
-        }
-        const cached = competitionId ? loadCompetitionDetailCache(competitionId) : null;
-        if (!cached) return null;
-        if (!entityMatchesRouteParam(cached, competitionId, ['name', 'title'])) return null;
-        if (isBuiltCompetitionDetail(cached)) return cached;
-        return buildCompetitionData(cached, { useFestRegistrationFallback: true });
-    })();
-    const [competitionData, setCompetitionData] = useState(seededCompetition);
+    const [competitionData, setCompetitionData] = useState(() => resolveSeededCompetition(competitionId, location));
     const [showLogin, setShowLogin] = useState(false);
     const [showRegister, setShowRegister] = useState(false);
-    const [fetchDone, setFetchDone] = useState(Boolean(seededCompetition));
+    const [fetchDone, setFetchDone] = useState(() => Boolean(resolveSeededCompetition(competitionId, location)));
     const [error, setError] = useState(null);
+    const [bodyReady, setBodyReady] = useState(() => Boolean(resolveSeededCompetition(competitionId, location)));
     const { isDark } = useDarkMode();
     const { alert: showAlert, toast } = useDialog();
     const { isAuthenticated } = useAuth();
+    const fetchGenRef = useRef(0);
+
+    // Switching comps reuses this page — clear previous hero immediately so it doesn't flash
+    useLayoutEffect(() => {
+        const seed = resolveSeededCompetition(competitionId, location);
+        fetchGenRef.current += 1;
+        setCompetitionData(seed);
+        setFetchDone(Boolean(seed));
+        setError(null);
+        setActiveRound(0);
+        setExpandedRules({});
+        setShowFullAbout(false);
+        setShowShareMenu(false);
+        setBodyReady(false);
+        if (seed) {
+            const t = window.setTimeout(() => setBodyReady(true), 16);
+            return () => window.clearTimeout(t);
+        }
+        return undefined;
+    }, [competitionId]);
 
     // Fetch competition data from backend API
     useEffect(() => {
+        const gen = fetchGenRef.current;
         const fetchCompetitionData = async () => {
             if (!competitionId) {
-                // If no competitionId in URL, check if data was passed via navigation state
                 const stateCompetition = location.state?.competition;
                 if (stateCompetition) {
-                    console.log('Using competition data from navigation state:', stateCompetition);
                     const built = buildCompetitionData(stateCompetition, { useFestRegistrationFallback: true });
+                    if (gen !== fetchGenRef.current) return;
                     setCompetitionData(built);
-                    if (competitionId) saveCompetitionDetailCache(competitionId, built);
                     setFetchDone(true);
+                    setBodyReady(true);
                     return;
                 }
-                
-                console.log('No competitionId and no state data, redirecting to dashboard');
                 navigate('/');
                 return;
             }
 
             try {
                 setError(null);
-                
-                console.log('ViewDetails - Fetching competition data for ID:', competitionId);
-                console.log('ViewDetails - API URL:', resolveUrl(`/fests/competitions/${competitionId}/public`));
-                
-                // Try to fetch competition data from backend
-                // Force fresh data by bypassing browser cache and PWA service worker cache
                 const timestamp = Date.now();
                 const response = await fetchJSON(`/fests/competitions/${competitionId}/public?t=${timestamp}`, {
                     headers: {
@@ -497,33 +511,22 @@ function EventPage() {
                         'Expires': '0'
                     }
                 });
-                console.log('ViewDetails - API Response Status: OK');
-                console.log('ViewDetails - API Response Data:', response.data);
-                
-                const compData = response.data;
-                console.log('🔍 Raw competition data from API:', compData);
-                console.log('🔍 Registration type:', compData.registrationType);
-                console.log('🔍 Registration status:', compData.registration?.status);
-                console.log('🔍 Full registration object:', compData.registration);
+                if (gen !== fetchGenRef.current) return;
 
+                const compData = response.data;
                 if (compData) {
                     const built = buildCompetitionData(compData, { useFestRegistrationFallback: true });
                     setCompetitionData(built);
-                    if (competitionId) saveCompetitionDetailCache(competitionId, built);
+                    saveCompetitionDetailCache(competitionId, built);
+                    setBodyReady(true);
                 } else {
                     setError('Competition not found');
                 }
             } catch (err) {
+                if (gen !== fetchGenRef.current) return;
                 console.error('Error fetching competition data:', err);
-                console.error('Error details:', {
-                    message: err.message,
-                    status: err.response?.status,
-                    statusText: err.response?.statusText,
-                    data: err.response?.data
-                });
-                
+
                 let errorMessage = 'Competition not found';
-                
                 if (err.response?.status === 404) {
                     errorMessage = 'Competition not found or not available';
                 } else if (err.response?.status === 400) {
@@ -533,29 +536,28 @@ function EventPage() {
                 } else if (err.message?.includes('Network Error') || !err.response) {
                     errorMessage = 'Network error. Please check your connection.';
                 }
-                
-                // Fallback to navigation state if API fails
+
                 const stateCompetition = location.state?.competition;
-                if (stateCompetition) {
-                    console.log('API failed, using competition data from navigation state:', stateCompetition);
+                if (stateCompetition && entityMatchesRouteParam(stateCompetition, competitionId, ['name', 'title'])) {
                     const built = buildCompetitionData(stateCompetition, { useFestRegistrationFallback: true });
                     setCompetitionData(built);
-                    if (competitionId) saveCompetitionDetailCache(competitionId, built);
+                    saveCompetitionDetailCache(competitionId, built);
+                    setBodyReady(true);
                 } else {
                     const cached = competitionId ? loadCompetitionDetailCache(competitionId) : null;
-                    if (cached) {
+                    if (cached && entityMatchesRouteParam(cached, competitionId, ['name', 'title'])) {
                         setCompetitionData(
                             isBuiltCompetitionDetail(cached)
                                 ? cached
                                 : buildCompetitionData(cached, { useFestRegistrationFallback: true }),
                         );
+                        setBodyReady(true);
                     } else {
                         setError(errorMessage);
-                        console.log('No fallback data available, showing error:', errorMessage);
                     }
                 }
             } finally {
-                setFetchDone(true);
+                if (gen === fetchGenRef.current) setFetchDone(true);
             }
         };
 
@@ -1400,16 +1402,20 @@ function EventPage() {
                 ]}
             />
 
-            <main className="flex-1 w-full">
+            <main
+                key={competitionId || eventData?.id || 'competition'}
+                className="flex-1 w-full animate-detail-enter"
+            >
                     {/* Mobile — full-bleed hero (no side gutters) */}
                     <div className="block md:hidden w-full">
                             <div className="mx-auto w-full flex flex-col flex-1 overflow-x-clip">
                                 <div className="relative w-full h-[396px] shrink-0 overflow-hidden bg-[#1A1B1D]">
                                     {eventData?.image ? (
                                     <img
+                                        key={eventData.image || eventData.id}
                                         src={getImageUrl(eventData.image, { preset: 'hero' })}
                                         alt={eventData.title || 'Competition'}
-                                        className="absolute inset-0 w-full h-full object-cover content-image"
+                                        className="absolute inset-0 w-full h-full object-cover content-image transition-opacity duration-300"
                                         loading="eager"
                                         fetchPriority="high"
                                         decoding="async"
@@ -1446,7 +1452,11 @@ function EventPage() {
                                     </div>
                                 </div>
 
-                                <div className={`relative -mt-10 flex-1 rounded-t-3xl z-10 pb-4 overflow-hidden ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
+                                <div
+                                    className={`relative -mt-10 flex-1 rounded-t-3xl z-10 pb-4 overflow-hidden transition-opacity duration-300 ${
+                                        isDark ? 'bg-[#161718]' : 'bg-white'
+                                    } ${bodyReady ? 'opacity-100' : 'opacity-0'}`}
+                                >
                             {/* Mobile Event Header */}
                             <div className="px-4 pt-5 pb-3">
                                 <h1 className={`text-[26px] font-bold leading-8 wrap-break-word mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -1563,7 +1573,11 @@ function EventPage() {
                         </div>
 
                         {/* Desktop/Laptop Layout - Visible at 768px and above */}
-                        <div className="hidden md:flex md:flex-row gap-8 p-6">
+                        <div
+                            className={`hidden md:flex md:flex-row gap-8 p-6 transition-opacity duration-300 ${
+                                bodyReady ? 'opacity-100' : 'opacity-70'
+                            }`}
+                        >
                             {/* Left Column - Image and Rules */}
                             <div className="w-1/2 shrink-0 space-y-6">
                                 {/* Event Image Card */}
