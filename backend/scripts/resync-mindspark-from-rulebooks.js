@@ -72,6 +72,31 @@ const NAME_MATCH = {
 
 /** Tanvi / organizer corrections that override rulebook text */
 const OVERRIDES = {
+  'FLASH': {
+    description:
+      'This event brings out the inner shutterbugs in us — capturing unique moments out of the ordinary. Photographers and videographers of all skill levels can join this theme-based contest across Photography and Videography categories.',
+    teamSize: 'Individual Participation',
+    rewriteRounds: () => [
+      {
+        roundNumber: 1,
+        title: 'Photography',
+        description:
+          'A theme will be provided a few days before the event. Submit a set of 3–5 images judged on composition, post-processing, theme communication, and overall aesthetics.',
+        rules: [],
+        dateTime: "During MindSpark'26 (3–4 Oct 2026)",
+        venue: '',
+      },
+      {
+        roundNumber: 2,
+        title: 'Videography',
+        description:
+          'Make a video of not more than 90 seconds that tells a visual story or aesthetic. Horizontal or vertical format allowed. Time-lapses, hyper-lapses, and compilations are allowed. Relevant video editing software may be used. Background music (non-explicit) is allowed.',
+        rules: [],
+        dateTime: "During MindSpark'26 (3–4 Oct 2026)",
+        venue: '',
+      },
+    ],
+  },
   'Fox Hunt': {
     feeAmount: 299,
     registrationFee: '₹299 per team',
@@ -83,22 +108,128 @@ const OVERRIDES = {
   },
   Ideathon: {
     // Final is 3 Oct; Round-1 results listed as 29 Oct in rulebook is after the fest — treat as 29 Sep.
-    rewriteRules: (rules) =>
-      (rules || []).map((r) =>
+    rewriteRules: (rules) => {
+      const fixed = (rules || []).map((r) =>
         String(r).replace(/29th\s+of\s+October\s+202\s*6/gi, '29th of September 2026')
           .replace(/29th\s+October\s+202\s*6/gi, '29th September 2026')
           .replace(/5t\s*h\s+September\s+202\s*6/gi, '5th September 2026')
-          .replace(/26th\s+September\s+202\s*6/gi, '26th September 2026'),
-      ),
+          .replace(/26th\s+September\s+202\s*6/gi, '26th September 2026')
+          .replace(/\bF\s+inal\b/gi, 'Final'),
+      );
+      // Ensure website-update line is its own bullet when glued to prior rule
+      const out = [];
+      for (const rule of fixed) {
+        const split = String(rule).split(/(?<=\.)\s+(?=Participants are requested to check)/i);
+        out.push(...split.map((s) => s.trim()).filter(Boolean));
+      }
+      return out;
+    },
+  },
+  'Take Off': {
+    rewriteRules: (rules) => {
+      const list = (rules || []).map((r) => String(r));
+      // Rulebook OCR splits rule 5 mid-sentence into 5+6 — merge back
+      const merged = [];
+      for (let i = 0; i < list.length; i += 1) {
+        const cur = list[i].trim();
+        const next = (list[i + 1] || '').trim();
+        if (/then the points\.?$/i.test(cur) && /^Points will be counted/i.test(next)) {
+          merged.push(
+            `${cur.replace(/\.$/, '')} ${next.replace(/^Points will/i, 'will')}`
+              .replace(/\s+/g, ' ')
+              .replace(/then the points will will/i, 'then the points will')
+              .trim(),
+          );
+          i += 1;
+          continue;
+        }
+        // Split glued "Rules may be changed… Participants are requested…"
+        if (/Rules may be changed/i.test(cur) && /Participants are requested to check/i.test(cur)) {
+          const parts = cur.split(/(?<=intimation\.)\s+(?=Participants are requested)/i);
+          merged.push(...parts.map((p) => p.trim()).filter(Boolean));
+          continue;
+        }
+        merged.push(cur);
+      }
+      return merged;
+    },
+  },
+  'FUSION ID': {
+    rewriteRounds: (rounds) =>
+      (rounds || [])
+        .filter((r) => !/would be held|must report|failure to/i.test(String(r.title || '')))
+        .slice(0, 2)
+        .map((r, i) => ({
+          ...r,
+          roundNumber: i + 1,
+          title: i === 0
+            ? (r.title && !/^round\s*1$/i.test(r.title) ? r.title : 'Fusion Fundamentals')
+            : (r.title && !/^round\s*2$/i.test(r.title) ? r.title : 'Design Round'),
+          description: i === 0 && !r.description
+            ? 'Online Fusion Fundamentals webinar by Autodesk. Attendance is compulsory. Question statement is based on the webinar; basic-level design submission online.'
+            : (r.description || (i === 1
+              ? 'Offline design round. Topic announced 1 hour prior to the round.'
+              : '')),
+        })),
+  },
+  Utopia: {
+    rewriteRules: (rules) => {
+      const seen = new Set();
+      return (rules || []).filter((r) => {
+        const key = String(r).toLowerCase().replace(/\s+/g, ' ').trim();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    },
+  },
+  'Game of Innovation': {
+    rewriteRules: (rules) => {
+      const out = [];
+      for (const rule of rules || []) {
+        const parts = String(rule).split(/(?<=\.)\s+(?=Participants are requested|In case of any disputes|Decision of)/i);
+        out.push(...parts.map((p) => p.trim()).filter(Boolean));
+      }
+      return out;
+    },
+  },
+  QuantQuest: {
+    description:
+      "QuantQuest is a quiz under Quantamania at MindSpark'26 that tests analytical thinking, quantitative aptitude, and problem-solving speed across multiple rounds.",
+    teamSize: 'Max 2 participants per team',
+    registrationFee: '₹199 per team',
+    feeAmount: 199,
+    commonRules: [
+      'Participants must carry a valid college ID card and registration receipt.',
+      'Use of electronic devices during the quiz is strictly prohibited unless announced otherwise.',
+      'Teams found using unfair means will be disqualified.',
+      'Decision of the quiz masters and organizers will be final and binding.',
+      'Rules may be changed without prior intimation.',
+      'Participants are requested to check the MindSpark\'26 website (www.mind-spark.org) regularly for updates.',
+    ],
+    contact: {
+      name: '',
+      phone: '',
+      email: '',
+      instagram: '',
+    },
   },
   'Robo Falconry': {
     name: 'Robo Falconry',
   },
   'BEYOND SUITS': {
     name: 'Beyond Suits',
+    rewriteRules: (rules) =>
+      (rules || []).map((r) => String(r).replace(/\s{2,}/g, ' ').trim()),
   },
   'FANDOM.': {
     name: 'FANDOM',
+  },
+  Assemblix: {
+    requireTeamSize: true,
+  },
+  Edifex: {
+    requireTeamSize: true,
   },
 };
 
@@ -119,9 +250,20 @@ function findExisting(compsByNorm, parsedName) {
 }
 
 function applyDescriptionTeamSize(description, teamSize) {
-  const body = String(description || '').replace(/^Team size:[^\n]*\n*/i, '').trim();
-  if (!teamSize) return body;
-  return `Team size: ${teamSize}\n\n${body}`;
+  // About should be objective only — strip team-size opener and structure dumps
+  let body = String(description || '')
+    .replace(/^Team size:[^\n]*\n*/i, '')
+    .trim();
+  body = body.replace(/^Team size:[^.]*\.?\s*/i, '').trim();
+  const cut = body.search(
+    /\bEVENT\s+ST[RU]*CTURE\b|\bCATEGORIES\s*:|\bRULES\s*:|\bRound\s*\d+\s*:|\bELIMINATION\s+CRITERIA\b|\bWINNING\s+CRITERIA\b|\bTEAM\s+AND\s+FEE\b/i,
+  );
+  if (cut > 40) body = body.slice(0, cut).trim();
+  if (/\bevent\s+st[ru]*cture\b/i.test(body) || (body.match(/\bround\s*\d+\b/gi) || []).length >= 2) {
+    const sentences = body.match(/[^.!?]+[.!?]+/g) || [];
+    body = sentences.slice(0, 2).join(' ').trim() || body;
+  }
+  return body;
 }
 
 (async () => {
@@ -159,9 +301,16 @@ function applyDescriptionTeamSize(description, teamSize) {
     const override = overrideKey ? OVERRIDES[overrideKey] : {};
 
     const teamSize = override.teamSize || row.teamSize || '';
-    let commonRules = Array.isArray(row.commonRules) ? [...row.commonRules] : [];
+    let commonRules = Array.isArray(override.commonRules)
+      ? [...override.commonRules]
+      : (Array.isArray(row.commonRules) ? [...row.commonRules] : []);
     if (typeof override.rewriteRules === 'function') {
       commonRules = override.rewriteRules(commonRules);
+    }
+
+    let rounds = Array.isArray(row.rounds) && row.rounds.length ? row.rounds : doc.rounds;
+    if (typeof override.rewriteRounds === 'function') {
+      rounds = override.rewriteRounds(rounds);
     }
 
     const feeAmount = override.feeAmount != null
@@ -175,11 +324,14 @@ function applyDescriptionTeamSize(description, teamSize) {
       /falconary/i.test(doc.name) ? 'Robo Falconry' : doc.name
     );
 
+    const description = override.description
+      || applyDescriptionTeamSize(row.description, teamSize);
+
     const patch = {
       name: nextName,
-      description: applyDescriptionTeamSize(row.description, teamSize),
+      description,
       commonRules,
-      rounds: Array.isArray(row.rounds) && row.rounds.length ? row.rounds : doc.rounds,
+      rounds,
       contact: {
         name: row.contact?.name || doc.contact?.name || '',
         phone: row.contact?.phone || doc.contact?.phone || '',
@@ -193,7 +345,14 @@ function applyDescriptionTeamSize(description, teamSize) {
     };
 
     // Prefer richer contact from parse when available
-    if (row.contact?.phone) {
+    if (override.contact && (override.contact.phone || override.contact.name)) {
+      patch.contact = {
+        name: override.contact.name || '',
+        phone: override.contact.phone || '',
+        email: override.contact.email || '',
+        instagram: override.contact.instagram || '',
+      };
+    } else if (row.contact?.phone) {
       patch.contact = {
         name: row.contact.name || patch.contact.name || '',
         phone: row.contact.phone,
@@ -223,6 +382,31 @@ function applyDescriptionTeamSize(description, teamSize) {
       compsByNorm.set(normName(nextName), doc);
     }
     updated += 1;
+  }
+
+  // QuantQuest PDF is corrupt in the Drive zip — apply curated override if still placeholder / empty
+  {
+    const qq = existing.find((c) => /quant\s*quest/i.test(c.name))
+      || compsByNorm.get(normName('QuantQuest'));
+    const qqOverride = OVERRIDES.QuantQuest;
+    if (qq && qqOverride && !dryRun) {
+      const needs =
+        !qq.description
+        || /placeholder|full rulebook details will be updated|Team size:/i.test(qq.description)
+        || !(qq.commonRules || []).length;
+      if (needs) {
+        qq.description = qqOverride.description;
+        qq.commonRules = qqOverride.commonRules;
+        qq.registrationFee = qqOverride.registrationFee;
+        qq.feeAmount = qqOverride.feeAmount;
+        qq.markModified('commonRules');
+        await qq.save();
+        console.log('  UPDATE QuantQuest ← curated override (PDF unreadable)');
+        updated += 1;
+      }
+    } else if (qq && qqOverride && dryRun) {
+      console.log('  WOULD UPDATE QuantQuest ← curated override (PDF unreadable)');
+    }
   }
 
   // Extra name/fee fixes for comps not in zip (QuantQuest) + spelling

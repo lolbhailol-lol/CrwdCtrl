@@ -251,13 +251,9 @@ exports.updateFest = async (req, res) => {
       updateData.showOnHomeSlide = false;
     }
 
-    // 3. Auto-set coverImage logic
+    // 3. Auto-set coverImage only when none was provided (gallery is separate from cover)
     const { coverImage, galleryImages } = req.body;
-    if (!coverImage && galleryImages && galleryImages.length > 0) {
-      updateData.coverImage = galleryImages[0];
-    } else if (coverImage === '' && galleryImages && galleryImages.length > 0) {
-      updateData.coverImage = galleryImages[0];
-    } else if (galleryImages && galleryImages.length > 0 && existingFest.coverImage && !galleryImages.includes(existingFest.coverImage)) {
+    if ((!coverImage || coverImage === '') && galleryImages && galleryImages.length > 0) {
       updateData.coverImage = galleryImages[0];
     }
 

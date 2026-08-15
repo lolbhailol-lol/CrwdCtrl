@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { X, Upload, Plus, Trash2, Loader } from 'lucide-react';
 import { adminFetch, adminFetchJSON, getAdminToken } from '../../services/api/admin.api.js';
+import GalleryImagesUploadField from './GalleryImagesUploadField';
+import { normalizeImageList } from '../../utils/uploadUrls';
+import { excludeCoverUrlsFromGallery } from '../../utils/coverImages';
 
 // Individual Form Field Component to prevent state sharing
 const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpdateOption, onRemoveOption }) => {
@@ -723,7 +726,8 @@ export default function FestFormModal({ fest, onClose, onSaved, api }) {
     formSchema: [], // For single step forms (backward compatible)
     steps: [], // For multi-step forms
     // Images
-    festImages: [], // array of URLs (mapped to galleryImages/coverImage)
+    festImages: [], // legacy alias — prefer galleryImages
+    galleryImages: [],
     coverImage: '',
     // Artists (lineup)
     artists: [],
@@ -740,6 +744,7 @@ export default function FestFormModal({ fest, onClose, onSaved, api }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingGallery, setUploadingGallery] = useState(false);
   const [formInitialized, setFormInitialized] = useState(false); // NEW: Track if form has been initialized
 
   // Reset form initialization when fest changes (new fest selected)
@@ -1136,7 +1141,16 @@ export default function FestFormModal({ fest, onClose, onSaved, api }) {
             fieldName: field.fieldName || `field_${(field.id || crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`).slice(0, 8)}`
           })) || []
         })) || [],
-        festImages: fest.galleryImages || fest.gallery || (fest.coverImage ? [fest.coverImage] : []),
+        festImages: (() => {
+          const cover = fest.coverImage || fest.heroImage || '';
+          const gallery = normalizeImageList(fest.galleryImages || fest.gallery || []);
+          return excludeCoverUrlsFromGallery(gallery.length ? gallery : (cover ? [cover] : []), [], cover);
+        })(),
+        galleryImages: (() => {
+          const cover = fest.coverImage || fest.heroImage || '';
+          const gallery = normalizeImageList(fest.galleryImages || fest.gallery || []);
+          return excludeCoverUrlsFromGallery(gallery, [], cover);
+        })(),
         coverImage: fest.coverImage || fest.heroImage || '',
         // Fix artist mapping to preserve existing images
         artists: fest.artists ? fest.artists.map(artist => ({
@@ -1320,44 +1334,6 @@ export default function FestFormModal({ fest, onClose, onSaved, api }) {
     }
   };
 
-  const handleMultipleImageUpload = async (files) => {
-    if (!files || files.length === 0) return;
-    
-    setUploadingImage(true);
-    try {
-      const formData = new FormData();
-      Array.from(files).forEach((file) => {
-        formData.append('images', file);
-      });
-      formData.append('folder', 'crwdctrl/fests');
-
-      const response = api?.uploadImages
-        ? await api.uploadImages(formData)
-        : await adminFetch('/admin/upload/images', {
-            method: 'POST',
-            body: formData,
-          });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to upload images');
-      }
-
-      const data = await response.json();
-      const newUrls = data.urls.map(u => u.url);
-      setForm({ 
-        ...form, 
-        festImages: [...(form.festImages || []), ...newUrls],
-        galleryImages: [...(form.galleryImages || []), ...newUrls]
-      });
-    } catch (err) {
-      console.error('Error uploading images:', err);
-      setError(err.message || 'Failed to upload images');
-    } finally {
-      setUploadingImage(false);
-    }
-  };
-
   const submit = async () => {
   console.log('🚀 Submit function called');
   setError('');
@@ -1441,8 +1417,12 @@ export default function FestFormModal({ fest, onClose, onSaved, api }) {
       registrationLink: form.registrationLink,
       status: form.status,
 
-      coverImage: form.coverImage || form.festImages[0] || '',
-      galleryImages: form.festImages,
+      coverImage: form.coverImage || '',
+      galleryImages: excludeCoverUrlsFromGallery(
+        form.galleryImages?.length ? form.galleryImages : form.festImages,
+        {},
+        form.coverImage || '',
+      ),
 
       // 🎤 Artists - preserve existing images
       artists: form.artists.map(a => ({
@@ -1733,47 +1713,70 @@ export default function FestFormModal({ fest, onClose, onSaved, api }) {
                 <p className="text-xs text-gray-500 mt-1">Set to 0 for free. When &gt; 0, users pay via Cashfree before registering.</p>
               </div>
 
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-2">Fest Images (can add more than one)</label>
-                <div className="border-2 border-dashed border-gray-700 rounded-lg p-4 text-center">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={(e) => handleMultipleImageUpload(e.target.files)}
-                    className="hidden"
-                    id="fest-images"
-                    disabled={uploadingImage}
-                  />
-                  <label
-                    htmlFor="fest-images"
-                    className={`cursor-pointer flex flex-col items-center gap-2 ${uploadingImage ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  >
-                    {uploadingImage ? (
-                      <Loader className="w-6 h-6 animate-spin text-[#0ECCEE]" />
-                    ) : (
-                      <Upload className="w-6 h-6 text-gray-400" />
-                    )}
-                    <span className="text-sm text-gray-400">
-                      {uploadingImage ? 'Uploading...' : 'Click to upload fest images (multiple allowed)'}
-                    </span>
-                  </label>
-                </div>
-                {form.festImages && form.festImages.length > 0 && (
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-                    {form.festImages.map((img, idx) => (
-                      <div key={idx} className="relative group">
-                        <img src={img} alt={`Fest ${idx + 1}`} className="w-full h-24 object-cover rounded-lg" />
-                        <button
-                          onClick={() => setForm({ ...form, festImages: form.festImages.filter((_, i) => i !== idx) })}
-                          className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <X size={14} />
-                        </button>
-                      </div>
-                    ))}
+              <div className="md:col-span-2 space-y-5">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Cover image</label>
+                  <p className="text-xs text-gray-500 mb-2">Main image on the fest page hero / cards</p>
+                  <div className="border-2 border-dashed border-gray-700 rounded-lg p-4 text-center">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = '';
+                        if (!file) return;
+                        await handleImageUpload(file, 'coverImage');
+                      }}
+                      className="hidden"
+                      id="fest-cover-image"
+                      disabled={uploadingImage}
+                    />
+                    <label
+                      htmlFor="fest-cover-image"
+                      className={`cursor-pointer flex flex-col items-center gap-2 ${uploadingImage ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      {uploadingImage ? (
+                        <Loader className="w-6 h-6 animate-spin text-[#0ECCEE]" />
+                      ) : form.coverImage ? (
+                        <img src={form.coverImage} alt="Cover" className="w-full max-h-40 object-cover rounded-lg" />
+                      ) : (
+                        <Upload className="w-6 h-6 text-gray-400" />
+                      )}
+                      <span className="text-sm text-gray-400">
+                        {uploadingImage ? 'Uploading...' : form.coverImage ? 'Change cover image' : 'Upload cover image'}
+                      </span>
+                    </label>
                   </div>
-                )}
+                  {form.coverImage ? (
+                    <button
+                      type="button"
+                      onClick={() => setForm({ ...form, coverImage: '' })}
+                      className="mt-2 text-xs text-red-400 hover:text-red-300"
+                    >
+                      Remove cover
+                    </button>
+                  ) : null}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Gallery</label>
+                  <p className="text-xs text-gray-500 mb-3">
+                    Extra photos for the scrollable Gallery section at the bottom of the fest page (same as run clubs / runs)
+                  </p>
+                  <GalleryImagesUploadField
+                    value={form.galleryImages?.length ? form.galleryImages : form.festImages}
+                    onChange={(galleryImages) => setForm({
+                      ...form,
+                      galleryImages,
+                      festImages: galleryImages,
+                    })}
+                    onError={(msg) => setError(`Gallery upload failed: ${msg}`)}
+                    onUploadingChange={setUploadingGallery}
+                    uploadImages={api?.uploadImages}
+                    hint=""
+                    uploadLabel="Add gallery images"
+                  />
+                </div>
               </div>
             </div>
 
@@ -2466,10 +2469,10 @@ export default function FestFormModal({ fest, onClose, onSaved, api }) {
           </button>
           <button
             onClick={submit}
-            disabled={loading || uploadingImage}
+            disabled={loading || uploadingImage || uploadingGallery}
             className="px-6 py-2 rounded-lg bg-[#0ECCEE] text-black font-semibold hover:bg-[#0ECCEE]/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'Saving...' : 'Save Fest'}
+            {loading ? 'Saving...' : uploadingGallery ? 'Uploading…' : 'Save Fest'}
           </button>
         </div>
       </div>

@@ -1113,11 +1113,23 @@ function EventPage() {
     const competitionDescription =
         eventData.description || eventData.subtitle || `${eventData.title} — a competition on CrwdCtrl.`;
 
-    const aboutText = (
-        eventData?.description
-        || eventData?.rounds?.description
-        || ''
-    ).trim().replace(/\s+/g, ' ');
+    const aboutText = (() => {
+        const raw = (
+            eventData?.description
+            || ''
+        ).trim();
+        if (!raw) return '';
+        // About = short overview only — drop Team size opener + structure/rules dumps
+        let text = raw
+            .replace(/^Team size:[^.!\n]*[.!]?\s*/i, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+        const cut = text.search(
+            /\bEVENT\s+ST[RU]*CTURE\b|\bCATEGORIES\s*:|\bRULES\s*:|\bRound\s*\d+\s*:/i,
+        );
+        if (cut > 40) text = text.slice(0, cut).trim();
+        return text;
+    })();
 
     const renderAboutBlock = ({ headingClass, bodyClass, className = '' } = {}) => {
         if (!aboutText) return null;

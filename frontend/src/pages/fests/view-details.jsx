@@ -427,7 +427,6 @@ function EventDetailsPage() {
   const primaryPhone = getPrimaryPhone(pageEvent.contacts);
   const primaryInstagram = getPrimaryInstagram(pageEvent.contacts);
   const galleryPreview = pageEvent.galleryImages || [];
-  const galleryExtraCount = Math.max(0, galleryPreview.length - 3);
 
   const handleFestFavorite = () => {
     toggleFavorite(pageEvent.id, {
@@ -1122,49 +1121,48 @@ function EventDetailsPage() {
           </section>
         )}
 
-        {/* Gallery */}
+        {/* Gallery — horizontal swipe (same pattern as run clubs) */}
         {galleryPreview.length > 0 && (
-          <section className={`px-4 mb-8 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
-            <h2 className={`text-base font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Gallery</h2>
-            <div className="grid grid-cols-4 gap-2">
-              {galleryPreview.slice(0, 3).map((img, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => openLightbox(idx)}
-                  className="aspect-square rounded-xl overflow-hidden"
-                >
-                  <img
-                    src={getImageUrl(img, { preset: 'thumb' })}
-                    alt={`Gallery ${idx + 1}`}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      handleImageErrorWithFallback(e, 80, 80, '#2A2B2E', 'Gallery');
-                    }}
-                  />
-                </button>
-              ))}
-              {galleryPreview.length > 3 && (
-                <button
-                  type="button"
-                  onClick={() => openLightbox(3)}
-                  className="relative aspect-square rounded-xl overflow-hidden"
-                >
-                  <img
-                    src={getImageUrl(galleryPreview[3], { preset: 'thumb' })}
-                    alt="More gallery"
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      handleImageErrorWithFallback(e, 80, 80, '#2A2B2E', 'Gallery');
-                    }}
-                  />
-                  {galleryExtraCount > 0 && (
-                    <span className="absolute inset-0 bg-black/55 flex items-center justify-center text-white text-sm font-bold">
-                      +{galleryExtraCount}
+          <section className={`mb-8 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
+            <div className="flex items-end justify-between gap-3 mb-3 px-4">
+              <h2 className={`text-base font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Gallery</h2>
+              {galleryPreview.length > 1 ? (
+                <p className={`text-xs shrink-0 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                  Swipe · {galleryPreview.length} photos
+                </p>
+              ) : null}
+            </div>
+            <div
+              className="flex gap-3 overflow-x-auto px-4 pb-2 snap-x snap-mandatory scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+              style={{ WebkitOverflowScrolling: 'touch' }}
+            >
+              {galleryPreview.map((img, idx) => {
+                const src = getImageUrl(img, { preset: 'detail' }) || getImageUrl(img, { preset: 'thumb' });
+                return (
+                  <button
+                    key={`${img}-${idx}`}
+                    type="button"
+                    onClick={() => openLightbox(idx)}
+                    aria-label={`View gallery image ${idx + 1} of ${galleryPreview.length}`}
+                    className={`relative shrink-0 snap-center w-[78vw] max-w-[340px] h-[220px] rounded-3xl overflow-hidden border active:scale-[0.985] transition-transform ${
+                      isDark ? 'border-white/10 bg-[#111213]' : 'border-gray-100 bg-white shadow-sm'
+                    }`}
+                  >
+                    <img
+                      src={src}
+                      alt={`Gallery ${idx + 1}`}
+                      className="absolute inset-0 w-full h-full object-cover"
+                      onError={(e) => {
+                        handleImageErrorWithFallback(e, 340, 220, '#2A2B2E', 'Gallery');
+                      }}
+                    />
+                    <span className="absolute inset-0 bg-linear-to-t from-black/45 via-transparent to-transparent pointer-events-none" />
+                    <span className="absolute bottom-3 right-3 px-2.5 py-1 rounded-full bg-black/45 text-white text-[11px] font-medium tabular-nums backdrop-blur-sm">
+                      {idx + 1}/{galleryPreview.length}
                     </span>
-                  )}
-                </button>
-              )}
+                  </button>
+                );
+              })}
             </div>
           </section>
         )}

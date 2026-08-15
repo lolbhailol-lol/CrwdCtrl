@@ -47,9 +47,59 @@ function normalizeWhitespace(text) {
     .trim();
 }
 
-/** Collapse OCR/docx spaced digits: "1 99" → "199", "24 9" → "249" */
+/** Collapse OCR/docx spaced digits: "1 0 minutes" → "10 minutes", "1 99" → "199" */
 function collapseSpacedDigits(value) {
   return String(value || '').replace(/(\d)\s+(?=\d)/g, '$1');
+}
+
+/** Soft cleanup for public copy (rules / rounds / about body) */
+function tidyPublicText(value) {
+  return collapseSpacedDigits(normalizeWhitespace(value))
+    .replace(/\beve\s+nt\b/gi, 'event')
+    .replace(/\bg\s+round\b/gi, 'ground')
+    .replace(/\bo\s+pen\b/gi, 'open')
+    .replace(/\bF\s+inal\b/gi, 'Final')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+([,.;!?])/g, '$1')
+    .trim();
+}
+
+function ensureSentencePeriod(value) {
+  const text = String(value || '').trim().replace(/[.]+$/, '');
+  if (!text) return '';
+  return `${text}.`;
+}
+
+function formatTeamSizeAboutLine(teamSize) {
+  const size = String(teamSize || '').trim().replace(/[.]+$/, '');
+  if (!size) return '';
+  return `Team size: ${size}.`;
+}
+
+/** Keep About = objective only — never paste event structure / rules into overview */
+function looksLikeStructureDump(text) {
+  const t = String(text || '');
+  if (!t) return false;
+  const roundHits = (t.match(/\bround\s*\d+\b/gi) || []).length;
+  const ruleHits = (t.match(/\b\d+\.\s+/g) || []).length;
+  return roundHits >= 2 || ruleHits >= 3 || /\bevent\s+st[ru]*cture\b/i.test(t);
+}
+
+/** Cut About at structure/categories/rules so overview stays short */
+function trimAboutObjective(text) {
+  let body = tidyPublicText(text);
+  if (!body) return '';
+  body = body.replace(/^Team size:[^.]*\.?\s*/i, '').trim();
+  const cut = body.search(
+    /\bEVENT\s+ST[RU]*CTURE\b|\bCATEGORIES\s*:|\bRULES\s*:|\bRound\s*\d+\s*:|\bELIMINATION\s+CRITERIA\b|\bWINNING\s+CRITERIA\b|\bTEAM\s+AND\s+FEE\b/i,
+  );
+  if (cut > 40) body = body.slice(0, cut).trim();
+  if (looksLikeStructureDump(body)) {
+    // Keep first 1–2 sentences only
+    const sentences = body.match(/[^.!?]+[.!?]+/g) || [body];
+    body = sentences.slice(0, 2).join(' ').trim();
+  }
+  return body.replace(/\s+/g, ' ').trim();
 }
 
 function normalizePhone(raw) {
@@ -146,28 +196,44 @@ function parseRules(text) {
   ]);
   if (!rulesBlock) return [];
 
-  const cleaned = normalizeWhitespace(rulesBlock)
+  const cleaned = tidyPublicText(rulesBlock)
     .replace(/^RULES?\s*:?\s*/i, '')
     .replace(/&amp;/g, '&')
     .replace(/&quot;/g, '"');
 
   const numbered = [];
-  const numberedParts = cleaned.split(/(?=\d+\.\s)/);
+  // Split on "1." / "1)" / "1-" style markers so combined OCR blobs become separate rules
+  const numberedParts = cleaned.split(/(?=(?:^|\s)\d+\s*[.)\-]\s+)/);
   for (const part of numberedParts) {
-    const match = part.match(/^\d+\.\s*(.+)$/);
+    const match = part.match(/(?:^|\s)(\d+)\s*[.)\-]\s*(.+)$/);
     if (match) {
-      const rule = normalizeWhitespace(match[1]);
+      const rule = tidyPublicText(match[2]);
       if (rule.length > 8) numbered.push(rule);
     }
   }
-  if (numbered.length >= 3) return numbered;
 
-  return cleaned
-    .replace(/\be\.g\.\s+/gi, 'eg ')
-    .replace(/\bi\.e\.\s+/gi, 'ie ')
-    .split(/(?<=[.!?])\s+(?=[A-Z(])/)
-    .map((rule) => rule.trim().replace(/\beg\s+/gi, 'e.g. ').replace(/\bie\s+/gi, 'i.e. '))
-    .filter((rule) => rule.length > 12);
+  const dedupe = (list) => {
+    const seen = new Set();
+    const out = [];
+    for (const rule of list) {
+      const key = rule.toLowerCase().replace(/\s+/g, ' ').trim();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push(rule);
+    }
+    return out;
+  };
+
+  if (numbered.length >= 2) return dedupe(numbered);
+
+  return dedupe(
+    cleaned
+      .replace(/\be\.g\.\s+/gi, 'eg ')
+      .replace(/\bi\.e\.\s+/gi, 'ie ')
+      .split(/(?<=[.!?])\s+(?=[A-Z(])/)
+      .map((rule) => tidyPublicText(rule.replace(/\beg\s+/gi, 'e.g. ').replace(/\bie\s+/gi, 'i.e. ')))
+      .filter((rule) => rule.length > 12),
+  );
 }
 
 function parseRounds(text) {
@@ -188,12 +254,15 @@ function parseRounds(text) {
   const { parseRoundsFromStructureText } = require('../utils/competitionRoundsParser');
   const parsed = parseRoundsFromStructureText(source);
   if (parsed.length) {
-    return parsed.map((round, index) => ({
-      ...round,
-      description: normalizeWhitespace(round.description || ''),
-      rules: (round.rules || []).map((r) => normalizeWhitespace(r)),
-      roundNumber: round.roundNumber || index + 1,
-    }));
+    return sanitizeRoundList(
+      parsed.map((round, index) => ({
+        ...round,
+        title: tidyPublicText(round.title || `Round ${index + 1}`),
+        description: tidyPublicText(round.description || ''),
+        rules: (round.rules || []).map((r) => tidyPublicText(r)).filter(Boolean),
+        roundNumber: round.roundNumber || index + 1,
+      })),
+    );
   }
 
   if (!structure) return [];
@@ -202,12 +271,33 @@ function parseRounds(text) {
     {
       roundNumber: 1,
       title: 'Event Structure',
-      description: structure,
+      description: tidyPublicText(structure),
       rules: [],
       dateTime: 'TBA',
       venue: '',
     },
   ];
+}
+
+/** Drop false "rounds" created from narrative like "Round 2 would be held offline" */
+function sanitizeRoundList(rounds = []) {
+  const cleaned = rounds.filter((round) => {
+    const title = String(round.title || '').trim();
+    if (!title) return false;
+    if (/would be held|must report|failure to do so|compulsory to attend|online on|webinar would/i.test(title)) {
+      return false;
+    }
+    // "Round 2 would be held offline…" style titles
+    if (/^round\s*\d+\b/i.test(title) && title.split(/\s+/).length > 3) {
+      return false;
+    }
+    return true;
+  });
+
+  return cleaned.map((round, index) => ({
+    ...round,
+    roundNumber: index + 1,
+  }));
 }
 
 function parseTeamSize(text) {
@@ -391,21 +481,24 @@ function mapFolderMeta(folderName) {
 function buildCompetitionPayload({ folderName, filename, text }) {
   const { competitionType, category } = mapFolderMeta(folderName);
   const name = cleanCompetitionName(filename, folderName);
-  const objective =
-    extractSection(text, 'EVENT OBJECTIVE') ||
-    extractSection(text, 'EVENT STRUCTURE') ||
-    `${name} competition at ${folderName}.`;
+  const objectiveRaw = extractSection(text, 'EVENT OBJECTIVE');
+  // Never fall back to EVENT STRUCTURE — that dumps rounds into About/overview
+  let objective = objectiveRaw
+    ? trimAboutObjective(objectiveRaw)
+    : `${name} is a competition at MindSpark'26.`;
+  if (!objective || looksLikeStructureDump(objective)) {
+    objective = `${name} is a competition at MindSpark'26.`;
+  }
   const teamSize = parseTeamSize(text);
-  const description = teamSize
-    ? `Team size: ${teamSize}\n\n${normalizeWhitespace(objective)}`
-    : normalizeWhitespace(objective);
+  // About = objective only (no "Team size:" opener — that belongs in fee/team block)
+  const description = objective;
   const { registrationFee, feeAmount } = parseFee(text);
   const warnings = [];
 
   if (registrationFee === 'TBA') {
     warnings.push('Registration fee not found in rulebook');
   }
-  if (!extractSection(text, 'EVENT OBJECTIVE')) {
+  if (!objectiveRaw) {
     warnings.push('EVENT OBJECTIVE section not found');
   }
   if (!teamSize) {

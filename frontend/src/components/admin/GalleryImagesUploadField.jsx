@@ -16,15 +16,15 @@ function GalleryPreviewRow({ images }) {
 
     return (
         <div>
-            <p className="text-xs text-gray-500 mb-2">Preview — gallery section on the public detail page</p>
-            <div className="grid grid-cols-4 gap-2 max-w-sm">
+            <p className="text-xs text-gray-500 mb-2">Preview — scrollable gallery on the public fest page</p>
+            <div className="flex gap-2 overflow-x-auto pb-1 max-w-full [scrollbar-width:thin]">
                 {images.slice(0, GALLERY_PREVIEW_COUNT).map((url, i) => {
                     const isOverflowTile = images.length > GALLERY_PREVIEW_COUNT && i === GALLERY_PREVIEW_COUNT - 1;
                     const remainingCount = images.length - GALLERY_PREVIEW_COUNT;
                     return (
                         <div
                             key={`${url}-${i}`}
-                            className="relative aspect-square rounded-xl overflow-hidden bg-[#1D1E20] border border-gray-700"
+                            className="relative shrink-0 w-28 h-20 rounded-xl overflow-hidden bg-[#1D1E20] border border-gray-700"
                         >
                             <img src={url} alt="" className="absolute inset-0 w-full h-full object-cover" />
                             {isOverflowTile ? (
@@ -45,12 +45,14 @@ function GalleryPreviewRow({ images }) {
 
 /**
  * Gallery-only upload — does not touch cover images.
+ * Pass `uploadImages(FormData)` for organizer/non-admin upload endpoints.
  */
 export default function GalleryImagesUploadField({
     value = [],
     onChange,
     onError,
     onUploadingChange,
+    uploadImages,
     hint = 'Extra photos for the Gallery section at the bottom of the detail page.',
     uploadLabel = 'Upload gallery images',
     className = '',
@@ -68,9 +70,21 @@ export default function GalleryImagesUploadField({
         try {
             const fd = new FormData();
             files.forEach((f) => fd.append('images', f));
-            const res = await adminFetch('/admin/upload/images', { method: 'POST', body: fd });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || data.error || 'Upload failed');
+            let data;
+            if (typeof uploadImages === 'function') {
+                const result = await uploadImages(fd);
+                // Organizer adapter returns a Fetch Response; admin helpers may return JSON
+                if (result && typeof result.json === 'function') {
+                    data = await result.json();
+                    if (!result.ok) throw new Error(data.message || data.error || 'Upload failed');
+                } else {
+                    data = result;
+                }
+            } else {
+                const res = await adminFetch('/admin/upload/images', { method: 'POST', body: fd });
+                data = await res.json();
+                if (!res.ok) throw new Error(data.message || data.error || 'Upload failed');
+            }
             const urls = parseUploadedUrls(data);
             if (!urls.length) throw new Error('Upload succeeded but no image URL was returned');
             onChange([...images, ...urls]);
@@ -90,9 +104,9 @@ export default function GalleryImagesUploadField({
             {hint ? <p className="text-xs text-gray-500 mb-3">{hint}</p> : null}
 
             {images.length > 0 && (
-                <div className="flex flex-wrap gap-2 mb-3">
+                <div className="flex gap-2 mb-3 overflow-x-auto pb-1 [scrollbar-width:thin]">
                     {images.map((url, i) => (
-                        <div key={`${url}-${i}`} className="relative w-20 h-20">
+                        <div key={`${url}-${i}`} className="relative w-20 h-20 shrink-0">
                             <img
                                 src={normalizeImageUrl(url) || url}
                                 alt=""
