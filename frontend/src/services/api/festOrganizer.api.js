@@ -336,10 +336,13 @@ export function buildFestOrganizerAdminApi(festId) {
     };
 }
 
-export async function updateFestOrganizerCompetitionSlots(festId, competitionId, slotsAllotted) {
+export async function updateFestOrganizerCompetitionSlots(festId, competitionId, payload) {
+    const body = typeof payload === 'object' && payload !== null && !Array.isArray(payload)
+        ? payload
+        : { slotsAllotted: payload };
     return festOrganizerFetch(`/fest-organizer/fests/${festId}/competitions/${competitionId}/slots`, {
         method: 'PATCH',
-        body: { slotsAllotted },
+        body,
     });
 }
 

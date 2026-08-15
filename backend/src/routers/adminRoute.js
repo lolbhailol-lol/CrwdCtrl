@@ -307,11 +307,12 @@ router.put(
         console.log('Backend - Migrated registration status from', req.body.registration.status, 'to', registrationStatus);
 
         // Deep merge the registration data with migrated status
-        const updatedRegistration = {
+        const { withNormalizedPersonFields } = require('../utils/personFields');
+        const updatedRegistration = withNormalizedPersonFields({
           ...existingRegistration,
           ...req.body.registration,
           status: registrationStatus
-        };
+        }, { festId: existingCompetition.fest });
 
         console.log('Backend - Merged registration data:', updatedRegistration);
 
@@ -347,10 +348,19 @@ router.put(
       }
 
       // Update other fields including new registration system
+      const { normalizeTeamSizeFields } = require('../utils/teamSize');
+      const teamSize = normalizeTeamSizeFields({
+        teamSizeMin: req.body.teamSizeMin,
+        teamSizeMax: req.body.teamSizeMax,
+        teamSizeLabel: req.body.teamSizeLabel,
+      });
       const updateFields = {
         ...req.body,
         feeAmount: getCompetitionBaseFee(req.body.registrationFee, req.body.feeAmount),
         registrationType: req.body.registrationType || 'fest',
+        teamSizeMin: teamSize.teamSizeMin,
+        teamSizeMax: teamSize.teamSizeMax,
+        teamSizeLabel: teamSize.teamSizeLabel,
         registration: req.body.registration || {
           status: 'not_started',
           externalUrl: '',

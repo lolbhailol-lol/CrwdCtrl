@@ -139,11 +139,30 @@ const competitionSchema = new mongoose.Schema(
     default: 0, // numeric INR amount for online payment; 0 means free
   },
 
-  /** Organizer-allotted seats for this competition (0 = not set / open) */
+  /** Organizer-allotted seats for this competition (0 = not set / open). Default 50 — edit later. */
   slotsAllotted: {
     type: Number,
-    default: 0,
+    default: 50,
     min: 0,
+  },
+
+  /** Structured team size for public chips + registration gate */
+  teamSizeMin: {
+    type: Number,
+    default: 1,
+    min: 1,
+    max: 20,
+  },
+  teamSizeMax: {
+    type: Number,
+    default: 1,
+    min: 1,
+    max: 20,
+  },
+  teamSizeLabel: {
+    type: String,
+    trim: true,
+    default: 'Solo',
   },
 
   registrationLink: {
@@ -173,6 +192,17 @@ const competitionSchema = new mongoose.Schema(
       type: String,
       default: ''
     },
+    /** Extra links for this competition (shown after registration) */
+    resourceLinks: [{
+      label: { type: String, trim: true },
+      url: { type: String, trim: true },
+    }],
+    /** Participant-facing sheet link (public; separate from googleSheetsUrl append) */
+    shareSheetUrl: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     formType: {
       type: String,
       enum: ['SINGLE_STEP', 'MULTI_STEP'],
@@ -195,6 +225,19 @@ const competitionSchema = new mongoose.Schema(
         pattern: String,
         message: String
       }
+    }],
+    /** Per-person roster fields (team size → Person 1…N). Editable in Competition_Modal. */
+    personFields: [{
+      id: String,
+      key: String,
+      label: String,
+      type: {
+        type: String,
+        enum: ['text', 'email', 'tel'],
+        default: 'text',
+      },
+      placeholder: String,
+      required: { type: Boolean, default: true },
     }],
     steps: [{
       stepNumber: Number,
@@ -221,9 +264,7 @@ const competitionSchema = new mongoose.Schema(
     }],
     googleSheetsUrl: {
       type: String,
-      required: function() {
-        return this.registrationType === 'custom' && this.registration?.status === 'internal_form';
-      }
+      default: '',
     },
     qrCode: {
       type: String, // URL to QR code image

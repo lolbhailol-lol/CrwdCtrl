@@ -4,6 +4,13 @@ import CompetitionCheckinQrPrint, { printCompetitionCheckinSheets } from './Comp
 import { buildPriceBreakdown, parseTicketPrice } from '../../utils/platformFee';
 import { adminFetch, adminFetchJSON } from '../../services/api/admin.api.js';
 import { useDialog } from '../../context/DialogContext';
+import {
+  RosterFieldsEditor,
+  ResourceLinksEditor,
+  DEFAULT_PERSON_FIELDS,
+  normalizePersonFields,
+  isMindSparkFest,
+} from '../../features/fests/mindspark';
 
 // Individual Form Field Component
 const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpdateOption, onRemoveOption }) => {
@@ -450,6 +457,7 @@ export default function CompetitionModal({
 
 // Competition Form Component with Multi-Step Wizard
 function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
+  const mindSpark = isMindSparkFest(fest);
   const [currentStep, setCurrentStep] = useState(1);
   const [form, setForm] = useState({
     name: '',
@@ -460,6 +468,10 @@ function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
     prizePool: '',
     registrationFee: '',
     feeAmount: 0,
+    slotsAllotted: 50,
+    teamSizeMin: 1,
+    teamSizeMax: 1,
+    teamSizeLabel: 'Solo',
     registrationLink: '',
     registrationType: 'fest', // 'fest' or 'custom'
     registration: {
@@ -467,8 +479,11 @@ function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
       externalUrl: '',
       googleSheetsUrl: '',
       whatsappGroupLink: '',
+      shareSheetUrl: '',
+      resourceLinks: [],
       formType: 'SINGLE_STEP', // SINGLE_STEP | MULTI_STEP
       formSchema: [], // For single step forms
+      personFields: DEFAULT_PERSON_FIELDS.map((f) => ({ ...f })),
       steps: [], // For multi-step forms
       qrCode: '',
       qrCodeMessage: '',
@@ -559,6 +574,10 @@ function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
           prizePool: competition.prizePool ? competition.prizePool.toString() : '',
           registrationFee: competition.registrationFee || '',
           feeAmount: parseTicketPrice(competition.feeAmount) || parseTicketPrice(competition.registrationFee),
+          slotsAllotted: Math.max(0, Number(competition.slotsAllotted) || 0),
+          teamSizeMin: Math.max(1, Number(competition.teamSizeMin) || 1),
+          teamSizeMax: Math.max(1, Number(competition.teamSizeMax) || Number(competition.teamSizeMin) || 1),
+          teamSizeLabel: competition.teamSizeLabel || 'Solo',
           registrationLink: competition.registrationLink || '',
           registrationType: competition.registrationType || 'fest',
           registration: {
@@ -566,12 +585,24 @@ function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
             externalUrl: competition.registration?.externalUrl || '',
             googleSheetsUrl: competition.registration?.googleSheetsUrl || '',
             whatsappGroupLink: competition.registration?.whatsappGroupLink || '',
+            shareSheetUrl: competition.registration?.shareSheetUrl || '',
+            resourceLinks: Array.isArray(competition.registration?.resourceLinks)
+              ? competition.registration.resourceLinks.map((l) => ({
+                  label: l?.label || '',
+                  url: l?.url || '',
+                }))
+              : [],
             formType: competition.registration?.formType || 'SINGLE_STEP',
             formSchema: Array.isArray(competition.registration?.formSchema) ? competition.registration.formSchema.map(field => ({
               ...field,
               id: field.id || crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
               fieldName: field.fieldName || `field_${(field.id || crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`).slice(0, 8)}`
             })) : [],
+            personFields: mindSpark
+              ? normalizePersonFields(competition.registration?.personFields)
+              : (Array.isArray(competition.registration?.personFields)
+                ? competition.registration.personFields
+                : []),
             steps: competition.registration?.steps?.map(step => ({
               ...step,
               fields: (step.fields || []).map(field => ({
@@ -1239,6 +1270,23 @@ function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
         return;
       }
 
+      // MindSpark: person fields required for solo and teams (fest or custom registration)
+      if (mindSpark) {
+        const personFields = normalizePersonFields(form.registration?.personFields);
+        if (!personFields.length) {
+          setError('Add at least one per-person form field');
+          setLoading(false);
+          return;
+        }
+        for (let i = 0; i < personFields.length; i++) {
+          if (!personFields[i].label || !personFields[i].key) {
+            setError(`Complete per-person field ${i + 1} (label and key required)`);
+            setLoading(false);
+            return;
+          }
+        }
+      }
+
       // Validate custom registration fields
       if (form.registrationType === 'custom') {
         if (form.registration.status === 'external_link' && !form.registration.externalUrl) {
@@ -1248,21 +1296,20 @@ function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
         }
         
         if (form.registration.status === 'internal_form') {
-          if (!form.registration.googleSheetsUrl) {
+          if (!mindSpark && !form.registration.googleSheetsUrl) {
             setError('Please provide Google Sheets URL for internal form');
             setLoading(false);
             return;
           }
-          
-          // Validate form fields based on form type
-          if (form.registration.formType === 'SINGLE_STEP') {
+
+          if (mindSpark) {
+            // person fields already validated above
+          } else if (form.registration.formType === 'SINGLE_STEP') {
             if (!form.registration.formSchema || form.registration.formSchema.length === 0) {
               setError('Please add at least one form field for internal form');
               setLoading(false);
               return;
             }
-            
-            // Validate form fields
             for (let i = 0; i < form.registration.formSchema.length; i++) {
               const field = form.registration.formSchema[i];
               if (!field.label || !field.type) {
@@ -1277,8 +1324,6 @@ function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
               setLoading(false);
               return;
             }
-            
-            // Validate each step
             for (let stepIndex = 0; stepIndex < form.registration.steps.length; stepIndex++) {
               const step = form.registration.steps[stepIndex];
               if (!step.stepTitle) {
@@ -1286,14 +1331,11 @@ function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
                 setLoading(false);
                 return;
               }
-              
               if (!step.fields || step.fields.length === 0) {
                 setError(`Please add at least one field to step ${stepIndex + 1}`);
                 setLoading(false);
                 return;
               }
-              
-              // Validate fields in this step
               for (let fieldIndex = 0; fieldIndex < step.fields.length; fieldIndex++) {
                 const field = step.fields[fieldIndex];
                 if (!field.label || !field.type) {
@@ -1316,9 +1358,26 @@ function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
         prizePool: form.prizePool,
         registrationFee: form.registrationFee,
         feeAmount: parseTicketPrice(form.feeAmount) || parseTicketPrice(form.registrationFee),
+        slotsAllotted: Math.max(0, Number(form.slotsAllotted) || 0),
+        teamSizeMin: Math.max(1, Number(form.teamSizeMin) || 1),
+        teamSizeMax: Math.max(1, Number(form.teamSizeMax) || Number(form.teamSizeMin) || 1),
+        teamSizeLabel: form.teamSizeLabel || '',
         registrationLink: form.registrationLink,
         registrationType: form.registrationType,
-        registration: form.registration,
+        registration: mindSpark
+          ? {
+              ...form.registration,
+              personFields: normalizePersonFields(form.registration?.personFields),
+              resourceLinks: (form.registration?.resourceLinks || [])
+                .map((l) => ({
+                  label: String(l?.label || '').trim(),
+                  url: String(l?.url || '').trim(),
+                }))
+                .filter((l) => l.url),
+              shareSheetUrl: String(form.registration?.shareSheetUrl || '').trim(),
+              whatsappGroupLink: String(form.registration?.whatsappGroupLink || '').trim(),
+            }
+          : form.registration,
         // Legacy registration for backward compatibility
         legacyRegistration: form.legacyRegistration,
         dateTime: form.dateTime,
@@ -1679,6 +1738,161 @@ function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
                   )}
                 </div>
 
+                <div className="rounded-xl border border-gray-700 bg-[#151617] p-4 space-y-3">
+                  <p className="text-sm font-medium text-[#0ECCEE]">Capacity &amp; team</p>
+                  <p className="text-xs text-gray-500">
+                    Shown above Register Now on the competition page. Team min/max also control the registration roster gate (3–6).
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Max slots</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        className="w-full px-3 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                        value={form.slotsAllotted ?? 0}
+                        onChange={(e) => setForm({ ...form, slotsAllotted: Math.max(0, Number(e.target.value) || 0) })}
+                        placeholder="50 default · 0 = unlimited"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Team min</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="20"
+                        step="1"
+                        className="w-full px-3 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                        value={form.teamSizeMin ?? 1}
+                        onChange={(e) => {
+                          const teamSizeMin = Math.min(20, Math.max(1, Number(e.target.value) || 1));
+                          const teamSizeMax = Math.max(teamSizeMin, Number(form.teamSizeMax) || teamSizeMin);
+                          setForm({
+                            ...form,
+                            teamSizeMin,
+                            teamSizeMax,
+                            teamSizeLabel: teamSizeMin === 1 && teamSizeMax === 1
+                              ? 'Solo'
+                              : teamSizeMin === teamSizeMax
+                                ? `${teamSizeMin} people`
+                                : teamSizeMin === 1
+                                  ? `Max ${teamSizeMax} people`
+                                  : `${teamSizeMin}–${teamSizeMax} people`,
+                          });
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Team max</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="20"
+                        step="1"
+                        className="w-full px-3 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                        value={form.teamSizeMax ?? 1}
+                        onChange={(e) => {
+                          const teamSizeMax = Math.min(20, Math.max(1, Number(e.target.value) || 1));
+                          const teamSizeMin = Math.min(Number(form.teamSizeMin) || 1, teamSizeMax);
+                          setForm({
+                            ...form,
+                            teamSizeMin,
+                            teamSizeMax,
+                            teamSizeLabel: teamSizeMin === 1 && teamSizeMax === 1
+                              ? 'Solo'
+                              : teamSizeMin === teamSizeMax
+                                ? `${teamSizeMin} people`
+                                : teamSizeMin === 1
+                                  ? `Max ${teamSizeMax} people`
+                                  : `${teamSizeMin}–${teamSizeMax} people`,
+                          });
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    Preview: <span className="text-white font-medium">{form.teamSizeLabel || 'Solo'}</span>
+                    {' · '}
+                    Slots: <span className="text-white font-medium">{Number(form.slotsAllotted) > 0 ? form.slotsAllotted : 'Slots remain'}</span>
+                  </p>
+                </div>
+
+                {mindSpark ? (
+                  <RosterFieldsEditor
+                    personFields={form.registration?.personFields}
+                    onChange={(personFields) =>
+                      setForm({
+                        ...form,
+                        registration: {
+                          ...form.registration,
+                          personFields,
+                        },
+                      })
+                    }
+                  />
+                ) : null}
+
+                {/* MindSpark: participant WhatsApp / sheet / links — always editable */}
+                {mindSpark ? (
+                  <div className="col-span-2 rounded-xl border border-[#25D366]/35 bg-[#25D366]/5 p-4 space-y-4">
+                    <div>
+                      <h5 className="text-md font-semibold text-[#25D366]">After registration (participants)</h5>
+                      <p className="text-xs text-gray-400 mt-1">
+                        Join WhatsApp is the main CTA on the success screen. Sheet &amp; links appear below ticket / bookings.
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        WhatsApp group link <span className="text-[#25D366]">*</span>
+                      </label>
+                      <input
+                        type="url"
+                        placeholder="https://chat.whatsapp.com/..."
+                        className="w-full px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#25D366] focus:outline-none text-sm"
+                        value={form.registration?.whatsappGroupLink || ''}
+                        onChange={(e) => setForm({
+                          ...form,
+                          registration: {
+                            ...form.registration,
+                            whatsappGroupLink: e.target.value,
+                          },
+                        })}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Share sheet URL <span className="text-gray-400 font-normal">(optional)</span>
+                      </label>
+                      <input
+                        type="url"
+                        placeholder="https://docs.google.com/spreadsheets/d/... (shown to participants)"
+                        className="w-full px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                        value={form.registration?.shareSheetUrl || ''}
+                        onChange={(e) => setForm({
+                          ...form,
+                          registration: {
+                            ...form.registration,
+                            shareSheetUrl: e.target.value,
+                          },
+                        })}
+                      />
+                      <p className="text-xs text-gray-400 mt-1">
+                        Public link for this competition. Fest-level overall sheet is set on the fest registration tab.
+                      </p>
+                    </div>
+                    <ResourceLinksEditor
+                      links={form.registration?.resourceLinks}
+                      onChange={(resourceLinks) => setForm({
+                        ...form,
+                        registration: { ...form.registration, resourceLinks },
+                      })}
+                      title="Extra links for this competition"
+                      hint="Optional — rulebook, Discord, brief, etc."
+                    />
+                  </div>
+                ) : null}
+
                 {/* Registration Configuration */}
                 <div className="col-span-2">
                   <h5 className="text-md font-semibold mb-4 border-b border-gray-700 pb-2">Registration Configuration</h5>
@@ -1819,7 +2033,9 @@ function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
                   {form.registrationType === 'custom' && form.registration?.status === 'internal_form' && (
                     <div className="mt-4 space-y-4">
                       <div>
-                        <label className="block text-sm font-medium mb-2">Google Sheets URL *</label>
+                        <label className="block text-sm font-medium mb-2">
+                          Google Sheets URL {mindSpark ? <span className="text-gray-400 font-normal">(optional — auto-append)</span> : '*'}
+                        </label>
                         <input
                           type="url"
                           placeholder="https://docs.google.com/spreadsheets/..."
@@ -1834,10 +2050,45 @@ function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
                           })}
                         />
                         <p className="text-xs text-gray-400 mt-1">
-                          Registration data will be automatically sent to this Google Sheet
+                          {mindSpark
+                            ? 'Internal: registration rows append here. For participant-facing sheets use Share sheet / fest Overall sheet above.'
+                            : 'Registration data will be automatically sent to this Google Sheet'}
                         </p>
                       </div>
 
+                      {mindSpark ? (
+                        <>
+                      <div className="rounded-lg border border-[#0ECCEE]/30 bg-[#0ECCEE]/5 p-4">
+                        <p className="text-sm font-medium text-[#0ECCEE]">MindSpark registration form</p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          Participants fill the <span className="text-white">Per-person form fields</span> above
+                          (solo = one details step; teams = team size then Person 1…N). Edit those fields to change what is collected.
+                          {` Currently ${normalizePersonFields(form.registration?.personFields).length} field(s) per person.`}
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Confirmation Email (Optional)</label>
+                        <input
+                          type="email"
+                          placeholder="organizer@example.com"
+                          className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                          value={form.registration?.confirmationEmail || ''}
+                          onChange={(e) => setForm({
+                            ...form,
+                            registration: {
+                              ...form.registration,
+                              confirmationEmail: e.target.value
+                            }
+                          })}
+                        />
+                        <p className="text-xs text-gray-400 mt-1">
+                          Registration confirmation emails will be sent to this address
+                        </p>
+                      </div>
+                        </>
+                      ) : (
+                        <>
                       {/* Form Type Selection */}
                       <div>
                         <label className="block text-sm font-medium mb-3">Form Type</label>
@@ -2070,6 +2321,8 @@ function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
                           Registration confirmation emails will be sent to this address
                         </p>
                       </div>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>

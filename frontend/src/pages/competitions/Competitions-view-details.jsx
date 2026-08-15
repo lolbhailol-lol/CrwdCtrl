@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Phone, Instagram, Check, Moon, Sun, Mail, ArrowLeft, Ticket, Zap, Share2 } from 'lucide-react';
+import { Phone, Instagram, Check, Moon, Sun, Mail, ArrowLeft, Ticket, Zap, Share2, Users, Hash } from 'lucide-react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from '../../components/layout/Sidebar';
 import Navbar from '../../components/layout/Navbar';
@@ -20,16 +20,82 @@ import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { openExternalUrl, shareContent } from '../../utils/externalLink';
 import { competitionPath, competitionRegistrationPath, festRegisterPath, festPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
 import { resolveCompetitionFee, buildRegistrationPrefetch, saveRegistrationPrefetch } from '../../utils/festPublicTransform';
-import { fetchMyRegistrations } from '../../services/api/auth.api';
 import { trackBookNowClick } from '../../services/analyticsService';
 import PrizePoolPodium from '../../components/PrizePoolPodium';
 import DetailPageLoader from '../../components/DetailPageLoader';
 import { signalDetailPageReady } from '../../utils/bootSplash';
+import { formatSlotsLabel, buildTeamSizeLabel } from '../../utils/teamSize';
 import {
     loadCompetitionDetailCache,
     saveCompetitionDetailCache,
     isBuiltCompetitionDetail,
 } from '../../utils/detailPageCache';
+
+/** Compact slots + team chips — sits above Register Now inside the bar */
+function RegisterMetaChips({ slotsLabel, teamLabel, isDark }) {
+    // Keep full wording: "49 slots remain" (not just "49 remain")
+    const slotsShort = (() => {
+        const raw = String(slotsLabel || '').trim();
+        if (!raw) return 'Slots remain';
+        const remainMatch = raw.match(/^(\d+)\s+slots?\s+remains?$/i);
+        if (remainMatch) {
+            const n = Number(remainMatch[1]);
+            return n === 1 ? '1 slot remains' : `${n} slots remain`;
+        }
+        const allottedMatch = raw.match(/^(\d+)\s+slots?$/i);
+        if (allottedMatch) {
+            const n = Number(allottedMatch[1]);
+            return n === 1 ? '1 slot remains' : `${n} slots remain`;
+        }
+        return raw;
+    })();
+    const teamShort = String(teamLabel || '')
+        .replace(/participants?/gi, 'people')
+        .replace(/\s*per\s*team/gi, '')
+        .replace(/^team\s+/i, '')
+        .replace(/\s+/g, ' ')
+        .trim() || 'Solo';
+
+    return (
+        <div className="flex w-full items-center gap-1.5">
+            <span
+                className={`inline-flex flex-1 min-w-0 items-center justify-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                    isDark
+                        ? 'bg-[#0ECCEE]/15 text-[#7DE8F7]'
+                        : 'bg-cyan-50 text-cyan-700'
+                }`}
+            >
+                <Hash className="w-2.5 h-2.5 shrink-0 opacity-70" strokeWidth={2.25} />
+                <span className="truncate tabular-nums">{slotsShort}</span>
+            </span>
+            <span
+                className={`inline-flex flex-1 min-w-0 items-center justify-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                    isDark
+                        ? 'bg-amber-400/15 text-amber-200'
+                        : 'bg-amber-50 text-amber-700'
+                }`}
+            >
+                <Users className="w-2.5 h-2.5 shrink-0 opacity-70" strokeWidth={2.25} />
+                <span className="truncate">{teamShort}</span>
+            </span>
+        </div>
+    );
+}
+
+function RegisterFeeLabel({ feeLabel, feeIsFree, isDark }) {
+    return (
+        <div className="min-w-0 flex-1 flex flex-col justify-center h-14">
+            <p className={`text-sm font-semibold leading-none ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Fee</p>
+            {feeIsFree ? (
+                <p className="mt-1 text-3xl font-bold leading-none text-green-500">Free</p>
+            ) : (
+                <p className={`mt-1 text-3xl font-bold leading-none truncate tabular-nums ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {feeLabel}
+                </p>
+            )}
+        </div>
+    );
+}
 
 /**
  * Sanitize round description to remove duplicated content blocks.
@@ -253,6 +319,25 @@ const flattenRulesForDisplay = (rules) => {
     return flat;
 };
 
+/** True when a round has rules / mode sections worth showing (skip empty placeholders) */
+const roundHasDisplayableContent = (round) => {
+    if (!round) return false;
+    const offline = sanitizeRulesArray(round.offline?.rules || []);
+    const online = sanitizeRulesArray(round.online?.rules || []);
+    const general = sanitizeRulesArray(round.rules || []);
+    const msg = String(round.roundRulesMessage || '').trim();
+    if (offline.length || online.length || general.length || msg) return true;
+
+    const desc = String(round.description || '').trim();
+    const title = String(round.title || '').trim();
+    const genericTitle = !title
+        || /^(offline|online)\s*rounds?$/i.test(title)
+        || /^final\s*rounds?$/i.test(title)
+        || /^rounds?\s*\d+$/i.test(title);
+    // Custom-named round with a real description (no empty Offline/Online shells)
+    return !genericTitle && desc.length >= 20;
+};
+
 const buildCompetitionData = (compData, options = {}) => {
     if (!compData) return null;
 
@@ -261,6 +346,32 @@ const buildCompetitionData = (compData, options = {}) => {
     const roundsListSource = Array.isArray(roundsObject?.roundsList) ? roundsObject.roundsList : roundsSource;
 
     const fee = resolveCompetitionFee(compData);
+
+    const mappedRounds = (roundsListSource || []).map((round, i) => ({
+        title: round?.title || `Round ${i + 1}`,
+        rules: sanitizeRulesArray(round?.rules || []),
+        roundRulesMessage: sanitizeRoundDescription(round?.roundRulesMessage || ''),
+        description: sanitizeRoundDescription(round?.description || ''),
+        dateTime: round?.dateTime || '',
+        venue: round?.venue || '',
+        offline: round?.offline
+            ? {
+                ...round.offline,
+                rules: sanitizeRulesArray(round.offline.rules || [])
+            }
+            : null,
+        online: round?.online
+            ? {
+                ...round.online,
+                rules: sanitizeRulesArray(round.online.rules || [])
+            }
+            : null
+    }));
+
+    // Drop empty placeholder rounds so MindSpark comps without content don't show empty boxes
+    const roundsList = mappedRounds.filter(roundHasDisplayableContent);
+    // Only use an explicit rounds.description — never Round 1's blurb (that duplicated under the heading)
+    const roundsDescription = sanitizeRoundDescription(roundsObject?.description || '');
 
     return {
         id: compData._id || compData.id,
@@ -294,32 +405,29 @@ const buildCompetitionData = (compData, options = {}) => {
 
         fest: compData.fest || null,
         festId: compData.fest?._id || compData.festId || null,
+        slotsAllotted: Math.max(0, Number(compData.slotsAllotted) || 0),
+        slotsFilled: Math.max(0, Number(compData.slotsFilled) || 0),
+        slotsLeft: (() => {
+            const allotted = Math.max(0, Number(compData.slotsAllotted) || 0);
+            if (compData.slotsLeft != null && Number.isFinite(Number(compData.slotsLeft))) {
+                return Math.max(0, Math.floor(Number(compData.slotsLeft)));
+            }
+            if (allotted > 0) {
+                const filled = Math.max(0, Number(compData.slotsFilled) || 0);
+                return Math.max(0, allotted - filled);
+            }
+            return null;
+        })(),
+        teamSizeMin: Math.max(1, Number(compData.teamSizeMin) || 1),
+        teamSizeMax: Math.max(1, Number(compData.teamSizeMax) || Number(compData.teamSizeMin) || 1),
+        teamSizeLabel: compData.teamSizeLabel || '',
 
         rounds: {
-            description: sanitizeRoundDescription(roundsObject?.description || roundsSource?.[0]?.description || ''),
+            description: roundsDescription,
             list: Array.isArray(roundsObject?.list)
                 ? roundsObject.list
                 : roundsSource.map((round) => round?.title || round?.description).filter(Boolean),
-            roundsList: (roundsListSource || []).map((round, i) => ({
-                title: round?.title || `Round ${i + 1}`,
-                rules: sanitizeRulesArray(round?.rules || []),
-                roundRulesMessage: sanitizeRoundDescription(round?.roundRulesMessage || ''),
-                description: sanitizeRoundDescription(round?.description || ''),
-                dateTime: round?.dateTime || '',
-                venue: round?.venue || '',
-                offline: round?.offline
-                    ? {
-                        ...round.offline,
-                        rules: sanitizeRulesArray(round.offline.rules || [])
-                    }
-                    : null,
-                online: round?.online
-                    ? {
-                        ...round.online,
-                        rules: sanitizeRulesArray(round.online.rules || [])
-                    }
-                    : null
-            }))
+            roundsList,
         }
     };
 };
@@ -351,7 +459,6 @@ function EventPage() {
     const [error, setError] = useState(null);
     const { isDark } = useDarkMode();
     const { alert: showAlert, toast } = useDialog();
-    const [isRegistered, setIsRegistered] = useState(false);
     const { isAuthenticated } = useAuth();
 
     // Fetch competition data from backend API
@@ -455,32 +562,15 @@ function EventPage() {
         fetchCompetitionData();
     }, [competitionId, navigate, location.state]);
 
-    // Check real backend registration status when logged in
+    // Keep tab index valid when empty placeholder rounds are filtered out
     useEffect(() => {
-        const compId = competitionData?.id || competitionId;
-        if (!isAuthenticated || !compId) {
-            setIsRegistered(false);
-            return undefined;
+        const total = competitionData?.rounds?.roundsList?.length || 0;
+        if (total <= 0) {
+            if (activeRound !== 0) setActiveRound(0);
+            return;
         }
-
-        let cancelled = false;
-
-        (async () => {
-            try {
-                const data = await fetchMyRegistrations({ cacheBust: true });
-                const targetId = String(compId);
-                const found = (data?.registrations || []).some((reg) => {
-                    const cid = reg.competitionId?._id || reg.competitionId;
-                    return cid && String(cid) === targetId;
-                });
-                if (!cancelled) setIsRegistered(found);
-            } catch {
-                if (!cancelled) setIsRegistered(false);
-            }
-        })();
-
-        return () => { cancelled = true; };
-    }, [isAuthenticated, competitionData?.id, competitionId]);
+        if (activeRound >= total) setActiveRound(0);
+    }, [competitionData?.id, competitionData?.rounds?.roundsList?.length, activeRound]);
 
     // 🔄 Listen for admin updates and refetch data
     useEffect(() => {
@@ -663,76 +753,35 @@ function EventPage() {
 
     const RoundRulesContent = ({ round, roundIndex, variant = 'mobile' }) => {
         const { offline, online, general } = getRoundModeSections(round);
-        const boxClass = variant === 'mobile'
-            ? `${isDark ? 'bg-dark-700' : 'bg-gray-50'} rounded-lg p-4`
-            : '';
+        const boxClass = `${isDark ? (variant === 'mobile' ? 'bg-dark-700' : 'bg-[#111213]') : 'bg-gray-50'} rounded-lg p-4`;
         const labelClass = `text-sm font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`;
+
+        const renderRulesBox = (rules, modeLabel, keySuffix) => (
+            <div className={boxClass}>
+                {/* Only label Offline/Online when both modes exist for this round */}
+                {modeLabel ? <h4 className={labelClass}>{modeLabel}</h4> : null}
+                <RulesList
+                    rules={rules}
+                    ruleKey={`${variant}-round${roundIndex}-${keySuffix}-${eventData?.id}`}
+                    maxItems={8}
+                />
+            </div>
+        );
 
         if (offline.length && online.length) {
             return (
                 <div className="space-y-3">
-                    <div className={boxClass || `${isDark ? 'bg-[#111213]' : 'bg-gray-50'} rounded-lg p-4`}>
-                        <h4 className={labelClass}>Offline</h4>
-                        <RulesList
-                            rules={offline}
-                            ruleKey={`${variant}-round${roundIndex}-offline-${eventData?.id}`}
-                            maxItems={5}
-                        />
-                    </div>
-                    <div className={boxClass || `${isDark ? 'bg-[#111213]' : 'bg-gray-50'} rounded-lg p-4`}>
-                        <h4 className={labelClass}>Online</h4>
-                        <RulesList
-                            rules={online}
-                            ruleKey={`${variant}-round${roundIndex}-online-${eventData?.id}`}
-                            maxItems={5}
-                        />
-                    </div>
+                    {renderRulesBox(offline, 'Offline', 'offline')}
+                    {renderRulesBox(online, 'Online', 'online')}
                 </div>
             );
         }
 
-        if (offline.length) {
-            return (
-                <div className={boxClass || `${isDark ? 'bg-[#111213]' : 'bg-gray-50'} rounded-lg p-4`}>
-                    <h4 className={labelClass}>Offline</h4>
-                    <RulesList
-                        rules={offline}
-                        ruleKey={`${variant}-round${roundIndex}-offline-${eventData?.id}`}
-                        maxItems={5}
-                    />
-                </div>
-            );
-        }
-
-        if (online.length) {
-            return (
-                <div className={boxClass || `${isDark ? 'bg-[#111213]' : 'bg-gray-50'} rounded-lg p-4`}>
-                    <h4 className={labelClass}>Online</h4>
-                    <RulesList
-                        rules={online}
-                        ruleKey={`${variant}-round${roundIndex}-online-${eventData?.id}`}
-                        maxItems={5}
-                    />
-                </div>
-            );
-        }
+        if (offline.length) return renderRulesBox(offline, null, 'offline');
+        if (online.length) return renderRulesBox(online, null, 'online');
 
         if (general.length > 0) {
-            return variant === 'mobile' ? (
-                <div className={`${isDark ? 'bg-dark-700' : 'bg-gray-50'} rounded-lg p-4`}>
-                    <RulesList
-                        rules={general}
-                        ruleKey={`${variant}-round${roundIndex}-${eventData?.id}`}
-                        maxItems={5}
-                    />
-                </div>
-            ) : (
-                <RulesList
-                    rules={general}
-                    ruleKey={`${variant}-round${roundIndex}-${eventData?.id}`}
-                    maxItems={5}
-                />
-            );
+            return renderRulesBox(general, null, 'general');
         }
 
         return null;
@@ -753,21 +802,88 @@ function EventPage() {
 
     const getRoundTabLabel = (round, idx, totalRounds) => {
         const title = String(round?.title || '').trim();
-        const isLast = totalRounds > 1 && idx === totalRounds - 1;
-        if (isLast || /^final\s*rounds?$/i.test(title)) return 'Final';
-        if (title && !/^(offline|online)\s*rounds?$/i.test(title) && !/^rounds?\s*\d+$/i.test(title)) {
-            return title;
-        }
+        const isGeneric =
+            !title
+            || /^(offline|online)\s*rounds?$/i.test(title)
+            || /^rounds?\s*\d+$/i.test(title)
+            || /^final\s*rounds?$/i.test(title);
+
+        // Keep real names (e.g. FLASH → Videography); only label generic last tabs as Final
+        if (!isGeneric) return title;
+        if (totalRounds > 1 && idx === totalRounds - 1) return 'Final';
         return `Round ${idx + 1}`;
     };
 
+    /** Title → short blurb → rules (no duplicate title / Online-Offline noise) */
+    const renderActiveRoundBody = (variant = 'mobile') => {
+        const round = roundsList[activeRound];
+        if (!round) return null;
+
+        const cleanedRoundDescription = sanitizeRoundDescription(round.description || '');
+        const cleanedOverviewDescription = sanitizeRoundDescription(eventData?.rounds?.description || '');
+        const normalizedRoundDescription = cleanedRoundDescription.toLowerCase().replace(/\s+/g, ' ').trim();
+        const normalizedOverviewDescription = cleanedOverviewDescription.toLowerCase().replace(/\s+/g, ' ').trim();
+        const isDuplicateOfOverview =
+            normalizedRoundDescription.length > 40 &&
+            normalizedOverviewDescription.length > 40 &&
+            (normalizedOverviewDescription.includes(normalizedRoundDescription) ||
+                normalizedRoundDescription.includes(normalizedOverviewDescription));
+
+        const tabLabel = getRoundTabLabel(round, activeRound, roundsList.length);
+        let displayTitle = getRoundDisplayTitle(round, activeRound, roundsList.length);
+        // Tab already shows this name (e.g. Fusion Fundamentals) — don't repeat above the blurb
+        if (displayTitle && displayTitle.toLowerCase() === tabLabel.toLowerCase()) {
+            displayTitle = '';
+        }
+        // On Final tab, keep the real round name as the upper heading (e.g. Design Round)
+        if (!displayTitle && tabLabel === 'Final') {
+            const raw = String(round?.title || '').trim();
+            if (raw && !/^final\s*rounds?$/i.test(raw) && !/^rounds?\s*\d+$/i.test(raw)) {
+                displayTitle = raw;
+            }
+        }
+
+        const { offline, online, general } = getRoundModeSections(round);
+        const hasRoundContent = offline.length + online.length + general.length > 0;
+        // Always show intro when there are no rule bullets; otherwise keep it short
+        const showDescription =
+            cleanedRoundDescription &&
+            !isDuplicateOfOverview &&
+            (!hasRoundContent || cleanedRoundDescription.length <= 220);
+
+        return (
+            <div className="space-y-3">
+                {displayTitle ? (
+                    <h3 className={`font-bold text-lg leading-snug ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {displayTitle}
+                    </h3>
+                ) : null}
+
+                {showDescription ? (
+                    <p className={`text-sm leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                        {cleanedRoundDescription}
+                    </p>
+                ) : null}
+
+                {hasRoundContent ? (
+                    <RoundRulesContent round={round} roundIndex={activeRound} variant={variant} />
+                ) : null}
+            </div>
+        );
+    };
+
     const commonRules = getCommonRules();
+    // Re-filter at render (covers stale detail cache with empty placeholder rounds)
+    const roundsList = (eventData?.rounds?.roundsList || []).filter(roundHasDisplayableContent);
+    // Hide entire Competition Rounds card when MindSpark (or any) comp has no real round content
+    const showCompetitionRounds = roundsList.length > 0;
 
     const contactList = (() => {
         const c = eventData?.contact;
         if (!c) return [];
         const hasAny = Boolean(c.name || c.email || c.phone || c.instagram);
         if (!hasAny) return [];
+
         let instagramId = c.instagram || '';
         if (instagramId.startsWith('http')) {
             try {
@@ -777,14 +893,114 @@ function EventPage() {
                 /* keep as-is */
             }
         }
+        instagramId = instagramId.replace(/^@/, '');
+
+        const names = String(c.name || '')
+            .split(/\s*(?:\/|&|,| and )\s*/i)
+            .map((n) => n.replace(/^event\s*heads?\s*:?\s*/i, '').trim())
+            .filter((n) => n.length > 1);
+        const phones = String(c.phone || '')
+            .split(/\s*(?:,|\/|;)\s*/)
+            .map((p) => p.trim())
+            .filter(Boolean);
+
+        // Pair each event head with their number (MindSpark stores "A / B" + "ph1, ph2")
+        if (names.length > 1 || phones.length > 1) {
+            const count = Math.max(names.length, phones.length, 1);
+            return Array.from({ length: count }, (_, i) => ({
+                name: names[i] || names[0] || 'Event Head',
+                role: c.role || 'Event Head',
+                email: i === 0 ? (c.email || '') : '',
+                phone: phones[i] || phones[0] || '',
+                instagramId: i === 0 ? instagramId : '',
+            })).filter((row) => row.name || row.phone || row.email || row.instagramId);
+        }
+
         return [{
-            name: c.name || '',
-            role: c.role || '',
+            name: names[0] || c.name || '',
+            role: c.role || 'Event Head',
             email: c.email || '',
-            phone: c.phone || '',
-            instagramId: instagramId.replace(/^@/, ''),
+            phone: phones[0] || c.phone || '',
+            instagramId,
         }];
     })();
+
+    const ContactPersonCard = ({ contact }) => (
+        <div className="space-y-3">
+            <div>
+                <p className="text-base font-bold leading-snug text-white">
+                    {contact.name || 'Event Head'}
+                </p>
+                {contact.role ? (
+                    <p className="mt-0.5 text-xs font-medium text-gray-400">{contact.role}</p>
+                ) : null}
+            </div>
+
+            <div className="space-y-2">
+                {contact.phone
+                    ? contact.phone.split(/\s*(?:,|\/)\s*/).filter(Boolean).map((entry, pi) => {
+                        const nameMatch = entry.match(/\(([^)]+)\)/);
+                        const label = nameMatch ? nameMatch[1].trim() : null;
+                        const rawNumber = entry.replace(/\s*\([^)]*\)/, '').trim();
+                        const tel = rawNumber.replace(/[\s-]/g, '');
+                        return (
+                            <a
+                                key={pi}
+                                href={`tel:${tel}`}
+                                className="flex items-center gap-2.5 text-white/90 hover:text-[#0ECCEE] transition"
+                            >
+                                <Phone size={15} className="text-[#0ECCEE] shrink-0" strokeWidth={2.25} />
+                                <span className="min-w-0">
+                                    {label ? (
+                                        <span className="block text-[11px] text-gray-400 leading-tight">{label}</span>
+                                    ) : null}
+                                    <span className="block text-sm font-medium tabular-nums tracking-wide">
+                                        {rawNumber}
+                                    </span>
+                                </span>
+                            </a>
+                        );
+                    })
+                    : null}
+
+                {contact.email ? (
+                    <a
+                        href={`mailto:${contact.email}`}
+                        className="flex items-center gap-2.5 text-white/90 hover:text-emerald-400 transition"
+                    >
+                        <Mail size={15} className="text-emerald-400 shrink-0" strokeWidth={2.25} />
+                        <span className="text-sm font-medium truncate">{contact.email}</span>
+                    </a>
+                ) : null}
+
+                {contact.instagramId ? (
+                    <a
+                        href={`https://instagram.com/${contact.instagramId.replace('@', '')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2.5 text-white/90 hover:text-pink-400 transition"
+                    >
+                        <Instagram size={15} className="text-pink-400 shrink-0" strokeWidth={2.25} />
+                        <span className="text-sm font-medium">
+                            {contact.instagramId.startsWith('@') ? contact.instagramId : `@${contact.instagramId}`}
+                        </span>
+                    </a>
+                ) : null}
+            </div>
+        </div>
+    );
+
+    const ContactDetailsBox = () => (
+        <div className="rounded-2xl bg-[#111213] shadow-[0_8px_24px_rgba(0,0,0,0.28)] border border-white/5 p-4 sm:p-5">
+            <div className="space-y-5 divide-y divide-white/10">
+                {contactList.map((contact, index) => (
+                    <div key={index} className={index === 0 ? '' : 'pt-5'}>
+                        <ContactPersonCard contact={contact} />
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
 
     // Helper function to check if custom internal form is properly configured
     const isCustomFormConfigured = () => {
@@ -953,17 +1169,22 @@ function EventPage() {
                         _id: eventData?.festId || eventData?.fest?._id,
                         festName: eventData?.fest?.festName || passedEventData?.festival_name || passedEventData?.title,
                         collegeName: eventData?.fest?.collegeName || passedEventData?.collegeName || passedEventData?.subtitle,
+                        slug: eventData?.fest?.slug || '',
                         feeAmount: eventData?.fest?.feeAmount ?? 0,
                         platformFeePercent: eventData?.fest?.platformFeePercent ?? 0,
                         registration: eventData?.fest?.registration,
                     },
                     competition: {
                         _id: compId,
+                        id: compId,
                         name: eventData?.title,
                         feeAmount: eventData?.feeAmount,
                         registrationFee: eventData?.entryFee,
                         registrationType: eventData?.registrationType,
                         registration: eventData?.registration,
+                        teamSizeMin: eventData?.teamSizeMin,
+                        teamSizeMax: eventData?.teamSizeMax,
+                        teamSizeLabel: eventData?.teamSizeLabel,
                     },
                 });
                 const festRefId = eventData?.festId || eventData?.fest?._id;
@@ -1284,33 +1505,16 @@ function EventPage() {
                                 </div>
                             )}
 
-                            {/* Mobile Competition Rounds - Only show if rounds exist */}
-                            {eventData?.rounds?.roundsList?.length > 0 && (
+                            {/* Mobile Competition Rounds — hidden when no real round content */}
+                            {showCompetitionRounds && (
                             <div className="px-4 py-5">
                                 <div className={`${isDark ? 'bg-[#111213]' : 'bg-white'} rounded-xl p-4 sm:p-5 shadow-sm`}>
                                     <h2 className={`text-xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Competition Rounds</h2>
-                                    {eventData?.rounds?.description && (() => {
-                                        const desc = sanitizeRoundDescription(eventData.rounds.description);
-                                        const normalizedDesc = desc.trim().replace(/\s+/g, ' ');
-                                        // Already shown in About (short overview) — don't repeat
-                                        if (normalizedDesc && normalizedDesc === aboutText) return null;
-
-                                        return (
-                                            <div className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                                                <div 
-                                                    className="whitespace-pre-wrap"
-                                                    style={{ whiteSpace: 'pre-wrap' }}
-                                                >
-                                                    {desc}
-                                                </div>
-                                            </div>
-                                        );
-                                    })()}
 
                                     {/* Mobile Round Tabs - Dynamic based on available rounds */}
-                                    {eventData.rounds.roundsList.length > 1 && !festName?.toLowerCase().includes('symbi') && (
-                                        <div className={`grid gap-2 mb-4 mt-4`} style={{ gridTemplateColumns: `repeat(${Math.min(eventData.rounds.roundsList.length, 5)}, 1fr)` }}>
-                                            {eventData.rounds.roundsList.map((round, idx) => (
+                                    {roundsList.length > 1 && !festName?.toLowerCase().includes('symbi') && (
+                                        <div className={`grid gap-2 mb-4 mt-4`} style={{ gridTemplateColumns: `repeat(${Math.min(roundsList.length, 5)}, 1fr)` }}>
+                                            {roundsList.map((round, idx) => (
                                                 <button
                                                     key={idx}
                                                     onClick={() => setActiveRound(idx)}
@@ -1319,58 +1523,15 @@ function EventPage() {
                                                         : `${isDark ? 'bg-dark-700 text-gray-300' : 'bg-gray-100 text-black'}`
                                                         }`}
                                                 >
-                                                    {getRoundTabLabel(round, idx, eventData.rounds.roundsList.length)}
+                                                    {getRoundTabLabel(round, idx, roundsList.length)}
                                                 </button>
                                             ))}
                                         </div>
                                     )}
 
                                     {/* Mobile Round Content */}
-                                    <div className="space-y-4">
-                                        {(() => {
-                                            const round = eventData.rounds.roundsList[activeRound];
-                                            if (!round) return null;
-
-                                            const cleanedRoundDescription = sanitizeRoundDescription(round.description || '');
-                                            const cleanedOverviewDescription = sanitizeRoundDescription(eventData?.rounds?.description || '');
-                                            const normalizedRoundDescription = cleanedRoundDescription.toLowerCase().replace(/\s+/g, ' ').trim();
-                                            const normalizedOverviewDescription = cleanedOverviewDescription.toLowerCase().replace(/\s+/g, ' ').trim();
-                                            const isDuplicateOfOverview =
-                                                normalizedRoundDescription.length > 40 &&
-                                                normalizedOverviewDescription.length > 40 &&
-                                                (normalizedOverviewDescription.includes(normalizedRoundDescription) ||
-                                                    normalizedRoundDescription.includes(normalizedOverviewDescription));
-
-                                            const displayTitle = getRoundDisplayTitle(
-                                                round,
-                                                activeRound,
-                                                eventData.rounds.roundsList.length,
-                                            );
-                                            const hasRoundContent = (() => {
-                                                const { offline, online, general } = getRoundModeSections(round);
-                                                return offline.length + online.length + general.length > 0;
-                                            })();
-
-                                            return (
-                                                <>
-                                                    {cleanedRoundDescription && !isDuplicateOfOverview && (
-                                                        <p className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                                                            {cleanedRoundDescription}
-                                                        </p>
-                                                    )}
-
-                                                    {displayTitle ? (
-                                                        <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                            {displayTitle}
-                                                        </h3>
-                                                    ) : null}
-
-                                                    {hasRoundContent && (
-                                                        <RoundRulesContent round={round} roundIndex={activeRound} variant="mobile" />
-                                                    )}
-                                                </>
-                                            );
-                                        })()}
+                                    <div className="mt-4">
+                                        {renderActiveRoundBody('mobile')}
                                     </div>
                                 </div>
                             </div>
@@ -1390,90 +1551,11 @@ function EventPage() {
                             </div>
                             ) : null}
 
-                            {/* Mobile Contact Details — same layout as fest view-details */}
+                            {/* Mobile Contact Details */}
                             {contactList.length > 0 ? (
-                            <section className={`px-4 mb-8 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
+                            <section className="px-4 mb-8">
                                 <h2 className={`text-base font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Details</h2>
-                                <div className="space-y-3">
-                                    {contactList.map((contact, index) => (
-                                        <div
-                                            key={index}
-                                            className={`rounded-xl p-3 ${isDark ? 'bg-[#1f2021]' : 'bg-gray-100'}`}
-                                        >
-                                            {(contact.name || contact.role) && (
-                                                <div className="mb-2">
-                                                    <span className={`font-semibold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                        {contact.name || 'Contact Person'}
-                                                    </span>
-                                                    {contact.role && (
-                                                        <span className={`text-xs ml-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                                            - {contact.role}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            )}
-
-                                            <div className="space-y-2">
-                                                {contact.phone && contact.phone.split(/\s*(?:,|\/)\s*/).filter(Boolean).map((entry, pi) => {
-                                                    const nameMatch = entry.match(/\(([^)]+)\)/);
-                                                    const name = nameMatch ? nameMatch[1].trim() : null;
-                                                    const rawNumber = entry.replace(/\s*\([^)]*\)/, '').trim();
-                                                    return (
-                                                        <a
-                                                            key={pi}
-                                                            href={`tel:${rawNumber.replace(/[\s-]/g, '')}`}
-                                                            className="flex items-center gap-2.5"
-                                                        >
-                                                            <span className="size-9 shrink-0 rounded-full bg-[#0060DF] flex items-center justify-center">
-                                                                <Phone size={16} className="text-white" />
-                                                            </span>
-                                                            <span className="min-w-0">
-                                                                {name && (
-                                                                    <span className={`block text-[11px] leading-tight ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                                                        {name}
-                                                                    </span>
-                                                                )}
-                                                                <span className={`block text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                                                                    {rawNumber}
-                                                                </span>
-                                                            </span>
-                                                        </a>
-                                                    );
-                                                })}
-
-                                                {contact.instagramId && (
-                                                    <a
-                                                        href={`https://instagram.com/${contact.instagramId.replace('@', '')}`}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="flex items-center gap-2.5"
-                                                    >
-                                                        <span className="size-9 shrink-0 rounded-full bg-linear-to-br from-[#f58529] via-[#dd2a7b] to-[#8134af] flex items-center justify-center">
-                                                            <Instagram size={16} className="text-white" />
-                                                        </span>
-                                                        <span className={`text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                                                            {contact.instagramId.startsWith('@') ? contact.instagramId : `@${contact.instagramId}`}
-                                                        </span>
-                                                    </a>
-                                                )}
-
-                                                {contact.email && (
-                                                    <a
-                                                        href={`mailto:${contact.email}`}
-                                                        className="flex items-center gap-2.5"
-                                                    >
-                                                        <span className="size-9 shrink-0 rounded-full bg-emerald-600 flex items-center justify-center">
-                                                            <Mail size={16} className="text-white" />
-                                                        </span>
-                                                        <span className={`text-sm truncate ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                                                            {contact.email}
-                                                        </span>
-                                                    </a>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
+                                <ContactDetailsBox />
                             </section>
                             ) : null}
                                 </div>
@@ -1519,74 +1601,11 @@ function EventPage() {
                                     ) : null}
                                 </div>
 
-                                {/* Contact Details — same layout as fest view-details */}
+                                {/* Contact Details */}
                                 {contactList.length > 0 ? (
-                                <div className={`${isDark ? 'bg-[#111213]' : 'bg-gray-100'} rounded-2xl p-4 transition-colors duration-300`}>
+                                <div>
                                     <h3 className={`text-lg font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Details</h3>
-                                    <div className="space-y-2">
-                                        {contactList.map((contact, index) => (
-                                            <div key={index} className={`${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'} rounded-lg p-3 transition-colors duration-300`}>
-                                                <div className="mb-1">
-                                                    <span className={`font-semibold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                        {contact.name || 'Contact Person'}
-                                                    </span>
-                                                    {contact.role && (
-                                                        <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'} ml-2`}>
-                                                            - {contact.role}
-                                                        </span>
-                                                    )}
-                                                </div>
-
-                                                <div className="space-y-1">
-                                                    {contact.phone && contact.phone.split(/\s*(?:,|\/)\s*/).filter(Boolean).map((entry, pi) => {
-                                                        const nameMatch = entry.match(/\(([^)]+)\)/);
-                                                        const name = nameMatch ? nameMatch[1].trim() : null;
-                                                        const rawNumber = entry.replace(/\s*\([^)]*\)/, '').trim();
-                                                        return (
-                                                            <div key={pi} className="flex items-start gap-1.5">
-                                                                <Phone size={12} className={`${isDark ? 'text-blue-400' : 'text-blue-600'} mt-0.5 shrink-0`} />
-                                                                <div>
-                                                                    {name && <span className={`text-fluid-2xs ${isDark ? 'text-gray-500' : 'text-gray-400'} block leading-tight`}>{name}</span>}
-                                                                    <a
-                                                                        href={`tel:${rawNumber.replace(/[\s-]/g, '')}`}
-                                                                        className={`text-xs ${isDark ? 'text-gray-300 hover:text-blue-400' : 'text-gray-600 hover:text-blue-600'} transition`}
-                                                                    >
-                                                                        {rawNumber}
-                                                                    </a>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })}
-
-                                                    {contact.email && (
-                                                        <div className="flex items-center">
-                                                            <Mail size={12} className={`${isDark ? 'text-green-400' : 'text-green-600'} mr-2`} />
-                                                            <a
-                                                                href={`mailto:${contact.email}`}
-                                                                className={`text-xs ${isDark ? 'text-gray-300 hover:text-green-400' : 'text-gray-600 hover:text-green-600'} transition truncate`}
-                                                            >
-                                                                {contact.email}
-                                                            </a>
-                                                        </div>
-                                                    )}
-
-                                                    {contact.instagramId && (
-                                                        <div className="flex items-center">
-                                                            <Instagram size={12} className={`${isDark ? 'text-pink-400' : 'text-pink-600'} mr-2`} />
-                                                            <a
-                                                                href={`https://instagram.com/${contact.instagramId.replace('@', '')}`}
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                                className={`text-xs ${isDark ? 'text-gray-300 hover:text-pink-400' : 'text-gray-600 hover:text-pink-600'} transition`}
-                                                            >
-                                                                {contact.instagramId.startsWith('@') ? contact.instagramId : `@${contact.instagramId}`}
-                                                            </a>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
+                                    <ContactDetailsBox />
                                 </div>
                                 ) : null}
                             </div>
@@ -1630,92 +1649,74 @@ function EventPage() {
                                     </div>
                                     )}
 
-                                    <div className="flex items-center gap-3 mb-4">
-                                    {eventData.feeKnown ? (
-                                        <div className="flex items-center gap-2.5 px-4 py-3 rounded-full border bg-[#0ECCEE]/10 border-[#0ECCEE]/30">
-                                            <div className="w-7 h-7 rounded-full flex items-center justify-center bg-[#0ECCEE]/20">
-                                                {eventData.feeIsFree
-                                                    ? <Zap className="w-3.5 h-3.5 text-[#0ECCEE]" />
-                                                    : <Ticket className="w-3.5 h-3.5 text-[#0ECCEE]" />
-                                                }
-                                            </div>
-                                            <div>
-                                                <span className={`text-base font-bold leading-tight block ${eventData.feeIsFree ? 'text-green-500' : 'text-[#0ECCEE]'}`}>
+                                    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,24rem)_auto] gap-x-3 gap-y-1.5 mb-4 items-center">
+                                        <div aria-hidden />
+                                        <RegisterMetaChips
+                                            isDark={isDark}
+                                            slotsLabel={formatSlotsLabel(eventData.slotsAllotted, eventData.slotsLeft)}
+                                            teamLabel={buildTeamSizeLabel(eventData.teamSizeMin, eventData.teamSizeMax)}
+                                        />
+                                        <div className="w-11" aria-hidden />
+
+                                        {eventData.feeKnown ? (
+                                            <div className="min-w-0 flex flex-col justify-center h-14">
+                                                <p className={`text-sm font-semibold leading-none ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Fee</p>
+                                                <p className={`mt-1 text-3xl font-bold tabular-nums leading-none truncate ${
+                                                    eventData.feeIsFree
+                                                        ? 'text-green-500'
+                                                        : isDark ? 'text-white' : 'text-gray-900'
+                                                }`}>
                                                     {eventData.feeLabel}
-                                                </span>
-                                                <span className={`text-[10px] leading-none ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                                    {eventData.feeIsFree ? 'No Entry Fee' : 'Registration Fee'}
-                                                </span>
+                                                </p>
                                             </div>
-                                        </div>
-                                    ) : null}
+                                        ) : (
+                                            <div />
+                                        )}
 
                                         <button
+                                            type="button"
                                             onClick={handleRegister}
                                             disabled={registrationInfo.isDisabled}
-                                            className={`flex flex-1 items-center justify-center gap-2 h-14 px-6 rounded-3xl text-base font-medium shadow-lg transition ${isRegistered
-                                                ? 'bg-green-500 text-white hover:opacity-90'
-                                                : registrationInfo.isDisabled
-                                                ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
-                                                : 'bg-[#0ECCEE] text-black active:opacity-90'
-                                                }`}
+                                            className={`w-full flex items-center justify-center gap-2 h-14 px-5 rounded-2xl text-base font-semibold shadow-md transition ${
+                                                registrationInfo.isDisabled
+                                                    ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
+                                                    : 'bg-[#0ECCEE] text-black active:opacity-90'
+                                            }`}
                                             title={registrationInfo.isDisabled ? registrationInfo.buttonText : ''}
                                         >
-                                            {isRegistered ? (
-                                                <span className="flex items-center justify-center gap-2">
-                                                    <Check className="w-4 h-4" />
-                                                    Register Again
-                                                </span>
-                                            ) : (
-                                                <>
-                                                    {registrationInfo.buttonText}
-                                                    {!registrationInfo.isDisabled ? (
-                                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                                            <path d="m9 18 6-6-6-6"/>
-                                                        </svg>
-                                                    ) : null}
-                                                </>
-                                            )}
+                                            <>
+                                                {registrationInfo.buttonText}
+                                                {!registrationInfo.isDisabled ? (
+                                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                        <path d="m9 18 6-6-6-6" />
+                                                    </svg>
+                                                ) : null}
+                                            </>
                                         </button>
-                                        <div className="relative">
+
+                                        <div className="relative shrink-0">
                                             <button
+                                                type="button"
                                                 onClick={() => setShowShareMenu(!showShareMenu)}
-                                                className={`w-12 h-12 rounded-full flex items-center justify-center transition ${isDark ? 'bg-dark-700 hover:bg-dark-600' : 'bg-gray-100 hover:bg-gray-200'
-                                                    }`}
+                                                className={`h-14 w-11 rounded-full flex items-center justify-center transition ${
+                                                    isDark ? 'bg-dark-700 hover:bg-dark-600' : 'bg-gray-100 hover:bg-gray-200'
+                                                }`}
                                             >
                                                 <img src={ShareIcon} alt="Share" className="w-5 h-5" />
                                             </button>
-
                                             {showShareMenu && (
-                                                <div className={`absolute right-0 mt-2 w-48 rounded-lg shadow-lg z-20 ${isDark ? 'bg-dark-700' : 'bg-white'
-                                                    } border ${isDark ? 'border-dark-600' : 'border-gray-200'}`}>
+                                                <div className={`absolute right-0 bottom-full mb-2 w-48 rounded-lg shadow-lg z-20 ${isDark ? 'bg-dark-700' : 'bg-white'} border ${isDark ? 'border-dark-600' : 'border-gray-200'}`}>
                                                     <div className="py-2">
-                                                        <button
-                                                            onClick={() => handleShare('whatsapp')}
-                                                            className={`w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 hover:bg-blue-500 ${isDark ? 'text-gray-200' : 'text-gray-700'
-                                                                }`}
-                                                        >
+                                                        <button type="button" onClick={() => handleShare('whatsapp')} className={`w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 hover:bg-blue-500 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
                                                             Share on WhatsApp
                                                         </button>
-                                                        <button
-                                                            onClick={() => handleShare('facebook')}
-                                                            className={`w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 hover:bg-blue-500 ${isDark ? 'text-gray-200' : 'text-gray-700'
-                                                                }`}
-                                                        >
+                                                        <button type="button" onClick={() => handleShare('facebook')} className={`w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 hover:bg-blue-500 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
                                                             Share on Facebook
                                                         </button>
-                                                        <button
-                                                            onClick={() => handleShare('twitter')}
-                                                            className={`w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 hover:bg-blue-500 ${isDark ? 'text-gray-200' : 'text-gray-700'
-                                                                }`}
-                                                        >
+                                                        <button type="button" onClick={() => handleShare('twitter')} className={`w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 hover:bg-blue-500 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
                                                             Share on Twitter
                                                         </button>
-                                                        <button
-                                                            onClick={() => handleShare('copy')}
-                                                            className={`w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 hover:bg-blue-500 ${isDark ? 'text-gray-200' : 'text-gray-700'
-                                                                }`}
-                                                        >
+                                                        <button type="button" onClick={() => handleShare('copy')} className={`w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 hover:bg-blue-500 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
                                                             Copy Link
                                                         </button>
                                                     </div>
@@ -1740,32 +1741,15 @@ function EventPage() {
                                     )}
                                 </div>
 
-                                {/* Competition Rounds - Only show if rounds exist */}
-                                {eventData?.rounds?.roundsList?.length > 0 && (
+                                {/* Competition Rounds — hidden when no real round content */}
+                                {showCompetitionRounds && (
                                 <div className={`${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'} rounded-2xl p-6`}>
                                     <h2 className={`text-2xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>{eventData?.title || 'Competition'} Rounds</h2>
-                                    {eventData?.rounds?.description && (() => {
-                                        const desc = sanitizeRoundDescription(eventData.rounds.description);
-                                        const normalizedDesc = desc.trim().replace(/\s+/g, ' ');
-                                        // Already shown in About (short overview) — don't repeat
-                                        if (normalizedDesc && normalizedDesc === aboutText) return null;
-
-                                        return (
-                                            <div className={`text-sm mb-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                                                <div 
-                                                    className="whitespace-pre-wrap"
-                                                    style={{ whiteSpace: 'pre-wrap' }}
-                                                >
-                                                    {desc}
-                                                </div>
-                                            </div>
-                                        );
-                                    })()}
 
                                     {/* Desktop Round Tabs - Dynamic based on available rounds */}
-                                    {eventData.rounds.roundsList.length > 1 && !festName?.toLowerCase().includes('symbi') && (
-                                        <div className="grid gap-2 mb-6" style={{ gridTemplateColumns: `repeat(${Math.min(eventData.rounds.roundsList.length, 5)}, 1fr)` }}>
-                                            {eventData.rounds.roundsList.map((round, idx) => (
+                                    {roundsList.length > 1 && !festName?.toLowerCase().includes('symbi') && (
+                                        <div className="grid gap-2 mb-6" style={{ gridTemplateColumns: `repeat(${Math.min(roundsList.length, 5)}, 1fr)` }}>
+                                            {roundsList.map((round, idx) => (
                                                 <button
                                                     key={idx}
                                                     onClick={() => setActiveRound(idx)}
@@ -1774,57 +1758,14 @@ function EventPage() {
                                                         : `shadow-md ${isDark ? 'bg-dark-700 text-gray-300' : 'bg-[#EDEDF2] text-black'}`
                                                         }`}
                                                 >
-                                                    {getRoundTabLabel(round, idx, eventData.rounds.roundsList.length)}
+                                                    {getRoundTabLabel(round, idx, roundsList.length)}
                                                 </button>
                                             ))}
                                         </div>
                                     )}
 
-                                    <div className="space-y-4">
-                                        {(() => {
-                                            const round = eventData.rounds.roundsList[activeRound];
-                                            if (!round) return null;
-
-                                            const cleanedRoundDescription = sanitizeRoundDescription(round.description || '');
-                                            const cleanedOverviewDescription = sanitizeRoundDescription(eventData?.rounds?.description || '');
-                                            const normalizedRoundDescription = cleanedRoundDescription.toLowerCase().replace(/\s+/g, ' ').trim();
-                                            const normalizedOverviewDescription = cleanedOverviewDescription.toLowerCase().replace(/\s+/g, ' ').trim();
-                                            const isDuplicateOfOverview =
-                                                normalizedRoundDescription.length > 40 &&
-                                                normalizedOverviewDescription.length > 40 &&
-                                                (normalizedOverviewDescription.includes(normalizedRoundDescription) ||
-                                                    normalizedRoundDescription.includes(normalizedOverviewDescription));
-
-                                            const displayTitle = getRoundDisplayTitle(
-                                                round,
-                                                activeRound,
-                                                eventData.rounds.roundsList.length,
-                                            );
-                                            const hasRoundContent = (() => {
-                                                const { offline, online, general } = getRoundModeSections(round);
-                                                return offline.length + online.length + general.length > 0;
-                                            })();
-
-                                            return (
-                                                <>
-                                                    {cleanedRoundDescription && !isDuplicateOfOverview && (
-                                                        <p className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                                                            {cleanedRoundDescription}
-                                                        </p>
-                                                    )}
-
-                                                    {displayTitle ? (
-                                                        <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                            {displayTitle}
-                                                        </h3>
-                                                    ) : null}
-
-                                                    {hasRoundContent && (
-                                                        <RoundRulesContent round={round} roundIndex={activeRound} variant="desktop" />
-                                                    )}
-                                                </>
-                                            );
-                                        })()}
+                                    <div className="mt-2">
+                                        {renderActiveRoundBody('desktop')}
                                     </div>
                                 </div>
                                 )}
@@ -1832,59 +1773,60 @@ function EventPage() {
                         </div>
                 </main>
 
-                <div className="md:hidden h-28" aria-hidden="true" />
+                <div className="md:hidden h-32" aria-hidden="true" />
 
             {typeof document !== 'undefined' && createPortal(
             <div
                 className="fixed inset-x-0 bottom-0 z-100040 md:hidden px-2 pointer-events-none"
                 style={{ paddingBottom: 'max(var(--safe-bottom), 6px)' }}
             >
-                <div className={`pointer-events-auto mx-auto w-full max-w-md flex items-center justify-between gap-4 rounded-[30px] px-5 py-3.5 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'}`}>
-                    {eventData.feeKnown ? (
-                    <div className="min-w-0 shrink-0">
-                        <p className={`text-xs font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Registration Fee</p>
-                        {eventData.feeIsFree ? (
-                            <p className="mt-0.5 text-2xl font-bold leading-none text-green-500">Free</p>
+                <div className={`pointer-events-auto mx-auto w-full max-w-md rounded-[28px] px-4 py-3 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'}`}>
+                    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,20rem)] gap-x-3 gap-y-1.5 items-center">
+                        <div aria-hidden />
+                        <RegisterMetaChips
+                            isDark={isDark}
+                            slotsLabel={formatSlotsLabel(eventData.slotsAllotted, eventData.slotsLeft)}
+                            teamLabel={buildTeamSizeLabel(eventData.teamSizeMin, eventData.teamSizeMax)}
+                        />
+
+                        {eventData.feeKnown ? (
+                            <RegisterFeeLabel
+                                isDark={isDark}
+                                feeLabel={eventData.feeLabel}
+                                feeIsFree={eventData.feeIsFree}
+                            />
                         ) : (
-                            <p className={`mt-0.5 text-2xl font-bold leading-none truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                {eventData.feeLabel}
-                            </p>
+                            <div />
                         )}
-                    </div>
-                    ) : null}
-                    <button
-                        type="button"
-                        onClick={() => {
-                            trackBookNowClick({
-                                entityType: 'competition',
-                                entityId: eventData?.id || '',
-                                mode: eventData?.registrationType || 'fest',
-                                destination: 'competition_register',
-                            });
-                            handleRegister();
-                        }}
-                        disabled={registrationInfo.isDisabled}
-                        className={`flex flex-1 items-center justify-center gap-2 h-14 px-6 rounded-3xl text-lg font-medium shadow-lg transition ${
-                            registrationInfo.isDisabled
-                                ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
-                                : isRegistered
-                                ? 'bg-green-600 text-white'
-                                : 'bg-[#0ECCEE] text-black active:opacity-90'
-                        }`}
-                    >
-                        {isRegistered ? (
-                            <><Check className="w-4 h-4" /> Register Again</>
-                        ) : (
+
+                        <button
+                            type="button"
+                            onClick={() => {
+                                trackBookNowClick({
+                                    entityType: 'competition',
+                                    entityId: eventData?.id || '',
+                                    mode: eventData?.registrationType || 'fest',
+                                    destination: 'competition_register',
+                                });
+                                handleRegister();
+                            }}
+                            disabled={registrationInfo.isDisabled}
+                            className={`w-full flex items-center justify-center gap-1.5 h-14 px-3 rounded-2xl text-base font-semibold shadow-md transition ${
+                                registrationInfo.isDisabled
+                                    ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
+                                    : 'bg-[#0ECCEE] text-black active:opacity-90'
+                            }`}
+                        >
                             <>
                                 {registrationInfo.buttonText}
                                 {!registrationInfo.isDisabled ? (
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                         <path d="m9 18 6-6-6-6" />
                                     </svg>
                                 ) : null}
                             </>
-                        )}
-                    </button>
+                        </button>
+                    </div>
                 </div>
             </div>,
             document.body,

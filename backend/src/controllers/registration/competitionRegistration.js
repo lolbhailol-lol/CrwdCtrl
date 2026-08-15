@@ -276,12 +276,17 @@ const submitCustomCompetitionRegistration = async (req, res) => {
     }
 
     // Create registration record
+    const festIdForReg = competition.fest?._id || competition.fest;
+    const { isMindSparkFestId } = require('../../utils/personFields');
+    const autoConfirm = isMindSparkFestId(festIdForReg)
+      || paymentStatus === 'paid'
+      || paymentStatus === 'free';
     const registration = new Registration({
       fest: competition.fest._id,
       user: userId,
       competitionId: competition._id,
       responses: responses,
-      status: 'pending',
+      status: autoConfirm ? 'approved' : 'pending',
       payment_order_id: paymentOrderId,
       payment_id: paymentId,
       payment_gateway: paymentStatus === 'paid' ? 'cashfree' : null,
@@ -374,6 +379,10 @@ const submitCustomCompetitionRegistration = async (req, res) => {
               method: paymentStatus === 'paid' ? 'cashfree' : 'free',
               type: 'competition',
               ticketLink: `/registration-details/${registration._id}`,
+              groupLink:
+                String(competition.registration?.whatsappGroupLink || '').trim()
+                || String(competition.fest?.registration?.whatsappCommunityLink || '').trim(),
+              communityName: competition.name || competition.fest?.festName || '',
             },
           );
           logger.debug('✅ Confirmation email sent successfully');
@@ -738,11 +747,16 @@ const submitCompetitionRegistration = async (req, res) => {
     }
 
     // Create registration with competition reference
+    const festIdForReg = competition.fest?._id || competition.fest;
+    const { isMindSparkFestId } = require('../../utils/personFields');
+    const autoConfirm = isMindSparkFestId(festIdForReg)
+      || paymentStatusRoute === 'paid'
+      || paymentStatusRoute === 'free';
     const registration = new Registration({
       fest: competition.fest._id,
       user: userId,
       responses: processedResponses,
-      status: 'pending',
+      status: autoConfirm ? 'approved' : 'pending',
       competitionId: competitionId,
       payment_order_id: paymentOrderId,
       payment_id: paymentId,
@@ -828,6 +842,10 @@ const submitCompetitionRegistration = async (req, res) => {
               method: paymentStatusRoute === 'paid' ? 'cashfree' : 'free',
               type: 'competition',
               ticketLink: `/registration-details/${registration._id}`,
+              groupLink:
+                String(competition.registration?.whatsappGroupLink || '').trim()
+                || String(fest.registration?.whatsappCommunityLink || '').trim(),
+              communityName: competition.name || fest.festName || '',
             },
           );
           logger.debug('✅ Confirmation email sent successfully');

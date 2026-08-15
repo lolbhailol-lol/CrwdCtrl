@@ -5,18 +5,9 @@ import {
     Trophy, IndianRupee, Info, ClipboardList, Mic2, Radio, Pencil,
 } from 'lucide-react';
 import { clearFestOrganizerSession, getFestOrganizerSession } from '../../utils/festOrganizerSession';
+import { isMindSparkFest } from '../../features/fests/mindspark';
 
-/** MindSpark — hide stall/leads kiosk tools for this fest only */
-const MINDSPARK_FEST_ID = '6a7f1010ed26d983b34e55c2';
-
-function isMindSparkFest(festId, festMeta) {
-    if (String(festId) === MINDSPARK_FEST_ID) return true;
-    const name = String(festMeta?.festName || festMeta?.name || '').toLowerCase();
-    const slug = String(festMeta?.slug || '').toLowerCase();
-    return name.includes('mindspark') || slug.includes('mindspark');
-}
-
-const navForFest = (festId, { hideStallLeads = false } = {}) => [
+const navForFest = (festId, { hideStallLeads = false, hideProShow = false } = {}) => [
     { label: 'Overview', path: `/fest-organizer/fests/${festId}`, icon: LayoutDashboard, end: true, short: 'Home', group: 'ops' },
     { label: 'Edit fest & comps', path: `/fest-organizer/fests/${festId}/edit-listing`, icon: Pencil, short: 'Edit', group: 'edit' },
     { label: 'Live', path: `/fest-organizer/fests/${festId}/live`, icon: Radio, short: 'Live', group: 'ops' },
@@ -24,7 +15,9 @@ const navForFest = (festId, { hideStallLeads = false } = {}) => [
         ? [{ label: 'Stall / Leads', path: `/fest-organizer/fests/${festId}/leads`, icon: ClipboardList, short: 'Leads', group: 'ops' }]
         : []),
     { label: 'Competitions', path: `/fest-organizer/fests/${festId}/competitions`, icon: Trophy, short: 'Comps', group: 'ops' },
-    { label: 'Pro Show', path: `/fest-organizer/fests/${festId}/pro-show`, icon: Mic2, short: 'Pro', group: 'ops' },
+    ...(!hideProShow
+        ? [{ label: 'Pro Show', path: `/fest-organizer/fests/${festId}/pro-show`, icon: Mic2, short: 'Pro', group: 'ops' }]
+        : []),
     { label: 'Participants', path: `/fest-organizer/fests/${festId}/participants`, icon: Users, short: 'Guests', group: 'ops' },
     { label: 'Check-in', path: `/fest-organizer/fests/${festId}/scan`, icon: QrCode, short: 'Scan', group: 'ops' },
     { label: 'Revenue', path: `/fest-organizer/fests/${festId}/revenue`, icon: IndianRupee, short: '₹', group: 'ops' },
@@ -99,14 +92,18 @@ export default function FestOrganizerLayout() {
         ? session?.fests?.find((f) => String(f._id) === String(festId))
         : null;
     const hideStallLeads = festId ? isMindSparkFest(festId, activeFest) : false;
-    const nav = festId ? navForFest(festId, { hideStallLeads }) : [];
+    const hideProShow = hideStallLeads;
+    const nav = festId ? navForFest(festId, { hideStallLeads, hideProShow }) : [];
     const overviewItem = nav.find((n) => n.label === 'Overview');
     const opsNav = nav.filter((n) => n.group === 'ops' && n.label !== 'Overview');
     const editNav = nav.filter((n) => n.group === 'edit');
+    const mobilePrimary = hideProShow
+        ? ['Live', 'Competitions', 'Participants']
+        : ['Live', 'Competitions', 'Pro Show'];
     const mobileNav = [
         ...(overviewItem ? [overviewItem] : []),
         ...editNav.filter((n) => n.label === 'Edit fest & comps'),
-        ...opsNav.filter((n) => ['Live', 'Competitions', 'Pro Show'].includes(n.label)),
+        ...opsNav.filter((n) => mobilePrimary.includes(n.label)),
     ].slice(0, 5);
 
     useEffect(() => {
@@ -115,6 +112,13 @@ export default function FestOrganizerLayout() {
             navigate(`/fest-organizer/fests/${festId}`, { replace: true });
         }
     }, [hideStallLeads, festId, location.pathname, navigate]);
+
+    useEffect(() => {
+        if (!hideProShow || !festId) return;
+        if (location.pathname.includes(`/fests/${festId}/pro-show`)) {
+            navigate(`/fest-organizer/fests/${festId}`, { replace: true });
+        }
+    }, [hideProShow, festId, location.pathname, navigate]);
 
     return (
         <div className="min-h-dvh bg-[#0c0d0e] text-white flex">

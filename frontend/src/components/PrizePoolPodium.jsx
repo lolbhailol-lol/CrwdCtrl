@@ -216,7 +216,7 @@ export default function PrizePoolPodium({
   title = 'Prize Pool',
   compact = false,
 }) {
-  const { places, total, others, hasPodium } = useMemo(() => parsePrizePool(prizeText), [prizeText]);
+  const { places, others, hasPodium } = useMemo(() => parsePrizePool(prizeText), [prizeText]);
 
   const trimmed = String(prizeText || '').trim();
   if (!trimmed || /^(tbd|tba|n\/a|na|-)$/i.test(trimmed)) {
@@ -279,20 +279,6 @@ export default function PrizePoolPodium({
               );
             })}
           </div>
-
-          {total && (
-            <div className={`mt-3 rounded-xl px-3 py-2.5 flex items-center justify-between gap-3 ${isDark ? 'bg-[#1D1E20]' : 'bg-amber-50'}`}>
-              <div className="flex items-center gap-2 min-w-0">
-                <ClassicTrophySvg size={24} />
-                <span className={`text-xs font-semibold ${isDark ? 'text-gray-300' : 'text-amber-900'}`}>
-                  Total prize pool
-                </span>
-              </div>
-              <span className={`text-sm font-bold shrink-0 ${isDark ? 'text-[#FFD700]' : 'text-amber-800'}`}>
-                {total.amount}
-              </span>
-            </div>
-          )}
 
           {others.length > 0 && (
             <ul className="mt-3 space-y-1.5">

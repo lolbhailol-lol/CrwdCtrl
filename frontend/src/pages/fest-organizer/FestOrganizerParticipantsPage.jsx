@@ -11,6 +11,8 @@ import {
 } from '../../services/api/festOrganizer.api';
 import { useDialog } from '../../context/DialogContext';
 import FestOrganizerParticipantModal from './FestOrganizerParticipantModal';
+import { OrganizerRosterPreview } from './OrganizerTeamRoster';
+import { isMindSparkFest } from '../../features/fests/mindspark';
 
 function waLink(phone) {
     const digits = String(phone || '').replace(/\D/g, '');
@@ -90,7 +92,7 @@ export default function FestOrganizerParticipantsPage() {
     const [rows, setRows] = useState([]);
     const [competitions, setCompetitions] = useState([]);
     const [summary, setSummary] = useState({
-        pending: 0, approved: 0, rejected: 0, checkedIn: 0, notCheckedIn: 0, unpaid: 0, active: 0,
+        pending: 0, approved: 0, rejected: 0, checkedIn: 0, notCheckedIn: 0, unpaid: 0, collected: 0, active: 0,
     });
     const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
     const [loading, setLoading] = useState(true);
@@ -102,6 +104,19 @@ export default function FestOrganizerParticipantsPage() {
     const competitionId = searchParams.get('competitionId') || '';
     const checkInStatus = searchParams.get('checkInStatus') || '';
     const paymentStatus = searchParams.get('paymentStatus') || '';
+    const noReview = isMindSparkFest(festId);
+
+    useEffect(() => {
+        if (!noReview) return;
+        if (status === 'pending') {
+            setSearchParams((prev) => {
+                const next = new URLSearchParams(prev);
+                next.delete('status');
+                if (!next.get('paymentStatus')) next.set('paymentStatus', 'pending');
+                return next;
+            }, { replace: true });
+        }
+    }, [noReview, status, setSearchParams]);
 
     const load = useCallback(async (page = 1) => {
         setLoading(true);
@@ -116,7 +131,7 @@ export default function FestOrganizerParticipantsPage() {
             setRows(data.participants || []);
             setCompetitions(data.competitions || []);
             setSummary(data.summary || {
-                pending: 0, approved: 0, rejected: 0, checkedIn: 0, notCheckedIn: 0, unpaid: 0, active: 0,
+                pending: 0, approved: 0, rejected: 0, checkedIn: 0, notCheckedIn: 0, unpaid: 0, collected: 0, active: 0,
             });
             setPagination(data.pagination || { page: 1, pages: 1, total: 0 });
         } catch (e) {
@@ -184,14 +199,15 @@ export default function FestOrganizerParticipantsPage() {
     };
 
     const viewingLabel = (() => {
-        if (checkInStatus === 'not_in') return 'Approved · still outside';
+        if (checkInStatus === 'not_in') return 'Still outside';
         if (checkInStatus === 'checked_in') return 'Checked in';
         if (paymentStatus === 'pending') return 'Payment pending';
-        if (status === 'pending') return 'Needs review';
-        if (status === 'approved') return 'Approved entries';
+        if (paymentStatus === 'collected' || paymentStatus === 'paid') return 'Paid / free';
+        if (status === 'pending') return noReview ? 'Payment pending' : 'Needs review';
+        if (status === 'approved') return noReview ? 'Registered' : 'Approved entries';
         if (status === 'rejected') return 'Rejected';
         if (status === 'all') return 'Everyone (incl. rejected)';
-        return 'Active guests';
+        return noReview ? 'All registrations' : 'Active guests';
     })();
 
     return (
@@ -201,7 +217,7 @@ export default function FestOrganizerParticipantsPage() {
                     <p className="text-[10px] uppercase tracking-[0.14em] text-[#0ECCEE] font-semibold">Fest-wide roster</p>
                     <h1 className="text-xl font-bold text-white mt-0.5">Participants</h1>
                     <p className="text-xs text-gray-500 mt-1">
-                        Cross-competition guest list — approve, contact, export. For team desk work, open a competition.
+                        Cross-competition guest list — contact, export, check payment. For team desk work, open a competition.
                     </p>
                 </div>
                 <div className="flex gap-2 shrink-0">
@@ -231,17 +247,29 @@ export default function FestOrganizerParticipantsPage() {
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                {noReview ? (
+                    <PulseBox
+                        label="Unpaid"
+                        value={summary.unpaid}
+                        hint="Contact via Connect"
+                        tone="amber"
+                        icon={Clock}
+                        active={paymentStatus === 'pending'}
+                        onClick={() => setParams({ paymentStatus: 'pending', status: '', checkInStatus: '' })}
+                    />
+                ) : (
+                    <PulseBox
+                        label="Need review"
+                        value={summary.pending}
+                        hint="Tap to filter"
+                        tone="amber"
+                        icon={Clock}
+                        active={status === 'pending' && !checkInStatus && !paymentStatus}
+                        onClick={() => setParams({ status: 'pending', checkInStatus: '', paymentStatus: '' })}
+                    />
+                )}
                 <PulseBox
-                    label="Need review"
-                    value={summary.pending}
-                    hint="Tap to filter"
-                    tone="amber"
-                    icon={Clock}
-                    active={status === 'pending' && !checkInStatus && !paymentStatus}
-                    onClick={() => setParams({ status: 'pending', checkInStatus: '', paymentStatus: '' })}
-                />
-                <PulseBox
-                    label="Approved"
+                    label={noReview ? 'Registered' : 'Approved'}
                     value={summary.approved}
                     hint={`${summary.active} active total`}
                     tone="cyan"
@@ -259,13 +287,19 @@ export default function FestOrganizerParticipantsPage() {
                     onClick={() => setParams({ checkInStatus: 'not_in', status: '', paymentStatus: '' })}
                 />
                 <PulseBox
-                    label="Unpaid"
-                    value={summary.unpaid}
-                    hint="Payment pending"
+                    label={noReview ? 'Paid / free' : 'Unpaid'}
+                    value={noReview ? (summary.collected || 0) : summary.unpaid}
+                    hint={noReview ? 'Payment collected' : 'Payment pending'}
                     tone="rose"
                     icon={Clock}
-                    active={paymentStatus === 'pending'}
-                    onClick={() => setParams({ paymentStatus: 'pending', status: '', checkInStatus: '' })}
+                    active={noReview
+                        ? paymentStatus === 'collected' || paymentStatus === 'paid'
+                        : paymentStatus === 'pending'}
+                    onClick={() => setParams({
+                        paymentStatus: noReview ? 'collected' : 'pending',
+                        status: '',
+                        checkInStatus: '',
+                    })}
                 />
             </div>
 
@@ -290,13 +324,20 @@ export default function FestOrganizerParticipantsPage() {
                 </div>
 
                 <div className="flex flex-wrap gap-1.5">
-                    {[
-                        { id: '', label: 'Active' },
-                        { id: 'pending', label: 'Review' },
-                        { id: 'approved', label: 'Approved' },
-                        { id: 'rejected', label: 'Rejected' },
-                        { id: 'all', label: 'All' },
-                    ].map((s) => (
+                    {(noReview
+                        ? [
+                            { id: '', label: 'All active' },
+                            { id: 'approved', label: 'Registered' },
+                            { id: 'all', label: 'Everyone' },
+                        ]
+                        : [
+                            { id: '', label: 'Active' },
+                            { id: 'pending', label: 'Review' },
+                            { id: 'approved', label: 'Approved' },
+                            { id: 'rejected', label: 'Rejected' },
+                            { id: 'all', label: 'All' },
+                        ]
+                    ).map((s) => (
                         <button
                             key={s.id || 'active'}
                             type="button"
@@ -373,7 +414,7 @@ export default function FestOrganizerParticipantsPage() {
             <div className="rounded-xl border border-[#0ECCEE]/15 bg-[#0ECCEE]/5 px-3.5 py-2.5 flex flex-wrap items-center gap-2 text-xs text-gray-400">
                 <Trophy size={13} className="text-[#0ECCEE] shrink-0" />
                 <span className="min-w-0 flex-1">
-                    Need team review or slots? Use the competition desk — this page is the full-fest guest book.
+                    Need slots or team roster detail? Use the competition desk — this page is the full-fest guest book.
                 </span>
                 <Link
                     to={`/fest-organizer/fests/${festId}/competitions`}
@@ -428,6 +469,10 @@ export default function FestOrganizerParticipantsPage() {
                                         {p.teamName ? (
                                             <p className="text-xs text-gray-400 truncate">Team · {p.teamName}</p>
                                         ) : null}
+                                        <OrganizerRosterPreview
+                                            teamMembers={p.teamMembers}
+                                            teamSize={p.teamSize || p.memberCount}
+                                        />
                                         {meta ? (
                                             <p className="text-[11px] text-gray-500 truncate flex items-center gap-1">
                                                 <MapPin size={10} className="shrink-0 opacity-60" />
@@ -496,7 +541,7 @@ export default function FestOrganizerParticipantsPage() {
                                 </div>
 
                                 <div className="px-3.5 pb-3 flex flex-wrap gap-2 border-t border-white/5 pt-2.5">
-                                    {p.status === 'pending' ? (
+                                    {!noReview && p.status === 'pending' ? (
                                         <button
                                             type="button"
                                             disabled={Boolean(actionBusy)}
@@ -507,7 +552,7 @@ export default function FestOrganizerParticipantsPage() {
                                             Approve
                                         </button>
                                     ) : null}
-                                    {p.status !== 'rejected' ? (
+                                    {!noReview && p.status !== 'rejected' ? (
                                         <button
                                             type="button"
                                             disabled={Boolean(actionBusy)}

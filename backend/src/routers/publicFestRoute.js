@@ -190,16 +190,21 @@ router.get('/competitions/:competitionId/public', async (req, res) => {
         // Ensure competition has proper registration configuration
         const competitionData = competition;
         
-        // ✅ CRITICAL FIX: Ensure fest registration data is always complete
+        // ✅ CRITICAL FIX: Ensure fest registration data is always complete (keep participant-facing links)
         if (competitionData.fest && competitionData.fest.registration) {
-            // Make sure fest registration has all required public fields with proper defaults
+            const fr = competitionData.fest.registration;
             competitionData.fest.registration = {
-                mode: competitionData.fest.registration.mode || 'NOT_STARTED',
-                externalLink: competitionData.fest.registration.externalLink || '',
-                paymentQR: competitionData.fest.registration.paymentQR || '',
-                paymentQRMessage: competitionData.fest.registration.paymentQRMessage || '',
-                formInstructions: competitionData.fest.registration.formInstructions || '',
-                formSchema: competitionData.fest.registration.formSchema || []
+                mode: fr.mode || 'NOT_STARTED',
+                externalLink: fr.externalLink || '',
+                paymentQR: fr.paymentQR || '',
+                paymentQRMessage: fr.paymentQRMessage || '',
+                formInstructions: fr.formInstructions || '',
+                formSchema: fr.formSchema || [],
+                formType: fr.formType || 'SINGLE_STEP',
+                steps: fr.steps || [],
+                whatsappCommunityLink: fr.whatsappCommunityLink || '',
+                overallSheetUrl: fr.overallSheetUrl || '',
+                resourceLinks: Array.isArray(fr.resourceLinks) ? fr.resourceLinks : [],
             };
         } else if (competitionData.fest) {
             // If fest exists but registration is missing, create default registration object
@@ -210,7 +215,10 @@ router.get('/competitions/:competitionId/public', async (req, res) => {
                 paymentQR: '',
                 paymentQRMessage: '',
                 formInstructions: '',
-                formSchema: []
+                formSchema: [],
+                whatsappCommunityLink: '',
+                overallSheetUrl: '',
+                resourceLinks: [],
             };
         }
         
@@ -222,24 +230,38 @@ router.get('/competitions/:competitionId/public', async (req, res) => {
             competitionData.legacyRegistration = { status: 'STARTED' }; // For backward compatibility
         }
         
-        // Ensure registration object has proper structure
+        // Ensure registration object has proper structure (preserve WhatsApp / share links)
         if (competitionData.registrationType === 'custom' && competitionData.registration) {
-            // Make sure custom registration has all required public fields
+            const cr = competitionData.registration;
             competitionData.registration = {
-                status: competitionData.registration.status || 'not_started',
-                externalUrl: competitionData.registration.externalUrl || '',
-                formSchema: competitionData.registration.formSchema || [],
-                formType: competitionData.registration.formType || 'SINGLE_STEP',
-                steps: competitionData.registration.steps || [],
-                qrCode: competitionData.registration.qrCode || '',
-                qrCodeMessage: competitionData.registration.qrCodeMessage || '',
-                settings: competitionData.registration.settings || {
+                status: cr.status || 'not_started',
+                externalUrl: cr.externalUrl || '',
+                formSchema: cr.formSchema || [],
+                formType: cr.formType || 'SINGLE_STEP',
+                steps: cr.steps || [],
+                personFields: cr.personFields || [],
+                whatsappGroupLink: cr.whatsappGroupLink || '',
+                shareSheetUrl: cr.shareSheetUrl || '',
+                resourceLinks: Array.isArray(cr.resourceLinks) ? cr.resourceLinks : [],
+                qrCode: cr.qrCode || '',
+                qrCodeMessage: cr.qrCodeMessage || '',
+                settings: cr.settings || {
                     allowMultipleRegistrations: true,
                     requireEmailVerification: false,
                     autoConfirmation: true,
                     maxRegistrations: null,
                     registrationDeadline: null
                 }
+            };
+        } else if (competitionData.registration) {
+            // fest registrationType — still expose participant links on the competition
+            competitionData.registration = {
+                ...competitionData.registration,
+                whatsappGroupLink: competitionData.registration.whatsappGroupLink || '',
+                shareSheetUrl: competitionData.registration.shareSheetUrl || '',
+                resourceLinks: Array.isArray(competitionData.registration.resourceLinks)
+                  ? competitionData.registration.resourceLinks
+                  : [],
             };
         }
 
@@ -259,6 +281,25 @@ router.get('/competitions/:competitionId/public', async (req, res) => {
                 description: round.description ? sanitizeDescription(round.description) : round.description,
                 roundRulesMessage: round.roundRulesMessage ? sanitizeDescription(round.roundRulesMessage) : round.roundRulesMessage,
             }));
+        }
+
+        // Live slots remaining for public chips (approved registrations)
+        try {
+            const allotted = Math.max(0, Number(competitionData.slotsAllotted) || 0);
+            if (allotted > 0) {
+                const Registration = require('../model/registration_model');
+                const filled = await Registration.countDocuments({
+                    competitionId: competitionData._id,
+                    status: 'approved',
+                });
+                competitionData.slotsFilled = filled;
+                competitionData.slotsLeft = Math.max(0, allotted - filled);
+            } else {
+                competitionData.slotsFilled = 0;
+                competitionData.slotsLeft = null;
+            }
+        } catch (slotsErr) {
+            console.warn('Could not compute public slots remaining', slotsErr?.message || slotsErr);
         }
 
         console.log('🔍 Competition API Response:', {

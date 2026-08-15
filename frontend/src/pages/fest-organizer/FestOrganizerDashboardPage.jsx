@@ -8,6 +8,7 @@ import {
 import { fetchFestOrganizerDashboard } from '../../services/api/festOrganizer.api';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
+import { isMindSparkFest } from '../../features/fests/mindspark';
 
 function formatWhen(d) {
     if (!d) return '';
@@ -93,6 +94,8 @@ export default function FestOrganizerDashboardPage() {
 
     const { fest, stats, recent = [] } = data;
     const payments = stats.payments || {};
+    const hideProShow = isMindSparkFest(festId, fest);
+    const unpaidCount = Number(payments.pending || 0);
     const publicUrl = fest.slug
         ? `${window.location.origin}/view-details/${fest.slug}`
         : `${window.location.origin}/view-details/${fest.id}`;
@@ -102,6 +105,16 @@ export default function FestOrganizerDashboardPage() {
     const checkedIn = Number(stats.checkedIn) || 0;
     const pendingCheckIn = Number(stats.pendingCheckIn) || 0;
     const checkInRate = Number(stats.checkInRate) || 0;
+
+    const quickOps = [
+        { label: 'Live feed', desc: 'Fest day updates', to: 'live', icon: Radio, glow: 'from-red-500/15' },
+        { label: 'Competitions', desc: `${stats.competitionCount || comps.length} live`, to: 'competitions', icon: Trophy, glow: 'from-[#0ECCEE]/15' },
+        ...(!hideProShow
+            ? [{ label: 'Pro Show', desc: 'Sold · passes · gate', to: 'pro-show', icon: Mic2, glow: 'from-fuchsia-500/10' }]
+            : []),
+        { label: 'Connect', desc: 'WA · call · push', to: 'notifications', icon: Bell, glow: 'from-amber-500/10' },
+        { label: 'Edit listing', desc: 'Fest & comps', to: 'edit-listing', icon: Pencil, glow: 'from-[#0ECCEE]/12' },
+    ];
 
     return (
         <div className="max-w-5xl mx-auto space-y-5">
@@ -163,17 +176,27 @@ export default function FestOrganizerDashboardPage() {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <button
                     type="button"
-                    onClick={() => navigate(`/fest-organizer/fests/${festId}/participants?status=pending`)}
+                    onClick={() => navigate(
+                        hideProShow
+                            ? `/fest-organizer/fests/${festId}/participants?paymentStatus=pending`
+                            : `/fest-organizer/fests/${festId}/participants?status=pending`,
+                    )}
                     className="rounded-2xl border border-amber-400/30 bg-linear-to-br from-amber-500/20 to-[#161718] p-4 text-left hover:scale-[1.01] active:scale-[0.99] transition"
                 >
                     <div className="flex items-center justify-between mb-2">
                         <Clock size={16} className="text-amber-300" />
-                        {totalPending > 0 ? (
-                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-400 text-black">Action</span>
+                        {(hideProShow ? unpaidCount : totalPending) > 0 ? (
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-400 text-black">
+                                {hideProShow ? 'Unpaid' : 'Action'}
+                            </span>
                         ) : null}
                     </div>
-                    <p className="text-2xl font-bold tabular-nums text-white">{totalPending}</p>
-                    <p className="text-xs text-amber-200/80 mt-1">Need review</p>
+                    <p className="text-2xl font-bold tabular-nums text-white">
+                        {hideProShow ? unpaidCount : totalPending}
+                    </p>
+                    <p className="text-xs text-amber-200/80 mt-1">
+                        {hideProShow ? 'Unpaid' : 'Need review'}
+                    </p>
                     <p className="text-[11px] text-gray-500 mt-1">{stats.todayRegistrations || 0} new today</p>
                 </button>
 
@@ -184,7 +207,9 @@ export default function FestOrganizerDashboardPage() {
                 >
                     <Users size={16} className="text-[#0ECCEE] mb-2" />
                     <p className="text-2xl font-bold tabular-nums text-white">{totalApproved}</p>
-                    <p className="text-xs text-[#0ECCEE]/90 mt-1">Participants in</p>
+                    <p className="text-xs text-[#0ECCEE]/90 mt-1">
+                        {hideProShow ? 'Registered' : 'Participants in'}
+                    </p>
                     <p className="text-[11px] text-gray-500 mt-1">{stats.allActive || 0} active total</p>
                 </button>
 
@@ -219,14 +244,8 @@ export default function FestOrganizerDashboardPage() {
             </div>
 
             {/* Quick ops + small edit shortcut */}
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                {[
-                    { label: 'Live feed', desc: 'Fest day updates', to: 'live', icon: Radio, glow: 'from-red-500/15' },
-                    { label: 'Competitions', desc: `${stats.competitionCount || comps.length} live`, to: 'competitions', icon: Trophy, glow: 'from-[#0ECCEE]/15' },
-                    { label: 'Pro Show', desc: 'Sold · passes · gate', to: 'pro-show', icon: Mic2, glow: 'from-fuchsia-500/10' },
-                    { label: 'Connect', desc: 'WA · call · push', to: 'notifications', icon: Bell, glow: 'from-amber-500/10' },
-                    { label: 'Edit listing', desc: 'Fest & comps', to: 'edit-listing', icon: Pencil, glow: 'from-[#0ECCEE]/12' },
-                ].map((item) => (
+            <div className={`grid grid-cols-2 ${hideProShow ? 'sm:grid-cols-4' : 'sm:grid-cols-5'} gap-2`}>
+                {quickOps.map((item) => (
                     <button
                         key={item.to}
                         type="button"
@@ -240,12 +259,15 @@ export default function FestOrganizerDashboardPage() {
                 ))}
             </div>
 
-            {/* Needs attention */}
-            {needsAttention.length > 0 ? (
+            {/* Needs attention — not used for MindSpark (payment gateway confirms) */}
+            {!hideProShow ? (
+                needsAttention.length > 0 ? (
                 <section className="rounded-2xl border border-amber-400/25 bg-amber-500/8 p-4 space-y-3">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
                         <AlertCircle size={16} className="text-amber-300" />
                         <h2 className="text-sm font-semibold text-amber-100">Needs review</h2>
+                        </div>
                     </div>
                     <div className="grid sm:grid-cols-2 gap-2">
                         {needsAttention.map((c) => (
@@ -274,11 +296,12 @@ export default function FestOrganizerDashboardPage() {
                         ))}
                     </div>
                 </section>
-            ) : (
+                ) : (
                 <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/8 px-4 py-3 flex items-center gap-2 text-sm text-emerald-200">
                     <CheckCircle2 size={16} /> All competitions clear — nothing pending review
                 </div>
-            )}
+                )
+            ) : null}
 
             {/* Recent */}
             <section className="rounded-2xl border border-white/10 bg-[#161718] p-4 space-y-3">

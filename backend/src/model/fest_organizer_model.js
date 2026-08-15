@@ -107,6 +107,17 @@ const festOrganizerSchema = new mongoose.Schema(
       type: String,
       default: ''
     },
+    /** MindSpark / fest-wide: master sheet covering all competitions */
+    overallSheetUrl: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    /** Extra links shown after registration (rulebook, schedule, etc.) */
+    resourceLinks: [{
+      label: { type: String, trim: true },
+      url: { type: String, trim: true },
+    }],
     // ✅ NEW: Form type configuration
     formType: {
       type: String,

@@ -410,6 +410,14 @@ exports.createCompetition = async (req, res) => {
       });
     }
 
+    const { normalizeTeamSizeFields } = require('../utils/teamSize');
+    const { withNormalizedPersonFields } = require('../utils/personFields');
+    const teamSize = normalizeTeamSizeFields({
+      teamSizeMin: req.body.teamSizeMin,
+      teamSizeMax: req.body.teamSizeMax,
+      teamSizeLabel: req.body.teamSizeLabel,
+    });
+
     const competition = new Competition({
       fest: festId,
       name,
@@ -427,24 +435,48 @@ exports.createCompetition = async (req, res) => {
       rounds: rounds || [],
       registrationFee: registrationFee || 'Free',
       feeAmount: getCompetitionBaseFee(registrationFee, feeAmount),
+      slotsAllotted: (() => {
+        if (req.body.slotsAllotted === undefined || req.body.slotsAllotted === null || req.body.slotsAllotted === '') {
+          return 50;
+        }
+        const n = Number(req.body.slotsAllotted);
+        return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 50;
+      })(),
+      teamSizeMin: teamSize.teamSizeMin,
+      teamSizeMax: teamSize.teamSizeMax,
+      teamSizeLabel: teamSize.teamSizeLabel,
       registrationLink: registrationLink || '',
       registrationFields: registrationFields || [],
       contact: contact || {},
       // NEW: Registration system
       registrationType: registrationType || 'fest',
-      registration: registration || { 
-        status: 'not_started',
-        externalUrl: '',
-        googleSheetsUrl: '',
-        formSchema: [],
-        settings: {
-          allowMultipleRegistrations: true,
-          requireEmailVerification: false,
-          autoConfirmation: true,
-          maxRegistrations: null,
-          registrationDeadline: null
+      registration: (() => {
+        const slotsAllotted = (() => {
+          if (req.body.slotsAllotted === undefined || req.body.slotsAllotted === null || req.body.slotsAllotted === '') {
+            return 50;
+          }
+          const n = Number(req.body.slotsAllotted);
+          return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 50;
+        })();
+        const base = registration || {
+          status: 'not_started',
+          externalUrl: '',
+          googleSheetsUrl: '',
+          formSchema: [],
+          settings: {
+            allowMultipleRegistrations: true,
+            requireEmailVerification: false,
+            autoConfirmation: true,
+            maxRegistrations: null,
+            registrationDeadline: null,
+          },
+        };
+        if (!base.settings) base.settings = {};
+        if (base.settings.maxRegistrations == null && slotsAllotted > 0) {
+          base.settings.maxRegistrations = slotsAllotted;
         }
-      },
+        return withNormalizedPersonFields(base, { festId });
+      })(),
       // Legacy registration for backward compatibility
       legacyRegistration: legacyRegistration || { status: 'NOT_STARTED' }
     });

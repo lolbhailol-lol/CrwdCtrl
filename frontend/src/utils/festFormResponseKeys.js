@@ -23,6 +23,7 @@ const IDENTITY_ALIASES = new Set([
     'city', 'location', 'hometown',
     'year', 'year_of_study', 'academic_year', 'class', 'year_of_graduation',
     'course', 'branch', 'department', 'stream',
+    'team_members', 'members', 'member_names', 'teammates', 'team_size', 'person_fields',
 ]);
 
 function normalizeFormKey(key = '') {

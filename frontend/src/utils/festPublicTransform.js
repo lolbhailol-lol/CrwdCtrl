@@ -11,6 +11,8 @@ export function mapFestRegistration(registration = {}) {
     paymentQR: registration.paymentQR || '',
     paymentQRMessage: registration.paymentQRMessage || '',
     googleSheetsUrl: registration.googleSheetsUrl || '',
+    overallSheetUrl: registration.overallSheetUrl || '',
+    resourceLinks: Array.isArray(registration.resourceLinks) ? registration.resourceLinks : [],
     formInstructions: registration.formInstructions || '',
     organizerEmail: registration.organizerEmail || '',
     whatsappCommunityLink: registration.whatsappCommunityLink || '',
@@ -250,6 +252,7 @@ export function buildRegistrationPrefetch({ fest, competition } = {}) {
       _id: fest._id || fest.id,
       festName: fest.festName || fest.title || fest.festival_name || 'Fest',
       collegeName: fest.collegeName || fest.subtitle || fest.organizing_body || '',
+      slug: fest.slug || '',
       feeAmount: fest.feeAmount || 0,
       platformFeePercent: fest.platformFeePercent ?? 0,
       registration: fest.registration || { mode: 'INTERNAL_FORM', formSchema: [], formType: 'SINGLE_STEP' },
@@ -257,11 +260,30 @@ export function buildRegistrationPrefetch({ fest, competition } = {}) {
     competition: competition
       ? {
           _id: competition._id || competition.id,
+          id: competition._id || competition.id,
           name: competition.name || competition.title,
           feeAmount: competition.feeAmount ?? 0,
           registrationFee: competition.registrationFee || competition.entryFee || competition.fee,
           registrationType: competition.registrationType || 'fest',
           registration: competition.registration,
+          teamSizeMin: Math.max(1, Number(competition.teamSizeMin) || 1),
+          teamSizeMax: Math.max(
+            1,
+            Number(competition.teamSizeMax) || Number(competition.teamSizeMin) || 1,
+          ),
+          teamSizeLabel: competition.teamSizeLabel || '',
+          slotsAllotted: Math.max(0, Number(competition.slotsAllotted) || 0),
+          slotsFilled: Math.max(0, Number(competition.slotsFilled) || 0),
+          slotsLeft: (() => {
+            const allotted = Math.max(0, Number(competition.slotsAllotted) || 0);
+            if (competition.slotsLeft != null && Number.isFinite(Number(competition.slotsLeft))) {
+              return Math.max(0, Math.floor(Number(competition.slotsLeft)));
+            }
+            if (allotted > 0) {
+              return Math.max(0, allotted - Math.max(0, Number(competition.slotsFilled) || 0));
+            }
+            return null;
+          })(),
         }
       : null,
   };

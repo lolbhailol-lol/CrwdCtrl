@@ -643,11 +643,20 @@ function buildCompetitionFromImportRow(row, festId, getCompetitionBaseFee) {
     registration,
     legacyRegistration,
     isApproved,
+    teamSize,
+    teamSizeMin,
+    teamSizeMax,
+    teamSizeLabel,
   } = row;
 
   if (!name || !description || !prizePool || !registrationFee) {
     throw new Error(`Missing required fields for "${name || 'unknown'}"`);
   }
+
+  const { parseTeamSizeStructured, normalizeTeamSizeFields } = require('../utils/teamSize');
+  const team = teamSizeMin != null || teamSizeMax != null
+    ? normalizeTeamSizeFields({ teamSizeMin, teamSizeMax, teamSizeLabel })
+    : parseTeamSizeStructured(teamSize || teamSizeLabel || '');
 
   return {
     fest: festId,
@@ -666,6 +675,9 @@ function buildCompetitionFromImportRow(row, festId, getCompetitionBaseFee) {
     rounds: rounds || [],
     registrationFee: registrationFee || 'TBA',
     feeAmount: getCompetitionBaseFee(registrationFee, feeAmount),
+    teamSizeMin: team.teamSizeMin,
+    teamSizeMax: team.teamSizeMax,
+    teamSizeLabel: team.teamSizeLabel,
     registrationLink: '',
     registrationFields: [],
     contact: contact || {},

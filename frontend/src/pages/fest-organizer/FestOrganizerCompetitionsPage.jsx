@@ -118,7 +118,7 @@ export default function FestOrganizerCompetitionsPage() {
                         </div>
                         <h1 className="text-xl font-bold tracking-tight text-white">{fest?.festName || 'Competitions'}</h1>
                         <p className="text-sm text-gray-400 mt-1">
-                            Review entries, allot slots, open ops desk
+                            Review entries, set capacity, open ops desk
                         </p>
                         {needsReview > 0 ? (
                             <p className="text-sm mt-1">
@@ -213,8 +213,8 @@ export default function FestOrganizerCompetitionsPage() {
                     const slotsAllotted = Number(c.slotsAllotted) || 0;
                     const slotsLeft = c.slotsLeft;
                     const slotsLabel = slotsAllotted > 0
-                        ? `${c.slotsFilled ?? c.approved}/${slotsAllotted}`
-                        : 'Open';
+                        ? `${slotsLeft ?? Math.max(0, slotsAllotted - (c.slotsFilled ?? c.approved ?? 0))} slots remain`
+                        : 'Slots remain';
 
                     return (
                         <div
@@ -258,7 +258,7 @@ export default function FestOrganizerCompetitionsPage() {
                                     <MiniBox label="Review" value={pending} tone={pending > 0 ? 'warn' : 'default'} />
                                     <MiniBox label="Check-in" value={checkedIn} tone="ok" />
                                     <MiniBox
-                                        label="Slots"
+                                        label="Remain"
                                         value={slotsLabel}
                                         tone={slotsAllotted > 0 && slotsLeft === 0 ? 'warn' : 'default'}
                                     />

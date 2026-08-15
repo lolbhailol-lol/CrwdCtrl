@@ -7,6 +7,8 @@ import {
 } from '../../services/api/festOrganizer.api';
 import { useDialog } from '../../context/DialogContext';
 import { filterExtraFestFormResponses } from '../../utils/festFormResponseKeys';
+import OrganizerTeamRoster from './OrganizerTeamRoster';
+import { isMindSparkFest } from '../../features/fests/mindspark';
 
 function humanizeKey(key = '') {
     return String(key)
@@ -66,6 +68,7 @@ export default function FestOrganizerParticipantModal({ festId, registrationId, 
     const [participant, setParticipant] = useState(null);
     const [loading, setLoading] = useState(true);
     const [busy, setBusy] = useState('');
+    const noReview = isMindSparkFest(festId);
 
     useEffect(() => {
         if (!festId || !registrationId) return;
@@ -212,6 +215,14 @@ export default function FestOrganizerParticipantModal({ festId, registrationId, 
                             </div>
                         </div>
 
+                        {Array.isArray(participant.teamMembers) && participant.teamMembers.length ? (
+                            <OrganizerTeamRoster
+                                teamMembers={participant.teamMembers}
+                                personFields={participant.personFields}
+                                teamSize={participant.teamSize || participant.memberCount}
+                            />
+                        ) : null}
+
                         {responses.length ? (
                             <div className="rounded-xl border border-white/10 overflow-hidden">
                                 <p className="px-3 py-2 text-[10px] uppercase tracking-wider text-gray-500 bg-white/3">
@@ -232,14 +243,14 @@ export default function FestOrganizerParticipantModal({ festId, registrationId, 
                                     })}
                                 </div>
                             </div>
-                        ) : (
+                        ) : !participant.teamMembers?.length ? (
                             <div className="rounded-xl border border-dashed border-white/10 px-3 py-4 text-center text-xs text-gray-600">
                                 No extra form answers (name / email / phone shown above)
                             </div>
-                        )}
+                        ) : null}
 
                         <div className="flex flex-wrap gap-2 pt-1">
-                            {participant.status !== 'approved' ? (
+                            {!noReview && participant.status !== 'approved' ? (
                                 <button
                                     type="button"
                                     disabled={Boolean(busy)}
@@ -250,7 +261,7 @@ export default function FestOrganizerParticipantModal({ festId, registrationId, 
                                     Approve
                                 </button>
                             ) : null}
-                            {participant.status !== 'rejected' ? (
+                            {!noReview && participant.status !== 'rejected' ? (
                                 <button
                                     type="button"
                                     disabled={Boolean(busy)}
@@ -261,7 +272,7 @@ export default function FestOrganizerParticipantModal({ festId, registrationId, 
                                     Reject
                                 </button>
                             ) : null}
-                            {participant.status === 'rejected' ? (
+                            {!noReview && participant.status === 'rejected' ? (
                                 <button
                                     type="button"
                                     disabled={Boolean(busy)}
@@ -271,6 +282,11 @@ export default function FestOrganizerParticipantModal({ festId, registrationId, 
                                     {busy === 'pending' ? <Loader className="animate-spin" size={14} /> : <RotateCcw size={14} />}
                                     Set pending
                                 </button>
+                            ) : null}
+                            {noReview ? (
+                                <p className="w-full text-[11px] text-gray-500 text-center py-1">
+                                    Payment is collected via gateway — contact this person from Connect if needed.
+                                </p>
                             ) : null}
                         </div>
                     </div>

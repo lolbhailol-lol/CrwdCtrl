@@ -32,6 +32,14 @@ import {
 } from '../../../utils/authToken';
 import { parseTicketPrice } from '../../../utils/platformFee';
 import { fetchPaymentQuote as fetchPaymentQuoteApi } from '../../../services/api/payment.api';
+import { requiresTeamRosterGate, getRosterBounds, needsParticipantCountStep } from '../../../utils/teamSize';
+import {
+  teamMemberMissingLabel,
+  normalizeTeamMember,
+  getPersonFields,
+  isMindSparkFest,
+} from '../../../features/fests/mindspark';
+import { waitAtLeast, sleep } from '../../../components/RegistrationStatusVisual';
 import { API_BASE_URL } from '../../../services/api/client';
 import { festRegisterPath } from '../../../utils/slugRoutes';
 import { loadRegistrationPrefetch, saveRegistrationPrefetch } from '../../../utils/festPublicTransform';
@@ -71,6 +79,8 @@ export default function useFestRegistration() {
   );
   const [loading, setLoading] = useState(() => !registrationPrefetch?.fest);
   const [submitting, setSubmitting] = useState(false);
+  const [processOverlayMode, setProcessOverlayMode] = useState('server'); // server | payment | success | error
+  const processUiStartedAt = useRef(0);
   const [submissionProgress, setSubmissionProgress] = useState('');
   const [error, setError] = useState('');
   const [notice] = useState('');
@@ -191,7 +201,7 @@ export default function useFestRegistration() {
     const pending = getPendingPayment();
     const orderId = orderIdOverride || pending?.orderId;
     if (!orderId) {
-      throw new Error('No pending payment found. Your booking may already be complete ù check My Bookings.');
+      throw new Error('No pending payment found. Your booking may already be complete ? check My Bookings.');
     }
 
     setPaymentResumeOrderId(orderId);
@@ -199,7 +209,7 @@ export default function useFestRegistration() {
     setPaymentResumeWasPaid(false);
     setPaymentError('');
     setError('');
-    setSubmissionProgress('Confirming paymentù');
+    setSubmissionProgress('Confirming payment?');
 
     const submitToken = resolveAuthToken(authToken) || localStorage.getItem('crwdctrl_token');
     if (!submitToken) {
@@ -226,7 +236,7 @@ export default function useFestRegistration() {
     }
 
     setPaymentResumeWasPaid(true);
-    setSubmissionProgress('Completing registrationù');
+    setSubmissionProgress('Completing registration?');
 
     const regRes = await fetch(`${API_BASE_URL}/registrations/fests/${festId}/pay-and-register`, {
       method: 'POST',
@@ -243,6 +253,9 @@ export default function useFestRegistration() {
     const regData = await regRes.json().catch(() => ({}));
     const regId = regData._id || regData.registration?._id || regData.registrationId;
     setRegistrationId(regId);
+    setProcessOverlayMode('success');
+    setSubmissionProgress("You're registered!");
+    await sleep(1000);
     setCompletingPayment(false);
     setSuccess(true);
     refreshNotifications();
@@ -265,7 +278,7 @@ export default function useFestRegistration() {
     setPaymentLoading(true);
     setPaymentError('');
     setPaymentResumeError('');
-    setSubmissionProgress('Confirming paymentù');
+    setSubmissionProgress('Confirming payment?');
 
     (async () => {
       try {
@@ -304,7 +317,7 @@ export default function useFestRegistration() {
     const pending = getPendingPayment();
     const orderId = orderIdOverride || pending?.orderId;
     if (!orderId) {
-      throw new Error('No pending payment found. Your booking may already be complete ù check My Bookings.');
+      throw new Error('No pending payment found. Your booking may already be complete ? check My Bookings.');
     }
 
     setPaymentResumeOrderId(orderId);
@@ -312,7 +325,7 @@ export default function useFestRegistration() {
     setPaymentResumeWasPaid(false);
     setPaymentError('');
     setError('');
-    setSubmissionProgress('Confirming paymentù');
+    setSubmissionProgress('Confirming payment?');
 
     const submitToken = resolveAuthToken(authToken) || localStorage.getItem('crwdctrl_token');
     if (!submitToken) {
@@ -379,6 +392,9 @@ export default function useFestRegistration() {
     clearRegistrationDraft(draftKey);
     clearPendingPayment();
     clearCashfreeReturnAndPending(navigate, location);
+    setProcessOverlayMode('success');
+    setSubmissionProgress("You're registered!");
+    await sleep(1000);
     setCompletingPayment(false);
     setSuccess(true);
     refreshNotifications();
@@ -386,7 +402,7 @@ export default function useFestRegistration() {
 
   const retryPaymentResume = async () => {
     setPaymentResumeError('');
-    setSubmissionProgress('Retryingù');
+    setSubmissionProgress('Retrying?');
     try {
       if (isCompetitionRegistration) {
         await completeCompetitionPaymentResume(paymentResumeOrderId);
@@ -616,30 +632,169 @@ export default function useFestRegistration() {
     return fest?.registration?.formType === 'MULTI_STEP' && fest?.registration?.steps?.length > 0;
   };
 
+  const isMindSparkCompetitionReg = () =>
+    Boolean(
+      isCompetitionRegistration
+      && competition
+      && (
+        isMindSparkFest(fest)
+        || isMindSparkFest(competition?.fest)
+        || isMindSparkFest(competition?.festId || competition?.fest_id)
+      ),
+    );
+
+  /** MindSpark comps always use roster person form (solo = 1 person step; teams = size + people) */
+  const hasParticipantStep = () => isMindSparkCompetitionReg();
+
+  /** Only when team can be 2+ ? solo skips straight to person details */
+  const needsTeamSizePicker = () =>
+    hasParticipantStep() && needsParticipantCountStep(competition);
+
+  /** Fest MULTI_STEP or competition with injected Team-size step */
+  const isEffectiveMultiStep = () => isMultiStepForm() || hasParticipantStep();
+
+  const getPeopleCount = () => {
+    if (!hasParticipantStep()) return 0;
+    const { min, max } = getRosterBounds(competition);
+    if (max <= 1) return 1;
+    return Math.min(max, Math.max(min, Number(formData.team_size) || min));
+  };
+
+  /** MindSpark roster flow: person fields only ? never append fest default formSchema/steps */
+  const getFormStepsCount = () => {
+    if (hasParticipantStep()) return 0;
+    if (isMultiStepForm()) return fest.registration.steps.length;
+    if ((fest?.registration?.formSchema || []).length > 0) return 1;
+    return 1;
+  };
+
+  const isOnParticipantStep = () => needsTeamSizePicker() && currentStep === 1;
+
+  const isOnPersonStep = () => {
+    if (!hasParticipantStep()) return false;
+    const people = getPeopleCount();
+    if (needsTeamSizePicker()) {
+      return currentStep >= 2 && currentStep <= 1 + people;
+    }
+    return currentStep === 1;
+  };
+
+  const getPersonIndex = () => {
+    if (!isOnPersonStep()) return -1;
+    if (needsTeamSizePicker()) return currentStep - 2;
+    return 0;
+  };
+
+  const getFormStartStep = () => {
+    if (!hasParticipantStep()) return 1;
+    return (needsTeamSizePicker() ? 1 : 0) + getPeopleCount();
+  };
+
   const getCurrentStepFields = () => {
+    if (isOnParticipantStep() || isOnPersonStep() || hasParticipantStep()) return [];
+
     if (!isMultiStepForm()) {
       return fest?.registration?.formSchema || [];
     }
-    
-    
-    const step = fest.registration.steps.find(s => s.stepNumber === currentStep);
+
+    const festStepNum = currentStep - getFormStartStep() + 1;
+    const step = fest.registration.steps.find((s) => s.stepNumber === festStepNum);
     return step?.fields || [];
   };
 
   const getTotalSteps = () => {
-    if (!isMultiStepForm()) return 1;
-    
-    return fest.registration.steps.length;
+    if (!hasParticipantStep()) {
+      return isMultiStepForm() ? fest.registration.steps.length : 1;
+    }
+    return (needsTeamSizePicker() ? 1 : 0) + getPeopleCount() + getFormStepsCount();
+  };
+
+  const getStepMeta = () => {
+    const steps = [];
+    if (!hasParticipantStep()) {
+      if (isMultiStepForm()) {
+        return fest.registration.steps.map((s) => ({
+          stepNumber: s.stepNumber,
+          stepTitle: s.stepTitle || `Step ${s.stepNumber}`,
+          stepDescription: s.stepDescription,
+        }));
+      }
+      return [{ stepNumber: 1, stepTitle: 'Details' }];
+    }
+
+    let n = 1;
+    if (needsTeamSizePicker()) {
+      steps.push({ stepNumber: n, stepTitle: 'Team size' });
+      n += 1;
+    }
+    const people = getPeopleCount();
+    for (let i = 0; i < people; i += 1) {
+      steps.push({
+        stepNumber: n + i,
+        stepTitle: people === 1 ? 'Your details' : `Person ${i + 1}`,
+      });
+    }
+    return steps;
   };
 
   const getCurrentStepData = () => {
-    if (!isMultiStepForm()) {
+    if (!isMultiStepForm() || isOnParticipantStep() || isOnPersonStep()) {
       return formData;
     }
     return stepData[currentStep] || {};
   };
 
+  /** Step 1: only need a valid count selected */
+  const validateParticipantStep = () => {
+    if (!needsTeamSizePicker()) return true;
+    const { min, max } = getRosterBounds(competition);
+    const chosen = Math.max(0, Number(formData.team_size) || 0);
+    if (chosen < min || chosen > max) {
+      setError(`Select between ${min} and ${max} participant${max === 1 ? '' : 's'}`);
+      return false;
+    }
+    return true;
+  };
+
+  /** Current person step: all compulsory personFields */
+  const validateCurrentPerson = () => {
+    const idx = getPersonIndex();
+    if (idx < 0) return true;
+    const personFields = getPersonFields(competition);
+    const members = Array.isArray(formData.team_members) ? formData.team_members : [];
+    const missing = teamMemberMissingLabel(members[idx], personFields);
+    if (missing) {
+      setError(`Person ${idx + 1}: ${missing}`);
+      return false;
+    }
+    return true;
+  };
+
+  /** Final check: every selected person has full compulsory details */
+  const validateMemberNames = () => {
+    if (!hasParticipantStep()) return true;
+    const chosen = getPeopleCount();
+    const personFields = getPersonFields(competition);
+    const members = Array.isArray(formData.team_members) ? formData.team_members : [];
+    for (let i = 0; i < chosen; i += 1) {
+      const missing = teamMemberMissingLabel(members[i], personFields);
+      if (missing) {
+        setError(`Person ${i + 1}: ${missing}`);
+        return false;
+      }
+    }
+    return true;
+  };
+
   const validateCurrentStep = () => {
+    if (isOnParticipantStep()) {
+      return validateParticipantStep();
+    }
+
+    if (isOnPersonStep()) {
+      return validateCurrentPerson();
+    }
+
     const currentFields = getCurrentStepFields();
     const currentData = getCurrentStepData();
     
@@ -685,14 +840,14 @@ export default function useFestRegistration() {
       return;
     }
     
-    // Save current step data
-    if (isMultiStepForm()) {
+    // Save fest field steps only (team size / person names live on formData)
+    if (isMultiStepForm() && !isOnParticipantStep() && !isOnPersonStep()) {
       setStepData(prev => ({
         ...prev,
         [currentStep]: getCurrentStepData()
       }));
-      setCompletedSteps(prev => new Set([...prev, currentStep]));
     }
+    setCompletedSteps(prev => new Set([...prev, currentStep]));
     
     if (currentStep < getTotalSteps()) {
       console.log('? Moving to next step:', currentStep + 1);
@@ -707,6 +862,27 @@ export default function useFestRegistration() {
       setError(''); // Clear any errors
     }
   };
+
+  // If user reduces team size while mid-flow, clamp step into new range
+  useEffect(() => {
+    if (!hasParticipantStep()) return;
+    const total = getTotalSteps();
+    if (currentStep > total) {
+      setCurrentStep(total);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.team_size, competition?._id || competition?.id]);
+
+  // Solo MindSpark: lock team_size to 1 so submit / validation stay consistent
+  useEffect(() => {
+    if (!hasParticipantStep()) return;
+    if (needsTeamSizePicker()) return;
+    setFormData((prev) => {
+      if (Number(prev.team_size) === 1) return prev;
+      return { ...prev, team_size: 1 };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [competition?._id || competition?.id, competition?.teamSizeMax, competition?.teamSizeMin]);
 
   const handleStepFieldChange = (fieldId, value) => {
     if (isMultiStepForm()) {
@@ -799,7 +975,7 @@ export default function useFestRegistration() {
       }
       const data = await response.json();
       
-      // If the fest has a feeAmount, skip mode validation ù payment replaces the form
+      // If the fest has a feeAmount, skip mode validation ? payment replaces the form
       if (!data.feeAmount || data.feeAmount <= 0) {
         if (data.registration?.mode !== 'INTERNAL_FORM') {
           console.error('? Invalid registration mode:', data.registration?.mode);
@@ -830,7 +1006,7 @@ export default function useFestRegistration() {
         fullStepsData: data.registration?.steps
       });
 
-      // Merge schema with existing user input ù do not wipe fields on background refresh
+      // Merge schema with existing user input ? do not wipe fields on background refresh
       setFormData((prev) => mergeFormDataWithSchema(prev, data.registration));
       restoreRegistrationDraft();
     } catch (err) {
@@ -1036,6 +1212,11 @@ export default function useFestRegistration() {
     
     // Validate only current step's required fields for multi-step forms
     if (!paidResume && isMultiStepForm()) {
+      if (isOnParticipantStep()) {
+        if (!validateParticipantStep()) return;
+      } else if (isOnPersonStep()) {
+        if (!validateCurrentPerson()) return;
+      } else {
       const currentFields = getCurrentStepFields();
       const currentData = getCurrentStepData();
       for (const field of currentFields) {
@@ -1063,7 +1244,15 @@ export default function useFestRegistration() {
           }
         }
       }
+      }
     } else if (!paidResume) {
+      // Competition multi-step (Team size ? Person N) before full single-step validation
+      if (hasParticipantStep() && currentStep < getTotalSteps()) {
+        handleStepNext();
+        return;
+      }
+      // MindSpark roster: person fields only ? skip fest default formSchema requirements
+      if (!hasParticipantStep()) {
       // Single-step form: validate all required fields
       const allFormData = draft ? buildFormDataFromDraft(draft) : getAllFormData();
       const formSchema = fest.registration?.formSchema || [];
@@ -1091,24 +1280,31 @@ export default function useFestRegistration() {
           return;
         }
       }
+      }
     }
 
     // ? NEW: For multi-step forms, validate current step first
-    if (!paidResume && isMultiStepForm() && currentStep < getTotalSteps()) {
+    if (!paidResume && isEffectiveMultiStep() && currentStep < getTotalSteps()) {
       console.log('?? Multi-step form: Moving to next step instead of submitting');
       // This is not the final step, just go to next step
       handleStepNext();
       return;
     }
+
+    if (!paidResume && hasParticipantStep() && !validateMemberNames()) {
+      return;
+    }
     
     console.log('?? Final step reached, proceeding with actual submission');
-    // ? NEW: Final validation for multi-step forms
-    if (!paidResume && isMultiStepForm() && !validateCurrentStep()) {
+    // Final fest-step validation ? not used for MindSpark roster (person fields only)
+    if (!paidResume && isMultiStepForm() && !hasParticipantStep() && !validateCurrentStep()) {
       return;
     }
 
     console.log('? All required fields validated');
     
+    processUiStartedAt.current = Date.now();
+    setProcessOverlayMode('server');
     setSubmitting(true);
     setError('');
 
@@ -1161,13 +1357,18 @@ export default function useFestRegistration() {
         isMultiStep: isMultiStepForm(),
         currentStep,
         allFormDataKeys: Object.keys(allFormData),
-        fileKeys: Object.keys(allFormData).filter(key => key.includes('_file'))
+        fileKeys: Object.keys(allFormData).filter(key => key.includes('_file')),
+        mindSparkRoster: hasParticipantStep(),
       });
       
-      // ? PERFORMANCE: Validate required fields with better field matching
-      const formSchema = isMultiStepForm() 
-        ? fest.registration.steps.flatMap(step => step.fields)
-        : fest.registration?.formSchema || [];
+      // MindSpark roster: empty schema so common fest "Full Name" is never required/sent
+      const formSchema = hasParticipantStep()
+        ? []
+        : (isMultiStepForm()
+          ? (fest.registration?.steps || []).flatMap((step) => step.fields || [])
+          : (fest.registration?.formSchema || []));
+
+      if (!hasParticipantStep()) {
       const requiredFields = formSchema.filter(field => field.required);
       
       console.log('?? Form schema fields:', formSchema.map(field => ({
@@ -1239,7 +1440,9 @@ export default function useFestRegistration() {
       }
 
       console.log('? All required fields validated');
-
+      } else {
+        console.log('? MindSpark roster ? skipped fest formSchema validation');
+      }
       // Cashfree: open checkout if competition/fest has a fee and payment not yet done
       const effectiveFeeAmount = priceBreakdown?.ticketPrice || (isCompetitionRegistration ? (parseTicketPrice(competition?.feeAmount) || parseTicketPrice(competition?.registrationFee)) : (fest.feeAmount || 0));
       let verifiedPaymentFields = verifiedPaymentOverride || paymentFields;
@@ -1275,12 +1478,19 @@ export default function useFestRegistration() {
           });
         } catch (checkoutErr) {
           const { kind, message } = classifyCheckoutError(checkoutErr);
+          await waitAtLeast(processUiStartedAt.current, 1000);
           setCompletingPayment(false);
+          setProcessOverlayMode('error');
+          setSubmissionProgress(kind === 'cancelled' ? 'Payment cancelled' : message);
+          await sleep(900);
           setSubmitting(false);
           setSubmissionProgress('');
+          setProcessOverlayMode('server');
           if (kind !== 'cancelled') {
             retryCheckoutRef.current = () => handleSubmit();
             setPaymentModal({ open: true, message, orderId: orderData.orderId });
+          } else {
+            setError('Payment was cancelled. You can try again when ready.');
           }
           return;
         }
@@ -1292,14 +1502,17 @@ export default function useFestRegistration() {
             currentStep,
             completedSteps,
           });
+          await waitAtLeast(processUiStartedAt.current, 1000);
           setSubmitting(false);
           setCompletingPayment(true);
+          setProcessOverlayMode('payment');
           setSubmissionProgress('Complete payment in the gateway. You will return here automatically.');
           return;
         }
 
         setCompletingPayment(true);
-        setSubmissionProgress('Confirming paymentù');
+        setProcessOverlayMode('payment');
+        setSubmissionProgress('Confirming payment?');
 
         const verifyResult = await verifyPaymentWithRetry(
           API_BASE_URL,
@@ -1308,8 +1521,10 @@ export default function useFestRegistration() {
         );
         if (verifyResult.status === 'cancelled') {
           handleVerifyCancelled();
+          await waitAtLeast(processUiStartedAt.current, 1000);
           setSubmitting(false);
           setSubmissionProgress('');
+          setProcessOverlayMode('server');
           return;
         }
         if (!verifyResult.ok || !verifyResult.verified) {
@@ -1321,6 +1536,7 @@ export default function useFestRegistration() {
         setPaymentFields(verifiedPaymentFields);
       }
 
+      setProcessOverlayMode('server');
       setSubmissionProgress('Preparing form data...');
       // ? PERFORMANCE: Prepare form data efficiently
       const submissionFormData = new FormData();
@@ -1419,6 +1635,23 @@ export default function useFestRegistration() {
       });
 
       // Add text responses as JSON
+      if (isCompetitionRegistration && isMindSparkFest(fest) && hasParticipantStep()) {
+        const chosen = getPeopleCount();
+        const personFields = getPersonFields(competition);
+        const members = (Array.isArray(formData.team_members) ? formData.team_members : [])
+          .slice(0, chosen)
+          .map((m) => normalizeTeamMember(m, personFields));
+        textResponses.team_size = chosen;
+        textResponses.team_members = members;
+        textResponses.person_fields = personFields.map((f) => ({ key: f.key, label: f.label }));
+        // Lead (person 1) identity for organizer list / receipts
+        if (members[0]) {
+          if (members[0].name) textResponses.full_name = members[0].name;
+          if (members[0].email) textResponses.email = members[0].email;
+          if (members[0].phone) textResponses.phone = members[0].phone;
+          if (members[0].college) textResponses.college = members[0].college;
+        }
+      }
       submissionFormData.append('responses', JSON.stringify(textResponses));
       if (competitionId) {
         submissionFormData.append('competitionId', String(competitionId));
@@ -1448,7 +1681,7 @@ export default function useFestRegistration() {
         : `${API_BASE_URL}/registrations/fests/${festId}/register`;
 
       console.log('?? Making registration request to:', endpoint);
-      console.log('ù [DEBUG] Submission details:', {
+      console.log('? [DEBUG] Submission details:', {
         endpoint: endpoint,
         isCompetition: isCompetitionRegistration,
         competitionId: competitionId,
@@ -1458,7 +1691,7 @@ export default function useFestRegistration() {
         competitionIdLength: competitionId?.length,
         competitionIdValue: competitionId
       });
-      console.log('ù?? Submission summary:', {
+      console.log('??? Submission summary:', {
         textFields: Object.keys(textResponses).length,
         fileFields: fileCount,
         totalFileSize: `${(totalFileSize / 1024 / 1024).toFixed(2)}MB`,
@@ -1582,7 +1815,14 @@ export default function useFestRegistration() {
       setSubmissionProgress('Registration completed successfully!');
       const regId = result._id || result.registration?._id || result.registrationId;
       setRegistrationId(regId);
+      await waitAtLeast(processUiStartedAt.current, 1000);
+      setProcessOverlayMode('success');
+      setSubmissionProgress('You\'re registered!');
+      await sleep(1000);
       setCompletingPayment(false);
+      setSubmitting(false);
+      setSubmissionProgress('');
+      setProcessOverlayMode('server');
       setSuccess(true);
       refreshNotifications();
       clearRegistrationDraft(draftKey);
@@ -1603,13 +1843,15 @@ export default function useFestRegistration() {
       console.error('? Error name:', err.name);
       console.error('? Error message:', err.message);
       console.error('? Error stack:', err.stack);
+
+      let userMessage = err.message || 'An unexpected error occurred. Please try again.';
       
       // Handle specific error types with better user feedback
       if (err.name === 'AbortError') {
         const elapsedTime = ((Date.now() - formSubmissionStartTime) / 1000).toFixed(1);
         console.error('? Request was aborted/timed out after', elapsedTime, 'seconds');
         console.log('?? Registration may have been saved on the server. Checking registered events...');
-        setError('Registration is taking longer than expected. Your submission may have been saved. Please check My Bookings in a moment. Contact support if needed.');
+        userMessage = 'Registration is taking longer than expected. Your submission may have been saved. Please check My Bookings in a moment. Contact support if needed.';
       } else if (
         err.message.includes('Authentication')
         || err.message.includes('session')
@@ -1619,22 +1861,27 @@ export default function useFestRegistration() {
         if (paidResume) {
           setPaymentResumeError(err.message || 'Your session has expired. Please log in and check My Bookings.');
         } else {
-          setError('Your session has expired. Please log in again.');
+          userMessage = 'Your session has expired. Please log in again.';
           clearStoredAuthSession();
           setShowLogin(true);
         }
       } else if (err.message.includes('registration') && err.message.includes('not available')) {
-        setError('Registration is currently not available for this event. Please contact the organizers.');
+        userMessage = 'Registration is currently not available for this event. Please contact the organizers.';
       } else if (err.message.includes('required')) {
-        setError(err.message); // Field validation errors
+        userMessage = err.message;
       } else if (err.message.includes('Failed to fetch') || err.message.includes('Network')) {
-        setError('Network error. Please check your internet connection and try again.');
-      } else {
-        setError(err.message || 'An unexpected error occurred. Please try again.');
+        userMessage = 'Network error. Please check your internet connection and try again.';
       }
+
+      await waitAtLeast(processUiStartedAt.current, 1000);
+      setProcessOverlayMode('error');
+      setSubmissionProgress(userMessage);
+      await sleep(1100);
+      setError(userMessage);
     } finally {
       setSubmitting(false);
       setSubmissionProgress('');
+      setProcessOverlayMode('server');
     }
   };
 
@@ -1646,6 +1893,8 @@ export default function useFestRegistration() {
   handleSubmitRef.current = handleSubmit;
 
   const handleCashfreeFestRegister = async () => {
+    processUiStartedAt.current = Date.now();
+    setProcessOverlayMode('payment');
     setPaymentLoading(true);
     setCompletingPayment(true);
     setPaymentError('');
@@ -1686,12 +1935,20 @@ export default function useFestRegistration() {
         });
       } catch (checkoutErr) {
         const { kind, message } = classifyCheckoutError(checkoutErr);
+        await waitAtLeast(processUiStartedAt.current, 1000);
+        setProcessOverlayMode('error');
+        setSubmissionProgress(kind === 'cancelled' ? 'Payment cancelled' : message);
+        await sleep(900);
         setPaymentLoading(false);
         setCompletingPayment(false);
         setSubmissionProgress('');
+        setProcessOverlayMode('server');
         if (kind !== 'cancelled') {
           retryCheckoutRef.current = () => handleCashfreeFestRegister();
           setPaymentModal({ open: true, message, orderId: orderData.orderId });
+        } else {
+          setPaymentError('Payment was cancelled. You can try again when ready.');
+          setTimeout(() => setPaymentError(''), 5000);
         }
         return;
       }
@@ -1703,14 +1960,17 @@ export default function useFestRegistration() {
           currentStep,
           completedSteps,
         });
+        await waitAtLeast(processUiStartedAt.current, 1000);
         setPaymentLoading(false);
         setCompletingPayment(true);
+        setProcessOverlayMode('payment');
         setSubmissionProgress('Complete payment in the gateway. You will return here automatically.');
         return;
       }
 
       setCompletingPayment(true);
-      setSubmissionProgress('Confirming paymentù');
+      setProcessOverlayMode('payment');
+      setSubmissionProgress('Confirming payment?');
 
       const verifyResult = await verifyPaymentWithRetry(
         API_BASE_URL,
@@ -1726,7 +1986,8 @@ export default function useFestRegistration() {
         throw new Error(message);
       }
 
-      setSubmissionProgress('Completing registrationù');
+      setProcessOverlayMode('server');
+      setSubmissionProgress('Completing registration?');
 
       const regRes = await fetch(`${API_BASE_URL}/registrations/fests/${festId}/pay-and-register`, {
         method: 'POST',
@@ -1741,19 +2002,29 @@ export default function useFestRegistration() {
       const regData = await regRes.json().catch(() => ({}));
       const regId = regData._id || regData.registration?._id || regData.registrationId;
       setRegistrationId(regId);
+      await waitAtLeast(processUiStartedAt.current, 1000);
+      setProcessOverlayMode('success');
+      setSubmissionProgress("You're registered!");
+      await sleep(1000);
       setCompletingPayment(false);
       setSuccess(true);
       refreshNotifications();
       clearRegistrationDraft(draftKey);
     } catch (err) {
+      await waitAtLeast(processUiStartedAt.current, 1000);
+      setProcessOverlayMode('error');
+      const msg = err.message || 'Payment failed. Please try again.';
+      setSubmissionProgress(msg);
+      await sleep(1100);
       setCompletingPayment(false);
       if (err.message !== 'Payment cancelled') {
-        setPaymentError(err.message || 'Payment failed. Please try again.');
+        setPaymentError(msg);
         setTimeout(() => setPaymentError(''), 5000);
       }
     } finally {
       setPaymentLoading(false);
       setSubmissionProgress('');
+      setProcessOverlayMode('server');
     }
   };
 
@@ -1786,6 +2057,7 @@ export default function useFestRegistration() {
     setFormData,
     loading,
     submitting,
+    processOverlayMode,
     submissionProgress,
     error,
     notice,
@@ -1829,6 +2101,12 @@ export default function useFestRegistration() {
     // helpers / handlers
     generateFieldId,
     isMultiStepForm,
+    isEffectiveMultiStep,
+    hasParticipantStep,
+    isOnParticipantStep,
+    isOnPersonStep,
+    getPersonIndex,
+    getStepMeta,
     getCurrentStepFields,
     getTotalSteps,
     getCurrentStepData,

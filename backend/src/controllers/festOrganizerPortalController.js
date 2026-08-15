@@ -110,7 +110,7 @@ function buildHighlights(responses = {}) {
         if (/^(team|group|band)_?name$|^team$/.test(nk)) continue;
         if (/^(college|institution|university)/.test(nk)) continue;
         if (/^(city|location|hometown|year|course|branch|department|stream|class)$/.test(nk)) continue;
-        if (/^(team_members|members|member_names|teammates)$/.test(nk)) continue;
+        if (/^(team_members|members|member_names|teammates|team_size|person_fields)$/.test(nk)) continue;
         if (value == null || value === '') continue;
         const label = key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
         const display = Array.isArray(value)
@@ -123,6 +123,35 @@ function buildHighlights(responses = {}) {
         if (out.length >= 8) break;
     }
     return out;
+}
+
+function formatTeamMember(raw, index = 0) {
+    if (typeof raw === 'string') {
+        const name = String(raw || '').trim();
+        return name ? { index: index + 1, name, email: '', phone: '', college: '', fields: { name } } : null;
+    }
+    if (!raw || typeof raw !== 'object') return null;
+    const fields = {};
+    for (const [k, v] of Object.entries(raw)) {
+        const key = String(k || '').trim();
+        if (!key || key.startsWith('_')) continue;
+        const val = v == null ? '' : String(v).trim();
+        if (!val) continue;
+        fields[key] = val;
+    }
+    const name = String(raw.name || raw.full_name || raw.fullName || '').trim();
+    const email = String(raw.email || '').trim();
+    const phone = String(raw.phone || raw.mobile || '').trim();
+    const college = String(raw.college || raw.college_name || '').trim();
+    if (!name && !email && !phone && !Object.keys(fields).length) return null;
+    return {
+        index: index + 1,
+        name: name || `Person ${index + 1}`,
+        email,
+        phone,
+        college,
+        fields,
+    };
 }
 
 function formatParticipant(reg) {
@@ -138,16 +167,53 @@ function formatParticipant(reg) {
         || responses.member_names
         || responses.teammates
         || '';
-    let members = [];
+    let teamMembers = [];
     if (Array.isArray(membersRaw)) {
-        members = membersRaw.map((m) => (typeof m === 'string' ? m : m?.name || '')).filter(Boolean);
+        teamMembers = membersRaw.map((m, i) => formatTeamMember(m, i)).filter(Boolean);
     } else if (typeof membersRaw === 'string' && membersRaw.trim()) {
-        members = membersRaw.split(/[,;\n]+/).map((s) => s.trim()).filter(Boolean);
+        teamMembers = membersRaw.split(/[,;\n]+/)
+            .map((s) => s.trim())
+            .filter(Boolean)
+            .map((s, i) => formatTeamMember(s, i))
+            .filter(Boolean);
     }
-    const userName = user?.name || pickResponse(responses, ['full_name', 'name', 'leader_name']) || '';
+
+    const teamSizeRaw = Number(responses.team_size);
+    let teamSize = Number.isFinite(teamSizeRaw) && teamSizeRaw > 0
+        ? Math.floor(teamSizeRaw)
+        : (teamMembers.length || 0);
+
+    const personFields = Array.isArray(responses.person_fields)
+        ? responses.person_fields
+            .map((f) => ({
+                key: String(f?.key || '').trim(),
+                label: String(f?.label || f?.key || '').trim(),
+            }))
+            .filter((f) => f.key)
+        : [];
+
+    const userName = user?.name || pickResponse(responses, ['full_name', 'name', 'leader_name']) || teamMembers[0]?.name || '';
     const userPhone = user?.phone || user?.phoneNumber
-        || pickResponse(responses, ['contact_no', 'phone', 'mobile']) || '';
-    const userEmail = user?.email || pickResponse(responses, ['email']) || '';
+        || pickResponse(responses, ['contact_no', 'phone', 'mobile']) || teamMembers[0]?.phone || '';
+    const userEmail = user?.email || pickResponse(responses, ['email']) || teamMembers[0]?.email || '';
+    const collegeResolved = college || teamMembers[0]?.college || '';
+
+    // Solo / legacy regs: still show a clear person card on the organizer dashboard
+    if (!teamMembers.length && (userName || userEmail || userPhone || collegeResolved)) {
+        const synthesized = formatTeamMember({
+            name: userName || 'Participant',
+            email: userEmail,
+            phone: userPhone,
+            college: collegeResolved,
+        }, 0);
+        if (synthesized) teamMembers = [synthesized];
+    }
+
+    const members = teamMembers.map((m) => {
+        const bits = [m.name, m.email, m.phone, m.college].filter(Boolean);
+        return bits.join(' · ');
+    }).filter(Boolean);
+    if (!teamSize) teamSize = teamMembers.length || (userName ? 1 : 0);
 
     return {
         id: reg._id,
@@ -162,12 +228,16 @@ function formatParticipant(reg) {
         userEmail,
         userPhone,
         teamName,
-        college,
+        college: collegeResolved,
         city,
         year,
         course,
         members,
-        memberCount: members.length || (userName ? 1 : 0),
+        teamMembers,
+        teamSize,
+        personFields,
+        memberCount: teamSize,
+        entryType: (teamSize > 1 || teamMembers.length > 1) ? 'team' : 'solo',
         highlights: buildHighlights(responses),
         note: pickResponse(responses, ['organizer_note', 'note', 'remarks']),
         isManual: /^(yes|true|1)$/i.test(String(responses.manual_entry || responses.added_by_organizer || '')),
@@ -182,17 +252,94 @@ function formatParticipant(reg) {
     };
 }
 
+/** True when the saved form is a multi-person / team registration */
+function registrationIsTeamEntry(p = {}) {
+    const members = Array.isArray(p.teamMembers) ? p.teamMembers.filter(Boolean) : [];
+    const size = Math.max(
+        Number(p.teamSize) || 0,
+        Number(p.memberCount) || 0,
+        members.length,
+    );
+    return size > 1 || members.length > 1;
+}
+
+/** MindSpark: payment gateway confirms entry — no organizer approve queue */
+async function clearMindSparkReviewQueue(festId, competitionId = null) {
+    const { isMindSparkFestId } = require('../utils/personFields');
+    if (!isMindSparkFestId(festId)) return 0;
+    const filter = {
+        fest: festId,
+        status: 'pending',
+        isProShow: { $ne: true },
+    };
+    if (competitionId && mongoose.Types.ObjectId.isValid(competitionId)) {
+        filter.competitionId = competitionId;
+    }
+    const result = await Registration.updateMany(filter, { $set: { status: 'approved' } });
+    return Number(result?.modifiedCount || 0);
+}
+
+function buildSingleRegTeamCard(p) {
+    const members = Array.isArray(p.teamMembers) ? p.teamMembers.filter(Boolean) : [];
+    const size = Math.max(Number(p.teamSize) || 0, Number(p.memberCount) || 0, members.length, 1);
+    const teamName = String(p.teamName || '').trim()
+        || `${p.userName || 'Team'} · ${size} ${size === 1 ? 'person' : 'people'}`;
+    return {
+        id: `reg-${p.id}`,
+        teamName,
+        college: p.college || members[0]?.college || '',
+        city: p.city || '',
+        year: p.year || '',
+        course: p.course || '',
+        memberNames: members.map((m) => m.name).filter(Boolean),
+        teamMembers: members,
+        teamSize: size,
+        personFields: p.personFields || [],
+        registrations: [p],
+        registrationIds: [p.id],
+        status: p.status,
+        paymentStatus: p.paymentStatus,
+        amountPaid: Number(p.amountPaid) || 0,
+        checkedInCount: p.checkedIn ? 1 : 0,
+        pendingCount: p.status === 'pending' ? 1 : 0,
+        approvedCount: p.status === 'approved' ? 1 : 0,
+        captainName: p.userName || members[0]?.name || '',
+        captainPhone: p.userPhone || members[0]?.phone || '',
+        captainEmail: p.userEmail || members[0]?.email || '',
+        captainId: p.id,
+        submittedAt: p.submittedAt || p.createdAt,
+        highlights: p.highlights || [],
+        isManual: Boolean(p.isManual),
+        memberCount: size,
+        checkedIn: Boolean(p.checkedIn),
+        members: p.members || members.map((m) => m.name).filter(Boolean),
+        singleRegistrationRoster: true,
+        entryType: 'team',
+    };
+}
+
 function groupParticipantsIntoTeams(participants) {
     const teams = [];
     const solo = [];
     const byKey = new Map();
 
     for (const p of participants) {
-        const key = String(p.teamName || '').trim().toLowerCase();
-        if (!key) {
-            solo.push(p);
+        const entry = { ...p, entryType: registrationIsTeamEntry(p) ? 'team' : 'solo' };
+
+        // Solo form saves (1 person) — even if they typed a team name
+        if (entry.entryType === 'solo') {
+            solo.push(entry);
             continue;
         }
+
+        const key = String(p.teamName || '').trim().toLowerCase();
+
+        // Multi-person with no shared team name → one team card per registration
+        if (!key) {
+            teams.push(buildSingleRegTeamCard(entry));
+            continue;
+        }
+
         if (!byKey.has(key)) {
             byKey.set(key, {
                 id: key,
@@ -202,6 +349,8 @@ function groupParticipantsIntoTeams(participants) {
                 year: p.year || '',
                 course: p.course || '',
                 memberNames: [],
+                teamMembers: [],
+                personFields: p.personFields || [],
                 registrations: [],
                 registrationIds: [],
                 status: p.status,
@@ -217,10 +366,11 @@ function groupParticipantsIntoTeams(participants) {
                 submittedAt: p.submittedAt || p.createdAt,
                 highlights: p.highlights || [],
                 isManual: Boolean(p.isManual),
+                entryType: 'team',
             });
         }
         const t = byKey.get(key);
-        t.registrations.push(p);
+        t.registrations.push(entry);
         t.registrationIds.push(p.id);
         t.amountPaid += Number(p.amountPaid) || 0;
         if (!t.college && p.college) t.college = p.college;
@@ -240,6 +390,13 @@ function groupParticipantsIntoTeams(participants) {
         else if (p.paymentStatus === 'pending' && t.paymentStatus !== 'paid') t.paymentStatus = 'pending';
         if (p.checkedIn) t.checkedInCount += 1;
         if (p.userName && !t.memberNames.includes(p.userName)) t.memberNames.push(p.userName);
+        if (Array.isArray(p.teamMembers) && p.teamMembers.length) {
+            // Prefer embedded roster from the richest registration (don't double-count same names)
+            if (!t.teamMembers.length || p.teamMembers.length >= t.teamMembers.length) {
+                t.teamMembers = [...p.teamMembers];
+                t.personFields = p.personFields || t.personFields;
+            }
+        }
         if (Array.isArray(p.members)) {
             for (const m of p.members) {
                 if (m && !t.memberNames.includes(m)) t.memberNames.push(m);
@@ -253,7 +410,6 @@ function groupParticipantsIntoTeams(participants) {
         if (submitted && (!t.submittedAt || new Date(submitted) < new Date(t.submittedAt))) {
             t.submittedAt = submitted;
         }
-        // Prefer registration that looks like captain (has phone) as contact
         if (p.userPhone && !t.captainPhone) {
             t.captainName = p.userName;
             t.captainPhone = p.userPhone;
@@ -263,15 +419,27 @@ function groupParticipantsIntoTeams(participants) {
     }
 
     for (const t of byKey.values()) {
-        t.memberCount = t.memberNames.length || t.registrations.length;
+        const embedded = Array.isArray(t.teamMembers) ? t.teamMembers.length : 0;
+        t.memberCount = embedded || t.memberNames.length || t.registrations.length;
+        t.teamSize = Math.max(
+            t.memberCount,
+            ...t.registrations.map((r) => Number(r.teamSize) || 0),
+            1,
+        );
         t.checkedIn = t.checkedInCount > 0 && t.checkedInCount >= t.registrations.length;
         t.members = t.memberNames;
+        // If somehow only 1 person after merge, still keep as team entry when form said team
         teams.push(t);
     }
     teams.sort((a, b) => {
         const pd = (b.pendingCount || 0) - (a.pendingCount || 0);
         if (pd !== 0) return pd;
-        return a.teamName.localeCompare(b.teamName);
+        return String(a.teamName || '').localeCompare(String(b.teamName || ''));
+    });
+    solo.sort((a, b) => {
+        if (a.status === 'pending' && b.status !== 'pending') return -1;
+        if (b.status === 'pending' && a.status !== 'pending') return 1;
+        return String(a.userName || '').localeCompare(String(b.userName || ''));
     });
     return { teams, solo };
 }
@@ -501,6 +669,7 @@ exports.getMe = async (req, res) => {
 exports.getDashboard = async (req, res) => {
     try {
         const festId = req.festId;
+        await clearMindSparkReviewQueue(festId);
         const festOid = new mongoose.Types.ObjectId(String(festId));
         const fest = await FestOrganizer.findById(festId)
             .select('festName collegeName city festDate festDates festType venue category status coverImage slug registration description subtitle ticketPrice feeAmount')
@@ -779,6 +948,7 @@ exports.listLoggedInUsers = async (req, res) => {
 exports.listParticipants = async (req, res) => {
     try {
         const festId = req.festId;
+        await clearMindSparkReviewQueue(festId);
         const page = Math.max(1, Number(req.query.page) || 1);
         const limit = Math.min(100, Math.max(10, Number(req.query.limit) || 25));
         const skip = (page - 1) * limit;
@@ -810,8 +980,12 @@ exports.listParticipants = async (req, res) => {
         if (competitionId && mongoose.Types.ObjectId.isValid(competitionId)) {
             filter.competitionId = competitionId;
         }
-        if (['paid', 'pending', 'free', 'failed'].includes(paymentStatus)) {
-            filter.paymentStatus = paymentStatus;
+        if (['paid', 'pending', 'free', 'failed', 'collected'].includes(paymentStatus)) {
+            if (paymentStatus === 'collected') {
+                filter.paymentStatus = { $in: ['paid', 'free'] };
+            } else {
+                filter.paymentStatus = paymentStatus;
+            }
         }
 
         if (search) {
@@ -827,6 +1001,19 @@ exports.listParticipants = async (req, res) => {
             const ids = userIds.map((u) => u._id);
             filter.$or = [
                 { user: { $in: ids } },
+                { 'responses.name': regex },
+                { 'responses.full_name': regex },
+                { 'responses.email': regex },
+                { 'responses.phone': regex },
+                { 'responses.mobile': regex },
+                { 'responses.contact_no': regex },
+                { 'responses.college': regex },
+                { 'responses.team_name': regex },
+                { 'responses.team_members': regex },
+                { 'responses.team_members.name': regex },
+                { 'responses.team_members.email': regex },
+                { 'responses.team_members.phone': regex },
+                { 'responses.team_members.college': regex },
                 ...(mongoose.Types.ObjectId.isValid(search) ? [{ _id: search }] : []),
             ];
         }
@@ -874,6 +1061,20 @@ exports.listParticipants = async (req, res) => {
                                 ],
                             },
                         },
+                        collected: {
+                            $sum: {
+                                $cond: [
+                                    {
+                                        $and: [
+                                            { $in: ['$status', ['pending', 'approved']] },
+                                            { $in: ['$paymentStatus', ['paid', 'free']] },
+                                        ],
+                                    },
+                                    1,
+                                    0,
+                                ],
+                            },
+                        },
                         active: {
                             $sum: {
                                 $cond: [{ $in: ['$status', ['pending', 'approved']] }, 1, 0],
@@ -892,6 +1093,7 @@ exports.listParticipants = async (req, res) => {
             checkedIn: s.checkedIn || 0,
             notCheckedIn: Math.max(0, (s.approved || 0) - (s.checkedIn || 0)),
             unpaid: s.unpaid || 0,
+            collected: s.collected || 0,
             active: s.active || 0,
         };
 
@@ -1271,11 +1473,13 @@ exports.getCompetitionOps = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Invalid competition ID' });
         }
 
+        await clearMindSparkReviewQueue(festId, competitionId);
+
         const Competition = mongoose.model('Competition');
         const [fest, competition] = await Promise.all([
             FestOrganizer.findById(festId).select('festName slug').lean(),
             Competition.findOne({ _id: competitionId, fest: festId })
-                .select('name subtitle competitionType category feeAmount registrationFee registration description coverImage slotsAllotted')
+                .select('name subtitle competitionType category feeAmount registrationFee registration description coverImage slotsAllotted teamSizeMin teamSizeMax teamSizeLabel')
                 .lean(),
         ]);
         if (!fest) return res.status(404).json({ success: false, message: 'Fest not found' });
@@ -1312,6 +1516,8 @@ exports.getCompetitionOps = async (req, res) => {
         const slotsAllotted = Math.max(0, Number(competition.slotsAllotted) || 0);
         const slotsFilled = approved;
         const slotsLeft = slotsAllotted > 0 ? Math.max(0, slotsAllotted - slotsFilled) : null;
+        const teamSizeMin = Math.max(1, Number(competition.teamSizeMin) || 1);
+        const teamSizeMax = Math.max(1, Number(competition.teamSizeMax) || teamSizeMin);
 
         res.json({
             success: true,
@@ -1327,6 +1533,9 @@ exports.getCompetitionOps = async (req, res) => {
                 slotsAllotted,
                 slotsFilled,
                 slotsLeft,
+                teamSizeMin,
+                teamSizeMax,
+                teamSizeLabel: competition.teamSizeLabel || '',
                 registrationStatus: competition.registration?.status || '',
                 description: competition.description || '',
             },
@@ -1356,18 +1565,13 @@ exports.getCompetitionOps = async (req, res) => {
     }
 };
 
-/** Set allotted slots for a competition (0 = unlimited / not set) */
+/** Set slots remaining (+ optional max people). Updates public website capacity. */
 exports.updateCompetitionSlots = async (req, res) => {
     try {
         const { competitionId } = req.params;
         if (!mongoose.Types.ObjectId.isValid(competitionId)) {
             return res.status(400).json({ success: false, message: 'Invalid competition ID' });
         }
-        let slots = Number(req.body.slotsAllotted ?? req.body.slots);
-        if (!Number.isFinite(slots) || slots < 0) {
-            return res.status(400).json({ success: false, message: 'slotsAllotted must be 0 or a positive number' });
-        }
-        slots = Math.floor(slots);
 
         const Competition = mongoose.model('Competition');
         const competition = await Competition.findOne({ _id: competitionId, fest: req.festId });
@@ -1375,31 +1579,88 @@ exports.updateCompetitionSlots = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Competition not found for this fest' });
         }
 
-        competition.slotsAllotted = slots;
-        if (!competition.registration) competition.registration = {};
-        competition.registration.maxRegistrations = slots > 0 ? slots : null;
-        await competition.save();
-
         const approved = await Registration.countDocuments({
             fest: req.festId,
             competitionId,
             status: 'approved',
         });
+
+        const body = req.body || {};
+        const hasRemaining = body.slotsRemaining !== undefined || body.slotsLeft !== undefined;
+        const hasAllotted = body.slotsAllotted !== undefined || body.slots !== undefined;
+        let slots = Math.max(0, Number(competition.slotsAllotted) || 0);
+
+        if (hasRemaining) {
+            const remaining = Number(body.slotsRemaining ?? body.slotsLeft);
+            if (!Number.isFinite(remaining) || remaining < 0) {
+                return res.status(400).json({ success: false, message: 'slotsRemaining must be 0 or a positive number' });
+            }
+            slots = approved + Math.floor(remaining);
+        } else if (hasAllotted) {
+            const next = Number(body.slotsAllotted ?? body.slots);
+            if (!Number.isFinite(next) || next < 0) {
+                return res.status(400).json({ success: false, message: 'slotsAllotted must be 0 or a positive number' });
+            }
+            slots = Math.floor(next);
+        }
+
+        competition.slotsAllotted = slots;
+        if (!competition.registration) competition.registration = {};
+        competition.registration.maxRegistrations = slots > 0 ? slots : null;
+        if (!competition.registration.settings || typeof competition.registration.settings !== 'object') {
+            competition.registration.settings = {};
+        }
+        competition.registration.settings.maxRegistrations = slots > 0 ? slots : null;
+        competition.markModified('registration');
+
+        let teamSizeChanged = false;
+        if (
+            body.teamSizeMin !== undefined
+            || body.teamSizeMax !== undefined
+            || body.maxPeople !== undefined
+            || body.teamSizeLabel !== undefined
+        ) {
+            const { normalizeTeamSizeFields } = require('../utils/teamSize');
+            const maxPeople = body.maxPeople !== undefined ? body.maxPeople : body.teamSizeMax;
+            const next = normalizeTeamSizeFields({
+                teamSizeMin: body.teamSizeMin !== undefined ? body.teamSizeMin : 1,
+                teamSizeMax: maxPeople !== undefined ? maxPeople : competition.teamSizeMax,
+                teamSizeLabel: body.teamSizeLabel !== undefined ? body.teamSizeLabel : '',
+            });
+            competition.teamSizeMin = next.teamSizeMin;
+            competition.teamSizeMax = next.teamSizeMax;
+            competition.teamSizeLabel = next.teamSizeLabel;
+            teamSizeChanged = true;
+        }
+
+        await competition.save();
+        tryClearPublicCaches();
+
         const slotsLeft = slots > 0 ? Math.max(0, slots - approved) : null;
+        const bits = [];
+        if (hasRemaining || hasAllotted) {
+            bits.push(slots > 0 ? `${slotsLeft} slots remaining` : 'Slots unlimited');
+        }
+        if (teamSizeChanged) {
+            bits.push(`max ${competition.teamSizeMax} ${competition.teamSizeMax === 1 ? 'person' : 'people'}`);
+        }
 
         res.json({
             success: true,
-            message: slots > 0 ? `Allotted ${slots} slots` : 'Slots cleared (open)',
+            message: bits.length ? bits.join(' · ') : 'Capacity updated',
             competition: {
                 id: competition._id,
                 slotsAllotted: slots,
                 slotsFilled: approved,
                 slotsLeft,
+                teamSizeMin: Math.max(1, Number(competition.teamSizeMin) || 1),
+                teamSizeMax: Math.max(1, Number(competition.teamSizeMax) || 1),
+                teamSizeLabel: competition.teamSizeLabel || '',
             },
         });
     } catch (error) {
         console.error('[festOrganizerPortal.updateCompetitionSlots]', error);
-        res.status(500).json({ success: false, message: 'Failed to update slots' });
+        res.status(500).json({ success: false, message: 'Failed to update capacity' });
     }
 };
 
@@ -1474,6 +1735,9 @@ function serializeCompetitionDetails(competition) {
             instagram: competition.contact?.instagram || '',
         },
         slotsAllotted: Math.max(0, Number(competition.slotsAllotted) || 0),
+        teamSizeMin: Math.max(1, Number(competition.teamSizeMin) || 1),
+        teamSizeMax: Math.max(1, Number(competition.teamSizeMax) || Number(competition.teamSizeMin) || 1),
+        teamSizeLabel: competition.teamSizeLabel || 'Solo',
     };
 }
 
@@ -1549,6 +1813,10 @@ function applyCompetitionPayload(competition, body = {}) {
             ...body.registration,
             status: registrationStatus,
         };
+        const { withNormalizedPersonFields } = require('../utils/personFields');
+        competition.registration = withNormalizedPersonFields(competition.registration, {
+            festId: competition.fest,
+        });
         competition.markModified('registration');
     }
     if (body.legacyRegistration !== undefined) {
@@ -1562,7 +1830,26 @@ function applyCompetitionPayload(competition, body = {}) {
         competition.slotsAllotted = slots;
         if (!competition.registration) competition.registration = {};
         competition.registration.maxRegistrations = slots > 0 ? slots : null;
+        if (!competition.registration.settings || typeof competition.registration.settings !== 'object') {
+            competition.registration.settings = {};
+        }
+        competition.registration.settings.maxRegistrations = slots > 0 ? slots : null;
         competition.markModified('registration');
+    }
+    if (
+        body.teamSizeMin !== undefined
+        || body.teamSizeMax !== undefined
+        || body.teamSizeLabel !== undefined
+    ) {
+        const { normalizeTeamSizeFields } = require('../utils/teamSize');
+        const next = normalizeTeamSizeFields({
+            teamSizeMin: body.teamSizeMin !== undefined ? body.teamSizeMin : competition.teamSizeMin,
+            teamSizeMax: body.teamSizeMax !== undefined ? body.teamSizeMax : competition.teamSizeMax,
+            teamSizeLabel: body.teamSizeLabel !== undefined ? body.teamSizeLabel : competition.teamSizeLabel,
+        });
+        competition.teamSizeMin = next.teamSizeMin;
+        competition.teamSizeMax = next.teamSizeMax;
+        competition.teamSizeLabel = next.teamSizeLabel;
     }
 }
 
@@ -1636,6 +1923,14 @@ exports.createCompetition = async (req, res) => {
         const fest = await FestOrganizer.findById(req.festId);
         if (!fest) return res.status(404).json({ success: false, message: 'Fest not found' });
 
+        const { normalizeTeamSizeFields } = require('../utils/teamSize');
+        const { withNormalizedPersonFields } = require('../utils/personFields');
+        const teamSize = normalizeTeamSizeFields({
+            teamSizeMin: body.teamSizeMin,
+            teamSizeMax: body.teamSizeMax,
+            teamSizeLabel: body.teamSizeLabel,
+        });
+
         const competition = new Competition({
             fest: req.festId,
             name: String(body.name).trim(),
@@ -1653,22 +1948,46 @@ exports.createCompetition = async (req, res) => {
             rounds: sanitizeRounds(body.rounds),
             registrationFee: String(body.registrationFee || 'Free').trim(),
             feeAmount: getCompetitionBaseFee(body.registrationFee, body.feeAmount),
+            slotsAllotted: (() => {
+                if (body.slotsAllotted === undefined || body.slotsAllotted === null || body.slotsAllotted === '') {
+                    return 50;
+                }
+                const n = Number(body.slotsAllotted);
+                return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 50;
+            })(),
+            teamSizeMin: teamSize.teamSizeMin,
+            teamSizeMax: teamSize.teamSizeMax,
+            teamSizeLabel: teamSize.teamSizeLabel,
             registrationLink: String(body.registrationLink || '').trim(),
             contact: body.contact || {},
             registrationType: body.registrationType || 'fest',
-            registration: body.registration || {
-                status: 'not_started',
-                externalUrl: '',
-                googleSheetsUrl: '',
-                formSchema: [],
-                settings: {
-                    allowMultipleRegistrations: true,
-                    requireEmailVerification: false,
-                    autoConfirmation: true,
-                    maxRegistrations: null,
-                    registrationDeadline: null,
-                },
-            },
+            registration: (() => {
+                const slotsAllotted = (() => {
+                    if (body.slotsAllotted === undefined || body.slotsAllotted === null || body.slotsAllotted === '') {
+                        return 50;
+                    }
+                    const n = Number(body.slotsAllotted);
+                    return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 50;
+                })();
+                const base = body.registration || {
+                    status: 'not_started',
+                    externalUrl: '',
+                    googleSheetsUrl: '',
+                    formSchema: [],
+                    settings: {
+                        allowMultipleRegistrations: true,
+                        requireEmailVerification: false,
+                        autoConfirmation: true,
+                        maxRegistrations: null,
+                        registrationDeadline: null,
+                    },
+                };
+                if (!base.settings) base.settings = {};
+                if (base.settings.maxRegistrations == null && slotsAllotted > 0) {
+                    base.settings.maxRegistrations = slotsAllotted;
+                }
+                return withNormalizedPersonFields(base, { festId: req.festId });
+            })(),
             legacyRegistration: body.legacyRegistration || { status: 'NOT_STARTED' },
         });
 

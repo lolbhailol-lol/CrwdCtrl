@@ -4,6 +4,7 @@ import { adminFetch, adminFetchJSON, getAdminToken } from '../../services/api/ad
 import GalleryImagesUploadField from './GalleryImagesUploadField';
 import { normalizeImageList } from '../../utils/uploadUrls';
 import { excludeCoverUrlsFromGallery } from '../../utils/coverImages';
+import { isMindSparkFest, ResourceLinksEditor, MindSparkWhatsAppLinksAdmin } from '../../features/fests/mindspark';
 
 // Individual Form Field Component to prevent state sharing
 const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpdateOption, onRemoveOption }) => {
@@ -696,6 +697,7 @@ const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onA
 export default function FestFormModal({ fest, onClose, onSaved, api }) {
   // STEP STATE: simple multi-step wizard instead of one very long form
   const [step, setStep] = useState(1);
+  const mindSpark = isMindSparkFest(fest);
 
   // Form state aligned to new FEST DATA STRUCTURE
   const [form, setForm] = useState({
@@ -718,6 +720,8 @@ export default function FestFormModal({ fest, onClose, onSaved, api }) {
     paymentQR: '',
     paymentQRMessage: '', // Message to display with QR code
     googleSheetsUrl: '',
+    overallSheetUrl: '', // MindSpark: participant-facing overall sheet for all comps
+    resourceLinks: [], // Extra links shown after registration
     whatsappCommunityLink: '', // Optional WhatsApp community link for participants
     formInstructions: '', // Instructions to display at the start of internal form
     organizerEmail: '', // Email to send registration confirmations to
@@ -1123,6 +1127,13 @@ export default function FestFormModal({ fest, onClose, onSaved, api }) {
         paymentQR: fest.registration?.paymentQR || '',
         paymentQRMessage: fest.registration?.paymentQRMessage || '',
         googleSheetsUrl: fest.registration?.googleSheetsUrl || '',
+        overallSheetUrl: fest.registration?.overallSheetUrl || '',
+        resourceLinks: Array.isArray(fest.registration?.resourceLinks)
+          ? fest.registration.resourceLinks.map((l) => ({
+              label: l?.label || '',
+              url: l?.url || '',
+            }))
+          : [],
         whatsappCommunityLink: fest.registration?.whatsappCommunityLink || '',
         formInstructions: fest.registration?.formInstructions || '',
         organizerEmail: fest.registration?.organizerEmail || '',
@@ -1384,7 +1395,7 @@ export default function FestFormModal({ fest, onClose, onSaved, api }) {
       const hasFormFields = form.formType === 'MULTI_STEP'
         ? (form.steps || []).some((step) => (step.fields || []).length > 0)
         : (form.formSchema || []).length > 0;
-      if (!hasFormFields) {
+      if (!mindSpark && !hasFormFields) {
         setError('Add at least one form field — this fest form is used for all competitions.');
         setLoading(false);
         return;
@@ -1453,6 +1464,13 @@ export default function FestFormModal({ fest, onClose, onSaved, api }) {
         paymentQR: form.paymentQR,
         paymentQRMessage: form.paymentQRMessage,
         googleSheetsUrl: form.googleSheetsUrl,
+        overallSheetUrl: form.overallSheetUrl || '',
+        resourceLinks: (form.resourceLinks || [])
+          .map((l) => ({
+            label: String(l?.label || '').trim(),
+            url: String(l?.url || '').trim(),
+          }))
+          .filter((l) => l.url),
         whatsappCommunityLink: form.whatsappCommunityLink,
         formInstructions: form.formInstructions,
         organizerEmail: form.organizerEmail,
@@ -2213,6 +2231,49 @@ export default function FestFormModal({ fest, onClose, onSaved, api }) {
                   </div>
                 </div>
 
+                {/* Section 3–4: classic fest form builder (not MindSpark — comps use roster form) */}
+                {mindSpark ? (
+                  <div className="space-y-4">
+                    <div className="rounded-lg border border-[#0ECCEE]/30 bg-[#0ECCEE]/5 p-4">
+                      <p className="text-sm font-medium text-[#0ECCEE]">MindSpark registration forms</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        Participant fields are configured per competition (team size → Person 1…N). Open a competition
+                        in Edit listing / Competitions and use <span className="text-white">Per-person form fields</span>.
+                        Fest-level Cashfree / sheets settings above still apply when competitions use fest registration.
+                      </p>
+                    </div>
+
+                    <div className="bg-[#1D1E20] p-4 rounded-lg space-y-4">
+                      <h5 className="text-lg font-medium text-[#0ECCEE] border-b border-gray-600 pb-2">
+                        Participant resources (all competitions)
+                      </h5>
+                      <div>
+                        <label className="block text-sm font-medium mb-2">
+                          Overall sheet URL <span className="text-gray-400 font-normal">(shown after register)</span>
+                        </label>
+                        <input
+                          type="url"
+                          placeholder="https://docs.google.com/spreadsheets/d/..."
+                          className="w-full px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                          value={form.overallSheetUrl || ''}
+                          onChange={(e) => setForm({ ...form, overallSheetUrl: e.target.value })}
+                        />
+                        <p className="text-xs text-gray-400 mt-1">
+                          One master sheet / drive link for all MindSpark comps. Separate from the auto-append Google Sheets URL above.
+                        </p>
+                      </div>
+                      <ResourceLinksEditor
+                        links={form.resourceLinks}
+                        onChange={(resourceLinks) => setForm({ ...form, resourceLinks })}
+                        title="Links for all competitions"
+                        hint="Rulebook, schedule, Discord, etc. — shown on every competition success screen"
+                      />
+                    </div>
+
+                    <MindSparkWhatsAppLinksAdmin festId={fest?._id || fest?.id} api={api} />
+                  </div>
+                ) : (
+                  <>
                 {/* Section 3: Form Type Selection */}
                 <div className="bg-[#1D1E20] p-4 rounded-lg">
                   <h5 className="text-lg font-medium mb-4 text-[#0ECCEE] border-b border-gray-600 pb-2">Form Configuration</h5>
@@ -2398,6 +2459,8 @@ export default function FestFormModal({ fest, onClose, onSaved, api }) {
                       )}
                     </div>
                   </div>
+                )}
+                  </>
                 )}
 
                 {/* Section 5: Payment Information - Compact */}

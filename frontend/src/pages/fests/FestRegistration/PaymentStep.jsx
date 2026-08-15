@@ -1,6 +1,7 @@
 import { Loader } from 'lucide-react';
 import PaymentErrorModal from '../../../components/PaymentErrorModal';
 import { goToBookings } from '../../../utils/paymentNavigation';
+import { RegistrationStatusVisual, RegistrationProcessingOverlay } from '../../../components/RegistrationStatusVisual';
 
 export function CompletingPaymentStep({
   isDark,
@@ -13,7 +14,7 @@ export function CompletingPaymentStep({
   onRetryResume,
 }) {
   return (
-    <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex flex-col items-center justify-center px-4">
+    <div className={`crwdctrl-page crwdctrl-page--content min-h-screen flex flex-col items-center justify-center px-4 ${isDark ? 'bg-[#0a0a0b]' : 'bg-gray-50'}`}>
       {paymentResumeError ? (
         <div className="text-center max-w-md mx-auto p-6">
           <p className={`text-sm mb-2 ${isDark ? 'text-red-300' : 'text-red-600'}`}>
@@ -62,12 +63,19 @@ export function CompletingPaymentStep({
           </div>
         </div>
       ) : (
-        <>
-          <Loader className="w-8 h-8 animate-spin text-[#0ECCEE] mb-4" />
-          <p className={`text-sm text-center ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-            {submissionProgress || 'Completing your registration...'}
-          </p>
-        </>
+        <div
+          className={`w-full max-w-sm rounded-3xl border p-8 ${
+            isDark ? 'bg-[#121314] border-white/10' : 'bg-white border-gray-200 shadow-xl'
+          }`}
+        >
+          <RegistrationStatusVisual
+            mode={/pay|cashfree|checkout/i.test(String(submissionProgress || '')) ? 'payment' : 'server'}
+            title="Finishing registration"
+            subtitle="Waiting for the server — this usually takes a moment"
+            progressMessage={submissionProgress || 'Confirming payment & saving your booking…'}
+            isDark={isDark}
+          />
+        </div>
       )}
     </div>
   );
@@ -94,6 +102,14 @@ export default function PaymentStep({
 }) {
   return (
     <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center px-4">
+      <RegistrationProcessingOverlay
+        open={paymentLoading}
+        isDark={isDark}
+        mode="payment"
+        title="Processing payment"
+        subtitle="Secure checkout is opening"
+        progressMessage="Connecting to Cashfree…"
+      />
       <PaymentErrorModal
         open={paymentModal.open}
         message={paymentModal.message}
@@ -196,7 +212,7 @@ export default function PaymentStep({
           {paymentLoading ? (
             <>
               <Loader className="w-5 h-5 animate-spin" />
-              Processing Payment...
+              Processing…
             </>
           ) : !priceBreakdown ? (
             'Calculating Amount...'

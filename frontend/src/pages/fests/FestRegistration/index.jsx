@@ -107,7 +107,7 @@ export default function FestRegistration() {
     );
   }
 
-  if (!fest && loading) {
+  if ((!fest && loading) || (isCompetitionRegistration && loading && !competition)) {
     return (
       <>
         <div className={`crwdctrl-page crwdctrl-page--content min-h-screen pt-[calc(var(--safe-top)+0.5rem)] pb-32 ${isDark ? 'bg-[#0a0b0c]' : 'bg-gray-50'}`}>
@@ -264,6 +264,12 @@ export default function FestRegistration() {
       error={r.error}
       handleSubmit={r.handleSubmit}
       isMultiStepForm={r.isMultiStepForm}
+      isEffectiveMultiStep={r.isEffectiveMultiStep}
+      isOnParticipantStep={r.isOnParticipantStep}
+      isOnPersonStep={r.isOnPersonStep}
+      getPersonIndex={r.getPersonIndex}
+      hasParticipantStep={r.hasParticipantStep}
+      getStepMeta={r.getStepMeta}
       currentStep={r.currentStep}
       getTotalSteps={r.getTotalSteps}
       completedSteps={r.completedSteps}
@@ -283,6 +289,7 @@ export default function FestRegistration() {
       couponError={couponError}
       couponQuoting={couponQuoting}
       submitting={r.submitting}
+      processOverlayMode={r.processOverlayMode}
       submissionProgress={submissionProgress}
       handleStepBack={r.handleStepBack}
       paymentModal={paymentModal}

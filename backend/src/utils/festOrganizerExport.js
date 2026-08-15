@@ -45,6 +45,7 @@ const IDENTITY_ALIASES = new Set([
     'city', 'location', 'hometown',
     'year', 'year_of_study', 'academic_year', 'class', 'year_of_graduation',
     'course', 'branch', 'department', 'stream',
+    'team_members', 'members', 'member_names', 'teammates', 'team_size', 'person_fields',
 ]);
 
 function normalizeFormKey(key = '') {
@@ -80,21 +81,78 @@ function collectFormFieldKeys(participants = []) {
     return Array.from(keys).sort((a, b) => a.localeCompare(b));
 }
 
+function getExportRoster(p = {}) {
+    if (Array.isArray(p.teamMembers) && p.teamMembers.length) {
+        return p.teamMembers;
+    }
+    const responses = p?.responses && typeof p.responses === 'object' ? p.responses : {};
+    const raw = responses.team_members || responses.members || responses.member_names || responses.teammates;
+    if (Array.isArray(raw)) {
+        return raw.map((m, i) => {
+            if (typeof m === 'string') return { name: m.trim() };
+            if (!m || typeof m !== 'object') return null;
+            return {
+                name: String(m.name || m.full_name || '').trim() || `Person ${i + 1}`,
+                email: String(m.email || '').trim(),
+                phone: String(m.phone || m.mobile || '').trim(),
+                college: String(m.college || '').trim(),
+            };
+        }).filter(Boolean);
+    }
+    if (typeof raw === 'string' && raw.trim()) {
+        return raw.split(/[,;\n]+/).map((s) => s.trim()).filter(Boolean).map((name) => ({ name }));
+    }
+    if (p.userName || p.userEmail || p.userPhone) {
+        return [{
+            name: p.userName || 'Participant',
+            email: p.userEmail || '',
+            phone: p.userPhone || '',
+            college: p.college || '',
+        }];
+    }
+    return [];
+}
+
 function buildParticipantExportTable(participants = []) {
     const formKeys = collectFormFieldKeys(participants);
+    const maxPeople = Math.min(
+        12,
+        participants.reduce((max, p) => Math.max(max, getExportRoster(p).length), 0),
+    );
+    const personCols = [];
+    for (let i = 1; i <= maxPeople; i += 1) {
+        personCols.push(`Person ${i} Name`, `Person ${i} Email`, `Person ${i} Phone`, `Person ${i} College`);
+    }
     const header = [
-        'id', 'name', 'email', 'phone', 'team', 'college', 'city', 'year', 'course',
+        'id', 'name', 'email', 'phone', 'team', 'teamSize', 'college', 'city', 'year', 'course',
         'status', 'paymentStatus', 'amountPaid', 'checkedIn', 'competition', 'submittedAt',
+        'rosterSummary',
+        ...personCols,
         ...formKeys.map(humanizeFieldName),
     ];
     const body = participants.map((p) => {
         const responses = p?.responses && typeof p.responses === 'object' ? p.responses : {};
+        const roster = getExportRoster(p);
+        const size = Number(p.teamSize) || roster.length || 0;
+        const personCells = [];
+        for (let i = 0; i < maxPeople; i += 1) {
+            const m = roster[i] || {};
+            personCells.push(m.name || '', m.email || '', m.phone || '', m.college || '');
+        }
+        const rosterSummary = roster
+            .map((m, idx) => {
+                const bits = [m.name, m.email, m.phone, m.college].filter(Boolean);
+                return bits.length ? `${idx + 1}. ${bits.join(' · ')}` : '';
+            })
+            .filter(Boolean)
+            .join(' | ');
         return [
             p.id || '',
             p.userName || '',
             p.userEmail || '',
             p.userPhone || '',
             p.teamName || '',
+            size || '',
             p.college || '',
             p.city || '',
             p.year || '',
@@ -105,6 +163,8 @@ function buildParticipantExportTable(participants = []) {
             p.checkedIn ? 'yes' : 'no',
             p.competitionName || '',
             p.submittedAt ? new Date(p.submittedAt).toISOString() : '',
+            rosterSummary,
+            ...personCells,
             ...formKeys.map((key) => formatResponseCell(responses[key])),
         ];
     });
