@@ -284,11 +284,8 @@ function sanitizeRoundList(rounds = []) {
   const cleaned = rounds.filter((round) => {
     const title = String(round.title || '').trim();
     if (!title) return false;
+    // Narrative OCR sentences mistaken for round titles — keep real titles like "Round 2 Grand Finals"
     if (/would be held|must report|failure to do so|compulsory to attend|online on|webinar would/i.test(title)) {
-      return false;
-    }
-    // "Round 2 would be held offline…" style titles
-    if (/^round\s*\d+\b/i.test(title) && title.split(/\s+/).length > 3) {
       return false;
     }
     return true;
@@ -482,12 +479,14 @@ function buildCompetitionPayload({ folderName, filename, text }) {
   const { competitionType, category } = mapFolderMeta(folderName);
   const name = cleanCompetitionName(filename, folderName);
   const objectiveRaw = extractSection(text, 'EVENT OBJECTIVE');
-  // Never fall back to EVENT STRUCTURE — that dumps rounds into About/overview
+  // Never fall back to EVENT STRUCTURE — that dumps rounds into About/overview.
+  // Keep placeholder fest-agnostic (this backs admin zip import for any fest).
+  const neutralAbout = `${name} is a competition.`;
   let objective = objectiveRaw
     ? trimAboutObjective(objectiveRaw)
-    : `${name} is a competition at MindSpark'26.`;
+    : neutralAbout;
   if (!objective || looksLikeStructureDump(objective)) {
-    objective = `${name} is a competition at MindSpark'26.`;
+    objective = neutralAbout;
   }
   const teamSize = parseTeamSize(text);
   // About = objective only (no "Team size:" opener — that belongs in fee/team block)

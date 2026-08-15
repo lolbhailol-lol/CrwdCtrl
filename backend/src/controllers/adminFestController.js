@@ -251,9 +251,17 @@ exports.updateFest = async (req, res) => {
       updateData.showOnHomeSlide = false;
     }
 
-    // 3. Auto-set coverImage only when none was provided (gallery is separate from cover)
+    // 3. Cover vs gallery: respect explicit clear (coverImage: '').
+    // Only backfill from gallery when the client omitted coverImage entirely and fest has no cover yet.
     const { coverImage, galleryImages } = req.body;
-    if ((!coverImage || coverImage === '') && galleryImages && galleryImages.length > 0) {
+    const coverInBody = Object.prototype.hasOwnProperty.call(req.body, 'coverImage');
+    if (coverInBody) {
+      updateData.coverImage = coverImage || '';
+    } else if (
+      !existingFest.coverImage
+      && Array.isArray(galleryImages)
+      && galleryImages.length > 0
+    ) {
       updateData.coverImage = galleryImages[0];
     }
 

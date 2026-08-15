@@ -155,8 +155,27 @@ const OVERRIDES = {
     },
   },
   'FUSION ID': {
-    rewriteRounds: (rounds) =>
-      (rounds || [])
+    rewriteRounds: (rounds) => {
+      const FUSION_FALLBACK_ROUNDS = [
+        {
+          roundNumber: 1,
+          title: 'Fusion Fundamentals',
+          description:
+            'Online Fusion Fundamentals webinar by Autodesk. Attendance is compulsory. Question statement is based on the webinar; basic-level design submission online.',
+          rules: [],
+          dateTime: "During MindSpark'26 (3–4 Oct 2026)",
+          venue: '',
+        },
+        {
+          roundNumber: 2,
+          title: 'Design Round',
+          description: 'Offline design round. Topic announced 1 hour prior to the round.',
+          rules: [],
+          dateTime: "During MindSpark'26 (3–4 Oct 2026)",
+          venue: '',
+        },
+      ];
+      const cleaned = (rounds || [])
         .filter((r) => !/would be held|must report|failure to/i.test(String(r.title || '')))
         .slice(0, 2)
         .map((r, i) => ({
@@ -166,11 +185,12 @@ const OVERRIDES = {
             ? (r.title && !/^round\s*1$/i.test(r.title) ? r.title : 'Fusion Fundamentals')
             : (r.title && !/^round\s*2$/i.test(r.title) ? r.title : 'Design Round'),
           description: i === 0 && !r.description
-            ? 'Online Fusion Fundamentals webinar by Autodesk. Attendance is compulsory. Question statement is based on the webinar; basic-level design submission online.'
-            : (r.description || (i === 1
-              ? 'Offline design round. Topic announced 1 hour prior to the round.'
-              : '')),
-        })),
+            ? FUSION_FALLBACK_ROUNDS[0].description
+            : (r.description || (i === 1 ? FUSION_FALLBACK_ROUNDS[1].description : '')),
+        }));
+      // Never return [] — that would wipe stored rounds in the DB patch
+      return cleaned.length > 0 ? cleaned : FUSION_FALLBACK_ROUNDS;
+    },
   },
   Utopia: {
     rewriteRules: (rules) => {
@@ -310,7 +330,11 @@ function applyDescriptionTeamSize(description, teamSize) {
 
     let rounds = Array.isArray(row.rounds) && row.rounds.length ? row.rounds : doc.rounds;
     if (typeof override.rewriteRounds === 'function') {
-      rounds = override.rewriteRounds(rounds);
+      const rewritten = override.rewriteRounds(rounds);
+      // Guard: empty rewrite must not clear previously stored rounds
+      if (Array.isArray(rewritten) && rewritten.length > 0) {
+        rounds = rewritten;
+      }
     }
 
     const feeAmount = override.feeAmount != null

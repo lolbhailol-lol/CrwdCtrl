@@ -172,7 +172,7 @@ export default function FestOrganizerListingEditPage() {
                     <PartyPopper className="text-[#0ECCEE] mb-2" size={20} />
                     <p className="text-sm font-semibold text-white">Edit fest</p>
                     <p className="text-[11px] text-gray-400 mt-1">
-                        Details · artists · contacts · sponsors · registration
+                        Cover · gallery · contacts · sponsors · registration form
                     </p>
                 </button>
                 <button
@@ -183,7 +183,7 @@ export default function FestOrganizerListingEditPage() {
                     <Plus className="text-[#0ECCEE] mb-2" size={20} />
                     <p className="text-sm font-semibold text-white">Add competition</p>
                     <p className="text-[11px] text-gray-400 mt-1">
-                        Basic info · images &amp; rules · rounds
+                        Info · cover · gallery · rules · registration form
                     </p>
                 </button>
             </div>

@@ -6,6 +6,15 @@ import {
     updateFestOrganizerParticipantStatus,
 } from '../../services/api/festOrganizer.api';
 import { useDialog } from '../../context/DialogContext';
+import { filterExtraFestFormResponses } from '../../utils/festFormResponseKeys';
+
+function humanizeKey(key = '') {
+    return String(key)
+        .replace(/[_-]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .replace(/\b\w/g, (c) => c.toUpperCase()) || key;
+}
 
 function Badge({ children, tone = 'neutral' }) {
     const tones = {
@@ -98,7 +107,7 @@ export default function FestOrganizerParticipantModal({ festId, registrationId, 
     };
 
     const responses = participant?.responses && typeof participant.responses === 'object'
-        ? Object.entries(participant.responses).filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '')
+        ? filterExtraFestFormResponses(participant.responses)
         : [];
 
     const wa = participant ? waLink(participant.userPhone) : null;
@@ -114,7 +123,7 @@ export default function FestOrganizerParticipantModal({ festId, registrationId, 
                 <div className="sticky top-0 flex items-center justify-between px-4 py-3.5 border-b border-white/10 bg-[#121314]/95 backdrop-blur z-10">
                     <div>
                         <p className="text-[10px] uppercase tracking-[0.12em] text-gray-500 font-semibold">Participant</p>
-                        <h2 className="font-semibold text-white">Registration details</h2>
+                        <h2 className="font-semibold text-white">Registration</h2>
                     </div>
                     <button
                         type="button"
@@ -131,48 +140,46 @@ export default function FestOrganizerParticipantModal({ festId, registrationId, 
                     </div>
                 ) : participant ? (
                     <div className="p-4 space-y-4">
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                            <div className="min-w-0">
-                                <p className="text-lg font-semibold text-white truncate">{participant.userName || '—'}</p>
-                                {participant.teamName ? (
-                                    <p className="text-sm text-gray-400 mt-0.5">Team · {participant.teamName}</p>
-                                ) : null}
-                                <p className="text-sm text-gray-500 truncate mt-0.5">{participant.userEmail || '—'}</p>
-                                {participant.userPhone ? (
-                                    <p className="text-sm text-gray-500 mt-0.5 tabular-nums">{participant.userPhone}</p>
-                                ) : null}
-                                {metaBits.length ? (
-                                    <p className="text-xs text-gray-600 mt-1">{metaBits.join(' · ')}</p>
-                                ) : null}
+                        <div className="rounded-xl border border-white/10 bg-white/3 px-3 py-3 space-y-1.5">
+                            <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">User details</p>
+                            <p className="text-lg font-semibold text-white truncate">{participant.userName || '—'}</p>
+                            {participant.teamName ? (
+                                <p className="text-sm text-gray-400">Team · {participant.teamName}</p>
+                            ) : null}
+                            <p className="text-sm text-gray-400 truncate">{participant.userEmail || 'No email'}</p>
+                            <p className="text-sm text-gray-400 tabular-nums">{participant.userPhone || 'No phone'}</p>
+                            {metaBits.length ? (
+                                <p className="text-xs text-gray-500 pt-1">{metaBits.join(' · ')}</p>
+                            ) : null}
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex flex-wrap gap-1.5">
+                                <Badge tone={statusTone(participant.status)}>{participant.status}</Badge>
+                                <Badge tone="info">{participant.paymentStatus}</Badge>
+                                {participant.checkedIn ? <Badge tone="success">Checked in</Badge> : null}
+                                {participant.isManual ? <Badge tone="neutral">Manual</Badge> : null}
                             </div>
-                            <div className="flex flex-col items-end gap-2">
-                                <div className="flex flex-wrap gap-1.5 justify-end">
-                                    <Badge tone={statusTone(participant.status)}>{participant.status}</Badge>
-                                    <Badge tone="info">{participant.paymentStatus}</Badge>
-                                    {participant.checkedIn ? <Badge tone="success">Checked in</Badge> : null}
-                                    {participant.isManual ? <Badge tone="neutral">Manual</Badge> : null}
+                            {(wa || tel) ? (
+                                <div className="flex gap-1.5">
+                                    {wa ? (
+                                        <a
+                                            href={wa}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="p-2 rounded-xl bg-emerald-500/15 text-emerald-300"
+                                            aria-label="WhatsApp"
+                                        >
+                                            <MessageCircle size={15} />
+                                        </a>
+                                    ) : null}
+                                    {tel ? (
+                                        <a href={tel} className="p-2 rounded-xl bg-white/5 text-gray-300" aria-label="Call">
+                                            <Phone size={15} />
+                                        </a>
+                                    ) : null}
                                 </div>
-                                {(wa || tel) ? (
-                                    <div className="flex gap-1.5">
-                                        {wa ? (
-                                            <a
-                                                href={wa}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                className="p-2 rounded-xl bg-emerald-500/15 text-emerald-300"
-                                                aria-label="WhatsApp"
-                                            >
-                                                <MessageCircle size={15} />
-                                            </a>
-                                        ) : null}
-                                        {tel ? (
-                                            <a href={tel} className="p-2 rounded-xl bg-white/5 text-gray-300" aria-label="Call">
-                                                <Phone size={15} />
-                                            </a>
-                                        ) : null}
-                                    </div>
-                                ) : null}
-                            </div>
+                            ) : null}
                         </div>
 
                         <div className="grid grid-cols-2 gap-2 text-sm">
@@ -207,12 +214,12 @@ export default function FestOrganizerParticipantModal({ festId, registrationId, 
 
                         {responses.length ? (
                             <div className="rounded-xl border border-white/10 overflow-hidden">
-                                <p className="px-3 py-2 text-[10px] uppercase tracking-wider text-gray-500 bg-white/3">Form responses</p>
+                                <p className="px-3 py-2 text-[10px] uppercase tracking-wider text-gray-500 bg-white/3">
+                                    Extra form answers
+                                </p>
                                 <div className="divide-y divide-white/5">
                                     {responses.map(([key, value]) => {
-                                        const label = String(key)
-                                            .replace(/[_-]+/g, ' ')
-                                            .replace(/\b\w/g, (c) => c.toUpperCase());
+                                        const label = humanizeKey(key);
                                         const display = typeof value === 'object'
                                             ? (value?.url || value?.secure_url || JSON.stringify(value))
                                             : String(value);
@@ -227,7 +234,7 @@ export default function FestOrganizerParticipantModal({ festId, registrationId, 
                             </div>
                         ) : (
                             <div className="rounded-xl border border-dashed border-white/10 px-3 py-4 text-center text-xs text-gray-600">
-                                No form answers saved for this registration
+                                No extra form answers (name / email / phone shown above)
                             </div>
                         )}
 

@@ -98,16 +98,19 @@ const HIDDEN_RESPONSE_KEYS = new Set([
 ]);
 
 function buildHighlights(responses = {}) {
-    const skip = new Set([
-        ...HIDDEN_RESPONSE_KEYS,
-        'full_name', 'name', 'leader_name', 'email', 'phone', 'contact_no', 'mobile',
-        'team_name', 'teamName', 'team', 'group_name', 'band_name',
-        'college', 'college_name', 'collegeName', 'institution',
-        'team_members', 'members', 'member_names', 'teammates',
-    ]);
     const out = [];
     for (const [key, value] of Object.entries(responses)) {
-        if (!key || skip.has(key) || key.startsWith('_')) continue;
+        if (!key || key.startsWith('_')) continue;
+        // Skip identity fields already shown as name/email/phone/team/college
+        const nk = String(key).trim().toLowerCase().replace(/[\s-]+/g, '_');
+        if (HIDDEN_RESPONSE_KEYS.has(nk) || HIDDEN_RESPONSE_KEYS.has(key)) continue;
+        if (/^(full_?name|name|fullname|leader_name|participant_name|user_name|username)$/.test(nk)) continue;
+        if (/^(email|email_id|e_mail|mail|user_email)/.test(nk)) continue;
+        if (/^(phone|mobile|whatsapp|contact)/.test(nk) && !/(emergency|parent|alt|guardian)/.test(nk)) continue;
+        if (/^(team|group|band)_?name$|^team$/.test(nk)) continue;
+        if (/^(college|institution|university)/.test(nk)) continue;
+        if (/^(city|location|hometown|year|course|branch|department|stream|class)$/.test(nk)) continue;
+        if (/^(team_members|members|member_names|teammates)$/.test(nk)) continue;
         if (value == null || value === '') continue;
         const label = key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
         const display = Array.isArray(value)
@@ -1814,10 +1817,19 @@ exports.updateFestDetails = async (req, res) => {
             fest.markModified('sponsors');
         }
         if (body.registration !== undefined && body.registration && typeof body.registration === 'object') {
-            fest.registration = {
+            const incoming = body.registration;
+            const next = {
                 ...(fest.registration || {}),
-                ...body.registration,
+                ...incoming,
             };
+            // Explicitly keep form builder arrays (organizer form setup)
+            if (incoming.formSchema !== undefined) {
+                next.formSchema = Array.isArray(incoming.formSchema) ? incoming.formSchema : [];
+            }
+            if (incoming.steps !== undefined) {
+                next.steps = Array.isArray(incoming.steps) ? incoming.steps : [];
+            }
+            fest.registration = next;
             fest.markModified('registration');
         }
 

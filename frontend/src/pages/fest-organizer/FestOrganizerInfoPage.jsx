@@ -56,6 +56,12 @@ export default function FestOrganizerInfoPage() {
         ? `${window.location.origin}/view-details/${fest.slug}`
         : `${window.location.origin}/view-details/${fest._id || fest.id}`;
 
+    const formFieldCount = Array.isArray(fest.registration?.formSchema)
+        ? fest.registration.formSchema.length
+        : (Array.isArray(fest.registration?.steps)
+            ? fest.registration.steps.reduce((n, s) => n + (s.fields?.length || 0), 0)
+            : 0);
+
     const rows = [
         ['College', fest.collegeName],
         ['City', fest.city],
@@ -67,6 +73,8 @@ export default function FestOrganizerInfoPage() {
         ['Ticket label', fest.ticketPrice],
         ['Fee amount', fest.feeAmount ? `₹${fest.feeAmount}` : ''],
         ['Registration mode', fest.registration?.mode],
+        ['Form fields', formFieldCount || ''],
+        ['Gallery photos', Array.isArray(fest.galleryImages) ? fest.galleryImages.length : ''],
         ['Artists', Array.isArray(fest.artists) ? fest.artists.length : ''],
         ['Sponsors', Array.isArray(fest.sponsors) ? fest.sponsors.length : ''],
         ['Slug', fest.slug],
@@ -99,7 +107,7 @@ export default function FestOrganizerInfoPage() {
                 <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-white">Edit fest (admin form)</p>
                     <p className="text-xs text-gray-400 mt-0.5">
-                        Name, images, artists, contacts, sponsors, registration form — identical to Admin → Fests
+                        Cover, gallery, artists, contacts, sponsors, and registration form setup
                     </p>
                 </div>
             </button>

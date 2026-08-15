@@ -33,12 +33,47 @@ const CORE_RESPONSE_SKIP = new Set([
     'password', 'token', 'qr',
 ]);
 
+/** Form keys that duplicate fixed Excel columns (name/email/phone/team/college/…) */
+const IDENTITY_ALIASES = new Set([
+    'name', 'full_name', 'fullname', 'leader_name', 'participant_name', 'user_name', 'username',
+    'firstname', 'first_name', 'lastname', 'last_name',
+    'email', 'email_id', 'emailid', 'e_mail', 'mail', 'user_email',
+    'phone', 'mobile', 'contact', 'contact_no', 'contact_number', 'contact_num',
+    'phone_number', 'phonenumber', 'mobile_number', 'whatsapp', 'whatsapp_number', 'user_phone',
+    'team', 'team_name', 'teamname', 'group_name', 'band_name',
+    'college', 'college_name', 'collegename', 'institution', 'university',
+    'city', 'location', 'hometown',
+    'year', 'year_of_study', 'academic_year', 'class', 'year_of_graduation',
+    'course', 'branch', 'department', 'stream',
+]);
+
+function normalizeFormKey(key = '') {
+    return String(key)
+        .trim()
+        .toLowerCase()
+        .replace(/[\s-]+/g, '_');
+}
+
+function isRedundantFormFieldKey(key) {
+    const k = normalizeFormKey(key);
+    if (!k || k.startsWith('_') || CORE_RESPONSE_SKIP.has(k)) return true;
+    if (IDENTITY_ALIASES.has(k)) return true;
+    if (/^(full|leader|participant|user|captain)_?name$/.test(k)) return true;
+    if (/^(e[_]?mail|user_email|email_id)/.test(k)) return true;
+    if (/^(phone|mobile|whatsapp|contact)/.test(k) && !/(emergency|parent|alt|guardian|secondary)/.test(k)) {
+        return true;
+    }
+    if (/^(team|group|band)_?name$/.test(k)) return true;
+    if (/^(college|institution|university)_?name$/.test(k)) return true;
+    return false;
+}
+
 function collectFormFieldKeys(participants = []) {
     const keys = new Set();
     for (const p of participants) {
         const responses = p?.responses && typeof p.responses === 'object' ? p.responses : {};
         for (const key of Object.keys(responses)) {
-            if (!key || key.startsWith('_') || CORE_RESPONSE_SKIP.has(key)) continue;
+            if (isRedundantFormFieldKey(key)) continue;
             keys.add(key);
         }
     }
@@ -122,4 +157,5 @@ module.exports = {
     participantsToXlsx,
     humanizeFieldName,
     formatResponseCell,
+    isRedundantFormFieldKey,
 };
