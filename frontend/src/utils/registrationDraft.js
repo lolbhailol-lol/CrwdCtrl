@@ -131,6 +131,36 @@ export function scrollFieldIntoView(e) {
 
 const FEST_REG_SUCCESS_KEY = 'crwdctrl_fest_reg_success';
 const FEST_REG_SUCCESS_MAX_AGE_MS = 30 * 60 * 1000;
+const OBJECT_ID_RE = /^[a-f\d]{24}$/i;
+/** Keep in sync with features/fests/mindspark — used only for id↔slug aliasing. */
+const MINDSPARK_FEST_ID = '6a7f1010ed26d983b34e55c2';
+
+function isMongoObjectId(value) {
+  return OBJECT_ID_RE.test(String(value || '').trim());
+}
+
+/** Build every known route key for a fest so slug ↔ ObjectId remounts still restore success. */
+function buildFestSuccessAliases({ festId, festMongoId, festAliases } = {}) {
+  const aliases = new Set();
+  const add = (v) => {
+    const s = String(v || '').trim();
+    if (s) aliases.add(s);
+  };
+  add(festId);
+  add(festMongoId);
+  if (Array.isArray(festAliases)) festAliases.forEach(add);
+
+  const all = [...aliases];
+  const touchesMindSpark = all.some(
+    (a) => a === MINDSPARK_FEST_ID || a.toLowerCase().includes('mindspark'),
+  );
+  if (touchesMindSpark) {
+    add(MINDSPARK_FEST_ID);
+    add('mindspark');
+  }
+  // If only one ObjectId was provided, keep it under both fields via aliases set
+  return [...aliases];
+}
 
 /**
  * Persist post-payment success so Cashfree return / slug remount still shows
@@ -141,14 +171,32 @@ export function saveFestRegistrationSuccess({
   festMongoId,
   competitionId,
   registrationId,
+  festAliases,
 }) {
   if (!festId && !festMongoId && !competitionId) return;
+
+  const routeKey = festId ? String(festId).trim() : '';
+  let mongo = festMongoId ? String(festMongoId).trim() : '';
+  if (!mongo && isMongoObjectId(routeKey)) mongo = routeKey;
+  // Prefer an ObjectId from aliases when route key is a slug
+  if (!mongo && Array.isArray(festAliases)) {
+    const found = festAliases.map(String).find((a) => isMongoObjectId(a));
+    if (found) mongo = found;
+  }
+
+  const aliases = buildFestSuccessAliases({
+    festId: routeKey,
+    festMongoId: mongo,
+    festAliases,
+  });
+
   try {
     sessionStorage.setItem(
       FEST_REG_SUCCESS_KEY,
       JSON.stringify({
-        festId: festId ? String(festId) : '',
-        festMongoId: festMongoId ? String(festMongoId) : '',
+        festId: routeKey || mongo || '',
+        festMongoId: mongo || (isMongoObjectId(routeKey) ? routeKey : ''),
+        festAliases: aliases,
         competitionId: competitionId ? String(competitionId) : '',
         registrationId: registrationId ? String(registrationId) : '',
         ts: Date.now(),
@@ -178,16 +226,19 @@ export function loadFestRegistrationSuccess(festId, competitionId = null) {
       return null;
     }
 
-    // Fest-only registration
+    // Fest-only registration — reject if stored entry was for a competition
     if (gotComp) return null;
-    const routeKey = festId ? String(festId) : '';
+
+    const routeKey = festId ? String(festId).trim() : '';
     if (!routeKey) return parsed;
-    if (
-      routeKey === String(parsed.festId || '')
-      || routeKey === String(parsed.festMongoId || '')
-    ) {
-      return parsed;
-    }
+
+    const aliases = buildFestSuccessAliases({
+      festId: parsed.festId,
+      festMongoId: parsed.festMongoId,
+      festAliases: parsed.festAliases,
+    });
+
+    if (aliases.includes(routeKey)) return parsed;
     return null;
   } catch {
     return null;

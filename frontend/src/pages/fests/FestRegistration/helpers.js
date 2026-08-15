@@ -24,9 +24,12 @@ export function getInitialFestRegistrationUi(pathname, search, navigationState =
         ? {
             registrationId: navigationState.registrationId || null,
             festId: options.festId || '',
-            competitionId: options.competitionId || '',
+            competitionId: options.competitionId || navigationState.competitionId || '',
           }
-        : loadFestRegistrationSuccess(options.festId, options.competitionId)
+        : loadFestRegistrationSuccess(
+            options.festId,
+            options.competitionId || navigationState?.competitionId || null,
+          )
     );
 
   if (restoredSuccess || navigationState?.registrationComplete) {

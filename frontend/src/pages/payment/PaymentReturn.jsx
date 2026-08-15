@@ -6,6 +6,8 @@ import {
   isStalePendingPayment,
   clearPendingPayment,
   hasCashfreeReturnParams,
+  loadOrderReturnContext,
+  clearOrderReturnContext,
 } from '../../utils/deepLinks';
 import {
   loadEventPayDraft,
@@ -24,6 +26,7 @@ import { finalizeCompetitionAfterPayment } from '../../utils/competitionPaymentC
 import { saveFestRegistrationSuccess } from '../../utils/registrationDraft';
 import { API_BASE_URL } from '../../services/api/client';
 import { resolveAuthToken, getBearerAuthHeaders } from '../../utils/authToken';
+import { MINDSPARK_FEST_ID } from '../../features/fests/mindspark';
 
 function parseFestRegisterReturn(returnPath) {
   if (!returnPath) return null;
@@ -43,6 +46,34 @@ function parseFestRegisterReturn(returnPath) {
   }
 }
 
+function buildFestRegisterTarget({ festId, competitionId }) {
+  const festKey = String(festId || MINDSPARK_FEST_ID || '').trim() || MINDSPARK_FEST_ID;
+  const path = `/fest/${festKey}/register`;
+  const qs = competitionId
+    ? `?competition=${encodeURIComponent(String(competitionId))}`
+    : '';
+  return `${path}${qs}`;
+}
+
+const OBJECT_ID_RE = /^[a-f\d]{24}$/i;
+
+function resolveFestSuccessIds(festRouteId, recoveryFestId) {
+  const route = String(festRouteId || '').trim();
+  const fromRecovery = String(recoveryFestId || '').trim();
+  const mongo =
+    (OBJECT_ID_RE.test(fromRecovery) && fromRecovery)
+    || (OBJECT_ID_RE.test(route) && route)
+    || ((route.toLowerCase().includes('mindspark') || fromRecovery === MINDSPARK_FEST_ID)
+      ? MINDSPARK_FEST_ID
+      : '')
+    || '';
+  return {
+    festId: route || fromRecovery || mongo,
+    festMongoId: mongo || null,
+    festAliases: [route, fromRecovery, mongo, MINDSPARK_FEST_ID, 'mindspark'].filter(Boolean),
+  };
+}
+
 async function completeFestPayAndRegister({ festRouteId, orderId, token }) {
   const regRes = await fetch(`${API_BASE_URL}/registrations/fests/${festRouteId}/pay-and-register`, {
     method: 'POST',
@@ -56,11 +87,75 @@ async function completeFestPayAndRegister({ festRouteId, orderId, token }) {
   return regData._id || regData.registration?._id || regData.registrationId || null;
 }
 
+async function finishFestCompetitionAndNavigate({
+  navigate,
+  orderId,
+  token,
+  festRouteId,
+  recoveryFestId,
+  competitionId,
+  verifyData,
+  cancelledRef,
+  setStatus,
+  setMessage,
+}) {
+  if (!cancelledRef.current) setMessage('Payment received — finishing your registration…');
+
+  let regId = null;
+  if (competitionId) {
+    const verifiedFields = buildVerifiedPaymentFields(verifyData, orderId);
+    ({ regId } = await finalizeCompetitionAfterPayment({
+      competitionId,
+      verifiedFields,
+      token,
+      draft: null,
+      tryFormSubmit: null,
+    }));
+  } else if (festRouteId) {
+    regId = await completeFestPayAndRegister({
+      festRouteId,
+      orderId,
+      token,
+    });
+  } else {
+    throw new Error('Missing fest/competition for payment recovery');
+  }
+
+  const festIds = resolveFestSuccessIds(festRouteId, recoveryFestId);
+  saveFestRegistrationSuccess({
+    ...festIds,
+    competitionId: competitionId || null,
+    registrationId: regId,
+  });
+  clearPendingPayment();
+  clearOrderReturnContext(orderId);
+
+  if (cancelledRef.current) return;
+  setStatus('success');
+  setMessage('Payment successful — registration confirmed!');
+
+  const target = buildFestRegisterTarget({
+    festId: festIds.festId || festRouteId,
+    competitionId,
+  });
+
+  window.setTimeout(() => {
+    if (cancelledRef.current) return;
+    navigate(target, {
+      replace: true,
+      state: {
+        registrationComplete: true,
+        registrationId: regId,
+        competitionId: competitionId || null,
+        fromPaymentReturn: true,
+      },
+    });
+  }, 700);
+}
+
 /**
  * Cashfree redirect checkout lands here (order return_url = /payment/return?order_id=...).
- * Prefer forwarding to the page that started payment so it can finish registration.
- * If that context is gone (common after Google Pay), verify + complete event registration here.
- * Fest/competition: complete pay-and-register here when possible, then open success UI.
+ * Fest/competition must land on WhatsApp success — never dump to My Bookings as the happy path.
  */
 export default function PaymentReturn() {
   const navigate = useNavigate();
@@ -68,19 +163,22 @@ export default function PaymentReturn() {
   const [message, setMessage] = useState('Confirming your payment…');
 
   useEffect(() => {
-    let cancelled = false;
+    const cancelledRef = { current: false };
 
     (async () => {
       const search = typeof window !== 'undefined' ? window.location.search : '';
       const params = new URLSearchParams(search);
       const orderIdFromUrl = params.get('order_id') || '';
       const pending = getPendingPayment();
+      const orderCtx = loadOrderReturnContext(orderIdFromUrl || pending?.orderId);
       const returnPath =
-        pending?.orderId && !isStalePendingPayment(pending) ? pending.returnPath : null;
+        (pending?.orderId && !isStalePendingPayment(pending) ? pending.returnPath : null)
+        || orderCtx?.returnPath
+        || null;
       const festReturn = parseFestRegisterReturn(returnPath);
 
       if (returnPath && hasCashfreeReturnParams(search)) {
-        const orderId = orderIdFromUrl || pending?.orderId || '';
+        const orderId = orderIdFromUrl || pending?.orderId || orderCtx?.orderId || '';
         const token = resolveAuthToken();
 
         if (orderId && token) {
@@ -93,7 +191,7 @@ export default function PaymentReturn() {
 
             if (verifyResult.status === 'cancelled') {
               clearCashfreeReturnAndPending(navigate, { pathname: returnPath.split('?')[0], search: '' });
-              if (!cancelled) {
+              if (!cancelledRef.current) {
                 setStatus('redirecting');
                 navigate(returnPath.split('?')[0] + (returnPath.includes('?') ? `?${returnPath.split('?')[1]}` : ''), {
                   replace: true,
@@ -104,7 +202,7 @@ export default function PaymentReturn() {
             }
 
             if (verifyResult.status === 'pending' && !verifyResult.verified) {
-              if (!cancelled) {
+              if (!cancelledRef.current) {
                 setStatus('redirecting');
                 const [path, existingQuery] = returnPath.split('?');
                 const merged = new URLSearchParams(existingQuery || '');
@@ -117,63 +215,71 @@ export default function PaymentReturn() {
               return;
             }
 
-            // Paid: finish fest/competition registration on this page so success UI always appears
-            if (verifyResult.ok && verifyResult.verified && festReturn) {
-              if (!cancelled) setMessage('Payment received — finishing your registration…');
+            const recovery = verifyResult.data?.recovery || {};
+            const competitionId =
+              festReturn?.competitionId
+              || recovery.competitionId
+              || orderCtx?.competitionId
+              || '';
+            const festRouteId =
+              festReturn?.festRouteId
+              || recovery.festId
+              || orderCtx?.festId
+              || '';
+
+            if (verifyResult.ok && verifyResult.verified && (competitionId || festRouteId || festReturn)) {
               try {
-                let regId = null;
-                if (festReturn.competitionId) {
-                  const verifiedFields = buildVerifiedPaymentFields(verifyResult.data, orderId);
-                  ({ regId } = await finalizeCompetitionAfterPayment({
-                    competitionId: festReturn.competitionId,
-                    verifiedFields,
-                    token,
-                    draft: null,
-                    tryFormSubmit: null,
-                  }));
-                } else {
-                  regId = await completeFestPayAndRegister({
-                    festRouteId: festReturn.festRouteId,
-                    orderId,
-                    token,
+                // Already fulfilled (webhook) — still show success UI
+                if (recovery.registrationId && (competitionId || festRouteId)) {
+                  const festIds = resolveFestSuccessIds(
+                    festRouteId || recovery.festId,
+                    recovery.festId,
+                  );
+                  saveFestRegistrationSuccess({
+                    ...festIds,
+                    competitionId: competitionId || null,
+                    registrationId: recovery.registrationId,
                   });
+                  clearPendingPayment();
+                  clearOrderReturnContext(orderId);
+                  if (cancelledRef.current) return;
+                  setStatus('success');
+                  setMessage('Payment successful — registration confirmed!');
+                  const target = buildFestRegisterTarget({
+                    festId: festIds.festId || festRouteId || recovery.festId,
+                    competitionId,
+                  });
+                  window.setTimeout(() => {
+                    if (cancelledRef.current) return;
+                    navigate(target, {
+                      replace: true,
+                      state: {
+                        registrationComplete: true,
+                        registrationId: recovery.registrationId,
+                        competitionId: competitionId || null,
+                        fromPaymentReturn: true,
+                      },
+                    });
+                  }, 700);
+                  return;
                 }
 
-                saveFestRegistrationSuccess({
-                  festId: festReturn.festRouteId,
-                  competitionId: festReturn.competitionId || null,
-                  registrationId: regId,
+                await finishFestCompetitionAndNavigate({
+                  navigate,
+                  orderId,
+                  token,
+                  festRouteId: festRouteId || festReturn?.festRouteId,
+                  recoveryFestId: recovery.festId || festRouteId || festReturn?.festRouteId,
+                  competitionId: competitionId || festReturn?.competitionId,
+                  verifyData: verifyResult.data,
+                  cancelledRef,
+                  setStatus,
+                  setMessage,
                 });
-                clearPendingPayment();
-
-                if (cancelled) return;
-                setStatus('success');
-                setMessage('Payment successful — registration confirmed!');
-
-                const cleanQuery = new URLSearchParams(festReturn.query || '');
-                ['order_id', 'order_token', 'cf_payment_id', 'payment_id'].forEach((key) => {
-                  cleanQuery.delete(key);
-                });
-                if (festReturn.competitionId) cleanQuery.set('competition', festReturn.competitionId);
-                const qs = cleanQuery.toString();
-                const target = qs ? `${festReturn.path}?${qs}` : festReturn.path;
-
-                window.setTimeout(() => {
-                  if (cancelled) return;
-                  navigate(target, {
-                    replace: true,
-                    state: {
-                      registrationComplete: true,
-                      registrationId: regId,
-                      competitionId: festReturn.competitionId || null,
-                      fromPaymentReturn: true,
-                    },
-                  });
-                }, 700);
                 return;
               } catch (err) {
                 console.warn('[PaymentReturn] fest/competition recovery failed:', err?.message || err);
-                /* fall through — page-level resume still has order_id */
+                /* fall through — forward with order_id for page resume */
               }
             }
           } catch {
@@ -187,7 +293,7 @@ export default function PaymentReturn() {
           if (!merged.has(key)) merged.set(key, value);
         });
         const qs = merged.toString();
-        if (!cancelled) {
+        if (!cancelledRef.current) {
           setStatus('redirecting');
           navigate(qs ? `${path}?${qs}` : path, { replace: true, state: { fromPaymentReturn: true } });
         }
@@ -196,25 +302,27 @@ export default function PaymentReturn() {
 
       const orderId = orderIdFromUrl || pending?.orderId || '';
       if (!orderId) {
-        if (!cancelled) goToBookings(navigate);
+        if (!cancelledRef.current) goToBookings(navigate);
         return;
       }
 
       const draft =
         loadEventPayDraft(orderId)
         || (() => {
-          const eventId = (pending?.returnPath?.match(/\/events\/([^/]+)\/register/) || [])[1];
+          const eventId = (pending?.returnPath?.match(/\/events\/([^/]+)\/register/) || [])[1]
+            || (orderCtx?.returnPath?.match(/\/events\/([^/]+)\/register/) || [])[1];
           return eventId ? loadEventRegistrationDraft(eventId) : null;
         })();
 
       const eventShowId = draft?.eventShowId
         || (pending?.returnPath?.match(/\/events\/([^/]+)\/register/) || [])[1]
+        || (orderCtx?.returnPath?.match(/\/events\/([^/]+)\/register/) || [])[1]
         || '';
 
       const token = resolveAuthToken();
       if (eventShowId && token) {
         try {
-          if (!cancelled) setMessage('Payment received — finishing your registration…');
+          if (!cancelledRef.current) setMessage('Payment received — finishing your registration…');
           const verifyResult = await verifyPaymentWithRetry(API_BASE_URL, orderId, {
             token,
             kind: 'fest',
@@ -223,7 +331,7 @@ export default function PaymentReturn() {
 
           if (verifyResult.status === 'cancelled') {
             clearCashfreeReturnAndPending(navigate, { pathname: `/events/${eventShowId}/register`, search: '' });
-            if (!cancelled) {
+            if (!cancelledRef.current) {
               navigate(`/events/${eventShowId}/register`, {
                 replace: true,
                 state: { paymentCancelled: true },
@@ -244,7 +352,7 @@ export default function PaymentReturn() {
             });
             clearPendingPayment();
             clearEventPaymentArtifacts(eventShowId, orderId);
-            if (cancelled) return;
+            if (cancelledRef.current) return;
             setStatus('success');
             setMessage('Payment successful — registration confirmed!');
             const regId = reg.registrationId || reg._id;
@@ -263,14 +371,14 @@ export default function PaymentReturn() {
 
           const { kind, message: verifyMsg } = classifyVerifyError(verifyResult);
           if (kind === 'pending') {
-            if (!cancelled) {
+            if (!cancelledRef.current) {
               navigate(`/events/${eventShowId}/register${search}`, { replace: true });
             }
             return;
           }
           if (kind === 'cancelled') {
             clearCashfreeReturnAndPending(navigate, { pathname: `/events/${eventShowId}/register`, search: '' });
-            if (!cancelled) navigate(`/events/${eventShowId}/register`, { replace: true });
+            if (!cancelledRef.current) navigate(`/events/${eventShowId}/register`, { replace: true });
             return;
           }
           console.warn('[PaymentReturn] event verify:', verifyMsg);
@@ -279,67 +387,84 @@ export default function PaymentReturn() {
         }
       }
 
-      // Lost pending but URL still has order — try fest register path from referrer/pending fragment
-      const orphanFest = parseFestRegisterReturn(pending?.returnPath || '');
-      if (orphanFest && token) {
+      // Lost pending: recover fest/competition from order context + verify.recovery
+      if (token) {
         try {
-          if (!cancelled) setMessage('Payment received — finishing your registration…');
+          if (!cancelledRef.current) setMessage('Payment received — finishing your registration…');
           const verifyResult = await verifyPaymentWithRetry(API_BASE_URL, orderId, {
             token,
             kind: 'fest',
             search,
           });
+
           if (verifyResult.ok && verifyResult.verified) {
-            let regId = null;
-            if (orphanFest.competitionId) {
-              const verifiedFields = buildVerifiedPaymentFields(verifyResult.data, orderId);
-              ({ regId } = await finalizeCompetitionAfterPayment({
-                competitionId: orphanFest.competitionId,
-                verifiedFields,
-                token,
-                draft: null,
-                tryFormSubmit: null,
-              }));
-            } else {
-              regId = await completeFestPayAndRegister({
-                festRouteId: orphanFest.festRouteId,
+            const recovery = verifyResult.data?.recovery || {};
+            const entityType = String(recovery.entityType || orderCtx?.entityType || '').toLowerCase();
+            const competitionId =
+              recovery.competitionId
+              || orderCtx?.competitionId
+              || (entityType === 'competition' ? recovery.entityId : '')
+              || '';
+            const festRouteId =
+              recovery.festId
+              || orderCtx?.festId
+              || (entityType === 'fest' ? recovery.entityId : '')
+              || (competitionId ? MINDSPARK_FEST_ID : '')
+              || '';
+
+            if (competitionId || (festRouteId && entityType !== 'event_show')) {
+              if (recovery.registrationId) {
+                const festIds = resolveFestSuccessIds(festRouteId, recovery.festId);
+                saveFestRegistrationSuccess({
+                  ...festIds,
+                  competitionId: competitionId || null,
+                  registrationId: recovery.registrationId,
+                });
+                clearPendingPayment();
+                clearOrderReturnContext(orderId);
+                if (cancelledRef.current) return;
+                setStatus('success');
+                setMessage('Payment successful — registration confirmed!');
+                const target = buildFestRegisterTarget({
+                  festId: festIds.festId || festRouteId,
+                  competitionId,
+                });
+                window.setTimeout(() => {
+                  if (cancelledRef.current) return;
+                  navigate(target, {
+                    replace: true,
+                    state: {
+                      registrationComplete: true,
+                      registrationId: recovery.registrationId,
+                      competitionId: competitionId || null,
+                      fromPaymentReturn: true,
+                    },
+                  });
+                }, 700);
+                return;
+              }
+
+              await finishFestCompetitionAndNavigate({
+                navigate,
                 orderId,
                 token,
+                festRouteId,
+                recoveryFestId: recovery.festId || festRouteId,
+                competitionId,
+                verifyData: verifyResult.data,
+                cancelledRef,
+                setStatus,
+                setMessage,
               });
+              return;
             }
-            saveFestRegistrationSuccess({
-              festId: orphanFest.festRouteId,
-              competitionId: orphanFest.competitionId || null,
-              registrationId: regId,
-            });
-            clearPendingPayment();
-            if (cancelled) return;
-            setStatus('success');
-            setMessage('Payment successful — registration confirmed!');
-            const cleanQuery = new URLSearchParams();
-            if (orphanFest.competitionId) cleanQuery.set('competition', orphanFest.competitionId);
-            const qs = cleanQuery.toString();
-            const target = qs ? `${orphanFest.path}?${qs}` : orphanFest.path;
-            window.setTimeout(() => {
-              if (cancelled) return;
-              navigate(target, {
-                replace: true,
-                state: {
-                  registrationComplete: true,
-                  registrationId: regId,
-                  competitionId: orphanFest.competitionId || null,
-                  fromPaymentReturn: true,
-                },
-              });
-            }, 700);
-            return;
           }
         } catch (err) {
-          console.warn('[PaymentReturn] orphan fest recovery failed:', err?.message || err);
+          console.warn('[PaymentReturn] order recovery failed:', err?.message || err);
         }
       }
 
-      // Last resort: hit verify so webhook lag still marks PAID; bookings page can recover.
+      // Absolute last resort (non-fest flows only)
       if (token) {
         try {
           await fetch(`${API_BASE_URL}/payment/verify`, {
@@ -352,7 +477,7 @@ export default function PaymentReturn() {
         }
       }
 
-      if (!cancelled) {
+      if (!cancelledRef.current) {
         goToBookings(navigate, null);
         try {
           sessionStorage.setItem(
@@ -366,7 +491,7 @@ export default function PaymentReturn() {
     })();
 
     return () => {
-      cancelled = true;
+      cancelledRef.current = true;
     };
   }, [navigate]);
 

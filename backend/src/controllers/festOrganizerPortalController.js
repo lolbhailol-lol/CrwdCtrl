@@ -1179,13 +1179,12 @@ exports.deleteParticipant = async (req, res) => {
         if (!mongoose.Types.ObjectId.isValid(registrationId)) {
             return res.status(400).json({ success: false, message: 'Invalid registration ID' });
         }
-        const reg = await Registration.findOne({ _id: registrationId, fest: req.festId });
-        if (!reg) return res.status(404).json({ success: false, message: 'Participant not found' });
-        reg.status = 'rejected';
-        await reg.save();
-        res.json({ success: true, message: 'Registration rejected' });
+        const deleted = await Registration.findOneAndDelete({ _id: registrationId, fest: req.festId });
+        if (!deleted) return res.status(404).json({ success: false, message: 'Participant not found' });
+        res.json({ success: true, message: 'Entry deleted' });
     } catch (error) {
-        res.status(500).json({ success: false, message: 'Failed to update registration' });
+        console.error('[festOrganizerPortal.deleteParticipant]', error);
+        res.status(500).json({ success: false, message: 'Failed to delete entry' });
     }
 };
 

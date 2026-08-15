@@ -572,11 +572,64 @@ exports.verifyPayment = async (req, res) => {
     }
 
     const result = await verifyCashfreePayment({ orderId, paymentId });
+    let paymentOrder = null;
     if (result.verified) {
-      await markOrderPaidAndFulfill(result);
+      paymentOrder = await markOrderPaidAndFulfill(result);
+    }
+    if (!paymentOrder) {
+      paymentOrder = await PaymentOrder.findOne({ orderId: String(orderId) });
     }
 
-    return sendVerifyResponse(res, result);
+    const extras = {};
+    if (paymentOrder) {
+      const draft = paymentOrder.orderTags?.registrationDraft || {};
+      const entityType = paymentOrder.entityType || draft.entityType || 'fest';
+      let competitionId = entityType === 'competition'
+        ? String(paymentOrder.entityId || draft.competitionId || '')
+        : String(draft.competitionId || '');
+      let festId = entityType === 'fest'
+        ? String(paymentOrder.entityId || draft.festId || '')
+        : String(draft.festId || paymentOrder.orderTags?.festId || '');
+
+      if (entityType === 'competition' && !festId && paymentOrder.entityId) {
+        try {
+          const comp = await Competition.findById(paymentOrder.entityId).select('fest').lean();
+          if (comp?.fest) festId = String(comp.fest);
+        } catch {
+          /* ignore */
+        }
+      }
+
+      let registrationId = null;
+      if (result.verified && req.user?.userId) {
+        try {
+          const Registration = require('../model/registration_model');
+          const regQuery = {
+            payment_order_id: String(orderId),
+            user: req.user.userId,
+          };
+          if (competitionId) regQuery.competitionId = competitionId;
+          else if (festId) {
+            regQuery.fest = festId;
+            regQuery.competitionId = null;
+          }
+          const reg = await Registration.findOne(regQuery).select('_id').lean();
+          registrationId = reg?._id ? String(reg._id) : null;
+        } catch {
+          /* ignore */
+        }
+      }
+
+      extras.recovery = {
+        entityType,
+        entityId: paymentOrder.entityId ? String(paymentOrder.entityId) : null,
+        festId: festId || null,
+        competitionId: competitionId || null,
+        registrationId,
+      };
+    }
+
+    return sendVerifyResponse(res, result, extras);
   } catch (err) {
     console.error('Cashfree verifyPayment error:', err.response?.data || err.message);
     res.status(500).json({

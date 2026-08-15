@@ -70,6 +70,66 @@ export function storePendingPayment({ orderId, paymentSessionId, returnPath, ent
       ts: Date.now(),
     }),
   );
+  // Order-scoped copy — survives when the generic pending key is cleared/lost
+  if (orderId) {
+    let festId = '';
+    let competitionId = '';
+    try {
+      const [p, q = ''] = String(path).split('?');
+      const festMatch = p.match(/^\/fest\/([^/]+)\/register\/?$/);
+      if (festMatch) festId = festMatch[1];
+      competitionId = new URLSearchParams(q).get('competition') || '';
+    } catch {
+      /* ignore */
+    }
+    storeOrderReturnContext(orderId, {
+      returnPath: path,
+      entityType: resolvePaymentEntityType(path, entityType),
+      festId,
+      competitionId,
+    });
+  }
+}
+
+const ORDER_RETURN_PREFIX = 'crwdctrl_order_return:';
+
+export function storeOrderReturnContext(orderId, ctx = {}) {
+  if (!orderId) return;
+  try {
+    writeBoth(
+      `${ORDER_RETURN_PREFIX}${orderId}`,
+      JSON.stringify({
+        returnPath: ctx.returnPath || '',
+        entityType: ctx.entityType || 'fest',
+        festId: ctx.festId || '',
+        competitionId: ctx.competitionId || '',
+        ts: Date.now(),
+      }),
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
+export function loadOrderReturnContext(orderId) {
+  if (!orderId) return null;
+  const raw = readEither(`${ORDER_RETURN_PREFIX}${orderId}`);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed?.ts || Date.now() - parsed.ts > PENDING_MAX_AGE_MS) {
+      removeBoth(`${ORDER_RETURN_PREFIX}${orderId}`);
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function clearOrderReturnContext(orderId) {
+  if (!orderId) return;
+  removeBoth(`${ORDER_RETURN_PREFIX}${orderId}`);
 }
 
 export function getPendingPayment() {

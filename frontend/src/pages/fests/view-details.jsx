@@ -147,7 +147,8 @@ function EventDetailsPage() {
     const seed = resolveSeededFest(eventId, location);
     fetchGenRef.current += 1;
     setEventData(seed);
-    setCurrentHeroImage(seed?.heroImage || seed?.image || '');
+    // Blank hero until live fetch — avoids previous/demo image flash
+    setCurrentHeroImage('');
     setFetchDone(Boolean(seed));
     setError(null);
     setActiveTab('GROUP');

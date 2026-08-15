@@ -134,7 +134,7 @@ export default function useFestRegistration() {
   const draftKey = festRegDraftKey(festId, competitionId);
   const registrationDisplayName = isCompetitionRegistration ? competition?.name : fest?.festName;
 
-  useRegistrationSuccessPopup(success, {
+  useRegistrationSuccessPopup(success && !isMindSparkFest(fest) && !isMindSparkFest(competition), {
     name: registrationDisplayName,
     link: registrationId ? `/qr-ticket/${registrationId}` : '/booking',
     paid: Boolean(paymentFields),

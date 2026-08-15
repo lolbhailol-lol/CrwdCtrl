@@ -3,12 +3,13 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
     ArrowLeft, Bell, Check, ChevronDown, Download, GraduationCap,
     Loader, Mail, MapPin, MessageCircle, Phone, Plus, QrCode, RefreshCw,
-    Search, Users, X,
+    Search, Trash2, Users, X,
 } from 'lucide-react';
 import {
     fetchFestOrganizerCompetitionOps,
     updateFestOrganizerParticipantStatus,
     bulkUpdateFestOrganizerParticipantStatus,
+    deleteFestOrganizerParticipant,
     exportFestOrganizerParticipants,
     notifyFestOrganizerParticipant,
     updateFestOrganizerCompetitionSlots,
@@ -122,6 +123,7 @@ function SoloEntryCard({
     onApprove,
     onReject,
     onNotify,
+    onDelete,
     hideReview = false,
 }) {
     const pending = !hideReview && p.status === 'pending';
@@ -170,6 +172,18 @@ function SoloEntryCard({
                         <Bell size={15} />
                     </button>
                 ) : null}
+                {onDelete ? (
+                    <button
+                        type="button"
+                        disabled={Boolean(busyId)}
+                        onClick={() => onDelete(p)}
+                        className="p-2 rounded-xl border border-red-400/25 text-red-300 shrink-0 disabled:opacity-50"
+                        title="Delete entry"
+                        aria-label={`Delete ${p.userName || 'entry'}`}
+                    >
+                        {busyId === `${p.id}:delete` ? <Loader className="animate-spin" size={15} /> : <Trash2 size={15} />}
+                    </button>
+                ) : null}
             </div>
             {Array.isArray(p.teamMembers) && p.teamMembers.length ? (
                 <OrganizerTeamRoster
@@ -216,7 +230,7 @@ function SoloEntryCard({
     );
 }
 
-function TeamCard({ team, busyId, onApproveIds, onRejectIds, hideReview = false }) {
+function TeamCard({ team, busyId, onApproveIds, onRejectIds, onDelete, hideReview = false }) {
     const [open, setOpen] = useState(!hideReview && Boolean(team.pendingCount > 0));
     const memberCount = team.memberCount || team.members?.length || team.registrations?.length || 0;
     const pendingIds = hideReview
@@ -291,6 +305,24 @@ function TeamCard({ team, busyId, onApproveIds, onRejectIds, hideReview = false 
                 </div>
                 <ContactIcons phone={team.captainPhone} email={team.captainEmail} />
             </button>
+
+            {onDelete ? (
+                <div className="px-3.5 pb-3 -mt-1">
+                    <button
+                        type="button"
+                        disabled={Boolean(busyId)}
+                        onClick={() => onDelete(team)}
+                        className="w-full py-2 rounded-xl border border-red-400/25 text-red-300 text-xs font-medium disabled:opacity-50 inline-flex items-center justify-center gap-1.5"
+                    >
+                        {busyId === `${team.id}:delete` ? (
+                            <Loader className="animate-spin" size={14} />
+                        ) : (
+                            <Trash2 size={14} />
+                        )}
+                        Delete entry
+                    </button>
+                </div>
+            ) : null}
 
             {open ? (
                 <div className="px-3.5 pb-3.5 space-y-3 border-t border-white/6 pt-3">
@@ -416,7 +448,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
     const { festId, competitionId } = useParams();
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
-    const { toast } = useDialog();
+    const { toast, confirm } = useDialog();
 
     const tabParam = searchParams.get('tab');
     const [data, setData] = useState(null);
@@ -583,6 +615,52 @@ export default function FestOrganizerCompetitionWorkspacePage() {
             await load();
         } catch (e) {
             toast(e.message || 'Failed');
+        } finally {
+            setBusyId('');
+        }
+    };
+
+    const deleteEntry = async (p) => {
+        const label = p.userName || p.teamName || p.userEmail || 'this entry';
+        const ok = await confirm({
+            title: 'Delete entry?',
+            message: `Remove ${label} from the roster permanently? This cannot be undone.`,
+            confirmText: 'Delete',
+            tone: 'danger',
+        });
+        if (!ok) return;
+        setBusyId(`${p.id}:delete`);
+        try {
+            await deleteFestOrganizerParticipant(festId, p.id);
+            toast('Entry deleted');
+            await load();
+        } catch (e) {
+            toast(e.message || 'Delete failed');
+        } finally {
+            setBusyId('');
+        }
+    };
+
+    const deleteTeam = async (team) => {
+        const ids = (team.registrationIds || team.registrations?.map((r) => r.id) || []).filter(Boolean);
+        if (!ids.length) return;
+        const label = team.teamName || 'this team';
+        const ok = await confirm({
+            title: 'Delete team entry?',
+            message: `Remove ${label} (${ids.length} registration${ids.length === 1 ? '' : 's'}) permanently? This cannot be undone.`,
+            confirmText: 'Delete',
+            tone: 'danger',
+        });
+        if (!ok) return;
+        setBusyId(`${team.id}:delete`);
+        try {
+            for (const id of ids) {
+                await deleteFestOrganizerParticipant(festId, id);
+            }
+            toast(ids.length > 1 ? 'Team entries deleted' : 'Entry deleted');
+            await load();
+        } catch (e) {
+            toast(e.message || 'Delete failed');
         } finally {
             setBusyId('');
         }
@@ -1112,6 +1190,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                                     onApprove={(id) => setStatus(id, 'approved')}
                                     onReject={(id) => setStatus(id, 'rejected')}
                                     onNotify={openNotify}
+                                    onDelete={deleteEntry}
                                 />
                             ))}
 
@@ -1138,6 +1217,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                                     hideReview={noReview}
                                     onApproveIds={approveIds}
                                     onRejectIds={rejectIds}
+                                    onDelete={deleteTeam}
                                 />
                             ))}
 

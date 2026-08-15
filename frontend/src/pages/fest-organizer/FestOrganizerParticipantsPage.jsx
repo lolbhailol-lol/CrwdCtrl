@@ -2,11 +2,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
     Check, Clock, Download, Loader, MapPin, MessageCircle, Phone,
-    QrCode, RefreshCw, Search, Trophy, UserCheck, Users, X,
+    QrCode, RefreshCw, Search, Trash2, Trophy, UserCheck, Users, X,
 } from 'lucide-react';
 import {
     fetchFestOrganizerParticipants,
     exportFestOrganizerParticipants,
+    deleteFestOrganizerParticipant,
     updateFestOrganizerParticipantStatus,
 } from '../../services/api/festOrganizer.api';
 import { useDialog } from '../../context/DialogContext';
@@ -193,6 +194,28 @@ export default function FestOrganizerParticipantsPage() {
             load(pagination.page);
         } catch (e) {
             toast(e.message || 'Failed');
+        } finally {
+            setActionBusy('');
+        }
+    };
+
+    const deleteEntry = async (p) => {
+        const label = p.userName || p.teamName || p.userEmail || 'this entry';
+        const ok = await confirm({
+            title: 'Delete entry?',
+            message: `Remove ${label} from the roster permanently? This cannot be undone.`,
+            confirmText: 'Delete',
+            tone: 'danger',
+        });
+        if (!ok) return;
+        setActionBusy(`${p.id}-delete`);
+        try {
+            await deleteFestOrganizerParticipant(festId, p.id);
+            toast('Entry deleted');
+            if (detailId === p.id) setDetailId(null);
+            load(pagination.page);
+        } catch (e) {
+            toast(e.message || 'Delete failed');
         } finally {
             setActionBusy('');
         }
@@ -568,6 +591,20 @@ export default function FestOrganizerParticipantsPage() {
                                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-white/10 text-gray-300 text-xs"
                                     >
                                         Details
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={Boolean(actionBusy)}
+                                        onClick={() => deleteEntry(p)}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-red-400/25 text-red-300 text-xs disabled:opacity-50"
+                                        title="Delete entry"
+                                    >
+                                        {actionBusy === `${p.id}-delete` ? (
+                                            <Loader className="animate-spin" size={12} />
+                                        ) : (
+                                            <Trash2 size={12} />
+                                        )}
+                                        Delete
                                     </button>
                                     {p.competitionId ? (
                                         <Link

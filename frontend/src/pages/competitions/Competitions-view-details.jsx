@@ -389,7 +389,7 @@ const buildCompetitionData = (compData, options = {}) => {
         feeKnown: fee.known,
         prize: (() => {
             const raw = String(compData.prizePool || compData.prize || '').trim();
-            return !raw || /^(tbd|tba|n\/a|na|-)$/i.test(raw) ? '' : raw;
+            return !raw || /^(tbd|tba|n\/a|na|-|subject to change)$/i.test(raw) ? '' : raw;
         })(),
         image: compData.coverImage || compData.image,
         contact: compData.contact || { phone: '', instagram: '', email: '' },
@@ -444,6 +444,12 @@ function resolveSeededCompetition(competitionId, location) {
     return buildCompetitionData(cached, { useFestRegistrationFallback: true });
 }
 
+/** Seed title/meta instantly — never reuse a stale/demo hero until the live fetch confirms. */
+function seedWithoutHeroImage(seed) {
+    if (!seed) return null;
+    return { ...seed, image: null };
+}
+
 function EventPage() {
     const { competitionId } = useParams();
     const navigate = useNavigate();
@@ -453,22 +459,29 @@ function EventPage() {
     const [showShareMenu, setShowShareMenu] = useState(false);
     const [showFullAbout, setShowFullAbout] = useState(false);
     const [expandedRules, setExpandedRules] = useState({});
-    const [competitionData, setCompetitionData] = useState(() => resolveSeededCompetition(competitionId, location));
+    const [competitionData, setCompetitionData] = useState(() =>
+        seedWithoutHeroImage(resolveSeededCompetition(competitionId, location)),
+    );
     const [showLogin, setShowLogin] = useState(false);
     const [showRegister, setShowRegister] = useState(false);
-    const [fetchDone, setFetchDone] = useState(() => Boolean(resolveSeededCompetition(competitionId, location)));
+    const [fetchDone, setFetchDone] = useState(() =>
+        Boolean(resolveSeededCompetition(competitionId, location)),
+    );
     const [error, setError] = useState(null);
-    const [bodyReady, setBodyReady] = useState(() => Boolean(resolveSeededCompetition(competitionId, location)));
+    const [bodyReady, setBodyReady] = useState(() =>
+        Boolean(resolveSeededCompetition(competitionId, location)),
+    );
+    const [heroReady, setHeroReady] = useState(false);
     const { isDark } = useDarkMode();
     const { alert: showAlert, toast } = useDialog();
     const { isAuthenticated } = useAuth();
     const fetchGenRef = useRef(0);
 
-    // Switching comps reuses this page — clear previous hero immediately so it doesn't flash
+    // Switching comps reuses this page — drop previous/demo hero immediately
     useLayoutEffect(() => {
         const seed = resolveSeededCompetition(competitionId, location);
         fetchGenRef.current += 1;
-        setCompetitionData(seed);
+        setCompetitionData(seedWithoutHeroImage(seed));
         setFetchDone(Boolean(seed));
         setError(null);
         setActiveRound(0);
@@ -476,6 +489,7 @@ function EventPage() {
         setShowFullAbout(false);
         setShowShareMenu(false);
         setBodyReady(false);
+        setHeroReady(false);
         if (seed) {
             const t = window.setTimeout(() => setBodyReady(true), 16);
             return () => window.clearTimeout(t);
@@ -495,6 +509,7 @@ function EventPage() {
                     setCompetitionData(built);
                     setFetchDone(true);
                     setBodyReady(true);
+                    setHeroReady(Boolean(built?.image));
                     return;
                 }
                 navigate('/');
@@ -519,6 +534,7 @@ function EventPage() {
                     setCompetitionData(built);
                     saveCompetitionDetailCache(competitionId, built);
                     setBodyReady(true);
+                    setHeroReady(Boolean(built?.image));
                 } else {
                     setError('Competition not found');
                 }
@@ -543,15 +559,16 @@ function EventPage() {
                     setCompetitionData(built);
                     saveCompetitionDetailCache(competitionId, built);
                     setBodyReady(true);
+                    setHeroReady(Boolean(built?.image));
                 } else {
                     const cached = competitionId ? loadCompetitionDetailCache(competitionId) : null;
                     if (cached && entityMatchesRouteParam(cached, competitionId, ['name', 'title'])) {
-                        setCompetitionData(
-                            isBuiltCompetitionDetail(cached)
-                                ? cached
-                                : buildCompetitionData(cached, { useFestRegistrationFallback: true }),
-                        );
+                        const built = isBuiltCompetitionDetail(cached)
+                            ? cached
+                            : buildCompetitionData(cached, { useFestRegistrationFallback: true });
+                        setCompetitionData(built);
                         setBodyReady(true);
+                        setHeroReady(Boolean(built?.image));
                     } else {
                         setError(errorMessage);
                     }
@@ -1410,12 +1427,12 @@ function EventPage() {
                     <div className="block md:hidden w-full">
                             <div className="mx-auto w-full flex flex-col flex-1 overflow-x-clip">
                                 <div className="relative w-full h-[396px] shrink-0 overflow-hidden bg-[#1A1B1D]">
-                                    {eventData?.image ? (
+                                    {heroReady && eventData?.image ? (
                                     <img
-                                        key={eventData.image || eventData.id}
+                                        key={`${competitionId}-${eventData.image}`}
                                         src={getImageUrl(eventData.image, { preset: 'hero' })}
                                         alt={eventData.title || 'Competition'}
-                                        className="absolute inset-0 w-full h-full object-cover content-image transition-opacity duration-300"
+                                        className="absolute inset-0 w-full h-full object-cover content-image animate-detail-enter"
                                         loading="eager"
                                         fetchPriority="high"
                                         decoding="async"
@@ -1505,7 +1522,7 @@ function EventPage() {
                             </div>
 
                             {/* Prize pool — classic medal podium (all fest competitions) */}
-                            {eventData?.prize && !/^(tbd|tba|n\/a|na|-)$/i.test(String(eventData.prize).trim()) && (
+                            {eventData?.prize && !/^(tbd|tba|n\/a|na|-|subject to change)$/i.test(String(eventData.prize).trim()) && (
                                 <div className="px-4 pb-2">
                                     <PrizePoolPodium
                                       prizeText={eventData.prize}
@@ -1583,11 +1600,12 @@ function EventPage() {
                                 {/* Event Image Card */}
                                 <div className={`rounded-3xl overflow-hidden shadow-sm ${isDark ? 'bg-[#111213]' : 'bg-white'} p-2`}>
                                     <div className="rounded-2xl overflow-hidden bg-[#1A1B1D] min-h-80">
-                                    {eventData?.image ? (
+                                    {heroReady && eventData?.image ? (
                                     <img
+                                        key={`${competitionId}-${eventData.image}`}
                                         src={getImageUrl(eventData.image, { preset: 'hero' })}
                                         alt={eventData.title || 'Competition'}
-                                        className="w-full h-80 object-cover"
+                                        className="w-full h-80 object-cover animate-detail-enter"
                                     />
                                     ) : null}
                                     </div>
@@ -1595,7 +1613,7 @@ function EventPage() {
 
                                 <div className="space-y-6">
                                     {/* Desktop Prize Pool — classic medal podium (all fest competitions) */}
-                                    {eventData?.prize && !/^(tbd|tba|n\/a|na|-)$/i.test(String(eventData.prize).trim()) && (
+                                    {eventData?.prize && !/^(tbd|tba|n\/a|na|-|subject to change)$/i.test(String(eventData.prize).trim()) && (
                                         <PrizePoolPodium
                                           prizeText={eventData.prize}
                                           isDark={isDark}

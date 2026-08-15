@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { X, Loader, Check, Ban, RotateCcw, MessageCircle, Phone } from 'lucide-react';
+import { X, Loader, Check, Ban, RotateCcw, MessageCircle, Phone, Trash2 } from 'lucide-react';
 import {
     fetchFestOrganizerParticipant,
+    deleteFestOrganizerParticipant,
     updateFestOrganizerParticipantStatus,
 } from '../../services/api/festOrganizer.api';
 import { useDialog } from '../../context/DialogContext';
@@ -104,6 +105,28 @@ export default function FestOrganizerParticipantModal({ festId, registrationId, 
             onUpdated?.();
         } catch (e) {
             toast(e.message || 'Failed to update');
+        } finally {
+            setBusy('');
+        }
+    };
+
+    const deleteEntry = async () => {
+        const label = participant?.userName || participant?.teamName || participant?.userEmail || 'this entry';
+        const ok = await confirm({
+            title: 'Delete entry?',
+            message: `Remove ${label} from the roster permanently? This cannot be undone.`,
+            confirmText: 'Delete',
+            tone: 'danger',
+        });
+        if (!ok) return;
+        setBusy('delete');
+        try {
+            await deleteFestOrganizerParticipant(festId, registrationId);
+            toast('Entry deleted');
+            onUpdated?.();
+            onClose();
+        } catch (e) {
+            toast(e.message || 'Delete failed');
         } finally {
             setBusy('');
         }
@@ -288,6 +311,15 @@ export default function FestOrganizerParticipantModal({ festId, registrationId, 
                                     Payment is collected via gateway — contact this person from Connect if needed.
                                 </p>
                             ) : null}
+                            <button
+                                type="button"
+                                disabled={Boolean(busy)}
+                                onClick={deleteEntry}
+                                className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-red-500/40 text-red-300 text-sm font-semibold disabled:opacity-50"
+                            >
+                                {busy === 'delete' ? <Loader className="animate-spin" size={14} /> : <Trash2 size={14} />}
+                                Delete entry
+                            </button>
                         </div>
                     </div>
                 ) : null}
