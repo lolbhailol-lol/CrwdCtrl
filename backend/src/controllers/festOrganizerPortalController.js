@@ -333,11 +333,9 @@ exports.login = async (req, res) => {
     try {
         const username = normalizeUsername(req.body.username || req.body.email);
         const password = String(req.body.password || '');
+        // Optional legacy field — fall back to account name/username in buildOrganizerAuthResponse
         const displayName = normalizeDisplayName(req.body.displayName || req.body.name);
 
-        if (!displayName || displayName.length < 2) {
-            return res.status(400).json({ success: false, message: 'Enter your name to sign in' });
-        }
         if (!username || !password) {
             return res.status(400).json({ success: false, message: 'Username and password are required' });
         }

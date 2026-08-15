@@ -92,6 +92,84 @@ function categoryLabel(category) {
     return 'Other';
 }
 
+/** When a paid package is merged onto a free Drive/spectator row, bump parent paymentStatus. */
+function syncParentPaymentStatus(reg) {
+    if (!reg) return;
+    const entries = Array.isArray(reg.additionalEntries) ? reg.additionalEntries : [];
+    const hasPaidEntry = entries.some((e) => e && e.paymentStatus === 'paid' && (Number(e.amountPaid) || 0) > 0);
+    const parentPaid = reg.paymentStatus === 'paid' && (Number(reg.amountPaid) || 0) > 0;
+    if ((hasPaidEntry || parentPaid) && Number(reg.amountPaid) > 0 && reg.paymentStatus === 'free') {
+        reg.paymentStatus = 'paid';
+    }
+}
+
+/**
+ * Money actually collected for one registration.
+ * Primary counts only when paymentStatus is paid; add-ons count per-entry when paid.
+ * Avoids treating free Drive rows that later got paid packages as "free revenue".
+ */
+function collectedAmountForRegistration(reg) {
+    const entries = Array.isArray(reg.additionalEntries) ? reg.additionalEntries : [];
+    const entryAmounts = entries.map((e) => Number(e?.amountPaid) || 0);
+    const entriesTotal = entryAmounts.reduce((s, n) => s + n, 0);
+    const total = Number(reg.amountPaid) || 0;
+    const primaryPortion = Math.max(0, total - entriesTotal);
+    const primaryPaid = reg.paymentStatus === 'paid' ? primaryPortion : 0;
+    const entriesPaid = entries.reduce((sum, e) => {
+        if (!e || e.paymentStatus !== 'paid' || e.status === 'rejected') return sum;
+        return sum + (Number(e.amountPaid) || 0);
+    }, 0);
+    return primaryPaid + entriesPaid;
+}
+
+/** QR / UPI collected (primary + paid additionalEntries via organizer_qr). Dedupes by payment ref. */
+function sumOrganizerQrPaid(regs) {
+    const seen = new Set();
+    let amount = 0;
+    let count = 0;
+    let duplicateRows = 0;
+
+    const payRef = (row) => {
+        const order = String(row.payment_order_id || '').trim();
+        if (order) return `order:${order}`;
+        const payId = String(row.payment_id || '').trim();
+        if (payId) return `pay:${payId}`;
+        const txn = String(row.transactionId || '').trim();
+        if (txn) return `txn:${txn}`;
+        return null;
+    };
+
+    const consider = (row, rowAmount) => {
+        if ((Number(rowAmount) || 0) <= 0) return;
+        if (String(row.payment_gateway || '') !== 'organizer_qr') return;
+        if (row.paymentStatus !== 'paid') return;
+        if (row.status === 'rejected') return;
+        const ref = payRef(row);
+        if (ref) {
+            if (seen.has(ref)) {
+                duplicateRows += 1;
+                return;
+            }
+            seen.add(ref);
+        }
+        amount += Number(rowAmount) || 0;
+        count += 1;
+    };
+
+    for (const reg of regs) {
+        if (reg.status !== 'approved') continue;
+        const entries = Array.isArray(reg.additionalEntries) ? reg.additionalEntries : [];
+        const entriesTotal = entries.reduce((s, e) => s + (Number(e?.amountPaid) || 0), 0);
+        const primaryPortion = Math.max(0, (Number(reg.amountPaid) || 0) - entriesTotal);
+        consider(reg, primaryPortion);
+        for (const entry of entries) {
+            consider(entry, Number(entry?.amountPaid) || 0);
+        }
+    }
+
+    return { amount, count, duplicateRows };
+}
+
 /** Build a simple driver list from registration responses (solo + group packages). */
 function extractDrivers(responses = {}) {
     const src = responsesToObject(responses);
@@ -610,7 +688,6 @@ exports.getDashboard = async (req, res) => {
             recentRegs,
             approvedForSegments,
             qrStatsRows,
-            qrPaidAmountRows,
         ] = await Promise.all([
             EventShowRegistration.countDocuments({ eventShow: oid, status: 'approved' }),
             EventShowRegistration.countDocuments({ eventShow: oid, status: 'pending' }),
@@ -623,8 +700,7 @@ exports.getDashboard = async (req, res) => {
             EventShowRegistration.find({
                 eventShow: oid,
                 status: 'approved',
-                paymentStatus: { $in: ['paid', 'free'] },
-            }).select('amountPaid').lean(),
+            }).select('amountPaid paymentStatus payment_gateway payment_order_id payment_id transactionId status additionalEntries paymentScreenshotUrl').lean(),
             EventShowRegistration.aggregate([
                 { $match: { eventShow: oid } },
                 {
@@ -635,43 +711,28 @@ exports.getDashboard = async (req, res) => {
                     },
                 },
             ]),
-            EventShowRegistration.aggregate([
-                { $match: { eventShow: oid, status: { $in: ['pending', 'approved'] } } },
-                {
-                    $group: {
-                        _id: {
-                            tierId: { $ifNull: ['$tierId', ''] },
-                            tierName: { $ifNull: ['$tierName', ''] },
-                        },
-                        count: { $sum: 1 },
-                        paid: {
-                            $sum: {
-                                $cond: [{ $eq: ['$paymentStatus', 'paid'] }, 1, 0],
-                            },
-                        },
-                        revenue: {
-                            $sum: {
-                                $cond: [
-                                    { $in: ['$paymentStatus', ['paid', 'free']] },
-                                    { $ifNull: ['$amountPaid', 0] },
-                                    0,
-                                ],
-                            },
-                        },
-                    },
-                },
-                { $sort: { count: -1 } },
-            ]),
+            EventShowRegistration.find({
+                eventShow: oid,
+                status: { $in: ['pending', 'approved'] },
+            }).select('tierId tierName amountPaid paymentStatus status additionalEntries').lean(),
             EventShowRegistration.find({ eventShow: oid })
                 .populate('user', 'name email phone')
                 .sort({ createdAt: -1 })
                 .limit(8)
                 .lean(),
             EventShowRegistration.find({ eventShow: oid, status: 'approved' })
-                .select('tierId tierName amountPaid paymentStatus responses')
+                .select('tierId tierName amountPaid paymentStatus responses additionalEntries')
                 .lean(),
             EventShowRegistration.aggregate([
-                { $match: { eventShow: oid, payment_gateway: 'organizer_qr' } },
+                {
+                    $match: {
+                        eventShow: oid,
+                        $or: [
+                            { payment_gateway: 'organizer_qr' },
+                            { 'additionalEntries.payment_gateway': 'organizer_qr' },
+                        ],
+                    },
+                },
                 {
                     $group: {
                         _id: null,
@@ -683,6 +744,30 @@ exports.getDashboard = async (req, res) => {
                                         $or: [
                                             { $eq: ['$status', 'pending'] },
                                             { $eq: ['$paymentStatus', 'pending'] },
+                                            {
+                                                $gt: [
+                                                    {
+                                                        $size: {
+                                                            $filter: {
+                                                                input: { $ifNull: ['$additionalEntries', []] },
+                                                                as: 'e',
+                                                                cond: {
+                                                                    $and: [
+                                                                        { $eq: ['$$e.payment_gateway', 'organizer_qr'] },
+                                                                        {
+                                                                            $or: [
+                                                                                { $eq: ['$$e.status', 'pending'] },
+                                                                                { $eq: ['$$e.paymentStatus', 'pending'] },
+                                                                            ],
+                                                                        },
+                                                                    ],
+                                                                },
+                                                            },
+                                                        },
+                                                    },
+                                                    0,
+                                                ],
+                                            },
                                         ],
                                     },
                                     1,
@@ -694,9 +779,34 @@ exports.getDashboard = async (req, res) => {
                             $sum: {
                                 $cond: [
                                     {
-                                        $and: [
-                                            { $eq: ['$status', 'approved'] },
-                                            { $eq: ['$paymentStatus', 'paid'] },
+                                        $or: [
+                                            {
+                                                $and: [
+                                                    { $eq: ['$status', 'approved'] },
+                                                    { $eq: ['$paymentStatus', 'paid'] },
+                                                    { $eq: ['$payment_gateway', 'organizer_qr'] },
+                                                ],
+                                            },
+                                            {
+                                                $gt: [
+                                                    {
+                                                        $size: {
+                                                            $filter: {
+                                                                input: { $ifNull: ['$additionalEntries', []] },
+                                                                as: 'e',
+                                                                cond: {
+                                                                    $and: [
+                                                                        { $eq: ['$$e.payment_gateway', 'organizer_qr'] },
+                                                                        { $eq: ['$$e.paymentStatus', 'paid'] },
+                                                                        { $ne: ['$$e.status', 'rejected'] },
+                                                                    ],
+                                                                },
+                                                            },
+                                                        },
+                                                    },
+                                                    0,
+                                                ],
+                                            },
                                         ],
                                     },
                                     1,
@@ -708,7 +818,30 @@ exports.getDashboard = async (req, res) => {
                             $sum: {
                                 $cond: [
                                     {
-                                        $gt: [{ $strLenCP: { $ifNull: ['$paymentScreenshotUrl', ''] } }, 0],
+                                        $or: [
+                                            {
+                                                $gt: [{ $strLenCP: { $ifNull: ['$paymentScreenshotUrl', ''] } }, 0],
+                                            },
+                                            {
+                                                $gt: [
+                                                    {
+                                                        $size: {
+                                                            $filter: {
+                                                                input: { $ifNull: ['$additionalEntries', []] },
+                                                                as: 'e',
+                                                                cond: {
+                                                                    $gt: [
+                                                                        { $strLenCP: { $ifNull: ['$$e.paymentScreenshotUrl', ''] } },
+                                                                        0,
+                                                                    ],
+                                                                },
+                                                            },
+                                                        },
+                                                    },
+                                                    0,
+                                                ],
+                                            },
+                                        ],
                                     },
                                     1,
                                     0,
@@ -718,71 +851,11 @@ exports.getDashboard = async (req, res) => {
                     },
                 },
             ]),
-            EventShowRegistration.aggregate([
-                {
-                    $match: {
-                        eventShow: oid,
-                        payment_gateway: 'organizer_qr',
-                        status: 'approved',
-                        paymentStatus: 'paid',
-                    },
-                },
-                {
-                    $project: {
-                        amountPaid: { $ifNull: ['$amountPaid', 0] },
-                        payment_order_id: { $ifNull: ['$payment_order_id', ''] },
-                        payment_id: { $ifNull: ['$payment_id', ''] },
-                        transactionId: { $ifNull: ['$transactionId', ''] },
-                    },
-                },
-                {
-                    $addFields: {
-                        _payRef: {
-                            $cond: [
-                                { $gt: [{ $strLenCP: '$payment_order_id' }, 0] },
-                                { $concat: ['order:', '$payment_order_id'] },
-                                {
-                                    $cond: [
-                                        { $gt: [{ $strLenCP: '$payment_id' }, 0] },
-                                        { $concat: ['pay:', '$payment_id'] },
-                                        {
-                                            $cond: [
-                                                { $gt: [{ $strLenCP: '$transactionId' }, 0] },
-                                                { $concat: ['txn:', '$transactionId'] },
-                                                null,
-                                            ],
-                                        },
-                                    ],
-                                },
-                            ],
-                        },
-                    },
-                },
-                // Deduplicate multi-submit rows for the same payment reference
-                {
-                    $group: {
-                        _id: '$_payRef',
-                        amount: { $max: '$amountPaid' },
-                        rowCount: { $sum: 1 },
-                    },
-                },
-                {
-                    $group: {
-                        _id: null,
-                        amount: { $sum: '$amount' },
-                        count: { $sum: 1 },
-                        duplicateRows: {
-                            $sum: {
-                                $cond: [{ $gt: ['$rowCount', 1] }, { $subtract: ['$rowCount', 1] }, 0],
-                            },
-                        },
-                    },
-                },
-            ]),
         ]);
 
-        const revenue = paidRegs.reduce((sum, r) => sum + (Number(r.amountPaid) || 0), 0);
-        const payments = { free: 0, pending: 0, paid: 0, failed: 0, unknown: 0, paidAmount: 0 };
+        const revenue = paidRegs.reduce((sum, r) => sum + collectedAmountForRegistration(r), 0);
+        const qrPaidAgg = sumOrganizerQrPaid(paidRegs);
+        const payments = { free: 0, pending: 0, paid: 0, failed: 0, unknown: 0, paidAmount: revenue };
         for (const row of paymentBreakdown) {
             const key = String(row._id || 'unknown');
             if (Object.prototype.hasOwnProperty.call(payments, key)) {
@@ -790,8 +863,43 @@ exports.getDashboard = async (req, res) => {
             } else {
                 payments.unknown += Number(row.count) || 0;
             }
-            if (key === 'paid') payments.paidAmount = Number(row.amount) || 0;
         }
+
+        // Tier breakdown — attribute paid money to the package that earned it (primary + add-ons)
+        const tierMap = new Map();
+        const bumpTier = (tierId, tierName, countDelta, paidDelta, revenueDelta) => {
+            const key = `${tierId || ''}|${tierName || ''}`;
+            const prev = tierMap.get(key) || {
+                tierId: tierId || null,
+                tierName: tierName || 'No package',
+                count: 0,
+                paid: 0,
+                revenue: 0,
+            };
+            prev.count += countDelta;
+            prev.paid += paidDelta;
+            prev.revenue += revenueDelta;
+            tierMap.set(key, prev);
+        };
+        for (const reg of tierBreakdown) {
+            const entries = Array.isArray(reg.additionalEntries) ? reg.additionalEntries : [];
+            const entriesTotal = entries.reduce((s, e) => s + (Number(e?.amountPaid) || 0), 0);
+            const primaryPortion = Math.max(0, (Number(reg.amountPaid) || 0) - entriesTotal);
+            const primaryPaidAmt = reg.paymentStatus === 'paid' ? primaryPortion : 0;
+            bumpTier(
+                reg.tierId,
+                reg.tierName,
+                1,
+                primaryPaidAmt > 0 ? 1 : 0,
+                primaryPaidAmt,
+            );
+            for (const entry of entries) {
+                if (!entry || entry.status === 'rejected') continue;
+                const entryAmt = entry.paymentStatus === 'paid' ? (Number(entry.amountPaid) || 0) : 0;
+                bumpTier(entry.tierId, entry.tierName, 1, entryAmt > 0 ? 1 : 0, entryAmt);
+            }
+        }
+        const tierBreakdownRows = [...tierMap.values()].sort((a, b) => b.count - a.count);
 
         const segments = {
             driveOnly: 0,
@@ -814,7 +922,6 @@ exports.getDashboard = async (req, res) => {
         }
 
         const qrAgg = qrStatsRows[0] || {};
-        const qrPaidAgg = qrPaidAmountRows[0] || {};
         const commissionPercent = 2.5;
         const commissionBase = Number(qrPaidAgg.amount) || 0;
         const commissionDue = Math.round((commissionBase * (commissionPercent / 100)) * 100) / 100;
@@ -833,10 +940,10 @@ exports.getDashboard = async (req, res) => {
 
         const driveTiers = [];
         const trackdayTiers = [];
-        for (const row of tierBreakdown) {
+        for (const row of tierBreakdownRows) {
             const entry = {
-                tierId: row._id?.tierId || null,
-                tierName: row._id?.tierName || 'No package',
+                tierId: row.tierId || null,
+                tierName: row.tierName || 'No package',
                 count: Number(row.count) || 0,
                 paid: Number(row.paid) || 0,
                 revenue: Number(row.revenue) || 0,
@@ -866,13 +973,7 @@ exports.getDashboard = async (req, res) => {
                 segments,
                 qr: qrStats,
             },
-            tiers: tierBreakdown.map((row) => ({
-                tierId: row._id?.tierId || null,
-                tierName: row._id?.tierName || 'No package',
-                count: Number(row.count) || 0,
-                paid: Number(row.paid) || 0,
-                revenue: Number(row.revenue) || 0,
-            })),
+            tiers: tierBreakdownRows,
             driveTiers,
             trackdayTiers,
             recent: recentRegs.map(formatParticipant),
@@ -1028,6 +1129,7 @@ exports.updateParticipantStatus = async (req, res) => {
             if (status === 'approved' && reg.status === 'pending') {
                 reg.status = 'approved';
             }
+            syncParentPaymentStatus(reg);
         } else {
             reg.status = status;
             if (status === 'approved' && reg.paymentStatus === 'pending') {
@@ -1268,6 +1370,7 @@ exports.createManualParticipant = async (req, res) => {
             if (status === 'approved' && existing.status !== 'approved') {
                 existing.status = 'approved';
             }
+            syncParentPaymentStatus(existing);
             await existing.save();
             registration = existing;
             addedToExisting = true;

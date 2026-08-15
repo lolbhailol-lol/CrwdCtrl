@@ -9,7 +9,7 @@ import {
 } from '../../services/api/eventShowOrganizer.api';
 import { eventShowPath } from '../../utils/slugRoutes';
 
-function StatTile({ label, value, tone = 'default', icon: Icon, to }) {
+function StatTile({ label, value, tone = 'default', icon: Icon, to, hint }) {
     const navigate = useNavigate();
     const tones = {
         default: 'border-white/10 bg-[#161718]',
@@ -29,6 +29,7 @@ function StatTile({ label, value, tone = 'default', icon: Icon, to }) {
                 <div>
                     <p className="text-[11px] uppercase tracking-wide text-gray-500">{label}</p>
                     <p className="text-2xl font-semibold mt-2 tabular-nums">{value}</p>
+                    {hint ? <p className="text-[10px] text-gray-500 mt-1">{hint}</p> : null}
                 </div>
                 {Icon ? (
                     <div className="size-9 rounded-xl bg-white/5 flex items-center justify-center text-gray-300">
@@ -146,7 +147,13 @@ export default function EventOrganizerDashboardPage() {
                 <StatTile label="Approved" value={stats.totalRegistrations || 0} tone="accent" icon={Users} to={`/event-organizer/events/${eventId}/participants?status=approved`} />
                 <StatTile label="Checked in" value={stats.checkedIn || 0} tone="ok" icon={UserCheck} to={`/event-organizer/events/${eventId}/participants?checkInStatus=checked_in`} />
                 <StatTile label="Pending check-in" value={stats.pendingCheckIn || 0} tone="warn" icon={Clock} to={`/event-organizer/events/${eventId}/scan`} />
-                <StatTile label="Revenue" value={`₹${Number(stats.revenue || 0).toLocaleString('en-IN')}`} tone="money" icon={IndianRupee} />
+                <StatTile
+                    label="Revenue"
+                    value={`₹${Number(stats.revenue || 0).toLocaleString('en-IN')}`}
+                    tone="money"
+                    icon={IndianRupee}
+                    hint="All paid packages (QR + manual)"
+                />
             </div>
 
             {qr.enabled ? (

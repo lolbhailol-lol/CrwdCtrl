@@ -8,7 +8,6 @@ export default function FestOrganizerHomePage() {
     const navigate = useNavigate();
     const session = getFestOrganizerSession();
     const [fests, setFests] = useState(session?.fests || []);
-    const [loggedInUsers, setLoggedInUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
@@ -19,16 +18,13 @@ export default function FestOrganizerHomePage() {
                 const data = await fetchFestOrganizerMe();
                 if (cancelled) return;
                 const next = data.fests || [];
-                const users = Array.isArray(data.loggedInUsers) ? data.loggedInUsers : [];
                 setFests(next);
-                setLoggedInUsers(users);
                 const current = getFestOrganizerSession();
                 if (current) {
                     setFestOrganizerSession({
                         ...current,
                         organizer: data.organizer,
                         fests: next,
-                        loggedInUsers: users,
                     });
                 }
             } catch (e) {
@@ -48,13 +44,7 @@ export default function FestOrganizerHomePage() {
         );
     }
 
-    const meName = session?.organizer?.displayName || session?.organizer?.name || '';
-    const meId = String(session?.organizer?.id || session?.organizer?._id || '');
-    const sortedUsers = [...loggedInUsers].sort((a, b) => {
-        if (a.isYou) return -1;
-        if (b.isYou) return 1;
-        return String(a.name || '').localeCompare(String(b.name || ''));
-    });
+    const meName = session?.organizer?.name || session?.organizer?.username || '';
 
     return (
         <div className="max-w-3xl mx-auto space-y-5">
@@ -64,39 +54,6 @@ export default function FestOrganizerHomePage() {
                     Welcome{meName ? `, ${meName}` : ''}. Open a fest to manage registrations.
                 </p>
             </div>
-
-            <section className="rounded-2xl border border-white/10 bg-[#161718] px-4 py-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-medium text-white">
-                        {sortedUsers.length} people logged in
-                    </p>
-                    <p className="text-[11px] text-gray-500">Names from sign-in</p>
-                </div>
-                {sortedUsers.length ? (
-                    <ul className="mt-3 flex flex-wrap gap-2">
-                        {sortedUsers.map((person) => {
-                            const you = person.isYou
-                                || (String(person.organizerId) === meId
-                                    && String(person.name || '').toLowerCase() === String(meName).toLowerCase());
-                            return (
-                                <li
-                                    key={person.id || `${person.organizerId}-${person.name}`}
-                                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${
-                                        you
-                                            ? 'border-[#0ECCEE]/35 bg-[#0ECCEE]/10 text-[#0ECCEE]'
-                                            : 'border-white/10 bg-white/5 text-gray-200'
-                                    }`}
-                                >
-                                    <span className="font-medium">{person.name || 'Organizer'}</span>
-                                    {you ? <span className="text-[10px] opacity-80">(you)</span> : null}
-                                </li>
-                            );
-                        })}
-                    </ul>
-                ) : (
-                    <p className="mt-2 text-xs text-gray-500">No logins recorded yet.</p>
-                )}
-            </section>
 
             {error ? <p className="text-sm text-red-400">{error}</p> : null}
             <div className="space-y-3">

@@ -293,6 +293,14 @@ const submitEventShowRegistration = async (req, res) => {
       if (existing.status !== 'approved' && registrationStatus === 'approved') {
         existing.status = 'approved';
       }
+      // Free Drive/spectator parents that later get a paid package should not stay "free"
+      if (
+        paymentStatus === 'paid'
+        && Number(existing.amountPaid) > 0
+        && existing.paymentStatus === 'free'
+      ) {
+        existing.paymentStatus = 'paid';
+      }
       await existing.save();
       registration = existing;
       addedToExisting = true;

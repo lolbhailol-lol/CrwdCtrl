@@ -143,12 +143,12 @@ async function festOrganizerFetch(path, options = {}) {
     return attempt();
 }
 
-export async function festOrganizerLogin(username, password, displayName) {
+export async function festOrganizerLogin(username, password) {
     return festOrganizerFetch('/fest-organizer/auth/login', {
         method: 'POST',
         retries: 4,
         timeout: 25000,
-        body: { username, password, displayName, name: displayName },
+        body: { username, password },
     });
 }
 

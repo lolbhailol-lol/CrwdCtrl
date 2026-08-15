@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Loader } from 'lucide-react';
+import { PartyPopper, Loader, ArrowLeft } from 'lucide-react';
 import { festOrganizerLogin, applyFestOrganizerAuthPayload } from '../../services/api/festOrganizer.api';
 import { showAppPopup } from '../../utils/appPopup';
 
 export default function FestOrganizerLoginPage() {
     const navigate = useNavigate();
     const location = useLocation();
-    const [displayName, setDisplayName] = useState('');
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
@@ -16,18 +15,14 @@ export default function FestOrganizerLoginPage() {
     const submit = async (e) => {
         e.preventDefault();
         setError('');
-        const name = displayName.trim();
-        if (name.length < 2) {
-            setError('Enter your name');
-            return;
-        }
         setLoading(true);
         try {
-            const data = await festOrganizerLogin(username, password, name);
+            const data = await festOrganizerLogin(username, password);
             applyFestOrganizerAuthPayload(data);
+            const welcome = data?.organizer?.name || data?.organizer?.username || 'organizer';
             showAppPopup({
                 title: 'Signed in successfully',
-                message: `Welcome, ${name}.`,
+                message: `Welcome, ${welcome}.`,
                 tone: 'login',
             });
             navigate(location.state?.from || '/fest-organizer', { replace: true });
@@ -39,51 +34,78 @@ export default function FestOrganizerLoginPage() {
     };
 
     return (
-        <div className="min-h-dvh bg-[#0f1011] flex items-center justify-center px-5">
-            <div className="w-full max-w-sm">
-                <h1 className="text-2xl font-bold text-white tracking-tight">Fest Organizer</h1>
-                <p className="text-sm text-gray-500 mt-1 mb-8">Write your name, then sign in</p>
+        <div className="min-h-dvh bg-[#0f1011] flex items-center justify-center px-4 py-6 pt-[max(1.5rem,var(--safe-top))] pb-[max(1.5rem,var(--safe-bottom))]">
+            <div className="w-full max-w-md rounded-2xl border border-gray-800 bg-[#161718] p-6 sm:p-8 shadow-2xl">
+                <button
+                    type="button"
+                    onClick={() => navigate('/')}
+                    className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-[#0ECCEE] mb-5"
+                >
+                    <ArrowLeft size={14} /> Back to CrwdCtrl
+                </button>
 
-                <form onSubmit={submit} className="space-y-3">
-                    <input
-                        value={displayName}
-                        onChange={(e) => setDisplayName(e.target.value.slice(0, 80))}
-                        placeholder="Your name"
-                        autoComplete="name"
-                        autoFocus
-                        className="w-full px-0 py-3 bg-transparent border-0 border-b border-white/15 text-white text-sm placeholder:text-gray-600 focus:outline-none focus:border-[#0ECCEE]"
-                        required
-                        minLength={2}
-                    />
-                    <input
-                        value={username}
-                        onChange={(e) => setUsername(e.target.value)}
-                        placeholder="Username or email"
-                        autoComplete="username"
-                        className="w-full px-0 py-3 bg-transparent border-0 border-b border-white/15 text-white text-sm placeholder:text-gray-600 focus:outline-none focus:border-[#0ECCEE]"
-                        required
-                    />
-                    <input
-                        type="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Password"
-                        autoComplete="current-password"
-                        className="w-full px-0 py-3 bg-transparent border-0 border-b border-white/15 text-white text-sm placeholder:text-gray-600 focus:outline-none focus:border-[#0ECCEE]"
-                        required
-                    />
-                    {error ? <p className="text-sm text-red-400 pt-1">{error}</p> : null}
+                <div className="flex items-center gap-3 mb-6">
+                    <div className="size-12 rounded-xl bg-[#0ECCEE]/15 flex items-center justify-center shrink-0">
+                        <PartyPopper className="text-[#0ECCEE]" size={26} />
+                    </div>
+                    <div>
+                        <h1 className="text-xl sm:text-2xl font-bold text-white">Fest Organizer</h1>
+                        <p className="text-xs sm:text-sm text-gray-500">Sign in to manage your fest</p>
+                    </div>
+                </div>
+
+                {error ? (
+                    <div className="mb-4 rounded-lg border border-red-800 bg-red-900/20 px-3 py-2.5 text-sm text-red-300">
+                        {error}
+                    </div>
+                ) : null}
+
+                <form onSubmit={submit} className="space-y-4">
+                    <div>
+                        <label htmlFor="fest-org-username" className="block text-xs font-medium text-gray-400 mb-1.5">
+                            Username
+                        </label>
+                        <input
+                            id="fest-org-username"
+                            type="text"
+                            inputMode="text"
+                            autoCapitalize="none"
+                            autoCorrect="off"
+                            value={username}
+                            onChange={(e) => setUsername(e.target.value)}
+                            required
+                            autoComplete="username"
+                            autoFocus
+                            className="w-full bg-[#111213] border border-gray-700 rounded-xl px-4 py-3.5 text-white text-base focus:outline-none focus:border-[#0ECCEE] min-h-[48px]"
+                            placeholder="Username or email"
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="fest-org-password" className="block text-xs font-medium text-gray-400 mb-1.5">
+                            Password
+                        </label>
+                        <input
+                            id="fest-org-password"
+                            type="password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            required
+                            autoComplete="current-password"
+                            className="w-full bg-[#111213] border border-gray-700 rounded-xl px-4 py-3.5 text-white text-base focus:outline-none focus:border-[#0ECCEE] min-h-[48px]"
+                            placeholder="••••••••"
+                        />
+                    </div>
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full mt-4 py-3 rounded-xl bg-[#0ECCEE] text-black font-semibold text-sm disabled:opacity-50 inline-flex items-center justify-center gap-2"
+                        className="w-full min-h-[48px] py-3.5 rounded-xl bg-[#0ECCEE] text-black text-base font-bold hover:opacity-90 active:scale-[0.99] disabled:opacity-60 flex items-center justify-center gap-2 touch-manipulation"
                     >
-                        {loading ? <Loader className="animate-spin" size={16} /> : null}
+                        {loading ? <Loader className="animate-spin" size={20} /> : null}
                         Sign in
                     </button>
                 </form>
 
-                <p className="text-xs text-gray-500 mt-6 text-center">
+                <p className="text-[11px] text-gray-600 mt-5 text-center leading-relaxed">
                     Need an account?{' '}
                     <Link to="/fest-organizer/signup" className="text-[#0ECCEE] hover:underline">Sign up</Link>
                 </p>
