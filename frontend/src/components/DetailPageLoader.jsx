@@ -1,21 +1,30 @@
+import { createPortal } from 'react-dom';
 import { ArrowLeft } from 'lucide-react';
 
 /**
  * Detail-page wait state — light 3D icon + short message
  * (used while fest / competition / trek / sports details load).
+ * Portaled to body so parent transforms never offset it; icon sits on true viewport center.
  */
 export default function DetailPageLoader({
   label = 'Hang tight — loading details',
 }) {
-  return (
+  const node = (
     <div
-      className="fixed inset-0 z-40 flex items-center justify-center bg-[#0a0a0b]"
+      className="fixed inset-0 z-100050 flex items-center justify-center bg-[#0a0a0b]"
+      style={{
+        paddingTop: 'max(var(--safe-top), 0px)',
+        paddingBottom: 'max(var(--safe-bottom), 0px)',
+        paddingLeft: 'max(var(--safe-left), 0px)',
+        paddingRight: 'max(var(--safe-right), 0px)',
+      }}
       role="status"
       aria-live="polite"
       aria-label={label || 'Loading'}
     >
-      <div className="detail-loader flex flex-col items-center px-6 text-center">
-        <div className="detail-loader-stage" aria-hidden>
+      {/* Icon locked to visual center; copy sits below without pulling the icon up */}
+      <div className="relative flex flex-col items-center justify-center">
+        <div className="detail-loader-stage shrink-0" aria-hidden>
           <div className="detail-loader-orb" />
           <div className="detail-loader-card">
             <div className="detail-loader-card-face detail-loader-card-front">
@@ -26,14 +35,20 @@ export default function DetailPageLoader({
             <div className="detail-loader-card-face detail-loader-card-bottom" />
           </div>
         </div>
-
-        <p className="mt-7 text-sm font-medium tracking-wide text-white/70">
-          {label || 'Hang tight — loading details'}
-        </p>
-        <p className="mt-1.5 text-xs text-white/35">Almost there</p>
+        <div className="absolute top-full left-1/2 mt-6 w-max max-w-[min(90vw,20rem)] -translate-x-1/2 px-6 text-center pointer-events-none">
+          {label ? (
+            <p className="text-sm font-medium tracking-wide text-white/70">
+              {label}
+            </p>
+          ) : null}
+          <p className={`text-xs text-white/35 ${label ? 'mt-1.5' : ''}`}>Almost there</p>
+        </div>
       </div>
     </div>
   );
+
+  if (typeof document === 'undefined') return node;
+  return createPortal(node, document.body);
 }
 
 /**
