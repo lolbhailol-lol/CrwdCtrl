@@ -222,6 +222,8 @@ function formatParticipant(reg) {
         amountPaid: Number(reg.amountPaid) || 0,
         checkedIn: Boolean(reg.checkedIn),
         checkedInAt: reg.checkedInAt || null,
+        whatsappGroupJoined: Boolean(reg.whatsappGroupJoined),
+        whatsappGroupJoinedAt: reg.whatsappGroupJoinedAt || null,
         competitionId: reg.competitionId?._id || reg.competitionId || null,
         competitionName: reg.competitionId?.competitionName || reg.competitionId?.name || '',
         userName,
@@ -301,6 +303,7 @@ function buildSingleRegTeamCard(p) {
         paymentStatus: p.paymentStatus,
         amountPaid: Number(p.amountPaid) || 0,
         checkedInCount: p.checkedIn ? 1 : 0,
+        whatsappJoinedCount: p.whatsappGroupJoined ? 1 : 0,
         pendingCount: p.status === 'pending' ? 1 : 0,
         approvedCount: p.status === 'approved' ? 1 : 0,
         captainName: p.userName || members[0]?.name || '',
@@ -312,6 +315,7 @@ function buildSingleRegTeamCard(p) {
         isManual: Boolean(p.isManual),
         memberCount: size,
         checkedIn: Boolean(p.checkedIn),
+        whatsappGroupJoined: Boolean(p.whatsappGroupJoined),
         members: p.members || members.map((m) => m.name).filter(Boolean),
         singleRegistrationRoster: true,
         entryType: 'team',
@@ -357,6 +361,7 @@ function groupParticipantsIntoTeams(participants) {
                 paymentStatus: p.paymentStatus,
                 amountPaid: 0,
                 checkedInCount: 0,
+                whatsappJoinedCount: 0,
                 pendingCount: 0,
                 approvedCount: 0,
                 captainName: p.userName,
@@ -389,6 +394,7 @@ function groupParticipantsIntoTeams(participants) {
         if (p.paymentStatus === 'paid') t.paymentStatus = 'paid';
         else if (p.paymentStatus === 'pending' && t.paymentStatus !== 'paid') t.paymentStatus = 'pending';
         if (p.checkedIn) t.checkedInCount += 1;
+        if (p.whatsappGroupJoined) t.whatsappJoinedCount += 1;
         if (p.userName && !t.memberNames.includes(p.userName)) t.memberNames.push(p.userName);
         if (Array.isArray(p.teamMembers) && p.teamMembers.length) {
             // Prefer embedded roster from the richest registration (don't double-count same names)
@@ -427,6 +433,8 @@ function groupParticipantsIntoTeams(participants) {
             1,
         );
         t.checkedIn = t.checkedInCount > 0 && t.checkedInCount >= t.registrations.length;
+        t.whatsappGroupJoined = t.whatsappJoinedCount > 0
+            && t.whatsappJoinedCount >= t.registrations.length;
         t.members = t.memberNames;
         // If somehow only 1 person after merge, still keep as team entry when form said team
         teams.push(t);
@@ -708,7 +716,7 @@ exports.getDashboard = async (req, res) => {
             }),
             Registration.countDocuments({ ...notProShow, status: { $in: ['pending', 'approved'] } }),
             Competition.find({ fest: festId })
-                .select('name competitionType category coverImage subtitle feeAmount registrationFee slotsAllotted')
+                .select('name competitionType category coverImage subtitle feeAmount registrationFee slotsAllotted showSlotsPublic')
                 .sort({ name: 1 })
                 .lean(),
             Registration.aggregate([
@@ -795,6 +803,7 @@ exports.getDashboard = async (req, res) => {
                 slotsAllotted,
                 slotsFilled,
                 slotsLeft,
+                showSlotsPublic: c.showSlotsPublic !== false,
                 total: Number(row.total) || 0,
                 approved,
                 pending: Number(row.pending) || 0,
@@ -956,6 +965,7 @@ exports.listParticipants = async (req, res) => {
         const status = String(req.query.status || '').trim();
         const checkInStatus = String(req.query.checkInStatus || '').trim();
         const paymentStatus = String(req.query.paymentStatus || '').trim();
+        const whatsappGroup = String(req.query.whatsappGroup || '').trim().toLowerCase();
         const competitionId = req.query.competitionId;
 
         const filter = { fest: festId, isProShow: { $ne: true } };
@@ -986,6 +996,11 @@ exports.listParticipants = async (req, res) => {
             } else {
                 filter.paymentStatus = paymentStatus;
             }
+        }
+        if (whatsappGroup === 'joined') {
+            filter.whatsappGroupJoined = true;
+        } else if (whatsappGroup === 'not_joined') {
+            filter.whatsappGroupJoined = { $ne: true };
         }
 
         if (search) {
@@ -1075,6 +1090,20 @@ exports.listParticipants = async (req, res) => {
                                 ],
                             },
                         },
+                        waJoined: {
+                            $sum: {
+                                $cond: [
+                                    {
+                                        $and: [
+                                            { $in: ['$status', ['pending', 'approved']] },
+                                            { $eq: ['$whatsappGroupJoined', true] },
+                                        ],
+                                    },
+                                    1,
+                                    0,
+                                ],
+                            },
+                        },
                         active: {
                             $sum: {
                                 $cond: [{ $in: ['$status', ['pending', 'approved']] }, 1, 0],
@@ -1094,6 +1123,8 @@ exports.listParticipants = async (req, res) => {
             notCheckedIn: Math.max(0, (s.approved || 0) - (s.checkedIn || 0)),
             unpaid: s.unpaid || 0,
             collected: s.collected || 0,
+            waJoined: s.waJoined || 0,
+            waNotJoined: Math.max(0, (s.active || 0) - (s.waJoined || 0)),
             active: s.active || 0,
         };
 
@@ -1143,6 +1174,31 @@ exports.exportParticipants = async (req, res) => {
         const competitionId = String(req.query.competitionId || '').trim();
         if (competitionId && mongoose.Types.ObjectId.isValid(competitionId)) {
             filter.competitionId = competitionId;
+        }
+        const paymentStatus = String(req.query.paymentStatus || '').trim();
+        if (['paid', 'pending', 'free', 'failed', 'collected'].includes(paymentStatus)) {
+            if (paymentStatus === 'collected') {
+                filter.paymentStatus = { $in: ['paid', 'free'] };
+            } else {
+                filter.paymentStatus = paymentStatus;
+            }
+        }
+        const checkInStatus = String(req.query.checkInStatus || '').trim();
+        if (checkInStatus === 'checked_in') {
+            filter.checkedIn = true;
+        } else if (checkInStatus === 'not_in') {
+            filter.checkedIn = { $ne: true };
+            filter.status = 'approved';
+        }
+        const whatsappGroup = String(req.query.whatsappGroup || '').trim().toLowerCase();
+        if (whatsappGroup === 'joined') {
+            filter.whatsappGroupJoined = true;
+        } else if (whatsappGroup === 'not_joined') {
+            filter.whatsappGroupJoined = { $ne: true };
+        }
+        const status = String(req.query.status || '').trim();
+        if (['pending', 'approved', 'rejected'].includes(status)) {
+            filter.status = status;
         }
         const rows = await Registration.find(filter)
             .populate('user', 'name email phone phoneNumber')
@@ -1222,6 +1278,43 @@ exports.updateParticipantStatus = async (req, res) => {
     } catch (error) {
         console.error('[festOrganizerPortal.updateParticipantStatus]', error);
         res.status(500).json({ success: false, message: 'Failed to update registration' });
+    }
+};
+
+/** Mark whether the entry joined the competition WhatsApp group (manual organizer tick). */
+exports.updateParticipantWhatsappGroup = async (req, res) => {
+    try {
+        const { registrationId } = req.params;
+        if (!mongoose.Types.ObjectId.isValid(registrationId)) {
+            return res.status(400).json({ success: false, message: 'Invalid registration ID' });
+        }
+
+        const joinedRaw = req.body.joined ?? req.body.whatsappGroupJoined;
+        if (typeof joinedRaw !== 'boolean' && joinedRaw !== 'true' && joinedRaw !== 'false' && joinedRaw !== 1 && joinedRaw !== 0) {
+            return res.status(400).json({ success: false, message: 'joined must be true or false' });
+        }
+        const joined = joinedRaw === true || joinedRaw === 'true' || joinedRaw === 1;
+
+        const reg = await Registration.findOne({ _id: registrationId, fest: req.festId });
+        if (!reg) return res.status(404).json({ success: false, message: 'Participant not found' });
+
+        reg.whatsappGroupJoined = joined;
+        reg.whatsappGroupJoinedAt = joined ? new Date() : null;
+        await reg.save();
+
+        const populated = await Registration.findById(reg._id)
+            .populate('user', 'name email phone phoneNumber')
+            .populate('competitionId', 'competitionName name')
+            .lean();
+
+        res.json({
+            success: true,
+            message: joined ? 'Marked as in WhatsApp group' : 'Marked as not in WhatsApp group',
+            participant: formatParticipant(populated),
+        });
+    } catch (error) {
+        console.error('[festOrganizerPortal.updateParticipantWhatsappGroup]', error);
+        res.status(500).json({ success: false, message: 'Failed to update WhatsApp group status' });
     }
 };
 
@@ -1478,7 +1571,7 @@ exports.getCompetitionOps = async (req, res) => {
         const [fest, competition] = await Promise.all([
             FestOrganizer.findById(festId).select('festName slug').lean(),
             Competition.findOne({ _id: competitionId, fest: festId })
-                .select('name subtitle competitionType category feeAmount registrationFee registration description coverImage slotsAllotted teamSizeMin teamSizeMax teamSizeLabel')
+                .select('name subtitle competitionType category feeAmount registrationFee registration description coverImage slotsAllotted showSlotsPublic teamSizeMin teamSizeMax teamSizeLabel')
                 .lean(),
         ]);
         if (!fest) return res.status(404).json({ success: false, message: 'Fest not found' });
@@ -1532,6 +1625,7 @@ exports.getCompetitionOps = async (req, res) => {
                 slotsAllotted,
                 slotsFilled,
                 slotsLeft,
+                showSlotsPublic: competition.showSlotsPublic !== false,
                 teamSizeMin,
                 teamSizeMax,
                 teamSizeLabel: competition.teamSizeLabel || '',
@@ -1604,6 +1698,14 @@ exports.updateCompetitionSlots = async (req, res) => {
         }
 
         competition.slotsAllotted = slots;
+        if (body.showSlotsPublic !== undefined) {
+            competition.showSlotsPublic = !(
+                body.showSlotsPublic === false
+                || body.showSlotsPublic === 'false'
+                || body.showSlotsPublic === 0
+                || body.showSlotsPublic === '0'
+            );
+        }
         if (!competition.registration) competition.registration = {};
         competition.registration.maxRegistrations = slots > 0 ? slots : null;
         if (!competition.registration.settings || typeof competition.registration.settings !== 'object') {
@@ -1636,9 +1738,13 @@ exports.updateCompetitionSlots = async (req, res) => {
         tryClearPublicCaches();
 
         const slotsLeft = slots > 0 ? Math.max(0, slots - approved) : null;
+        const showSlotsPublic = competition.showSlotsPublic !== false;
         const bits = [];
         if (hasRemaining || hasAllotted) {
             bits.push(slots > 0 ? `${slotsLeft} slots remaining` : 'Slots unlimited');
+        }
+        if (body.showSlotsPublic !== undefined) {
+            bits.push(showSlotsPublic ? 'slots visible on site' : 'slots hidden on site');
         }
         if (teamSizeChanged) {
             bits.push(`max ${competition.teamSizeMax} ${competition.teamSizeMax === 1 ? 'person' : 'people'}`);
@@ -1652,6 +1758,7 @@ exports.updateCompetitionSlots = async (req, res) => {
                 slotsAllotted: slots,
                 slotsFilled: approved,
                 slotsLeft,
+                showSlotsPublic,
                 teamSizeMin: Math.max(1, Number(competition.teamSizeMin) || 1),
                 teamSizeMax: Math.max(1, Number(competition.teamSizeMax) || 1),
                 teamSizeLabel: competition.teamSizeLabel || '',
@@ -2354,6 +2461,12 @@ exports.createManualParticipant = async (req, res) => {
         const statusRaw = String(req.body.status || 'approved').trim().toLowerCase();
         const status = ['pending', 'approved', 'rejected'].includes(statusRaw) ? statusRaw : 'approved';
 
+        const waJoinedRaw = req.body.whatsappGroupJoined ?? req.body.joinedWhatsapp;
+        const whatsappGroupJoined = waJoinedRaw === true
+            || waJoinedRaw === 'true'
+            || waJoinedRaw === 1
+            || waJoinedRaw === '1';
+
         const reg = await Registration.create({
             fest: req.festId,
             user: user._id,
@@ -2363,6 +2476,8 @@ exports.createManualParticipant = async (req, res) => {
             paymentStatus,
             amountPaid,
             payment_gateway: 'manual_organizer',
+            whatsappGroupJoined,
+            whatsappGroupJoinedAt: whatsappGroupJoined ? new Date() : null,
             submittedAt: new Date(),
         });
 

@@ -108,12 +108,15 @@ export default function FestOrganizerDashboardPage() {
 
     const quickOps = [
         { label: 'Live feed', desc: 'Fest day updates', to: 'live', icon: Radio, glow: 'from-red-500/15' },
-        { label: 'Competitions', desc: `${stats.competitionCount || comps.length} live`, to: 'competitions', icon: Trophy, glow: 'from-[#0ECCEE]/15' },
+        { label: 'Competitions', desc: `${stats.competitionCount || comps.length} ops desks`, to: 'competitions', icon: Trophy, glow: 'from-[#0ECCEE]/15' },
         ...(!hideProShow
             ? [{ label: 'Pro Show', desc: 'Sold · passes · gate', to: 'pro-show', icon: Mic2, glow: 'from-fuchsia-500/10' }]
             : []),
+        { label: 'Scan', desc: 'Gate check-in', to: 'scan', icon: QrCode, glow: 'from-emerald-500/15' },
         { label: 'Connect', desc: 'WA · call · push', to: 'notifications', icon: Bell, glow: 'from-amber-500/10' },
-        { label: 'Edit listing', desc: 'Fest & comps', to: 'edit-listing', icon: Pencil, glow: 'from-[#0ECCEE]/12' },
+        ...(!hideProShow
+            ? [{ label: 'Edit listing', desc: 'Fest & comps', to: 'edit-listing', icon: Pencil, glow: 'from-[#0ECCEE]/12' }]
+            : []),
     ];
 
     return (
@@ -225,6 +228,18 @@ export default function FestOrganizerDashboardPage() {
                         <ProgressBar value={checkedIn} max={Math.max(totalApproved, 1)} tone="emerald" />
                     </div>
                     <p className="text-[11px] text-gray-500 mt-1.5">{pendingCheckIn} still outside</p>
+                    {pendingCheckIn > 0 ? (
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/fest-organizer/fests/${festId}/participants?checkInStatus=not_in`);
+                            }}
+                            className="mt-2 text-[11px] font-medium text-emerald-300 hover:text-emerald-200"
+                        >
+                            Still outside →
+                        </button>
+                    ) : null}
                 </button>
 
                 <button
@@ -258,6 +273,33 @@ export default function FestOrganizerDashboardPage() {
                     </button>
                 ))}
             </div>
+
+            {hideProShow && unpaidCount > 0 ? (
+                <section className="rounded-2xl border border-amber-400/25 bg-amber-500/8 p-4 flex flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0">
+                        <p className="text-sm font-semibold text-amber-100">Unpaid to chase</p>
+                        <p className="text-xs text-amber-200/70 mt-0.5">
+                            {unpaidCount} registration{unpaidCount === 1 ? '' : 's'} still pending payment
+                        </p>
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                        <button
+                            type="button"
+                            onClick={() => navigate(`/fest-organizer/fests/${festId}/participants?paymentStatus=pending`)}
+                            className="px-3 py-2 rounded-xl border border-amber-400/30 text-xs font-medium text-amber-100"
+                        >
+                            View roster
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => navigate(`/fest-organizer/fests/${festId}/notifications?audience=unpaid&tab=connect`)}
+                            className="px-3 py-2 rounded-xl bg-amber-400 text-black text-xs font-semibold"
+                        >
+                            Open Connect
+                        </button>
+                    </div>
+                </section>
+            ) : null}
 
             {/* Needs attention — not used for MindSpark (payment gateway confirms) */}
             {!hideProShow ? (
@@ -320,11 +362,25 @@ export default function FestOrganizerDashboardPage() {
                 </div>
                 {recent.length ? (
                     <div className="space-y-2">
-                        {recent.map((r) => (
+                        {recent.map((r) => {
+                            const pay = String(r.paymentStatus || '').toLowerCase();
+                            const payTone = pay === 'paid' || pay === 'free'
+                                ? 'text-emerald-400'
+                                : pay === 'pending'
+                                    ? 'text-amber-400'
+                                    : 'text-gray-400';
+                            const statusLabel = hideProShow
+                                ? (r.status === 'approved' ? 'registered' : r.status)
+                                : r.status;
+                            return (
                             <button
                                 key={r.id}
                                 type="button"
-                                onClick={() => navigate(`/fest-organizer/fests/${festId}/participants?status=${r.status === 'pending' ? 'pending' : 'approved'}`)}
+                                onClick={() => navigate(
+                                    hideProShow && (pay === 'pending' || pay === 'failed')
+                                        ? `/fest-organizer/fests/${festId}/participants?paymentStatus=pending`
+                                        : `/fest-organizer/fests/${festId}/participants?status=${r.status === 'pending' ? 'pending' : 'approved'}`,
+                                )}
                                 className="w-full flex items-center justify-between gap-3 rounded-xl bg-white/3 px-3 py-2.5 border border-transparent hover:border-white/10 transition text-left"
                             >
                                 <div className="min-w-0">
@@ -334,11 +390,20 @@ export default function FestOrganizerDashboardPage() {
                                         {r.teamName ? ` · ${r.teamName}` : ''}
                                         {r.college ? ` · ${r.college}` : ''}
                                         {' · '}
-                                        <span className={r.status === 'pending' ? 'text-amber-400' : 'text-gray-400'}>
-                                            {r.status}
-                                        </span>
-                                        {' · '}
-                                        {r.paymentStatus}
+                                        <span className={payTone}>{r.paymentStatus || '—'}</span>
+                                        {!hideProShow ? (
+                                            <>
+                                                {' · '}
+                                                <span className={r.status === 'pending' ? 'text-amber-400' : 'text-gray-400'}>
+                                                    {statusLabel}
+                                                </span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                {' · '}
+                                                <span className="text-gray-500">{statusLabel}</span>
+                                            </>
+                                        )}
                                     </p>
                                     {Array.isArray(r.highlights) && r.highlights.length ? (
                                         <p className="text-[10px] text-gray-600 truncate mt-0.5">
@@ -348,7 +413,8 @@ export default function FestOrganizerDashboardPage() {
                                 </div>
                                 <p className="text-[10px] text-gray-600 shrink-0">{formatWhen(r.createdAt)}</p>
                             </button>
-                        ))}
+                            );
+                        })}
                     </div>
                 ) : (
                     <p className="text-sm text-gray-500 py-6 text-center">No registrations yet</p>

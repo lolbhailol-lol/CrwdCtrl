@@ -9,16 +9,18 @@ import {
     sendFestOrganizerBroadcast,
     fetchFestOrganizerDashboard,
     fetchFestOrganizerNotifyContacts,
+    buildFestOrganizerAdminApi,
 } from '../../services/api/festOrganizer.api';
 import { useDialog } from '../../context/DialogContext';
+import { isMindSparkFest, MindSparkWhatsAppLinksAdmin } from '../../features/fests/mindspark';
 
 const AUDIENCES = [
-    { id: 'approved', label: 'Approved', hint: 'Confirmed entries' },
+    { id: 'approved', label: 'Approved', hint: 'Confirmed entries', mindSparkLabel: 'Registered', mindSparkHint: 'Paid / confirmed' },
     { id: 'pending', label: 'Need review', hint: 'Still pending' },
     { id: 'unpaid', label: 'Unpaid', hint: 'Payment pending' },
     { id: 'not_in', label: 'Still outside', hint: 'Approved, not checked in' },
     { id: 'checked_in', label: 'Checked in', hint: 'Already at venue' },
-    { id: 'all_active', label: 'All active', hint: 'Pending + approved' },
+    { id: 'all_active', label: 'All active', hint: 'Pending + approved', mindSparkLabel: 'Everyone', mindSparkHint: 'All active registrations' },
 ];
 
 const TEMPLATES = [
@@ -98,10 +100,36 @@ export default function FestOrganizerNotificationsPage() {
     const { festId } = useParams();
     const [searchParams, setSearchParams] = useSearchParams();
     const { toast, confirm } = useDialog();
+    const mindSpark = isMindSparkFest(festId);
+    const adminApi = useMemo(
+        () => (mindSpark ? buildFestOrganizerAdminApi(festId) : null),
+        [mindSpark, festId],
+    );
 
     const tab = searchParams.get('tab') || 'connect';
-    const audience = searchParams.get('audience') || 'approved';
+    const audience = searchParams.get('audience') || (mindSpark ? 'approved' : 'approved');
     const prefillCompetitionId = searchParams.get('competitionId') || '';
+
+    const audiences = useMemo(
+        () => (mindSpark
+            ? AUDIENCES
+                .filter((a) => a.id !== 'pending')
+                .map((a) => ({
+                    ...a,
+                    label: a.mindSparkLabel || a.label,
+                    hint: a.mindSparkHint || a.hint,
+                }))
+            : AUDIENCES),
+        [mindSpark],
+    );
+
+    useEffect(() => {
+        if (mindSpark && audience === 'pending') {
+            const p = new URLSearchParams(searchParams);
+            p.set('audience', 'unpaid');
+            setSearchParams(p, { replace: true });
+        }
+    }, [mindSpark, audience, searchParams, setSearchParams]);
 
     const [festName, setFestName] = useState('');
     const [competitions, setCompetitions] = useState([]);
@@ -237,7 +265,7 @@ export default function FestOrganizerNotificationsPage() {
         }
         const ok = await confirm({
             title: mode === 'reminder' ? 'Send reminder?' : 'Send broadcast?',
-            message: `${channelParts.join(' + ')} to ~${meta.total} people (${AUDIENCES.find((a) => a.id === audience)?.label || audience})${competitionId ? ' in this competition' : ''}.`,
+            message: `${channelParts.join(' + ')} to ~${meta.total} people (${audiences.find((a) => a.id === audience)?.label || AUDIENCES.find((a) => a.id === audience)?.label || audience})${competitionId ? ' in this competition' : ''}.`,
         });
         if (!ok) return;
         setBusy(mode);
@@ -273,7 +301,9 @@ export default function FestOrganizerNotificationsPage() {
         }
     };
 
-    const audienceLabel = AUDIENCES.find((a) => a.id === audience)?.label || audience;
+    const audienceLabel = audiences.find((a) => a.id === audience)?.label
+        || AUDIENCES.find((a) => a.id === audience)?.label
+        || audience;
 
     return (
         <div className="max-w-2xl mx-auto space-y-4 pb-10">
@@ -303,7 +333,7 @@ export default function FestOrganizerNotificationsPage() {
                     </p>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
-                    {AUDIENCES.map((a) => (
+                    {audiences.map((a) => (
                         <button
                             key={a.id}
                             type="button"
@@ -594,6 +624,20 @@ export default function FestOrganizerNotificationsPage() {
                     </div>
                 </div>
             )}
+
+            {mindSpark && adminApi ? (
+                <section className="rounded-2xl border border-emerald-400/20 bg-[#161718] p-4 space-y-2">
+                    <div>
+                        <p className="text-sm font-semibold text-white flex items-center gap-2">
+                            <MessageCircle size={16} className="text-emerald-300" /> Competition WhatsApp groups
+                        </p>
+                        <p className="text-[11px] text-gray-500 mt-0.5">
+                            Links shown after paid registration — keep these updated here
+                        </p>
+                    </div>
+                    <MindSparkWhatsAppLinksAdmin festId={festId} api={adminApi} />
+                </section>
+            ) : null}
         </div>
     );
 }

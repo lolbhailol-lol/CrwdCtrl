@@ -13,12 +13,14 @@ import {
     exportFestOrganizerParticipants,
     notifyFestOrganizerParticipant,
     updateFestOrganizerCompetitionSlots,
+    updateFestOrganizerParticipantWhatsappGroup,
 } from '../../services/api/festOrganizer.api';
 import { useDialog } from '../../context/DialogContext';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import FestOrganizerManualAddModal from './FestOrganizerManualAddModal';
 import OrganizerTeamRoster, { OrganizerRosterPreview } from './OrganizerTeamRoster';
+import WhatsAppGroupToggle from './WhatsAppGroupToggle';
 import { isMindSparkFest } from '../../features/fests/mindspark';
 
 const TABS = [
@@ -32,6 +34,9 @@ const LIST_FILTERS = [
     { id: 'paid', label: 'Paid' },
     { id: 'unpaid', label: 'Unpaid' },
     { id: 'in', label: 'Checked in' },
+    { id: 'out', label: 'Outside' },
+    { id: 'wa_out', label: 'Not in WA' },
+    { id: 'wa_in', label: 'In WA' },
 ];
 
 function waLink(phone) {
@@ -124,6 +129,7 @@ function SoloEntryCard({
     onReject,
     onNotify,
     onDelete,
+    onWhatsappToggle,
     hideReview = false,
 }) {
     const pending = !hideReview && p.status === 'pending';
@@ -155,35 +161,50 @@ function SoloEntryCard({
                         {p.checkedIn ? (
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300">checked in</span>
                         ) : null}
+                        {p.whatsappGroupJoined ? (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300">in WA</span>
+                        ) : null}
                         {p.isManual ? (
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-gray-400">Walk-in</span>
                         ) : null}
                     </div>
                 </div>
-                <ContactIcons phone={p.userPhone} email={p.userEmail} />
-                {onNotify ? (
-                    <button
-                        type="button"
-                        onClick={() => onNotify(p)}
-                        className="p-2 rounded-xl bg-[#0ECCEE]/10 text-[#0ECCEE] shrink-0"
-                        title="Notify participant"
-                        aria-label={`Notify ${p.userName || 'participant'}`}
-                    >
-                        <Bell size={15} />
-                    </button>
-                ) : null}
-                {onDelete ? (
-                    <button
-                        type="button"
-                        disabled={Boolean(busyId)}
-                        onClick={() => onDelete(p)}
-                        className="p-2 rounded-xl border border-red-400/25 text-red-300 shrink-0 disabled:opacity-50"
-                        title="Delete entry"
-                        aria-label={`Delete ${p.userName || 'entry'}`}
-                    >
-                        {busyId === `${p.id}:delete` ? <Loader className="animate-spin" size={15} /> : <Trash2 size={15} />}
-                    </button>
-                ) : null}
+                <div className="flex flex-col items-end gap-1.5 shrink-0">
+                    {onWhatsappToggle ? (
+                        <WhatsAppGroupToggle
+                            joined={Boolean(p.whatsappGroupJoined)}
+                            busy={busyId === `${p.id}:wa`}
+                            onToggle={(joined) => onWhatsappToggle(p, joined)}
+                            size="sm"
+                        />
+                    ) : null}
+                    <div className="flex items-center gap-1">
+                        <ContactIcons phone={p.userPhone} email={p.userEmail} />
+                        {onNotify ? (
+                            <button
+                                type="button"
+                                onClick={() => onNotify(p)}
+                                className="p-2 rounded-xl bg-[#0ECCEE]/10 text-[#0ECCEE] shrink-0"
+                                title="Notify participant"
+                                aria-label={`Notify ${p.userName || 'participant'}`}
+                            >
+                                <Bell size={15} />
+                            </button>
+                        ) : null}
+                        {onDelete ? (
+                            <button
+                                type="button"
+                                disabled={Boolean(busyId)}
+                                onClick={() => onDelete(p)}
+                                className="p-2 rounded-xl border border-red-400/25 text-red-300 shrink-0 disabled:opacity-50"
+                                title="Delete entry"
+                                aria-label={`Delete ${p.userName || 'entry'}`}
+                            >
+                                {busyId === `${p.id}:delete` ? <Loader className="animate-spin" size={15} /> : <Trash2 size={15} />}
+                            </button>
+                        ) : null}
+                    </div>
+                </div>
             </div>
             {Array.isArray(p.teamMembers) && p.teamMembers.length ? (
                 <OrganizerTeamRoster
@@ -230,7 +251,7 @@ function SoloEntryCard({
     );
 }
 
-function TeamCard({ team, busyId, onApproveIds, onRejectIds, onDelete, hideReview = false }) {
+function TeamCard({ team, busyId, onApproveIds, onRejectIds, onDelete, onNotify, onWhatsappToggle, hideReview = false }) {
     const [open, setOpen] = useState(!hideReview && Boolean(team.pendingCount > 0));
     const memberCount = team.memberCount || team.members?.length || team.registrations?.length || 0;
     const pendingIds = hideReview
@@ -238,6 +259,7 @@ function TeamCard({ team, busyId, onApproveIds, onRejectIds, onDelete, hideRevie
         : (team.registrations || [])
             .filter((r) => r.status === 'pending')
             .map((r) => r.id);
+    const primaryReg = team.registrations?.[0] || null;
 
     return (
         <div className={`rounded-2xl border overflow-hidden transition ${
@@ -298,6 +320,16 @@ function TeamCard({ team, busyId, onApproveIds, onRejectIds, onDelete, hideRevie
                                 {team.checkedInCount} checked in
                             </span>
                         ) : null}
+                        {team.whatsappGroupJoined || (team.whatsappJoinedCount > 0
+                            && team.whatsappJoinedCount >= (team.registrations?.length || 1)) ? (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300">
+                                in WA
+                            </span>
+                        ) : team.whatsappJoinedCount > 0 ? (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-gray-400">
+                                {team.whatsappJoinedCount} in WA
+                            </span>
+                        ) : null}
                         {team.isManual ? (
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-gray-400">Walk-in</span>
                         ) : null}
@@ -305,6 +337,37 @@ function TeamCard({ team, busyId, onApproveIds, onRejectIds, onDelete, hideRevie
                 </div>
                 <ContactIcons phone={team.captainPhone} email={team.captainEmail} />
             </button>
+            {onWhatsappToggle && primaryReg ? (
+                <div className="px-3.5 pb-2 flex justify-end">
+                    <WhatsAppGroupToggle
+                        joined={Boolean(primaryReg.whatsappGroupJoined || team.whatsappGroupJoined)}
+                        busy={busyId === `${primaryReg.id}:wa`}
+                        onToggle={(joined) => onWhatsappToggle(primaryReg, joined)}
+                        size="sm"
+                    />
+                </div>
+            ) : null}
+            {onNotify ? (
+                <div className="px-3.5 -mt-1 pb-1 flex justify-end">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            const first = team.registrations?.[0] || {
+                                id: team.captainId || team.registrationIds?.[0],
+                                userName: team.captainName,
+                                userPhone: team.captainPhone,
+                                userEmail: team.captainEmail,
+                            };
+                            if (first?.id) onNotify(first);
+                        }}
+                        className="p-2 rounded-xl bg-[#0ECCEE]/10 text-[#0ECCEE]"
+                        title="Notify team"
+                        aria-label={`Notify ${team.teamName || 'team'}`}
+                    >
+                        <Bell size={15} />
+                    </button>
+                </div>
+            ) : null}
 
             {onDelete ? (
                 <div className="px-3.5 pb-3 -mt-1">
@@ -462,6 +525,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
     const [listFilter, setListFilter] = useState('all'); // all | pending | paid | in
     const [slotsRemainInput, setSlotsRemainInput] = useState('');
     const [maxPeopleInput, setMaxPeopleInput] = useState('1');
+    const [showSlotsPublic, setShowSlotsPublic] = useState(true);
     const [capacityBusy, setCapacityBusy] = useState(false);
     const [notifyOpen, setNotifyOpen] = useState(null);
     const [notifyForm, setNotifyForm] = useState({ title: '', message: '', inApp: true, email: true });
@@ -511,12 +575,14 @@ export default function FestOrganizerCompetitionWorkspacePage() {
             : '';
         setSlotsRemainInput(left === '' ? '' : String(left));
         setMaxPeopleInput(String(Math.max(1, Number(data.competition.teamSizeMax) || 1)));
+        setShowSlotsPublic(data.competition.showSlotsPublic !== false);
     }, [
         competitionId,
         data?.competition?.id,
         data?.competition?.slotsAllotted,
         data?.competition?.slotsFilled,
         data?.competition?.slotsLeft,
+        data?.competition?.showSlotsPublic,
         data?.competition?.teamSizeMax,
         data?.stats?.slotsFilled,
         data?.stats?.slotsLeft,
@@ -580,6 +646,9 @@ export default function FestOrganizerCompetitionWorkspacePage() {
         if (listFilter === 'paid') list = list.filter((p) => p.paymentStatus === 'paid' || p.paymentStatus === 'free');
         if (listFilter === 'unpaid') list = list.filter((p) => p.paymentStatus === 'pending' || p.paymentStatus === 'failed');
         if (listFilter === 'in') list = list.filter((p) => p.checkedIn);
+        if (listFilter === 'out') list = list.filter((p) => !p.checkedIn);
+        if (listFilter === 'wa_in') list = list.filter((p) => p.whatsappGroupJoined);
+        if (listFilter === 'wa_out') list = list.filter((p) => !p.whatsappGroupJoined);
         if (!q) return list;
         return list.filter((p) => {
             const hay = `${p.userName} ${p.teamName} ${p.college} ${p.city} ${p.userPhone} ${p.userEmail} ${memberHay(p)}`.toLowerCase();
@@ -593,6 +662,18 @@ export default function FestOrganizerCompetitionWorkspacePage() {
         if (listFilter === 'paid') list = list.filter((t) => t.paymentStatus === 'paid' || t.paymentStatus === 'free');
         if (listFilter === 'unpaid') list = list.filter((t) => t.paymentStatus === 'pending' || t.paymentStatus === 'failed');
         if (listFilter === 'in') list = list.filter((t) => t.checkedInCount > 0);
+        if (listFilter === 'out') list = list.filter((t) => !(t.checkedInCount > 0));
+        if (listFilter === 'wa_in') {
+            list = list.filter((t) => t.whatsappGroupJoined
+                || (t.whatsappJoinedCount > 0 && t.whatsappJoinedCount >= (t.registrations?.length || 1))
+                || ((t.registrations || []).length > 0 && (t.registrations || []).every((r) => r.whatsappGroupJoined)));
+        }
+        if (listFilter === 'wa_out') {
+            list = list.filter((t) => !(
+                t.whatsappGroupJoined
+                || ((t.registrations || []).length > 0 && (t.registrations || []).every((r) => r.whatsappGroupJoined))
+            ));
+        }
         if (!q) return list;
         return list.filter((t) => {
             const hay = `${t.teamName} ${t.captainName} ${t.college} ${t.city} ${memberHay(t)} ${(t.members || []).join(' ')}`.toLowerCase();
@@ -636,6 +717,20 @@ export default function FestOrganizerCompetitionWorkspacePage() {
             await load();
         } catch (e) {
             toast(e.message || 'Delete failed');
+        } finally {
+            setBusyId('');
+        }
+    };
+
+    const toggleWhatsappGroup = async (p, joined) => {
+        if (!p?.id) return;
+        setBusyId(`${p.id}:wa`);
+        try {
+            const data = await updateFestOrganizerParticipantWhatsappGroup(festId, p.id, joined);
+            toast(data.message || (joined ? 'Marked in WA group' : 'Cleared WA mark'));
+            await load();
+        } catch (e) {
+            toast(e.message || 'Could not update WhatsApp mark');
         } finally {
             setBusyId('');
         }
@@ -793,6 +888,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
         }
         payload.maxPeople = Math.min(20, Math.floor(maxPeople));
         payload.teamSizeMin = 1;
+        payload.showSlotsPublic = Boolean(showSlotsPublic);
 
         setCapacityBusy(true);
         try {
@@ -809,6 +905,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                             slotsAllotted: next.slotsAllotted,
                             slotsFilled: next.slotsFilled,
                             slotsLeft: next.slotsLeft,
+                            showSlotsPublic: next.showSlotsPublic !== false,
                             teamSizeMin: next.teamSizeMin ?? prev.competition?.teamSizeMin,
                             teamSizeMax: next.teamSizeMax ?? prev.competition?.teamSizeMax,
                             teamSizeLabel: next.teamSizeLabel ?? prev.competition?.teamSizeLabel,
@@ -825,6 +922,9 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                     setSlotsRemainInput(String(next.slotsLeft));
                 } else if (next.slotsAllotted === 0) {
                     setSlotsRemainInput('');
+                }
+                if (next.showSlotsPublic !== undefined) {
+                    setShowSlotsPublic(next.showSlotsPublic !== false);
                 }
                 if (next.teamSizeMax != null) {
                     setMaxPeopleInput(String(Math.max(1, Number(next.teamSizeMax) || 1)));
@@ -952,7 +1052,16 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                         >
                             <p className="text-[10px] uppercase tracking-wide text-amber-200/80">Unpaid</p>
                             <p className="text-2xl font-bold tabular-nums text-white mt-1">{unpaidCount}</p>
-                            <p className="text-[11px] text-gray-500 mt-1">Contact via Connect if needed</p>
+                            <p className="text-[11px] text-gray-500 mt-1">Tap to filter · Connect below</p>
+                            {unpaidCount > 0 ? (
+                                <Link
+                                    to={`/fest-organizer/fests/${festId}/notifications?competitionId=${competitionId}&audience=unpaid&tab=connect`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="inline-flex mt-2 text-[11px] font-semibold text-amber-200 hover:text-amber-100"
+                                >
+                                    Open Connect →
+                                </Link>
+                            ) : null}
                         </button>
                     ) : (
                         <button
@@ -988,6 +1097,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                             {stats.slotsAllotted > 0
                                 ? `${stats.slotsFilled ?? stats.approved}/${stats.slotsAllotted} filled`
                                 : 'No limit set yet'}
+                            {data?.competition?.showSlotsPublic === false ? ' · hidden on site' : ''}
                         </p>
                     </div>
                 </div>
@@ -1001,8 +1111,42 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                         Updates this competition on the public website right away.
                     </p>
                 </div>
+
+                <label className="flex items-start gap-3 rounded-xl border border-white/10 bg-[#121314] px-3 py-3 cursor-pointer">
+                    <button
+                        type="button"
+                        role="switch"
+                        aria-checked={showSlotsPublic}
+                        onClick={() => setShowSlotsPublic((v) => !v)}
+                        className={`mt-0.5 relative inline-flex h-6 w-11 shrink-0 rounded-full border transition ${
+                            showSlotsPublic
+                                ? 'bg-emerald-500 border-emerald-400/50'
+                                : 'bg-white/10 border-white/15'
+                        }`}
+                    >
+                        <span
+                            className={`absolute top-0.5 size-5 rounded-full bg-white transition ${
+                                showSlotsPublic ? 'left-5' : 'left-0.5'
+                            }`}
+                        />
+                    </button>
+                    <span className="min-w-0">
+                        <span className="block text-sm font-medium text-white">Show slots on public page</span>
+                        <span className="block text-[11px] text-gray-500 mt-0.5">
+                            {showSlotsPublic
+                                ? 'Students see how many slots remain (e.g. “12 slots remain”).'
+                                : 'Students won’t see remaining slots. You can still track capacity here.'}
+                        </span>
+                    </span>
+                </label>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <label className="rounded-xl border border-white/10 bg-[#121314] p-3 space-y-1.5 block">
+                    <label className={`rounded-xl border p-3 space-y-1.5 block ${
+                        showSlotsPublic
+                            ? 'border-white/10 bg-[#121314]'
+                            : 'border-white/8 bg-[#121314]/70 opacity-70'
+                    }`}
+                    >
                         <span className="text-[11px] font-semibold text-[#0ECCEE] uppercase tracking-wide">
                             Slots remaining
                         </span>
@@ -1016,7 +1160,9 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                             className="w-full px-3 py-2.5 rounded-xl bg-[#0f1011] border border-white/10 text-sm text-white tabular-nums focus:outline-none focus:border-[#0ECCEE]/40"
                         />
                         <span className="text-[10px] text-gray-500 block">
-                            How many more can register. Leave blank to keep current limit.
+                            {showSlotsPublic
+                                ? 'How many more can register — shown on the competition page when enabled.'
+                                : 'Tracked for you only (hidden on the public page).'}
                             {stats?.slotsFilled != null || stats?.approved != null
                                 ? ` · ${stats.slotsFilled ?? stats.approved} already filled`
                                 : ''}
@@ -1191,6 +1337,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                                     onReject={(id) => setStatus(id, 'rejected')}
                                     onNotify={openNotify}
                                     onDelete={deleteEntry}
+                                    onWhatsappToggle={toggleWhatsappGroup}
                                 />
                             ))}
 
@@ -1218,6 +1365,8 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                                     onApproveIds={approveIds}
                                     onRejectIds={rejectIds}
                                     onDelete={deleteTeam}
+                                    onNotify={openNotify}
+                                    onWhatsappToggle={toggleWhatsappGroup}
                                 />
                             ))}
 

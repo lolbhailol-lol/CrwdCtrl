@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import {
     Archive, Bell, Eye, Loader, MapPin, Pin, Plus, Radio, RefreshCw,
     Trash2, Zap,
@@ -14,6 +14,7 @@ import {
     deleteFestOrganizerLiveUpdate,
 } from '../../services/api/festOrganizer.api';
 import { useDialog } from '../../context/DialogContext';
+import { isMindSparkFest } from '../../features/fests/mindspark';
 
 const emptyForm = {
     title: '',
@@ -67,6 +68,8 @@ function typeTone(type, urgent) {
 export default function FestOrganizerLiveUpdatesPage() {
     const { festId } = useParams();
     const { toast, confirm } = useDialog();
+    const mindSpark = isMindSparkFest(festId);
+    const [lastPublishConnect, setLastPublishConnect] = useState(null);
 
     const [meta, setMeta] = useState({ types: [], templates: [], competitions: [] });
     const [rows, setRows] = useState([]);
@@ -79,6 +82,19 @@ export default function FestOrganizerLiveUpdatesPage() {
     const [saving, setSaving] = useState(false);
     const [busyId, setBusyId] = useState('');
     const [composerOpen, setComposerOpen] = useState(true);
+
+    const visibleTypes = useMemo(
+        () => (mindSpark
+            ? (meta.types || []).filter((t) => t.id !== 'pro_show')
+            : (meta.types || [])),
+        [meta.types, mindSpark],
+    );
+    const visibleTemplates = useMemo(
+        () => (mindSpark
+            ? (meta.templates || []).filter((t) => t.type !== 'pro_show' && !/pro\s*show/i.test(t.title || ''))
+            : (meta.templates || [])),
+        [meta.templates, mindSpark],
+    );
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -185,6 +201,12 @@ export default function FestOrganizerLiveUpdatesPage() {
                 if (res.notify?.participants) {
                     toast(`Also notified ${res.notify.participants} participants`);
                 }
+                if (form.publish) {
+                    setLastPublishConnect({
+                        competitionId: form.competitionId || '',
+                        message: [form.title, form.body].filter(Boolean).join('\n').slice(0, 280),
+                    });
+                }
             }
             resetForm();
             await load();
@@ -203,6 +225,10 @@ export default function FestOrganizerLiveUpdatesPage() {
             });
             toast(res.message || 'Published');
             if (res.notify?.participants) toast(`Notified ${res.notify.participants}`);
+            setLastPublishConnect({
+                competitionId: row.competitionId || '',
+                message: [row.title, row.body].filter(Boolean).join('\n').slice(0, 280),
+            });
             await load();
         } catch (e) {
             toast(e.message || 'Failed');
@@ -271,13 +297,28 @@ export default function FestOrganizerLiveUpdatesPage() {
                         <Radio className="text-[#0ECCEE]" size={20} /> Live updates
                     </h1>
                     <p className="text-xs text-gray-500 mt-1">
-                        Post what&apos;s happening, where, and when — student feed UI comes later; this desk is the source of truth.
+                        {mindSpark
+                            ? 'Students see published posts on the fest Live strip. Use Connect for WhatsApp nudges.'
+                            : 'Post what\'s happening, where, and when — student feed UI comes later; this desk is the source of truth.'}
                     </p>
                 </div>
                 <button type="button" onClick={load} className="p-2 rounded-xl border border-white/10 text-gray-400" aria-label="Refresh">
                     <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
                 </button>
             </div>
+
+            {lastPublishConnect ? (
+                <div className="rounded-2xl border border-[#0ECCEE]/25 bg-[#0ECCEE]/10 px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs text-[#7DE8F7]">Published — also nudge via WhatsApp?</p>
+                    <Link
+                        to={`/fest-organizer/fests/${festId}/notifications?tab=connect${lastPublishConnect.competitionId ? `&competitionId=${lastPublishConnect.competitionId}` : ''}`}
+                        className="px-3 py-1.5 rounded-xl bg-[#0ECCEE] text-black text-xs font-semibold"
+                        onClick={() => setLastPublishConnect(null)}
+                    >
+                        Open Connect
+                    </Link>
+                </div>
+            ) : null}
 
             <div className="grid grid-cols-3 gap-2.5">
                 {[
@@ -301,7 +342,7 @@ export default function FestOrganizerLiveUpdatesPage() {
             <section className="space-y-2">
                 <p className="text-[11px] uppercase tracking-wide text-gray-500 px-0.5">Quick post templates</p>
                 <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-                    {(meta.templates || []).map((t) => (
+                    {(visibleTemplates).map((t) => (
                         <button
                             key={t.id}
                             type="button"
@@ -338,7 +379,7 @@ export default function FestOrganizerLiveUpdatesPage() {
                             onChange={(e) => set('type', e.target.value)}
                             className="w-full px-3 py-2.5 rounded-xl bg-[#121314] border border-white/10 text-sm text-white"
                         >
-                            {(meta.types || []).map((t) => (
+                            {(visibleTypes).map((t) => (
                                 <option key={t.id} value={t.id}>{t.label}</option>
                             ))}
                         </select>

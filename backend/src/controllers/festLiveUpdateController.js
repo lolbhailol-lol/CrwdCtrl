@@ -200,6 +200,7 @@ async function maybeNotify(festId, update, force = false) {
         type: update.urgent || update.type === 'emergency' ? 'reminder' : 'announcement',
         link: `/view-details/${festId}`,
         audience: 'approved',
+        competitionId: update.competition || null,
     });
 
     update.notifiedAt = new Date();

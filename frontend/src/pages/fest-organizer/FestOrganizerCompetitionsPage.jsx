@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Loader, RefreshCw, Search, ChevronRight, Trophy, UserPlus } from 'lucide-react';
+import { Loader, RefreshCw, Search, ChevronRight, Trophy, UserPlus, QrCode } from 'lucide-react';
 import { fetchFestOrganizerDashboard } from '../../services/api/festOrganizer.api';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
+import { isMindSparkFest } from '../../features/fests/mindspark';
 
 function formatCategoryLabel(tab) {
     if (!tab || tab === 'OTHER') return 'Other';
@@ -74,6 +75,10 @@ export default function FestOrganizerCompetitionsPage() {
         [rows],
     );
 
+    const noReview = isMindSparkFest(festId, fest);
+    const unpaidHub = Number(stats?.payments?.pending || 0);
+    const outsideHub = Number(stats?.pendingCheckIn || 0);
+
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase();
         let list = rows.filter((c) => c.id);
@@ -87,11 +92,26 @@ export default function FestOrganizerCompetitionsPage() {
             });
         }
         return [...list].sort((a, b) => {
+            if (noReview) {
+                const aSlots = Number(a.slotsAllotted) || 0;
+                const bSlots = Number(b.slotsAllotted) || 0;
+                const aLeft = aSlots > 0
+                    ? Number(a.slotsLeft ?? Math.max(0, aSlots - (a.slotsFilled ?? a.approved ?? 0)))
+                    : 9999;
+                const bLeft = bSlots > 0
+                    ? Number(b.slotsLeft ?? Math.max(0, bSlots - (b.slotsFilled ?? b.approved ?? 0)))
+                    : 9999;
+                if (aLeft !== bLeft) return aLeft - bLeft;
+                const aOut = Math.max(0, (Number(a.approved) || Number(a.total) || 0) - (Number(a.checkedIn) || 0));
+                const bOut = Math.max(0, (Number(b.approved) || Number(b.total) || 0) - (Number(b.checkedIn) || 0));
+                if (bOut !== aOut) return bOut - aOut;
+                return (Number(b.total) || 0) - (Number(a.total) || 0);
+            }
             const pd = (Number(b.pending) || 0) - (Number(a.pending) || 0);
             if (pd !== 0) return pd;
             return (Number(b.total) || 0) - (Number(a.total) || 0);
         });
-    }, [rows, activeTab, query]);
+    }, [rows, activeTab, query, noReview]);
 
     useEffect(() => {
         if (activeTab !== 'ALL' && !categories.includes(activeTab)) {
@@ -118,9 +138,29 @@ export default function FestOrganizerCompetitionsPage() {
                         </div>
                         <h1 className="text-xl font-bold tracking-tight text-white">{fest?.festName || 'Competitions'}</h1>
                         <p className="text-sm text-gray-400 mt-1">
-                            Review entries, set capacity, open ops desk
+                            {noReview ? 'Rosters, slots, gate' : 'Review entries, set capacity, open ops desk'}
                         </p>
-                        {needsReview > 0 ? (
+                        {noReview ? (
+                            <p className="text-sm mt-1 text-gray-500">
+                                {unpaidHub > 0 ? (
+                                    <span className="text-amber-300 font-medium">{unpaidHub} unpaid</span>
+                                ) : (
+                                    <span className="text-emerald-300/90">Payments clear</span>
+                                )}
+                                {outsideHub > 0 ? (
+                                    <span className="text-gray-500">
+                                        {' · '}
+                                        <span className="text-emerald-200/90">{outsideHub} still outside</span>
+                                    </span>
+                                ) : null}
+                                {stats ? (
+                                    <span>
+                                        {' · '}
+                                        {stats.totalRegistrations || 0} entries · {stats.checkedIn || 0} checked in
+                                    </span>
+                                ) : null}
+                            </p>
+                        ) : needsReview > 0 ? (
                             <p className="text-sm mt-1">
                                 <span className="text-amber-300 font-medium">{needsReview} waiting for review</span>
                                 {stats ? (
@@ -212,9 +252,12 @@ export default function FestOrganizerCompetitionsPage() {
                     const checkedIn = Number(c.checkedIn) || 0;
                     const slotsAllotted = Number(c.slotsAllotted) || 0;
                     const slotsLeft = c.slotsLeft;
+                    const showSlotsPublic = c.showSlotsPublic !== false;
                     const slotsLabel = slotsAllotted > 0
-                        ? `${slotsLeft ?? Math.max(0, slotsAllotted - (c.slotsFilled ?? c.approved ?? 0))} slots remain`
-                        : 'Slots remain';
+                        ? (showSlotsPublic
+                            ? `${slotsLeft ?? Math.max(0, slotsAllotted - (c.slotsFilled ?? c.approved ?? 0))} slots remain`
+                            : `${slotsLeft ?? Math.max(0, slotsAllotted - (c.slotsFilled ?? c.approved ?? 0))} left · hidden on site`)
+                        : (showSlotsPublic ? 'No slot limit' : 'Slots hidden on site');
 
                     return (
                         <div
@@ -255,7 +298,15 @@ export default function FestOrganizerCompetitionsPage() {
 
                                 <div className="grid grid-cols-4 gap-1.5 mt-3">
                                     <MiniBox label="Entries" value={total} tone="accent" />
-                                    <MiniBox label="Review" value={pending} tone={pending > 0 ? 'warn' : 'default'} />
+                                    {noReview ? (
+                                        <MiniBox
+                                            label="Outside"
+                                            value={Math.max(0, (Number(c.approved) || total) - checkedIn)}
+                                            tone={Math.max(0, (Number(c.approved) || total) - checkedIn) > 0 ? 'warn' : 'default'}
+                                        />
+                                    ) : (
+                                        <MiniBox label="Review" value={pending} tone={pending > 0 ? 'warn' : 'default'} />
+                                    )}
                                     <MiniBox label="Check-in" value={checkedIn} tone="ok" />
                                     <MiniBox
                                         label="Remain"
@@ -264,13 +315,20 @@ export default function FestOrganizerCompetitionsPage() {
                                     />
                                 </div>
                             </button>
-                            <div className="mt-3 pt-3 border-t border-white/8">
+                            <div className="mt-3 pt-3 border-t border-white/8 grid grid-cols-2 gap-2">
                                 <button
                                     type="button"
                                     onClick={() => navigate(`/fest-organizer/fests/${festId}/competitions/${id}`)}
-                                    className="w-full inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl border border-white/10 text-xs font-medium text-gray-300"
+                                    className="inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl border border-white/10 text-xs font-medium text-gray-300"
                                 >
                                     Ops desk <ChevronRight size={14} />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => navigate(`/fest-organizer/fests/${festId}/scan?competitionId=${id}`)}
+                                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-emerald-400/25 bg-emerald-500/10 text-xs font-medium text-emerald-200"
+                                >
+                                    <QrCode size={14} /> Scan
                                 </button>
                             </div>
                         </div>

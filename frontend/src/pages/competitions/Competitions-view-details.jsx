@@ -409,7 +409,9 @@ const buildCompetitionData = (compData, options = {}) => {
         festId: compData.fest?._id || compData.festId || null,
         slotsAllotted: Math.max(0, Number(compData.slotsAllotted) || 0),
         slotsFilled: Math.max(0, Number(compData.slotsFilled) || 0),
+        showSlotsPublic: compData.showSlotsPublic !== false,
         slotsLeft: (() => {
+            if (compData.showSlotsPublic === false) return null;
             const allotted = Math.max(0, Number(compData.slotsAllotted) || 0);
             if (compData.slotsLeft != null && Number.isFinite(Number(compData.slotsLeft))) {
                 return Math.max(0, Math.floor(Number(compData.slotsLeft)));
@@ -1695,7 +1697,11 @@ function EventPage() {
                                         <div aria-hidden />
                                         <RegisterMetaChips
                                             isDark={isDark}
-                                            slotsLabel={formatSlotsLabel(eventData.slotsAllotted, eventData.slotsLeft)}
+                                            slotsLabel={
+                                                eventData.showSlotsPublic === false
+                                                    ? ''
+                                                    : formatSlotsLabel(eventData.slotsAllotted, eventData.slotsLeft)
+                                            }
                                             teamLabel={buildTeamSizeLabel(eventData.teamSizeMin, eventData.teamSizeMax)}
                                         />
                                         <div className="w-11" aria-hidden />
@@ -1827,7 +1833,11 @@ function EventPage() {
                         <div aria-hidden />
                         <RegisterMetaChips
                             isDark={isDark}
-                            slotsLabel={formatSlotsLabel(eventData.slotsAllotted, eventData.slotsLeft)}
+                            slotsLabel={
+                                eventData.showSlotsPublic === false
+                                    ? ''
+                                    : formatSlotsLabel(eventData.slotsAllotted, eventData.slotsLeft)
+                            }
                             teamLabel={buildTeamSizeLabel(eventData.teamSizeMin, eventData.teamSizeMax)}
                         />
 

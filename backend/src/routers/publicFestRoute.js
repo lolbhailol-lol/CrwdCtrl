@@ -286,6 +286,8 @@ router.get('/competitions/:competitionId/public', async (req, res) => {
         // Live slots remaining for public chips (approved registrations)
         try {
             const allotted = Math.max(0, Number(competitionData.slotsAllotted) || 0);
+            const showSlotsPublic = competitionData.showSlotsPublic !== false;
+            competitionData.showSlotsPublic = showSlotsPublic;
             if (allotted > 0) {
                 const Registration = require('../model/registration_model');
                 const filled = await Registration.countDocuments({
@@ -293,7 +295,7 @@ router.get('/competitions/:competitionId/public', async (req, res) => {
                     status: 'approved',
                 });
                 competitionData.slotsFilled = filled;
-                competitionData.slotsLeft = Math.max(0, allotted - filled);
+                competitionData.slotsLeft = showSlotsPublic ? Math.max(0, allotted - filled) : null;
             } else {
                 competitionData.slotsFilled = 0;
                 competitionData.slotsLeft = null;

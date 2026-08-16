@@ -12,6 +12,7 @@ const empty = {
     paymentStatus: 'paid',
     amountPaid: '',
     note: '',
+    whatsappGroupJoined: false,
 };
 
 export default function FestOrganizerManualAddModal({
@@ -59,6 +60,7 @@ export default function FestOrganizerManualAddModal({
                 amountPaid: Number.isFinite(amount) ? amount : undefined,
                 status: 'approved',
                 note: form.note.trim(),
+                whatsappGroupJoined: Boolean(form.whatsappGroupJoined),
             });
             onCreated?.(data.participant);
             onClose?.();
@@ -171,6 +173,21 @@ export default function FestOrganizerManualAddModal({
                             placeholder="VIP / press / guest of…"
                             className="w-full px-3 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 text-sm text-white"
                         />
+                    </label>
+
+                    <label className="flex items-start gap-2.5 rounded-xl border border-white/10 bg-white/3 px-3 py-2.5 cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={Boolean(form.whatsappGroupJoined)}
+                            onChange={(e) => set('whatsappGroupJoined', e.target.checked)}
+                            className="mt-0.5 rounded border-gray-600"
+                        />
+                        <span>
+                            <span className="block text-sm text-white">Already in WhatsApp group</span>
+                            <span className="block text-[11px] text-gray-500 mt-0.5">
+                                Tick if they joined this competition&apos;s group before or at the desk.
+                            </span>
+                        </span>
                     </label>
 
                     {error ? <p className="text-sm text-red-400">{error}</p> : null}

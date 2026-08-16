@@ -30,6 +30,8 @@ import { festPath, competitionPath, entityMatchesRouteParam } from '../../utils/
 import { loadFestDetailCache, saveFestDetailCache, saveCompetitionDetailCache } from '../../utils/detailPageCache';
 import { signalDetailPageReady } from '../../utils/bootSplash';
 import DetailPageLoader from '../../components/DetailPageLoader';
+import FestPublicLiveStrip from '../../components/FestPublicLiveStrip';
+import { isMindSparkFest } from '../../features/fests/mindspark';
 
 function formatCompetitionTabLabel(tab) {
   if (!tab || tab === 'OTHER') return 'Other';
@@ -576,6 +578,10 @@ function EventDetailsPage() {
                 </div>
                 ) : null}
 
+                {isMindSparkFest(pageEvent.id || eventId, pageEvent) ? (
+                  <FestPublicLiveStrip festId={pageEvent.id || eventId} isDark={isDark} />
+                ) : null}
+
                 {/* Competitions */}
                 {availableTabs.length > 0 && (
                   <div ref={eventsRef} className={`${isDark ? 'bg-[#111213]' : 'bg-gray-100'} rounded-2xl p-4 sm:p-6 transition-colors duration-300`}>
@@ -1015,6 +1021,11 @@ function EventDetailsPage() {
         )}
 
         {/* Competitions */}
+        {isMindSparkFest(pageEvent.id || eventId, pageEvent) ? (
+          <div className="px-4 mb-6">
+            <FestPublicLiveStrip festId={pageEvent.id || eventId} isDark={isDark} />
+          </div>
+        ) : null}
         {availableTabs.length > 0 && (
           <section className={`px-4 mb-8 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
             <h2 className={`text-base font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>

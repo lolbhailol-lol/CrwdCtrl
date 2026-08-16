@@ -418,9 +418,20 @@ export async function updateFestOrganizerParticipantStatus(festId, registrationI
     });
 }
 
+export async function updateFestOrganizerParticipantWhatsappGroup(festId, registrationId, joined) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/participants/${registrationId}/whatsapp-group`, {
+        method: 'PATCH',
+        body: { joined: Boolean(joined) },
+    });
+}
+
 export async function exportFestOrganizerParticipants(festId, params = {}) {
     const qs = new URLSearchParams();
     if (params.competitionId) qs.set('competitionId', params.competitionId);
+    if (params.paymentStatus) qs.set('paymentStatus', params.paymentStatus);
+    if (params.checkInStatus) qs.set('checkInStatus', params.checkInStatus);
+    if (params.status) qs.set('status', params.status);
+    if (params.whatsappGroup) qs.set('whatsappGroup', params.whatsappGroup);
     qs.set('format', params.format || 'xlsx');
     const q = qs.toString();
     const res = await festOrganizerFetch(`/fest-organizer/fests/${festId}/participants/export${q ? `?${q}` : ''}`, {

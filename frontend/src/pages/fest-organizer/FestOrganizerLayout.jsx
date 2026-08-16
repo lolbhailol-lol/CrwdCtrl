@@ -98,13 +98,33 @@ export default function FestOrganizerLayout() {
     const opsNav = nav.filter((n) => n.group === 'ops' && n.label !== 'Overview');
     const editNav = nav.filter((n) => n.group === 'edit');
     const mobilePrimary = hideProShow
-        ? ['Live', 'Competitions', 'Participants']
+        ? ['Live', 'Competitions', 'Participants', 'Check-in', 'Connect']
         : ['Live', 'Competitions', 'Pro Show'];
-    const mobileNav = [
-        ...(overviewItem ? [overviewItem] : []),
-        ...editNav.filter((n) => n.label === 'Edit fest & comps'),
-        ...opsNav.filter((n) => mobilePrimary.includes(n.label)),
-    ].slice(0, 5);
+    // MindSpark day-of: Scan + Connect on the bar; Edit stays in sidebar / overview
+    const mobileNav = hideProShow
+        ? [
+            ...(overviewItem ? [overviewItem] : []),
+            ...opsNav.filter((n) => mobilePrimary.includes(n.label)),
+        ].slice(0, 5)
+        : [
+            ...(overviewItem ? [overviewItem] : []),
+            ...editNav.filter((n) => n.label === 'Edit fest & comps'),
+            ...opsNav.filter((n) => mobilePrimary.includes(n.label)),
+        ].slice(0, 5);
+
+    // Pin Connect above Revenue for MindSpark (unpaid chase)
+    const orderedOpsNav = hideProShow
+        ? (() => {
+            const connect = opsNav.find((n) => n.label === 'Connect');
+            const rest = opsNav.filter((n) => n.label !== 'Connect');
+            const revIdx = rest.findIndex((n) => n.label === 'Revenue');
+            if (!connect) return opsNav;
+            if (revIdx < 0) return [...rest, connect];
+            const next = [...rest];
+            next.splice(revIdx, 0, connect);
+            return next;
+        })()
+        : opsNav;
 
     useEffect(() => {
         if (!hideStallLeads || !festId) return;
@@ -182,13 +202,13 @@ export default function FestOrganizerLayout() {
                         </div>
                     ) : null}
 
-                    {opsNav.length ? (
+                    {orderedOpsNav.length ? (
                         <p className="px-3 pt-3 pb-1 text-[10px] uppercase tracking-wider text-gray-600">
                             Ops
                         </p>
                     ) : null}
 
-                    {opsNav.map((item) => (
+                    {orderedOpsNav.map((item) => (
                         <NavItem key={item.path} item={item} onNavigate={() => setSidebarOpen(false)} />
                     ))}
                 </nav>

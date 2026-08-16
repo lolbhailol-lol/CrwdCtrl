@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
-    Check, Clock, Download, Loader, MapPin, MessageCircle, Phone,
+    Bell, Check, Clock, Download, Loader, MapPin, MessageCircle, Phone,
     QrCode, RefreshCw, Search, Trash2, Trophy, UserCheck, Users, X,
 } from 'lucide-react';
 import {
@@ -9,10 +9,13 @@ import {
     exportFestOrganizerParticipants,
     deleteFestOrganizerParticipant,
     updateFestOrganizerParticipantStatus,
+    updateFestOrganizerParticipantWhatsappGroup,
+    notifyFestOrganizerParticipant,
 } from '../../services/api/festOrganizer.api';
 import { useDialog } from '../../context/DialogContext';
 import FestOrganizerParticipantModal from './FestOrganizerParticipantModal';
 import { OrganizerRosterPreview } from './OrganizerTeamRoster';
+import WhatsAppGroupToggle from './WhatsAppGroupToggle';
 import { isMindSparkFest } from '../../features/fests/mindspark';
 
 function waLink(phone) {
@@ -93,7 +96,8 @@ export default function FestOrganizerParticipantsPage() {
     const [rows, setRows] = useState([]);
     const [competitions, setCompetitions] = useState([]);
     const [summary, setSummary] = useState({
-        pending: 0, approved: 0, rejected: 0, checkedIn: 0, notCheckedIn: 0, unpaid: 0, collected: 0, active: 0,
+        pending: 0, approved: 0, rejected: 0, checkedIn: 0, notCheckedIn: 0,
+        unpaid: 0, collected: 0, active: 0, waJoined: 0, waNotJoined: 0,
     });
     const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
     const [loading, setLoading] = useState(true);
@@ -105,6 +109,7 @@ export default function FestOrganizerParticipantsPage() {
     const competitionId = searchParams.get('competitionId') || '';
     const checkInStatus = searchParams.get('checkInStatus') || '';
     const paymentStatus = searchParams.get('paymentStatus') || '';
+    const whatsappGroup = searchParams.get('whatsappGroup') || '';
     const noReview = isMindSparkFest(festId);
 
     useEffect(() => {
@@ -128,11 +133,13 @@ export default function FestOrganizerParticipantsPage() {
             if (competitionId) params.competitionId = competitionId;
             if (checkInStatus) params.checkInStatus = checkInStatus;
             if (paymentStatus) params.paymentStatus = paymentStatus;
+            if (whatsappGroup) params.whatsappGroup = whatsappGroup;
             const data = await fetchFestOrganizerParticipants(festId, params);
             setRows(data.participants || []);
             setCompetitions(data.competitions || []);
             setSummary(data.summary || {
-                pending: 0, approved: 0, rejected: 0, checkedIn: 0, notCheckedIn: 0, unpaid: 0, collected: 0, active: 0,
+                pending: 0, approved: 0, rejected: 0, checkedIn: 0, notCheckedIn: 0,
+                unpaid: 0, collected: 0, active: 0, waJoined: 0, waNotJoined: 0,
             });
             setPagination(data.pagination || { page: 1, pages: 1, total: 0 });
         } catch (e) {
@@ -140,13 +147,13 @@ export default function FestOrganizerParticipantsPage() {
         } finally {
             setLoading(false);
         }
-    }, [festId, status, competitionId, checkInStatus, paymentStatus, search, toast]);
+    }, [festId, status, competitionId, checkInStatus, paymentStatus, whatsappGroup, search, toast]);
 
     useEffect(() => {
         load(1);
         // Filter URL changes — search is applied on submit / when filters change
         // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: don't refetch on every keystroke
-    }, [festId, status, competitionId, checkInStatus, paymentStatus]);
+    }, [festId, status, competitionId, checkInStatus, paymentStatus, whatsappGroup]);
 
     const setParams = (patch, { clearOthers = false } = {}) => {
         const next = clearOthers ? new URLSearchParams() : new URLSearchParams(searchParams);
@@ -162,12 +169,16 @@ export default function FestOrganizerParticipantsPage() {
         setSearchParams(new URLSearchParams());
     };
 
-    const hasFilters = Boolean(status || competitionId || checkInStatus || paymentStatus || search.trim());
+    const hasFilters = Boolean(status || competitionId || checkInStatus || paymentStatus || whatsappGroup || search.trim());
 
     const exportExcel = async () => {
         try {
             const blob = await exportFestOrganizerParticipants(festId, {
                 competitionId: competitionId || undefined,
+                paymentStatus: paymentStatus || undefined,
+                checkInStatus: checkInStatus || undefined,
+                status: status || undefined,
+                whatsappGroup: whatsappGroup || undefined,
                 format: 'xlsx',
             });
             const url = URL.createObjectURL(blob);
@@ -178,6 +189,48 @@ export default function FestOrganizerParticipantsPage() {
             URL.revokeObjectURL(url);
         } catch (e) {
             toast(e.message || 'Export failed');
+        }
+    };
+
+    const toggleWhatsappGroup = async (p, joined) => {
+        setActionBusy(`${p.id}-wa`);
+        try {
+            const data = await updateFestOrganizerParticipantWhatsappGroup(festId, p.id, joined);
+            const next = data.participant;
+            setRows((prev) => prev.map((row) => (row.id === p.id
+                ? {
+                    ...row,
+                    whatsappGroupJoined: next?.whatsappGroupJoined ?? joined,
+                    whatsappGroupJoinedAt: next?.whatsappGroupJoinedAt ?? null,
+                }
+                : row)));
+            toast(data.message || (joined ? 'Marked in WA group' : 'Cleared WA mark'));
+            // Soft-refresh summary counts without blocking
+            load(pagination.page).catch(() => {});
+        } catch (e) {
+            toast(e.message || 'Could not update WhatsApp mark');
+        } finally {
+            setActionBusy('');
+        }
+    };
+
+    const notifyEntry = async (p) => {
+        const title = 'Message from organizers';
+        const message = `Hi ${p.userName || 'there'}! Quick update from the fest team — reply if you need help.`;
+        const ok = await confirm({
+            title: 'Send in-app notification?',
+            message: `Notify ${p.userName || p.userEmail || 'this participant'} (in-app + email if available).`,
+            confirmText: 'Send',
+        });
+        if (!ok) return;
+        setActionBusy(`${p.id}-notify`);
+        try {
+            await notifyFestOrganizerParticipant(festId, p.id, { title, message, channels: { inApp: true, email: true } });
+            toast('Notification sent');
+        } catch (e) {
+            toast(e.message || 'Notify failed');
+        } finally {
+            setActionBusy('');
         }
     };
 
@@ -222,6 +275,8 @@ export default function FestOrganizerParticipantsPage() {
     };
 
     const viewingLabel = (() => {
+        if (whatsappGroup === 'not_joined') return 'Not in WhatsApp group';
+        if (whatsappGroup === 'joined') return 'In WhatsApp group';
         if (checkInStatus === 'not_in') return 'Still outside';
         if (checkInStatus === 'checked_in') return 'Checked in';
         if (paymentStatus === 'pending') return 'Payment pending';
@@ -240,7 +295,7 @@ export default function FestOrganizerParticipantsPage() {
                     <p className="text-[10px] uppercase tracking-[0.14em] text-[#0ECCEE] font-semibold">Fest-wide roster</p>
                     <h1 className="text-xl font-bold text-white mt-0.5">Participants</h1>
                     <p className="text-xs text-gray-500 mt-1">
-                        Cross-competition guest list — contact, export, check payment. For team desk work, open a competition.
+                        Guest book for the fest. Tap <span className="text-emerald-300/90">WA group?</span> when someone joins that competition&apos;s WhatsApp — you can mark it anytime.
                     </p>
                 </div>
                 <div className="flex gap-2 shrink-0">
@@ -277,8 +332,8 @@ export default function FestOrganizerParticipantsPage() {
                         hint="Contact via Connect"
                         tone="amber"
                         icon={Clock}
-                        active={paymentStatus === 'pending'}
-                        onClick={() => setParams({ paymentStatus: 'pending', status: '', checkInStatus: '' })}
+                        active={paymentStatus === 'pending' && !whatsappGroup}
+                        onClick={() => setParams({ paymentStatus: 'pending', status: '', checkInStatus: '', whatsappGroup: '' })}
                     />
                 ) : (
                     <PulseBox
@@ -287,8 +342,8 @@ export default function FestOrganizerParticipantsPage() {
                         hint="Tap to filter"
                         tone="amber"
                         icon={Clock}
-                        active={status === 'pending' && !checkInStatus && !paymentStatus}
-                        onClick={() => setParams({ status: 'pending', checkInStatus: '', paymentStatus: '' })}
+                        active={status === 'pending' && !checkInStatus && !paymentStatus && !whatsappGroup}
+                        onClick={() => setParams({ status: 'pending', checkInStatus: '', paymentStatus: '', whatsappGroup: '' })}
                     />
                 )}
                 <PulseBox
@@ -297,8 +352,8 @@ export default function FestOrganizerParticipantsPage() {
                     hint={`${summary.active} active total`}
                     tone="cyan"
                     icon={Users}
-                    active={status === 'approved' && !checkInStatus && !paymentStatus}
-                    onClick={() => setParams({ status: 'approved', checkInStatus: '', paymentStatus: '' })}
+                    active={status === 'approved' && !checkInStatus && !paymentStatus && !whatsappGroup}
+                    onClick={() => setParams({ status: 'approved', checkInStatus: '', paymentStatus: '', whatsappGroup: '' })}
                 />
                 <PulseBox
                     label="Still outside"
@@ -306,8 +361,8 @@ export default function FestOrganizerParticipantsPage() {
                     hint={`${summary.checkedIn} already in`}
                     tone="emerald"
                     icon={UserCheck}
-                    active={checkInStatus === 'not_in'}
-                    onClick={() => setParams({ checkInStatus: 'not_in', status: '', paymentStatus: '' })}
+                    active={checkInStatus === 'not_in' && !whatsappGroup}
+                    onClick={() => setParams({ checkInStatus: 'not_in', status: '', paymentStatus: '', whatsappGroup: '' })}
                 />
                 <PulseBox
                     label={noReview ? 'Paid / free' : 'Unpaid'}
@@ -316,12 +371,13 @@ export default function FestOrganizerParticipantsPage() {
                     tone="rose"
                     icon={Clock}
                     active={noReview
-                        ? paymentStatus === 'collected' || paymentStatus === 'paid'
-                        : paymentStatus === 'pending'}
+                        ? (paymentStatus === 'collected' || paymentStatus === 'paid') && !whatsappGroup
+                        : paymentStatus === 'pending' && !whatsappGroup}
                     onClick={() => setParams({
                         paymentStatus: noReview ? 'collected' : 'pending',
                         status: '',
                         checkInStatus: '',
+                        whatsappGroup: '',
                     })}
                 />
             </div>
@@ -364,9 +420,14 @@ export default function FestOrganizerParticipantsPage() {
                         <button
                             key={s.id || 'active'}
                             type="button"
-                            onClick={() => setParams({ status: s.id, checkInStatus: '', paymentStatus: '' })}
+                            onClick={() => setParams({
+                                status: s.id,
+                                checkInStatus: '',
+                                paymentStatus: '',
+                                whatsappGroup: '',
+                            })}
                             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
-                                status === s.id && !checkInStatus && !paymentStatus
+                                status === s.id && !checkInStatus && !paymentStatus && !whatsappGroup
                                     ? 'bg-[#0ECCEE]/15 text-[#0ECCEE] border border-[#0ECCEE]/30'
                                     : 'text-gray-500 border border-transparent hover:text-gray-300'
                             }`}
@@ -377,7 +438,12 @@ export default function FestOrganizerParticipantsPage() {
                     <span className="w-px h-6 bg-white/10 self-center mx-0.5" />
                     <button
                         type="button"
-                        onClick={() => setParams({ checkInStatus: checkInStatus === 'checked_in' ? '' : 'checked_in', status: 'approved', paymentStatus: '' })}
+                        onClick={() => setParams({
+                            checkInStatus: checkInStatus === 'checked_in' ? '' : 'checked_in',
+                            status: 'approved',
+                            paymentStatus: '',
+                            whatsappGroup: '',
+                        })}
                         className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
                             checkInStatus === 'checked_in'
                                 ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-400/30'
@@ -388,7 +454,12 @@ export default function FestOrganizerParticipantsPage() {
                     </button>
                     <button
                         type="button"
-                        onClick={() => setParams({ checkInStatus: checkInStatus === 'not_in' ? '' : 'not_in', status: '', paymentStatus: '' })}
+                        onClick={() => setParams({
+                            checkInStatus: checkInStatus === 'not_in' ? '' : 'not_in',
+                            status: '',
+                            paymentStatus: '',
+                            whatsappGroup: '',
+                        })}
                         className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
                             checkInStatus === 'not_in'
                                 ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-400/30'
@@ -396,6 +467,36 @@ export default function FestOrganizerParticipantsPage() {
                         }`}
                     >
                         Outside
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setParams({
+                            whatsappGroup: whatsappGroup === 'not_joined' ? '' : 'not_joined',
+                            checkInStatus: '',
+                            paymentStatus: '',
+                        })}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+                            whatsappGroup === 'not_joined'
+                                ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-400/30'
+                                : 'text-gray-500 border border-transparent hover:text-gray-300'
+                        }`}
+                    >
+                        Not in WA ({summary.waNotJoined || 0})
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setParams({
+                            whatsappGroup: whatsappGroup === 'joined' ? '' : 'joined',
+                            checkInStatus: '',
+                            paymentStatus: '',
+                        })}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+                            whatsappGroup === 'joined'
+                                ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-400/30'
+                                : 'text-gray-500 border border-transparent hover:text-gray-300'
+                        }`}
+                    >
+                        In WA ({summary.waJoined || 0})
                     </button>
                 </div>
 
@@ -446,6 +547,28 @@ export default function FestOrganizerParticipantsPage() {
                     Open hub →
                 </Link>
             </div>
+
+            {whatsappGroup === 'not_joined' ? (
+                <div className="sticky top-14 z-10 rounded-2xl border border-emerald-400/25 bg-emerald-500/10 backdrop-blur px-3.5 py-3">
+                    <p className="text-xs text-emerald-100">
+                        Showing people not marked in a competition WhatsApp group yet. Tap <span className="font-semibold">WA group?</span> on a row once they join — you can also clear it later.
+                    </p>
+                </div>
+            ) : null}
+
+            {noReview && paymentStatus === 'pending' ? (
+                <div className="sticky top-14 z-10 rounded-2xl border border-amber-400/30 bg-amber-500/15 backdrop-blur px-3.5 py-3 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs text-amber-100">
+                        Showing unpaid — chase via Connect or WhatsApp
+                    </p>
+                    <Link
+                        to={`/fest-organizer/fests/${festId}/notifications?audience=unpaid&tab=connect${competitionId ? `&competitionId=${competitionId}` : ''}`}
+                        className="px-3 py-1.5 rounded-xl bg-amber-400 text-black text-xs font-semibold"
+                    >
+                        Open Connect
+                    </Link>
+                </div>
+            ) : null}
 
             {loading && !rows.length ? (
                 <div className="flex justify-center py-16 text-gray-400 gap-2">
@@ -519,17 +642,26 @@ export default function FestOrganizerParticipantsPage() {
                                             </div>
                                         ) : null}
                                         <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                                            <span className={`text-[10px] px-2 py-0.5 rounded-full capitalize ${statusTone(p.status)}`}>
-                                                {p.status}
-                                            </span>
+                                            {noReview ? (
+                                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300">
+                                                    registered
+                                                </span>
+                                            ) : (
+                                                <span className={`text-[10px] px-2 py-0.5 rounded-full capitalize ${statusTone(p.status)}`}>
+                                                    {p.status}
+                                                </span>
+                                            )}
                                             <span className={`text-[10px] capitalize ${payTone(p.paymentStatus)}`}>
                                                 {p.paymentStatus}
                                                 {Number(p.amountPaid) > 0 ? ` · ₹${Number(p.amountPaid).toLocaleString('en-IN')}` : ''}
                                             </span>
                                             {p.checkedIn ? (
                                                 <span className="text-[10px] text-emerald-400">checked in</span>
-                                            ) : p.status === 'approved' ? (
+                                            ) : (noReview || p.status === 'approved') ? (
                                                 <span className="text-[10px] text-gray-600">not checked in</span>
+                                            ) : null}
+                                            {p.whatsappGroupJoined ? (
+                                                <span className="text-[10px] text-emerald-400">in WA group</span>
                                             ) : null}
                                             <span className="text-[10px] text-gray-600 ml-auto tabular-nums">
                                                 {formatWhen(p.submittedAt || p.createdAt)}
@@ -538,6 +670,12 @@ export default function FestOrganizerParticipantsPage() {
                                     </button>
 
                                     <div className="flex flex-col items-end gap-1.5 shrink-0">
+                                        <WhatsAppGroupToggle
+                                            joined={Boolean(p.whatsappGroupJoined)}
+                                            busy={actionBusy === `${p.id}-wa`}
+                                            onToggle={(next) => toggleWhatsappGroup(p, next)}
+                                            size="sm"
+                                        />
                                         <div className="flex items-center gap-1">
                                             {wa ? (
                                                 <a
@@ -545,7 +683,7 @@ export default function FestOrganizerParticipantsPage() {
                                                     target="_blank"
                                                     rel="noreferrer"
                                                     className="p-2 rounded-xl bg-emerald-500/15 text-emerald-300"
-                                                    aria-label="WhatsApp"
+                                                    aria-label="WhatsApp chat"
                                                 >
                                                     <MessageCircle size={14} />
                                                 </a>
@@ -595,16 +733,29 @@ export default function FestOrganizerParticipantsPage() {
                                     <button
                                         type="button"
                                         disabled={Boolean(actionBusy)}
+                                        onClick={() => notifyEntry(p)}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#0ECCEE]/25 text-[#0ECCEE] text-xs disabled:opacity-50"
+                                    >
+                                        {actionBusy === `${p.id}-notify` ? (
+                                            <Loader className="animate-spin" size={12} />
+                                        ) : (
+                                            <Bell size={12} />
+                                        )}
+                                        Notify
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={Boolean(actionBusy)}
                                         onClick={() => deleteEntry(p)}
-                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-red-400/25 text-red-300 text-xs disabled:opacity-50"
+                                        className="p-1.5 rounded-xl border border-white/10 text-gray-500 hover:text-red-300 hover:border-red-400/25 text-xs disabled:opacity-50"
                                         title="Delete entry"
+                                        aria-label={`Delete ${p.userName || 'entry'}`}
                                     >
                                         {actionBusy === `${p.id}-delete` ? (
                                             <Loader className="animate-spin" size={12} />
                                         ) : (
                                             <Trash2 size={12} />
                                         )}
-                                        Delete
                                     </button>
                                     {p.competitionId ? (
                                         <Link

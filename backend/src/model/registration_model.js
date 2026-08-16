@@ -65,6 +65,16 @@ const registrationSchema = new mongoose.Schema({
     default: null,
   },
 
+  /** Organizer-marked: joined this competition's WhatsApp group */
+  whatsappGroupJoined: {
+    type: Boolean,
+    default: false,
+  },
+  whatsappGroupJoinedAt: {
+    type: Date,
+    default: null,
+  },
+
   // Reminder tracking
   reminderSent: {
     type: Boolean,

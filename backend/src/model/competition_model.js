@@ -146,6 +146,12 @@ const competitionSchema = new mongoose.Schema(
     min: 0,
   },
 
+  /** When false, public competition page hides “X slots remain” (capacity still tracked). */
+  showSlotsPublic: {
+    type: Boolean,
+    default: true,
+  },
+
   /** Structured team size for public chips + registration gate */
   teamSizeMin: {
     type: Number,

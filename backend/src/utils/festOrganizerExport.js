@@ -125,7 +125,7 @@ function buildParticipantExportTable(participants = []) {
     }
     const header = [
         'id', 'name', 'email', 'phone', 'team', 'teamSize', 'college', 'city', 'year', 'course',
-        'status', 'paymentStatus', 'amountPaid', 'checkedIn', 'competition', 'submittedAt',
+        'status', 'paymentStatus', 'amountPaid', 'checkedIn', 'whatsappGroup', 'competition', 'submittedAt',
         'rosterSummary',
         ...personCols,
         ...formKeys.map(humanizeFieldName),
@@ -161,6 +161,7 @@ function buildParticipantExportTable(participants = []) {
             p.paymentStatus || '',
             p.amountPaid ?? 0,
             p.checkedIn ? 'yes' : 'no',
+            p.whatsappGroupJoined ? 'yes' : 'no',
             p.competitionName || '',
             p.submittedAt ? new Date(p.submittedAt).toISOString() : '',
             rosterSummary,

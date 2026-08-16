@@ -5,10 +5,12 @@ import {
     fetchFestOrganizerParticipant,
     deleteFestOrganizerParticipant,
     updateFestOrganizerParticipantStatus,
+    updateFestOrganizerParticipantWhatsappGroup,
 } from '../../services/api/festOrganizer.api';
 import { useDialog } from '../../context/DialogContext';
 import { filterExtraFestFormResponses } from '../../utils/festFormResponseKeys';
 import OrganizerTeamRoster from './OrganizerTeamRoster';
+import WhatsAppGroupToggle from './WhatsAppGroupToggle';
 import { isMindSparkFest } from '../../features/fests/mindspark';
 
 function humanizeKey(key = '') {
@@ -132,6 +134,20 @@ export default function FestOrganizerParticipantModal({ festId, registrationId, 
         }
     };
 
+    const toggleWhatsappGroup = async (joined) => {
+        setBusy('wa');
+        try {
+            const data = await updateFestOrganizerParticipantWhatsappGroup(festId, registrationId, joined);
+            setParticipant(data.participant);
+            toast(data.message || (joined ? 'Marked in WA group' : 'Cleared WA mark'));
+            onUpdated?.();
+        } catch (e) {
+            toast(e.message || 'Could not update WhatsApp mark');
+        } finally {
+            setBusy('');
+        }
+    };
+
     const responses = participant?.responses && typeof participant.responses === 'object'
         ? filterExtraFestFormResponses(participant.responses)
         : [];
@@ -184,6 +200,7 @@ export default function FestOrganizerParticipantModal({ festId, registrationId, 
                                 <Badge tone={statusTone(participant.status)}>{participant.status}</Badge>
                                 <Badge tone="info">{participant.paymentStatus}</Badge>
                                 {participant.checkedIn ? <Badge tone="success">Checked in</Badge> : null}
+                                {participant.whatsappGroupJoined ? <Badge tone="success">In WA group</Badge> : null}
                                 {participant.isManual ? <Badge tone="neutral">Manual</Badge> : null}
                             </div>
                             {(wa || tel) ? (
@@ -205,6 +222,29 @@ export default function FestOrganizerParticipantModal({ festId, registrationId, 
                                         </a>
                                     ) : null}
                                 </div>
+                            ) : null}
+                        </div>
+
+                        <div className="rounded-xl border border-white/10 bg-white/3 px-3 py-3 space-y-2">
+                            <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                    <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">
+                                        Competition WhatsApp
+                                    </p>
+                                    <p className="text-xs text-gray-400 mt-1">
+                                        Tick when this entry has joined the competition group. You can mark walk-ins here too.
+                                    </p>
+                                </div>
+                                <WhatsAppGroupToggle
+                                    joined={Boolean(participant.whatsappGroupJoined)}
+                                    busy={busy === 'wa'}
+                                    onToggle={toggleWhatsappGroup}
+                                />
+                            </div>
+                            {participant.whatsappGroupJoinedAt ? (
+                                <p className="text-[11px] text-gray-600">
+                                    Marked {formatDt(participant.whatsappGroupJoinedAt)}
+                                </p>
                             ) : null}
                         </div>
 
