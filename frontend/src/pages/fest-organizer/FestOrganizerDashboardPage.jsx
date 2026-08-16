@@ -177,31 +177,43 @@ export default function FestOrganizerDashboardPage() {
 
             {/* Pulse stats */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <button
-                    type="button"
-                    onClick={() => navigate(
-                        hideProShow
-                            ? `/fest-organizer/fests/${festId}/participants?paymentStatus=pending`
-                            : `/fest-organizer/fests/${festId}/participants?status=pending`,
-                    )}
-                    className="rounded-2xl border border-amber-400/30 bg-linear-to-br from-amber-500/20 to-[#161718] p-4 text-left hover:scale-[1.01] active:scale-[0.99] transition"
-                >
-                    <div className="flex items-center justify-between mb-2">
-                        <Clock size={16} className="text-amber-300" />
-                        {(hideProShow ? unpaidCount : totalPending) > 0 ? (
-                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-400 text-black">
-                                {hideProShow ? 'Unpaid' : 'Action'}
-                            </span>
-                        ) : null}
-                    </div>
-                    <p className="text-2xl font-bold tabular-nums text-white">
-                        {hideProShow ? unpaidCount : totalPending}
-                    </p>
-                    <p className="text-xs text-amber-200/80 mt-1">
-                        {hideProShow ? 'Unpaid' : 'Need review'}
-                    </p>
-                    <p className="text-[11px] text-gray-500 mt-1">{stats.todayRegistrations || 0} new today</p>
-                </button>
+                {hideProShow ? (
+                    <button
+                        type="button"
+                        onClick={() => navigate(`/fest-organizer/fests/${festId}/participants?checkInStatus=not_in`)}
+                        className="rounded-2xl border border-amber-400/30 bg-linear-to-br from-amber-500/20 to-[#161718] p-4 text-left hover:scale-[1.01] active:scale-[0.99] transition"
+                    >
+                        <div className="flex items-center justify-between mb-2">
+                            <Clock size={16} className="text-amber-300" />
+                            {pendingCheckIn > 0 ? (
+                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-400 text-black">
+                                    Outside
+                                </span>
+                            ) : null}
+                        </div>
+                        <p className="text-2xl font-bold tabular-nums text-white">{pendingCheckIn}</p>
+                        <p className="text-xs text-amber-200/80 mt-1">Still outside</p>
+                        <p className="text-[11px] text-gray-500 mt-1">{stats.todayRegistrations || 0} new today</p>
+                    </button>
+                ) : (
+                    <button
+                        type="button"
+                        onClick={() => navigate(`/fest-organizer/fests/${festId}/participants?status=pending`)}
+                        className="rounded-2xl border border-amber-400/30 bg-linear-to-br from-amber-500/20 to-[#161718] p-4 text-left hover:scale-[1.01] active:scale-[0.99] transition"
+                    >
+                        <div className="flex items-center justify-between mb-2">
+                            <Clock size={16} className="text-amber-300" />
+                            {totalPending > 0 ? (
+                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-400 text-black">
+                                    Action
+                                </span>
+                            ) : null}
+                        </div>
+                        <p className="text-2xl font-bold tabular-nums text-white">{totalPending}</p>
+                        <p className="text-xs text-amber-200/80 mt-1">Need review</p>
+                        <p className="text-[11px] text-gray-500 mt-1">{stats.todayRegistrations || 0} new today</p>
+                    </button>
+                )}
 
                 <button
                     type="button"
@@ -228,7 +240,7 @@ export default function FestOrganizerDashboardPage() {
                         <ProgressBar value={checkedIn} max={Math.max(totalApproved, 1)} tone="emerald" />
                     </div>
                     <p className="text-[11px] text-gray-500 mt-1.5">{pendingCheckIn} still outside</p>
-                    {pendingCheckIn > 0 ? (
+                    {!hideProShow && pendingCheckIn > 0 ? (
                         <button
                             type="button"
                             onClick={(e) => {
@@ -253,7 +265,11 @@ export default function FestOrganizerDashboardPage() {
                     </p>
                     <p className="text-xs text-gray-400 mt-1">Revenue</p>
                     <p className="text-[11px] text-gray-500 mt-1">
-                        {payments.paid || 0} paid · {payments.pending || 0} unpaid
+                        {hideProShow
+                            ? (unpaidCount > 0
+                                ? `${payments.paid || 0} paid · ${unpaidCount} unpaid`
+                                : `${payments.paid || 0} paid`)
+                            : `${payments.paid || 0} paid · ${payments.pending || 0} unpaid`}
                     </p>
                 </button>
             </div>

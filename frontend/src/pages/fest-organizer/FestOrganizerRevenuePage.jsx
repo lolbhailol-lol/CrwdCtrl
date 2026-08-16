@@ -267,13 +267,15 @@ export default function FestOrganizerRevenuePage() {
                 )}
             </section>
 
-            <div className="rounded-xl border border-white/10 bg-[#161718] px-4 py-3 flex items-center gap-3 text-xs text-gray-400">
-                <Users size={14} className="text-[#0ECCEE] shrink-0" />
-                <span className="flex-1">Need the full unpaid list with filters?</span>
-                <Link to={`/fest-organizer/fests/${festId}/participants?paymentStatus=pending`} className="text-[#0ECCEE] font-medium">
-                    Guest roster →
-                </Link>
-            </div>
+            {(payments.pending || 0) > 0 ? (
+                <div className="rounded-xl border border-white/10 bg-[#161718] px-4 py-3 flex items-center gap-3 text-xs text-gray-400">
+                    <Users size={14} className="text-[#0ECCEE] shrink-0" />
+                    <span className="flex-1">Need the full unpaid list with filters?</span>
+                    <Link to={`/fest-organizer/fests/${festId}/participants?paymentStatus=pending`} className="text-[#0ECCEE] font-medium">
+                        Guest roster →
+                    </Link>
+                </div>
+            ) : null}
         </div>
     );
 }

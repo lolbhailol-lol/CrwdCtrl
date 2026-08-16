@@ -299,13 +299,13 @@ export default function FestOrganizerParticipantsPage() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 {noReview ? (
                     <PulseBox
-                        label="Unpaid"
-                        value={summary.unpaid}
-                        hint="Contact via Connect"
+                        label="Still outside"
+                        value={summary.notCheckedIn}
+                        hint={`${summary.checkedIn} already in`}
                         tone="amber"
                         icon={Clock}
-                        active={paymentStatus === 'pending'}
-                        onClick={() => setParams({ paymentStatus: 'pending', status: '', checkInStatus: '' })}
+                        active={checkInStatus === 'not_in'}
+                        onClick={() => setParams({ checkInStatus: 'not_in', status: '', paymentStatus: '' })}
                     />
                 ) : (
                     <PulseBox
@@ -328,13 +328,13 @@ export default function FestOrganizerParticipantsPage() {
                     onClick={() => setParams({ status: 'approved', checkInStatus: '', paymentStatus: '' })}
                 />
                 <PulseBox
-                    label="Still outside"
-                    value={summary.notCheckedIn}
-                    hint={`${summary.checkedIn} already in`}
+                    label="Checked in"
+                    value={summary.checkedIn}
+                    hint={noReview ? `${summary.notCheckedIn} outside` : `${summary.notCheckedIn} still outside`}
                     tone="emerald"
                     icon={UserCheck}
-                    active={checkInStatus === 'not_in'}
-                    onClick={() => setParams({ checkInStatus: 'not_in', status: '', paymentStatus: '' })}
+                    active={checkInStatus === 'checked_in'}
+                    onClick={() => setParams({ checkInStatus: 'checked_in', status: 'approved', paymentStatus: '' })}
                 />
                 <PulseBox
                     label={noReview ? 'Paid / free' : 'Unpaid'}
@@ -487,10 +487,10 @@ export default function FestOrganizerParticipantsPage() {
             </div>
 
 
-            {noReview && paymentStatus === 'pending' ? (
-                <div className="sticky top-14 z-10 rounded-2xl border border-amber-400/30 bg-amber-500/15 backdrop-blur px-3.5 py-3 flex flex-wrap items-center justify-between gap-2">
+            {noReview && Number(summary.unpaid) > 0 ? (
+                <div className="rounded-2xl border border-amber-400/25 bg-amber-500/8 px-3.5 py-3 flex flex-wrap items-center justify-between gap-2">
                     <p className="text-xs text-amber-100">
-                        Showing unpaid — chase via Connect or WhatsApp
+                        {summary.unpaid} unpaid — chase in Connect if needed
                     </p>
                     <Link
                         to={`/fest-organizer/fests/${festId}/notifications?audience=unpaid&tab=connect${competitionId ? `&competitionId=${competitionId}` : ''}`}

@@ -111,7 +111,6 @@ export default function FestOrganizerCompetitionsPage() {
     );
 
     const noReview = isMindSparkFest(festId, fest);
-    const unpaidHub = Number(stats?.payments?.pending || 0);
     const outsideHub = Number(stats?.pendingCheckIn || 0);
 
     const filtered = useMemo(() => {
@@ -177,17 +176,11 @@ export default function FestOrganizerCompetitionsPage() {
                         </p>
                         {noReview ? (
                             <p className="text-sm mt-1 text-gray-500">
-                                {unpaidHub > 0 ? (
-                                    <span className="text-amber-300 font-medium">{unpaidHub} unpaid</span>
-                                ) : (
-                                    <span className="text-emerald-300/90">Payments clear</span>
-                                )}
                                 {outsideHub > 0 ? (
-                                    <span className="text-gray-500">
-                                        {' · '}
-                                        <span className="text-emerald-200/90">{outsideHub} still outside</span>
-                                    </span>
-                                ) : null}
+                                    <span className="text-emerald-200/90 font-medium">{outsideHub} still outside</span>
+                                ) : (
+                                    <span className="text-emerald-300/90">Gate clear</span>
+                                )}
                                 {stats ? (
                                     <span>
                                         {' · '}

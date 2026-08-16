@@ -614,7 +614,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
     const noReview = isMindSparkFest(festId, festMeta);
     const listFilters = useMemo(
         () => (noReview
-            ? LIST_FILTERS.filter((f) => f.id !== 'pending')
+            ? LIST_FILTERS.filter((f) => f.id !== 'pending' && f.id !== 'unpaid')
             : LIST_FILTERS.filter((f) => f.id !== 'unpaid')),
         [noReview],
     );
@@ -640,11 +640,11 @@ export default function FestOrganizerCompetitionWorkspacePage() {
     }, [tabParam, solo.length, teams.length]);
 
     useEffect(() => {
-        if (noReview && listFilter === 'pending') setListFilter('all');
+        if (noReview && (listFilter === 'pending' || listFilter === 'unpaid')) setListFilter('all');
     }, [noReview, listFilter]);
 
     useEffect(() => {
-        if (tabParam === 'pending') setListFilter(noReview ? 'unpaid' : 'pending');
+        if (tabParam === 'pending') setListFilter(noReview ? 'out' : 'pending');
     }, [tabParam, noReview]);
 
     const setTab = (id) => {
@@ -1080,7 +1080,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
             ? '1-person registrations — payment collected via gateway. Contact them from Connect if needed.'
             : '1-person registrations from the form — name, contact, and details saved as solo.',
         teams: noReview
-            ? '2+ people from the form — expand for roster. No approve step; payment shows paid/unpaid.'
+            ? '2+ people from the form — expand for roster. No approve step; payment is on Connect if needed.'
             : '2+ people from the form — expand a card for the full roster.',
     };
 
@@ -1148,19 +1148,19 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                     {noReview ? (
                         <button
                             type="button"
-                            onClick={() => setListFilter('unpaid')}
+                            onClick={() => setListFilter('out')}
                             className="rounded-2xl border border-amber-400/35 bg-linear-to-br from-amber-500/20 to-[#161718] p-3.5 text-left hover:scale-[1.01] active:scale-[0.99] transition"
                         >
-                            <p className="text-[10px] uppercase tracking-wide text-amber-200/80">Unpaid</p>
-                            <p className="text-2xl font-bold tabular-nums text-white mt-1">{unpaidCount}</p>
-                            <p className="text-[11px] text-gray-500 mt-1">Tap to filter · Connect below</p>
+                            <p className="text-[10px] uppercase tracking-wide text-amber-200/80">Still outside</p>
+                            <p className="text-2xl font-bold tabular-nums text-white mt-1">{pendingGate}</p>
+                            <p className="text-[11px] text-gray-500 mt-1">Tap to filter roster</p>
                             {unpaidCount > 0 ? (
                                 <Link
                                     to={`/fest-organizer/fests/${festId}/notifications?competitionId=${competitionId}&audience=unpaid&tab=connect`}
                                     onClick={(e) => e.stopPropagation()}
                                     className="inline-flex mt-2 text-[11px] font-semibold text-amber-200 hover:text-amber-100"
                                 >
-                                    Open Connect →
+                                    {unpaidCount} unpaid → Connect
                                 </Link>
                             ) : null}
                         </button>
