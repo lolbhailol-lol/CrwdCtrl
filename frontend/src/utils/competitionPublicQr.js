@@ -1,5 +1,6 @@
 import QRCode from 'qrcode';
 import markLogoUrl from '../assets/crwdctrl-mark.png';
+import { competitionPath } from './slugRoutes';
 
 function escapeHtml(value) {
     return String(value || '')
@@ -17,12 +18,17 @@ function safeFileName(value, fallback = 'competition') {
         .slice(0, 60) || fallback;
 }
 
-/** Public competition page URL encoded in the QR. Prefer id so links stay stable. */
+/**
+ * Public competition page URL encoded in the QR.
+ * Uses title slug (e.g. /competitions-view-details/robowars) so posters read cleanly;
+ * falls back to Mongo id if the name cannot slugify. Scan opens the same detail page
+ * (3D loader → competition).
+ */
 export function competitionPublicPageUrl(competition) {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    const id = String(competition?.id || competition?._id || '').trim();
-    if (!id) return '';
-    return `${origin}/competitions-view-details/${id}`;
+    const path = competitionPath(competition || {});
+    if (!path || path.endsWith('/')) return '';
+    return `${origin}${path}`;
 }
 
 function loadImage(src) {
@@ -35,24 +41,45 @@ function loadImage(src) {
     });
 }
 
-function roundedRectPath(ctx, x, y, w, h, r) {
-    const radius = Math.min(r, w / 2, h / 2);
-    ctx.beginPath();
-    ctx.moveTo(x + radius, y);
-    ctx.arcTo(x + w, y, x + w, y + h, radius);
-    ctx.arcTo(x + w, y + h, x, y + h, radius);
-    ctx.arcTo(x, y + h, x, y, radius);
-    ctx.arcTo(x, y, x + w, y, radius);
-    ctx.closePath();
+/** Strip solid black / near-black plate so only the ctrl. mark remains. */
+async function loadTransparentMark(src) {
+    const img = await loadImage(src);
+    const w = img.naturalWidth || img.width;
+    const h = img.naturalHeight || img.height;
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return img;
+    ctx.drawImage(img, 0, 0);
+    const imageData = ctx.getImageData(0, 0, w, h);
+    const d = imageData.data;
+    for (let i = 0; i < d.length; i += 4) {
+        const r = d[i];
+        const g = d[i + 1];
+        const b = d[i + 2];
+        // Black plate → fully transparent
+        if (r < 32 && g < 32 && b < 32) {
+            d[i + 3] = 0;
+            continue;
+        }
+        // Soften dark gray fringe around the mark
+        if (r < 48 && g < 48 && b < 48 && d[i + 3] > 0) {
+            d[i + 3] = Math.min(d[i + 3], 40);
+        }
+    }
+    ctx.putImageData(imageData, 0, 0);
+    return canvas;
 }
 
 /**
- * Square PNG data URL: competition page QR with CrwdCtrl mark in the center.
+ * Square PNG: competition-page QR with transparent CrwdCtrl mark centered
+ * (QR modules sit around the logo — no black logo plate).
  */
 export async function buildBrandedCompetitionQrDataUrl(url, {
     size = 1024,
-    margin = 2,
-    logoRatio = 0.22,
+    margin = 1,
+    logoRatio = 0.26,
 } = {}) {
     if (!url) throw new Error('Missing competition URL');
 
@@ -73,32 +100,24 @@ export async function buildBrandedCompetitionQrDataUrl(url, {
     ctx.drawImage(qrImg, 0, 0, size, size);
 
     const logoSize = Math.round(size * logoRatio);
-    const pad = Math.round(logoSize * 0.18);
-    const box = logoSize + pad * 2;
-    const boxX = (size - box) / 2;
-    const boxY = (size - box) / 2;
-    const radius = Math.max(10, Math.round(box * 0.18));
+    // Quiet cutout slightly larger than the mark so scanners read modules around it
+    const cut = Math.round(logoSize * 1.12);
+    const cutX = (size - cut) / 2;
+    const cutY = (size - cut) / 2;
 
-    // Soft white plate so the mark stays scannable
     ctx.fillStyle = '#ffffff';
-    roundedRectPath(ctx, boxX, boxY, box, box, radius);
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, cut / 2, 0, Math.PI * 2);
     ctx.fill();
 
-    // Thin cyan ring (brand)
-    ctx.strokeStyle = '#0ECCEE';
-    ctx.lineWidth = Math.max(2, Math.round(size * 0.006));
-    roundedRectPath(ctx, boxX + 1, boxY + 1, box - 2, box - 2, Math.max(8, radius - 1));
-    ctx.stroke();
-
     try {
-        const logo = await loadImage(markLogoUrl);
+        const logo = await loadTransparentMark(markLogoUrl);
         const logoX = (size - logoSize) / 2;
         const logoY = (size - logoSize) / 2;
         ctx.drawImage(logo, logoX, logoY, logoSize, logoSize);
     } catch {
-        // Fallback monogram if mark asset fails
         ctx.fillStyle = '#0ECCEE';
-        ctx.font = `bold ${Math.round(logoSize * 0.42)}px ui-sans-serif, system-ui, sans-serif`;
+        ctx.font = `bold ${Math.round(logoSize * 0.38)}px ui-sans-serif, system-ui, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText('ctrl.', size / 2, size / 2 + 1);
@@ -117,12 +136,12 @@ export function downloadDataUrl(dataUrl, filename) {
     a.remove();
 }
 
-export async function downloadCompetitionQrPng(competition, festName = '') {
+export async function downloadCompetitionQrPng(competition, festName = '', dataUrl = '') {
     const url = competitionPublicPageUrl(competition);
-    const dataUrl = await buildBrandedCompetitionQrDataUrl(url);
+    const png = dataUrl || await buildBrandedCompetitionQrDataUrl(url);
     const festBit = safeFileName(festName, 'fest');
     const nameBit = safeFileName(competition?.name, 'competition');
-    downloadDataUrl(dataUrl, `${festBit}_${nameBit}_QR.png`);
+    downloadDataUrl(png, `${festBit}_${nameBit}_QR.png`);
     return url;
 }
 
