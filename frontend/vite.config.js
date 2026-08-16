@@ -99,7 +99,7 @@ export default defineConfig(({ mode }) => ({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff2,webmanifest}'],
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         // Bump when changing runtime cache strategy so installed devices drop old SW caches
-        cacheId: 'crwdctrl-v5',
+        cacheId: 'crwdctrl-v6',
         // Ensure new builds activate quickly and old caches are removed.
         cleanupOutdatedCaches: true,
         clientsClaim: true,

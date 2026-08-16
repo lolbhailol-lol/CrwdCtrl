@@ -1,6 +1,8 @@
 import QRCode from 'qrcode';
 import markLogoUrl from '../assets/crwdctrl-mark.png';
-import { competitionPath } from './slugRoutes';
+
+/** Always encode production public URLs so posters work from any host (incl. localhost). */
+const PUBLIC_WEB_ORIGIN = 'https://www.crwdctrl.in';
 
 function escapeHtml(value) {
     return String(value || '')
@@ -18,21 +20,39 @@ function safeFileName(value, fallback = 'competition') {
         .slice(0, 60) || fallback;
 }
 
+function toCompetitionSlug(value = '') {
+    return String(value || '')
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+}
+
 /**
  * Public competition page URL encoded in the QR.
- * Uses title slug (e.g. /competitions-view-details/flash); falls back to id.
+ * Prefer title slug: /competitions-view-details/flash — never a bare Mongo id when a name exists.
  */
 export function competitionPublicPageUrl(competition) {
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    const path = competitionPath(competition || {});
-    if (!path || path.endsWith('/')) return '';
-    return `${origin}${path}`;
+    const title = String(
+        competition?.name
+        || competition?.title
+        || competition?.competitionName
+        || '',
+    ).trim();
+    const id = String(competition?.id || competition?._id || '').trim();
+    const slug = toCompetitionSlug(title);
+    if (!slug && !id) return '';
+    return `${PUBLIC_WEB_ORIGIN}/competitions-view-details/${slug || id}`;
 }
 
 function loadImage(src) {
     return new Promise((resolve, reject) => {
         const img = new Image();
         img.decoding = 'async';
+        // Only for http(s) assets — data: QR urls break if crossOrigin is set
+        if (/^https?:/i.test(String(src || ''))) {
+            img.crossOrigin = 'anonymous';
+        }
         img.onload = () => resolve(img);
         img.onerror = () => reject(new Error('Logo failed to load'));
         img.src = src;
@@ -40,8 +60,8 @@ function loadImage(src) {
 }
 
 /**
- * Load mark with black plate removed, cropped tight to the "ctrl." glyphs only
- * (no empty square padding → QR modules can sit close around the word).
+ * Load mark with black plate removed, cropped tight to the "ctrl." glyphs only.
+ * Never returns the raw black-plate asset (that looked like the old QR).
  */
 async function loadCroppedTransparentMark(src) {
     const img = await loadImage(src);
@@ -51,16 +71,22 @@ async function loadCroppedTransparentMark(src) {
     full.width = w;
     full.height = h;
     const fctx = full.getContext('2d', { willReadFrequently: true });
-    if (!fctx) return { canvas: img, width: w, height: h };
+    if (!fctx) throw new Error('Canvas unavailable for mark');
 
     fctx.drawImage(img, 0, 0);
-    const imageData = fctx.getImageData(0, 0, w, h);
+    let imageData;
+    try {
+        imageData = fctx.getImageData(0, 0, w, h);
+    } catch {
+        throw new Error('Mark pixels locked');
+    }
     const d = imageData.data;
 
     let minX = w;
     let minY = h;
     let maxX = 0;
     let maxY = 0;
+    let kept = 0;
 
     for (let i = 0; i < d.length; i += 4) {
         const r = d[i];
@@ -69,7 +95,7 @@ async function loadCroppedTransparentMark(src) {
         const a = d[i + 3];
 
         // Black / near-black plate → transparent
-        if (r < 40 && g < 40 && b < 40) {
+        if (r < 48 && g < 48 && b < 48) {
             d[i + 3] = 0;
             continue;
         }
@@ -79,6 +105,7 @@ async function loadCroppedTransparentMark(src) {
             continue;
         }
 
+        kept += 1;
         const px = (i / 4) % w;
         const py = Math.floor((i / 4) / w);
         if (px < minX) minX = px;
@@ -87,13 +114,12 @@ async function loadCroppedTransparentMark(src) {
         if (py > maxY) maxY = py;
     }
 
-    fctx.putImageData(imageData, 0, 0);
-
-    if (maxX <= minX || maxY <= minY) {
-        return { canvas: full, width: w, height: h };
+    if (!kept || maxX <= minX || maxY <= minY) {
+        throw new Error('Mark content empty');
     }
 
-    // Tiny bleed so glyph edges aren't clipped
+    fctx.putImageData(imageData, 0, 0);
+
     const pad = 4;
     const sx = Math.max(0, minX - pad);
     const sy = Math.max(0, minY - pad);
@@ -104,9 +130,25 @@ async function loadCroppedTransparentMark(src) {
     cropped.width = sw;
     cropped.height = sh;
     const cctx = cropped.getContext('2d');
-    if (!cctx) return { canvas: full, width: w, height: h };
+    if (!cctx) throw new Error('Crop canvas unavailable');
     cctx.drawImage(full, sx, sy, sw, sh, 0, 0, sw, sh);
     return { canvas: cropped, width: sw, height: sh };
+}
+
+function drawCtrlWordmark(ctx, size, logoW, logoH) {
+    const padX = Math.round(logoW * 0.08);
+    const padY = Math.round(logoH * 0.12);
+    const clearW = logoW + padX * 2;
+    const clearH = logoH + padY * 2;
+    const clearX = (size - clearW) / 2;
+    const clearY = (size - clearH) / 2;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(clearX, clearY, clearW, clearH);
+    ctx.fillStyle = '#0ECCEE';
+    ctx.font = `800 ${Math.round(logoH * 0.72)}px ui-sans-serif, system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('ctrl.', size / 2, size / 2 + 1);
 }
 
 /**
@@ -137,45 +179,28 @@ export async function buildBrandedCompetitionQrDataUrl(url, {
     const qrImg = await loadImage(qrDataUrl);
     ctx.drawImage(qrImg, 0, 0, size, size);
 
+    const logoW = Math.round(size * logoWidthRatio);
     try {
-        const { canvas: logo, width: lw, height: lh } = await loadCroppedTransparentMark(markLogoUrl);
-        const logoW = Math.round(size * logoWidthRatio);
+        const markSrc = markLogoUrl || '/crwdctrl-mark.png';
+        const { canvas: logo, width: lw, height: lh } = await loadCroppedTransparentMark(markSrc);
         const logoH = Math.max(1, Math.round(logoW * (lh / Math.max(1, lw))));
 
-        // Thin white quiet zone only — just enough for scanners, not a plate
-        const padX = Math.round(logoW * 0.1);
-        const padY = Math.round(logoH * 0.14);
+        // Thin white quiet zone only — modules sit close around the wordmark
+        const padX = Math.round(logoW * 0.08);
+        const padY = Math.round(logoH * 0.12);
         const clearW = logoW + padX * 2;
         const clearH = logoH + padY * 2;
         const clearX = (size - clearW) / 2;
         const clearY = (size - clearH) / 2;
-        const radius = Math.max(6, Math.round(Math.min(clearW, clearH) * 0.18));
 
         ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.moveTo(clearX + radius, clearY);
-        ctx.arcTo(clearX + clearW, clearY, clearX + clearW, clearY + clearH, radius);
-        ctx.arcTo(clearX + clearW, clearY + clearH, clearX, clearY + clearH, radius);
-        ctx.arcTo(clearX, clearY + clearH, clearX, clearY, radius);
-        ctx.arcTo(clearX, clearY, clearX + clearW, clearY, radius);
-        ctx.closePath();
-        ctx.fill();
+        ctx.fillRect(clearX, clearY, clearW, clearH);
 
         const logoX = (size - logoW) / 2;
         const logoY = (size - logoH) / 2;
         ctx.drawImage(logo, logoX, logoY, logoW, logoH);
     } catch {
-        // Fallback wordmark if asset fails
-        const fontSize = Math.round(size * 0.09);
-        ctx.fillStyle = '#ffffff';
-        const tw = Math.round(size * 0.36);
-        const th = Math.round(fontSize * 1.6);
-        ctx.fillRect((size - tw) / 2, (size - th) / 2, tw, th);
-        ctx.fillStyle = '#0ECCEE';
-        ctx.font = `bold ${fontSize}px ui-sans-serif, system-ui, sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('ctrl.', size / 2, size / 2 + 1);
+        drawCtrlWordmark(ctx, size, logoW, Math.round(logoW * 0.42));
     }
 
     return canvas.toDataURL('image/png');

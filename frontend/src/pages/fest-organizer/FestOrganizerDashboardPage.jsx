@@ -306,7 +306,7 @@ export default function FestOrganizerDashboardPage() {
                     <div className="min-w-0 flex-1">
                         <p className="text-sm font-semibold text-white">Competition QR codes</p>
                         <p className="text-xs text-gray-500 mt-0.5">
-                            Download each or all — scan opens the public competition page
+                            Title-slug links · ctrl. mark in center · preview, PNG, or print pack
                         </p>
                     </div>
                     <ArrowRight size={16} className="text-[#0ECCEE] shrink-0" />
