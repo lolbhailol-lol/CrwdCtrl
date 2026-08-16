@@ -20,9 +20,7 @@ function safeFileName(value, fallback = 'competition') {
 
 /**
  * Public competition page URL encoded in the QR.
- * Uses title slug (e.g. /competitions-view-details/robowars) so posters read cleanly;
- * falls back to Mongo id if the name cannot slugify. Scan opens the same detail page
- * (3D loader → competition).
+ * Uses title slug (e.g. /competitions-view-details/flash); falls back to id.
  */
 export function competitionPublicPageUrl(competition) {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -41,45 +39,85 @@ function loadImage(src) {
     });
 }
 
-/** Strip solid black / near-black plate so only the ctrl. mark remains. */
-async function loadTransparentMark(src) {
+/**
+ * Load mark with black plate removed, cropped tight to the "ctrl." glyphs only
+ * (no empty square padding → QR modules can sit close around the word).
+ */
+async function loadCroppedTransparentMark(src) {
     const img = await loadImage(src);
     const w = img.naturalWidth || img.width;
     const h = img.naturalHeight || img.height;
-    const canvas = document.createElement('canvas');
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    if (!ctx) return img;
-    ctx.drawImage(img, 0, 0);
-    const imageData = ctx.getImageData(0, 0, w, h);
+    const full = document.createElement('canvas');
+    full.width = w;
+    full.height = h;
+    const fctx = full.getContext('2d', { willReadFrequently: true });
+    if (!fctx) return { canvas: img, width: w, height: h };
+
+    fctx.drawImage(img, 0, 0);
+    const imageData = fctx.getImageData(0, 0, w, h);
     const d = imageData.data;
+
+    let minX = w;
+    let minY = h;
+    let maxX = 0;
+    let maxY = 0;
+
     for (let i = 0; i < d.length; i += 4) {
         const r = d[i];
         const g = d[i + 1];
         const b = d[i + 2];
-        // Black plate → fully transparent
-        if (r < 32 && g < 32 && b < 32) {
+        const a = d[i + 3];
+
+        // Black / near-black plate → transparent
+        if (r < 40 && g < 40 && b < 40) {
             d[i + 3] = 0;
             continue;
         }
-        // Soften dark gray fringe around the mark
-        if (r < 48 && g < 48 && b < 48 && d[i + 3] > 0) {
-            d[i + 3] = Math.min(d[i + 3], 40);
+
+        if (a < 12) {
+            d[i + 3] = 0;
+            continue;
         }
+
+        const px = (i / 4) % w;
+        const py = Math.floor((i / 4) / w);
+        if (px < minX) minX = px;
+        if (py < minY) minY = py;
+        if (px > maxX) maxX = px;
+        if (py > maxY) maxY = py;
     }
-    ctx.putImageData(imageData, 0, 0);
-    return canvas;
+
+    fctx.putImageData(imageData, 0, 0);
+
+    if (maxX <= minX || maxY <= minY) {
+        return { canvas: full, width: w, height: h };
+    }
+
+    // Tiny bleed so glyph edges aren't clipped
+    const pad = 4;
+    const sx = Math.max(0, minX - pad);
+    const sy = Math.max(0, minY - pad);
+    const sw = Math.min(w - sx, maxX - minX + 1 + pad * 2);
+    const sh = Math.min(h - sy, maxY - minY + 1 + pad * 2);
+
+    const cropped = document.createElement('canvas');
+    cropped.width = sw;
+    cropped.height = sh;
+    const cctx = cropped.getContext('2d');
+    if (!cctx) return { canvas: full, width: w, height: h };
+    cctx.drawImage(full, sx, sy, sw, sh, 0, 0, sw, sh);
+    return { canvas: cropped, width: sw, height: sh };
 }
 
 /**
- * Square PNG: competition-page QR with transparent CrwdCtrl mark centered
- * (QR modules sit around the logo — no black logo plate).
+ * Square PNG: QR with transparent "ctrl." mark centered.
+ * Modules wrap the glyphs — no black plate, no cyan frame, no big white badge.
  */
 export async function buildBrandedCompetitionQrDataUrl(url, {
     size = 1024,
     margin = 1,
-    logoRatio = 0.26,
+    /** Target width of the wordmark relative to QR size */
+    logoWidthRatio = 0.34,
 } = {}) {
     if (!url) throw new Error('Missing competition URL');
 
@@ -99,25 +137,42 @@ export async function buildBrandedCompetitionQrDataUrl(url, {
     const qrImg = await loadImage(qrDataUrl);
     ctx.drawImage(qrImg, 0, 0, size, size);
 
-    const logoSize = Math.round(size * logoRatio);
-    // Quiet cutout slightly larger than the mark so scanners read modules around it
-    const cut = Math.round(logoSize * 1.12);
-    const cutX = (size - cut) / 2;
-    const cutY = (size - cut) / 2;
-
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(size / 2, size / 2, cut / 2, 0, Math.PI * 2);
-    ctx.fill();
-
     try {
-        const logo = await loadTransparentMark(markLogoUrl);
-        const logoX = (size - logoSize) / 2;
-        const logoY = (size - logoSize) / 2;
-        ctx.drawImage(logo, logoX, logoY, logoSize, logoSize);
+        const { canvas: logo, width: lw, height: lh } = await loadCroppedTransparentMark(markLogoUrl);
+        const logoW = Math.round(size * logoWidthRatio);
+        const logoH = Math.max(1, Math.round(logoW * (lh / Math.max(1, lw))));
+
+        // Thin white quiet zone only — just enough for scanners, not a plate
+        const padX = Math.round(logoW * 0.1);
+        const padY = Math.round(logoH * 0.14);
+        const clearW = logoW + padX * 2;
+        const clearH = logoH + padY * 2;
+        const clearX = (size - clearW) / 2;
+        const clearY = (size - clearH) / 2;
+        const radius = Math.max(6, Math.round(Math.min(clearW, clearH) * 0.18));
+
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.moveTo(clearX + radius, clearY);
+        ctx.arcTo(clearX + clearW, clearY, clearX + clearW, clearY + clearH, radius);
+        ctx.arcTo(clearX + clearW, clearY + clearH, clearX, clearY + clearH, radius);
+        ctx.arcTo(clearX, clearY + clearH, clearX, clearY, radius);
+        ctx.arcTo(clearX, clearY, clearX + clearW, clearY, radius);
+        ctx.closePath();
+        ctx.fill();
+
+        const logoX = (size - logoW) / 2;
+        const logoY = (size - logoH) / 2;
+        ctx.drawImage(logo, logoX, logoY, logoW, logoH);
     } catch {
+        // Fallback wordmark if asset fails
+        const fontSize = Math.round(size * 0.09);
+        ctx.fillStyle = '#ffffff';
+        const tw = Math.round(size * 0.36);
+        const th = Math.round(fontSize * 1.6);
+        ctx.fillRect((size - tw) / 2, (size - th) / 2, tw, th);
         ctx.fillStyle = '#0ECCEE';
-        ctx.font = `bold ${Math.round(logoSize * 0.38)}px ui-sans-serif, system-ui, sans-serif`;
+        ctx.font = `bold ${fontSize}px ui-sans-serif, system-ui, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText('ctrl.', size / 2, size / 2 + 1);
@@ -163,8 +218,6 @@ const PRINT_CSS = `
     justify-content: center;
     text-align: center;
     padding: 28px 24px;
-    border: 1.5px solid #e5e7eb;
-    border-radius: 24px;
   }
   .sheet:last-child { page-break-after: auto; }
   .brand {
@@ -185,8 +238,8 @@ const PRINT_CSS = `
   .qr {
     width: 320px;
     height: 320px;
-    border-radius: 18px;
-    box-shadow: 0 12px 40px rgba(17, 18, 19, 0.08);
+    display: block;
+    background: transparent;
   }
   .hint {
     margin-top: 22px;

@@ -140,7 +140,7 @@ export default function FestOrganizerCompetitionQrModal({
 
                 {/* Large preview first */}
                 <div className="p-4 border-b border-white/8 space-y-3">
-                    <div className="mx-auto w-full max-w-[280px] aspect-square rounded-2xl bg-white p-3 shadow-[0_12px_40px_rgba(0,0,0,0.35)] flex items-center justify-center">
+                    <div className="mx-auto w-full max-w-[280px] aspect-square bg-white flex items-center justify-center overflow-hidden">
                         {previewBusy ? (
                             <Loader className="animate-spin text-gray-400" size={22} />
                         ) : preview ? (
