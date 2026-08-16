@@ -125,7 +125,7 @@ export default function FestOrganizerCompetitionQrModal({
                             <QrCode size={18} className="text-[#0ECCEE]" /> Competition QRs
                         </h2>
                         <p className="text-xs text-gray-500 mt-1">
-                            URL uses the competition name (e.g. …/flash). Scan → 3D load → competition opens.
+                            Scan opens the public competition page.
                         </p>
                     </div>
                     <button
