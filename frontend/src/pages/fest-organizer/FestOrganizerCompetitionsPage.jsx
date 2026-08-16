@@ -84,14 +84,12 @@ export default function FestOrganizerCompetitionsPage() {
                     String(row.id) === id ? { ...row, showSlotsPublic: saved !== false } : row
                 )));
             }
-            toast(next
-                ? `${competition.name || 'Competition'}: slots shown on public page`
-                : `${competition.name || 'Competition'}: slots hidden on public page`);
+            toast(next ? 'Slots shown' : 'Slots hidden');
         } catch (e) {
             setRows((prev) => prev.map((row) => (
                 String(row.id) === id ? { ...row, showSlotsPublic: !next } : row
             )));
-            toast(e.message || 'Could not update show-slots setting');
+            toast(e.message || 'Failed');
         } finally {
             setSlotsBusyId('');
         }

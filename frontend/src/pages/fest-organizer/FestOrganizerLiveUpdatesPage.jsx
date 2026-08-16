@@ -139,7 +139,7 @@ export default function FestOrganizerLiveUpdatesPage() {
         });
         setEditingId('');
         setComposerOpen(true);
-        toast(`Template: ${t.title}`);
+        toast(t.title);
     };
 
     const resetForm = () => {
@@ -199,7 +199,7 @@ export default function FestOrganizerLiveUpdatesPage() {
                 const res = await createFestOrganizerLiveUpdate(festId, body);
                 toast(res.message || 'Created');
                 if (res.notify?.participants) {
-                    toast(`Also notified ${res.notify.participants} participants`);
+                    toast(`Notified ${res.notify.participants}`);
                 }
                 if (form.publish) {
                     setLastPublishConnect({

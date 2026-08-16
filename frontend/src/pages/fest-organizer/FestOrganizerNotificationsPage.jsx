@@ -189,7 +189,7 @@ export default function FestOrganizerNotificationsPage() {
             setContacts(data.contacts || []);
             setMeta({ total: data.total || 0, withPhone: data.withPhone || 0, withEmail: data.withEmail || 0 });
         } catch (e) {
-            toast(e.message || 'Failed to load contacts');
+            toast(e.message || 'Failed');
             setContacts([]);
             setMeta({ total: 0, withPhone: 0, withEmail: 0 });
         } finally {
@@ -222,7 +222,7 @@ export default function FestOrganizerNotificationsPage() {
     const applyTemplate = (t) => {
         setWaMessage(t.wa);
         setAppForm({ title: t.title, message: t.message });
-        toast(`Template: ${t.label}`);
+        toast(t.label);
     };
 
     const copyText = async (text, okMsg) => {
@@ -230,14 +230,14 @@ export default function FestOrganizerNotificationsPage() {
             await navigator.clipboard.writeText(text);
             toast(okMsg || 'Copied');
         } catch {
-            toast('Could not copy');
+            toast('Copy failed');
         }
     };
 
     const copyAllPhones = () => {
         const lines = withPhone.map((c) => `${c.name}\t${c.phone}`).join('\n');
         if (!lines) {
-            toast('No phone numbers in this list');
+            toast('No phones');
             return;
         }
         copyText(lines, `Copied ${withPhone.length} contacts`);
@@ -245,7 +245,7 @@ export default function FestOrganizerNotificationsPage() {
 
     const openNextWhatsApp = () => {
         if (!withPhone.length) {
-            toast('No phones to message');
+            toast('No phones');
             return;
         }
         const idx = waCursor % withPhone.length;
@@ -254,21 +254,21 @@ export default function FestOrganizerNotificationsPage() {
         const link = waLink(c.phone, text);
         if (link) window.open(link, '_blank', 'noopener,noreferrer');
         setWaCursor(idx + 1);
-        toast(`WhatsApp ${idx + 1}/${withPhone.length} · ${c.name}`);
+        toast(`${idx + 1}/${withPhone.length} · ${c.name?.split(/\s+/)[0] || 'WA'}`);
     };
 
     const sendInApp = async (mode) => {
         const title = appForm.title.trim();
         const message = appForm.message.trim();
         if (mode === 'broadcast' && (!title || !message)) {
-            toast('Title and message required');
+            toast('Add title & message');
             return;
         }
         const channelParts = [];
         if (notifyChannels.inApp) channelParts.push('in-app');
         if (notifyChannels.email) channelParts.push('email');
         if (!channelParts.length) {
-            toast('Pick at least one channel (in-app or email)');
+            toast('Pick a channel');
             return;
         }
         const ok = await confirm({
@@ -288,20 +288,16 @@ export default function FestOrganizerNotificationsPage() {
                 channels,
             };
             if (competitionId) payload.competitionId = competitionId;
-            const data = mode === 'reminder'
-                ? await sendFestOrganizerReminder(festId, payload)
-                : await sendFestOrganizerBroadcast(festId, {
+            await (mode === 'reminder'
+                ? sendFestOrganizerReminder(festId, payload)
+                : sendFestOrganizerBroadcast(festId, {
                     title: title || 'Announcement',
                     message: message || 'Update from the fest team.',
                     audience,
                     competitionId: competitionId || undefined,
                     channels,
-                });
-            const delivery = data.delivery || {};
-            const sentParts = [];
-            if (delivery.inApp) sentParts.push(`${delivery.inApp} in-app`);
-            if (delivery.email) sentParts.push(`${delivery.email} email`);
-            toast(sentParts.length ? `${data.message || 'Sent'} (${sentParts.join(', ')})` : (data.message || 'Sent'));
+                }));
+            toast('Sent');
         } catch (err) {
             toast(err.message || 'Failed');
         } finally {

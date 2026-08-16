@@ -1335,12 +1335,12 @@ exports.updateParticipantWhatsappGroup = async (req, res) => {
 
         res.json({
             success: true,
-            message: joined ? 'Marked as in WhatsApp group' : 'Marked as not in WhatsApp group',
+            message: joined ? 'In WA' : 'Cleared',
             participant: formatParticipant(populated),
         });
     } catch (error) {
         console.error('[festOrganizerPortal.updateParticipantWhatsappGroup]', error);
-        res.status(500).json({ success: false, message: 'Failed to update WhatsApp group status' });
+        res.status(500).json({ success: false, message: 'WA update failed' });
     }
 };
 
@@ -1767,7 +1767,6 @@ exports.updateCompetitionSlots = async (req, res) => {
         competition.registration.settings.maxRegistrations = slots > 0 ? slots : null;
         competition.markModified('registration');
 
-        let teamSizeChanged = false;
         if (
             body.teamSizeMin !== undefined
             || body.teamSizeMax !== undefined
@@ -1784,7 +1783,6 @@ exports.updateCompetitionSlots = async (req, res) => {
             competition.teamSizeMin = next.teamSizeMin;
             competition.teamSizeMax = next.teamSizeMax;
             competition.teamSizeLabel = next.teamSizeLabel;
-            teamSizeChanged = true;
         }
 
         await competition.save();
@@ -1792,20 +1790,10 @@ exports.updateCompetitionSlots = async (req, res) => {
 
         const slotsLeft = slots > 0 ? Math.max(0, slots - approved) : null;
         const showSlotsPublic = competition.showSlotsPublic !== false;
-        const bits = [];
-        if (hasRemaining || hasAllotted) {
-            bits.push(slots > 0 ? `${slotsLeft} slots remaining` : 'Slots unlimited');
-        }
-        if (body.showSlotsPublic !== undefined) {
-            bits.push(showSlotsPublic ? 'slots visible on site' : 'slots hidden on site');
-        }
-        if (teamSizeChanged) {
-            bits.push(`max ${competition.teamSizeMax} ${competition.teamSizeMax === 1 ? 'person' : 'people'}`);
-        }
 
         res.json({
             success: true,
-            message: bits.length ? bits.join(' · ') : 'Capacity updated',
+            message: 'Saved',
             competition: {
                 id: competition._id,
                 slotsAllotted: slots,
@@ -1819,7 +1807,7 @@ exports.updateCompetitionSlots = async (req, res) => {
         });
     } catch (error) {
         console.error('[festOrganizerPortal.updateCompetitionSlots]', error);
-        res.status(500).json({ success: false, message: 'Failed to update capacity' });
+        res.status(500).json({ success: false, message: 'Failed' });
     }
 };
 
@@ -2371,7 +2359,7 @@ exports.bulkUpdateParticipantStatus = async (req, res) => {
 
         res.json({
             success: true,
-            message: `Updated ${result.modifiedCount || 0} registration(s) to ${status}`,
+            message: `Updated ${result.modifiedCount || 0}`,
             modifiedCount: result.modifiedCount || 0,
         });
     } catch (error) {

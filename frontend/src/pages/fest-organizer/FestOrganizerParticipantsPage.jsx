@@ -139,7 +139,7 @@ export default function FestOrganizerParticipantsPage() {
             });
             setPagination(data.pagination || { page: 1, pages: 1, total: 0 });
         } catch (e) {
-            toast(e.message || 'Failed to load participants');
+            toast(e.message || 'Failed');
         } finally {
             setLoading(false);
         }
@@ -183,7 +183,7 @@ export default function FestOrganizerParticipantsPage() {
             a.click();
             URL.revokeObjectURL(url);
         } catch (e) {
-            toast(e.message || 'Export failed');
+            toast(e.message || 'Failed');
         }
     };
 
@@ -200,9 +200,9 @@ export default function FestOrganizerParticipantsPage() {
         setActionBusy(`${p.id}-notify`);
         try {
             await notifyFestOrganizerParticipant(festId, p.id, { title, message, channels: { inApp: true, email: true } });
-            toast('Notification sent');
+            toast('Sent');
         } catch (e) {
-            toast(e.message || 'Notify failed');
+            toast(e.message || 'Failed');
         } finally {
             setActionBusy('');
         }
@@ -238,11 +238,11 @@ export default function FestOrganizerParticipantsPage() {
         setActionBusy(`${p.id}-delete`);
         try {
             await deleteFestOrganizerParticipant(festId, p.id);
-            toast('Entry deleted');
+            toast('Deleted');
             if (detailId === p.id) setDetailId(null);
             load(pagination.page);
         } catch (e) {
-            toast(e.message || 'Delete failed');
+            toast(e.message || 'Failed');
         } finally {
             setActionBusy('');
         }

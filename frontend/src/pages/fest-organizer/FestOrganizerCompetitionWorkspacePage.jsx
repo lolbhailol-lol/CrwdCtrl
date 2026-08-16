@@ -750,10 +750,10 @@ export default function FestOrganizerCompetitionWorkspacePage() {
         setBusyId(`${p.id}:delete`);
         try {
             await deleteFestOrganizerParticipant(festId, p.id);
-            toast('Entry deleted');
+            toast('Deleted');
             await load();
         } catch (e) {
-            toast(e.message || 'Delete failed');
+            toast(e.message || 'Failed');
         } finally {
             setBusyId('');
         }
@@ -764,10 +764,10 @@ export default function FestOrganizerCompetitionWorkspacePage() {
         setBusyId(`${p.id}:wa`);
         try {
             const data = await updateFestOrganizerParticipantWhatsappGroup(festId, p.id, joined);
-            toast(data.message || (joined ? 'Marked in WA group' : 'Cleared WA mark'));
+            toast(joined ? 'In WA' : 'Cleared');
             await load();
         } catch (e) {
-            toast(e.message || 'Could not update WhatsApp mark');
+            toast(e.message || 'Failed');
         } finally {
             setBusyId('');
         }
@@ -784,11 +784,11 @@ export default function FestOrganizerCompetitionWorkspacePage() {
 
     const inviteNext = () => {
         if (!groupInviteLink) {
-            toast('Add the competition WhatsApp invite link first');
+            toast('Add invite link');
             return;
         }
         if (!inviteQueue.length) {
-            toast('Everyone with a phone is already marked in WA');
+            toast('All in WA');
             return;
         }
         // Prefer next person not yet invited this session so a refresh / joined tick
@@ -805,27 +805,26 @@ export default function FestOrganizerCompetitionWorkspacePage() {
         const id = String(person.id);
         setWaInvitedIds(new Set([...nextInvited, id]));
         setListFilter('wa_out');
-        const remaining = inviteQueue.filter((p) => String(p.id) !== id && !nextInvited.has(String(p.id))).length;
-        toast(`Invite · ${person.userName || 'participant'}${remaining ? ` · ${remaining} left` : ''}`);
+        toast(person.userName?.split(/\s+/)[0] || 'Opened');
     };
 
     const copyGroupLink = async () => {
         if (!groupInviteLink) {
-            toast('No invite link yet');
+            toast('No link');
             return;
         }
         try {
             await navigator.clipboard.writeText(groupInviteLink);
-            toast('Invite link copied');
+            toast('Copied');
         } catch {
-            toast('Could not copy');
+            toast('Copy failed');
         }
     };
 
     const saveGroupLink = async () => {
         const link = String(waLinkDraft || '').trim();
         if (link && !/^https?:\/\/(chat\.)?whatsapp\.com\//i.test(link) && !/^https?:\/\/wa\.me\//i.test(link)) {
-            toast('Use a WhatsApp invite link (chat.whatsapp.com/…)');
+            toast('Use chat.whatsapp.com link');
             return;
         }
         setWaLinkBusy(true);
@@ -840,9 +839,9 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                     whatsappGroupLink: link,
                 },
             } : prev));
-            toast(link ? 'WhatsApp group link saved' : 'WhatsApp group link cleared');
+            toast(link ? 'Link saved' : 'Link cleared');
         } catch (e) {
-            toast(e.message || 'Failed to save link');
+            toast(e.message || 'Failed');
         } finally {
             setWaLinkBusy(false);
         }
@@ -864,10 +863,10 @@ export default function FestOrganizerCompetitionWorkspacePage() {
             for (const id of ids) {
                 await deleteFestOrganizerParticipant(festId, id);
             }
-            toast(ids.length > 1 ? 'Team entries deleted' : 'Entry deleted');
+            toast('Deleted');
             await load();
         } catch (e) {
-            toast(e.message || 'Delete failed');
+            toast(e.message || 'Failed');
         } finally {
             setBusyId('');
         }
@@ -878,7 +877,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
         setBusyId('bulk-approve');
         try {
             const res = await bulkUpdateFestOrganizerParticipantStatus(festId, ids, 'approved');
-            toast(res.message || 'Approved');
+            toast('Approved');
             await load();
         } catch (e) {
             toast(e.message || 'Failed');
@@ -892,7 +891,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
         setBusyId('bulk-reject');
         try {
             const res = await bulkUpdateFestOrganizerParticipantStatus(festId, ids, 'rejected');
-            toast(res.message || 'Rejected');
+            toast('Rejected');
             await load();
         } catch (e) {
             toast(e.message || 'Failed');
@@ -903,13 +902,13 @@ export default function FestOrganizerCompetitionWorkspacePage() {
 
     const bulkApprovePaid = async (ids = paidPendingIds) => {
         if (!ids?.length) {
-            toast('No paid/free pending entries');
+            toast('Nothing pending');
             return;
         }
         setBulkBusy(true);
         try {
             const res = await bulkUpdateFestOrganizerParticipantStatus(festId, ids, 'approved');
-            toast(res.message || 'Approved');
+            toast('Approved');
             await load();
         } catch (e) {
             toast(e.message || 'Failed');
@@ -928,9 +927,9 @@ export default function FestOrganizerCompetitionWorkspacePage() {
             a.download = `${(competition?.name || 'competition').replace(/[^\w]+/g, '_')}_roster.xlsx`;
             a.click();
             URL.revokeObjectURL(url);
-            toast('Excel export downloaded');
+            toast('Exported');
         } catch (e) {
-            toast(e.message || 'Export failed');
+            toast(e.message || 'Failed');
         } finally {
             setExporting(false);
         }
@@ -952,7 +951,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
         const title = notifyForm.title.trim();
         const message = notifyForm.message.trim();
         if (!title || !message) {
-            toast('Title and message required');
+            toast('Add title & message');
             return;
         }
         const channels = [];
@@ -972,7 +971,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
             toast(res.message || 'Sent');
             setNotifyOpen(null);
         } catch (e) {
-            toast(e.message || 'Failed to send');
+            toast(e.message || 'Failed');
         } finally {
             setNotifyBusy(false);
         }
@@ -987,7 +986,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
         if (remainRaw !== '') {
             const remain = Number(remainRaw);
             if (!Number.isFinite(remain) || remain < 0) {
-                toast('Slots remaining must be 0 or more');
+                toast('Invalid slots');
                 return;
             }
             payload.slotsRemaining = Math.floor(remain);
@@ -995,7 +994,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
 
         const maxPeople = Number(maxRaw);
         if (!Number.isFinite(maxPeople) || maxPeople < 1) {
-            toast('Max people must be at least 1');
+            toast('Max people ≥ 1');
             return;
         }
         payload.maxPeople = Math.min(20, Math.floor(maxPeople));
@@ -1042,10 +1041,10 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                     setMaxPeopleInput(String(Math.max(1, Number(next.teamSizeMax) || 1)));
                 }
             }
-            toast(res.message || 'Capacity updated');
+            toast('Saved');
             await load({ quiet: true });
         } catch (e) {
-            toast(e.message || 'Failed to update capacity');
+            toast(e.message || 'Failed');
         } finally {
             setCapacityBusy(false);
         }
@@ -1600,7 +1599,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                 competitionName={competition?.name}
                 defaultFee={competition?.feeAmount || 0}
                 onCreated={() => {
-                    toast('Participant added');
+                    toast('Added');
                     load();
                     setTab('solo');
                 }}

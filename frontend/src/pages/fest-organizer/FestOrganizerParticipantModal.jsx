@@ -83,7 +83,7 @@ export default function FestOrganizerParticipantModal({ festId, registrationId, 
                 if (!cancelled) setParticipant(data.participant);
             } catch (e) {
                 if (!cancelled) {
-                    toast(e.message || 'Failed to load participant');
+                    toast(e.message || 'Failed');
                     onClose();
                 }
             } finally {
@@ -106,7 +106,7 @@ export default function FestOrganizerParticipantModal({ festId, registrationId, 
             toast(data.message || 'Updated');
             onUpdated?.();
         } catch (e) {
-            toast(e.message || 'Failed to update');
+            toast(e.message || 'Failed');
         } finally {
             setBusy('');
         }
@@ -124,11 +124,11 @@ export default function FestOrganizerParticipantModal({ festId, registrationId, 
         setBusy('delete');
         try {
             await deleteFestOrganizerParticipant(festId, registrationId);
-            toast('Entry deleted');
+            toast('Deleted');
             onUpdated?.();
             onClose();
         } catch (e) {
-            toast(e.message || 'Delete failed');
+            toast(e.message || 'Failed');
         } finally {
             setBusy('');
         }
@@ -139,10 +139,10 @@ export default function FestOrganizerParticipantModal({ festId, registrationId, 
         try {
             const data = await updateFestOrganizerParticipantWhatsappGroup(festId, registrationId, joined);
             setParticipant(data.participant);
-            toast(data.message || (joined ? 'Marked in WA group' : 'Cleared WA mark'));
+            toast(joined ? 'In WA' : 'Cleared');
             onUpdated?.();
         } catch (e) {
-            toast(e.message || 'Could not update WhatsApp mark');
+            toast(e.message || 'Failed');
         } finally {
             setBusy('');
         }
