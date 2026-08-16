@@ -3,12 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
     Users, UserCheck, Clock, IndianRupee, Loader, Bell, QrCode, ExternalLink, RefreshCw,
     Trophy, Calendar, MapPin, Building2, ArrowRight, AlertCircle, CheckCircle2, Mic2, Radio,
-    Pencil,
+    Pencil, Download,
 } from 'lucide-react';
 import { fetchFestOrganizerDashboard } from '../../services/api/festOrganizer.api';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { isMindSparkFest } from '../../features/fests/mindspark';
+import FestOrganizerCompetitionQrModal from './FestOrganizerCompetitionQrModal';
 
 function formatWhen(d) {
     if (!d) return '';
@@ -44,6 +45,7 @@ export default function FestOrganizerDashboardPage() {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [qrOpen, setQrOpen] = useState(false);
 
     const load = async () => {
         setLoading(true);
@@ -118,6 +120,8 @@ export default function FestOrganizerDashboardPage() {
             ? [{ label: 'Edit listing', desc: 'Fest & comps', to: 'edit-listing', icon: Pencil, glow: 'from-[#0ECCEE]/12' }]
             : []),
     ];
+
+    const qrComps = comps.filter((c) => c.id);
 
     return (
         <div className="max-w-5xl mx-auto space-y-5">
@@ -290,6 +294,25 @@ export default function FestOrganizerDashboardPage() {
                 ))}
             </div>
 
+            {qrComps.length ? (
+                <button
+                    type="button"
+                    onClick={() => setQrOpen(true)}
+                    className="w-full rounded-2xl border border-[#0ECCEE]/25 bg-linear-to-r from-[#0ECCEE]/12 to-[#161718] p-4 text-left hover:border-[#0ECCEE]/45 transition flex items-center gap-3"
+                >
+                    <div className="size-11 rounded-xl bg-[#0ECCEE]/15 flex items-center justify-center shrink-0">
+                        <Download size={18} className="text-[#0ECCEE]" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-white">Competition QR codes</p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                            Download each or all — scan opens the public competition page
+                        </p>
+                    </div>
+                    <ArrowRight size={16} className="text-[#0ECCEE] shrink-0" />
+                </button>
+            ) : null}
+
             {hideProShow && unpaidCount > 0 ? (
                 <section className="rounded-2xl border border-amber-400/25 bg-amber-500/8 p-4 flex flex-wrap items-center justify-between gap-3">
                     <div className="min-w-0">
@@ -436,6 +459,13 @@ export default function FestOrganizerDashboardPage() {
                     <p className="text-sm text-gray-500 py-6 text-center">No registrations yet</p>
                 )}
             </section>
+
+            <FestOrganizerCompetitionQrModal
+                open={qrOpen}
+                onClose={() => setQrOpen(false)}
+                festName={fest?.festName || ''}
+                competitions={qrComps}
+            />
         </div>
     );
 }

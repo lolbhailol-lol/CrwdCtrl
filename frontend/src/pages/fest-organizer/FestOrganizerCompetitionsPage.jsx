@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Loader, RefreshCw, Search, ChevronRight, Trophy, UserPlus, QrCode, MessageCircle } from 'lucide-react';
+import { Loader, RefreshCw, Search, ChevronRight, Trophy, UserPlus, QrCode, MessageCircle, Download } from 'lucide-react';
 import {
     fetchFestOrganizerDashboard,
     updateFestOrganizerCompetitionSlots,
@@ -9,6 +9,8 @@ import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { useDialog } from '../../context/DialogContext';
 import { isMindSparkFest } from '../../features/fests/mindspark';
+import FestOrganizerCompetitionQrModal from './FestOrganizerCompetitionQrModal';
+import { downloadCompetitionQrPng } from '../../utils/competitionPublicQr';
 
 function formatCategoryLabel(tab) {
     if (!tab || tab === 'OTHER') return 'Other';
@@ -48,6 +50,8 @@ export default function FestOrganizerCompetitionsPage() {
     const [activeTab, setActiveTab] = useState('ALL');
     const [query, setQuery] = useState('');
     const [slotsBusyId, setSlotsBusyId] = useState('');
+    const [qrOpen, setQrOpen] = useState(false);
+    const [qrBusyId, setQrBusyId] = useState('');
 
     const load = async () => {
         setLoading(true);
@@ -208,14 +212,24 @@ export default function FestOrganizerCompetitionsPage() {
                             </p>
                         )}
                     </div>
-                    <button
-                        type="button"
-                        onClick={load}
-                        className="p-2.5 rounded-xl bg-white/5 text-gray-300 hover:bg-white/10"
-                        aria-label="Refresh"
-                    >
-                        <RefreshCw size={16} />
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <button
+                            type="button"
+                            onClick={() => setQrOpen(true)}
+                            disabled={!filtered.length && !rows.some((r) => r.id)}
+                            className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-[#0ECCEE]/30 bg-[#0ECCEE]/10 text-xs font-semibold text-[#0ECCEE] disabled:opacity-40"
+                        >
+                            <QrCode size={14} /> QRs
+                        </button>
+                        <button
+                            type="button"
+                            onClick={load}
+                            className="p-2.5 rounded-xl bg-white/5 text-gray-300 hover:bg-white/10"
+                            aria-label="Refresh"
+                        >
+                            <RefreshCw size={16} />
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -398,18 +412,37 @@ export default function FestOrganizerCompetitionsPage() {
                                         </div>
                                     </>
                                 ) : null}
-                                <div className="grid grid-cols-2 gap-2">
+                                <div className="grid grid-cols-3 gap-2">
                                     <button
                                         type="button"
                                         onClick={() => navigate(`/fest-organizer/fests/${festId}/competitions/${id}`)}
-                                        className="inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl border border-white/10 text-xs font-medium text-gray-300"
+                                        className="inline-flex items-center justify-center gap-1 px-2 py-2 rounded-xl border border-white/10 text-xs font-medium text-gray-300"
                                     >
-                                        Ops desk <ChevronRight size={14} />
+                                        Desk <ChevronRight size={14} />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={qrBusyId === id}
+                                        onClick={async () => {
+                                            setQrBusyId(id);
+                                            try {
+                                                await downloadCompetitionQrPng(c, fest?.festName || '');
+                                                toast('Downloaded');
+                                            } catch (e) {
+                                                toast(e.message || 'Failed');
+                                            } finally {
+                                                setQrBusyId('');
+                                            }
+                                        }}
+                                        className="inline-flex items-center justify-center gap-1 px-2 py-2 rounded-xl border border-[#0ECCEE]/25 bg-[#0ECCEE]/8 text-xs font-medium text-[#0ECCEE] disabled:opacity-50"
+                                    >
+                                        {qrBusyId === id ? <Loader size={13} className="animate-spin" /> : <Download size={13} />}
+                                        QR
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => navigate(`/fest-organizer/fests/${festId}/scan?competitionId=${id}`)}
-                                        className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-emerald-400/25 bg-emerald-500/10 text-xs font-medium text-emerald-200"
+                                        className="inline-flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl border border-emerald-400/25 bg-emerald-500/10 text-xs font-medium text-emerald-200"
                                     >
                                         <QrCode size={14} /> Scan
                                     </button>
@@ -425,6 +458,13 @@ export default function FestOrganizerCompetitionsPage() {
                     {query ? 'No matches' : 'No competitions yet'}
                 </p>
             ) : null}
+
+            <FestOrganizerCompetitionQrModal
+                open={qrOpen}
+                onClose={() => setQrOpen(false)}
+                festName={fest?.festName || ''}
+                competitions={rows.filter((c) => c.id)}
+            />
         </div>
     );
 }

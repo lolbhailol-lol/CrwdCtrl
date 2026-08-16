@@ -23,6 +23,7 @@ import FestOrganizerManualAddModal from './FestOrganizerManualAddModal';
 import OrganizerTeamRoster, { OrganizerRosterPreview } from './OrganizerTeamRoster';
 import WhatsAppGroupToggle from './WhatsAppGroupToggle';
 import { isMindSparkFest } from '../../features/fests/mindspark';
+import { downloadCompetitionQrPng } from '../../utils/competitionPublicQr';
 
 const TABS = [
     { id: 'solo', label: 'Solo entries' },
@@ -532,6 +533,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
     const [waInvitedIds, setWaInvitedIds] = useState(() => new Set());
     const [waLinkDraft, setWaLinkDraft] = useState('');
     const [waLinkBusy, setWaLinkBusy] = useState(false);
+    const [pageQrBusy, setPageQrBusy] = useState(false);
     const waInviteRef = useRef(null);
 
     const load = useCallback(async ({ quiet = false } = {}) => {
@@ -1446,6 +1448,31 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                         <Plus size={20} className="text-[#0ECCEE] mb-2" />
                         <p className="text-sm font-semibold text-white">Add walk-in</p>
                         <p className="text-[11px] text-gray-500 mt-0.5">VIP / guest — issues a QR</p>
+                    </button>
+                    <button
+                        type="button"
+                        disabled={pageQrBusy || !competition}
+                        onClick={async () => {
+                            setPageQrBusy(true);
+                            try {
+                                await downloadCompetitionQrPng(
+                                    { id: competitionId, name: competition?.name },
+                                    data?.fest?.festName || '',
+                                );
+                                toast('Downloaded');
+                            } catch (e) {
+                                toast(e.message || 'Failed');
+                            } finally {
+                                setPageQrBusy(false);
+                            }
+                        }}
+                        className="rounded-2xl border border-[#0ECCEE]/25 bg-[#0ECCEE]/10 p-3.5 text-left hover:border-[#0ECCEE]/50 transition disabled:opacity-50"
+                    >
+                        {pageQrBusy
+                            ? <Loader className="animate-spin text-[#0ECCEE] mb-2" size={20} />
+                            : <QrCode size={20} className="text-[#0ECCEE] mb-2" />}
+                        <p className="text-sm font-semibold text-white">Page QR</p>
+                        <p className="text-[11px] text-gray-500 mt-0.5">Scan → public competition page</p>
                     </button>
                     <button
                         type="button"
