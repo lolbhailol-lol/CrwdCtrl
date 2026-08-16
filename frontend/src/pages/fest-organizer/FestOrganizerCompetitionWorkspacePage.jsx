@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
-    ArrowLeft, Bell, Check, ChevronDown, Download, GraduationCap,
+    ArrowLeft, Bell, Check, ChevronDown, Copy, Download, ExternalLink, GraduationCap,
     Loader, Mail, MapPin, MessageCircle, Phone, Plus, QrCode, RefreshCw,
     Search, Trash2, Users, X,
 } from 'lucide-react';
@@ -14,6 +14,7 @@ import {
     notifyFestOrganizerParticipant,
     updateFestOrganizerCompetitionSlots,
     updateFestOrganizerParticipantWhatsappGroup,
+    updateFestOrganizerCompetitionDetails,
 } from '../../services/api/festOrganizer.api';
 import { useDialog } from '../../context/DialogContext';
 import { getImageUrl } from '../../utils/imageImports';
@@ -46,9 +47,23 @@ function waLink(phone) {
     return `https://wa.me/${withCountry}`;
 }
 
+function waInviteLink(phone, text) {
+    const base = waLink(phone);
+    if (!base) return null;
+    if (!text) return base;
+    return `${base}?text=${encodeURIComponent(text)}`;
+}
+
 function telLink(phone) {
     const digits = String(phone || '').replace(/\D/g, '');
     return digits ? `tel:${digits}` : null;
+}
+
+function buildGroupInviteMessage(name, competitionName, groupLink) {
+    const first = String(name || '').trim().split(/\s+/)[0] || '';
+    const comp = competitionName || 'the competition';
+    const hi = first ? `Hi ${first}!` : 'Hi!';
+    return `${hi} Please join the ${comp} WhatsApp group for updates:\n${groupLink}`;
 }
 
 function payTone(paymentStatus) {
@@ -142,6 +157,14 @@ function SoloEntryCard({
             }`}
         >
             <div className="flex items-start gap-3">
+                {onWhatsappToggle ? (
+                    <WhatsAppGroupToggle
+                        variant="box"
+                        joined={Boolean(p.whatsappGroupJoined)}
+                        busy={busyId === `${p.id}:wa`}
+                        onToggle={(joined) => onWhatsappToggle(p, joined)}
+                    />
+                ) : null}
                 <div className="min-w-0 flex-1">
                     {p.teamName ? (
                         <p className="text-[11px] font-semibold text-[#0ECCEE] mb-0.5 truncate">{p.teamName}</p>
@@ -161,49 +184,36 @@ function SoloEntryCard({
                         {p.checkedIn ? (
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300">checked in</span>
                         ) : null}
-                        {p.whatsappGroupJoined ? (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300">in WA</span>
-                        ) : null}
                         {p.isManual ? (
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-gray-400">Walk-in</span>
                         ) : null}
                     </div>
                 </div>
-                <div className="flex flex-col items-end gap-1.5 shrink-0">
-                    {onWhatsappToggle ? (
-                        <WhatsAppGroupToggle
-                            joined={Boolean(p.whatsappGroupJoined)}
-                            busy={busyId === `${p.id}:wa`}
-                            onToggle={(joined) => onWhatsappToggle(p, joined)}
-                            size="sm"
-                        />
+                <div className="flex items-center gap-1 shrink-0">
+                    <ContactIcons phone={p.userPhone} email={p.userEmail} />
+                    {onNotify ? (
+                        <button
+                            type="button"
+                            onClick={() => onNotify(p)}
+                            className="p-2 rounded-xl bg-[#0ECCEE]/10 text-[#0ECCEE] shrink-0"
+                            title="Notify participant"
+                            aria-label={`Notify ${p.userName || 'participant'}`}
+                        >
+                            <Bell size={15} />
+                        </button>
                     ) : null}
-                    <div className="flex items-center gap-1">
-                        <ContactIcons phone={p.userPhone} email={p.userEmail} />
-                        {onNotify ? (
-                            <button
-                                type="button"
-                                onClick={() => onNotify(p)}
-                                className="p-2 rounded-xl bg-[#0ECCEE]/10 text-[#0ECCEE] shrink-0"
-                                title="Notify participant"
-                                aria-label={`Notify ${p.userName || 'participant'}`}
-                            >
-                                <Bell size={15} />
-                            </button>
-                        ) : null}
-                        {onDelete ? (
-                            <button
-                                type="button"
-                                disabled={Boolean(busyId)}
-                                onClick={() => onDelete(p)}
-                                className="p-2 rounded-xl border border-red-400/25 text-red-300 shrink-0 disabled:opacity-50"
-                                title="Delete entry"
-                                aria-label={`Delete ${p.userName || 'entry'}`}
-                            >
-                                {busyId === `${p.id}:delete` ? <Loader className="animate-spin" size={15} /> : <Trash2 size={15} />}
-                            </button>
-                        ) : null}
-                    </div>
+                    {onDelete ? (
+                        <button
+                            type="button"
+                            disabled={Boolean(busyId)}
+                            onClick={() => onDelete(p)}
+                            className="p-2 rounded-xl border border-red-400/25 text-red-300 shrink-0 disabled:opacity-50"
+                            title="Delete entry"
+                            aria-label={`Delete ${p.userName || 'entry'}`}
+                        >
+                            {busyId === `${p.id}:delete` ? <Loader className="animate-spin" size={15} /> : <Trash2 size={15} />}
+                        </button>
+                    ) : null}
                 </div>
             </div>
             {Array.isArray(p.teamMembers) && p.teamMembers.length ? (
@@ -268,15 +278,24 @@ function TeamCard({ team, busyId, onApproveIds, onRejectIds, onDelete, onNotify,
                 : 'border-white/8 bg-[#161718]'
         }`}
         >
-            <button
-                type="button"
-                onClick={() => setOpen((v) => !v)}
-                className="w-full text-left p-3.5 flex items-start gap-3"
-            >
-                <div className="size-11 rounded-xl bg-[#0ECCEE]/12 border border-[#0ECCEE]/20 flex items-center justify-center shrink-0">
-                    <Users size={18} className="text-[#0ECCEE]" />
-                </div>
-                <div className="min-w-0 flex-1">
+            <div className="p-3.5 flex items-start gap-3">
+                {onWhatsappToggle && primaryReg ? (
+                    <WhatsAppGroupToggle
+                        variant="box"
+                        joined={Boolean(primaryReg.whatsappGroupJoined || team.whatsappGroupJoined)}
+                        busy={busyId === `${primaryReg.id}:wa`}
+                        onToggle={(joined) => onWhatsappToggle(primaryReg, joined)}
+                    />
+                ) : (
+                    <div className="size-11 rounded-xl bg-[#0ECCEE]/12 border border-[#0ECCEE]/20 flex items-center justify-center shrink-0">
+                        <Users size={18} className="text-[#0ECCEE]" />
+                    </div>
+                )}
+                <button
+                    type="button"
+                    onClick={() => setOpen((v) => !v)}
+                    className="min-w-0 flex-1 text-left"
+                >
                     <div className="flex items-start gap-2">
                         <p className="text-[15px] font-semibold text-white leading-snug flex-1">
                             {team.teamName}
@@ -320,33 +339,13 @@ function TeamCard({ team, busyId, onApproveIds, onRejectIds, onDelete, onNotify,
                                 {team.checkedInCount} checked in
                             </span>
                         ) : null}
-                        {team.whatsappGroupJoined || (team.whatsappJoinedCount > 0
-                            && team.whatsappJoinedCount >= (team.registrations?.length || 1)) ? (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300">
-                                in WA
-                            </span>
-                        ) : team.whatsappJoinedCount > 0 ? (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-gray-400">
-                                {team.whatsappJoinedCount} in WA
-                            </span>
-                        ) : null}
                         {team.isManual ? (
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-gray-400">Walk-in</span>
                         ) : null}
                     </div>
-                </div>
+                </button>
                 <ContactIcons phone={team.captainPhone} email={team.captainEmail} />
-            </button>
-            {onWhatsappToggle && primaryReg ? (
-                <div className="px-3.5 pb-2 flex justify-end">
-                    <WhatsAppGroupToggle
-                        joined={Boolean(primaryReg.whatsappGroupJoined || team.whatsappGroupJoined)}
-                        busy={busyId === `${primaryReg.id}:wa`}
-                        onToggle={(joined) => onWhatsappToggle(primaryReg, joined)}
-                        size="sm"
-                    />
-                </div>
-            ) : null}
+            </div>
             {onNotify ? (
                 <div className="px-3.5 -mt-1 pb-1 flex justify-end">
                     <button
@@ -530,6 +529,10 @@ export default function FestOrganizerCompetitionWorkspacePage() {
     const [notifyOpen, setNotifyOpen] = useState(null);
     const [notifyForm, setNotifyForm] = useState({ title: '', message: '', inApp: true, email: true });
     const [notifyBusy, setNotifyBusy] = useState(false);
+    const [waInvitedIds, setWaInvitedIds] = useState(() => new Set());
+    const [waLinkDraft, setWaLinkDraft] = useState('');
+    const [waLinkBusy, setWaLinkBusy] = useState(false);
+    const waInviteRef = useRef(null);
 
     const load = useCallback(async ({ quiet = false } = {}) => {
         const requestedId = String(competitionId || '');
@@ -558,6 +561,8 @@ export default function FestOrganizerCompetitionWorkspacePage() {
         setListFilter('all');
         setError('');
         setLoading(true);
+        setWaInvitedIds(new Set());
+        setWaLinkDraft('');
         load();
     }, [load]);
 
@@ -589,6 +594,17 @@ export default function FestOrganizerCompetitionWorkspacePage() {
         data?.stats?.approved,
     ]);
 
+    // Keep WA invite draft independent of capacity reloads so pasted links / slot edits don't wipe each other.
+    useEffect(() => {
+        if (!data?.competition) return;
+        if (String(data.competition.id) !== String(competitionId)) return;
+        setWaLinkDraft(String(data.competition.whatsappGroupLink || '').trim());
+    }, [
+        competitionId,
+        data?.competition?.id,
+        data?.competition?.whatsappGroupLink,
+    ]);
+
     const stats = data?.stats;
     const competition = data?.competition;
     const pending = data?.pending || [];
@@ -602,6 +618,16 @@ export default function FestOrganizerCompetitionWorkspacePage() {
             : LIST_FILTERS.filter((f) => f.id !== 'unpaid')),
         [noReview],
     );
+
+    useEffect(() => {
+        if (searchParams.get('focus') !== 'wa') return;
+        if (!noReview) return;
+        const t = window.setTimeout(() => {
+            waInviteRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            setListFilter('wa_out');
+        }, 250);
+        return () => window.clearTimeout(t);
+    }, [searchParams, competitionId, noReview, data?.competition?.id]);
 
     const tab = useMemo(() => {
         const raw = tabParam || '';
@@ -733,6 +759,81 @@ export default function FestOrganizerCompetitionWorkspacePage() {
             toast(e.message || 'Could not update WhatsApp mark');
         } finally {
             setBusyId('');
+        }
+    };
+
+    const groupInviteLink = String(
+        waLinkDraft || competition?.whatsappGroupLink || '',
+    ).trim();
+
+    const inviteQueue = useMemo(() => {
+        const rows = Array.isArray(data?.participants) ? data.participants : [];
+        return rows.filter((p) => !p.whatsappGroupJoined && p.userPhone);
+    }, [data?.participants]);
+
+    const inviteNext = () => {
+        if (!groupInviteLink) {
+            toast('Add the competition WhatsApp invite link first');
+            return;
+        }
+        if (!inviteQueue.length) {
+            toast('Everyone with a phone is already marked in WA');
+            return;
+        }
+        // Prefer next person not yet invited this session so a refresh / joined tick
+        // cannot skip ahead via a stale numeric cursor.
+        let person = inviteQueue.find((p) => !waInvitedIds.has(String(p.id)));
+        let nextInvited = waInvitedIds;
+        if (!person) {
+            person = inviteQueue[0];
+            nextInvited = new Set();
+        }
+        const text = buildGroupInviteMessage(person.userName, competition?.name, groupInviteLink);
+        const link = waInviteLink(person.userPhone, text);
+        if (link) window.open(link, '_blank', 'noopener,noreferrer');
+        const id = String(person.id);
+        setWaInvitedIds(new Set([...nextInvited, id]));
+        setListFilter('wa_out');
+        const remaining = inviteQueue.filter((p) => String(p.id) !== id && !nextInvited.has(String(p.id))).length;
+        toast(`Invite · ${person.userName || 'participant'}${remaining ? ` · ${remaining} left` : ''}`);
+    };
+
+    const copyGroupLink = async () => {
+        if (!groupInviteLink) {
+            toast('No invite link yet');
+            return;
+        }
+        try {
+            await navigator.clipboard.writeText(groupInviteLink);
+            toast('Invite link copied');
+        } catch {
+            toast('Could not copy');
+        }
+    };
+
+    const saveGroupLink = async () => {
+        const link = String(waLinkDraft || '').trim();
+        if (link && !/^https?:\/\/(chat\.)?whatsapp\.com\//i.test(link) && !/^https?:\/\/wa\.me\//i.test(link)) {
+            toast('Use a WhatsApp invite link (chat.whatsapp.com/…)');
+            return;
+        }
+        setWaLinkBusy(true);
+        try {
+            await updateFestOrganizerCompetitionDetails(festId, competitionId, {
+                registration: { whatsappGroupLink: link },
+            });
+            setData((prev) => (prev ? {
+                ...prev,
+                competition: {
+                    ...prev.competition,
+                    whatsappGroupLink: link,
+                },
+            } : prev));
+            toast(link ? 'WhatsApp group link saved' : 'WhatsApp group link cleared');
+        } catch (e) {
+            toast(e.message || 'Failed to save link');
+        } finally {
+            setWaLinkBusy(false);
         }
     };
 
@@ -1103,6 +1204,101 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                 </div>
             ) : null}
 
+            {/* WhatsApp group invite — MindSpark day-of */}
+            {noReview ? (
+                <section
+                    ref={waInviteRef}
+                    className="rounded-2xl border border-emerald-400/25 bg-linear-to-br from-emerald-500/10 to-[#161718] p-3.5 space-y-3 scroll-mt-20"
+                >
+                    <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                            <h2 className="text-sm font-semibold text-white inline-flex items-center gap-1.5">
+                                <MessageCircle size={15} className="text-emerald-300" />
+                                WhatsApp group
+                            </h2>
+                            <p className="text-[11px] text-gray-500 mt-0.5">
+                                Paste the invite link, then Invite next opens chat.whatsapp.com message one by one.
+                                Tick In WA on each row when they join.
+                            </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                            <p className="text-lg font-bold tabular-nums text-white leading-none">
+                                {stats?.waJoined ?? 0}
+                                <span className="text-gray-500 text-sm font-medium">/{stats?.total ?? 0}</span>
+                            </p>
+                            <p className="text-[10px] text-emerald-200/80 mt-1">
+                                {(stats?.waNotJoined ?? inviteQueue.length) || 0} not in
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-2">
+                        <input
+                            type="url"
+                            value={waLinkDraft}
+                            onChange={(e) => setWaLinkDraft(e.target.value)}
+                            placeholder="https://chat.whatsapp.com/…"
+                            className="flex-1 min-w-0 rounded-xl border border-white/10 bg-[#121314] px-3 py-2.5 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-emerald-400/40"
+                        />
+                        <button
+                            type="button"
+                            disabled={waLinkBusy}
+                            onClick={saveGroupLink}
+                            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-emerald-400/30 bg-emerald-500/15 text-xs font-semibold text-emerald-100 disabled:opacity-50"
+                        >
+                            {waLinkBusy ? <Loader size={14} className="animate-spin" /> : <Check size={14} />}
+                            Save link
+                        </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <button
+                            type="button"
+                            onClick={copyGroupLink}
+                            disabled={!groupInviteLink}
+                            className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border border-white/10 bg-[#121314] text-xs font-medium text-gray-200 disabled:opacity-40"
+                        >
+                            <Copy size={13} /> Copy
+                        </button>
+                        <a
+                            href={groupInviteLink || undefined}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-disabled={!groupInviteLink}
+                            onClick={(e) => {
+                                if (!groupInviteLink) e.preventDefault();
+                            }}
+                            className={`inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border border-white/10 bg-[#121314] text-xs font-medium text-gray-200 ${
+                                !groupInviteLink ? 'opacity-40 pointer-events-none' : ''
+                            }`}
+                        >
+                            <ExternalLink size={13} /> Open group
+                        </a>
+                        <button
+                            type="button"
+                            onClick={inviteNext}
+                            disabled={!inviteQueue.length}
+                            className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border border-emerald-400/35 bg-emerald-500/20 text-xs font-semibold text-emerald-100 disabled:opacity-40"
+                        >
+                            <MessageCircle size={13} />
+                            Invite next
+                            {inviteQueue.length ? ` · ${inviteQueue.length}` : ''}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setListFilter('wa_out')}
+                            className={`inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border text-xs font-medium ${
+                                listFilter === 'wa_out'
+                                    ? 'border-[#0ECCEE]/40 bg-[#0ECCEE]/15 text-[#0ECCEE]'
+                                    : 'border-white/10 bg-[#121314] text-gray-200'
+                            }`}
+                        >
+                            Not in WA
+                        </button>
+                    </div>
+                </section>
+            ) : null}
+
             {/* Capacity: slots remain + max people */}
             <section className="rounded-2xl border border-white/10 bg-[#161718] p-3.5 space-y-3">
                 <div>
@@ -1337,7 +1533,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                                     onReject={(id) => setStatus(id, 'rejected')}
                                     onNotify={openNotify}
                                     onDelete={deleteEntry}
-                                    onWhatsappToggle={toggleWhatsappGroup}
+                                    onWhatsappToggle={noReview ? toggleWhatsappGroup : undefined}
                                 />
                             ))}
 
@@ -1366,7 +1562,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                                     onRejectIds={rejectIds}
                                     onDelete={deleteTeam}
                                     onNotify={openNotify}
-                                    onWhatsappToggle={toggleWhatsappGroup}
+                                    onWhatsappToggle={noReview ? toggleWhatsappGroup : undefined}
                                 />
                             ))}
 

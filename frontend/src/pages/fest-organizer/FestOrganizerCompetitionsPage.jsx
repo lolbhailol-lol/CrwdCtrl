@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Loader, RefreshCw, Search, ChevronRight, Trophy, UserPlus, QrCode } from 'lucide-react';
-import { fetchFestOrganizerDashboard } from '../../services/api/festOrganizer.api';
+import { Loader, RefreshCw, Search, ChevronRight, Trophy, UserPlus, QrCode, MessageCircle } from 'lucide-react';
+import {
+    fetchFestOrganizerDashboard,
+    updateFestOrganizerCompetitionSlots,
+} from '../../services/api/festOrganizer.api';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
+import { useDialog } from '../../context/DialogContext';
 import { isMindSparkFest } from '../../features/fests/mindspark';
 
 function formatCategoryLabel(tab) {
@@ -35,6 +39,7 @@ function MiniBox({ label, value, tone = 'default' }) {
 export default function FestOrganizerCompetitionsPage() {
     const { festId } = useParams();
     const navigate = useNavigate();
+    const { toast } = useDialog();
     const [rows, setRows] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -42,6 +47,7 @@ export default function FestOrganizerCompetitionsPage() {
     const [stats, setStats] = useState(null);
     const [activeTab, setActiveTab] = useState('ALL');
     const [query, setQuery] = useState('');
+    const [slotsBusyId, setSlotsBusyId] = useState('');
 
     const load = async () => {
         setLoading(true);
@@ -61,6 +67,35 @@ export default function FestOrganizerCompetitionsPage() {
     useEffect(() => {
         load();
     }, [festId]);
+
+    const toggleShowSlotsPublic = async (competition, next) => {
+        const id = String(competition.id);
+        setSlotsBusyId(id);
+        setRows((prev) => prev.map((row) => (
+            String(row.id) === id ? { ...row, showSlotsPublic: next } : row
+        )));
+        try {
+            const res = await updateFestOrganizerCompetitionSlots(festId, id, {
+                showSlotsPublic: next,
+            });
+            const saved = res?.competition?.showSlotsPublic;
+            if (saved !== undefined) {
+                setRows((prev) => prev.map((row) => (
+                    String(row.id) === id ? { ...row, showSlotsPublic: saved !== false } : row
+                )));
+            }
+            toast(next
+                ? `${competition.name || 'Competition'}: slots shown on public page`
+                : `${competition.name || 'Competition'}: slots hidden on public page`);
+        } catch (e) {
+            setRows((prev) => prev.map((row) => (
+                String(row.id) === id ? { ...row, showSlotsPublic: !next } : row
+            )));
+            toast(e.message || 'Could not update show-slots setting');
+        } finally {
+            setSlotsBusyId('');
+        }
+    };
 
     const categories = useMemo(() => {
         const set = new Set();
@@ -315,21 +350,79 @@ export default function FestOrganizerCompetitionsPage() {
                                     />
                                 </div>
                             </button>
-                            <div className="mt-3 pt-3 border-t border-white/8 grid grid-cols-2 gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => navigate(`/fest-organizer/fests/${festId}/competitions/${id}`)}
-                                    className="inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl border border-white/10 text-xs font-medium text-gray-300"
-                                >
-                                    Ops desk <ChevronRight size={14} />
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => navigate(`/fest-organizer/fests/${festId}/scan?competitionId=${id}`)}
-                                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-emerald-400/25 bg-emerald-500/10 text-xs font-medium text-emerald-200"
-                                >
-                                    <QrCode size={14} /> Scan
-                                </button>
+                            <div className="mt-3 pt-3 border-t border-white/8 space-y-2">
+                                {noReview ? (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={() => navigate(`/fest-organizer/fests/${festId}/competitions/${id}?focus=wa`)}
+                                            className="w-full flex items-center justify-between gap-3 rounded-xl border border-emerald-400/20 bg-emerald-500/8 px-3 py-2.5 text-left hover:border-emerald-400/40 transition"
+                                        >
+                                            <div className="min-w-0 flex items-center gap-2">
+                                                <MessageCircle size={14} className="text-emerald-300 shrink-0" />
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-medium text-white">WA group</p>
+                                                    <p className="text-[10px] text-gray-500 mt-0.5 truncate">
+                                                        {Number(c.waNotJoined) > 0
+                                                            ? `${c.waNotJoined} not in · Invite →`
+                                                            : (c.whatsappGroupLink
+                                                                ? `${c.waJoined || 0} in group`
+                                                                : 'Add invite link on desk')}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <ChevronRight size={14} className="text-emerald-300/80 shrink-0" />
+                                        </button>
+                                        <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#121314] px-3 py-2.5">
+                                            <div className="min-w-0">
+                                                <p className="text-xs font-medium text-white">Show slots on public page</p>
+                                                <p className="text-[10px] text-gray-500 mt-0.5 truncate">
+                                                    {showSlotsPublic
+                                                        ? 'Students see remaining slots'
+                                                        : 'Hidden on competition page'}
+                                                </p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                role="switch"
+                                                aria-checked={showSlotsPublic}
+                                                disabled={slotsBusyId === id}
+                                                onClick={() => toggleShowSlotsPublic(c, !showSlotsPublic)}
+                                                className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border transition disabled:opacity-50 ${
+                                                    showSlotsPublic
+                                                        ? 'bg-emerald-500 border-emerald-400/50'
+                                                        : 'bg-white/10 border-white/15'
+                                                }`}
+                                            >
+                                                {slotsBusyId === id ? (
+                                                    <Loader className="absolute inset-0 m-auto animate-spin text-white" size={12} />
+                                                ) : (
+                                                    <span
+                                                        className={`absolute top-0.5 size-5 rounded-full bg-white transition ${
+                                                            showSlotsPublic ? 'left-5' : 'left-0.5'
+                                                        }`}
+                                                    />
+                                                )}
+                                            </button>
+                                        </div>
+                                    </>
+                                ) : null}
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => navigate(`/fest-organizer/fests/${festId}/competitions/${id}`)}
+                                        className="inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl border border-white/10 text-xs font-medium text-gray-300"
+                                    >
+                                        Ops desk <ChevronRight size={14} />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => navigate(`/fest-organizer/fests/${festId}/scan?competitionId=${id}`)}
+                                        className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-emerald-400/25 bg-emerald-500/10 text-xs font-medium text-emerald-200"
+                                    >
+                                        <QrCode size={14} /> Scan
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     );

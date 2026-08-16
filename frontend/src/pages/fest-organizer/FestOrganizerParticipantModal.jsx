@@ -200,7 +200,7 @@ export default function FestOrganizerParticipantModal({ festId, registrationId, 
                                 <Badge tone={statusTone(participant.status)}>{participant.status}</Badge>
                                 <Badge tone="info">{participant.paymentStatus}</Badge>
                                 {participant.checkedIn ? <Badge tone="success">Checked in</Badge> : null}
-                                {participant.whatsappGroupJoined ? <Badge tone="success">In WA group</Badge> : null}
+                                {noReview && participant.whatsappGroupJoined ? <Badge tone="success">In WA group</Badge> : null}
                                 {participant.isManual ? <Badge tone="neutral">Manual</Badge> : null}
                             </div>
                             {(wa || tel) ? (
@@ -225,6 +225,7 @@ export default function FestOrganizerParticipantModal({ festId, registrationId, 
                             ) : null}
                         </div>
 
+                        {noReview ? (
                         <div className="rounded-xl border border-white/10 bg-white/3 px-3 py-3 space-y-2">
                             <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
@@ -232,7 +233,7 @@ export default function FestOrganizerParticipantModal({ festId, registrationId, 
                                         Competition WhatsApp
                                     </p>
                                     <p className="text-xs text-gray-400 mt-1">
-                                        Tick when this entry has joined the competition group. You can mark walk-ins here too.
+                                        Prefer marking this on the competition desk. You can still toggle it here.
                                     </p>
                                 </div>
                                 <WhatsAppGroupToggle
@@ -247,6 +248,7 @@ export default function FestOrganizerParticipantModal({ festId, registrationId, 
                                 </p>
                             ) : null}
                         </div>
+                        ) : null}
 
                         <div className="grid grid-cols-2 gap-2 text-sm">
                             <div className="rounded-xl bg-white/3 px-3 py-2.5">

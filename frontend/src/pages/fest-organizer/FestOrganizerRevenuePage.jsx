@@ -8,7 +8,7 @@ import {
     fetchFestOrganizerDashboard,
     fetchFestOrganizerNotifyContacts,
 } from '../../services/api/festOrganizer.api';
-import { useDialog } from '../../context/DialogContext';
+import { isMindSparkFest } from '../../features/fests/mindspark';
 
 function waLink(phone, text) {
     const digits = String(phone || '').replace(/\D/g, '');
@@ -23,23 +23,14 @@ function telLink(phone) {
     return digits ? `tel:${digits}` : null;
 }
 
-function ProgressBar({ value, max }) {
-    const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
-    return (
-        <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
-            <div className="h-full rounded-full bg-emerald-400/80 transition-all" style={{ width: `${pct}%` }} />
-        </div>
-    );
-}
-
 export default function FestOrganizerRevenuePage() {
     const { festId } = useParams();
     const navigate = useNavigate();
-    const { toast } = useDialog();
     const [data, setData] = useState(null);
     const [unpaid, setUnpaid] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const mindSpark = isMindSparkFest(festId);
 
     const load = async () => {
         setLoading(true);
@@ -64,6 +55,7 @@ export default function FestOrganizerRevenuePage() {
 
     const { stats, competitions = [], fest } = data || {};
     const payments = stats?.payments || {};
+    const mindSparkMode = mindSpark || isMindSparkFest(festId, fest);
 
     const ranked = useMemo(() => {
         return [...competitions]
@@ -71,8 +63,10 @@ export default function FestOrganizerRevenuePage() {
             .sort((a, b) => Number(b.revenue || 0) - Number(a.revenue || 0));
     }, [competitions]);
 
-    const maxRev = Math.max(1, ...ranked.map((c) => Number(c.revenue) || 0));
-    const totalApproved = ranked.reduce((s, c) => s + (Number(c.approved) || 0), 0);
+    const totalEntries = ranked.reduce(
+        (s, c) => s + (Number(c.approved) || Number(c.total) || 0),
+        0,
+    );
     const unpaidMsg = (name, festName) =>
         `Hi${name ? ` ${name.split(' ')[0]}` : ''}! Reminder to complete payment for ${festName || 'our fest'}. Reply here if you need help.`;
 
@@ -102,7 +96,10 @@ export default function FestOrganizerRevenuePage() {
                         <IndianRupee className="text-emerald-300" size={20} /> Revenue
                     </h1>
                     <p className="text-xs text-gray-500 mt-1">
-                        {fest?.festName} — collected vs unpaid, by competition
+                        {fest?.festName}
+                        {mindSparkMode
+                            ? ' — paid vs unpaid by competition'
+                            : ' — collected vs unpaid, by competition'}
                     </p>
                 </div>
                 <button type="button" onClick={load} className="p-2 rounded-xl border border-white/10 text-gray-400" aria-label="Refresh">
@@ -111,19 +108,35 @@ export default function FestOrganizerRevenuePage() {
             </div>
 
             <section className="rounded-2xl border border-emerald-400/25 bg-linear-to-br from-emerald-500/20 to-[#161718] p-5">
-                <p className="text-xs uppercase tracking-wider text-emerald-200/70">Collected (approved)</p>
+                <p className="text-xs uppercase tracking-wider text-emerald-200/70">
+                    {mindSparkMode ? 'Collected' : 'Collected'}
+                </p>
                 <p className="text-3xl font-bold tabular-nums text-white mt-2">
                     ₹{Number(stats.revenue || 0).toLocaleString('en-IN')}
                 </p>
                 <p className="text-[11px] text-gray-400 mt-2">
-                    {payments.paid || 0} paid · {payments.pending || 0} unpaid · {totalApproved} approved entries
+                    {mindSparkMode
+                        ? `${payments.paid || 0} paid · ${payments.pending || 0} unpaid · ${totalEntries} registrations`
+                        : `${payments.paid || 0} paid · ${payments.pending || 0} unpaid · ${totalEntries} entries`}
                 </p>
             </section>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 {[
-                    { label: 'Paid', value: payments.paid || 0, to: 'participants?paymentStatus=paid&status=approved', tone: 'border-emerald-400/25 bg-emerald-500/10' },
-                    { label: 'Unpaid', value: payments.pending || 0, to: 'participants?paymentStatus=pending', tone: 'border-amber-400/25 bg-amber-500/10' },
+                    {
+                        label: 'Paid',
+                        value: payments.paid || 0,
+                        to: mindSparkMode
+                            ? 'participants?paymentStatus=collected'
+                            : 'participants?paymentStatus=paid&status=approved',
+                        tone: 'border-emerald-400/25 bg-emerald-500/10',
+                    },
+                    {
+                        label: 'Unpaid',
+                        value: payments.pending || 0,
+                        to: 'participants?paymentStatus=pending',
+                        tone: 'border-amber-400/25 bg-amber-500/10',
+                    },
                     { label: 'Free', value: payments.free || 0, to: 'participants', tone: 'border-white/10 bg-[#161718]' },
                     { label: 'Failed', value: payments.failed || 0, to: 'participants', tone: 'border-rose-400/20 bg-rose-500/8' },
                 ].map((b) => (
@@ -155,7 +168,7 @@ export default function FestOrganizerRevenuePage() {
                             to={`/fest-organizer/fests/${festId}/notifications?audience=unpaid&tab=connect`}
                             className="text-xs text-amber-200 inline-flex items-center gap-1 shrink-0"
                         >
-                            Open notify <ArrowRight size={12} />
+                            Open Connect <ArrowRight size={12} />
                         </Link>
                     </div>
                     {unpaid.length ? (
@@ -217,28 +230,34 @@ export default function FestOrganizerRevenuePage() {
                     </button>
                 </div>
                 {ranked.length ? (
-                    <div className="space-y-2.5">
-                        {ranked.map((c) => {
+                    <div className="space-y-2">
+                        {ranked.map((c, idx) => {
                             const rev = Number(c.revenue) || 0;
+                            const entries = Number(c.approved) || Number(c.total) || 0;
+                            const unpaidCount = mindSparkMode
+                                ? null
+                                : Number(c.pending) || 0;
                             return (
                                 <button
                                     key={String(c.id)}
                                     type="button"
                                     onClick={() => navigate(`/fest-organizer/fests/${festId}/competitions/${c.id}`)}
-                                    className="w-full rounded-xl border border-white/8 bg-[#121314] px-3.5 py-3 text-left hover:border-[#0ECCEE]/35 transition"
+                                    className="w-full rounded-xl border border-white/8 bg-[#121314] px-3.5 py-3 text-left hover:border-[#0ECCEE]/35 transition flex items-center gap-3"
                                 >
-                                    <div className="flex items-center justify-between gap-3 mb-2">
-                                        <div className="min-w-0">
-                                            <p className="text-sm text-white truncate font-medium">{c.name}</p>
-                                            <p className="text-[11px] text-gray-500 mt-0.5">
-                                                {c.approved || 0} approved · {c.pending || 0} review
-                                            </p>
-                                        </div>
-                                        <p className="text-sm font-semibold tabular-nums text-emerald-300 shrink-0">
-                                            ₹{rev.toLocaleString('en-IN')}
+                                    <span className="text-[11px] tabular-nums text-gray-600 w-5 shrink-0">
+                                        {idx + 1}
+                                    </span>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-sm text-white truncate font-medium">{c.name}</p>
+                                        <p className="text-[11px] text-gray-500 mt-0.5">
+                                            {mindSparkMode
+                                                ? `${entries} registered`
+                                                : `${entries} entries${unpaidCount ? ` · ${unpaidCount} review` : ''}`}
                                         </p>
                                     </div>
-                                    <ProgressBar value={rev} max={maxRev} />
+                                    <p className="text-sm font-semibold tabular-nums text-emerald-300 shrink-0">
+                                        ₹{rev.toLocaleString('en-IN')}
+                                    </p>
                                 </button>
                             );
                         })}

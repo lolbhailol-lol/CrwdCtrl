@@ -716,7 +716,7 @@ exports.getDashboard = async (req, res) => {
             }),
             Registration.countDocuments({ ...notProShow, status: { $in: ['pending', 'approved'] } }),
             Competition.find({ fest: festId })
-                .select('name competitionType category coverImage subtitle feeAmount registrationFee slotsAllotted showSlotsPublic')
+                .select('name competitionType category coverImage subtitle feeAmount registrationFee slotsAllotted showSlotsPublic registration.whatsappGroupLink')
                 .sort({ name: 1 })
                 .lean(),
             Registration.aggregate([
@@ -746,6 +746,25 @@ exports.getDashboard = async (req, res) => {
                                     1,
                                     0,
                                 ],
+                            },
+                        },
+                        waJoined: {
+                            $sum: {
+                                $cond: [
+                                    {
+                                        $and: [
+                                            { $in: ['$status', ['pending', 'approved']] },
+                                            { $eq: ['$whatsappGroupJoined', true] },
+                                        ],
+                                    },
+                                    1,
+                                    0,
+                                ],
+                            },
+                        },
+                        active: {
+                            $sum: {
+                                $cond: [{ $in: ['$status', ['pending', 'approved']] }, 1, 0],
                             },
                         },
                         revenue: {
@@ -792,6 +811,10 @@ exports.getDashboard = async (req, res) => {
             const slotsAllotted = Math.max(0, Number(c.slotsAllotted) || 0);
             const slotsFilled = approved;
             const slotsLeft = slotsAllotted > 0 ? Math.max(0, slotsAllotted - slotsFilled) : null;
+            const active = Number(row.active) || (Number(row.approved) || 0) + (Number(row.pending) || 0);
+            const waJoined = Number(row.waJoined) || 0;
+            const waNotJoined = Math.max(0, active - waJoined);
+            const whatsappGroupLink = String(c.registration?.whatsappGroupLink || '').trim();
             return {
                 id: c._id,
                 name: c.name || 'Competition',
@@ -804,6 +827,9 @@ exports.getDashboard = async (req, res) => {
                 slotsFilled,
                 slotsLeft,
                 showSlotsPublic: c.showSlotsPublic !== false,
+                whatsappGroupLink,
+                waJoined,
+                waNotJoined,
                 total: Number(row.total) || 0,
                 approved,
                 pending: Number(row.pending) || 0,
@@ -1580,21 +1606,40 @@ exports.getCompetitionOps = async (req, res) => {
         }
 
         const base = { fest: festId, competitionId };
-        const [pendingRows, activeRows, rejectedCount, paidApproved] = await Promise.all([
+        const festOid = new mongoose.Types.ObjectId(String(festId));
+        const competitionOid = new mongoose.Types.ObjectId(String(competitionId));
+        // No row cap: desk roster + WA invite queue must match dashboard waNotJoined aggregates.
+        const [pendingRows, activeRows, rejectedCount, paidApproved, waAgg] = await Promise.all([
             Registration.find({ ...base, status: 'pending' })
                 .populate('user', 'name email phone phoneNumber')
                 .populate('competitionId', 'name')
                 .sort({ createdAt: -1 })
-                .limit(100)
                 .lean(),
             Registration.find({ ...base, status: { $in: ['pending', 'approved'] } })
                 .populate('user', 'name email phone phoneNumber')
                 .populate('competitionId', 'name')
                 .sort({ createdAt: -1 })
-                .limit(500)
                 .lean(),
             Registration.countDocuments({ ...base, status: 'rejected' }),
             Registration.find({ ...base, status: 'approved' }).select('amountPaid checkedIn').lean(),
+            Registration.aggregate([
+                {
+                    $match: {
+                        fest: festOid,
+                        competitionId: competitionOid,
+                        status: { $in: ['pending', 'approved'] },
+                    },
+                },
+                {
+                    $group: {
+                        _id: null,
+                        active: { $sum: 1 },
+                        waJoined: {
+                            $sum: { $cond: [{ $eq: ['$whatsappGroupJoined', true] }, 1, 0] },
+                        },
+                    },
+                },
+            ]),
         ]);
 
         const participants = activeRows.map(formatParticipant);
@@ -1610,6 +1655,11 @@ exports.getCompetitionOps = async (req, res) => {
         const slotsLeft = slotsAllotted > 0 ? Math.max(0, slotsAllotted - slotsFilled) : null;
         const teamSizeMin = Math.max(1, Number(competition.teamSizeMin) || 1);
         const teamSizeMax = Math.max(1, Number(competition.teamSizeMax) || teamSizeMin);
+        const waRow = waAgg[0] || {};
+        const waActive = Number(waRow.active) || participants.length;
+        const waJoined = Number(waRow.waJoined) || 0;
+        const waNotJoined = Math.max(0, waActive - waJoined);
+        const whatsappGroupLink = String(competition.registration?.whatsappGroupLink || '').trim();
 
         res.json({
             success: true,
@@ -1626,6 +1676,7 @@ exports.getCompetitionOps = async (req, res) => {
                 slotsFilled,
                 slotsLeft,
                 showSlotsPublic: competition.showSlotsPublic !== false,
+                whatsappGroupLink,
                 teamSizeMin,
                 teamSizeMax,
                 teamSizeLabel: competition.teamSizeLabel || '',
@@ -1633,7 +1684,7 @@ exports.getCompetitionOps = async (req, res) => {
                 description: competition.description || '',
             },
             stats: {
-                total: participants.length,
+                total: waActive,
                 pending: pendingCount,
                 approved,
                 rejected: rejectedCount,
@@ -1646,6 +1697,8 @@ exports.getCompetitionOps = async (req, res) => {
                 slotsAllotted,
                 slotsFilled,
                 slotsLeft,
+                waJoined,
+                waNotJoined,
             },
             pending,
             participants,

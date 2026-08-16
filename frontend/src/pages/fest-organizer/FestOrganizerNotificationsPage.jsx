@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
-    Bell, Check, Copy, Loader, Mail, Megaphone, MessageCircle, Phone,
+    Bell, Check, Copy, Loader, Megaphone, MessageCircle, Phone,
     RefreshCw, Search, Users, Zap,
 } from 'lucide-react';
 import {
@@ -17,8 +17,8 @@ import { isMindSparkFest, MindSparkWhatsAppLinksAdmin } from '../../features/fes
 const AUDIENCES = [
     { id: 'approved', label: 'Approved', hint: 'Confirmed entries', mindSparkLabel: 'Registered', mindSparkHint: 'Paid / confirmed' },
     { id: 'pending', label: 'Need review', hint: 'Still pending' },
-    { id: 'unpaid', label: 'Unpaid', hint: 'Payment pending' },
-    { id: 'not_in', label: 'Still outside', hint: 'Approved, not checked in' },
+    { id: 'unpaid', label: 'Unpaid', hint: 'Payment pending', mindSparkHint: 'Still need to pay' },
+    { id: 'not_in', label: 'Still outside', hint: 'Approved, not checked in', mindSparkHint: 'Registered, not checked in yet' },
     { id: 'checked_in', label: 'Checked in', hint: 'Already at venue' },
     { id: 'all_active', label: 'All active', hint: 'Pending + approved', mindSparkLabel: 'Everyone', mindSparkHint: 'All active registrations' },
 ];
@@ -51,6 +51,14 @@ const TEMPLATES = [
         title: 'Check-in is open',
         message: 'Gate check-in is open. Bring your QR ticket and head to the entrance.',
         wa: 'Check-in is open! Bring your QR ticket and head to the entrance. See you soon!',
+    },
+    {
+        id: 'wa_group',
+        label: 'Join WA group',
+        title: 'Join the competition WhatsApp',
+        message: 'Please join your competition WhatsApp group for updates and day-of instructions.',
+        wa: 'Please join your competition WhatsApp group for updates and day-of instructions. Reply if you need the link again.',
+        mindSparkOnly: true,
     },
     {
         id: 'results',
@@ -305,16 +313,31 @@ export default function FestOrganizerNotificationsPage() {
         || AUDIENCES.find((a) => a.id === audience)?.label
         || audience;
 
+    const templates = useMemo(
+        () => TEMPLATES.filter((t) => !t.mindSparkOnly || mindSpark),
+        [mindSpark],
+    );
+
+    const quickWho = mindSpark
+        ? [
+            { id: 'unpaid', label: 'Chase unpaid', hint: 'Payment still pending' },
+            { id: 'not_in', label: 'Still outside', hint: 'Not checked in' },
+            { id: 'approved', label: 'Registered', hint: 'Paid / confirmed' },
+        ]
+        : null;
+
     return (
         <div className="max-w-2xl mx-auto space-y-4 pb-10">
             <div className="flex items-start justify-between gap-3">
                 <div>
                     <p className="text-[10px] uppercase tracking-[0.14em] text-[#0ECCEE] font-semibold">Outreach</p>
                     <h1 className="text-xl font-bold text-white mt-0.5 flex items-center gap-2">
-                        <Bell className="text-[#0ECCEE]" size={20} /> Connect &amp; notify
+                        <Bell className="text-[#0ECCEE]" size={20} /> Connect
                     </h1>
                     <p className="text-xs text-gray-500 mt-1">
-                        WhatsApp · call · in-app · email — pick who, use a template, tap to connect
+                        {mindSpark
+                            ? '1) Pick who · 2) Message · 3) WhatsApp or notify — no approve queue'
+                            : 'WhatsApp · call · in-app · email — pick who, use a template, tap to connect'}
                     </p>
                 </div>
                 <button type="button" onClick={loadContacts} className="p-2 rounded-xl border border-white/10 text-gray-400" aria-label="Refresh">
@@ -322,14 +345,42 @@ export default function FestOrganizerNotificationsPage() {
                 </button>
             </div>
 
+            {quickWho ? (
+                <div className="grid grid-cols-3 gap-2">
+                    {quickWho.map((q) => {
+                        const active = audience === q.id;
+                        return (
+                            <button
+                                key={q.id}
+                                type="button"
+                                onClick={() => {
+                                    setAudience(q.id);
+                                    setTab('connect');
+                                }}
+                                className={`rounded-2xl border px-2.5 py-3 text-left transition ${
+                                    active
+                                        ? 'border-[#0ECCEE]/40 bg-[#0ECCEE]/12'
+                                        : 'border-white/10 bg-[#161718] hover:border-white/20'
+                                }`}
+                            >
+                                <p className={`text-xs font-semibold ${active ? 'text-[#0ECCEE]' : 'text-white'}`}>{q.label}</p>
+                                <p className="text-[10px] text-gray-500 mt-1 leading-snug">{q.hint}</p>
+                            </button>
+                        );
+                    })}
+                </div>
+            ) : null}
+
             {/* Audience */}
             <section className="rounded-2xl border border-white/10 bg-[#161718] p-3.5 space-y-3">
                 <div className="flex items-center justify-between gap-2">
-                    <p className="text-[11px] uppercase tracking-wide text-gray-500">Who</p>
+                    <p className="text-[11px] uppercase tracking-wide text-gray-500">
+                        {mindSpark ? '1 · Who' : 'Who'}
+                    </p>
                     <p className="text-xs text-gray-400 tabular-nums">
                         <span className="text-white font-medium">{meta.total}</span> people
-                        {meta.withPhone ? <> · <span className="text-emerald-300">{meta.withPhone}</span> with phone</> : null}
-                        {meta.withEmail ? <> · <span className="text-sky-300">{meta.withEmail}</span> with email</> : null}
+                        {meta.withPhone ? <> · <span className="text-emerald-300">{meta.withPhone}</span> phone</> : null}
+                        {meta.withEmail ? <> · <span className="text-sky-300">{meta.withEmail}</span> email</> : null}
                     </p>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
@@ -371,9 +422,11 @@ export default function FestOrganizerNotificationsPage() {
 
             {/* Templates */}
             <section className="space-y-2">
-                <p className="text-[11px] uppercase tracking-wide text-gray-500 px-0.5">Quick templates</p>
+                <p className="text-[11px] uppercase tracking-wide text-gray-500 px-0.5">
+                    {mindSpark ? '2 · Quick message' : 'Quick templates'}
+                </p>
                 <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">
-                    {TEMPLATES.map((t) => (
+                    {templates.map((t) => (
                         <button
                             key={t.id}
                             type="button"
@@ -390,8 +443,8 @@ export default function FestOrganizerNotificationsPage() {
             {/* Tabs */}
             <div className="grid grid-cols-2 gap-2">
                 {[
-                    { id: 'connect', label: 'WhatsApp & call', icon: MessageCircle },
-                    { id: 'app', label: 'Notify', icon: Megaphone },
+                    { id: 'connect', label: mindSpark ? '3 · WhatsApp' : 'WhatsApp & call', icon: MessageCircle, sub: 'One-by-one + call' },
+                    { id: 'app', label: mindSpark ? '3 · Notify' : 'Notify', icon: Megaphone, sub: `Push to ${audienceLabel.toLowerCase()}` },
                 ].map((t) => {
                     const active = tab === t.id;
                     return (
@@ -407,9 +460,7 @@ export default function FestOrganizerNotificationsPage() {
                         >
                             <t.icon size={16} className={active ? 'text-[#0ECCEE]' : 'text-gray-500'} />
                             <p className={`text-sm font-semibold mt-1.5 ${active ? 'text-white' : 'text-gray-300'}`}>{t.label}</p>
-                            <p className="text-[10px] text-gray-500 mt-0.5">
-                                {t.id === 'connect' ? 'One-tap message or call' : `Push to ${audienceLabel.toLowerCase()}`}
-                            </p>
+                            <p className="text-[10px] text-gray-500 mt-0.5">{t.sub}</p>
                         </button>
                     );
                 })}
@@ -418,9 +469,14 @@ export default function FestOrganizerNotificationsPage() {
             {tab === 'connect' ? (
                 <div className="space-y-3">
                     <section className="rounded-2xl border border-emerald-400/25 bg-linear-to-br from-emerald-500/10 to-[#161718] p-4 space-y-3">
-                        <div className="flex items-center gap-2">
-                            <MessageCircle size={16} className="text-emerald-300" />
-                            <h2 className="text-sm font-semibold text-white">WhatsApp message</h2>
+                        <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                                <MessageCircle size={16} className="text-emerald-300" />
+                                <h2 className="text-sm font-semibold text-white">WhatsApp message</h2>
+                            </div>
+                            <span className="text-[10px] text-gray-500 tabular-nums">
+                                {audienceLabel} · {withPhone.length} phones
+                            </span>
                         </div>
                         <textarea
                             value={waMessage}
@@ -429,25 +485,25 @@ export default function FestOrganizerNotificationsPage() {
                             placeholder="Message that opens with WhatsApp…"
                             className="w-full px-3 py-2.5 rounded-xl bg-[#121314] border border-white/10 text-sm text-white placeholder:text-gray-600"
                         />
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                            <button
-                                type="button"
-                                onClick={openNextWhatsApp}
-                                disabled={!withPhone.length}
-                                className="sm:col-span-2 py-2.5 rounded-xl bg-emerald-500 text-black text-sm font-semibold disabled:opacity-40 inline-flex items-center justify-center gap-2"
-                            >
-                                <MessageCircle size={16} />
-                                Open next WhatsApp ({Math.min(waCursor + 1, withPhone.length || 1)}/{withPhone.length || 0})
-                            </button>
+                        <button
+                            type="button"
+                            onClick={openNextWhatsApp}
+                            disabled={!withPhone.length}
+                            className="w-full py-3 rounded-xl bg-emerald-500 text-black text-sm font-semibold disabled:opacity-40 inline-flex items-center justify-center gap-2"
+                        >
+                            <MessageCircle size={16} />
+                            {withPhone.length
+                                ? `Open next WhatsApp (${Math.min(waCursor + 1, withPhone.length)}/${withPhone.length})`
+                                : 'No phones in this list'}
+                        </button>
+                        <div className="flex flex-wrap gap-2">
                             <button
                                 type="button"
                                 onClick={() => copyText(waMessage, 'Message copied')}
-                                className="py-2.5 rounded-xl border border-white/10 text-sm text-gray-300 inline-flex items-center justify-center gap-2"
+                                className="text-xs px-3 py-1.5 rounded-lg border border-white/10 text-gray-400 inline-flex items-center gap-1.5"
                             >
-                                <Copy size={14} /> Copy text
+                                <Copy size={12} /> Copy text
                             </button>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
                             <button
                                 type="button"
                                 onClick={copyAllPhones}
@@ -466,7 +522,7 @@ export default function FestOrganizerNotificationsPage() {
                             ) : null}
                         </div>
                         <p className="text-[11px] text-gray-500">
-                            Opens WhatsApp one by one with your message — fastest way without a bulk WA API.
+                            Opens WhatsApp one by one with your message — no Business API needed.
                         </p>
                     </section>
 
@@ -501,7 +557,7 @@ export default function FestOrganizerNotificationsPage() {
                                                 {c.competitionName || 'Fest'}
                                                 {c.phone ? ` · ${c.phone}` : ' · no phone'}
                                                 {c.paymentStatus === 'pending' ? ' · unpaid' : ''}
-                                                {c.status === 'pending' ? ' · review' : ''}
+                                                {!mindSpark && c.status === 'pending' ? ' · review' : ''}
                                             </p>
                                         </div>
                                         <div className="flex items-center gap-1.5 shrink-0">
@@ -510,10 +566,10 @@ export default function FestOrganizerNotificationsPage() {
                                                     href={wa}
                                                     target="_blank"
                                                     rel="noreferrer"
-                                                    className="p-2.5 rounded-xl bg-emerald-500/15 text-emerald-300"
+                                                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500/15 text-emerald-300 text-xs font-semibold"
                                                     aria-label={`WhatsApp ${c.name}`}
                                                 >
-                                                    <MessageCircle size={16} />
+                                                    <MessageCircle size={14} /> WA
                                                 </a>
                                             ) : (
                                                 <span className="p-2.5 rounded-xl bg-white/5 text-gray-600" title="No phone">
@@ -553,7 +609,9 @@ export default function FestOrganizerNotificationsPage() {
                     <section className="rounded-2xl border border-[#0ECCEE]/25 bg-linear-to-br from-[#0ECCEE]/10 to-[#161718] p-4 space-y-3">
                         <div className="flex items-center gap-2">
                             <Megaphone size={16} className="text-[#0ECCEE]" />
-                            <h2 className="text-sm font-semibold text-white">Notify participants</h2>
+                            <h2 className="text-sm font-semibold text-white">
+                                {mindSpark ? 'Notify this list' : 'Notify participants'}
+                            </h2>
                         </div>
                         <p className="text-[11px] text-gray-500">
                             Send to <span className="text-white">{audienceLabel}</span>
@@ -617,9 +675,15 @@ export default function FestOrganizerNotificationsPage() {
                     <div className="rounded-xl border border-white/10 bg-[#161718] px-4 py-3 flex items-start gap-2 text-xs text-gray-400">
                         <Check size={14} className="text-emerald-400 shrink-0 mt-0.5" />
                         <p>
-                            Tip: use <span className="text-white">WhatsApp &amp; call</span> for urgent nudges, and{' '}
-                            <span className="text-white">email + in-app</span> for formal updates.
-                            Filter by competition above to notify one comp only.
+                            {mindSpark
+                                ? 'Use WhatsApp for unpaid / outside chase. Use Notify for fest-wide updates. Filter by competition to message one desk only.'
+                                : (
+                                    <>
+                                        Tip: use <span className="text-white">WhatsApp &amp; call</span> for urgent nudges, and{' '}
+                                        <span className="text-white">email + in-app</span> for formal updates.
+                                        Filter by competition above to notify one comp only.
+                                    </>
+                                )}
                         </p>
                     </div>
                 </div>
@@ -632,7 +696,7 @@ export default function FestOrganizerNotificationsPage() {
                             <MessageCircle size={16} className="text-emerald-300" /> Competition WhatsApp groups
                         </p>
                         <p className="text-[11px] text-gray-500 mt-0.5">
-                            Links shown after paid registration — keep these updated here
+                            Shown after paid registration — keep invite links current
                         </p>
                     </div>
                     <MindSparkWhatsAppLinksAdmin festId={festId} api={adminApi} />
