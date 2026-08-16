@@ -413,7 +413,7 @@ exports.createOrder = async (req, res) => {
     });
     if (existingPending?.paymentSessionId) {
       if (registrationDraft && ['event_show', 'fest', 'competition'].includes(pricing.entityType)) {
-        existingPending.orderTags = {
+        const nextTags = {
           ...(existingPending.orderTags || {}),
           registrationDraft: pricing.entityType === 'event_show'
             ? { ...eventDraft, eventShowId: String(entityId || eventDraft?.eventShowId || '') }
@@ -425,7 +425,12 @@ exports.createOrder = async (req, res) => {
               ),
             },
         };
-        await existingPending.save().catch(() => {});
+        // Prefer updateOne so lean/plain objects never break checkout reuse
+        await PaymentOrder.updateOne(
+          { _id: existingPending._id },
+          { $set: { orderTags: nextTags } },
+        ).catch(() => {});
+        existingPending.orderTags = nextTags;
       }
       return res.json({
         ...buildOrderResponse(existingPending),

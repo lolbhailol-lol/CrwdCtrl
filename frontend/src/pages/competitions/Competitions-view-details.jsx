@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Phone, Instagram, Check, Moon, Sun, Mail, ArrowLeft, Ticket, Zap, Share2, Users, Hash } from 'lucide-react';
+import { Phone, Instagram, Check, Moon, Sun, Mail, ArrowLeft, Ticket, Zap, Share2, Users } from 'lucide-react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from '../../components/layout/Sidebar';
 import Navbar from '../../components/layout/Navbar';
@@ -36,7 +36,7 @@ function RegisterMetaChips({ slotsLabel, teamLabel, isDark }) {
     // Keep full wording: "49 slots remain" (not just "49 remain")
     const slotsShort = (() => {
         const raw = String(slotsLabel || '').trim();
-        if (!raw) return 'Slots remain';
+        if (!raw) return '';
         const remainMatch = raw.match(/^(\d+)\s+slots?\s+remains?$/i);
         if (remainMatch) {
             const n = Number(remainMatch[1]);
@@ -58,16 +58,18 @@ function RegisterMetaChips({ slotsLabel, teamLabel, isDark }) {
 
     return (
         <div className="flex w-full items-center gap-1.5">
-            <span
-                className={`inline-flex flex-1 min-w-0 items-center justify-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                    isDark
-                        ? 'bg-[#0ECCEE]/15 text-[#7DE8F7]'
-                        : 'bg-cyan-50 text-cyan-700'
-                }`}
-            >
-                <Hash className="w-2.5 h-2.5 shrink-0 opacity-70" strokeWidth={2.25} />
-                <span className="truncate tabular-nums">{slotsShort}</span>
-            </span>
+            {slotsShort ? (
+                <span
+                    className={`inline-flex flex-1 min-w-0 items-center justify-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                        isDark
+                            ? 'bg-[#0ECCEE]/15 text-[#7DE8F7]'
+                            : 'bg-cyan-50 text-cyan-700'
+                    }`}
+                >
+                    <Ticket className="w-2.5 h-2.5 shrink-0 opacity-70" strokeWidth={2.25} />
+                    <span className="truncate tabular-nums">{slotsShort}</span>
+                </span>
+            ) : null}
             <span
                 className={`inline-flex flex-1 min-w-0 items-center justify-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
                     isDark
@@ -391,7 +393,7 @@ const buildCompetitionData = (compData, options = {}) => {
             const raw = String(compData.prizePool || compData.prize || '').trim();
             return !raw || /^(tbd|tba|n\/a|na|-|subject to change)$/i.test(raw) ? '' : raw;
         })(),
-        image: compData.coverImage || compData.image,
+        image: compData.coverImage || compData.image || compData.fest?.coverImage || null,
         contact: compData.contact || { phone: '', instagram: '', email: '' },
         description: sanitizeRoundDescription(compData.description || ''),
         commonRules: sanitizeRulesArray(compData.commonRules || compData.rules || []),
@@ -432,22 +434,26 @@ const buildCompetitionData = (compData, options = {}) => {
     };
 };
 
-function resolveSeededCompetition(competitionId, location) {
+/** Full paint package for this competition id only (never another comp’s hero). */
+function resolvePaintPackage(competitionId, location) {
+    const cached = competitionId ? loadCompetitionDetailCache(competitionId) : null;
+    if (cached && entityMatchesRouteParam(cached, competitionId, ['name', 'title'])) {
+        return isBuiltCompetitionDetail(cached)
+            ? cached
+            : buildCompetitionData(cached, { useFestRegistrationFallback: true });
+    }
+    // List-card seed is incomplete (often no cover/slots) — wait for live fetch so the page
+    // appears as one composition instead of empty hero + faded body.
     const fromState = location?.state?.competition;
-    if (fromState && (!competitionId || entityMatchesRouteParam(fromState, competitionId, ['name', 'title']))) {
+    if (
+        fromState
+        && competitionId
+        && entityMatchesRouteParam(fromState, competitionId, ['name', 'title'])
+        && (fromState.coverImage || fromState.image)
+    ) {
         return buildCompetitionData(fromState, { useFestRegistrationFallback: true });
     }
-    const cached = competitionId ? loadCompetitionDetailCache(competitionId) : null;
-    if (!cached) return null;
-    if (!entityMatchesRouteParam(cached, competitionId, ['name', 'title'])) return null;
-    if (isBuiltCompetitionDetail(cached)) return cached;
-    return buildCompetitionData(cached, { useFestRegistrationFallback: true });
-}
-
-/** Seed title/meta instantly — never reuse a stale/demo hero until the live fetch confirms. */
-function seedWithoutHeroImage(seed) {
-    if (!seed) return null;
-    return { ...seed, image: null };
+    return null;
 }
 
 function EventPage() {
@@ -460,56 +466,52 @@ function EventPage() {
     const [showFullAbout, setShowFullAbout] = useState(false);
     const [expandedRules, setExpandedRules] = useState({});
     const [competitionData, setCompetitionData] = useState(() =>
-        seedWithoutHeroImage(resolveSeededCompetition(competitionId, location)),
+        resolvePaintPackage(competitionId, location),
     );
     const [showLogin, setShowLogin] = useState(false);
     const [showRegister, setShowRegister] = useState(false);
-    const [fetchDone, setFetchDone] = useState(() =>
-        Boolean(resolveSeededCompetition(competitionId, location)),
-    );
+    const [fetchDone, setFetchDone] = useState(false);
     const [error, setError] = useState(null);
-    const [bodyReady, setBodyReady] = useState(() =>
-        Boolean(resolveSeededCompetition(competitionId, location)),
+    // Single gate: hero + body + chips paint together (no empty banner then fade-in)
+    const [pageReady, setPageReady] = useState(() =>
+        Boolean(resolvePaintPackage(competitionId, location)),
     );
-    const [heroReady, setHeroReady] = useState(false);
     const { isDark } = useDarkMode();
     const { alert: showAlert, toast } = useDialog();
     const { isAuthenticated } = useAuth();
     const fetchGenRef = useRef(0);
 
-    // Switching comps reuses this page — drop previous/demo hero immediately
+    // Switching comps reuses this page — swap to a complete package or hold on loader
     useLayoutEffect(() => {
-        const seed = resolveSeededCompetition(competitionId, location);
+        const pack = resolvePaintPackage(competitionId, location);
         fetchGenRef.current += 1;
-        setCompetitionData(seedWithoutHeroImage(seed));
-        setFetchDone(Boolean(seed));
+        setCompetitionData(pack);
+        setPageReady(Boolean(pack));
+        setFetchDone(false);
         setError(null);
         setActiveRound(0);
         setExpandedRules({});
         setShowFullAbout(false);
         setShowShareMenu(false);
-        setBodyReady(false);
-        setHeroReady(false);
-        if (seed) {
-            const t = window.setTimeout(() => setBodyReady(true), 16);
-            return () => window.clearTimeout(t);
-        }
         return undefined;
     }, [competitionId]);
 
     // Fetch competition data from backend API
     useEffect(() => {
         const gen = fetchGenRef.current;
+        const applyPackage = (built) => {
+            if (gen !== fetchGenRef.current) return;
+            setCompetitionData(built);
+            setPageReady(true);
+            setFetchDone(true);
+        };
+
         const fetchCompetitionData = async () => {
             if (!competitionId) {
                 const stateCompetition = location.state?.competition;
                 if (stateCompetition) {
                     const built = buildCompetitionData(stateCompetition, { useFestRegistrationFallback: true });
-                    if (gen !== fetchGenRef.current) return;
-                    setCompetitionData(built);
-                    setFetchDone(true);
-                    setBodyReady(true);
-                    setHeroReady(Boolean(built?.image));
+                    applyPackage(built);
                     return;
                 }
                 navigate('/');
@@ -531,12 +533,11 @@ function EventPage() {
                 const compData = response.data;
                 if (compData) {
                     const built = buildCompetitionData(compData, { useFestRegistrationFallback: true });
-                    setCompetitionData(built);
                     saveCompetitionDetailCache(competitionId, built);
-                    setBodyReady(true);
-                    setHeroReady(Boolean(built?.image));
+                    applyPackage(built);
                 } else {
                     setError('Competition not found');
+                    setFetchDone(true);
                 }
             } catch (err) {
                 if (gen !== fetchGenRef.current) return;
@@ -556,25 +557,23 @@ function EventPage() {
                 const stateCompetition = location.state?.competition;
                 if (stateCompetition && entityMatchesRouteParam(stateCompetition, competitionId, ['name', 'title'])) {
                     const built = buildCompetitionData(stateCompetition, { useFestRegistrationFallback: true });
-                    setCompetitionData(built);
                     saveCompetitionDetailCache(competitionId, built);
-                    setBodyReady(true);
-                    setHeroReady(Boolean(built?.image));
+                    applyPackage(built);
                 } else {
                     const cached = competitionId ? loadCompetitionDetailCache(competitionId) : null;
                     if (cached && entityMatchesRouteParam(cached, competitionId, ['name', 'title'])) {
                         const built = isBuiltCompetitionDetail(cached)
                             ? cached
                             : buildCompetitionData(cached, { useFestRegistrationFallback: true });
-                        setCompetitionData(built);
-                        setBodyReady(true);
-                        setHeroReady(Boolean(built?.image));
-                    } else {
+                        applyPackage(built);
+                    } else if (!resolvePaintPackage(competitionId, location)) {
                         setError(errorMessage);
+                        setFetchDone(true);
+                    } else {
+                        // Keep whatever package is already on screen
+                        setFetchDone(true);
                     }
                 }
-            } finally {
-                if (gen === fetchGenRef.current) setFetchDone(true);
             }
         };
 
@@ -670,16 +669,16 @@ function EventPage() {
     }, [isAuthenticated, showLogin, showRegister]);
 
     useEffect(() => {
-        if (competitionData?.title || (fetchDone && error)) {
+        if (pageReady || (fetchDone && error)) {
             signalDetailPageReady();
         }
-    }, [competitionData?.title, fetchDone, error]);
+    }, [pageReady, fetchDone, error]);
 
-    if (!fetchDone && !competitionData?.title) {
+    if (!pageReady && !error) {
         return <DetailPageLoader label="Hang tight — opening competition" />;
     }
 
-    if (fetchDone && error && !competitionData) {
+    if (error && !competitionData) {
         return (
             <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
                 <div className="text-center max-w-md mx-auto p-6">
@@ -725,6 +724,7 @@ function EventPage() {
     }
 
     const eventData = competitionData;
+    const showHeroImage = Boolean(eventData?.image);
 
     if (!eventData?.title) {
         return <DetailPageLoader label="Hang tight — opening competition" />;
@@ -1423,11 +1423,15 @@ function EventPage() {
                 key={competitionId || eventData?.id || 'competition'}
                 className="flex-1 w-full animate-detail-enter"
             >
-                    {/* Mobile — full-bleed hero (no side gutters) */}
+                    {/* Mobile — full-bleed hero when cover exists; compact chrome otherwise (no empty black box) */}
                     <div className="block md:hidden w-full">
                             <div className="mx-auto w-full flex flex-col flex-1 overflow-x-clip">
-                                <div className="relative w-full h-[396px] shrink-0 overflow-hidden bg-[#1A1B1D]">
-                                    {heroReady && eventData?.image ? (
+                                <div
+                                    className={`relative w-full shrink-0 overflow-hidden ${
+                                        showHeroImage ? 'h-[396px] bg-[#1A1B1D]' : 'bg-[#161718]'
+                                    }`}
+                                >
+                                    {showHeroImage ? (
                                     <img
                                         key={`${competitionId}-${eventData.image}`}
                                         src={getImageUrl(eventData.image, { preset: 'hero' })}
@@ -1437,8 +1441,16 @@ function EventPage() {
                                         fetchPriority="high"
                                         decoding="async"
                                     />
-                                    ) : null}
+                                    ) : (
+                                    <div
+                                        className="w-full"
+                                        style={{ height: 'calc(max(var(--safe-top), 0px) + 4.75rem)' }}
+                                        aria-hidden
+                                    />
+                                    )}
+                                    {showHeroImage ? (
                                     <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-black/30 pointer-events-none" />
+                                    ) : null}
                                     <div
                                         className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 z-10"
                                         style={{ paddingTop: 'calc(max(var(--safe-top), 0px) + 2.5rem)' }}
@@ -1470,9 +1482,9 @@ function EventPage() {
                                 </div>
 
                                 <div
-                                    className={`relative -mt-10 flex-1 rounded-t-3xl z-10 pb-4 overflow-hidden transition-opacity duration-300 ${
+                                    className={`relative ${showHeroImage ? '-mt-10' : ''} flex-1 rounded-t-3xl z-10 pb-4 overflow-hidden ${
                                         isDark ? 'bg-[#161718]' : 'bg-white'
-                                    } ${bodyReady ? 'opacity-100' : 'opacity-0'}`}
+                                    }`}
                                 >
                             {/* Mobile Event Header */}
                             <div className="px-4 pt-5 pb-3">
@@ -1591,25 +1603,23 @@ function EventPage() {
 
                         {/* Desktop/Laptop Layout - Visible at 768px and above */}
                         <div
-                            className={`hidden md:flex md:flex-row gap-8 p-6 transition-opacity duration-300 ${
-                                bodyReady ? 'opacity-100' : 'opacity-70'
-                            }`}
+                            className="hidden md:flex md:flex-row gap-8 p-6"
                         >
                             {/* Left Column - Image and Rules */}
                             <div className="w-1/2 shrink-0 space-y-6">
-                                {/* Event Image Card */}
+                                {/* Event Image Card — skip empty placeholder when no cover */}
+                                {showHeroImage ? (
                                 <div className={`rounded-3xl overflow-hidden shadow-sm ${isDark ? 'bg-[#111213]' : 'bg-white'} p-2`}>
-                                    <div className="rounded-2xl overflow-hidden bg-[#1A1B1D] min-h-80">
-                                    {heroReady && eventData?.image ? (
+                                    <div className="rounded-2xl overflow-hidden bg-[#1A1B1D]">
                                     <img
                                         key={`${competitionId}-${eventData.image}`}
                                         src={getImageUrl(eventData.image, { preset: 'hero' })}
                                         alt={eventData.title || 'Competition'}
                                         className="w-full h-80 object-cover animate-detail-enter"
                                     />
-                                    ) : null}
                                     </div>
                                 </div>
+                                ) : null}
 
                                 <div className="space-y-6">
                                     {/* Desktop Prize Pool — classic medal podium (all fest competitions) */}

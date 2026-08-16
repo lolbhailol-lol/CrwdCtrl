@@ -48,7 +48,9 @@ async function findReusablePendingOrder({
     return null;
   }
 
-  return PaymentOrder.findOne(filter).sort({ createdAt: -1 }).lean();
+  // Must return a Mongoose document (not lean) — createOrder may call .save()
+  // to refresh registrationDraft on reused pending sessions.
+  return PaymentOrder.findOne(filter).sort({ createdAt: -1 });
 }
 
 function buildOrderResponse(existing, extras = {}) {

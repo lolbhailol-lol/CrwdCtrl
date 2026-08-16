@@ -173,7 +173,7 @@ router.get('/competitions/:competitionId/public', async (req, res) => {
         const competition = await Competition.findById(found._id)
             .populate({
                 path: 'fest',
-                select: 'festName collegeName isApproved registration',
+                select: 'festName collegeName isApproved registration coverImage',
                 options: { strictPopulate: false }
             })
             .lean();

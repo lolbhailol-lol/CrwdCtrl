@@ -65,13 +65,11 @@ export function getRosterBounds({ teamSizeMin, teamSizeMax } = {}) {
 
 export function formatSlotsLabel(slotsAllotted, slotsLeft) {
     const allotted = Math.max(0, Number(slotsAllotted) || 0);
+    if (allotted <= 0) return '';
     if (slotsLeft != null && Number.isFinite(Number(slotsLeft))) {
         const left = Math.max(0, Math.floor(Number(slotsLeft)));
-        if (allotted > 0) {
-            return left === 1 ? '1 slot remains' : `${left} slots remain`;
-        }
+        return left === 1 ? '1 slot remains' : `${left} slots remain`;
     }
-    if (allotted <= 0) return 'Slots remain';
-    return `${allotted} slots`;
+    return allotted === 1 ? '1 slot' : `${allotted} slots`;
 }
 
