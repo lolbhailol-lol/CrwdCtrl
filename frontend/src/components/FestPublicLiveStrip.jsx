@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { MapPin, Pin, Radio } from 'lucide-react';
-import { publicFetchJSONRetry as fetchJSON } from '../../services/api/client';
+import { publicFetchJSONRetry as fetchJSON } from '../services/api/client';
 
 /**
  * Compact published live feed for MindSpark (and other fests) on the public fest page.

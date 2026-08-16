@@ -688,7 +688,18 @@ export default function FestOrganizerCompetitionWorkspacePage() {
         if (listFilter === 'paid') list = list.filter((t) => t.paymentStatus === 'paid' || t.paymentStatus === 'free');
         if (listFilter === 'unpaid') list = list.filter((t) => t.paymentStatus === 'pending' || t.paymentStatus === 'failed');
         if (listFilter === 'in') list = list.filter((t) => t.checkedInCount > 0);
-        if (listFilter === 'out') list = list.filter((t) => !(t.checkedInCount > 0));
+        // Keep teams that still have anyone outside (matches pendingGate headcount), not only fully-out teams.
+        if (listFilter === 'out') {
+            list = list.filter((t) => {
+                const size = (t.registrations || []).length
+                    || Number(t.registrationIds?.length)
+                    || Number(t.size)
+                    || 0;
+                const inCount = Number(t.checkedInCount) || 0;
+                if (size > 0) return inCount < size;
+                return !t.checkedIn;
+            });
+        }
         if (listFilter === 'wa_in') {
             list = list.filter((t) => t.whatsappGroupJoined
                 || (t.whatsappJoinedCount > 0 && t.whatsappJoinedCount >= (t.registrations?.length || 1))
