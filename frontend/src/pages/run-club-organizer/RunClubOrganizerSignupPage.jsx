@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { Footprints, Users, Loader, ArrowLeft } from 'lucide-react';
 import { DetailLoader3DIcon } from '../../components/DetailPageLoader';
 import {
@@ -7,11 +7,18 @@ import {
     runClubOrganizerSignup,
 } from '../../services/api/runClubOrganizer.api';
 import { organizerHubCopy } from '../../utils/listingHubCopy';
+import {
+    isEventCommunityOrganizerPath,
+    EVENT_COMMUNITY_ORGANIZER_BASE,
+    RUN_CLUB_ORGANIZER_BASE,
+} from '../../utils/organizerPortalPaths';
 
 export default function RunClubOrganizerSignupPage() {
     const navigate = useNavigate();
+    const location = useLocation();
     const [searchParams] = useSearchParams();
-    const isEventHub = searchParams.get('hub') === 'events';
+    const isEventHub = isEventCommunityOrganizerPath(location.pathname)
+        || searchParams.get('hub') === 'events';
     const copy = useMemo(() => organizerHubCopy(isEventHub), [isEventHub]);
     const HubIcon = isEventHub ? Users : Footprints;
 
@@ -26,6 +33,15 @@ export default function RunClubOrganizerSignupPage() {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        if (
+            location.pathname.startsWith(`${RUN_CLUB_ORGANIZER_BASE}/signup`)
+            && searchParams.get('hub') === 'events'
+        ) {
+            navigate(`${EVENT_COMMUNITY_ORGANIZER_BASE}/signup`, { replace: true });
+        }
+    }, [location.pathname, navigate, searchParams]);
 
     useEffect(() => {
         let cancelled = false;

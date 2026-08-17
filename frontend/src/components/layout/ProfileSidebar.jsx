@@ -19,6 +19,12 @@ import {
     tryRunClubOrganizerAppSession,
 } from '../../services/api/runClubOrganizer.api';
 import {
+    EVENT_COMMUNITY_ORGANIZER_BASE,
+    RUN_CLUB_ORGANIZER_BASE,
+    organizerLoginPath,
+    organizerSignupPath,
+} from '../../utils/organizerPortalPaths';
+import {
     fetchTrekCommunityProfileEligible,
     tryTrekOrganizerAppSession,
 } from '../../services/api/trekOrganizer.api';
@@ -301,23 +307,30 @@ export default function ProfileSidebar({
         if (label === 'Club manager') {
             try {
                 const booted = await tryRunClubOrganizerAppSession(token, 'sports');
-                goToPath(booted?.token ? '/run-club-organizer' : '/run-club-organizer/login');
+                goToPath(booted?.token ? RUN_CLUB_ORGANIZER_BASE : organizerLoginPath(false));
             } catch (err) {
                 goToPath(err?.code === 'no_organizer_account'
-                    ? '/run-club-organizer/signup'
-                    : '/run-club-organizer/login');
+                    ? organizerSignupPath(false)
+                    : organizerLoginPath(false));
             }
             return;
         }
 
         if (label === 'Community organizer') {
+            if (!isAuthenticated) {
+                const organizerReturn = organizerLoginPath(true);
+                prepareLogin({ fromProfile: true, returnPath: organizerReturn });
+                navigate(`/login?redirect=${encodeURIComponent(organizerReturn)}`);
+                onClose();
+                return;
+            }
             try {
                 const booted = await tryRunClubOrganizerAppSession(token, 'events');
-                goToPath(booted?.token ? '/run-club-organizer' : '/run-club-organizer/login?hub=events');
+                goToPath(booted?.token ? EVENT_COMMUNITY_ORGANIZER_BASE : organizerLoginPath(true));
             } catch (err) {
                 goToPath(err?.code === 'no_organizer_account'
-                    ? '/run-club-organizer/signup?hub=events'
-                    : '/run-club-organizer/login?hub=events');
+                    ? organizerSignupPath(true)
+                    : organizerLoginPath(true));
             }
             return;
         }

@@ -3,19 +3,22 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
     Users, UserCheck, Clock, IndianRupee, Calendar, Bell, QrCode,
     Copy, ExternalLink, RefreshCw, MapPin, Link2, Share2, Sparkles, Hourglass,
-    ShieldCheck, CreditCard,
+    CreditCard, ChevronDown,
 } from 'lucide-react';
 import {
     fetchRunClubOrganizerDashboard,
     fetchRunClubOrganizerEvent,
     setRunClubOrganizerRegistrationStatus,
+    updateRunClubOrganizerRegistration,
     expireRunClubOrganizerPendingPayments,
+    uploadRunClubOrganizerImage,
 } from '../../services/api/runClubOrganizer.api';
 import { eventCommunityEventPath } from '../../utils/slugRoutes';
 import DetailPageLoader from '../../components/DetailPageLoader';
 import { organizerHubCopy } from '../../utils/listingHubCopy';
+import { organizerEventPath } from '../../utils/organizerPortalPaths';
 
-function StatTile({ label, value, tone = 'default', icon: Icon, onClick, to, hint }) {
+function StatTile({ label, value, tone = 'default', icon: Icon, to, hint }) {
     const navigate = useNavigate();
     const tones = {
         default: {
@@ -45,20 +48,18 @@ function StatTile({ label, value, tone = 'default', icon: Icon, onClick, to, hin
         },
     };
     const t = tones[tone] || tones.default;
-    const interactive = Boolean(onClick || to);
-    const className = `group relative overflow-hidden rounded-2xl border p-4 min-h-[100px] text-left transition-all duration-200 ${t.card} ${
-        interactive
-            ? 'hover:border-[#0ECCEE]/45 active:scale-[0.985] cursor-pointer'
-            : ''
+    const className = `rounded-2xl border p-4 min-h-24 text-left transition-all duration-200 ${t.card} ${
+        to ? 'hover:border-[#0ECCEE]/45 active:scale-[0.985] cursor-pointer' : ''
     }`;
+
     const inner = (
-        <div className="relative flex items-start justify-between gap-3">
+        <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
                 <p className="text-[11px] uppercase tracking-[0.08em] text-gray-500 font-medium">{label}</p>
-                <p className={`text-[1.65rem] leading-none font-semibold mt-2.5 tabular-nums tracking-tight ${t.value}`}>
+                <p className={`text-[1.5rem] leading-none font-semibold mt-2 tabular-nums tracking-tight ${t.value}`}>
                     {value}
                 </p>
-                {hint ? <p className="text-[11px] text-gray-500 mt-2">{hint}</p> : null}
+                {hint ? <p className="text-[11px] text-gray-500 mt-1.5">{hint}</p> : null}
             </div>
             {Icon ? (
                 <div className={`size-9 rounded-xl flex items-center justify-center shrink-0 ${t.icon}`}>
@@ -67,15 +68,9 @@ function StatTile({ label, value, tone = 'default', icon: Icon, onClick, to, hin
             ) : null}
         </div>
     );
+
     if (to) {
-        return (
-            <button type="button" onClick={() => navigate(to)} className={className}>
-                {inner}
-            </button>
-        );
-    }
-    if (onClick) {
-        return <button type="button" onClick={onClick} className={className}>{inner}</button>;
+        return <button type="button" onClick={() => navigate(to)} className={className}>{inner}</button>;
     }
     return <div className={className}>{inner}</div>;
 }
@@ -110,6 +105,23 @@ export default function EventCommunityOrganizerDashboardPage() {
     const [copyNotice, setCopyNotice] = useState('');
     const [actionBusy, setActionBusy] = useState(false);
     const [actionNotice, setActionNotice] = useState('');
+    const [paymentBusy, setPaymentBusy] = useState(false);
+    const [paymentDraft, setPaymentDraft] = useState({ paymentQR: '', paymentUpiId: '', paymentQRMessage: '' });
+    const [qrUploading, setQrUploading] = useState(false);
+    const [showManualPayment, setShowManualPayment] = useState(false);
+    const [paymentHydrated, setPaymentHydrated] = useState(false);
+
+    useEffect(() => {
+        setLoading(true);
+        setShowManualPayment(false);
+        setPaymentHydrated(false);
+        setPaymentDraft({ paymentQR: '', paymentUpiId: '', paymentQRMessage: '' });
+        setActionNotice('');
+        setCopyNotice('');
+        setData(null);
+        setEventDetail(null);
+        setError('');
+    }, [eventId]);
 
     const load = useCallback(async ({ silent = false } = {}) => {
         if (!eventId) return;
@@ -123,8 +135,19 @@ export default function EventCommunityOrganizerDashboardPage() {
                 fetchRunClubOrganizerDashboard(eventId),
                 fetchRunClubOrganizerEvent(eventId).catch(() => null),
             ]);
+            if (!dash?.event) {
+                throw new Error('Dashboard data missing for this event');
+            }
             setData(dash);
             setEventDetail(detail?.event || null);
+            const reg = detail?.event?.registration || {};
+            setPaymentDraft({
+                paymentQR: reg.paymentQR || '',
+                paymentUpiId: reg.paymentUpiId || '',
+                paymentQRMessage: reg.paymentQRMessage || '',
+            });
+            setPaymentHydrated(true);
+            setShowManualPayment(false);
         } catch (e) {
             if (!silent) setError(e.message || 'Failed to load dashboard');
         } finally {
@@ -173,36 +196,32 @@ export default function EventCommunityOrganizerDashboardPage() {
         );
     }
 
-    if (!data) return null;
+    if (!data?.event) return null;
 
     const { event, stats: rawStats } = data;
     const stats = rawStats && typeof rawStats === 'object' ? rawStats : {};
+    const registration = eventDetail?.registration || {};
     const status = eventDetail?.status || event?.status;
     const fee = Number(eventDetail?.registrationFee ?? event?.registrationFee ?? 0);
     const isPaid = fee > 0;
-    const mode = eventDetail?.registration?.mode || event?.registrationMode || 'internal_form';
+    const mode = registration.mode || event?.registrationMode || 'internal_form';
     const isOrganizerQr = mode === 'organizer_qr';
-    const regStatus = eventDetail?.registration?.status || event?.registrationStatus || 'open';
+    const regStatus = registration.status || event?.registrationStatus || 'open';
     const isOpen = regStatus === 'open';
     const total = stats.totalRegistrations ?? 0;
     const checkedIn = stats.checkedIn ?? 0;
     const pending = stats.pendingCheckIn ?? Math.max(0, total - checkedIn);
-    const pendingReview = isPaid ? Number(stats.pendingPaymentReview ?? 0) : 0;
-    const showPaymentReview = isPaid && (isOrganizerQr || pendingReview > 0);
+    const pendingReview = isOrganizerQr && isPaid ? Number(stats.pendingPaymentReview ?? 0) : 0;
     const revenue = Number(stats.organizerRevenue ?? stats.revenue ?? 0);
-    const cashfreeCollected = Number(stats.cashfreeCollected ?? (!isOrganizerQr ? revenue : 0));
-    const qrCollected = Number(stats.qrCollected ?? (isOrganizerQr ? revenue : 0));
-    const failedOrExpired = Number(stats.failedOrExpired ?? 0);
     const checkInPct = total > 0 ? Math.round((checkedIn / total) * 100) : 0;
-    const ttlHours = Number(stats?.manualExpireTtlHours ?? stats?.pendingTtlHours ?? 72) || 72;
+    const ttlHours = Number(stats?.manualExpireTtlHours ?? 72) || 72;
     const dateLabel = formatEventDate(eventDetail?.eventDate || event?.eventDate);
     const reportingTime = String(eventDetail?.reportingTime || event?.reportingTime || '').trim();
     const venue = String(eventDetail?.venue || event?.venue || '').trim();
     const city = String(eventDetail?.city || event?.city || '').trim();
     const distance = String(eventDetail?.distance || event?.distance || '').trim();
-    const capacity = stats.capacity ?? eventDetail?.maxParticipants ?? null;
-    const seatsLeft = stats.seatsRemaining;
     const routeMap = String(eventDetail?.routeMap || '').trim();
+    const meetVenue = venue || (eventDetail?.meetingPoint ? String(eventDetail.meetingPoint).trim() : '');
 
     const copyLink = async () => {
         try {
@@ -244,60 +263,105 @@ export default function EventCommunityOrganizerDashboardPage() {
         }
     };
 
+    const setPaymentMode = async (manualQr) => {
+        const nextMode = manualQr ? 'organizer_qr' : 'internal_form';
+        if (manualQr && isPaid && !String(paymentDraft.paymentQR || eventDetail?.registration?.paymentQR || '').trim()) {
+            setActionNotice(copy.paymentManualNeedsQr);
+            setShowManualPayment(true);
+            return;
+        }
+        setPaymentBusy(true);
+        setActionNotice('');
+        try {
+            const payload = { mode: nextMode };
+            if (manualQr) {
+                payload.paymentQR = paymentDraft.paymentQR || eventDetail?.registration?.paymentQR || '';
+                payload.paymentUpiId = paymentDraft.paymentUpiId || eventDetail?.registration?.paymentUpiId || '';
+                payload.paymentQRMessage = paymentDraft.paymentQRMessage || eventDetail?.registration?.paymentQRMessage || '';
+            }
+            const res = await updateRunClubOrganizerRegistration(eventId, payload);
+            setActionNotice(res.message || (manualQr ? 'Manual UPI enabled' : 'Cashfree enabled'));
+            setShowManualPayment(false);
+            await load({ silent: true });
+        } catch (e) {
+            setActionNotice(e.message || 'Could not update payment method');
+        } finally {
+            setPaymentBusy(false);
+        }
+    };
+
+    const uploadPaymentQr = async (file) => {
+        if (!file) return;
+        setQrUploading(true);
+        setActionNotice('');
+        try {
+            const res = await uploadRunClubOrganizerImage(file);
+            const url = res.url || res.imageUrl || '';
+            if (!url) throw new Error('Upload failed');
+            setPaymentDraft((prev) => ({ ...prev, paymentQR: url }));
+            if (isOrganizerQr) {
+                await updateRunClubOrganizerRegistration(eventId, {
+                    mode: 'organizer_qr',
+                    paymentQR: url,
+                    paymentUpiId: paymentDraft.paymentUpiId,
+                    paymentQRMessage: paymentDraft.paymentQRMessage,
+                });
+                setActionNotice('Payment QR updated');
+                await load({ silent: true });
+            }
+        } catch (e) {
+            setActionNotice(e.message || 'Could not upload QR');
+        } finally {
+            setQrUploading(false);
+        }
+    };
+
+    const savePaymentDetails = async () => {
+        setPaymentBusy(true);
+        setActionNotice('');
+        try {
+            const res = await updateRunClubOrganizerRegistration(eventId, {
+                mode: 'organizer_qr',
+                paymentQR: paymentDraft.paymentQR,
+                paymentUpiId: paymentDraft.paymentUpiId,
+                paymentQRMessage: paymentDraft.paymentQRMessage,
+            });
+            setActionNotice(res.message || 'Saved');
+            setShowManualPayment(false);
+            await load({ silent: true });
+        } catch (e) {
+            setActionNotice(e.message || 'Could not save');
+        } finally {
+            setPaymentBusy(false);
+        }
+    };
+
     return (
-        <div className="space-y-5 max-w-3xl mx-auto">
+        <div className="space-y-4 max-w-3xl mx-auto pb-6">
+            {/* Header */}
             <SectionCard className="overflow-hidden relative">
-                <div className="absolute inset-0 bg-linear-to-br from-[#0ECCEE]/15 via-transparent to-[#053780]/20 pointer-events-none" />
+                <div className="absolute inset-0 bg-linear-to-br from-[#0ECCEE]/12 via-transparent to-transparent pointer-events-none" />
                 <div className="relative p-5 sm:p-6">
                     <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 space-y-3">
+                        <div className="min-w-0 space-y-2.5">
                             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[#0ECCEE]/20 bg-[#0ECCEE]/10 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#0ECCEE]">
                                 <Sparkles size={11} /> {copy.dashboardBadge}
                             </div>
-                            <div>
-                                <h1 className="text-2xl sm:text-[1.75rem] font-semibold tracking-tight leading-tight text-white">
-                                    {event.title}
-                                </h1>
-                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-sm text-gray-400">
-                                    {city || venue ? (
-                                        <span className="inline-flex items-center gap-1.5">
-                                            <MapPin size={13} className="text-[#0ECCEE]" />
-                                            {[venue, city].filter(Boolean).join(' · ')}
-                                        </span>
-                                    ) : null}
-                                    {dateLabel ? <span>{dateLabel}</span> : null}
-                                    {reportingTime ? <span>{reportingTime}</span> : null}
-                                    {distance ? <span>{distance}</span> : null}
-                                </div>
-                                {(venue || capacity || routeMap) ? (
-                                    <div className="mt-3 rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 space-y-1">
-                                        {venue ? (
-                                            <p className="text-xs text-gray-300">
-                                                <span className="text-gray-500">Meet · </span>{venue}
-                                            </p>
-                                        ) : null}
-                                        {capacity != null && Number(capacity) > 0 ? (
-                                            <p className="text-[11px] text-gray-500">
-                                                Capacity · {stats.seatsFilled ?? total} / {capacity}
-                                                {seatsLeft != null ? ` · ${seatsLeft} left` : ''}
-                                            </p>
-                                        ) : (
-                                            <p className="text-[11px] text-gray-500">Capacity · unlimited</p>
-                                        )}
-                                        {routeMap ? (
-                                            <a
-                                                href={routeMap}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                className="inline-flex items-center gap-1 text-[11px] text-[#0ECCEE] hover:underline"
-                                            >
-                                                Open map <ExternalLink size={11} />
-                                            </a>
-                                        ) : null}
-                                    </div>
+                            <h1 className="text-2xl font-semibold tracking-tight leading-tight text-white">
+                                {event.title || eventDetail?.title || 'Event'}
+                            </h1>
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-400">
+                                {city || venue ? (
+                                    <span className="inline-flex items-center gap-1.5">
+                                        <MapPin size={13} className="text-[#0ECCEE]" />
+                                        {[venue, city].filter(Boolean).join(' · ')}
+                                    </span>
                                 ) : null}
+                                {dateLabel ? <span>{dateLabel}</span> : null}
+                                {reportingTime ? <span>{reportingTime}</span> : null}
+                                {distance ? <span>{distance}</span> : null}
                             </div>
-                            <div className="flex flex-wrap gap-1.5">
+                            <div className="flex flex-wrap gap-1.5 pt-0.5">
                                 <span className={`px-2.5 py-1 rounded-full text-[10px] font-semibold capitalize border ${
                                     String(status).toLowerCase() === 'published'
                                         ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25'
@@ -315,22 +379,23 @@ export default function EventCommunityOrganizerDashboardPage() {
                                 <span className="px-2.5 py-1 rounded-full text-[10px] font-semibold border border-white/10 bg-white/5 text-gray-300">
                                     {fee > 0 ? `₹${fee}` : 'Free'}
                                 </span>
-                                {isPaid ? (
-                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border ${
-                                    isOrganizerQr
-                                        ? 'bg-amber-500/10 text-amber-300 border-amber-500/25'
-                                        : 'bg-teal-500/12 text-teal-300 border-teal-400/25'
-                                }`}>
-                                    {isOrganizerQr ? 'UPI + QR · review' : 'Cashfree checkout'}
-                                </span>
-                                ) : null}
                             </div>
+                            {(meetVenue || routeMap) ? (
+                                <div className="rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 space-y-1 text-xs text-gray-400">
+                                    {meetVenue ? <p><span className="text-gray-500">Meet · </span>{meetVenue}</p> : null}
+                                    {routeMap ? (
+                                        <a href={routeMap} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[#0ECCEE] hover:underline">
+                                            Open map <ExternalLink size={11} />
+                                        </a>
+                                    ) : null}
+                                </div>
+                            ) : null}
                         </div>
                         <button
                             type="button"
                             onClick={() => load({ silent: true })}
                             disabled={refreshing}
-                            className="shrink-0 p-2.5 min-h-11 min-w-11 inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 text-gray-400 hover:text-white hover:border-[#0ECCEE]/40 disabled:opacity-50"
+                            className="shrink-0 p-2.5 rounded-xl border border-white/10 bg-white/5 text-gray-400 hover:text-white disabled:opacity-50"
                             aria-label="Refresh"
                         >
                             <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
@@ -345,311 +410,274 @@ export default function EventCommunityOrganizerDashboardPage() {
                 </div>
             ) : null}
 
-            {showPaymentReview && pendingReview > 0 ? (
+            {/* Manual QR only: pending payment review */}
+            {isOrganizerQr && pendingReview > 0 ? (
                 <button
                     type="button"
-                    onClick={() => navigate(`/run-club-organizer/events/${eventId}/participants?paymentStatus=pending_review`)}
-                    className="w-full flex items-center justify-between gap-3 rounded-2xl border border-amber-500/40 bg-linear-to-r from-amber-500/15 to-amber-500/5 px-4 py-4 min-h-[56px] text-left hover:border-amber-400/50 active:scale-[0.99] transition-all"
+                    onClick={() => navigate(`${organizerEventPath(eventId, true, 'participants')}?paymentStatus=pending_review`)}
+                    className="w-full flex items-center justify-between gap-3 rounded-2xl border border-amber-500/35 bg-amber-500/10 px-4 py-3.5 text-left hover:border-amber-400/50 transition-colors"
                 >
-                    <div className="min-w-0">
-                        <p className="text-sm font-semibold text-amber-100 flex items-center gap-2">
-                            <Hourglass size={16} />
-                            {pendingReview} payment{pendingReview === 1 ? '' : 's'} to review
-                        </p>
-                        <p className="text-[11px] text-amber-200/70 mt-0.5">
-                            Check UTR / transaction ID and screenshot, then approve or reject.
-                        </p>
-                    </div>
-                    <span className="shrink-0 px-3 py-1.5 rounded-lg bg-amber-400 text-black text-xs font-bold">
-                        Review now
+                    <span className="text-sm font-semibold text-amber-100 flex items-center gap-2">
+                        <Hourglass size={16} />
+                        {pendingReview} payment{pendingReview === 1 ? '' : 's'} to review
                     </span>
+                    <span className="shrink-0 text-xs font-bold text-amber-300">Review →</span>
                 </button>
             ) : null}
 
-            {publicUrl && String(status).toLowerCase() === 'published' ? (
-                <SectionCard className="p-4 sm:p-5 space-y-3.5">
-                    <div className="flex items-start gap-3">
-                        <div className="size-10 rounded-xl bg-[#0ECCEE]/12 text-[#0ECCEE] flex items-center justify-center shrink-0">
-                            <Share2 size={16} />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                            <p className="text-sm font-semibold text-white">{copy.shareTitle}</p>
-                            <p className="text-xs text-gray-500 mt-0.5">{copy.shareHint}</p>
-                            <div className="mt-2.5 flex items-center gap-2 rounded-xl border border-white/10 bg-black/30 px-3 py-2.5">
-                                <Link2 size={13} className="text-gray-500 shrink-0" />
-                                <p className="text-[12px] text-gray-300 truncate font-mono">{publicUrl}</p>
-                            </div>
-                            {copyNotice ? <p className="text-[11px] text-emerald-400 mt-1.5">{copyNotice}</p> : null}
-                        </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2.5">
-                        <button
-                            type="button"
-                            onClick={copyLink}
-                            className="inline-flex items-center justify-center gap-1.5 px-3 py-3 min-h-12 rounded-xl border border-white/10 bg-white/5 text-sm font-medium hover:border-[#0ECCEE]/45 hover:bg-[#0ECCEE]/10 transition-colors"
-                        >
-                            <Copy size={15} /> Copy link
-                        </button>
-                        <a
-                            href={publicPath}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center justify-center gap-1.5 px-3 py-3 min-h-12 rounded-xl bg-[#0ECCEE] text-black text-sm font-semibold hover:brightness-110 transition"
-                        >
-                            <ExternalLink size={15} /> Open page
-                        </a>
-                    </div>
-                </SectionCard>
-            ) : null}
-
+            {/* Stats — same 4 tiles always */}
             <div className="grid grid-cols-2 gap-3">
                 <StatTile
                     label="Confirmed"
                     value={total}
                     tone="accent"
                     icon={Users}
-                    to={`/run-club-organizer/events/${eventId}/participants`}
+                    to={organizerEventPath(eventId, true, 'participants')}
                     hint="Guest list"
                 />
                 <StatTile
                     label="Collected"
-                    value={`₹${revenue.toLocaleString('en-IN')}`}
-                    tone="money"
+                    value={isPaid ? `₹${revenue.toLocaleString('en-IN')}` : 'Free'}
+                    tone={isPaid ? 'money' : 'default'}
                     icon={IndianRupee}
-                    hint={isPaid && !isOrganizerQr ? 'Cashfree · settled' : isOrganizerQr ? 'UPI received' : 'Free event'}
+                    hint={isPaid && !isOrganizerQr ? 'Via Cashfree' : isPaid ? 'UPI received' : undefined}
                 />
                 <StatTile
                     label="Checked in"
                     value={checkedIn}
                     tone="ok"
                     icon={UserCheck}
-                    to={`/run-club-organizer/events/${eventId}/scan`}
+                    to={organizerEventPath(eventId, true, 'scan')}
                 />
-                {showPaymentReview ? (
-                    <StatTile
-                        label="Needs review"
-                        value={pendingReview}
-                        tone="warn"
-                        icon={Hourglass}
-                        to={`/run-club-organizer/events/${eventId}/participants?paymentStatus=pending_review`}
-                        hint="Payment screenshots"
-                    />
-                ) : (
-                    <StatTile
-                        label="Today"
-                        value={stats.todayRegistrations ?? 0}
-                        tone="default"
-                        icon={Calendar}
-                    />
-                )}
                 <StatTile
-                    label="Pending check-in"
-                    value={pending}
-                    tone="warn"
-                    icon={Clock}
-                    to={`/run-club-organizer/events/${eventId}/participants?checkInStatus=pending`}
+                    label="Today"
+                    value={stats.todayRegistrations ?? 0}
+                    tone="default"
+                    icon={Calendar}
                 />
-                {showPaymentReview ? (
-                    <StatTile
-                        label="Today"
-                        value={stats.todayRegistrations ?? 0}
-                        tone="default"
-                        icon={Calendar}
-                    />
-                ) : null}
             </div>
 
-            {isPaid ? (
-                <SectionCard className="overflow-hidden relative">
-                    <div className={`absolute inset-0 pointer-events-none ${
-                        isOrganizerQr
-                            ? 'bg-linear-to-br from-amber-500/12 via-transparent to-transparent'
-                            : 'bg-linear-to-br from-teal-500/16 via-teal-500/5 to-transparent'
-                    }`} />
-                    <div className="relative p-4 sm:p-5 space-y-4">
-                        <div className="flex items-start justify-between gap-3">
-                            <div className="flex items-start gap-3 min-w-0">
-                                <div className={`size-10 rounded-xl flex items-center justify-center shrink-0 ${
-                                    isOrganizerQr
-                                        ? 'bg-amber-500/15 text-amber-300'
-                                        : 'bg-teal-500/15 text-teal-300'
-                                }`}>
-                                    {isOrganizerQr ? <Hourglass size={18} /> : <ShieldCheck size={18} />}
-                                </div>
-                                <div className="min-w-0">
-                                    <p className="text-sm font-semibold text-white">
-                                        {isOrganizerQr ? 'UPI + screenshot review' : 'Cashfree payments'}
-                                    </p>
-                                    <p className="text-[11px] text-gray-500 mt-0.5">
-                                        {isOrganizerQr
-                                            ? 'Guests pay via UPI and upload proof. You approve before the ticket is confirmed.'
-                                            : 'Guests pay online (UPI, cards, netbanking). Bookings confirm automatically — ticket only, no extra platform fee.'}
-                                    </p>
-                                </div>
-                            </div>
-                            {!isOrganizerQr ? (
-                                <span className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-teal-400/25 bg-teal-500/10 text-[10px] font-semibold uppercase tracking-wide text-teal-300">
-                                    <CreditCard size={11} /> Live
-                                </span>
-                            ) : null}
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                            <div className="rounded-xl border border-white/10 bg-black/25 px-3 py-2.5">
-                                <p className="text-[10px] uppercase tracking-wide text-gray-500">Collected</p>
-                                <p className={`text-lg font-semibold tabular-nums mt-1 ${isOrganizerQr ? 'text-amber-200' : 'text-teal-200'}`}>
-                                    ₹{revenue.toLocaleString('en-IN')}
-                                </p>
-                            </div>
-                            <div className="rounded-xl border border-white/10 bg-black/25 px-3 py-2.5">
-                                <p className="text-[10px] uppercase tracking-wide text-gray-500">
-                                    {isOrganizerQr ? 'UPI received' : 'Cashfree'}
-                                </p>
-                                <p className="text-lg font-semibold tabular-nums mt-1 text-white">
-                                    ₹{(isOrganizerQr ? qrCollected : cashfreeCollected).toLocaleString('en-IN')}
-                                </p>
-                            </div>
-                            <div className="rounded-xl border border-white/10 bg-black/25 px-3 py-2.5">
-                                <p className="text-[10px] uppercase tracking-wide text-gray-500">
-                                    {isOrganizerQr ? 'To review' : 'Paid guests'}
-                                </p>
-                                <p className={`text-lg font-semibold tabular-nums mt-1 ${isOrganizerQr && pendingReview > 0 ? 'text-amber-200' : 'text-white'}`}>
-                                    {isOrganizerQr ? pendingReview : total}
-                                </p>
-                            </div>
-                            <div className="rounded-xl border border-white/10 bg-black/25 px-3 py-2.5">
-                                <p className="text-[10px] uppercase tracking-wide text-gray-500">Failed / expired</p>
-                                <p className="text-lg font-semibold tabular-nums mt-1 text-white">{failedOrExpired}</p>
-                            </div>
-                        </div>
-                        {isOrganizerQr && pendingReview > 0 ? (
-                            <button
-                                type="button"
-                                onClick={() => navigate(`/run-club-organizer/events/${eventId}/participants?paymentStatus=pending_review`)}
-                                className="w-full inline-flex items-center justify-center gap-2 px-3 py-2.5 min-h-11 rounded-xl bg-amber-400 text-black text-xs font-bold"
-                            >
-                                Review {pendingReview} payment{pendingReview === 1 ? '' : 's'}
-                            </button>
-                        ) : null}
+            {/* Share link */}
+            {publicUrl && String(status).toLowerCase() === 'published' ? (
+                <SectionCard className="p-4 space-y-3">
+                    <p className="text-sm font-semibold text-white">{copy.shareTitle}</p>
+                    <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/30 px-3 py-2.5">
+                        <Link2 size={13} className="text-gray-500 shrink-0" />
+                        <p className="text-[12px] text-gray-300 truncate font-mono flex-1">{publicUrl}</p>
+                    </div>
+                    {copyNotice ? <p className="text-[11px] text-emerald-400">{copyNotice}</p> : null}
+                    <div className="grid grid-cols-2 gap-2">
+                        <button
+                            type="button"
+                            onClick={copyLink}
+                            className="inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-white/10 bg-white/5 text-sm font-medium hover:border-[#0ECCEE]/40"
+                        >
+                            <Copy size={15} /> Copy
+                        </button>
+                        <a
+                            href={publicPath}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-[#0ECCEE] text-black text-sm font-semibold"
+                        >
+                            <ExternalLink size={15} /> Open
+                        </a>
                     </div>
                 </SectionCard>
             ) : null}
 
-            <SectionCard className="p-4 sm:p-5 space-y-3.5">
+            {/* Check-in */}
+            <SectionCard className="p-4 space-y-3">
                 <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2.5">
-                        <div className="size-9 rounded-xl bg-emerald-500/15 text-emerald-300 flex items-center justify-center">
-                            <UserCheck size={16} />
-                        </div>
-                        <div>
-                            <p className="text-sm font-semibold">Check-in progress</p>
-                            <p className="text-[11px] text-gray-500">{copy.checkinHint}</p>
-                        </div>
-                    </div>
-                    <p className="text-lg font-semibold tabular-nums text-emerald-300">{checkInPct}%</p>
+                    <p className="text-sm font-semibold">Check-in</p>
+                    <p className="text-sm font-semibold tabular-nums text-emerald-300">{checkInPct}%</p>
                 </div>
-                <div className="h-2.5 rounded-full bg-black/40 overflow-hidden border border-white/5">
+                <div className="h-2 rounded-full bg-black/40 overflow-hidden">
                     <div
-                        className="h-full rounded-full bg-linear-to-r from-emerald-500 to-emerald-300 transition-all duration-500"
+                        className="h-full rounded-full bg-emerald-500 transition-all duration-500"
                         style={{ width: `${checkInPct}%` }}
                     />
                 </div>
                 <p className="text-xs text-gray-500">
                     {checkedIn} of {total} checked in
-                    {pending > 0 ? ` · ${pending} still waiting` : total > 0 ? ' · all done' : ''}
+                    {pending > 0 ? (
+                        <button
+                            type="button"
+                            onClick={() => navigate(organizerEventPath(eventId, true, 'scan'))}
+                            className="ml-1 text-[#0ECCEE] font-medium hover:underline"
+                        >
+                            · Scan now
+                        </button>
+                    ) : null}
                 </p>
             </SectionCard>
 
-            <SectionCard className="p-4 sm:p-5 space-y-3">
+            {/* Registration + payments */}
+            <SectionCard className="p-4 space-y-4">
                 <div className="flex items-center justify-between gap-3">
                     <div>
-                        <p className="text-sm font-semibold">Registration</p>
+                        <p className="text-sm font-semibold">Booking</p>
                         <p className="text-xs text-gray-500 mt-0.5">
                             {isOpen ? copy.bookingOpen : copy.bookingClosed}
-                            {isPaid ? (
-                                isOrganizerQr
-                                    ? ` · ${copy.payQr}`
-                                    : ` · ${copy.payOnline}`
-                            ) : null}
                         </p>
                     </div>
                     <button
                         type="button"
                         disabled={actionBusy}
                         onClick={toggleRegistration}
-                        className={`px-4 py-2.5 min-h-11 rounded-xl text-xs font-bold transition-colors disabled:opacity-50 ${
+                        className={`px-4 py-2 rounded-xl text-xs font-bold disabled:opacity-50 ${
                             isOpen
-                                ? 'border border-red-500/30 text-red-300 hover:bg-red-500/10'
-                                : 'bg-[#0ECCEE] text-black hover:brightness-110'
+                                ? 'border border-red-500/30 text-red-300'
+                                : 'bg-[#0ECCEE] text-black'
                         }`}
                     >
-                        {actionBusy ? '…' : isOpen ? 'Close booking' : 'Open booking'}
+                        {actionBusy ? '…' : isOpen ? 'Close' : 'Open'}
                     </button>
                 </div>
-                {showPaymentReview && pendingReview > 0 ? (
-                    <button
-                        type="button"
-                        disabled={actionBusy}
-                        onClick={expireStale}
-                        className="w-full px-3 py-2.5 rounded-xl border border-amber-500/25 text-amber-200/90 text-xs font-medium hover:bg-amber-500/10 disabled:opacity-50"
-                        title={`Cancels pending QR payments older than ${ttlHours}h`}
-                    >
-                        Clear old pending ({ttlHours}h+)
-                    </button>
+
+                {isPaid && paymentHydrated ? (
+                    <>
+                        {!isOrganizerQr ? (
+                            <div className="flex items-center gap-3 rounded-xl border border-teal-500/20 bg-teal-500/8 px-3.5 py-3">
+                                <div className="size-9 rounded-lg bg-teal-500/15 text-teal-300 flex items-center justify-center shrink-0">
+                                    <CreditCard size={16} />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-medium text-white">Online payments</p>
+                                    <p className="text-[11px] text-gray-500 mt-0.5">{copy.paymentCashfreeHint}</p>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="rounded-xl border border-amber-500/25 bg-amber-500/8 px-3.5 py-3 space-y-3">
+                                <div className="flex items-center justify-between gap-3">
+                                    <div>
+                                        <p className="text-sm font-medium text-amber-100">Manual UPI + QR</p>
+                                        <p className="text-[11px] text-gray-500 mt-0.5">{copy.paymentManualHint}</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        disabled={paymentBusy}
+                                        onClick={() => setPaymentMode(false)}
+                                        className="shrink-0 text-[11px] font-semibold text-teal-300 hover:underline disabled:opacity-50"
+                                    >
+                                        Use Cashfree
+                                    </button>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    {(paymentDraft.paymentQR || registration.paymentQR) ? (
+                                        <img
+                                            src={paymentDraft.paymentQR || registration.paymentQR}
+                                            alt="Payment QR"
+                                            className="size-14 rounded-lg object-cover border border-white/10"
+                                        />
+                                    ) : null}
+                                    <label className="inline-flex items-center px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-xs font-medium cursor-pointer">
+                                        {qrUploading ? 'Uploading…' : 'Change QR'}
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            disabled={qrUploading || paymentBusy}
+                                            onChange={(e) => {
+                                                uploadPaymentQr(e.target.files?.[0]);
+                                                e.target.value = '';
+                                            }}
+                                        />
+                                    </label>
+                                </div>
+                                {pendingReview > 0 ? (
+                                    <div className="flex gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => navigate(`${organizerEventPath(eventId, true, 'participants')}?paymentStatus=pending_review`)}
+                                            className="flex-1 py-2 rounded-lg bg-amber-400 text-black text-xs font-bold"
+                                        >
+                                            Review {pendingReview}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            disabled={actionBusy}
+                                            onClick={expireStale}
+                                            className="px-3 py-2 rounded-lg border border-amber-500/30 text-amber-200/80 text-xs disabled:opacity-50"
+                                        >
+                                            Clear old
+                                        </button>
+                                    </div>
+                                ) : null}
+                            </div>
+                        )}
+
+                        {!isOrganizerQr ? (
+                            <button
+                                type="button"
+                                onClick={() => setShowManualPayment((v) => !v)}
+                                className="w-full flex items-center justify-between gap-2 py-2 text-[11px] text-gray-500 hover:text-gray-400"
+                            >
+                                <span>Use your own UPI QR instead?</span>
+                                <ChevronDown size={14} className={`transition-transform ${showManualPayment ? 'rotate-180' : ''}`} />
+                            </button>
+                        ) : null}
+
+                        {!isOrganizerQr && showManualPayment ? (
+                            <div className="rounded-xl border border-white/10 bg-black/25 p-3 space-y-2.5">
+                                <p className="text-xs text-gray-400">{copy.paymentManualHint}</p>
+                                <div className="flex items-center gap-3">
+                                    {paymentDraft.paymentQR ? (
+                                        <img src={paymentDraft.paymentQR} alt="" className="size-14 rounded-lg object-cover border border-white/10" />
+                                    ) : (
+                                        <label className="inline-flex items-center px-3 py-2 rounded-lg border border-dashed border-white/20 text-xs cursor-pointer">
+                                            Upload QR
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                className="hidden"
+                                                disabled={qrUploading}
+                                                onChange={(e) => {
+                                                    uploadPaymentQr(e.target.files?.[0]);
+                                                    e.target.value = '';
+                                                }}
+                                            />
+                                        </label>
+                                    )}
+                                </div>
+                                <input
+                                    value={paymentDraft.paymentUpiId}
+                                    onChange={(e) => setPaymentDraft((p) => ({ ...p, paymentUpiId: e.target.value.trim() }))}
+                                    placeholder="UPI ID (optional)"
+                                    className="w-full px-3 py-2 rounded-lg bg-[#111213] border border-gray-800 text-xs"
+                                />
+                                <button
+                                    type="button"
+                                    disabled={paymentBusy || !paymentDraft.paymentQR}
+                                    onClick={savePaymentDetails}
+                                    className="w-full py-2 rounded-lg bg-amber-400/90 text-black text-xs font-bold disabled:opacity-40"
+                                >
+                                    {paymentBusy ? 'Enabling…' : 'Enable manual UPI'}
+                                </button>
+                            </div>
+                        ) : null}
+                    </>
                 ) : null}
             </SectionCard>
 
-            <div>
-                <p className="text-[11px] uppercase tracking-widest text-gray-500 mb-2.5 px-0.5 font-medium">Quick actions</p>
-                <div className="grid grid-cols-2 gap-3">
-                    {[
-                        {
-                            label: 'Participants',
-                            hint: 'Guests · payments',
-                            icon: Users,
-                            onClick: () => navigate(`/run-club-organizer/events/${eventId}/participants`),
-                        },
-                        {
-                            label: 'Scan QR',
-                            hint: 'Check-in at gate',
-                            icon: QrCode,
-                            onClick: () => navigate(`/run-club-organizer/events/${eventId}/scan`),
-                        },
-                        {
-                            label: 'Notify',
-                            hint: 'Remind or announce',
-                            icon: Bell,
-                            onClick: () => navigate(`/run-club-organizer/events/${eventId}/notifications`),
-                        },
-                    ].map((action) => (
-                        <button
-                            key={action.label}
-                            type="button"
-                            onClick={action.onClick}
-                            className="rounded-2xl border border-white/10 bg-linear-to-br from-[#1a1b1d] to-[#141516] p-4 min-h-24 text-left hover:border-[#0ECCEE]/40 active:scale-[0.985] transition-all"
-                        >
-                            <div className="size-9 rounded-xl bg-[#0ECCEE]/12 text-[#0ECCEE] flex items-center justify-center mb-3">
-                                <action.icon size={18} />
-                            </div>
-                            <p className="text-sm font-semibold">{action.label}</p>
-                            <p className="text-[11px] text-gray-500 mt-0.5">{action.hint}</p>
-                        </button>
-                    ))}
-                </div>
+            {/* Quick actions */}
+            <div className="grid grid-cols-3 gap-2.5">
+                {[
+                    { label: 'Guests', icon: Users, to: organizerEventPath(eventId, true, 'participants') },
+                    { label: 'Scan', icon: QrCode, to: organizerEventPath(eventId, true, 'scan') },
+                    { label: 'Notify', icon: Bell, to: organizerEventPath(eventId, true, 'notifications') },
+                ].map((action) => (
+                    <button
+                        key={action.label}
+                        type="button"
+                        onClick={() => navigate(action.to)}
+                        className="rounded-xl border border-white/10 bg-[#1a1b1d] p-3 text-center hover:border-[#0ECCEE]/35 active:scale-[0.98] transition-all"
+                    >
+                        <action.icon size={18} className="mx-auto text-[#0ECCEE] mb-1.5" />
+                        <p className="text-xs font-semibold">{action.label}</p>
+                    </button>
+                ))}
             </div>
-
-            {pending > 0 ? (
-                <button
-                    type="button"
-                    onClick={() => navigate(`/run-club-organizer/events/${eventId}/scan`)}
-                    className="flex w-full items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-linear-to-r from-amber-500/15 to-amber-500/5 px-4 py-3.5 min-h-[52px] hover:border-amber-400/50 transition-colors"
-                >
-                    <span className="inline-flex items-center gap-2 text-sm text-amber-100 font-medium">
-                        <Clock size={16} />
-                        {pending} still need check-in
-                    </span>
-                    <span className="text-xs text-amber-300 font-semibold shrink-0">Open scanner →</span>
-                </button>
-            ) : null}
         </div>
     );
 }

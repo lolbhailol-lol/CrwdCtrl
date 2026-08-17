@@ -96,5 +96,19 @@
       "source": "/((?!assets/).*)",
       "destination": "/index.html"
     }
+  ],
+  "redirects": [
+    {
+      "source": "/run-club-organizer/login",
+      "has": [{ "type": "query", "key": "hub", "value": "events" }],
+      "destination": "/event-community-organizer/login",
+      "permanent": false
+    },
+    {
+      "source": "/run-club-organizer/signup",
+      "has": [{ "type": "query", "key": "hub", "value": "events" }],
+      "destination": "/event-community-organizer/signup",
+      "permanent": false
+    }
   ]
 }

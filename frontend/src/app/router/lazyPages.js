@@ -51,6 +51,10 @@ export const OrganizerLayoutGate = lazyWithRetry(() => import('../../pages/event
 export const OrganizerHomeGate = lazyWithRetry(() => import('../../pages/events/EventCommunityOrganizerGate').then((m) => ({ default: m.OrganizerHomeGate })));
 export const OrganizerDashboardGate = lazyWithRetry(() => import('../../pages/events/EventCommunityOrganizerGate').then((m) => ({ default: m.OrganizerDashboardGate })));
 export const OrganizerNotificationsGate = lazyWithRetry(() => import('../../pages/events/EventCommunityOrganizerGate').then((m) => ({ default: m.OrganizerNotificationsGate })));
+export const EventCommunityOrganizerLayout = lazyWithRetry(() => import('../../pages/events/EventCommunityOrganizerLayout'));
+export const EventCommunityOrganizerHomePage = lazyWithRetry(() => import('../../pages/events/EventCommunityOrganizerHomePage'));
+export const EventCommunityOrganizerDashboardPage = lazyWithRetry(() => import('../../pages/events/EventCommunityOrganizerDashboardPage'));
+export const EventCommunityOrganizerNotificationsPage = lazyWithRetry(() => import('../../pages/events/EventCommunityOrganizerNotificationsPage'));
 export const TrekCategoryPage = lazyWithRetry(() => import('../../pages/treks/TrekCategoryPage'));
 export const PaymentCheckoutPage = lazyWithRetry(() => import('../../pages/payment/PaymentCheckoutPage'));
 

@@ -834,6 +834,65 @@ exports.setRegistrationStatus = async (req, res) => {
     }
 };
 
+/** Organizer-controlled payment mode: Cashfree (internal_form) vs manual UPI + QR (organizer_qr). */
+exports.updateRegistrationSettings = async (req, res) => {
+    try {
+        const event = await SportsEvent.findById(req.eventId);
+        if (!event) return res.status(404).json({ success: false, message: notFoundMsg(req) });
+
+        const body = req.body || {};
+        if (!event.registration) event.registration = {};
+
+        if (body.mode !== undefined) {
+            const allowedModes = ['internal_form', 'organizer_qr'];
+            const nextMode = String(body.mode || '').trim();
+            if (allowedModes.includes(nextMode)) {
+                event.registration.mode = nextMode;
+            } else {
+                return res.status(400).json({
+                    success: false,
+                    message: 'mode must be internal_form (Cashfree) or organizer_qr (manual UPI + QR)',
+                });
+            }
+        }
+        if (body.paymentQR !== undefined) {
+            event.registration.paymentQR = normalizeImageUrl(body.paymentQR);
+        }
+        if (body.paymentQRMessage !== undefined) {
+            event.registration.paymentQRMessage = String(body.paymentQRMessage || '').trim();
+        }
+        if (body.paymentUpiId !== undefined) {
+            event.registration.paymentUpiId = String(body.paymentUpiId || '').trim();
+        }
+        if (body.qrAutoConfirm !== undefined) {
+            event.registration.qrAutoConfirm = Boolean(body.qrAutoConfirm);
+        }
+
+        const mode = event.registration.mode || 'internal_form';
+        const fee = Number(event.registrationFee) || 0;
+        if (mode === 'organizer_qr' && fee > 0 && !String(event.registration.paymentQR || '').trim()) {
+            return res.status(400).json({
+                success: false,
+                message: 'Upload a payment QR image before enabling manual UPI + QR for a paid event.',
+            });
+        }
+
+        event.markModified('registration');
+        await event.save();
+
+        res.json({
+            success: true,
+            message: mode === 'organizer_qr'
+                ? 'Manual UPI + QR enabled — you will review payment screenshots'
+                : 'Cashfree checkout enabled — bookings confirm automatically',
+            event: formatOrganizerEvent(event),
+        });
+    } catch (error) {
+        console.error('[runClubOrganizer.updateRegistrationSettings]', error);
+        res.status(500).json({ success: false, message: 'Failed to update payment settings' });
+    }
+};
+
 exports.expirePendingPayments = async (req, res) => {
     try {
         // Manual dashboard action only — auto-expiry is permanently disabled.

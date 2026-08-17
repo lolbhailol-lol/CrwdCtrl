@@ -4,32 +4,61 @@ import { Footprints, Users, Loader, ArrowLeft } from 'lucide-react';
 import { runClubOrganizerLogin, tryRunClubOrganizerAppSession } from '../../services/api/runClubOrganizer.api';
 import { setRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
 import { isEventsListingHub, organizerHubCopy } from '../../utils/listingHubCopy';
+import {
+    organizerEventPath,
+    organizerHomePath,
+    organizerLoginPath,
+    organizerSignupPath,
+    isEventCommunityOrganizerPath,
+    EVENT_COMMUNITY_ORGANIZER_BASE,
+    RUN_CLUB_ORGANIZER_BASE,
+} from '../../utils/organizerPortalPaths';
 import { showAppPopup } from '../../utils/appPopup';
 import { useAuth } from '../../context/AuthContext';
 import DetailPageLoader from '../../components/DetailPageLoader';
 
-function resolvePostLoginPath(events, from) {
+function resolvePostLoginPath(events, from, isEventHub) {
     if (from) return from;
     if (Array.isArray(events) && events.length === 1 && events[0]?._id) {
-        return `/run-club-organizer/events/${events[0]._id}`;
+        return organizerEventPath(events[0]._id, isEventHub);
     }
-    return '/run-club-organizer';
+    return organizerHomePath(isEventHub);
+}
+
+function crwdCtrlLoginRedirect(isEventHub) {
+    const returnTo = organizerLoginPath(isEventHub);
+    return `/login?redirect=${encodeURIComponent(returnTo)}`;
 }
 
 export default function RunClubOrganizerLoginPage() {
     const navigate = useNavigate();
     const location = useLocation();
     const [searchParams] = useSearchParams();
-    const isEventHub = searchParams.get('hub') === 'events';
+    const isEventHub = isEventCommunityOrganizerPath(location.pathname)
+        || searchParams.get('hub') === 'events';
     const copy = useMemo(() => organizerHubCopy(isEventHub), [isEventHub]);
     const HubIcon = isEventHub ? Users : Footprints;
     const hub = isEventHub ? 'events' : 'sports';
+    const fromParam = searchParams.get('from') || location.state?.from || '';
+    const returnTo = fromParam.startsWith('/') ? fromParam : '';
     const { isAuthenticated } = useAuth();
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [booting, setBooting] = useState(true);
+
+    useEffect(() => {
+        if (
+            location.pathname.startsWith(`${RUN_CLUB_ORGANIZER_BASE}/login`)
+            && searchParams.get('hub') === 'events'
+        ) {
+            const params = new URLSearchParams(searchParams);
+            params.delete('hub');
+            const qs = params.toString();
+            navigate(`${EVENT_COMMUNITY_ORGANIZER_BASE}/login${qs ? `?${qs}` : ''}`, { replace: true });
+        }
+    }, [location.pathname, navigate, searchParams]);
 
     useEffect(() => {
         let cancelled = false;
@@ -41,12 +70,12 @@ export default function RunClubOrganizerLoginPage() {
             try {
                 const session = await tryRunClubOrganizerAppSession(null, hub);
                 if (!cancelled && session?.token) {
-                    navigate(resolvePostLoginPath(session.events, location.state?.from), { replace: true });
+                    navigate(resolvePostLoginPath(session.events, returnTo, isEventHub), { replace: true });
                     return;
                 }
             } catch (err) {
                 if (!cancelled && err?.code === 'no_organizer_account') {
-                    navigate(isEventHub ? '/run-club-organizer/signup?hub=events' : '/run-club-organizer/signup', { replace: true });
+                    navigate(organizerSignupPath(isEventHub), { replace: true });
                     return;
                 }
                 /* fall through to manual login */
@@ -54,7 +83,7 @@ export default function RunClubOrganizerLoginPage() {
             if (!cancelled) setBooting(false);
         })();
         return () => { cancelled = true; };
-    }, [isAuthenticated, navigate, location.state?.from, hub, isEventHub]);
+    }, [isAuthenticated, navigate, returnTo, hub, isEventHub]);
 
     const submit = async (e) => {
         e.preventDefault();
@@ -73,7 +102,7 @@ export default function RunClubOrganizerLoginPage() {
                 message: organizerHubCopy(isEventsListingHub(data.runClub)).welcome,
                 tone: 'login',
             });
-            navigate(resolvePostLoginPath(data.events, location.state?.from), { replace: true });
+            navigate(resolvePostLoginPath(data.events, returnTo, isEventsListingHub(data.runClub) || isEventHub), { replace: true });
         } catch (err) {
             setError(err.message || 'Login failed');
         } finally {
@@ -107,8 +136,23 @@ export default function RunClubOrganizerLoginPage() {
                 </div>
 
                 <p className="text-[11px] text-gray-500 mb-4 rounded-lg border border-gray-800 bg-[#111213] px-3 py-2">
-                    Only your club can see participant details. CrwdCtrl approves access — you set your own password.
+                    {isEventHub
+                        ? 'Sign in with the Google account that matches your invited email, or use your organizer username below.'
+                        : 'Only your club can see participant details. CrwdCtrl approves access — you set your own password.'}
                 </p>
+
+                {!isAuthenticated ? (
+                    <Link
+                        to={crwdCtrlLoginRedirect(isEventHub)}
+                        className="mb-4 flex w-full items-center justify-center gap-2 min-h-[48px] py-3 rounded-xl bg-white text-black text-sm font-bold hover:opacity-90"
+                    >
+                        Continue with CrwdCtrl sign-in
+                    </Link>
+                ) : null}
+
+                {!isAuthenticated ? (
+                    <p className="text-[11px] text-center text-gray-600 mb-4">or use organizer username</p>
+                ) : null}
 
                 {error ? (
                     <div className="mb-4 rounded-lg border border-red-800 bg-red-900/20 px-3 py-2.5 text-sm text-red-300">{error}</div>

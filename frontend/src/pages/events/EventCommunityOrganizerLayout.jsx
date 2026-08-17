@@ -3,12 +3,13 @@ import { Outlet, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { CalendarDays, LayoutDashboard, Users, QrCode, LogOut, Bell, Menu, Home, ArrowLeft, ExternalLink } from 'lucide-react';
 import { clearRunClubOrganizerSession, getRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
 import { organizerHubCopy } from '../../utils/listingHubCopy';
+import { EVENT_COMMUNITY_ORGANIZER_BASE, organizerEventPath, organizerHomePath } from '../../utils/organizerPortalPaths';
 
 const navForEvent = (eventId) => [
-    { label: 'Home', path: `/run-club-organizer/events/${eventId}`, icon: LayoutDashboard, end: true, short: 'Dash' },
-    { label: 'Guests', path: `/run-club-organizer/events/${eventId}/participants`, icon: Users, short: 'Guests' },
-    { label: 'Scan', path: `/run-club-organizer/events/${eventId}/scan`, icon: QrCode, short: 'Scan' },
-    { label: 'Notify', path: `/run-club-organizer/events/${eventId}/notifications`, icon: Bell, short: 'Notify' },
+    { label: 'Home', path: organizerEventPath(eventId, true), icon: LayoutDashboard, end: true, short: 'Dash' },
+    { label: 'Guests', path: organizerEventPath(eventId, true, 'participants'), icon: Users, short: 'Guests' },
+    { label: 'Scan', path: organizerEventPath(eventId, true, 'scan'), icon: QrCode, short: 'Scan' },
+    { label: 'Notify', path: organizerEventPath(eventId, true, 'notifications'), icon: Bell, short: 'Notify' },
 ];
 
 function pathIsActive(pathname, to, end = false) {
@@ -49,7 +50,7 @@ export default function EventCommunityOrganizerLayout() {
 
     const logout = () => {
         clearRunClubOrganizerSession();
-        navigate('/run-club-organizer/login', { replace: true });
+        navigate(`${EVENT_COMMUNITY_ORGANIZER_BASE}/login`, { replace: true });
     };
 
     const hasEventContext = Boolean(eventId && eventId !== 'new');
@@ -74,7 +75,7 @@ export default function EventCommunityOrganizerLayout() {
                 </div>
                 <nav className="p-3 space-y-1">
                     <OrgNavButton
-                        to="/run-club-organizer"
+                        to={organizerHomePath(true)}
                         end
                         onNavigate={() => setSidebarOpen(false)}
                         className={({ isActive }) =>
@@ -150,7 +151,7 @@ export default function EventCommunityOrganizerLayout() {
                     {hasEventContext ? (
                         <button
                             type="button"
-                            onClick={() => navigate('/run-club-organizer')}
+                            onClick={() => navigate(organizerHomePath(true))}
                             className="text-xs text-[#0ECCEE] shrink-0 min-h-[44px] px-2 font-medium"
                         >
                             {copy.allEvents}

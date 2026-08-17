@@ -5,6 +5,7 @@ import { fetchRunClubOrganizerMe } from '../../services/api/runClubOrganizer.api
 import DetailPageLoader from '../../components/DetailPageLoader';
 import { getRunClubOrganizerSession, setRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
 import { organizerHubCopy } from '../../utils/listingHubCopy';
+import { organizerEventPath } from '../../utils/organizerPortalPaths';
 
 function formatEventDate(d) {
     if (!d) return 'Date TBA';
@@ -131,8 +132,8 @@ export default function EventCommunityOrganizerHomePage() {
                                 type="button"
                                 onClick={() => navigate(
                                     pendingReview > 0
-                                        ? `/run-club-organizer/events/${event._id}/participants?paymentStatus=pending_review`
-                                        : `/run-club-organizer/events/${event._id}`,
+                                        ? `${organizerEventPath(event._id, true, 'participants')}?paymentStatus=pending_review`
+                                        : organizerEventPath(event._id, true),
                                 )}
                                 className="flex items-center justify-between rounded-xl border border-gray-800 bg-[#161718] p-4 hover:border-[#0ECCEE]/40 transition-colors text-left"
                             >

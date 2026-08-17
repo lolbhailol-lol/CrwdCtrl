@@ -10,6 +10,15 @@ const {
 
 const SITE = () => String(process.env.FRONTEND_URL || 'https://crwdctrl.in').replace(/\/$/, '');
 
+function organizerPortalUrls(listingHub) {
+    const isEvents = listingHub === 'events';
+    const base = isEvents ? '/event-community-organizer' : '/run-club-organizer';
+    return {
+        loginUrl: `${SITE()}${base}/login`,
+        signupUrl: `${SITE()}${base}/signup`,
+    };
+}
+
 async function clubIdsForHub(hub) {
     const h = String(hub || '').toLowerCase();
     if (h === 'events') {
@@ -143,8 +152,7 @@ exports.createOrganizer = async (req, res) => {
                 const club = await RunClub.findById(runClubId).select('name listingHub').lean();
                 const listingHub = club?.listingHub === 'events' ? 'events' : 'sports';
                 const eventTitles = await eventTitlesForClub(runClubId);
-                const loginUrl = `${SITE()}/run-club-organizer/login${listingHub === 'events' ? '?hub=events' : ''}`;
-                const signupUrl = `${SITE()}/run-club-organizer/signup${listingHub === 'events' ? '?hub=events' : ''}`;
+                const { loginUrl, signupUrl } = organizerPortalUrls(listingHub);
                 const mailResult = await sendCommunityOrganizerApprovalEmail({
                     toEmail: email,
                     organizerName: name,
@@ -293,8 +301,7 @@ exports.approveOrganizer = async (req, res) => {
                 const club = await RunClub.findById(organizer.runClubId).select('name listingHub').lean();
                 const listingHub = club?.listingHub === 'events' ? 'events' : 'sports';
                 const eventTitles = await eventTitlesForClub(organizer.runClubId);
-                const loginUrl = `${SITE()}/run-club-organizer/login${listingHub === 'events' ? '?hub=events' : ''}`;
-                const signupUrl = `${SITE()}/run-club-organizer/signup${listingHub === 'events' ? '?hub=events' : ''}`;
+                const { loginUrl, signupUrl } = organizerPortalUrls(listingHub);
                 const mailResult = await sendCommunityOrganizerApprovalEmail({
                     toEmail: organizer.email,
                     organizerName: organizer.name || '',
@@ -383,6 +390,21 @@ function normalizeInviteEmail(email) {
     return String(email || '').trim().toLowerCase();
 }
 
+/** Match hub-specific invite, including legacy rows without listingHub (treated as sports). */
+async function findProfileInviteForHub(email, listingHub) {
+    if (listingHub === 'events') {
+        return RunClubManagerProfileInvite.findOne({ email, listingHub: 'events' });
+    }
+    return RunClubManagerProfileInvite.findOne({
+        email,
+        $or: [
+            { listingHub: 'sports' },
+            { listingHub: { $exists: false } },
+            { listingHub: null },
+        ],
+    });
+}
+
 exports.listProfileInvites = async (req, res) => {
     try {
         const hub = String(req.query.hub || '').toLowerCase();
@@ -390,7 +412,11 @@ exports.listProfileInvites = async (req, res) => {
         if (hub === 'events') {
             filter.listingHub = 'events';
         } else if (hub === 'sports') {
-            filter.listingHub = { $ne: 'events' };
+            filter.$or = [
+                { listingHub: 'sports' },
+                { listingHub: { $exists: false } },
+                { listingHub: null },
+            ];
         }
         const invites = await RunClubManagerProfileInvite.find(filter)
             .sort({ createdAt: -1 })
@@ -410,20 +436,54 @@ exports.addProfileInvite = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Valid email is required' });
         }
 
-        let existing = await RunClubManagerProfileInvite.findOne({ email, listingHub });
-        let invite = existing;
-        if (existing) {
-            existing.isActive = true;
-            if (note) existing.note = note;
-            await existing.save();
+        let invite = await findProfileInviteForHub(email, listingHub);
+        let reactivated = false;
+        let upgraded = false;
+
+        if (invite) {
+            invite.isActive = true;
+            if (note) invite.note = note;
+            if (invite.listingHub !== listingHub) {
+                invite.listingHub = listingHub;
+                upgraded = true;
+            }
+            await invite.save();
+            reactivated = true;
         } else {
-            invite = await RunClubManagerProfileInvite.create({
-                email,
-                note,
-                listingHub,
-                isActive: true,
-                createdBy: req.user?.userId || null,
-            });
+            const legacySameEmail = await RunClubManagerProfileInvite.findOne({ email });
+            if (legacySameEmail) {
+                legacySameEmail.listingHub = listingHub;
+                legacySameEmail.isActive = true;
+                if (note) legacySameEmail.note = note;
+                await legacySameEmail.save();
+                invite = legacySameEmail;
+                reactivated = true;
+                upgraded = true;
+            } else {
+                try {
+                    invite = await RunClubManagerProfileInvite.create({
+                        email,
+                        note,
+                        listingHub,
+                        isActive: true,
+                        createdBy: req.user?.userId || null,
+                    });
+                } catch (createErr) {
+                    if (createErr.code === 11000) {
+                        const fallback = await RunClubManagerProfileInvite.findOne({ email });
+                        if (!fallback) throw createErr;
+                        fallback.listingHub = listingHub;
+                        fallback.isActive = true;
+                        if (note) fallback.note = note;
+                        await fallback.save();
+                        invite = fallback;
+                        reactivated = true;
+                        upgraded = true;
+                    } else {
+                        throw createErr;
+                    }
+                }
+            }
         }
 
         let emailStatus = { attempted: false, sent: false, reason: '' };
@@ -446,17 +506,27 @@ exports.addProfileInvite = async (req, res) => {
         }
 
         const label = listingHub === 'events' ? 'Community organizer' : 'Club manager';
-        res.status(existing ? 200 : 201).json({
+        let message;
+        if (reactivated && upgraded) {
+            message = `Email updated for ${label} — invite sent again`;
+        } else if (reactivated) {
+            message = `Email re-activated for Profile → ${label}`;
+        } else {
+            message = `Email approved — invite sent for ${label} signup`;
+        }
+
+        res.status(reactivated && !upgraded ? 200 : reactivated ? 200 : 201).json({
             success: true,
-            message: existing
-                ? `Email re-activated for Profile → ${label}`
-                : `Email approved — invite sent for ${label} signup`,
+            message,
             invite,
             emailStatus,
         });
     } catch (error) {
         if (error.code === 11000) {
-            return res.status(409).json({ success: false, message: 'Email already added for this hub' });
+            return res.status(409).json({
+                success: false,
+                message: 'This email is already on the invite list. Refresh the page — it may appear under Profile emails.',
+            });
         }
         console.error('[adminRunClubOrganizer.addProfileInvite]', error);
         res.status(500).json({ success: false, message: 'Failed to add email' });

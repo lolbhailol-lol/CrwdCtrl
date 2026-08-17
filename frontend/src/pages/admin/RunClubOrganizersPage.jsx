@@ -51,11 +51,11 @@ export function CommunityOrganizersAdminPage({ hub = 'sports' }) {
     const [inviteSaving, setInviteSaving] = useState(false);
 
     const organizerLoginUrl = typeof window !== 'undefined'
-        ? `${window.location.origin}/run-club-organizer/login${copy.signupUrlSuffix}`
-        : `/run-club-organizer/login${copy.signupUrlSuffix}`;
+        ? `${window.location.origin}${copy.signupLoginPath}`
+        : copy.signupLoginPath;
     const organizerSignupUrl = typeof window !== 'undefined'
-        ? `${window.location.origin}/run-club-organizer/signup${copy.signupUrlSuffix}`
-        : `/run-club-organizer/signup${copy.signupUrlSuffix}`;
+        ? `${window.location.origin}${copy.signupPath}`
+        : copy.signupPath;
 
     const hubQuery = `hub=${hub}`;
 
@@ -196,12 +196,17 @@ export function CommunityOrganizersAdminPage({ hub = 'sports' }) {
                     setSaving(false);
                     return;
                 }
+                if (!form.email.trim() || !form.email.includes('@')) {
+                    toast('Enter a valid email for the organizer');
+                    setSaving(false);
+                    return;
+                }
                 payload.password = form.password;
-                await adminFetchJSON('/admin/run-club-organizers', {
+                const createData = await adminFetchJSON('/admin/run-club-organizers', {
                     method: 'POST',
                     body: JSON.stringify(payload),
                 });
-                toast('Organizer created (approved)');
+                toast(createData.message || 'Organizer created (approved)');
             }
             setModalOpen(false);
             load();
@@ -519,6 +524,18 @@ export function CommunityOrganizersAdminPage({ hub = 'sports' }) {
                     <form onSubmit={save} className="relative w-full max-w-lg max-h-[90dvh] overflow-y-auto rounded-2xl border border-gray-800 bg-[#161718] p-5 space-y-4">
                         <h2 className="text-lg font-bold flex items-center gap-2"><HubIcon size={18} className="text-[#0ECCEE]" />{editing ? 'Edit organizer' : 'New organizer (support)'}</h2>
                         <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Display name" className="w-full px-3 py-2.5 rounded-xl bg-[#111213] border border-gray-800 text-sm" />
+                        <div>
+                            <label className="block text-xs font-medium text-gray-400 mb-1">Email</label>
+                            <input
+                                required
+                                type="email"
+                                value={form.email}
+                                onChange={(e) => setForm({ ...form, email: e.target.value.trim().toLowerCase() })}
+                                placeholder="organizer@example.com"
+                                className="w-full px-3 py-2.5 rounded-xl bg-[#111213] border border-gray-800 text-sm"
+                            />
+                            <p className="text-[10px] text-gray-600 mt-1">Used for login emails and Profile → {copy.profileLabel}</p>
+                        </div>
                         <div>
                             <label className="block text-xs font-medium text-gray-400 mb-1">Username</label>
                             <input

@@ -8,7 +8,7 @@ import CrwdCtrlLogin from '../auth/login';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
 import { getImageUrl } from '../../utils/imageImports';
-import { getCoverImageUrl, resolveCoverImage } from '../../utils/coverImages';
+import { getCoverImageUrl, primaryCoverUrl, resolveCoverImage } from '../../utils/coverImages';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { normalizeImageList, normalizeImageUrl } from '../../utils/uploadUrls';
 import { shareContent, openExternalUrl } from '../../utils/externalLink';
@@ -21,7 +21,7 @@ import {
     ScrollReveal,
 } from '../../motion';
 import Seo from '../../components/Seo';
-import { breadcrumbSchema, itemListSchema } from '../../utils/seo';
+import { absoluteUrl, breadcrumbSchema, itemListSchema } from '../../utils/seo';
 
 import {
     fetchRunClub,
@@ -436,8 +436,14 @@ export default function EventCommunityDetailPage() {
         setGalleryOpen(true);
     };
 
+    const shareImage = primaryCoverUrl(club?.coverImages || {}, club?.coverImage || club?.image);
+
     const handleShare = () => {
-        shareContent({ title: name, url: window.location.href });
+        shareContent({
+            title: name,
+            url: window.location.href,
+            imageUrl: shareImage ? absoluteUrl(shareImage) : undefined,
+        });
     };
 
     const handleRunClick = (run) => {
@@ -477,7 +483,7 @@ export default function EventCommunityDetailPage() {
                 title={`${name} — Community`}
                 description={description}
                 canonical={canonicalPath}
-                image={club?.coverImage || club?.image}
+                image={shareImage}
                 jsonLd={[
                     breadcrumbSchema([
                         { name: 'Home', path: '/' },

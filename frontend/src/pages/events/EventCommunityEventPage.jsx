@@ -9,7 +9,8 @@ import Seo from '../../components/Seo';
 import LazyMap from '../../components/LazyMap';
 import TrekDetailIcon from '../../components/TrekDetailIcon';
 import DetailPageLoader from '../../components/DetailPageLoader';
-import { breadcrumbSchema, eventSchema } from '../../utils/seo';
+import { primaryCoverUrl } from '../../utils/coverImages';
+import { absoluteUrl, breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { shareContent } from '../../utils/externalLink';
 import { eventCommunityEventPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
 import { eventDetailTabBoxes, eventMapSideFacts, resolveRunMapPin } from '../../utils/trekDetailBoxes';
@@ -239,7 +240,8 @@ export default function EventCommunityEventPage() {
     }
 
     const club = event.runClub || null;
-    const coverImg = event.coverImage || event.coverImages?.hero || event.coverImages?.portrait || null;
+    const shareImage = primaryCoverUrl(event.coverImages || {}, event.coverImage || event.image);
+    const coverImg = shareImage || null;
     // Gallery uploads only — strip any card/cover URLs that leaked into images[]
     const coverSlots = event.coverImages || {};
     const coverSet = new Set(
@@ -268,7 +270,11 @@ export default function EventCommunityEventPage() {
           ];
 
     const handleShare = () => {
-        shareContent({ title: event.title, url: window.location.href });
+        shareContent({
+            title: event.title,
+            url: window.location.href,
+            imageUrl: shareImage ? absoluteUrl(shareImage) : undefined,
+        });
     };
 
     const canonicalPath = eventCommunityEventPath(event || { id });
@@ -279,7 +285,7 @@ export default function EventCommunityEventPage() {
                 title={event.title || 'Event'}
                 description={desc}
                 canonical={canonicalPath}
-                image={coverImg || images?.[0]}
+                image={shareImage || images?.[0]}
                 type="article"
                 jsonLd={[
                     breadcrumbSchema([
@@ -291,7 +297,7 @@ export default function EventCommunityEventPage() {
                         name: event.title || 'Event',
                         description: desc,
                         url: canonicalPath,
-                        image: coverImg || images?.[0],
+                        image: shareImage || images?.[0],
                         location: mapQuery || undefined,
                         price: minSportsFee(event),
                         organizerName: communityName || undefined,

@@ -25,6 +25,12 @@ router.post(
     requireEventAccess,
     ctrl.setRegistrationStatus,
 );
+router.patch(
+    '/events/:eventId/registration',
+    authenticateRunClubOrganizer,
+    requireEventAccess,
+    ctrl.updateRegistrationSettings,
+);
 router.post(
     '/events/:eventId/expire-pending-payments',
     authenticateRunClubOrganizer,

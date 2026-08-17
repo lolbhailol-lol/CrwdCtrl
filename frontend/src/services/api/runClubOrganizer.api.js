@@ -7,8 +7,23 @@ import {
     isRunClubOrganizerTokenExpired,
 } from '../../utils/runClubOrganizerSession';
 import { resolveAuthToken, getBearerAuthHeaders } from '../../utils/authToken';
+import { isEventsListingHub } from '../../utils/listingHubCopy';
+import {
+    organizerLoginPath,
+    organizerSignupPath,
+} from '../../utils/organizerPortalPaths';
+
+export { organizerLoginPath, organizerSignupPath, organizerHomePath, organizerEventPath, organizerPortalBase } from '../../utils/organizerPortalPaths';
 
 const API = getApiBaseUrl();
+
+export function organizerSessionMatchesHub(session, hub = '') {
+    if (!hub) return true;
+    const clubHub = isEventsListingHub(session?.runClub) ? 'events' : 'sports';
+    if (hub === 'events') return clubHub === 'events';
+    if (hub === 'sports') return clubHub !== 'events';
+    return true;
+}
 
 function isIOSBrowser() {
     if (typeof navigator === 'undefined') return false;
@@ -26,17 +41,20 @@ function isNetworkFetchError(err) {
 }
 
 function handleOrganizerUnauthorized() {
+    const session = getRunClubOrganizerSession();
+    const isEvents = isEventsListingHub(session?.runClub);
     clearRunClubOrganizerSession();
     if (typeof window === 'undefined') return;
     const path = window.location.pathname;
     if (
         path.startsWith('/run-club-organizer/login')
         || path.startsWith('/run-club-organizer/signup')
+        || path.startsWith('/event-community-organizer/login')
+        || path.startsWith('/event-community-organizer/signup')
     ) {
         return;
     }
-    // Soft redirect — avoid full reload that feels like the app “shut off” on iPhone
-    window.location.href = `/run-club-organizer/login?from=${encodeURIComponent(path)}`;
+    window.location.href = organizerLoginPath(isEvents, path);
 }
 
 async function runClubOrganizerFetch(path, options = {}) {
@@ -131,7 +149,11 @@ export function applyRunClubOrganizerAuthPayload(data) {
 export async function tryRunClubOrganizerAppSession(authToken = null, hub = '') {
     const existing = getRunClubOrganizerToken();
     if (existing && !isRunClubOrganizerTokenExpired(existing)) {
-        return getRunClubOrganizerSession();
+        const session = getRunClubOrganizerSession();
+        if (organizerSessionMatchesHub(session, hub)) {
+            return session;
+        }
+        clearRunClubOrganizerSession();
     }
 
     const token = resolveAuthToken(authToken);
@@ -252,6 +274,13 @@ export async function setRunClubOrganizerRegistrationStatus(eventId, status) {
     return runClubOrganizerFetch(`/run-club-organizer/events/${eventId}/registration-status`, {
         method: 'POST',
         body: JSON.stringify({ status }),
+    });
+}
+
+export async function updateRunClubOrganizerRegistration(eventId, body) {
+    return runClubOrganizerFetch(`/run-club-organizer/events/${eventId}/registration`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
     });
 }
 

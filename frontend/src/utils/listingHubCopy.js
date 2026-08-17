@@ -25,11 +25,16 @@ export function organizerHubCopy(isEventHub) {
             bookingClosed: 'Booking is paused for new registrations.',
             payQr: 'Guests pay via UPI — you review screenshots.',
             payOnline: 'Guests pay online — bookings confirm automatically.',
+            paymentMethodTitle: 'Payments',
+            paymentCashfreeHint: 'Guests pay online. Bookings confirm automatically.',
+            paymentManualHint: 'Guests pay via your QR and upload a screenshot. You approve each booking.',
+            paymentManualToggle: 'Manual UPI + QR',
+            paymentManualNeedsQr: 'Upload a payment QR first.',
             allEvents: 'All events',
             yourEvents: 'Your events',
             eventsCount: (n) => `${n} event${n === 1 ? '' : 's'} to manage`,
             noEvents: 'No events assigned yet. Ask CrwdCtrl admin to publish an event for your community.',
-            homeHint: 'Track registrations, approve payments when needed, check in guests, and notify your community. Event pricing is set by CrwdCtrl admin.',
+            homeHint: 'Track registrations, check in guests, and notify your community. Payments use Cashfree by default — turn on manual UPI + QR in the event dashboard if you need it.',
             communityEmptyTitle: 'Your community',
             communityEmpty: 'No community linked yet. Contact CrwdCtrl admin.',
             welcome: 'Welcome to your event organizer portal.',
@@ -104,8 +109,8 @@ export function organizerHubCopy(isEventHub) {
             signupEmailHint: 'Use the same email CrwdCtrl invited you with. After signup, wait for account approval before signing in.',
             signupClubLabel: 'Event community',
             signupClubEmpty: 'No published communities yet. Ask CrwdCtrl to publish your community first.',
-            signupLoginPath: '/run-club-organizer/login?hub=events',
-            signupPath: '/run-club-organizer/signup?hub=events',
+        signupLoginPath: '/event-community-organizer/login',
+        signupPath: '/event-community-organizer/signup',
         };
     }
     return {

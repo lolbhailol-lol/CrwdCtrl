@@ -1,6 +1,54 @@
+const jwt = require('jsonwebtoken');
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
+const { getJwtSecret } = require('../config/jwtSecret');
 
 const isDev = process.env.NODE_ENV !== 'production';
+
+/** Decode Bearer JWT for rate-limit keys only — no DB lookup. */
+function bearerUserId(req) {
+  const fromUser = req.user?.userId;
+  if (fromUser) return String(fromUser);
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) return null;
+
+  try {
+    const token = authHeader.substring(7);
+    if (!token) return null;
+    const decoded = jwt.verify(token, getJwtSecret());
+    if (!decoded?.userId) return null;
+    if (decoded.exp && decoded.exp < Math.floor(Date.now() / 1000)) return null;
+    return String(decoded.userId);
+  } catch {
+    return null;
+  }
+}
+
+/** Per-user bucket on fest checkout; shared college NAT falls back to a higher IP bucket. */
+function paymentIdentityKey(req) {
+  const userId = bearerUserId(req);
+  return userId ? `user:${userId}` : `ip:${ipKeyGenerator(req.ip)}`;
+}
+
+function paymentRateLimitMax(req) {
+  const userId = bearerUserId(req);
+  if (userId) {
+    return isDev ? 500 : Number(process.env.PAYMENT_RATE_LIMIT_MAX) || 120;
+  }
+  return isDev ? 500 : Number(process.env.PAYMENT_IP_RATE_LIMIT_MAX) || 300;
+}
+
+function registrationIdentityKey(req) {
+  return paymentIdentityKey(req);
+}
+
+function registrationRateLimitMax(req) {
+  const userId = bearerUserId(req);
+  if (userId) {
+    return isDev ? 300 : Number(process.env.REGISTRATION_RATE_LIMIT_MAX) || 60;
+  }
+  return isDev ? 300 : Number(process.env.REGISTRATION_IP_RATE_LIMIT_MAX) || 150;
+}
 
 /**
  * General API rate limit.
@@ -74,10 +122,14 @@ const adminAuthLimiter = rateLimit({
   message: { success: false, message: 'Too many admin login attempts, please try again later.' },
 });
 
-/** Payment endpoints */
+/**
+ * Payment endpoints — keyed by logged-in user when possible.
+ * Old default (60/15m/IP) blocked fest checkout on shared college WiFi after ~60 students.
+ */
 const paymentLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: isDev ? 200 : 60,
+  max: paymentRateLimitMax,
+  keyGenerator: paymentIdentityKey,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: 'Too many payment requests, please try again later.' },
@@ -92,10 +144,11 @@ const competitionRegisterLimiter = rateLimit({
   message: { success: false, message: 'Too many registration attempts. Please try again later.' },
 });
 
-/** Registration uploads — moderate limit */
+/** Registration uploads — same user/IP split as payments for fest rush */
 const registrationLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: isDev ? 100 : 30,
+  max: registrationRateLimitMax,
+  keyGenerator: registrationIdentityKey,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: 'Too many registration requests, please try again later.' },

@@ -35,6 +35,7 @@ function shouldSkipPageTransition(pathname) {
         || pathname.startsWith('/stall')
         || pathname.startsWith('/s/')
         || pathname.startsWith('/run-club-organizer')
+        || pathname.startsWith('/event-community-organizer')
         // Fest type pages render their own skeleton — route overlay caused a double load flash
         || pathname.endsWith('-fest')
         || pathname.startsWith('/view-details')
