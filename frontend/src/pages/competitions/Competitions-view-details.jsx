@@ -1697,11 +1697,11 @@ function EventPage() {
                                         <div aria-hidden />
                                         <RegisterMetaChips
                                             isDark={isDark}
-                                            slotsLabel={
-                                                eventData.showSlotsPublic === false
-                                                    ? ''
-                                                    : formatSlotsLabel(eventData.slotsAllotted, eventData.slotsLeft)
-                                            }
+                                            slotsLabel={formatSlotsLabel(
+                                                eventData.slotsAllotted,
+                                                eventData.slotsLeft,
+                                                { showSlotsPublic: eventData.showSlotsPublic },
+                                            )}
                                             teamLabel={buildTeamSizeLabel(eventData.teamSizeMin, eventData.teamSizeMax)}
                                         />
                                         <div className="w-11" aria-hidden />
@@ -1833,11 +1833,11 @@ function EventPage() {
                         <div aria-hidden />
                         <RegisterMetaChips
                             isDark={isDark}
-                            slotsLabel={
-                                eventData.showSlotsPublic === false
-                                    ? ''
-                                    : formatSlotsLabel(eventData.slotsAllotted, eventData.slotsLeft)
-                            }
+                            slotsLabel={formatSlotsLabel(
+                                eventData.slotsAllotted,
+                                eventData.slotsLeft,
+                                { showSlotsPublic: eventData.showSlotsPublic },
+                            )}
                             teamLabel={buildTeamSizeLabel(eventData.teamSizeMin, eventData.teamSizeMax)}
                         />
 

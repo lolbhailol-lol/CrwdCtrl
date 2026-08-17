@@ -33,11 +33,14 @@ import {
 } from '../../../utils/authToken';
 import { parseTicketPrice } from '../../../utils/platformFee';
 import { fetchPaymentQuote as fetchPaymentQuoteApi } from '../../../services/api/payment.api';
-import { requiresTeamRosterGate, getRosterBounds, needsParticipantCountStep } from '../../../utils/teamSize';
+import { getRosterBounds, needsParticipantCountStep } from '../../../utils/teamSize';
 import {
   teamMemberMissingLabel,
   normalizeTeamMember,
   getPersonFields,
+  getPersonScopedFields,
+  needsTeamDetailsStep,
+  validateTeamDetails,
   isMindSparkFest,
 } from '../../../features/fests/mindspark';
 import { waitAtLeast, sleep } from '../../../components/RegistrationStatusVisual';
@@ -690,28 +693,45 @@ export default function useFestRegistration() {
 
   const isOnParticipantStep = () => needsTeamSizePicker() && currentStep === 1;
 
+  const rosterTeamDetailsActive = () => {
+    if (!hasParticipantStep()) return false;
+    const chosen = getPeopleCount();
+    return needsTeamDetailsStep(competition, chosen);
+  };
+
+  const getTeamDetailsStepNumber = () => (needsTeamSizePicker() ? 2 : 1);
+
+  const isOnTeamDetailsStep = () => {
+    if (!rosterTeamDetailsActive()) return false;
+    return currentStep === getTeamDetailsStepNumber();
+  };
+
+  const getPersonStepsStart = () => {
+    let start = 1;
+    if (needsTeamSizePicker()) start += 1;
+    if (rosterTeamDetailsActive()) start += 1;
+    return start;
+  };
+
   const isOnPersonStep = () => {
     if (!hasParticipantStep()) return false;
     const people = getPeopleCount();
-    if (needsTeamSizePicker()) {
-      return currentStep >= 2 && currentStep <= 1 + people;
-    }
-    return currentStep === 1;
+    const start = getPersonStepsStart();
+    return currentStep >= start && currentStep < start + people;
   };
 
   const getPersonIndex = () => {
     if (!isOnPersonStep()) return -1;
-    if (needsTeamSizePicker()) return currentStep - 2;
-    return 0;
+    return currentStep - getPersonStepsStart();
   };
 
   const getFormStartStep = () => {
     if (!hasParticipantStep()) return 1;
-    return (needsTeamSizePicker() ? 1 : 0) + getPeopleCount();
+    return getPersonStepsStart() + getPeopleCount() - 1 + 1;
   };
 
   const getCurrentStepFields = () => {
-    if (isOnParticipantStep() || isOnPersonStep() || hasParticipantStep()) return [];
+    if (isOnParticipantStep() || isOnPersonStep() || isOnTeamDetailsStep() || hasParticipantStep()) return [];
 
     if (!isMultiStepForm()) {
       return fest?.registration?.formSchema || [];
@@ -726,7 +746,10 @@ export default function useFestRegistration() {
     if (!hasParticipantStep()) {
       return isMultiStepForm() ? fest.registration.steps.length : 1;
     }
-    return (needsTeamSizePicker() ? 1 : 0) + getPeopleCount() + getFormStepsCount();
+    return (needsTeamSizePicker() ? 1 : 0)
+      + (rosterTeamDetailsActive() ? 1 : 0)
+      + getPeopleCount()
+      + getFormStepsCount();
   };
 
   const getStepMeta = () => {
@@ -747,6 +770,14 @@ export default function useFestRegistration() {
       steps.push({ stepNumber: n, stepTitle: 'Team size' });
       n += 1;
     }
+    if (rosterTeamDetailsActive()) {
+      const chosen = getPeopleCount();
+      steps.push({
+        stepNumber: n,
+        stepTitle: chosen > 1 ? 'Team details' : 'Registration details',
+      });
+      n += 1;
+    }
     const people = getPeopleCount();
     for (let i = 0; i < people; i += 1) {
       steps.push({
@@ -758,7 +789,7 @@ export default function useFestRegistration() {
   };
 
   const getCurrentStepData = () => {
-    if (!isMultiStepForm() || isOnParticipantStep() || isOnPersonStep()) {
+    if (!isMultiStepForm() || isOnParticipantStep() || isOnTeamDetailsStep() || isOnPersonStep()) {
       return formData;
     }
     return stepData[currentStep] || {};
@@ -780,7 +811,7 @@ export default function useFestRegistration() {
   const validateCurrentPerson = () => {
     const idx = getPersonIndex();
     if (idx < 0) return true;
-    const personFields = getPersonFields(competition);
+    const personFields = getPersonScopedFields(competition);
     const members = Array.isArray(formData.team_members) ? formData.team_members : [];
     const missing = teamMemberMissingLabel(members[idx], personFields);
     if (missing) {
@@ -790,11 +821,25 @@ export default function useFestRegistration() {
     return true;
   };
 
+  const validateTeamDetailsStep = () => {
+    const err = validateTeamDetails(formData, competition);
+    if (err) {
+      setError(err);
+      return false;
+    }
+    return true;
+  };
+
   /** Final check: every selected person has full compulsory details */
   const validateMemberNames = () => {
     if (!hasParticipantStep()) return true;
+    const teamErr = validateTeamDetails(formData, competition);
+    if (teamErr) {
+      setError(teamErr);
+      return false;
+    }
     const chosen = getPeopleCount();
-    const personFields = getPersonFields(competition);
+    const personFields = getPersonScopedFields(competition);
     const members = Array.isArray(formData.team_members) ? formData.team_members : [];
     for (let i = 0; i < chosen; i += 1) {
       const missing = teamMemberMissingLabel(members[i], personFields);
@@ -809,6 +854,10 @@ export default function useFestRegistration() {
   const validateCurrentStep = () => {
     if (isOnParticipantStep()) {
       return validateParticipantStep();
+    }
+
+    if (isOnTeamDetailsStep()) {
+      return validateTeamDetailsStep();
     }
 
     if (isOnPersonStep()) {
@@ -861,7 +910,7 @@ export default function useFestRegistration() {
     }
     
     // Save fest field steps only (team size / person names live on formData)
-    if (isMultiStepForm() && !isOnParticipantStep() && !isOnPersonStep()) {
+    if (isMultiStepForm() && !isOnParticipantStep() && !isOnTeamDetailsStep() && !isOnPersonStep()) {
       setStepData(prev => ({
         ...prev,
         [currentStep]: getCurrentStepData()
@@ -1234,6 +1283,8 @@ export default function useFestRegistration() {
     if (!paidResume && isMultiStepForm()) {
       if (isOnParticipantStep()) {
         if (!validateParticipantStep()) return;
+      } else if (isOnTeamDetailsStep()) {
+        if (!validateTeamDetailsStep()) return;
       } else if (isOnPersonStep()) {
         if (!validateCurrentPerson()) return;
       } else {
@@ -1663,7 +1714,17 @@ export default function useFestRegistration() {
           .map((m) => normalizeTeamMember(m, personFields));
         textResponses.team_size = chosen;
         textResponses.team_members = members;
-        textResponses.person_fields = personFields.map((f) => ({ key: f.key, label: f.label }));
+        textResponses.person_fields = personFields.map((f) => ({ key: f.key, label: f.label, scope: f.scope || 'person' }));
+        const teamName = String(formData.team_name || '').trim();
+        if (teamName) textResponses.team_name = teamName;
+        const teamResponses = formData.team_responses && typeof formData.team_responses === 'object'
+          ? formData.team_responses
+          : {};
+        Object.entries(teamResponses).forEach(([key, value]) => {
+          if (value != null && String(value).trim() !== '') {
+            textResponses[key] = String(value).trim();
+          }
+        });
         // Lead (person 1) identity for organizer list / receipts
         if (members[0]) {
           if (members[0].name) textResponses.full_name = members[0].name;
@@ -2140,6 +2201,7 @@ export default function useFestRegistration() {
     isEffectiveMultiStep,
     hasParticipantStep,
     isOnParticipantStep,
+    isOnTeamDetailsStep,
     isOnPersonStep,
     getPersonIndex,
     getStepMeta,

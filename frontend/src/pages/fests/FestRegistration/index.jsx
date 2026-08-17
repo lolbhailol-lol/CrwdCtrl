@@ -270,6 +270,7 @@ export default function FestRegistration() {
       isMultiStepForm={r.isMultiStepForm}
       isEffectiveMultiStep={r.isEffectiveMultiStep}
       isOnParticipantStep={r.isOnParticipantStep}
+      isOnTeamDetailsStep={r.isOnTeamDetailsStep}
       isOnPersonStep={r.isOnPersonStep}
       getPersonIndex={r.getPersonIndex}
       hasParticipantStep={r.hasParticipantStep}

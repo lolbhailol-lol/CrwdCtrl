@@ -94,14 +94,11 @@ function requiresTeamRosterGate({ teamSizeMin, teamSizeMax } = {}) {
   return hi >= 3 && hi <= 6;
 }
 
-/** Effective min/max for the registration roster UI */
+/** Effective min/max for the registration roster UI — respects saved teamSizeMin/teamSizeMax */
 function getRosterBounds({ teamSizeMin, teamSizeMax } = {}) {
   const lo = clampTeam(teamSizeMin);
   const hi = clampTeam(teamSizeMax, lo);
-  if (!(hi >= 3 && hi <= 6)) return { min: lo, max: hi };
-  // Solo-capable Max N (min 1) still requires at least 3 names when max is 3–6
-  const min = lo <= 1 ? Math.min(3, hi) : lo;
-  return { min, max: hi };
+  return { min: lo, max: hi };
 }
 
 module.exports = {

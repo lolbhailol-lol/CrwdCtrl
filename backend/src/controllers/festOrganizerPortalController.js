@@ -1758,6 +1758,10 @@ exports.updateCompetitionSlots = async (req, res) => {
                 || body.showSlotsPublic === 0
                 || body.showSlotsPublic === '0'
             );
+            // Off = unlimited entries (no cap on public page or registration)
+            if (!competition.showSlotsPublic) {
+                slots = 0;
+            }
         }
         if (!competition.registration) competition.registration = {};
         competition.registration.maxRegistrations = slots > 0 ? slots : null;
@@ -1776,9 +1780,9 @@ exports.updateCompetitionSlots = async (req, res) => {
             const { normalizeTeamSizeFields } = require('../utils/teamSize');
             const maxPeople = body.maxPeople !== undefined ? body.maxPeople : body.teamSizeMax;
             const next = normalizeTeamSizeFields({
-                teamSizeMin: body.teamSizeMin !== undefined ? body.teamSizeMin : 1,
+                teamSizeMin: body.teamSizeMin !== undefined ? body.teamSizeMin : competition.teamSizeMin,
                 teamSizeMax: maxPeople !== undefined ? maxPeople : competition.teamSizeMax,
-                teamSizeLabel: body.teamSizeLabel !== undefined ? body.teamSizeLabel : '',
+                teamSizeLabel: body.teamSizeLabel !== undefined ? body.teamSizeLabel : competition.teamSizeLabel,
             });
             competition.teamSizeMin = next.teamSizeMin;
             competition.teamSizeMax = next.teamSizeMax;

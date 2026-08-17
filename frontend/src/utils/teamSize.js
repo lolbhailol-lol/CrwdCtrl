@@ -52,20 +52,17 @@ export function needsParticipantCountStep({ teamSizeMin, teamSizeMax } = {}) {
     return hi >= 2;
 }
 
-/** Effective min/max for roster UI (solo-capable Max N → at least 3 names) */
+/** Effective min/max for roster UI — respects organizer teamSizeMin/teamSizeMax as saved */
 export function getRosterBounds({ teamSizeMin, teamSizeMax } = {}) {
     const lo = clampTeam(teamSizeMin);
     const hi = clampTeam(teamSizeMax, lo);
-    if (requiresTeamRosterGate({ teamSizeMin: lo, teamSizeMax: hi })) {
-        const min = lo <= 1 ? Math.min(3, hi) : lo;
-        return { min, max: hi };
-    }
     return { min: lo, max: hi };
 }
 
-export function formatSlotsLabel(slotsAllotted, slotsLeft) {
+export function formatSlotsLabel(slotsAllotted, slotsLeft, { showSlotsPublic = true } = {}) {
+    if (showSlotsPublic === false) return 'Unlimited entries';
     const allotted = Math.max(0, Number(slotsAllotted) || 0);
-    if (allotted <= 0) return '';
+    if (allotted <= 0) return 'Unlimited entries';
     if (slotsLeft != null && Number.isFinite(Number(slotsLeft))) {
         const left = Math.max(0, Math.floor(Number(slotsLeft)));
         return left === 1 ? '1 slot remains' : `${left} slots remain`;

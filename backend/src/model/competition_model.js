@@ -239,9 +239,15 @@ const competitionSchema = new mongoose.Schema(
       label: String,
       type: {
         type: String,
-        enum: ['text', 'email', 'tel'],
+        enum: ['text', 'email', 'tel', 'select', 'radio'],
         default: 'text',
       },
+      scope: {
+        type: String,
+        enum: ['person', 'team'],
+        default: 'person',
+      },
+      options: [String],
       placeholder: String,
       required: { type: Boolean, default: true },
     }],

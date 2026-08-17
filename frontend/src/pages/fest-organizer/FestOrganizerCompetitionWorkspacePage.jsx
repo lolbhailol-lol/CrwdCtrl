@@ -985,7 +985,10 @@ export default function FestOrganizerCompetitionWorkspacePage() {
         const payload = {};
 
         // Empty slots field = leave current limit unchanged (don't wipe to unlimited)
-        if (remainRaw !== '') {
+        // Toggle off = unlimited entries — clear the cap
+        if (!showSlotsPublic) {
+            payload.slotsAllotted = 0;
+        } else if (remainRaw !== '') {
             const remain = Number(remainRaw);
             if (!Number.isFinite(remain) || remain < 0) {
                 toast('Invalid slots');
@@ -1000,7 +1003,6 @@ export default function FestOrganizerCompetitionWorkspacePage() {
             return;
         }
         payload.maxPeople = Math.min(20, Math.floor(maxPeople));
-        payload.teamSizeMin = 1;
         payload.showSlotsPublic = Boolean(showSlotsPublic);
 
         setCapacityBusy(true);
@@ -1210,7 +1212,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                             {stats.slotsAllotted > 0
                                 ? `${stats.slotsFilled ?? stats.approved}/${stats.slotsAllotted} filled`
                                 : 'No limit set yet'}
-                            {data?.competition?.showSlotsPublic === false ? ' · hidden on site' : ''}
+                            {data?.competition?.showSlotsPublic === false ? ' · unlimited on site' : ''}
                         </p>
                     </div>
                 </div>
@@ -1343,7 +1345,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                         <span className="block text-[11px] text-gray-500 mt-0.5">
                             {showSlotsPublic
                                 ? 'Students see how many slots remain (e.g. “12 slots remain”).'
-                                : 'Students won’t see remaining slots. You can still track capacity here.'}
+                                : 'Public page shows Unlimited entries. No registration limit.'}
                         </span>
                     </span>
                 </label>
@@ -1370,7 +1372,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                         <span className="text-[10px] text-gray-500 block">
                             {showSlotsPublic
                                 ? 'How many more can register — shown on the competition page when enabled.'
-                                : 'Tracked for you only (hidden on the public page).'}
+                                : 'Ignored while slots are off. Turn the toggle on to set a limit.'}
                             {stats?.slotsFilled != null || stats?.approved != null
                                 ? ` · ${stats.slotsFilled ?? stats.approved} already filled`
                                 : ''}

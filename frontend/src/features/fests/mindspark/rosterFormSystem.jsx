@@ -10,6 +10,13 @@ export const PERSON_FIELD_TYPES = [
   { value: 'text', label: 'Text' },
   { value: 'email', label: 'Email' },
   { value: 'tel', label: 'Phone' },
+  { value: 'select', label: 'Dropdown (MCQ)' },
+  { value: 'radio', label: 'Multiple choice' },
+];
+
+export const FIELD_SCOPES = [
+  { value: 'person', label: 'Per person' },
+  { value: 'team', label: 'Once per registration' },
 ];
 
 /** Default per-person fields (name, email, phone, college) */
@@ -57,17 +64,31 @@ function slugKey(label, fallback = 'field') {
   return base || fallback;
 }
 
+function parseOptions(raw) {
+  if (Array.isArray(raw)) {
+    return raw.map((o) => String(o || '').trim()).filter(Boolean);
+  }
+  if (typeof raw === 'string') {
+    return raw.split(/\r?\n|,/).map((o) => o.trim()).filter(Boolean);
+  }
+  return [];
+}
+
 export function normalizePersonField(raw, index = 0) {
   const id = String(raw?.id || `pf_${index}_${Date.now()}`);
   const label = String(raw?.label || '').trim() || `Field ${index + 1}`;
   let key = String(raw?.key || raw?.fieldName || '').trim().toLowerCase().replace(/[^a-z0-9_]/g, '_');
   if (!key) key = slugKey(label, `field_${index + 1}`);
   const type = PERSON_FIELD_TYPES.some((t) => t.value === raw?.type) ? raw.type : 'text';
+  const scope = raw?.scope === 'team' ? 'team' : 'person';
+  const options = type === 'select' || type === 'radio' ? parseOptions(raw?.options) : [];
   return {
     id,
     key,
     label,
     type,
+    scope,
+    options,
     placeholder: String(raw?.placeholder || '').trim(),
     required: raw?.required !== false,
   };
@@ -94,6 +115,48 @@ export function normalizePersonFields(list) {
 /** Resolve editable person-field schema from a competition (or defaults) */
 export function getPersonFields(competition) {
   return normalizePersonFields(competition?.registration?.personFields);
+}
+
+export function getTeamScopedFields(competition) {
+  return getPersonFields(competition).filter((f) => f.scope === 'team');
+}
+
+export function getPersonScopedFields(competition) {
+  return getPersonFields(competition).filter((f) => f.scope !== 'team');
+}
+
+/** Team name + MCQ step after team size (teams) or before solo person step */
+export function needsTeamDetailsStep(competition, teamSize = 0) {
+  const size = Math.max(0, Number(teamSize) || 0);
+  const teamFields = getTeamScopedFields(competition);
+  return size > 1 || teamFields.length > 0;
+}
+
+export function teamFieldMissingLabel(value, field) {
+  const val = String(value ?? '').trim();
+  if (!field.required) return null;
+  if (!val) return `${field.label} (required)`;
+  if ((field.type === 'select' || field.type === 'radio') && field.options?.length && !field.options.includes(val)) {
+    return `a valid ${field.label.toLowerCase()} (required)`;
+  }
+  if (field.type === 'text' && val.length < 2) return `${field.label} (required)`;
+  return null;
+}
+
+export function validateTeamDetails(formData, competition) {
+  const chosen = Math.max(0, Number(formData?.team_size) || 0);
+  if (chosen > 1) {
+    const teamName = String(formData?.team_name || '').trim();
+    if (teamName.length < 2) return 'Team name (required, at least 2 characters)';
+  }
+  const teamResponses = formData?.team_responses && typeof formData.team_responses === 'object'
+    ? formData.team_responses
+    : {};
+  for (const field of getTeamScopedFields(competition)) {
+    const missing = teamFieldMissingLabel(teamResponses[field.key], field);
+    if (missing) return missing;
+  }
+  return null;
 }
 
 export function emptyTeamMember(personFields = DEFAULT_PERSON_FIELDS) {
@@ -126,7 +189,7 @@ export function normalizeTeamMember(raw, personFields = DEFAULT_PERSON_FIELDS) {
 }
 
 export function teamMemberMissingLabel(raw, personFields = DEFAULT_PERSON_FIELDS) {
-  const fields = normalizePersonFields(personFields);
+  const fields = normalizePersonFields(personFields).filter((f) => f.scope !== 'team');
   const m = normalizeTeamMember(raw, fields);
   for (const f of fields) {
     if (!f.required) continue;
@@ -140,6 +203,9 @@ export function teamMemberMissingLabel(raw, personFields = DEFAULT_PERSON_FIELDS
       if (digits.length < 10) return `${f.label} (required, 10+ digits)`;
     }
     if (f.type === 'text' && val.length < 2) return `${f.label} (required)`;
+    if ((f.type === 'select' || f.type === 'radio') && f.options?.length && !f.options.includes(val)) {
+      return `a valid ${f.label.toLowerCase()} (required)`;
+    }
   }
   return null;
 }
@@ -228,8 +294,115 @@ export function TeamSizeSelect({ competition, formData, setFormData, isDark }) {
           </button>
         </div>
         <p className={`text-[10px] mt-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-          Allowed: {buildTeamSizeLabel(min, max)}
+          Allowed: {buildTeamSizeLabel(competition?.teamSizeMin, competition?.teamSizeMax)}
         </p>
+      </div>
+    </div>
+  );
+}
+
+/** Step 2 — Team name + once-per-registration fields (MCQ subcategory, etc.) */
+export function TeamDetailsStep({ competition, formData, setFormData, isDark }) {
+  const chosen = Math.max(0, Number(formData.team_size) || 0);
+  const teamFields = getTeamScopedFields(competition);
+  const teamResponses = formData.team_responses && typeof formData.team_responses === 'object'
+    ? formData.team_responses
+    : {};
+  const needsTeamName = chosen > 1;
+
+  if (!needsTeamName && teamFields.length === 0) return null;
+
+  const setTeamField = (key, value) => {
+    setFormData((prev) => ({
+      ...prev,
+      team_responses: { ...(prev.team_responses || {}), [key]: value },
+    }));
+  };
+
+  const Req = () => <span className="text-red-400 ml-0.5">*</span>;
+
+  const renderTeamField = (field) => {
+    const value = teamResponses[field.key] || '';
+    if (field.type === 'select') {
+      return (
+        <select
+          value={value}
+          onChange={(e) => setTeamField(field.key, e.target.value)}
+          className={inputClass(isDark)}
+        >
+          <option value="">{field.placeholder || `Select ${field.label.toLowerCase()}`}</option>
+          {(field.options || []).map((opt) => (
+            <option key={opt} value={opt}>{opt}</option>
+          ))}
+        </select>
+      );
+    }
+    if (field.type === 'radio') {
+      return (
+        <div className="space-y-2">
+          {(field.options || []).map((opt) => (
+            <label key={opt} className={`flex items-center gap-2 text-sm cursor-pointer ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+              <input
+                type="radio"
+                name={`team_field_${field.key}`}
+                value={opt}
+                checked={value === opt}
+                onChange={(e) => setTeamField(field.key, e.target.value)}
+                className="text-[#0ECCEE] focus:ring-[#0ECCEE]"
+              />
+              {opt}
+            </label>
+          ))}
+        </div>
+      );
+    }
+    return (
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => setTeamField(field.key, e.target.value)}
+        placeholder={field.placeholder || field.label}
+        className={inputClass(isDark)}
+      />
+    );
+  };
+
+  return (
+    <div className={`rounded-2xl border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-200 shadow-sm'}`}>
+      <div className={`px-4 py-3 border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
+        <p className={`text-[11px] font-semibold uppercase tracking-wider ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+          {needsTeamName ? 'Team details' : 'Registration details'}
+        </p>
+        <p className={`text-sm font-semibold mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+          {competition?.name || 'Competition'}
+        </p>
+      </div>
+      <div className="px-4 py-4 space-y-3">
+        {needsTeamName ? (
+          <div>
+            <p className={`text-[11px] mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+              Team name
+              <Req />
+            </p>
+            <input
+              type="text"
+              value={formData.team_name || ''}
+              onChange={(e) => setFormData((prev) => ({ ...prev, team_name: e.target.value }))}
+              placeholder="Your team name"
+              autoFocus
+              className={inputClass(isDark)}
+            />
+          </div>
+        ) : null}
+        {teamFields.map((field) => (
+          <div key={field.id || field.key}>
+            <p className={`text-[11px] mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+              {field.label}
+              {field.required ? <Req /> : null}
+            </p>
+            {renderTeamField(field)}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -238,7 +411,7 @@ export function TeamSizeSelect({ competition, formData, setFormData, isDark }) {
 /** One step — one person's fields from competition.registration.personFields */
 export function RosterPersonStep({ personIndex, competition, formData, setFormData, isDark }) {
   const { min, max } = getRosterBounds(competition);
-  const personFields = getPersonFields(competition);
+  const personFields = getPersonScopedFields(competition);
   const chosen = Math.min(max, Math.max(min, Number(formData.team_size) || min || 1));
   const members = (Array.isArray(formData.team_members) ? formData.team_members : []).map((m) =>
     normalizeTeamMember(m, personFields),
@@ -295,19 +468,49 @@ export function RosterPersonStep({ personIndex, competition, formData, setFormDa
               {personIndex === 0 && field.key === 'name' ? ' (you)' : ''}
               {field.required ? <Req /> : null}
             </p>
-            <input
-              type={field.type === 'tel' ? 'tel' : field.type === 'email' ? 'email' : 'text'}
-              name={`person_${personIndex}_${field.key}`}
-              value={person[field.key] || ''}
-              onChange={(e) => setField(field.key, e.target.value)}
-              placeholder={field.placeholder || field.label}
-              autoFocus={fi === 0}
-              inputMode={field.type === 'tel' ? 'tel' : field.type === 'email' ? 'email' : undefined}
-              autoComplete={
-                field.type === 'email' ? 'email' : field.type === 'tel' ? 'tel' : field.key === 'college' ? 'organization' : 'name'
-              }
-              className={inputClass(isDark)}
-            />
+            {field.type === 'select' ? (
+              <select
+                value={person[field.key] || ''}
+                onChange={(e) => setField(field.key, e.target.value)}
+                autoFocus={fi === 0}
+                className={inputClass(isDark)}
+              >
+                <option value="">{field.placeholder || `Select ${field.label.toLowerCase()}`}</option>
+                {(field.options || []).map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            ) : field.type === 'radio' ? (
+              <div className="space-y-2">
+                {(field.options || []).map((opt) => (
+                  <label key={opt} className={`flex items-center gap-2 text-sm cursor-pointer ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                    <input
+                      type="radio"
+                      name={`person_${personIndex}_${field.key}`}
+                      value={opt}
+                      checked={(person[field.key] || '') === opt}
+                      onChange={(e) => setField(field.key, e.target.value)}
+                      className="text-[#0ECCEE] focus:ring-[#0ECCEE]"
+                    />
+                    {opt}
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <input
+                type={field.type === 'tel' ? 'tel' : field.type === 'email' ? 'email' : 'text'}
+                name={`person_${personIndex}_${field.key}`}
+                value={person[field.key] || ''}
+                onChange={(e) => setField(field.key, e.target.value)}
+                placeholder={field.placeholder || field.label}
+                autoFocus={fi === 0}
+                inputMode={field.type === 'tel' ? 'tel' : field.type === 'email' ? 'email' : undefined}
+                autoComplete={
+                  field.type === 'email' ? 'email' : field.type === 'tel' ? 'tel' : field.key === 'college' ? 'organization' : 'name'
+                }
+                className={inputClass(isDark)}
+              />
+            )}
           </div>
         ))}
         {chosen > 1 ? (
@@ -437,6 +640,20 @@ export function RosterFieldsEditor({ personFields, onChange, className = '' }) {
                 </select>
               </div>
               <div>
+                <label className="block text-[10px] text-gray-500 mb-1">Ask</label>
+                <select
+                  value={field.scope || 'person'}
+                  onChange={(e) => patch(index, { scope: e.target.value })}
+                  className="w-full px-2.5 py-2 rounded-lg bg-[#151617] border border-gray-700 text-sm text-white focus:border-[#0ECCEE] focus:outline-none"
+                >
+                  {FIELD_SCOPES.map((s) => (
+                    <option key={s.value} value={s.value}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
                 <label className="block text-[10px] text-gray-500 mb-1">Placeholder</label>
                 <input
                   type="text"
@@ -446,6 +663,18 @@ export function RosterFieldsEditor({ personFields, onChange, className = '' }) {
                 />
               </div>
             </div>
+            {(field.type === 'select' || field.type === 'radio') ? (
+              <div>
+                <label className="block text-[10px] text-gray-500 mb-1">Options (one per line)</label>
+                <textarea
+                  value={(field.options || []).join('\n')}
+                  onChange={(e) => patch(index, { options: parseOptions(e.target.value) })}
+                  rows={3}
+                  placeholder={'Option A\nOption B\nOption C'}
+                  className="w-full px-2.5 py-2 rounded-lg bg-[#151617] border border-gray-700 text-sm text-white focus:border-[#0ECCEE] focus:outline-none resize-y"
+                />
+              </div>
+            ) : null}
             <label className="inline-flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
               <input
                 type="checkbox"

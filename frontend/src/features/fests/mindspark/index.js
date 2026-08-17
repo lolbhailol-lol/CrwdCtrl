@@ -9,15 +9,21 @@ export {
 
 export {
   PERSON_FIELD_TYPES,
+  FIELD_SCOPES,
   DEFAULT_PERSON_FIELDS,
   normalizePersonField,
   normalizePersonFields,
   getPersonFields,
+  getTeamScopedFields,
+  getPersonScopedFields,
+  needsTeamDetailsStep,
+  validateTeamDetails,
   emptyTeamMember,
   normalizeTeamMember,
   teamMemberMissingLabel,
   isTeamMemberComplete,
   TeamSizeSelect,
+  TeamDetailsStep,
   RosterPersonStep,
   RosterFieldsEditor,
 } from './rosterFormSystem';

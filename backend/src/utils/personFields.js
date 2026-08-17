@@ -22,6 +22,16 @@ function slugKey(label, fallback = 'field') {
     return base || fallback;
 }
 
+function parseOptions(raw) {
+    if (Array.isArray(raw)) {
+        return raw.map((o) => String(o || '').trim()).filter(Boolean);
+    }
+    if (typeof raw === 'string') {
+        return raw.split(/\r?\n|,/).map((o) => o.trim()).filter(Boolean);
+    }
+    return [];
+}
+
 function normalizePersonField(raw, index = 0) {
     const id = String(raw?.id || `pf_${index}`);
     const label = String(raw?.label || '').trim() || `Field ${index + 1}`;
@@ -30,13 +40,17 @@ function normalizePersonField(raw, index = 0) {
         .toLowerCase()
         .replace(/[^a-z0-9_]/g, '_');
     if (!key) key = slugKey(label, `field_${index + 1}`);
-    const allowed = new Set(['text', 'email', 'tel']);
+    const allowed = new Set(['text', 'email', 'tel', 'select', 'radio']);
     const type = allowed.has(raw?.type) ? raw.type : 'text';
+    const scope = raw?.scope === 'team' ? 'team' : 'person';
+    const options = type === 'select' || type === 'radio' ? parseOptions(raw?.options) : [];
     return {
         id,
         key,
         label,
         type,
+        scope,
+        options,
         placeholder: String(raw?.placeholder || '').trim(),
         required: raw?.required !== false,
     };
