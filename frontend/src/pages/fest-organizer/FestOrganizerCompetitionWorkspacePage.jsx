@@ -1345,7 +1345,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                         <span className="block text-[11px] text-gray-500 mt-0.5">
                             {showSlotsPublic
                                 ? 'Students see how many slots remain (e.g. “12 slots remain”).'
-                                : 'Public page shows Unlimited entries. No registration limit.'}
+                                : 'Slots hidden on public page. Registrations stay open with no cap.'}
                         </span>
                     </span>
                 </label>

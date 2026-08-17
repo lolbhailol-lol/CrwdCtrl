@@ -60,7 +60,7 @@ export function getRosterBounds({ teamSizeMin, teamSizeMax } = {}) {
 }
 
 export function formatSlotsLabel(slotsAllotted, slotsLeft, { showSlotsPublic = true } = {}) {
-    if (showSlotsPublic === false) return 'Unlimited entries';
+    if (showSlotsPublic === false) return '';
     const allotted = Math.max(0, Number(slotsAllotted) || 0);
     if (allotted <= 0) return 'Unlimited entries';
     if (slotsLeft != null && Number.isFinite(Number(slotsLeft))) {

@@ -88,7 +88,7 @@ export default function FestOrganizerCompetitionsPage() {
                     String(row.id) === id ? { ...row, showSlotsPublic: saved !== false } : row
                 )));
             }
-            toast(next ? 'Slots shown on public page' : 'Unlimited entries on public page');
+            toast(next ? 'Slots shown on public page' : 'Slots hidden on public page');
         } catch (e) {
             setRows((prev) => prev.map((row) => (
                 String(row.id) === id ? { ...row, showSlotsPublic: !next } : row
@@ -297,7 +297,7 @@ export default function FestOrganizerCompetitionsPage() {
                         ? (showSlotsPublic
                             ? `${slotsLeft ?? Math.max(0, slotsAllotted - (c.slotsFilled ?? c.approved ?? 0))} slots remain`
                             : `${slotsLeft ?? Math.max(0, slotsAllotted - (c.slotsFilled ?? c.approved ?? 0))} left · hidden on site`)
-                        : (showSlotsPublic ? 'No slot limit' : 'Unlimited entries');
+                        : (showSlotsPublic ? 'No slot limit' : 'Hidden on site');
 
                     return (
                         <div
@@ -384,7 +384,7 @@ export default function FestOrganizerCompetitionsPage() {
                                                 <p className="text-[10px] text-gray-500 mt-0.5 truncate">
                                                     {showSlotsPublic
                                                         ? 'Students see remaining slots'
-                                                        : 'Unlimited entries on public page'}
+                                                        : 'Slots hidden on public page'}
                                                 </p>
                                             </div>
                                             <button
