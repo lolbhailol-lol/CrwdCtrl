@@ -6,10 +6,13 @@ import Clue4VariantManager from './Clue4VariantManager';
 import Clue5VariantManager from './Clue5VariantManager';
 import CheckpointManager from './CheckpointManager';
 import CampusStationNamesEditor from './CampusStationNamesEditor';
+import StationPlantFragmentsPanel from './StationPlantFragmentsPanel';
+import PlacePosterPrint from './PlacePosterPrint';
 import FirstStopPosterPrint from './FirstStopPosterPrint';
 import SecondStopPosterPrint from './SecondStopPosterPrint';
 import ThirdStopPosterPrint from './ThirdStopPosterPrint';
 import FourthStopPosterPrint from './FourthStopPosterPrint';
+import TeamPathsPanel from './TeamPathsPanel';
 import {
   STATION_TARGET_COUNT,
   destinationsSummary,
@@ -19,7 +22,7 @@ import {
   suggestHuntLayout,
 } from './campusHuntFormat';
 import { adminBootstrapRound1 } from '../services/campusHunt.api';
-import { STAGE_THEME_LIST, themeForChallengeNumber } from '../types/stageTheme';
+import { themeForChallengeNumber } from '../types/stageTheme';
 
 export {
   CAMPUS_STARTS,
@@ -42,8 +45,8 @@ export function buildRound1Clues(geometry) {
       label: 'CLUE 1 · First stop',
       short: 'FIRST STOP · Orange',
       detail:
-        `${places} places · ${starts} start(s) · ~${perStation} teams each · 1 shared QR · `
-        + `all ${people} scan → team code → Clue 2`,
+        `${places} places · ${starts} start(s) · ~${perStation} teams each · unique path per team · `
+        + `1 shared QR · all ${people} → join word → scan → Clue 2`,
       checkpointKeys: ['1'],
       checkpointLabel: 'FIRST SCAN',
       type: 'navigation',
@@ -55,8 +58,8 @@ export function buildRound1Clues(geometry) {
       label: 'CLUE 2 · Second stop',
       short: 'SECOND STOP · GREEN',
       detail:
-        `${places} places · ~${perStation} teams each · `
-        + `unlock after Orange ${people}/${people} + team code · 20s read · then 3:00 timer · green shared QR`,
+        `${places} places · ~${perStation} teams each · different 2nd stop per team · `
+        + `after Orange join+scan · green place QR`,
       checkpointKeys: ['2'],
       checkpointLabel: 'SECOND SCAN',
       takesToSummary: destinationsSummary(2, undefined, perStation, perWait),
@@ -69,8 +72,8 @@ export function buildRound1Clues(geometry) {
       label: 'CLUE 3 · Third stop',
       short: 'THIRD STOP · BLUE',
       detail:
-        `${places} places · ~${perStation} teams each · `
-        + `after green scan + team code → Caesar riddle → blue shared QR + team code → Prop hunt`,
+        `${places} places · ~${perStation} teams each · different 3rd stop · `
+        + `Caesar riddle → blue place QR → Prop hunt`,
       checkpointKeys: ['3'],
       checkpointLabel: 'THIRD SCAN',
       takesToSummary: destinationsSummary(3, undefined, perStation, perWait),
@@ -83,8 +86,8 @@ export function buildRound1Clues(geometry) {
       label: 'CLUE 4 · Prop hunt',
       short: 'FOURTH STOP · PURPLE',
       detail:
-        `${places} places · ~${perStation} teams each · `
-        + `crazy timed prop hunt → purple shared QR + team code → Final`,
+        `${places} places · ~${perStation} teams each · different 4th stop · `
+        + `prop hunt → purple place QR → Final`,
       checkpointKeys: ['4'],
       checkpointLabel: 'FOURTH SCAN',
       takesToSummary: destinationsSummary(4, undefined, perStation, perWait),
@@ -235,6 +238,9 @@ function ClueBox({
                 stationCount={stationCount}
                 teamSize={teamSize}
               />
+              <p className="text-[11px] text-white/40">
+                Optional color poster — Place QRs above are enough for offline.
+              </p>
             </>
           ) : clue.number === 2 ? (
             <>
@@ -380,6 +386,14 @@ export default function Round1ClueFormat({
     setLocalTeamSize(teamSize);
   }, [teamCapacity, teamSize]);
 
+  useEffect(() => {
+    if (startCountProp != null) setStartCount(startCountProp);
+  }, [startCountProp]);
+
+  useEffect(() => {
+    if (stationCountProp != null) setStationCount(stationCountProp);
+  }, [stationCountProp]);
+
   const geometry = useMemo(
     () => deriveClueGeometry(localCapacity, localTeamSize, {
       startCount,
@@ -501,10 +515,10 @@ export default function Round1ClueFormat({
             {geometry.stationCount} campus places · ~{geometry.teamsPerStation} teams per place
           </p>
           <p className="mt-0.5 text-[11px] text-white/40">
-            Save setup for teams / starts / places, then open each clue and tap
+            Save setup, check team paths below, then open each clue and tap
             {' '}
-            <span className="text-white/70">Save Clue N</span>
-            {' '}— one fast request per clue, updates players immediately.
+            <span className="text-white/70">Update Clue N</span>
+            {' '}— rebuilds destinations so no two teams share a full route.
           </p>
         </div>
         <button
@@ -524,22 +538,15 @@ export default function Round1ClueFormat({
       )}
       {message && <p className="text-xs text-[#0ECCEE]">{message}</p>}
 
-      <div className="flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
-        <p className="w-full text-[11px] uppercase tracking-wide text-white/40">
-          Stage colours · posters + scanners match
+      <div className="flex flex-wrap gap-2 rounded-2xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-3">
+        <p className="w-full text-[11px] uppercase tracking-wide text-emerald-200/80">
+          Planting · one shared QR per campus place (not per team)
         </p>
-        {STAGE_THEME_LIST.map((theme) => (
-          <span
-            key={theme.id}
-            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${theme.bgClass} ${theme.textClass}`}
-          >
-            <span
-              className="inline-block h-2.5 w-2.5 rounded-full"
-              style={{ background: theme.hex }}
-            />
-            {theme.label} · {theme.scanLabel}
-          </span>
-        ))}
+        <p className="text-xs text-white/60">
+          Print Place QRs once. Color posters under each clue are optional — offline play
+          accepts the place QR at every stage after the join word. Same place can host ~2 teams
+          at a stage; team codes + different next stops prevent copying answers.
+        </p>
       </div>
 
       <CampusStationNamesEditor
@@ -569,6 +576,29 @@ export default function Round1ClueFormat({
           bumpCheckpoints();
           onChanged?.();
         }}
+      />
+
+      <TeamPathsPanel
+        campusStations={campusStations}
+        campusStarts={campusStarts}
+        teamsPerWait={geometry.teamsPerWait}
+        teamCapacity={geometry.teamCapacity}
+      />
+
+      <StationPlantFragmentsPanel
+        eventId={eventId}
+        campusStations={campusStationsCatalog || campusStations}
+        stationCount={stationCount}
+        teamSize={geometry.teamSize}
+        onChanged={onChanged}
+      />
+
+      <PlacePosterPrint
+        eventId={eventId}
+        reloadKey={checkpointReloadKey}
+        campusStations={campusStations}
+        stationCount={stationCount}
+        teamSize={geometry.teamSize}
       />
 
       {clues.map((clue, index) => (

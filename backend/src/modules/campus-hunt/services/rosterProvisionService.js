@@ -254,10 +254,14 @@ function memberNamesForTeam(team, teamSize = 4) {
 /**
  * Provision synthetic hunt accounts for a team missing leaderUserId / scanners.
  * Safe to re-run — resets passwords when accounts already exist.
+ *
+ * When leaderPassword/scannerPassword are omitted, dev/staging fall back to the
+ * demo default so local testing keeps working. In production, we auto-generate
+ * strong passwords so the demo default never leaks into real events.
  */
 async function repairTeamRoster(team, event, {
-  leaderPassword = 'HUNT2026',
-  scannerPassword = 'HUNT2026',
+  leaderPassword,
+  scannerPassword,
 } = {}) {
   const { isTeamRosterReady } = require('../utils/roster');
   const { resolveDemoScale } = require('../utils/demoScale');
@@ -266,15 +270,21 @@ async function repairTeamRoster(team, event, {
     return { repaired: false, teamCode: team.teamCode };
   }
 
+  const isProduction = process.env.NODE_ENV === 'production';
+  const resolvedLeaderPassword = leaderPassword
+    || (isProduction ? generatePassword(10) : 'HUNT2026');
+  const resolvedScannerPassword = scannerPassword
+    || (isProduction ? generatePassword(10) : 'HUNT2026');
+
   const provisioned = await provisionTeamRoster({
     eventId: event._id,
     teamCode: team.teamCode,
     teamName: team.teamName || team.teamCode,
     leaderEmail: team.leaderContactEmail || team.accessPack?.leader?.contactEmail || '',
     leaderName: team.leaderName || team.accessPack?.leader?.name || `${team.teamCode} Leader`,
-    leaderPassword,
+    leaderPassword: resolvedLeaderPassword,
     memberNames: memberNamesForTeam(team, scale.teamSize),
-    scannerPassword,
+    scannerPassword: resolvedScannerPassword,
     teamSize: scale.teamSize,
   });
 

@@ -955,12 +955,46 @@ async function getOfflineInstallPack(req, res, next) {
   }
 }
 
+async function ackOfflineInstall(req, res, next) {
+  try {
+    const { ackOfflineInstall: ack } = require('../services/offlineExportService');
+    const data = await ack(req.params.token, req.body?.deviceHint || req.get('user-agent') || '');
+    return res.json({ success: true, data });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, message: err.message });
+    }
+    return next(err);
+  }
+}
+
+async function postOfflineProgress(req, res, next) {
+  try {
+    const { ingestOfflineProgress } = require('../services/offlineExportService');
+    const eventId = req.params.eventId || req.body?.event;
+    const data = await ingestOfflineProgress(eventId, req.body);
+    return res.json({ success: true, data });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({
+        success: false,
+        message: err.message,
+        code: err.code,
+        data: err.preview || undefined,
+      });
+    }
+    return next(err);
+  }
+}
+
 module.exports = {
   getStatus,
   listColleges,
   listProfileEntries,
   getPublicLeaderboard,
   getOfflineInstallPack,
+  ackOfflineInstall,
+  postOfflineProgress,
   getMyTeam,
   getTeamProgress,
   streamTeamProgress,

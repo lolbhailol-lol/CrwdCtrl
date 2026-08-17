@@ -118,7 +118,7 @@ export function buildTeamSlots(teamsPerWait = TEAMS_PER_WAIT) {
     short: `T${i + 1}`,
     index: i,
     localTeamNumber: i + 1,
-    station: stationForLocalTeam(i + 1, 0),
+    station: stationForLocalTeam(i + 1, 0, CAMPUS_STATIONS, 0, n),
   }));
 }
 
@@ -137,7 +137,11 @@ export function resolveStations(stations, stationCount = null) {
   const byCode = new Map(
     stations.map((row) => [
       String(row.code || '').toUpperCase().trim(),
-      String(row.name || '').trim(),
+      {
+        name: String(row.name || '').trim(),
+        plantFragments: Array.isArray(row.plantFragments) ? row.plantFragments : undefined,
+        joinedWord: String(row.joinedWord || '').trim() || undefined,
+      },
     ]),
   );
   const providedCodes = stations
@@ -147,10 +151,15 @@ export function resolveStations(stations, stationCount = null) {
     || CAMPUS_STATIONS.every((s) => byCode.has(s.code));
 
   if (looksLikeFullCatalog || stationCount != null) {
-    const full = CAMPUS_STATIONS.map((station) => ({
-      code: station.code,
-      name: byCode.get(station.code) || station.name,
-    }));
+    const full = CAMPUS_STATIONS.map((station) => {
+      const extra = byCode.get(station.code) || {};
+      return {
+        code: station.code,
+        name: extra.name || station.name,
+        ...(extra.plantFragments?.length ? { plantFragments: extra.plantFragments } : {}),
+        ...(extra.joinedWord ? { joinedWord: extra.joinedWord } : {}),
+      };
+    });
     if (stationCount == null) return full;
     return full.slice(0, clampCount(stationCount, 1, STATION_TARGET_COUNT, STATION_TARGET_COUNT));
   }
@@ -158,10 +167,15 @@ export function resolveStations(stations, stationCount = null) {
   // Active subset from parent (already sliced) — catalog order among provided codes.
   return CAMPUS_STATIONS
     .filter((station) => byCode.has(station.code))
-    .map((station) => ({
-      code: station.code,
-      name: byCode.get(station.code) || station.name,
-    }));
+    .map((station) => {
+      const extra = byCode.get(station.code) || {};
+      return {
+        code: station.code,
+        name: extra.name || station.name,
+        ...(extra.plantFragments?.length ? { plantFragments: extra.plantFragments } : {}),
+        ...(extra.joinedWord ? { joinedWord: extra.joinedWord } : {}),
+      };
+    });
 }
 
 /**
@@ -211,38 +225,197 @@ export function resolveStarts(starts, startCount = null) {
     }));
 }
 
+function gcd(a, b) {
+  let x = Math.abs(Number(a) || 0);
+  let y = Math.abs(Number(b) || 0);
+  while (y) {
+    const t = y;
+    y = x % y;
+    x = t;
+  }
+  return x || 1;
+}
+
+/** Strides coprime to N → full unique orbits (no early loop). */
+export function coprimeStrides(stationCount) {
+  const n = Math.max(1, Number(stationCount) || 1);
+  const out = [];
+  for (let s = 1; s < n; s += 1) {
+    if (gcd(s, n) === 1) out.push(s);
+  }
+  return out.length ? out : [1];
+}
+
 /**
- * Local team 1–10 → station, offset by wait index + stopOffset.
- * stopOffset 0 = Clue 1 first stop, 1 = Clue 2 second stop, etc.
- * waitIndex: 0=Library, 1=Chanakya, 2=Design, 3=Vyas.
+ * 4 distinct place indices for one global team.
+ * Layer 0 (first N teams): walk +1. Layer 1: walk next coprime stride (+3 on 10 places).
+ * Stops Wait A·T2 and Wait B·T1 sharing the same 0→1→2→3 path.
+ */
+export function teamPathIndices(globalTeamIndex, stationCount, stopCount = 4) {
+  const N = Math.max(1, Number(stationCount) || 1);
+  const stops = Math.max(1, Math.min(N, Number(stopCount) || 4));
+  const strides = coprimeStrides(N);
+  const index = Math.max(0, Number(globalTeamIndex) || 0);
+  const layer = Math.floor(index / N);
+  const base = index % N;
+  const stride = strides[layer % strides.length];
+  const baseShift = Math.floor(layer / strides.length);
+  const start = (base + baseShift) % N;
+  const used = new Set();
+  const path = [];
+  for (let s = 0; s < stops; s += 1) {
+    let idx = (start + s * stride) % N;
+    let guard = 0;
+    while (used.has(idx) && guard < N) {
+      idx = (idx + 1) % N;
+      guard += 1;
+    }
+    used.add(idx);
+    path.push(idx);
+  }
+  return path;
+}
+
+export function globalTeamIndex(waitIndex, localTeamNumber, teamsPerWait = TEAMS_PER_WAIT) {
+  const perWait = Math.max(1, Number(teamsPerWait) || TEAMS_PER_WAIT);
+  const wait = Math.max(0, Number(waitIndex) || 0);
+  const local = Math.max(1, Number(localTeamNumber) || 1);
+  return wait * perWait + (local - 1);
+}
+
+/**
+ * Local team → station for stopOffset (0=Clue1 … 3=Clue4).
+ * Paths are unique across starts when teams ≤ places × coprime strides.
  */
 export function stationForLocalTeam(
   localTeamNumber,
   waitIndex = 0,
   stations = CAMPUS_STATIONS,
   stopOffset = 0,
+  teamsPerWait = TEAMS_PER_WAIT,
 ) {
   const list = resolveStations(stations);
-  const teamIndex = (Math.max(1, Number(localTeamNumber) || 1) - 1) % list.length;
-  const offset = Math.max(0, Number(waitIndex) || 0) % list.length;
-  const step = Math.max(0, Number(stopOffset) || 0) % list.length;
-  return list[(teamIndex + offset + step) % list.length];
+  if (!list.length) return null;
+  const path = teamPathIndices(
+    globalTeamIndex(waitIndex, localTeamNumber, teamsPerWait),
+    list.length,
+    4,
+  );
+  const step = Math.max(0, Math.min(path.length - 1, Number(stopOffset) || 0));
+  return list[path[step]];
 }
 
-export function firstStopForLocalTeam(localTeamNumber, waitIndex = 0, stations = CAMPUS_STATIONS) {
-  return stationForLocalTeam(localTeamNumber, waitIndex, stations, 0).name;
+export function firstStopForLocalTeam(
+  localTeamNumber,
+  waitIndex = 0,
+  stations = CAMPUS_STATIONS,
+  teamsPerWait = TEAMS_PER_WAIT,
+) {
+  return stationForLocalTeam(localTeamNumber, waitIndex, stations, 0, teamsPerWait)?.name || '';
 }
 
-export function secondStopForLocalTeam(localTeamNumber, waitIndex = 0, stations = CAMPUS_STATIONS) {
-  return stationForLocalTeam(localTeamNumber, waitIndex, stations, 1).name;
+export function secondStopForLocalTeam(
+  localTeamNumber,
+  waitIndex = 0,
+  stations = CAMPUS_STATIONS,
+  teamsPerWait = TEAMS_PER_WAIT,
+) {
+  return stationForLocalTeam(localTeamNumber, waitIndex, stations, 1, teamsPerWait)?.name || '';
 }
 
-export function thirdStopForLocalTeam(localTeamNumber, waitIndex = 0, stations = CAMPUS_STATIONS) {
-  return stationForLocalTeam(localTeamNumber, waitIndex, stations, 2).name;
+export function thirdStopForLocalTeam(
+  localTeamNumber,
+  waitIndex = 0,
+  stations = CAMPUS_STATIONS,
+  teamsPerWait = TEAMS_PER_WAIT,
+) {
+  return stationForLocalTeam(localTeamNumber, waitIndex, stations, 2, teamsPerWait)?.name || '';
 }
 
-export function fourthStopForLocalTeam(localTeamNumber, waitIndex = 0, stations = CAMPUS_STATIONS) {
-  return stationForLocalTeam(localTeamNumber, waitIndex, stations, 3).name;
+export function fourthStopForLocalTeam(
+  localTeamNumber,
+  waitIndex = 0,
+  stations = CAMPUS_STATIONS,
+  teamsPerWait = TEAMS_PER_WAIT,
+) {
+  return stationForLocalTeam(localTeamNumber, waitIndex, stations, 3, teamsPerWait)?.name || '';
+}
+
+/** Full Orange→Green→Blue→Purple path for one local slot at a start. */
+export function teamHuntPath(
+  localTeamNumber,
+  waitIndex = 0,
+  stations = CAMPUS_STATIONS,
+  teamsPerWait = TEAMS_PER_WAIT,
+) {
+  const list = resolveStations(stations);
+  const indices = teamPathIndices(
+    globalTeamIndex(waitIndex, localTeamNumber, teamsPerWait),
+    list.length,
+    4,
+  );
+  return indices.map((idx) => list[idx]).filter(Boolean);
+}
+
+/**
+ * Audit every team path: unique routes, no self-loops, balanced place load.
+ */
+export function analyzeHuntPaths(
+  stations = CAMPUS_STATIONS,
+  teamsPerWait = TEAMS_PER_WAIT,
+  starts = WAIT_POINTS,
+) {
+  const list = resolveStations(stations);
+  const waitList = resolveStarts(starts);
+  const perWait = Math.max(1, Number(teamsPerWait) || TEAMS_PER_WAIT);
+  const rows = [];
+  const pathOwners = new Map();
+  const load = [0, 1, 2, 3].map(() => Object.fromEntries(list.map((s) => [s.code, 0])));
+
+  waitList.forEach((start, waitIndex) => {
+    for (let local = 1; local <= perWait; local += 1) {
+      const path = teamHuntPath(local, waitIndex, list, perWait);
+      const codes = path.map((s) => s.code);
+      const key = codes.join('→');
+      const teamNumber = globalTeamNumber(waitIndex, local, perWait);
+      const loop = new Set(codes).size < codes.length;
+      path.forEach((station, stop) => {
+        if (load[stop][station.code] != null) load[stop][station.code] += 1;
+      });
+      if (!pathOwners.has(key)) pathOwners.set(key, []);
+      pathOwners.get(key).push(teamNumber);
+      rows.push({
+        teamNumber,
+        startCode: start.code,
+        startName: start.name,
+        localTeamNumber: local,
+        waveId: `T${local}`,
+        path,
+        pathKey: key,
+        pathLabels: path.map((s) => s.name),
+        loop,
+      });
+    }
+  });
+
+  const clashGroups = [...pathOwners.entries()]
+    .filter(([, teams]) => teams.length > 1)
+    .map(([pathKey, teams]) => ({ pathKey, teams }));
+  const loopTeams = rows.filter((r) => r.loop).map((r) => r.teamNumber);
+  const uniquePaths = pathOwners.size;
+  const ok = clashGroups.length === 0 && loopTeams.length === 0;
+
+  return {
+    ok,
+    teamCount: rows.length,
+    uniquePaths,
+    clashGroups,
+    loopTeams,
+    load,
+    rows,
+    stationCount: list.length,
+    startCount: waitList.length,
+  };
 }
 
 /** Stable unique 3-digit code for global team (matches backend bootstrap). */
@@ -282,8 +455,8 @@ export function stationArrivalPlan(
     const arrivals = [];
     waitList.forEach((start, waitIndex) => {
       for (let local = 1; local <= perWait; local += 1) {
-        const dest = stationForLocalTeam(local, waitIndex, list, step);
-        if (dest.code !== station.code) continue;
+        const dest = stationForLocalTeam(local, waitIndex, list, step, perWait);
+        if (!dest || dest.code !== station.code) continue;
         const teamNumber = globalTeamNumber(waitIndex, local, perWait);
         arrivals.push({
           startingPointCode: start.code,
@@ -384,7 +557,7 @@ export function buildCampusStarts(
     ...wait,
     firstStops: Array.from(
       { length: perWait },
-      (_, i) => firstStopForLocalTeam(i + 1, routeIndex, list),
+      (_, i) => firstStopForLocalTeam(i + 1, routeIndex, list, perWait),
     ),
     routeStops: routeStopsForWait(routeIndex, list),
   }));
@@ -440,7 +613,8 @@ export function clue1ForPlace(place, teamSize = 4) {
       + `and name the place: ${name}.`,
     answer: name,
     destinationInstruction:
-      `Go to ${name}. All ${people} members scan the shared QR, then enter your team code.`,
+      `Go to ${name} together. Find ${people} written clues nearby, join them into one word, `
+      + 'type it on the leader phone, then scan the orange QR once and enter your team code.',
     hintText: `Ask staff for the way to ${name}.`,
   };
 }
@@ -454,13 +628,12 @@ export function routeClueDefaults(challengeNumber, destination, teamSize = 4) {
   if (n === 2) {
     return {
       prompt:
-        'A staff mark hides in plain sight nearby. '
-        + 'Scan the area at eye level — the code is a 3-digit number.',
+        `At the green stop: find ${people} short clues written nearby. `
+        + 'Join them into one word and type it (leader).',
       answer: '',
-      hintText: 'Check posts, pillars, and notice boards at eye level.',
+      hintText: 'Look at eye level on posts, pillars, and notice boards — then join the pieces.',
       destinationInstruction:
-        'Go to your next location now. Find the shared green SECOND SCAN QR — '
-        + `all ${people} members scan, then enter your team code to unlock Clue 3.`,
+        `Word typed — stay at green. Leader scans the green QR once, then enter your team code to unlock Clue 3.`,
       memberPrompts: Array.from({ length: people }, () => ''),
     };
   }
@@ -476,8 +649,7 @@ export function routeClueDefaults(challengeNumber, destination, teamSize = 4) {
       answer: place,
       hintText: 'Caesar shift of 3 — A becomes D, B becomes E… Spaces stay spaces.',
       destinationInstruction:
-        'Riddle solved — go find the shared blue Checkpoint 3 QR at that place. '
-        + `All ${people} members scan, then enter your team code to unlock the prop hunt.`,
+        `Go to that place together. Find ${people} written clues, join the word, type it, then leader scans the blue QR once and enters your team code.`,
       memberPrompts: Array.from({ length: people }, () => ''),
     };
   }
@@ -485,14 +657,12 @@ export function routeClueDefaults(challengeNumber, destination, teamSize = 4) {
   if (n === 4) {
     return {
       prompt:
-        `CRAZY PROP HUNT at ${place}.\n`
-        + 'Hunt as a team for the silly planted prop (bright / weird object in plain sight). '
-        + 'Read the short code on its sticker and type it here (leader submits).',
+        `At ${place}: find ${people} written clues (or prop tags) nearby. `
+        + 'Join them into one word and type it (leader).',
       answer: '',
-      hintText: 'Look at eye / knee level near the purple QR zone — not on your phones.',
+      hintText: 'Look near the purple QR zone — eye / knee level.',
       destinationInstruction:
-        `Prop found — stay at ${place}. Find the shared purple FOURTH SCAN QR. `
-        + `All ${people} members scan, then enter your team code to unlock Final.`,
+        `Word typed — stay at ${place}. Leader scans the purple QR once, then team code for Final.`,
       memberPrompts: Array.from({ length: people }, () => ''),
     };
   }
@@ -507,10 +677,9 @@ export function routeClueDefaults(challengeNumber, destination, teamSize = 4) {
   ));
   return {
     prompt:
-      'Each teammate has a code fragment on their phone. '
-      + `Speak them in order 1→${people} and rebuild the one word. Leader submits it.`,
+      `Fragments are on the leader phone — read them aloud in order 1→${people} and rebuild the one word. Leader submits it.`,
     answer: raw || 'QUEST',
-    hintText: 'Say every code out loud in member order — no spaces in the final word.',
+    hintText: 'Say every fragment out loud in order — no spaces in the final word.',
     destinationInstruction:
       'Word solved — report to your start location. Ask the organizer to mark your team reached.',
     memberPrompts: chunks,
@@ -524,6 +693,7 @@ export function destinationForClue(
   localTeamNumber = 1,
   stations = CAMPUS_STATIONS,
   starts = WAIT_POINTS,
+  teamsPerWait = TEAMS_PER_WAIT,
 ) {
   const waitList = resolveStarts(starts);
   const raw = String(startCodeOrName || '').toUpperCase().trim();
@@ -535,20 +705,21 @@ export function destinationForClue(
     || CAMPUS_STARTS.find((item) => item.code === code)
     || waitList[0]
     || CAMPUS_STARTS[0];
-  const waitIndex = WAIT_POINTS.findIndex((item) => item.code === start.code);
+  const waitIndex = waitList.findIndex((item) => item.code === start.code);
   const wait = waitIndex >= 0 ? waitIndex : 0;
+  const perWait = Math.max(1, Number(teamsPerWait) || TEAMS_PER_WAIT);
   const clue = Math.max(1, Math.min(5, Number(challengeNumber) || 1));
   if (clue === 1) {
-    return firstStopForLocalTeam(localTeamNumber, wait, stations);
+    return firstStopForLocalTeam(localTeamNumber, wait, stations, perWait);
   }
   if (clue === 2) {
-    return secondStopForLocalTeam(localTeamNumber, wait, stations);
+    return secondStopForLocalTeam(localTeamNumber, wait, stations, perWait);
   }
   if (clue === 3) {
-    return thirdStopForLocalTeam(localTeamNumber, wait, stations);
+    return thirdStopForLocalTeam(localTeamNumber, wait, stations, perWait);
   }
   if (clue === 4) {
-    return fourthStopForLocalTeam(localTeamNumber, wait, stations);
+    return fourthStopForLocalTeam(localTeamNumber, wait, stations, perWait);
   }
   // Clue 5 / Final: teams return to their own start (not another campus station).
   return start.name;
@@ -568,7 +739,11 @@ export function destinationsSummary(
     const list = Array.isArray(stations) && stations.length
       ? stations
       : resolveStations(stations);
-    return `${list.length} places · ~${teamsPerStation} teams each`;
+    const audit = analyzeHuntPaths(list, teamsPerWait, waitList);
+    const clashNote = audit.ok
+      ? `${audit.uniquePaths} unique team paths · no clashes`
+      : `${audit.clashGroups.length} path clash(es) — rebuild clues`;
+    return `${list.length} places · ~${teamsPerStation} teams each · ${clashNote}`;
   }
   return waitList.map((start) => (
     `${start.code} ${start.name} ← ${clue5WordForStart(start.code)} · ${teamsPerWait} teams`

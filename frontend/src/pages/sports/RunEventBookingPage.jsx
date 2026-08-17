@@ -711,9 +711,16 @@ export default function RunEventBookingPage() {
                 if (draft.tierId) setSelectedTierId(draft.tierId);
                 if (typeof draft.addOnSelected === 'boolean') setAddOnSelected(draft.addOnSelected);
 
+                const draftEmail = String(
+                    draft?.extraFields?.email
+                    || draft?.extraFields?.e_mail_id
+                    || draft?.extraFields?.e_mail
+                    || '',
+                ).trim();
                 const verifyResult = await verifyPaymentWithRetry(API, pending.orderId, {
                     kind: 'sports',
                     search: location.search,
+                    customerEmail: draftEmail,
                 });
 
                 if (verifyResult.status === 'cancelled') {
@@ -983,7 +990,11 @@ export default function RunEventBookingPage() {
                         return fetch(`${API}/payment/sports-verify`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ payment_order_id: orderId, payment_id: paymentId }),
+                            body: JSON.stringify({
+                                payment_order_id: orderId,
+                                payment_id: paymentId,
+                                customerEmail,
+                            }),
                         })
                             .then(async (res) => {
                                 const data = await res.json().catch(() => ({}));

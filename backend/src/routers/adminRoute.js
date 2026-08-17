@@ -117,10 +117,7 @@ const liveUpdateCtrl = require('../controllers/festLiveUpdateController');
 router.get('/fests/:festId/live-updates', adminAuth, liveUpdateCtrl.adminListLiveUpdates);
 
 // Generic ID routes at the bottom of the section
-router.put('/fests/:id', (req, res, next) => {
-  console.log('🟡 Generic PUT route matched! ID:', req.params.id);
-  next();
-}, adminAuth, adminFestCtrl.updateFest);
+router.put('/fests/:id', adminAuth, adminFestCtrl.updateFest);
 
 router.delete('/fests/:id', adminAuth, adminFestCtrl.deleteFest);
 // ===== COMPETITION (ONLY CREATE FOR NOW) =====
@@ -256,27 +253,8 @@ router.put(
     try {
       const { competitionId } = req.params;
 
-      console.log('Backend - Update competition request body:', JSON.stringify(req.body, null, 2));
-      console.log('Backend - commonRulesMessage in update:', req.body.commonRulesMessage);
-      console.log('Backend - rounds in update:', req.body.rounds);
-      console.log('Backend - registration data in update:', req.body.registration);
-      console.log('Backend - QR code in registration:', req.body.registration?.qrCode);
-      console.log('Backend - QR code message in registration:', req.body.registration?.qrCodeMessage);
-
       const Competition = require('../model/competition_model');
-
-      // First, let's try to find the competition and log its current state
       const existingCompetition = await Competition.findById(competitionId);
-      console.log('Backend - Existing competition before update:', {
-        id: existingCompetition?._id,
-        commonRulesMessage: existingCompetition?.commonRulesMessage,
-        hasCommonRulesMessage: existingCompetition?.hasOwnProperty('commonRulesMessage'),
-        rounds: existingCompetition?.rounds?.map(r => ({
-          title: r.title,
-          roundRulesMessage: r.roundRulesMessage,
-          hasRoundRulesMessage: r.hasOwnProperty('roundRulesMessage')
-        }))
-      });
 
       if (!existingCompetition) {
         return res.status(404).json({ error: 'Competition not found' });
@@ -287,8 +265,6 @@ router.put(
 
       // Process registration data explicitly with deep merge
       if (req.body.registration) {
-        console.log('Backend - Processing registration data:', req.body.registration);
-
         // Get existing registration or create new one
         const existingRegistration = existingCompetition.registration && typeof existingCompetition.registration.toObject === 'function'
           ? existingCompetition.registration.toObject()
@@ -305,8 +281,6 @@ router.put(
         } else if (registrationStatus === 'NOT_STARTED') {
           registrationStatus = 'not_started';
         }
-
-        console.log('Backend - Migrated registration status from', req.body.registration.status, 'to', registrationStatus);
 
         const incoming = {};
         for (const [key, value] of Object.entries(req.body.registration)) {
@@ -332,8 +306,6 @@ router.put(
             : { ...existingSettings },
         }, { festId: existingCompetition.fest });
 
-        console.log('Backend - Merged registration data:', updatedRegistration);
-
         existingCompetition.registration = updatedRegistration;
         existingCompetition.markModified('registration');
       }
@@ -341,12 +313,6 @@ router.put(
       // Process rounds with explicit field setting
       if (req.body.rounds && Array.isArray(req.body.rounds)) {
         const processedRounds = req.body.rounds.map(round => {
-          console.log('Backend - Processing round for direct assignment:', {
-            title: round.title,
-            roundRulesMessage: round.roundRulesMessage,
-            hasRoundRulesMessage: !!round.roundRulesMessage
-          });
-
           const roundObj = {
             roundNumber: round.roundNumber || 1,
             title: round.title || '',
@@ -401,29 +367,9 @@ router.put(
         }
       });
 
-      console.log('Backend - Competition before save with direct assignment:', {
-        commonRulesMessage: existingCompetition.get('commonRulesMessage'),
-        registration: existingCompetition.get('registration'),
-        qrCode: existingCompetition.get('registration')?.qrCode,
-        rounds: existingCompetition.get('rounds')?.map(r => ({
-          title: r.title,
-          roundRulesMessage: r.roundRulesMessage,
-          hasRoundRulesMessage: !!r.roundRulesMessage
-        }))
-      });
-
       // Mark the fields as modified to ensure they're saved
       existingCompetition.markModified('commonRulesMessage');
       existingCompetition.markModified('rounds');
-
-      // Add validation debugging
-      console.log('Backend - About to save competition with registration:', {
-        registrationType: existingCompetition.registrationType,
-        registrationStatus: existingCompetition.registration?.status,
-        hasExternalUrl: !!existingCompetition.registration?.externalUrl,
-        hasGoogleSheetsUrl: !!existingCompetition.registration?.googleSheetsUrl,
-        formSchemaLength: existingCompetition.registration?.formSchema?.length || 0
-      });
 
       // Validate before saving
       const validationError = existingCompetition.validateSync();
@@ -440,11 +386,10 @@ router.put(
       const savedCompetition = await existingCompetition.save();
 
 
-      // STEP 2: If direct assignment didn't work, try raw MongoDB update
+      // STEP 2: If direct assignment didn't persist scalar/nested fields, fall back
+      // to a raw MongoDB $set. Rare and only observed with deeply-nested legacy schemas.
       if ((!savedCompetition.commonRulesMessage && req.body.commonRulesMessage) ||
         (!savedCompetition.registration?.qrCode && req.body.registration?.qrCode)) {
-        console.log('Backend - Direct assignment failed, trying raw MongoDB update...');
-
         const updateDoc = {};
 
         if (req.body.commonRulesMessage) {
@@ -459,22 +404,16 @@ router.put(
           updateDoc['rounds.0.roundRulesMessage'] = req.body.rounds[0].roundRulesMessage;
         }
 
-        console.log('Backend - Raw update document:', updateDoc);
-
-        const rawUpdateResult = await Competition.collection.updateOne(
+        await Competition.collection.updateOne(
           { _id: existingCompetition._id },
           { $set: updateDoc }
         );
 
-
-        // Fetch the competition again to verify
         const finalCompetition = await Competition.findById(competitionId);
 
-        // ✅ Clear caches after competition update
         try {
           const { clearAllCaches } = require('../controllers/festOrganizerController');
           clearAllCaches();
-          console.log('✅ Cleared all caches after competition update');
         } catch (cacheError) {
           console.warn('⚠️ Could not clear caches:', cacheError.message);
         }
@@ -484,11 +423,9 @@ router.put(
           competition: finalCompetition
         });
       } else {
-        // ✅ Clear caches after competition update
         try {
           const { clearAllCaches } = require('../controllers/festOrganizerController');
           clearAllCaches();
-          console.log('✅ Cleared all caches after competition update');
         } catch (cacheError) {
           console.warn('⚠️ Could not clear caches:', cacheError.message);
         }
@@ -504,7 +441,6 @@ router.put(
 
       // Check if it's a validation error
       if (error.name === 'ValidationError') {
-        console.error('Backend - Mongoose validation error details:', error.errors);
         return res.status(400).json({
           error: 'Validation failed',
           details: error.message,

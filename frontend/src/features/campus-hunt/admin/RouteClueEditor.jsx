@@ -213,8 +213,8 @@ export default function RouteClueEditor({
     return teamSlots.map((slot) => {
       const teamNumber = globalTeamNumber(selectedWait, slot.localTeamNumber, perWait);
       const place = number === 4
-        ? fourthStopForLocalTeam(slot.localTeamNumber, selectedWait, stations)
-        : secondStopForLocalTeam(slot.localTeamNumber, selectedWait, stations);
+        ? fourthStopForLocalTeam(slot.localTeamNumber, selectedWait, stations, perWait)
+        : secondStopForLocalTeam(slot.localTeamNumber, selectedWait, stations, perWait);
       return { ...slot, teamNumber, place };
     });
   }, [number, selectedRoute, selectedWait, stations, teamSlots, perWait]);
@@ -261,7 +261,7 @@ export default function RouteClueEditor({
         id(row.routeId) === selectedRouteId
         && String(row.variantKey || '').toUpperCase() === vk
       ));
-      const place = fourthStopForLocalTeam(slot.localTeamNumber, selectedWait, stations);
+      const place = fourthStopForLocalTeam(slot.localTeamNumber, selectedWait, stations, perWait);
       const stationIndex = stations.findIndex((s) => s.name === place);
       next[key] = existing?.answer || propCodeForTeam(stationIndex, slot.localTeamNumber);
     });
@@ -358,7 +358,7 @@ export default function RouteClueEditor({
         for (const slot of teamSlots) {
           const vk = variantKeyFor(routeCode, slot.id);
           const codeKey = `${routeCode}-${slot.id}`;
-          const place = fourthStopForLocalTeam(slot.localTeamNumber, selectedWait, stations);
+          const place = fourthStopForLocalTeam(slot.localTeamNumber, selectedWait, stations, perWait);
           const station = stations.find((s) => s.name === place);
           const answer = String(propCodes[codeKey] || form.answer || '').trim().toUpperCase();
           if (!answer) {

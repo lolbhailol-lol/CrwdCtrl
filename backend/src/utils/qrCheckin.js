@@ -32,24 +32,24 @@ async function resolveCheckinRecord({ Registration, TrekBooking, CategoryRegistr
   const candidateId = payload?.bookingId || payload?.registrationId || null;
 
   if (hash) {
-    const registration = await Registration.findOne({ qrCodeData: hash });
+    // Run all four indexed lookups in parallel — only one collection actually
+    // holds a matching record. This shaves ~3x the round-trip time on the
+    // event-day scanner hot path where every second of latency counts.
+    const [registration, trekBooking, sportsReg, eventReg] = await Promise.all([
+      Registration.findOne({ qrCodeData: hash }),
+      TrekBooking.findOne({ qrCodeData: hash }),
+      CategoryRegistration
+        ? CategoryRegistration.findOne({ qrCodeData: hash, category: 'sports' })
+        : Promise.resolve(null),
+      EventShowRegistration
+        ? EventShowRegistration.findOne({ qrCodeData: hash })
+        : Promise.resolve(null),
+    ]);
+
     if (registration) return { kind: 'registration', record: registration };
-
-    const trekBooking = await TrekBooking.findOne({ qrCodeData: hash });
     if (trekBooking) return { kind: 'trek', record: trekBooking };
-
-    if (CategoryRegistration) {
-      const sportsReg = await CategoryRegistration.findOne({
-        qrCodeData: hash,
-        category: 'sports',
-      });
-      if (sportsReg) return { kind: 'sports', record: sportsReg };
-    }
-
-    if (EventShowRegistration) {
-      const eventReg = await EventShowRegistration.findOne({ qrCodeData: hash });
-      if (eventReg) return { kind: 'event', record: eventReg };
-    }
+    if (sportsReg) return { kind: 'sports', record: sportsReg };
+    if (eventReg) return { kind: 'event', record: eventReg };
   }
 
   if (candidateId) {

@@ -1,22 +1,12 @@
-const SESSION_KEY = 'trek_organizer_session';
+import { createPortalSession } from './portalSessionFactory.js';
 
-export function getTrekOrganizerSession() {
-    try {
-        const raw = localStorage.getItem(SESSION_KEY);
-        return raw ? JSON.parse(raw) : null;
-    } catch {
-        return null;
-    }
-}
+const session = createPortalSession({
+    storageKey: 'trek_organizer_session',
+    memoryKey: '__trekOrganizerSession',
+});
 
-export function setTrekOrganizerSession(session) {
-    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-}
-
-export function clearTrekOrganizerSession() {
-    localStorage.removeItem(SESSION_KEY);
-}
-
-export function getTrekOrganizerToken() {
-    return getTrekOrganizerSession()?.token || '';
-}
+export const getTrekOrganizerSession = session.get;
+export const setTrekOrganizerSession = session.set;
+export const clearTrekOrganizerSession = session.clear;
+export const getTrekOrganizerToken = session.token;
+export const isTrekOrganizerTokenExpired = session.isExpired;

@@ -115,11 +115,26 @@ export async function saveOfflineBundle(bundle) {
   if (!bundle?.team?.teamCode) {
     throw new Error('Invalid offline bundle — missing team code');
   }
+  const prev = await storeGet(OFFLINE_STORES.BUNDLE, BUNDLE_KEY);
+  const batchChanged = prev?.exportBatchId
+    && bundle.exportBatchId
+    && String(prev.exportBatchId) !== String(bundle.exportBatchId);
+  const teamChanged = prev?.team?.teamCode
+    && String(prev.team.teamCode) !== String(bundle.team.teamCode);
+  if (batchChanged || teamChanged) {
+    await storeDelete(OFFLINE_STORES.STATE, String(prev.team.teamCode));
+    await storeDelete(OFFLINE_STORES.SESSION, 'current');
+  }
   await storeSet(OFFLINE_STORES.BUNDLE, BUNDLE_KEY, bundle);
   await appendOfflinePlayLog({
     teamCode: bundle.team.teamCode,
     action: 'bundle_loaded',
-    payload: { eventId: bundle.event?.id, team: bundle.team.teamCode },
+    payload: {
+      eventId: bundle.event?.id,
+      team: bundle.team.teamCode,
+      exportBatchId: bundle.exportBatchId || null,
+      clearedState: Boolean(batchChanged || teamChanged),
+    },
   });
   return bundle;
 }
@@ -152,6 +167,17 @@ export async function loadOfflineSession() {
 
 export async function clearOfflineSession() {
   return storeDelete(OFFLINE_STORES.SESSION, 'current');
+}
+
+export async function clearOfflineTeamState(teamCode) {
+  if (teamCode) await storeDelete(OFFLINE_STORES.STATE, String(teamCode));
+  return true;
+}
+
+export async function resetOfflineHuntLocal(teamCode) {
+  if (teamCode) await clearOfflineTeamState(teamCode);
+  await clearOfflineSession();
+  return true;
 }
 
 export async function appendOfflinePlayLog(entry) {

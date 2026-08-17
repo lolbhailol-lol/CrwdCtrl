@@ -54,6 +54,9 @@ const eventShowRegistrationSchema = new mongoose.Schema(
 
 // Non-unique index for fast lookups (users may register multiple times — merged into one doc)
 eventShowRegistrationSchema.index({ eventShow: 1, user: 1 });
+// Sparse index so QR check-in stops scanning the collection.
+// Legacy rows may share qrCodeData: null so we do not make it unique.
+eventShowRegistrationSchema.index({ qrCodeData: 1 }, { sparse: true });
 
 const EventShowRegistration =
   mongoose.models.EventShowRegistration ||

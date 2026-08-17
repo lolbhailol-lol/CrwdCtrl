@@ -1,9 +1,10 @@
 const STEPS = [
-  { id: 'clues', label: 'Clues', short: 'Clue 1–Final' },
-  { id: 'locations', label: 'Locations', short: '4 starts' },
-  { id: 'teams', label: 'Teams', short: '40 names & access' },
-  { id: 'schedule', label: 'Schedule', short: 'Staggered starts' },
-  { id: 'live', label: 'Live', short: 'Operate hunt' },
+  { id: 'locations', label: 'Locations', short: 'Starts & places' },
+  { id: 'clues', label: 'Clues', short: 'Clue 1–Final + posters' },
+  { id: 'teams', label: 'Teams', short: 'Roster & passwords' },
+  { id: 'links', label: 'Send links', short: 'WhatsApp install links' },
+  { id: 'playtest', label: 'Playtest', short: 'One dry-run section' },
+  { id: 'live', label: 'Live', short: 'Board & start' },
   { id: 'results', label: 'Results', short: 'Leaderboard' },
 ];
 
@@ -18,7 +19,7 @@ const STATUS_CLASS = {
 export default function AdminWorkflowNav({ current, onChange, statuses = {} }) {
   return (
     <nav aria-label="Campus Hunt Round 1 workflow" className="overflow-x-auto pb-1">
-      <div className="flex min-w-max gap-2 lg:grid lg:min-w-0 lg:grid-cols-6">
+      <div className="flex min-w-max gap-2 lg:grid lg:min-w-0 lg:grid-cols-7">
         {STEPS.map((step) => {
           const status = statuses[step.id] || 'Not started';
           const active = current === step.id;

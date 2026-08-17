@@ -1,5 +1,5 @@
 import { userApiCall } from '../../../services/api/auth.api';
-import { adminFetchJSON } from '../../../services/api/admin.api';
+import { adminFetch, adminFetchJSON } from '../../../services/api/admin.api';
 import { publicFetchJSON, resolveUrl } from '../../../services/api/client';
 import { getApiBaseCandidates } from '../../../config/apiBase.js';
 import { gridClientHeaders } from '../grid/laptopOnly';
@@ -945,16 +945,44 @@ export async function adminExportOfflinePacks(eventId) {
 }
 
 /** Import a leader's offline results JSON after the fest. */
-export async function adminImportOfflineResults(eventId, body) {
-  return adminFetchJSON(`${BASE}/admin/events/${eventId}/offline-import`, {
+export async function adminImportOfflineResults(eventId, body, { force = false } = {}) {
+  const q = force || body?.force ? '?force=1' : '';
+  const response = await adminFetch(`${BASE}/admin/events/${eventId}/offline-import${q}`, {
     method: 'POST',
-    body: JSON.stringify(body),
+    body: JSON.stringify({ ...body, force: Boolean(force || body?.force) }),
   });
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    const err = new Error(data?.message || data?.error || `Import failed (${response.status})`);
+    err.status = response.status;
+    err.code = data?.code;
+    err.data = data?.data || data;
+    throw err;
+  }
+  return data;
+}
+
+export async function adminPreviewOfflineImport(eventId, body) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/offline-import?preview=1`, {
+    method: 'POST',
+    body: JSON.stringify({ ...body, preview: true }),
+  });
+}
+
+export async function adminListOfflineInstalls(eventId) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/offline-installs`);
 }
 
 /** Public: one-time-prep install link (home Wi‑Fi). After save, play is local. */
 export async function fetchOfflineInstallPack(token) {
   return publicFetchJSON(`${BASE}/offline-install/${encodeURIComponent(token)}`);
+}
+
+export async function ackOfflineInstallPack(token, deviceHint = '') {
+  return publicFetchJSON(`${BASE}/offline-install/${encodeURIComponent(token)}/ack`, {
+    method: 'POST',
+    body: JSON.stringify({ deviceHint }),
+  });
 }
 
 export async function adminApplyPenalty(teamId, body) {

@@ -1,22 +1,12 @@
-const SESSION_KEY = 'fest_organizer_session';
+import { createPortalSession } from './portalSessionFactory.js';
 
-export function getFestOrganizerSession() {
-    try {
-        const raw = localStorage.getItem(SESSION_KEY);
-        return raw ? JSON.parse(raw) : null;
-    } catch {
-        return null;
-    }
-}
+const session = createPortalSession({
+    storageKey: 'fest_organizer_session',
+    memoryKey: '__festOrganizerSession',
+});
 
-export function setFestOrganizerSession(session) {
-    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-}
-
-export function clearFestOrganizerSession() {
-    localStorage.removeItem(SESSION_KEY);
-}
-
-export function getFestOrganizerToken() {
-    return getFestOrganizerSession()?.token || '';
-}
+export const getFestOrganizerSession = session.get;
+export const setFestOrganizerSession = session.set;
+export const clearFestOrganizerSession = session.clear;
+export const getFestOrganizerToken = session.token;
+export const isFestOrganizerTokenExpired = session.isExpired;

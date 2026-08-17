@@ -146,64 +146,86 @@ export default function StartingSystemPanel({
   }, [dashboard, scheduleHydrated]);
 
   const ensureDefaultLocations = async () => {
+    const catalogStarts = Array.isArray(eventMeta?.campusStarts)
+      ? eventMeta.campusStarts
+      : [];
+    const nameFor = (code, fallback) => {
+      const row = catalogStarts.find((s) => String(s.code || '').toUpperCase() === code);
+      return row?.name || fallback;
+    };
     const defaults = [
-      { code: 'A', name: 'Library', description: `Starting point — ~${teamsPerWait} teams hold here. Hunt stops are separate campus stations.` },
-      { code: 'B', name: 'Chanakya Porch', description: `Starting point — ~${teamsPerWait} teams hold here. Hunt stops are separate campus stations.` },
-      { code: 'C', name: 'Design', description: `Starting point — ~${teamsPerWait} teams hold here. Hunt stops are separate campus stations.` },
-      { code: 'D', name: 'Vyas Parking', description: `Starting point — ~${teamsPerWait} teams hold here. Hunt stops are separate campus stations.` },
-    ].slice(0, startCount);
+      { code: 'A', name: nameFor('A', 'Library') },
+      { code: 'B', name: nameFor('B', 'Chanakya Porch') },
+      { code: 'C', name: nameFor('C', 'Design') },
+      { code: 'D', name: nameFor('D', 'Vyas Parking') },
+    ].slice(0, startCount).map((loc) => ({
+      ...loc,
+      description: `Starting point — ~${teamsPerWait} teams hold here until release.`,
+      capacity: teamsPerWait,
+      active: true,
+    }));
     setBusy('defaults');
     setMessage('');
     try {
-      // Always re-fetch so we don't create against stale empty state.
       const latest = await adminListStartingPoints(eventId);
       const livePoints = latest.data?.startingPoints || latest.data?.points || [];
-      const existingLetters = new Set(
-        livePoints.map((point) => waitLetter(point.code)).filter(Boolean),
+      const byLetter = new Map(
+        livePoints
+          .map((point) => [waitLetter(point.code), point])
+          .filter(([letter]) => letter),
       );
 
       let created = 0;
-      let skipped = 0;
+      let updated = 0;
+      const needed = new Set(defaults.map((d) => d.code));
+
       for (const loc of defaults) {
-        if (existingLetters.has(loc.code)) {
-          skipped += 1;
+        const existing = byLetter.get(loc.code);
+        if (!existing) {
+          try {
+            // eslint-disable-next-line no-await-in-loop
+            await adminCreateStartingPoint(eventId, {
+              ...loc,
+              roundId: roundId || undefined,
+            });
+            created += 1;
+          } catch (err) {
+            const msg = String(err.message || '');
+            if (!/already exists/i.test(msg)) throw err;
+            updated += 1;
+          }
           continue;
         }
-        try {
-          // eslint-disable-next-line no-await-in-loop
-          await adminCreateStartingPoint(eventId, {
-            ...loc,
-            roundId: roundId || undefined,
-            capacity: teamsPerWait,
-            active: true,
-          });
-          created += 1;
-          existingLetters.add(loc.code);
-        } catch (err) {
-          const msg = String(err.message || '');
-          // Duplicate is fine — another tab / bootstrap already created it.
-          if (/already exists/i.test(msg)) {
-            skipped += 1;
-            existingLetters.add(loc.code);
-            continue;
-          }
-          throw err;
-        }
+        // eslint-disable-next-line no-await-in-loop
+        await adminUpdateStartingPoint(entityId(existing), {
+          name: loc.name,
+          description: loc.description,
+          capacity: teamsPerWait,
+          active: true,
+        });
+        updated += 1;
+      }
+
+      // Deactivate leftover starts outside this scale (e.g. C/D after dropping to 2 starts).
+      for (const point of livePoints) {
+        const letter = waitLetter(point.code);
+        if (!letter || needed.has(letter)) continue;
+        if (point.active === false
+          && Number(point.capacity) === teamsPerWait) continue;
+        // eslint-disable-next-line no-await-in-loop
+        await adminUpdateStartingPoint(entityId(point), {
+          active: false,
+          capacity: teamsPerWait,
+          description: `Not used for ${teamCapacity}-team field (${startCount} start${startCount === 1 ? '' : 's'}).`,
+        });
       }
 
       await refresh();
       onChanged?.();
-      if (created === 0 && skipped >= startCount) {
-        setMessage(
-          `All ${startCount} starting point${startCount === 1 ? '' : 's'} already exist. Ready.`,
-        );
-      } else {
-        setMessage(
-          `Starting points ready for ${startCount} start(s) `
-          + `(~${teamsPerWait}/start · ${teamCapacity} teams) `
-          + `(added ${created}, already had ${skipped}).`,
-        );
-      }
+      setMessage(
+        `Starts ready for ${teamCapacity} teams · ${startCount} point${startCount === 1 ? '' : 's'} `
+        + `(~${teamsPerWait} each). Added ${created}, updated ${updated}. Extra starts hidden.`,
+      );
     } catch (error) {
       setMessage(error.message || 'Could not create default locations');
     } finally {
@@ -406,6 +428,26 @@ export default function StartingSystemPanel({
       .slice(0, startCount);
   }, [points, startCount]);
 
+  /** Only starts in the current scale (e.g. A+B for 2 starts) — hide leftover C/D. */
+  const setupPoints = useMemo(() => {
+    const order = requiredStartLetters;
+    const needed = new Set(order);
+    return [...points]
+      .filter((p) => needed.has(waitLetter(p.code)))
+      .sort((a, b) => (
+        order.indexOf(waitLetter(a.code) || '')
+        - order.indexOf(waitLetter(b.code) || '')
+      ));
+  }, [points, requiredStartLetters]);
+
+  const hiddenExtraCount = useMemo(() => {
+    const needed = new Set(requiredStartLetters);
+    return points.filter((p) => {
+      const letter = waitLetter(p.code);
+      return letter && !needed.has(letter);
+    }).length;
+  }, [points, requiredStartLetters]);
+
   const startNames = useMemo(() => (
     activePoints.length
       ? activePoints.map((point) => point.name || point.code)
@@ -455,17 +497,27 @@ export default function StartingSystemPanel({
 
         {locationsReady && (
           <p className="mt-3 rounded-lg border border-emerald-400/25 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-100">
-            Locations are set. You can move to Teams → Schedule. No need to add A–D again.
+            Locations are set for this field size. Move on to Teams / Schedule — no need to recreate starts.
+          </p>
+        )}
+
+        {!locationsReady && (
+          <p className="mt-3 rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+            Need {startCount} active start{startCount === 1 ? '' : 's'}
+            {' '}({requiredStartLetters.join(' · ')}) for {teamCapacity} teams (~{teamsPerWait} each).
+            Tap Add / Refresh to create or repair them.
           </p>
         )}
 
         <div className="mt-3 grid gap-3 lg:grid-cols-2">
-          {points.map((point) => (
+          {setupPoints.map((point) => (
             <div key={entityId(point)} className="rounded-xl bg-black/25 p-3 text-sm">
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <p className="font-semibold text-[#0ECCEE]">{pointLabel(point)}</p>
-                  <p className="mt-1 text-xs text-white/55">{point.description || 'No description'}</p>
+                  <p className="mt-1 text-xs text-white/55">
+                    {point.description || `Starting point — ~${teamsPerWait} teams hold here until release.`}
+                  </p>
                   <p className="mt-1 text-xs text-white/40">
                     Max {point.capacity ?? teamsPerWait} teams ·{' '}
                     {point.active === false ? 'inactive' : 'active'}
@@ -478,7 +530,10 @@ export default function StartingSystemPanel({
                     onClick={() => {
                       const name = window.prompt('Starting point name', point.name || '');
                       if (!name?.trim()) return;
-                      const description = window.prompt('Player-facing description', point.description || '');
+                      const description = window.prompt(
+                        'Player-facing description',
+                        point.description || `Starting point — ~${teamsPerWait} teams hold here until release.`,
+                      );
                       const capacity = window.prompt(
                         'Max teams at this location',
                         String(point.capacity ?? teamsPerWait),
@@ -490,6 +545,7 @@ export default function StartingSystemPanel({
                           name: name.trim(),
                           description: String(description || '').trim(),
                           capacity: Number(capacity),
+                          active: true,
                         }),
                         'Starting point updated',
                       );
@@ -517,7 +573,20 @@ export default function StartingSystemPanel({
               </div>
             </div>
           ))}
+          {!setupPoints.length && (
+            <p className="text-sm text-white/45 lg:col-span-2">
+              No starting points for this scale yet. Tap Add {startCount} starting point
+              {startCount === 1 ? '' : 's'}.
+            </p>
+          )}
         </div>
+
+        {hiddenExtraCount > 0 ? (
+          <p className="mt-3 text-[11px] text-white/40">
+            {hiddenExtraCount} old start{hiddenExtraCount === 1 ? '' : 's'} hidden (outside {startCount}-start layout).
+            Tap Refresh / repair to deactivate leftovers and set capacity to ~{teamsPerWait}.
+          </p>
+        ) : null}
 
         {!locationsReady && (
           <form onSubmit={createPoint} className="mt-3 grid gap-2 md:grid-cols-2 lg:grid-cols-5">
@@ -951,13 +1020,13 @@ export default function StartingSystemPanel({
                       const waitIdx = row._waitIdx;
                       const waveNum = wave || 1;
                       const OrangePlace = row.firstStopName
-                        || firstStopForLocalTeam(waveNum, waitIdx, activeStations);
+                        || firstStopForLocalTeam(waveNum, waitIdx, activeStations, teamsPerWait);
                       const greenPlace = row.secondStopName
-                        || secondStopForLocalTeam(waveNum, waitIdx, activeStations);
+                        || secondStopForLocalTeam(waveNum, waitIdx, activeStations, teamsPerWait);
                       const bluePlace = row.thirdStopName
-                        || thirdStopForLocalTeam(waveNum, waitIdx, activeStations);
+                        || thirdStopForLocalTeam(waveNum, waitIdx, activeStations, teamsPerWait);
                       const purplePlace = row.fourthStopName
-                        || fourthStopForLocalTeam(waveNum, waitIdx, activeStations);
+                        || fourthStopForLocalTeam(waveNum, waitIdx, activeStations, teamsPerWait);
                       const startCode = waitLetter(code) || code.charAt(0) || 'A';
                       const finalWord = clue5WordForStart(startCode);
                       const finalLabel = `${finalWord} → ${gatherName}`;

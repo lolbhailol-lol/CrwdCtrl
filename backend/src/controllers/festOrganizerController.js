@@ -1057,6 +1057,36 @@ exports.getFestCompetitions = async (req, res) => {
     }
 };
 
+// Whitelist of fields an organizer may set on an Event. Ownership references
+// (`organizer`), timestamps, and internal counters are intentionally excluded
+// so mass-assignment cannot pivot a resource to a different account.
+const EVENT_UPDATABLE_FIELDS = [
+    'eventName', 'description', 'shortDescription', 'eventType', 'category',
+    'eventDate', 'eventEndDate', 'venue', 'city', 'state', 'address',
+    'coverImage', 'bannerImage', 'gallery', 'images', 'logo',
+    'contactEmail', 'contactPhone', 'website', 'socialLinks',
+    'registrationFee', 'maxParticipants', 'registrationDeadline',
+    'rulesMessage', 'commonRulesMessage', 'tags', 'status', 'faqs',
+    'sponsors', 'schedule', 'prizes', 'rules', 'perks',
+];
+
+const COMPETITION_UPDATABLE_FIELDS = [
+    'name', 'description', 'category', 'eligibility', 'rules', 'commonRulesMessage',
+    'roundRulesMessage', 'rounds', 'venue', 'dateTime', 'startAt', 'endAt',
+    'coverImage', 'bannerImage', 'logo', 'images', 'gallery', 'prizes',
+    'contactEmail', 'contactPhone', 'links', 'registrationType', 'registration',
+    'legacyRegistration', 'registrationFee', 'feeAmount', 'maxParticipants',
+    'teamSizeMin', 'teamSizeMax', 'teamSizeLabel', 'tags', 'status',
+];
+
+function applyAllowedUpdates(doc, body, allowlist) {
+    for (const key of allowlist) {
+        if (Object.prototype.hasOwnProperty.call(body, key) && body[key] !== undefined) {
+            doc[key] = body[key];
+        }
+    }
+}
+
 // ✅ Update Event
 exports.updateEvent = async (req, res) => {
     try {
@@ -1077,12 +1107,7 @@ exports.updateEvent = async (req, res) => {
             return res.status(404).json({ message: 'Event not found or unauthorized' });
         }
 
-        // Update event with provided fields
-        Object.keys(req.body).forEach(key => {
-            if (req.body[key] !== undefined) {
-                event[key] = req.body[key];
-            }
-        });
+        applyAllowedUpdates(event, req.body, EVENT_UPDATABLE_FIELDS);
 
         await event.save();
 
@@ -1117,12 +1142,7 @@ exports.updateCompetition = async (req, res) => {
             return res.status(404).json({ message: 'Competition not found or unauthorized' });
         }
 
-        // Update competition with provided fields
-        Object.keys(req.body).forEach(key => {
-            if (req.body[key] !== undefined) {
-                competition[key] = req.body[key];
-            }
-        });
+        applyAllowedUpdates(competition, req.body, COMPETITION_UPDATABLE_FIELDS);
 
         if (req.body.registrationFee !== undefined || req.body.feeAmount !== undefined) {
             competition.feeAmount = getCompetitionBaseFee(

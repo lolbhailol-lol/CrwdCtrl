@@ -12,6 +12,12 @@ function assertProductionEnv() {
     'FRONTEND_URL',
   ];
 
+  // Campus Hunt is feature-flagged. When enabled, its offline bundle signing key
+  // must be distinct from JWT_SECRET so it can be rotated independently.
+  if (process.env.CAMPUS_HUNT_ENABLED === 'true') {
+    required.push('OFFLINE_BUNDLE_KEY', 'CAMPUS_HUNT_CREDENTIAL_KEY');
+  }
+
   const missing = required.filter((key) => !process.env[key]?.trim());
 
   if (missing.length) {
@@ -24,10 +30,19 @@ function assertProductionEnv() {
     process.exit(1);
   }
 
+  if (
+    process.env.CAMPUS_HUNT_ENABLED === 'true'
+    && process.env.OFFLINE_BUNDLE_KEY?.trim() === process.env.JWT_SECRET?.trim()
+  ) {
+    console.error('❌ OFFLINE_BUNDLE_KEY must be distinct from JWT_SECRET');
+    process.exit(1);
+  }
+
   const recommended = [
     'FIREBASE_SERVICE_ACCOUNT_KEY',
     'SENTRY_DSN',
     'RESEND_API_KEY',
+    'CASHFREE_WEBHOOK_SECRET',
   ];
   const missingRecommended = recommended.filter((key) => !process.env[key]?.trim());
   if (missingRecommended.length) {

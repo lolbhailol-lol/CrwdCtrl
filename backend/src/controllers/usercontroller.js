@@ -307,10 +307,10 @@ const login = async (req, res) => {
             });
         }
 
-        // Check if user exists
+        // Check if user exists. `password` is select:false — opt in for compare().
         const user = await User.findOne({
             $or: userQueryOptions
-        });
+        }).select('+password');
         if (!user) {
             return res.status(401).json({
                 success: false,

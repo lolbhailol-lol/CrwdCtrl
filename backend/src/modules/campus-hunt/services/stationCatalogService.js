@@ -38,7 +38,16 @@ function normalizeStationList(input) {
     const code = String(row?.code || '').toUpperCase().trim();
     const name = String(row?.name || '').trim();
     if (!byCode.has(code) || !name) return;
-    byCode.set(code, { code, name });
+    const plantFragments = Array.isArray(row.plantFragments)
+      ? row.plantFragments.map((f) => String(f || '').trim()).filter(Boolean)
+      : undefined;
+    const joinedWord = String(row.joinedWord || '').trim();
+    byCode.set(code, {
+      code,
+      name,
+      ...(plantFragments?.length ? { plantFragments } : {}),
+      ...(joinedWord ? { joinedWord } : {}),
+    });
   });
   return DEFAULT_CAMPUS_STATIONS.map((station) => byCode.get(station.code));
 }

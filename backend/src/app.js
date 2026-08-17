@@ -94,20 +94,13 @@ app.get('/ready', (_req, res) => {
 
 app.get('/api/health', (_req, res) => {
   const dbConnected = mongoose.connection.readyState === 1;
-  const firebase = getFirebaseAdminStatus();
+  // Public liveness — do not leak Firebase project ID, environment, or error
+  // details. Detailed status is on `/api/ready` (still public, but returns
+  // booleans only) and dev-only admin endpoints.
   res.status(dbConnected ? 200 : 503).json({
     success: dbConnected,
     status: dbConnected ? 'OK' : 'DEGRADED',
-    message: dbConnected ? 'CrwdCtrl API is running' : 'Database unavailable',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development',
-    database: dbConnected ? 'connected' : 'disconnected',
-    pushNotifications: firebase.configured ? 'ready' : 'disabled',
-    firebase: {
-      configured: firebase.configured,
-      projectId: firebase.projectId,
-      error: firebase.error,
-    },
   });
 });
 

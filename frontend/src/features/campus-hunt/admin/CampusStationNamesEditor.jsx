@@ -110,6 +110,10 @@ export default function CampusStationNamesEditor({
         campusStations: stationDraft.map((row) => ({
           code: row.code,
           name: String(row.name).trim(),
+          ...(Array.isArray(row.plantFragments) && row.plantFragments.length
+            ? { plantFragments: row.plantFragments }
+            : {}),
+          ...(row.joinedWord ? { joinedWord: row.joinedWord } : {}),
         })),
         campusStarts: startDraft.map((row) => ({
           code: row.code,
@@ -252,7 +256,7 @@ export default function CampusStationNamesEditor({
         </label>
       </div>
       <p className="mt-2 text-[11px] text-white/40">
-        {preview.totalPlayers} players total · Round 1 / Survival / Finale ladder updates from team count.
+        {preview.totalPlayers} players total · Round 1 offline · then Send links (one WhatsApp link per team).
         Raise campus places with + to unlock more scan locations (then Save setup + bootstrap QRs).
       </p>
 

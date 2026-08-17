@@ -1,80 +1,12 @@
-const SESSION_KEY = 'event_organizer_session';
-const MEMORY_FALLBACK_KEY = '__eventOrganizerSession';
+import { createPortalSession } from './portalSessionFactory.js';
 
-function getMemoryStore() {
-    if (typeof window === 'undefined') return null;
-    if (!window[MEMORY_FALLBACK_KEY]) {
-        window[MEMORY_FALLBACK_KEY] = { value: null };
-    }
-    return window[MEMORY_FALLBACK_KEY];
-}
+const session = createPortalSession({
+    storageKey: 'event_organizer_session',
+    memoryKey: '__eventOrganizerSession',
+});
 
-function readFromStorage(storage) {
-    try {
-        const raw = storage?.getItem?.(SESSION_KEY);
-        return raw ? JSON.parse(raw) : null;
-    } catch {
-        return null;
-    }
-}
-
-function writeToStorage(storage, session) {
-    try {
-        storage.setItem(SESSION_KEY, JSON.stringify(session));
-        return true;
-    } catch {
-        return false;
-    }
-}
-
-function removeFromStorage(storage) {
-    try {
-        storage.removeItem(SESSION_KEY);
-    } catch {
-        /* ignore */
-    }
-}
-
-export function getEventOrganizerSession() {
-    const fromLocal = typeof localStorage !== 'undefined' ? readFromStorage(localStorage) : null;
-    if (fromLocal) return fromLocal;
-    const fromSession = typeof sessionStorage !== 'undefined' ? readFromStorage(sessionStorage) : null;
-    if (fromSession) return fromSession;
-    return getMemoryStore()?.value || null;
-}
-
-export function setEventOrganizerSession(session) {
-    const payload = session || null;
-    const mem = getMemoryStore();
-    if (mem) mem.value = payload;
-    if (!payload) {
-        clearEventOrganizerSession();
-        return;
-    }
-    if (typeof localStorage !== 'undefined' && writeToStorage(localStorage, payload)) return;
-    if (typeof sessionStorage !== 'undefined' && writeToStorage(sessionStorage, payload)) return;
-}
-
-export function clearEventOrganizerSession() {
-    if (typeof localStorage !== 'undefined') removeFromStorage(localStorage);
-    if (typeof sessionStorage !== 'undefined') removeFromStorage(sessionStorage);
-    const mem = getMemoryStore();
-    if (mem) mem.value = null;
-}
-
-export function getEventOrganizerToken() {
-    return getEventOrganizerSession()?.token || '';
-}
-
-export function isEventOrganizerTokenExpired(token = getEventOrganizerToken()) {
-    if (!token || typeof token !== 'string') return true;
-    try {
-        const parts = token.split('.');
-        if (parts.length !== 3) return true;
-        const payload = JSON.parse(atob(parts[1]));
-        if (!payload?.exp) return false;
-        return payload.exp < Math.floor(Date.now() / 1000);
-    } catch {
-        return true;
-    }
-}
+export const getEventOrganizerSession = session.get;
+export const setEventOrganizerSession = session.set;
+export const clearEventOrganizerSession = session.clear;
+export const getEventOrganizerToken = session.token;
+export const isEventOrganizerTokenExpired = session.isExpired;

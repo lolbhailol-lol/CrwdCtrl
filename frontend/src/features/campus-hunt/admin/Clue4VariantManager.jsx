@@ -169,7 +169,7 @@ export default function Clue4VariantManager({
         const waitIndex = waitIndexForStart(code);
         for (const slot of teamSlots) {
           const waveId = slot.id;
-          const place = fourthStopForLocalTeam(slot.localTeamNumber, waitIndex, stations);
+          const place = fourthStopForLocalTeam(slot.localTeamNumber, waitIndex, stations, teamsPerWait);
           const stationCode = stations.find((s) => s.name === place)?.code;
           const stationIndex = stations.findIndex((s) => s.name === place);
           const codeKey = `${code}-${waveId}`;

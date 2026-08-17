@@ -82,13 +82,14 @@ async function setTeamSharedPassword(team, password) {
     ...(team.memberUserIds || []),
   ].filter(Boolean);
 
-  await Promise.all(rosterIds.map(async (userId) => {
-    const user = await User.findById(userId);
-    if (!user) return;
+  // Single round-trip to load all roster users, then save in parallel.
+  // `password` is select:false — opt in so the pre-save hash hook fires.
+  const users = await User.find({ _id: { $in: rosterIds } }).select('+password');
+  await Promise.all(users.map((user) => {
     user.password = pass;
     user.isVerified = true;
     user.isDeleted = false;
-    await user.save();
+    return user.save();
   }));
 
   return pass;

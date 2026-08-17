@@ -738,9 +738,17 @@ export default function TrekBookingPage() {
                 const resumePeople = Math.min(maxPeople, Math.max(1, Number(draft.people) || people || 1));
                 if (draft.people) setPeople(resumePeople);
 
+                const draftEmail = String(
+                    draft?.extraFields?.email
+                    || draft?.extraFields?.e_mail_id
+                    || draft?.extraFields?.e_mail
+                    || '',
+                ).trim();
                 const verifyResult = await verifyPaymentWithRetry(API, pending.orderId, {
                     kind: 'trek',
                     search: location.search,
+                    token: resolveAuthToken(authToken),
+                    customerEmail: draftEmail,
                 });
 
                 if (verifyResult.status === 'cancelled') {
@@ -984,6 +992,7 @@ export default function TrekBookingPage() {
                     verifyOrder: ({ orderId }) => verifyPaymentWithRetry(API, orderId, {
                         kind: 'trek',
                         token: resolveAuthToken(authToken),
+                        customerEmail,
                     }),
                 });
 

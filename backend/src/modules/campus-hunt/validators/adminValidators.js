@@ -31,6 +31,8 @@ function validateEventCreate(body = {}) {
   }
   teamCapacity = Math.round(teamCapacity);
   teamSize = Math.round(teamSize);
+  const { normalizeRoundPlan } = require('../utils/competitionFormat');
+  const roundPlan = normalizeRoundPlan(body.roundPlan || body, { teamCapacity });
   return {
     name: String(body.name).trim(),
     college: String(body.college).trim(),
@@ -44,6 +46,17 @@ function validateEventCreate(body = {}) {
     publicLoginLive: body.publicLoginLive === true,
     featureNotes: body.featureNotes || '',
     scoringConfig: body.scoringConfig,
+    roundPlan: {
+      round1Name: roundPlan.round1Name,
+      round2Name: roundPlan.round2Name,
+      round3Name: roundPlan.round3Name,
+      finaleName: roundPlan.finaleName,
+      qualifyFromRound1: roundPlan.qualifyFromRound1,
+      qualifyFromRound2: roundPlan.qualifyFromRound2,
+      qualifyFromRound3: roundPlan.qualifyFromRound3,
+    },
+    finaleCapacity: roundPlan.finaleCapacity || 12,
+    finaleDirectFromR1: roundPlan.qualifyFromRound1,
   };
 }
 

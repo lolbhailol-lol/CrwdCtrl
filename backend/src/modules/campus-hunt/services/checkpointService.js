@@ -539,6 +539,9 @@ function buildStationQrPayload(checkpoint) {
     checkpointId: String(checkpoint._id),
     checkpointKey: checkpointProgressionKey(checkpoint),
     checkpointCode: checkpoint.code || checkpoint.checkpointKey,
+    stationCode: checkpoint.stationCode
+      ? String(checkpoint.stationCode).toUpperCase()
+      : undefined,
     secret: checkpoint.qrSecret,
     pasteCode: checkpoint.pasteCode || undefined,
   });

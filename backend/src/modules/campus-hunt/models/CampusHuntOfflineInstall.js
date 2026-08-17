@@ -16,6 +16,10 @@ const schema = new mongoose.Schema(
     teamCode: { type: String, required: true, uppercase: true, index: true },
     bundle: { type: mongoose.Schema.Types.Mixed, required: true },
     expiresAt: { type: Date, required: true },
+    /** First successful pack open on a phone (install preflight). */
+    installedAt: { type: Date, default: null },
+    installDeviceHint: { type: String, default: '', trim: true },
+    exportBatchId: { type: String, default: '', trim: true, index: true },
   },
   { timestamps: true },
 );

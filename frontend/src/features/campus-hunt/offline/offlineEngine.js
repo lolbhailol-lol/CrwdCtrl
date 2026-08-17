@@ -369,13 +369,13 @@ export function submitAnswer(bundle, session, state, challengeNumber, answer, no
   bump(next);
 
   const destHint = n === 1
-    ? 'Head to your orange QR and scan together.'
+    ? 'Go to that place — find the written clues, join the word, type it, then scan orange once.'
     : n === 2
-      ? 'Green scan next.'
+      ? 'Green stop — join the word, type it, scan once.'
       : n === 3
-        ? 'Blue scan next.'
+        ? 'Blue stop — join the word, type it, scan once.'
         : n === 4
-          ? 'Purple scan next.'
+          ? 'Purple stop — join the word, type it, scan once.'
           : 'Report to your start desk.';
 
   return {
@@ -426,6 +426,7 @@ export function parseStationQr(raw) {
     return {
       checkpointId: String(parsed.checkpointId || ''),
       checkpointKey: parsed.checkpointKey ? String(parsed.checkpointKey) : null,
+      stationCode: parsed.stationCode ? String(parsed.stationCode).toUpperCase() : null,
       secret: String(parsed.secret || ''),
       pasteCode: parsed.pasteCode ? normalizePaste(parsed.pasteCode) : null,
     };
@@ -433,21 +434,77 @@ export function parseStationQr(raw) {
   return { pasteCode: normalizePaste(raw) };
 }
 
+function allBundleCheckpoints(bundle) {
+  const list = [];
+  for (const color of ['orange', 'green', 'blue', 'purple']) {
+    if (bundle?.route?.[color]) list.push(bundle.route[color]);
+  }
+  if (Array.isArray(bundle?.checkpoints)) list.push(...bundle.checkpoints);
+  if (Array.isArray(bundle?.placePosters)) list.push(...bundle.placePosters);
+  return list.filter(Boolean);
+}
+
 function matchExpectedCheckpoint(bundle, key, parsed) {
   const expected = checkpointForKey(bundle, key);
   if (!expected) throw huntError('This stop is not assigned for your team', 409, 'CHECKPOINT_NOT_ASSIGNED');
+  const wantStation = String(expected.stationCode || '').toUpperCase();
+
   if (parsed.checkpointId && parsed.secret) {
-    if (String(expected.id) !== parsed.checkpointId) {
-      throw huntError('Wrong poster for your team — check the color', 403, 'WRONG_CHECKPOINT');
+    // Exact stage poster (legacy color QR) still works.
+    if (String(expected.id) === parsed.checkpointId) {
+      if (expected.qrSecret && expected.qrSecret !== parsed.secret) {
+        throw huntError('Invalid or outdated station QR', 403, 'BAD_STATION_SECRET');
+      }
+      return expected;
     }
-    if (expected.qrSecret && expected.qrSecret !== parsed.secret) {
-      throw huntError('Invalid or outdated station QR', 403, 'BAD_STATION_SECRET');
+
+    // One place poster: any valid QR for this campus place unlocks the current stage.
+    const scanned = allBundleCheckpoints(bundle).find(
+      (cp) => String(cp.id) === parsed.checkpointId,
+    );
+    if (scanned) {
+      if (scanned.qrSecret && scanned.qrSecret !== parsed.secret) {
+        throw huntError('Invalid or outdated station QR', 403, 'BAD_STATION_SECRET');
+      }
+      const scannedStation = String(
+        scanned.stationCode || parsed.stationCode || '',
+      ).toUpperCase();
+      if (wantStation && scannedStation && scannedStation === wantStation) {
+        return expected;
+      }
+      if (wantStation && scannedStation && scannedStation !== wantStation) {
+        throw huntError('Wrong place — go to the location on your phone', 403, 'WRONG_PLACE');
+      }
     }
-    return expected;
+
+    if (parsed.stationCode && wantStation && parsed.stationCode === wantStation) {
+      const place = (bundle.placePosters || []).find(
+        (p) => String(p.stationCode || '').toUpperCase() === wantStation
+          && (!p.qrSecret || p.qrSecret === parsed.secret),
+      );
+      if (place) return expected;
+    }
+
+    throw huntError('Wrong poster for this stop — use the place QR at your location', 403, 'WRONG_CHECKPOINT');
   }
   const paste = parsed.pasteCode;
   if (paste && expected.pasteCode && normalizePaste(expected.pasteCode) === paste) {
     return expected;
+  }
+  // Place-poster paste codes
+  if (paste && wantStation) {
+    const place = (bundle.placePosters || []).find(
+      (p) => String(p.stationCode || '').toUpperCase() === wantStation
+        && p.pasteCode
+        && normalizePaste(p.pasteCode) === paste,
+    );
+    if (place) return expected;
+    const samePlace = allBundleCheckpoints(bundle).find(
+      (cp) => String(cp.stationCode || '').toUpperCase() === wantStation
+        && cp.pasteCode
+        && normalizePaste(cp.pasteCode) === paste,
+    );
+    if (samePlace) return expected;
   }
   if (paste && expected.qrPayload) {
     try {
@@ -455,7 +512,7 @@ function matchExpectedCheckpoint(bundle, key, parsed) {
       if (normalizePaste(inner.pasteCode || '') === paste) return expected;
     } catch { /* ignore */ }
   }
-  throw huntError('Use the station poster QR (or CH- paste code) for this color', 403, 'BAD_STATION');
+  throw huntError('Use the place poster QR (or CH- paste code) at this location', 403, 'BAD_STATION');
 }
 
 /**
@@ -463,7 +520,51 @@ function matchExpectedCheckpoint(bundle, key, parsed) {
  * Leader scans are stored on team state. Member scans stay local until the
  * leader collects a proof QR.
  */
+export function submitStopJoinWord(bundle, session, state, answer, now = new Date()) {
+  assertLeader(session);
+  const next = tickTimers(bundle, state, now);
+  const key = pendingCheckpointKey(next.currentStage);
+  if (!key) throw huntError('No stop join-word needed right now', 409, 'WRONG_STAGE');
+  const expected = checkpointForKey(bundle, key);
+  const want = String(expected?.joinedWord || '').trim();
+  if (!want) {
+    // No plant word configured — allow scan without join step.
+    const cp = next.checkpoints[key] || { scans: {}, confirmed: false };
+    cp.joinWordOk = true;
+    next.checkpoints[key] = cp;
+    bump(next);
+    return {
+      state: next,
+      meta: { correct: true, message: 'Scan the poster when ready.', skipJoin: true },
+    };
+  }
+  const got = String(answer || '').trim().replace(/\s+/g, '');
+  const ok = got.toUpperCase() === want.replace(/\s+/g, '').toUpperCase();
+  const cp = next.checkpoints[key] || { scans: {}, confirmed: false, joinAttempts: 0 };
+  cp.joinAttempts = (cp.joinAttempts || 0) + 1;
+  if (!ok) {
+    next.checkpoints[key] = cp;
+    bump(next);
+    return {
+      state: next,
+      meta: {
+        correct: false,
+        message: `Not quite. Find all fragments and join them. Attempts: ${cp.joinAttempts}`,
+      },
+    };
+  }
+  cp.joinWordOk = true;
+  cp.joinWordAt = now.toISOString();
+  next.checkpoints[key] = cp;
+  bump(next);
+  return {
+    state: next,
+    meta: { correct: true, message: 'Word accepted — scan the color poster once.' },
+  };
+}
+
 export function scanStation(bundle, session, state, raw, now = new Date()) {
+  assertLeader(session);
   const next = tickTimers(bundle, state, now);
   const key = pendingCheckpointKey(next.currentStage);
   if (!key) {
@@ -473,29 +574,30 @@ export function scanStation(bundle, session, state, raw, now = new Date()) {
   if (!allowed.includes(next.currentStage)) {
     throw huntError('Wrong stage for this poster', 409, 'WRONG_STAGE');
   }
-  const parsed = parseStationQr(raw);
-  const expected = matchExpectedCheckpoint(bundle, key, parsed);
-  const memberKey = session.memberKey;
-  const cp = next.checkpoints[key] || { scans: {}, confirmed: false };
-  if (session.role === 'leader') {
-    cp.scans = { ...cp.scans, [memberKey]: { at: now.toISOString(), name: session.name } };
-    next.checkpoints[key] = cp;
-    bump(next);
+  const expected = checkpointForKey(bundle, key);
+  const needJoin = Boolean(String(expected?.joinedWord || '').trim());
+  const cpRow = next.checkpoints[key] || { scans: {}, confirmed: false };
+  if (needJoin && !cpRow.joinWordOk) {
+    throw huntError('Type the joined word from the plant fragments first', 409, 'JOIN_WORD_REQUIRED');
   }
-  const required = teamSize(bundle);
-  const verifiedCount = Object.keys(cp.scans || {}).length;
+  const parsed = parseStationQr(raw);
+  matchExpectedCheckpoint(bundle, key, parsed);
+  const memberKey = session.memberKey || 'leader';
+  const cp = { ...cpRow };
+  cp.scans = { ...cp.scans, [memberKey]: { at: now.toISOString(), name: session.name } };
+  next.checkpoints[key] = cp;
+  bump(next);
   return {
     state: next,
     localScanKey: String(key),
     meta: {
-      message: session.role === 'leader'
-        ? `You scanned · collect teammate proof QRs (${verifiedCount}/${required})`
-        : 'Poster scanned — show your proof QR to the leader',
-      verifiedCount,
-      requiredCount: required,
+      message: 'Poster scanned — enter your team code to continue',
+      verifiedCount: Object.keys(cp.scans || {}).length,
+      requiredCount: 1,
       checkpointStatus: null,
       checkpointId: expected.id,
       checkpointKey: String(key),
+      awaitingTeamCodeConfirm: !cp.confirmed,
     },
   };
 }
@@ -549,10 +651,10 @@ export function confirmStation(bundle, session, state, teamCode, now = new Date(
   if (String(teamCode || '').trim().toUpperCase() !== expectedCode) {
     throw huntError('Wrong team code', 403, 'BAD_TEAM_CODE');
   }
-  const required = teamSize(bundle);
+  const required = 1;
   const cp = next.checkpoints[key] || { scans: {}, confirmed: false };
   if (Object.keys(cp.scans || {}).length < required) {
-    throw huntError(`Need ${required} scans before confirming`, 409, 'SCANS_INCOMPLETE');
+    throw huntError('Scan the poster first, then enter your team code', 409, 'SCANS_INCOMPLETE');
   }
   cp.confirmed = true;
   cp.confirmedAt = now.toISOString();
@@ -568,8 +670,8 @@ export function confirmStation(bundle, session, state, teamCode, now = new Date(
     meta: {
       unlockedNext: true,
       message: auto
-        ? 'Checkpoint complete — next clue unlocked. Show Team QR to teammates.'
-        : 'Checkpoint complete. Show Team QR to teammates.',
+        ? 'Checkpoint complete — next clue unlocked.'
+        : 'Checkpoint complete.',
     },
   };
 }

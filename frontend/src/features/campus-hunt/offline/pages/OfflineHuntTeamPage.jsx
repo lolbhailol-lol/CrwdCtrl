@@ -58,11 +58,11 @@ export default function OfflineHuntTeamPage() {
             How to play
           </p>
           <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-white/80">
-            <li>Stay together at your start desk.</li>
-            <li>Leader types answers. Everyone else helps read.</li>
-            <li>All 4 scan the color poster (orange → green → blue → purple).</li>
-            <li>Members show proof QR. Leader collects, then types the team code.</li>
-            <li>Leader shows Team QR so every phone stays in sync.</li>
+            <li>All teammates walk together. One phone (leader).</li>
+            <li>Leader types clue answers.</li>
+            <li>At each stop: find written clues, join the word, type it, then scan the poster once.</li>
+            <li>Enter your team code → next location.</li>
+            <li>Report to your start desk when Final is done.</li>
           </ol>
         </section>
 

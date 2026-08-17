@@ -69,12 +69,79 @@ const DEFAULT_LOCATIONS = WAIT_POINTS;
 /** Local Team release slots (variant keys T1…Tn). Baseline: 10. */
 const TEAM_GROUPS = buildTeamGroups(TEAMS_PER_WAIT);
 
-function stationForLocalTeam(localTeamNumber, waitIndex = 0, stations = HUNT_STATIONS, stopOffset = 0) {
+function gcd(a, b) {
+  let x = Math.abs(Number(a) || 0);
+  let y = Math.abs(Number(b) || 0);
+  while (y) {
+    const t = y;
+    y = x % y;
+    x = t;
+  }
+  return x || 1;
+}
+
+function coprimeStrides(stationCount) {
+  const n = Math.max(1, Number(stationCount) || 1);
+  const out = [];
+  for (let s = 1; s < n; s += 1) {
+    if (gcd(s, n) === 1) out.push(s);
+  }
+  return out.length ? out : [1];
+}
+
+function teamPathIndices(globalTeamIndex, stationCount, stopCount = 4) {
+  const N = Math.max(1, Number(stationCount) || 1);
+  const stops = Math.max(1, Math.min(N, Number(stopCount) || 4));
+  const strides = coprimeStrides(N);
+  const index = Math.max(0, Number(globalTeamIndex) || 0);
+  const layer = Math.floor(index / N);
+  const base = index % N;
+  const stride = strides[layer % strides.length];
+  const baseShift = Math.floor(layer / strides.length);
+  const start = (base + baseShift) % N;
+  const used = new Set();
+  const path = [];
+  for (let s = 0; s < stops; s += 1) {
+    let idx = (start + s * stride) % N;
+    let guard = 0;
+    while (used.has(idx) && guard < N) {
+      idx = (idx + 1) % N;
+      guard += 1;
+    }
+    used.add(idx);
+    path.push(idx);
+  }
+  return path;
+}
+
+function globalTeamIndex(waitIndex, localTeamNumber, teamsPerWait = TEAMS_PER_WAIT) {
+  const perWait = Math.max(1, Number(teamsPerWait) || TEAMS_PER_WAIT);
+  const wait = Math.max(0, Number(waitIndex) || 0);
+  const local = Math.max(1, Number(localTeamNumber) || 1);
+  return wait * perWait + (local - 1);
+}
+
+/**
+ * Unique Orange→Green→Blue→Purple path per team.
+ * Start A uses stride +1; start B uses next coprime stride (e.g. +3 on 10 places)
+ * so A·T2 and B·T1 no longer share the same route.
+ */
+function stationForLocalTeam(
+  localTeamNumber,
+  waitIndex = 0,
+  stations = HUNT_STATIONS,
+  stopOffset = 0,
+  teamsPerWait = TEAMS_PER_WAIT,
+) {
   const list = stations?.length ? stations : HUNT_STATIONS;
-  const teamIndex = (Math.max(1, Number(localTeamNumber) || 1) - 1) % list.length;
-  const offset = Math.max(0, Number(waitIndex) || 0) % list.length;
-  const step = Math.max(0, Number(stopOffset) || 0) % list.length;
-  return list[(teamIndex + offset + step) % list.length];
+  if (!list.length) return null;
+  const path = teamPathIndices(
+    globalTeamIndex(waitIndex, localTeamNumber, teamsPerWait),
+    list.length,
+    4,
+  );
+  const step = Math.max(0, Math.min(path.length - 1, Number(stopOffset) || 0));
+  return list[path[step]];
 }
 
 /** Stable unique 3-digit code for global team. */
@@ -196,24 +263,36 @@ function propCodeForTeam(stationIndex, localTeamNumber) {
 /** @deprecated use CLUE5_WORDS */
 const CLUE4_WORDS = CLUE5_WORDS;
 
-/** Clue 1 first stops for local teams at a given wait (shuffled by waitIndex). */
+/** Clue 1 first stops for local teams at a given wait (unique paths across starts). */
 function rotatingFirstStops(waitIndex = 0, stations = HUNT_STATIONS, teamGroups = TEAM_GROUPS) {
-  return teamGroups.map((group) => stationForLocalTeam(group.localTeamNumber, waitIndex, stations, 0));
+  const perWait = teamGroups?.length || TEAMS_PER_WAIT;
+  return teamGroups.map((group) => (
+    stationForLocalTeam(group.localTeamNumber, waitIndex, stations, 0, perWait)
+  ));
 }
 
-/** Checkpoint 2 / Clue 2 destinations — one station after first stop. */
+/** Checkpoint 2 / Clue 2 destinations — stride step 1 on each team's unique path. */
 function rotatingSecondStops(waitIndex = 0, stations = HUNT_STATIONS, teamGroups = TEAM_GROUPS) {
-  return teamGroups.map((group) => stationForLocalTeam(group.localTeamNumber, waitIndex, stations, 1));
+  const perWait = teamGroups?.length || TEAMS_PER_WAIT;
+  return teamGroups.map((group) => (
+    stationForLocalTeam(group.localTeamNumber, waitIndex, stations, 1, perWait)
+  ));
 }
 
-/** Checkpoint 3 destinations — two stations after first stop (different from CP1/CP2). */
+/** Checkpoint 3 destinations — stride step 2. */
 function rotatingThirdStops(waitIndex = 0, stations = HUNT_STATIONS, teamGroups = TEAM_GROUPS) {
-  return teamGroups.map((group) => stationForLocalTeam(group.localTeamNumber, waitIndex, stations, 2));
+  const perWait = teamGroups?.length || TEAMS_PER_WAIT;
+  return teamGroups.map((group) => (
+    stationForLocalTeam(group.localTeamNumber, waitIndex, stations, 2, perWait)
+  ));
 }
 
-/** Checkpoint 4 / prop hunt — three stations after first stop. */
+/** Checkpoint 4 / prop hunt — stride step 3. */
 function rotatingFourthStops(waitIndex = 0, stations = HUNT_STATIONS, teamGroups = TEAM_GROUPS) {
-  return teamGroups.map((group) => stationForLocalTeam(group.localTeamNumber, waitIndex, stations, 3));
+  const perWait = teamGroups?.length || TEAMS_PER_WAIT;
+  return teamGroups.map((group) => (
+    stationForLocalTeam(group.localTeamNumber, waitIndex, stations, 3, perWait)
+  ));
 }
 
 function caesarShift(text, shift = 3) {

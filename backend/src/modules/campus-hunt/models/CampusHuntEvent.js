@@ -71,6 +71,19 @@ const campusHuntEventSchema = new mongoose.Schema(
     finaleCapacity: { type: Number, default: 12 },
     /** Top N from Round 1 auto-promoted into Finale. */
     finaleDirectFromR1: { type: Number, default: 5 },
+    /**
+     * Organizer-defined round names + how many teams from each qualify to finals.
+     * Empty round2/round3 name = that round is not used yet.
+     */
+    roundPlan: {
+      round1Name: { type: String, default: 'Campus Hunt', trim: true },
+      round2Name: { type: String, default: '', trim: true },
+      round3Name: { type: String, default: '', trim: true },
+      finaleName: { type: String, default: 'Finale', trim: true },
+      qualifyFromRound1: { type: Number, default: 0, min: 0, max: 200 },
+      qualifyFromRound2: { type: Number, default: 0, min: 0, max: 200 },
+      qualifyFromRound3: { type: Number, default: 0, min: 0, max: 200 },
+    },
     startingScore: { type: Number, default: 100 },
     /** When true, college appears in Profile → Campus Hunt leaderboard */
     publicLeaderboardLive: { type: Boolean, default: false, index: true },
@@ -109,10 +122,16 @@ const campusHuntEventSchema = new mongoose.Schema(
       type: [{
         code: { type: String, required: true, trim: true, uppercase: true },
         name: { type: String, required: true, trim: true },
+        /** Shared plant slips at this stop (length ≈ teamSize). Same for all teams. */
+        plantFragments: { type: [String], default: undefined },
+        /** Word leaders type after joining fragments — unlocks poster scan. */
+        joinedWord: { type: String, default: '', trim: true },
         _id: false,
       }],
       default: undefined,
     },
+    /** Monotonic id for each offline pack export batch (reinstall clears local STATE). */
+    offlineExportBatchId: { type: String, default: '', trim: true },
     featureNotes: { type: String, default: '' },
   },
   { timestamps: true },

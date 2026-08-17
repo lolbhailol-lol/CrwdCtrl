@@ -35,4 +35,43 @@ function captureException(err, context) {
   Sentry.captureException(err, context);
 }
 
-module.exports = { initSentry, captureException, Sentry };
+/**
+ * Add a tagged breadcrumb to help slice production issues by flow in Sentry.
+ * Silent when Sentry is not configured. Never throws.
+ */
+function tagBreadcrumb(category, message, data = {}) {
+  if (!process.env.SENTRY_DSN?.trim()) return;
+  try {
+    Sentry.addBreadcrumb({
+      category,
+      message,
+      level: 'info',
+      data,
+    });
+  } catch {
+    /* ignore breadcrumb failures */
+  }
+}
+
+/**
+ * Capture a payment/webhook/QR event as a Sentry message (not exception) with
+ * queryable tags. Use for `verified: false`, invalid webhook signatures, and
+ * QR check-in misses that are recoverable but worth investigating.
+ */
+function captureFlowEvent(flow, outcome, data = {}) {
+  if (!process.env.SENTRY_DSN?.trim()) return;
+  try {
+    Sentry.withScope((scope) => {
+      scope.setTag('flow', flow);
+      scope.setTag('outcome', outcome);
+      Object.entries(data).forEach(([k, v]) => {
+        if (v != null) scope.setExtra(k, v);
+      });
+      Sentry.captureMessage(`${flow}:${outcome}`, 'warning');
+    });
+  } catch {
+    /* ignore */
+  }
+}
+
+module.exports = { initSentry, captureException, tagBreadcrumb, captureFlowEvent, Sentry };

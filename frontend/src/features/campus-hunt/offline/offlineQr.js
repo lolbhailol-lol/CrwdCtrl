@@ -92,10 +92,37 @@ export async function buildResultsPayload({ bundle, state }) {
     eventSlug: bundle.event.slug,
     score: state.score,
     stage: state.currentStage,
+    seq: state.seq || 0,
     clues,
     finishedAt: state.finishedAt || new Date().toISOString(),
     exportedAt: new Date().toISOString(),
   });
+}
+
+/** Spare-phone failover: restore full hunt state on another device. */
+export async function buildPhoneBackupPayload({ bundle, state, session }) {
+  return signPayload(bundle.signingKey, {
+    t: OFFLINE_QR_TYPES.PHONE_BACKUP,
+    v: 1,
+    team: bundle.team.teamCode,
+    event: bundle.event.id,
+    exportBatchId: bundle.exportBatchId || '',
+    seq: state.seq || 0,
+    stage: state.currentStage,
+    score: state.score,
+    state,
+    session: {
+      teamCode: session.teamCode,
+      memberKey: session.memberKey,
+      name: session.name,
+      role: session.role,
+    },
+    at: Date.now(),
+  });
+}
+
+export function isPhoneBackup(payload) {
+  return payload?.t === OFFLINE_QR_TYPES.PHONE_BACKUP;
 }
 
 export function isMemberProof(payload) {

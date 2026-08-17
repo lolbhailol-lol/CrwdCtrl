@@ -206,7 +206,7 @@ export default function Clue3VariantManager({
         }
         for (const slot of teamSlots) {
           const waveId = slot.id;
-          const place = thirdStopForLocalTeam(slot.localTeamNumber, waitIndex, stations);
+          const place = thirdStopForLocalTeam(slot.localTeamNumber, waitIndex, stations, teamsPerWait);
           const station = stations.find((s) => s.name === place);
           const stationCode = station?.code;
           const content = packContent[stationCode] || routeClueDefaults(3, place);

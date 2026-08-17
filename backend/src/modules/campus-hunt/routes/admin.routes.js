@@ -73,6 +73,7 @@ router.get('/events/:eventId/checkpoints', adminController.listCheckpoints);
 router.patch('/checkpoints/:checkpointId', adminController.updateCheckpoint);
 router.get('/events/:eventId/offline-export', adminController.exportOfflinePacks);
 router.post('/events/:eventId/offline-import', adminController.importOfflineResults);
+router.get('/events/:eventId/offline-installs', adminController.listOfflineInstalls);
 router.get('/events/:eventId/station-qr', adminController.listStationQr);
 router.get('/events/:eventId/checkpoint-monitor', adminController.checkpointMonitor);
 router.post('/checkpoints/:checkpointId/disable', adminController.setCheckpointActive);

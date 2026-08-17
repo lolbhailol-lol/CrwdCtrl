@@ -8,6 +8,7 @@ import {
   loadOfflineBundle,
   loadOfflineSession,
   loadOfflineTeamState,
+  resetOfflineHuntLocal,
   saveOfflineSession,
   saveOfflineTeamState,
   appendOfflinePlayLog,
@@ -27,14 +28,25 @@ import {
   scanStation,
   startHunt,
   submitAnswer,
+  submitStopJoinWord,
   tickTimers,
 } from '../offlineEngine';
 import { buildPlayData } from '../buildPlayData';
 import {
   buildMemberProofPayload,
+  buildPhoneBackupPayload,
   buildResultsPayload,
   buildTeamSyncPayload,
+  isPhoneBackup,
+  parseQrJson,
+  verifyPayload,
 } from '../offlineQr';
+import {
+  enqueueOfflineProgress,
+  flushOfflineProgressQueue,
+  offlineBoardPendingCount,
+  rotateOfflineDeviceIdForTakeover,
+} from '../offlineBoardSync';
 
 function downloadJson(filename, data) {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -58,6 +70,12 @@ export default function OfflineHuntPlayPage() {
   const [resultsPayload, setResultsPayload] = useState('');
   const [startError, setStartError] = useState('');
   const [starting, setStarting] = useState(false);
+  const [boardPending, setBoardPending] = useState(0);
+  const [joinWord, setJoinWord] = useState('');
+  const [joinMsg, setJoinMsg] = useState('');
+  const [backupPayload, setBackupPayload] = useState('');
+  const [restoreMsg, setRestoreMsg] = useState('');
+  const [deviceBound, setDeviceBound] = useState(false);
   const stateRef = useRef(null);
   const sessionRef = useRef(null);
   const bundleRef = useRef(null);
@@ -78,6 +96,16 @@ export default function OfflineHuntPlayPage() {
       action: 'state',
       payload: { stage: nextState.currentStage, score: nextState.score, seq: nextState.seq },
     });
+    if (pack && nextSession.role === 'leader') {
+      void enqueueOfflineProgress(pack, nextState).then((r) => {
+        setBoardPending(offlineBoardPendingCount());
+        if (r?.deviceBound) setDeviceBound(true);
+        else if (r?.syncedOk) {
+          setDeviceBound(false);
+          setBoardPending(offlineBoardPendingCount());
+        }
+      });
+    }
     return nextState;
   }, []);
 
@@ -106,7 +134,22 @@ export default function OfflineHuntPlayPage() {
 
   useEffect(() => {
     const disarm = armOfflineNetworkGuard();
-    return () => disarm();
+    setBoardPending(offlineBoardPendingCount());
+    const onOnline = () => {
+      const pack = bundleRef.current;
+      if (pack) {
+        void flushOfflineProgressQueue(pack).then((r) => {
+          setBoardPending(offlineBoardPendingCount());
+          if (r?.deviceBound) setDeviceBound(true);
+          else if (r?.syncedOk) setDeviceBound(false);
+        });
+      }
+    };
+    window.addEventListener('online', onOnline);
+    return () => {
+      disarm();
+      window.removeEventListener('online', onOnline);
+    };
   }, []);
 
   useEffect(() => {
@@ -147,15 +190,21 @@ export default function OfflineHuntPlayPage() {
       try {
         const sync = await buildTeamSyncPayload({ bundle, state });
         const results = await buildResultsPayload({ bundle, state });
+        const backup = session.role === 'leader'
+          ? await buildPhoneBackupPayload({ bundle, state, session })
+          : null;
         if (cancelled) return;
         setTeamSyncPayload(JSON.stringify(sync));
         setResultsPayload(JSON.stringify(results));
+        if (backup) setBackupPayload(JSON.stringify(backup));
+        else setBackupPayload('');
         const key = pendingCheckpointKey(state.currentStage);
         const youScanned = Boolean(
           state.checkpoints?.[key]?.scans?.[session.memberKey]
+          || state.checkpoints?.[key]?.scans?.leader
           || session.localPosterScans?.[String(key)],
         );
-        if (key && youScanned) {
+        if (key && youScanned && session.role !== 'leader') {
           const expected = bundle.route?.[
             { 1: 'orange', 2: 'green', 3: 'blue', 4: 'purple' }[key]
           ];
@@ -274,6 +323,56 @@ export default function OfflineHuntPlayPage() {
     );
   };
 
+  const onSubmitJoinWord = async () => {
+    setJoinMsg('');
+    try {
+      const result = submitStopJoinWord(
+        bundleRef.current,
+        sessionRef.current,
+        stateRef.current,
+        joinWord,
+      );
+      await persistState(result.state, sessionRef.current);
+      setJoinMsg(result.meta?.message || '');
+      if (result.meta?.correct) setJoinWord('');
+    } catch (err) {
+      setJoinMsg(err.message || 'Could not submit word');
+    }
+  };
+
+  const onResetHunt = async () => {
+    if (!window.confirm('Reset this team’s hunt progress on this phone? (Pack stays installed.)')) {
+      return;
+    }
+    await resetOfflineHuntLocal(session.teamCode);
+    navigate(CAMPUS_HUNT_PATHS.offlineLogin);
+  };
+
+  const onRestoreBackup = async (raw) => {
+    setRestoreMsg('');
+    try {
+      const payload = parseQrJson(raw) || (typeof raw === 'object' ? raw : null);
+      if (!isPhoneBackup(payload)) throw new Error('Not a phone backup QR');
+      const ok = await verifyPayload(bundle.signingKey, payload);
+      if (!ok) throw new Error('Backup signature invalid');
+      if (String(payload.team) !== String(bundle.team.teamCode)) {
+        throw new Error('Backup is for a different team');
+      }
+      await saveOfflineTeamState(bundle.team.teamCode, payload.state);
+      if (payload.session) {
+        await saveOfflineSession({
+          ...payload.session,
+          teamCode: bundle.team.teamCode,
+        });
+      }
+      rotateOfflineDeviceIdForTakeover();
+      setRestoreMsg('Restored — this phone will take over board sync. Reloading…');
+      window.location.reload();
+    } catch (err) {
+      setRestoreMsg(err.message || 'Restore failed');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#0b0c0d] text-white/60">
@@ -320,6 +419,7 @@ export default function OfflineHuntPlayPage() {
           onScanTeamSync={onScanTeamSync}
           onMarkReached={onMarkReached}
           onDownloadResults={onDownloadResults}
+          onePhoneMode
         />
       </>
     );
@@ -339,17 +439,110 @@ export default function OfflineHuntPlayPage() {
         backTo={CAMPUS_HUNT_PATHS.offlineRounds}
         backLabel="← Rounds"
         checkpointExtra={
-          session.role !== 'leader' && cp?.youScanned ? (
-            <p className="text-center text-xs text-white/55">
-              Open <strong className="text-white">My proof QR</strong> below so your leader can collect you.
-            </p>
+          session.role === 'leader' && cp?.needJoinWord ? (
+            <div className="mt-3 space-y-2 rounded-xl border border-[#0ECCEE]/30 bg-[#0a1218] p-3 text-left">
+              <p className="text-xs font-semibold text-[#0ECCEE]">Join the word</p>
+              <p className="text-[11px] text-white/60">
+                Find
+                {' '}
+                {cp.plantFragmentCount || 'the'}
+                {' '}
+                written clues at this stop, join them into one word, then type it.
+                Scan unlocks after a correct word.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  value={joinWord}
+                  onChange={(e) => setJoinWord(e.target.value)}
+                  className="min-w-0 flex-1 rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-white"
+                  placeholder="Joined word"
+                />
+                <button
+                  type="button"
+                  onClick={onSubmitJoinWord}
+                  className="rounded-lg bg-[#0ECCEE] px-3 py-2 text-xs font-bold text-black"
+                >
+                  Submit
+                </button>
+              </div>
+              {joinMsg ? <p className="text-[11px] text-emerald-300">{joinMsg}</p> : null}
+            </div>
           ) : session.role === 'leader' && cp && !cp.awaitingTeamCodeConfirm ? (
             <p className="text-center text-xs text-white/55">
-              Use <strong className="text-white">Collect proofs</strong> to scan each teammate’s screen.
+              Scan the place QR once, then enter your team code.
             </p>
           ) : null
         }
       />
+      {(boardPending > 0 || session.role === 'leader') && (
+        <div className="mx-auto flex max-w-lg flex-wrap items-center justify-between gap-2 px-4 py-2 text-[11px] text-white/70">
+          <span>
+            {boardPending > 0
+              ? `Board pending · ${boardPending}`
+              : 'Board sync ready'}
+          </span>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className="rounded bg-white/10 px-2 py-1 font-semibold"
+              onClick={() => {
+                void flushOfflineProgressQueue(bundle).then((r) => {
+                  setBoardPending(offlineBoardPendingCount());
+                  if (r?.deviceBound) setDeviceBound(true);
+                  else setDeviceBound(false);
+                });
+              }}
+            >
+              Retry sync
+            </button>
+            {deviceBound ? (
+              <button
+                type="button"
+                className="rounded bg-amber-400/20 px-2 py-1 font-semibold text-amber-100"
+                onClick={() => {
+                  rotateOfflineDeviceIdForTakeover();
+                  setDeviceBound(false);
+                  void flushOfflineProgressQueue(bundle).then((r) => {
+                    setBoardPending(offlineBoardPendingCount());
+                    if (r?.deviceBound) setDeviceBound(true);
+                    else setDeviceBound(false);
+                  });
+                }}
+              >
+                Take over phone
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="rounded bg-white/10 px-2 py-1 font-semibold"
+              onClick={onResetHunt}
+            >
+              Reset hunt
+            </button>
+          </div>
+        </div>
+      )}
+      {session.role === 'leader' && backupPayload ? (
+        <details className="mx-auto max-w-lg px-4 pb-2 text-white">
+          <summary className="cursor-pointer text-xs font-semibold text-white/80">
+            Phone dies? Backup / restore
+          </summary>
+          <textarea
+            readOnly
+            value={backupPayload}
+            className="mt-2 h-16 w-full rounded bg-black/40 p-2 font-mono text-[9px] text-white/70"
+          />
+          <textarea
+            className="mt-2 h-14 w-full rounded border border-white/15 bg-black/40 p-2 font-mono text-[10px]"
+            placeholder="Paste backup JSON to restore…"
+            onBlur={(e) => {
+              const text = e.target.value.trim();
+              if (text) onRestoreBackup(text);
+            }}
+          />
+          {restoreMsg ? <p className="mt-1 text-[11px] text-[#0ECCEE]">{restoreMsg}</p> : null}
+        </details>
+      ) : null}
       <div className="mx-auto max-w-lg px-4 pb-4">
         <OfflineScoreBoard
           state={state}
@@ -371,6 +564,7 @@ export default function OfflineHuntPlayPage() {
         onScanTeamSync={onScanTeamSync}
         onMarkReached={onMarkReached}
         onDownloadResults={onDownloadResults}
+        onePhoneMode
       />
     </div>
   );

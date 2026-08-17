@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { fetchOfflineInstallPack } from '../../services/campusHunt.api';
+import { fetchOfflineInstallPack, ackOfflineInstallPack } from '../../services/campusHunt.api';
 import { loadOfflineBundle, saveOfflineBundle } from '../offlineDb';
 import { CAMPUS_HUNT_PATHS } from '../../config';
 import { OfflineStorageBadge } from '../components/OfflineScoreBoard';
@@ -36,6 +36,9 @@ export default function OfflineHuntInstallPage() {
         if (cancelled) return;
         setTeam(pack.team);
         setStatus('warming');
+        try {
+          await ackOfflineInstallPack(token, navigator.userAgent || '');
+        } catch { /* best-effort */ }
         await warmupOfflineHunt();
         if (cancelled) return;
         setStatus('ready');

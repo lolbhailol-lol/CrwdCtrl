@@ -142,6 +142,9 @@ const campusHuntTeamSchema = new mongoose.Schema(
       index: true,
     },
     scoreLockedAt: { type: Date },
+    /** Last accepted offline board-sync sequence (anti-replay). */
+    offlineProgressSeq: { type: Number, default: 0 },
+    offlineDeviceId: { type: String, default: '', trim: true },
     finishedAt: { type: Date },
     stats: {
       hintsUsed: { type: Number, default: 0 },

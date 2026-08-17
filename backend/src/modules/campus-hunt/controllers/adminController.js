@@ -72,18 +72,31 @@ async function createEvent(req, res, next) {
     if (!payload.scoringConfig) {
       payload.scoringConfig = { ...DEFAULT_SCORING_CONFIG };
     }
-    const { deriveCompetitionFormat } = require('../utils/competitionFormat');
+    const { deriveCompetitionFormat, normalizeRoundPlan } = require('../utils/competitionFormat');
+    const plan = normalizeRoundPlan(payload.roundPlan, { teamCapacity: payload.teamCapacity });
     const format = deriveCompetitionFormat({
       teamCapacity: payload.teamCapacity,
       teamSize: payload.teamSize,
+      roundPlan: plan,
     });
     payload.teamCapacity = format.teamCapacity;
     payload.teamSize = format.teamSize;
+    payload.roundPlan = {
+      round1Name: plan.round1Name,
+      round2Name: plan.round2Name,
+      round3Name: plan.round3Name,
+      finaleName: plan.finaleName,
+      qualifyFromRound1: plan.qualifyFromRound1,
+      qualifyFromRound2: plan.qualifyFromRound2,
+      qualifyFromRound3: plan.qualifyFromRound3,
+    };
+    payload.finaleCapacity = plan.finaleCapacity || payload.finaleCapacity || 12;
+    payload.finaleDirectFromR1 = plan.qualifyFromRound1;
     const event = await CampusHuntEvent.create(payload);
     const round = await CampusHuntRound.create({
       eventId: event._id,
       roundNumber: 1,
-      name: 'THE_HUNT',
+      name: plan.round1Name || 'THE_HUNT',
       status: 'scheduled',
       releaseIntervalMinutes: 5,
       assignmentStrategy: 'route_balanced',
@@ -121,6 +134,7 @@ async function updateEvent(req, res, next) {
       'teamSize',
       'finaleCapacity',
       'finaleDirectFromR1',
+      'roundPlan',
       'startCount',
       'stationCount',
       'campusStarts',
@@ -151,23 +165,40 @@ async function updateEvent(req, res, next) {
     let syncQualification = null;
     if (allowed.teamCapacity != null || allowed.teamSize != null
       || allowed.finaleCapacity != null || allowed.finaleDirectFromR1 != null
+      || allowed.roundPlan != null
       || req.body.directFromR1 != null || req.body.finaleTeams != null) {
       const existing = await CampusHuntEvent.findById(req.params.eventId).lean();
       if (!existing) return res.status(404).json({ success: false, message: 'Event not found' });
-      const { deriveCompetitionFormat } = require('../utils/competitionFormat');
+      const { deriveCompetitionFormat, normalizeRoundPlan } = require('../utils/competitionFormat');
+      const plan = normalizeRoundPlan(
+        allowed.roundPlan != null ? allowed.roundPlan : existing.roundPlan,
+        {
+          teamCapacity: allowed.teamCapacity != null ? allowed.teamCapacity : existing.teamCapacity,
+        },
+      );
       const format = deriveCompetitionFormat({
         teamCapacity: allowed.teamCapacity != null ? allowed.teamCapacity : existing.teamCapacity,
         teamSize: allowed.teamSize != null ? allowed.teamSize : existing.teamSize,
+        roundPlan: plan,
         directFromR1: allowed.finaleDirectFromR1 != null
           ? allowed.finaleDirectFromR1
-          : (req.body.directFromR1 != null ? req.body.directFromR1 : existing.finaleDirectFromR1),
+          : (req.body.directFromR1 != null ? req.body.directFromR1 : plan.qualifyFromRound1),
         finaleTeams: allowed.finaleCapacity != null
           ? allowed.finaleCapacity
-          : (req.body.finaleTeams != null ? req.body.finaleTeams : existing.finaleCapacity),
+          : (req.body.finaleTeams != null ? req.body.finaleTeams : plan.finaleCapacity),
       });
       allowed.teamCapacity = format.teamCapacity;
       allowed.teamSize = format.teamSize;
-      allowed.finaleCapacity = format.finaleTeams;
+      allowed.roundPlan = {
+        round1Name: plan.round1Name,
+        round2Name: plan.round2Name,
+        round3Name: plan.round3Name,
+        finaleName: plan.finaleName,
+        qualifyFromRound1: plan.qualifyFromRound1,
+        qualifyFromRound2: plan.qualifyFromRound2,
+        qualifyFromRound3: plan.qualifyFromRound3,
+      };
+      allowed.finaleCapacity = format.finaleTeams || plan.finaleCapacity;
       allowed.finaleDirectFromR1 = format.directFromR1;
       syncQualification = format.qualification;
     }
@@ -3869,9 +3900,11 @@ async function bootstrapRound1(req, res, next) {
 async function repairTeamRosters(req, res, next) {
   try {
     const { repairAllTeamRostersForEvent } = require('../services/rosterProvisionService');
+    // Only forward explicit passwords. When omitted, the service auto-generates
+    // strong ones in production (see rosterProvisionService.repairTeamRoster).
     const data = await repairAllTeamRostersForEvent(req.params.eventId, {
-      leaderPassword: req.body?.leaderPassword || 'HUNT2026',
-      scannerPassword: req.body?.scannerPassword || 'HUNT2026',
+      leaderPassword: req.body?.leaderPassword || undefined,
+      scannerPassword: req.body?.scannerPassword || undefined,
     });
     await writeAudit({
       eventId: req.params.eventId,
@@ -3969,8 +4002,33 @@ async function exportOfflinePacks(req, res, next) {
 /** Import offline hunt results JSON from a team leader phone. */
 async function importOfflineResults(req, res, next) {
   try {
-    const { importOfflineResults: ingest } = require('../services/offlineExportService');
-    const imported = await ingest(req.params.eventId, req.body);
+    const {
+      importOfflineResults: ingest,
+      previewOfflineImport,
+    } = require('../services/offlineExportService');
+    if (req.query?.preview === '1' || req.body?.preview === true) {
+      const preview = previewOfflineImport(req.params.eventId, req.body);
+      const CampusHuntTeam = require('../models/CampusHuntTeam');
+      const team = await CampusHuntTeam.findOne({
+        eventId: req.params.eventId,
+        teamCode: preview.team,
+      }).select('teamCode teamName currentScore finalScore currentStage scoreLockedAt').lean();
+      return res.json({
+        success: true,
+        data: {
+          preview: {
+            ...preview,
+            alreadyLocked: team?.currentStage === 'SCORE_LOCKED' || Boolean(team?.scoreLockedAt),
+            currentScore: team?.currentScore,
+            finalScore: team?.finalScore,
+            teamName: team?.teamName,
+          },
+        },
+      });
+    }
+    const imported = await ingest(req.params.eventId, req.body, {
+      force: Boolean(req.body?.force || req.query?.force),
+    });
     await writeAudit({
       eventId: req.params.eventId,
       ...adminActor(req),
@@ -3982,8 +4040,23 @@ async function importOfflineResults(req, res, next) {
     return res.json({ success: true, data: imported });
   } catch (err) {
     if (err.status) {
-      return res.status(err.status).json({ success: false, message: err.message });
+      return res.status(err.status).json({
+        success: false,
+        message: err.message,
+        code: err.code,
+        data: err.preview ? { preview: err.preview } : undefined,
+      });
     }
+    return next(err);
+  }
+}
+
+async function listOfflineInstalls(req, res, next) {
+  try {
+    const { listOfflineInstallStatus } = require('../services/offlineExportService');
+    const installs = await listOfflineInstallStatus(req.params.eventId);
+    return res.json({ success: true, data: { installs } });
+  } catch (err) {
     return next(err);
   }
 }
@@ -4063,4 +4136,5 @@ module.exports = {
   repairTeamRosters,
   exportOfflinePacks,
   importOfflineResults,
+  listOfflineInstalls,
 };

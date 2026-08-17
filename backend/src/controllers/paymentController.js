@@ -28,6 +28,7 @@ const {
 const { extractPaymentFields } = require('../utils/paymentVerification');
 const { sendVerifyResponse } = require('../utils/paymentVerifyResponse');
 const { signPaymentProof } = require('../utils/paymentProof');
+const { authorizePaymentVerify } = require('../utils/paymentVerifyAuth');
 const { validateAndPriceCoupon } = require('../utils/couponPricing');
 const { findByIdOrSlug } = require('../utils/slug');
 const {
@@ -40,6 +41,7 @@ const {
   findReusablePendingOrder,
   buildOrderResponse,
 } = require('../utils/paymentOrderIdempotency');
+const { captureFlowEvent } = require('../config/sentry');
 
 const CASHFREE_CONFIG_MSG =
   'Payment gateway credentials are invalid or missing. Set CASHFREE_CLIENT_ID and CASHFREE_CLIENT_SECRET in backend/.env';
@@ -634,9 +636,16 @@ exports.verifyPayment = async (req, res) => {
       };
     }
 
+    if (!result.verified) {
+      captureFlowEvent('payment_verify', result.status || 'not_verified', {
+        entityType: paymentOrder?.entityType || 'fest',
+        code: result.code,
+      });
+    }
     return sendVerifyResponse(res, result, extras);
   } catch (err) {
     console.error('Cashfree verifyPayment error:', err.response?.data || err.message);
+    captureFlowEvent('payment_verify', 'error', { message: err.message });
     res.status(500).json({
       verified: false,
       status: 'failed',
@@ -1132,12 +1141,49 @@ exports.verifySportsPayment = async (req, res) => {
       });
     }
 
+    let paymentOrder = await PaymentOrder.findOne({ orderId }).lean();
+
+    // Enforce ownership before calling Cashfree so leaked order IDs can't be
+    // used to spam the gateway or mint payment proofs for other users.
+    const authz = authorizePaymentVerify({ paymentOrder, req });
+    if (!authz.ok) {
+      return res.status(authz.status).json({
+        verified: false,
+        status: 'failed',
+        code: authz.code,
+        message: authz.message,
+        retryable: false,
+      });
+    }
+
+    // Idempotency: if the order is already PAID, return the cached success
+    // instead of re-hitting Cashfree.
+    if (paymentOrder?.status === 'PAID' && paymentOrder.entityType === 'sports') {
+      const paymentProof = signPaymentProof({
+        orderId: paymentOrder.orderId,
+        paymentId: paymentOrder.paymentId || paymentId || null,
+        eventId: paymentOrder.entityId,
+        totalAmount: paymentOrder.totalAmount,
+        people: paymentOrder.people,
+      });
+      return sendVerifyResponse(
+        res,
+        {
+          verified: true,
+          orderId: paymentOrder.orderId,
+          paymentId: paymentOrder.paymentId || null,
+          status: 'paid',
+          code: 'PAYMENT_PAID',
+        },
+        { totalAmount: paymentOrder.totalAmount, paymentProof },
+      );
+    }
+
     const result = await verifyCashfreePayment({ orderId, paymentId });
     let paymentProof = null;
-    let paymentOrder = null;
 
     if (result.verified) {
-      paymentOrder = await PaymentOrder.findOne({ orderId }).lean();
+      if (!paymentOrder) paymentOrder = await PaymentOrder.findOne({ orderId }).lean();
       if (paymentOrder && paymentOrder.entityType === 'sports') {
         await PaymentOrder.updateOne(
           { orderId },
@@ -1182,12 +1228,45 @@ exports.verifyTrekPayment = async (req, res) => {
       });
     }
 
+    let paymentOrder = await PaymentOrder.findOne({ orderId }).lean();
+
+    const authz = authorizePaymentVerify({ paymentOrder, req });
+    if (!authz.ok) {
+      return res.status(authz.status).json({
+        verified: false,
+        status: 'failed',
+        code: authz.code,
+        message: authz.message,
+        retryable: false,
+      });
+    }
+
+    if (paymentOrder?.status === 'PAID' && paymentOrder.entityType === 'trek') {
+      const paymentProof = signPaymentProof({
+        orderId: paymentOrder.orderId,
+        paymentId: paymentOrder.paymentId || paymentId || null,
+        trekId: paymentOrder.entityId,
+        totalAmount: paymentOrder.totalAmount,
+        people: paymentOrder.people,
+      });
+      return sendVerifyResponse(
+        res,
+        {
+          verified: true,
+          orderId: paymentOrder.orderId,
+          paymentId: paymentOrder.paymentId || null,
+          status: 'paid',
+          code: 'PAYMENT_PAID',
+        },
+        { totalAmount: paymentOrder.totalAmount, paymentProof },
+      );
+    }
+
     const result = await verifyCashfreePayment({ orderId, paymentId });
     let paymentProof = null;
-    let paymentOrder = null;
 
     if (result.verified) {
-      paymentOrder = await PaymentOrder.findOne({ orderId }).lean();
+      if (!paymentOrder) paymentOrder = await PaymentOrder.findOne({ orderId }).lean();
       if (paymentOrder && paymentOrder.entityType === 'trek') {
         await PaymentOrder.updateOne(
           { orderId },

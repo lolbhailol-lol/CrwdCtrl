@@ -17,6 +17,7 @@ export default function OfflineHandoffDock({
   onScanTeamSync,
   onMarkReached,
   onDownloadResults,
+  onePhoneMode = true,
 }) {
   const [sheet, setSheet] = useState(null);
   const [scanMode, setScanMode] = useState(null);
@@ -61,7 +62,7 @@ export default function OfflineHandoffDock({
                   Start Round 1 above when the team is at the desk.
                 </p>
               )}
-              {atCheckpoint ? (
+              {atCheckpoint && !onePhoneMode ? (
                 <button
                   type="button"
                   onClick={() => { setScanMode('proof'); setNote(''); }}
@@ -91,6 +92,10 @@ export default function OfflineHandoffDock({
                 </>
               ) : null}
             </>
+          ) : onePhoneMode ? (
+            <p className="w-full text-center text-xs text-white/55">
+              One phone play — use the leader device for answers and scans.
+            </p>
           ) : (
             <>
               <button

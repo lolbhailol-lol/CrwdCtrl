@@ -224,7 +224,7 @@ export default function Clue2VariantManager({
         const waitIndex = waitIndexForStart(code);
         for (const slot of teamSlots) {
           const waveId = slot.id;
-          const place = secondStopForLocalTeam(slot.localTeamNumber, waitIndex, stations);
+          const place = secondStopForLocalTeam(slot.localTeamNumber, waitIndex, stations, teamsPerWait);
           const stationCode = stations.find((s) => s.name === place)?.code;
           const codeKey = `${code}-${waveId}`;
           const answer = String(

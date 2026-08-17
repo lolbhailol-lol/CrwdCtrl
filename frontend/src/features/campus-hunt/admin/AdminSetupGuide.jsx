@@ -1,51 +1,41 @@
 const STEPS = [
-  ['1 · Clues', 'Save setup (teams / starts / places), Update Clue 1→4, print shared Orange/Green/Blue/Purple QRs'],
-  ['2 · Locations', 'Confirm starting points match your saved start count'],
-  ['3 · Teams', 'Match overall team count · one login link per team · leader + players'],
-  ['4 · Schedule', 'Preview → Generate → Lock (needs Clue 1–4 bindings on every field team)'],
-  ['5 · Live', 'Start round · release desk · mark finish when teams return'],
-  ['6 · Results', 'Stop & lock scores → finalize leaderboard'],
+  ['1 · Locations', 'Set starts + campus places (rename for any college / mall / run club)'],
+  ['2 · Clues', 'Update Clue 1–5 · plant fragments · print 1 shared Place QR per campus stop'],
+  ['3 · Teams', 'Match team count · passwords · roster names'],
+  ['4 · Send links', 'Create team install links → WhatsApp one link per team (leader phone)'],
+  ['5 · Playtest', 'Open Playtest tab — one dry-run section (phone path · start · cheat desk · plant sheet)'],
+  ['6 · Live', 'Fest day: board · mark finish when teams return'],
+  ['7 · Results', 'Lock scores → finalize leaderboard'],
 ];
 
 const TERMS = [
   ['Starting point', 'Gather here before release. Not a hunt scan stop.'],
-  ['Campus place', 'Hunt scan spot. Print 1 shared QR per place × scan color.'],
-  ['Shared QR + team code', 'All members scan the place QR → enter team code → unlock allotted clue.'],
-  ['Orange → Green → Blue → Purple', 'Orange scan → Clue 2 → green → Clue 3 → blue → Prop hunt → purple → Final → report to start.'],
-  ['Scoring', '≈50 per clue · hints −15 · late still advances at 0 · ties broken by time/hints/fails.'],
-  ['Finish', 'Players report to their start with team number. Organizer marks reached on Live (not a player QR).'],
-  ['Team login', 'Share /team/CC001 + that team’s unique password. Names unlock after password. No hopping teams.'],
+  ['Campus place', 'Hunt stop. Print 1 shared Place QR here — not per team, not 4 colors.'],
+  ['Join word → scan', 'At each stop: find N written clues, join into one word, type it, then scan the place QR once.'],
+  ['One phone', 'Leader holds Hunt. Teammates walk and hunt fragments together — no multi-phone scan.'],
+  ['Send links', 'One WhatsApp install link per team. Open once on Wi‑Fi, then offline.'],
+  ['Playtest tab', 'Whole dry-run in one place. Live is for fest day only.'],
+  ['Finish', 'Report to start desk. Organizer marks reached on Live.'],
 ];
 
 const TEST_FLOW = [
-  ['Prep', 'Clues saved · Locations A–D · Teams ready · Schedule Preview → Generate → Lock · Start with 90+ min'],
-  ['Playtest desk', 'Live tab → pick team → Release → Orange/Green/Blue 4/4 + team code → Mark finish'],
-  ['Team login', 'Open /team/CC001 → that team’s password → tap Leader / Player'],
-  ['Clue 1', 'Leader only sees Clue 1 · Players wait · then all 4 scan Orange'],
-  ['Orange scan', 'Paste shared Orange CH- on all 4 phones → enter team code → Clue 2'],
-  ['Clue 2 → Green', 'Leader solves Clue 2 → paste green code ×4 → team code → Clue 3'],
-  ['Blue → Final', 'Clue 3 Caesar → Blue scan ×4 → team code → Final word → Mark finish'],
+  ['Open Playtest', 'Round 1 → Playtest tab — follow A→E on that page'],
+  ['Install', 'Leader opens link in Chrome → Pack saved → Add Hunt icon'],
+  ['Play', 'Answer → go → find N clues → join word → type → scan once'],
+  ['Offline test', 'Data off → Hunt icon → still opens Round 1'],
 ];
 
 const RESET_STEPS = [
-  ['Soft reset', 'Results → Reset Round 1 to zero (or Stop & lock → Start/Reopen). Clears progress + scans.'],
-  ['Then relaunch', 'Schedule: Preview → Generate → Lock → Start again with a fresh duration'],
-  ['Live wipe only', 'Schedule → Generate → confirm force-reset in-progress teams → Lock → Start'],
+  ['Soft reset', 'Results → Reset Round 1 to zero (or Stop & lock → Start/Reopen).'],
+  ['Then relaunch', 'Live / Start again with a fresh duration'],
   ['Hard rebuild', 'backend: CAMPUS_HUNT_SEED_RESET=true node scripts/seed-campus-hunt-pilot.js --reset'],
-  ['Backups', 'No in-app backup. Use Mongo snapshot before hard reset. Do not Finalize if you still need reopen.'],
-];
-
-const SCAN_TIPS = [
-  ['Paste codes', 'Live → Emergency · station codes → Copy CH-… → player “Submit station code” → enter team code'],
-  ['Camera', 'Player: scan the shared station QR on the printed poster, then enter team code'],
-  ['Dev cheat', 'Local only: VITE_CAMPUS_HUNT_DEV_CHEATS=1 + CAMPUS_HUNT_DEV_CHEATS=1 → “Dev: scan all 4 & continue”'],
 ];
 
 export default function AdminSetupGuide({ compact = false }) {
   return (
     <details className="rounded-xl border border-white/10 bg-white/4 p-4" open={!compact}>
       <summary className="cursor-pointer list-none font-semibold">
-        How to run, test & reset Round 1
+        How to run Round 1 (offline · send links)
         <span className="ml-2 text-xs font-normal text-white/45">tap to expand</span>
       </summary>
 
@@ -75,13 +65,13 @@ export default function AdminSetupGuide({ compact = false }) {
       </div>
 
       <div className="mt-4">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-200">
-          Scans without printing
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/45">
+          Terms
         </p>
-        <div className="grid gap-2 md:grid-cols-3">
-          {SCAN_TIPS.map(([name, description]) => (
-            <div key={name} className="rounded-lg border border-amber-400/20 bg-amber-500/10 px-3 py-2">
-              <p className="text-sm font-semibold text-amber-100">{name}</p>
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          {TERMS.map(([name, description]) => (
+            <div key={name} className="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+              <p className="text-sm font-semibold text-white">{name}</p>
               <p className="mt-0.5 text-xs leading-relaxed text-white/55">{description}</p>
             </div>
           ))}
@@ -100,15 +90,6 @@ export default function AdminSetupGuide({ compact = false }) {
             </li>
           ))}
         </ol>
-      </div>
-
-      <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-        {TERMS.map(([name, description]) => (
-          <div key={name} className="rounded-lg bg-black/25 px-3 py-2">
-            <p className="text-sm font-semibold text-white/90">{name}</p>
-            <p className="mt-0.5 text-xs leading-relaxed text-white/55">{description}</p>
-          </div>
-        ))}
       </div>
     </details>
   );

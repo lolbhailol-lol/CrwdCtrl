@@ -290,7 +290,8 @@ export default function PlaytestDesk({
           </p>
           <h2 className="mt-1 text-lg font-bold text-white">One team · tap in order</h2>
           <p className="mt-1 text-sm text-white/55">
-            Release → Orange → Green → Clue 3 on phone → Blue → Final on phone → Finish
+            Release → Orange → Green → Blue → Final on phone → Finish
+            (real play still needs join-word on the leader phone)
           </p>
         </div>
         {roundStatus && (

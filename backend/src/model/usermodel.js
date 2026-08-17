@@ -27,6 +27,8 @@ const userSchema = new mongoose.Schema(
     },
     password: {
       type: String,
+      // Never serialize by default; explicit `.select('+password')` required (e.g. login).
+      select: false,
       required: function () {
         // Password is not required for social auth users
         return !this.socialAuth || !this.socialAuth.provider;
@@ -45,8 +47,8 @@ const userSchema = new mongoose.Schema(
       enum: ['Male', 'Female', 'Others'], 
       default: 'Male' 
     },
-    otp: { type: String },
-    otpExpires: { type: Date },
+    otp: { type: String, select: false },
+    otpExpires: { type: Date, select: false },
     isVerified: { type: Boolean, default: false },
 
     // How the account was originally created (set once at sign-up)

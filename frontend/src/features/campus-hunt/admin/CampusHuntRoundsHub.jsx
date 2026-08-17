@@ -1,110 +1,103 @@
-import { useEffect, useState } from 'react';
-import { buildStagesFromFormat, deriveCompetitionFormat } from './competitionFormat';
-
-function buildRoundMeta(format) {
-  return {
-    round1: {
-      opensWhen: 'Available now — setup, teams, schedule, live ops, results.',
-      lockedHint: '',
-    },
-    survival: {
-      opensWhen: 'Opens after Round 1 is locked / finalized.',
-      lockedHint:
-        `Survival Stage is not opened yet. Finish Round 1 first `
-        + `(top ${format.survivalTeams} advance; top ${format.directFromR1} go direct to Finale).`,
-    },
-    finale: {
-      opensWhen:
-        `Opens after Round 1 is finalized. Promote ${format.finaleTeams} finalists, `
-        + 'configure missions, start 45-min timer.',
-      lockedHint: 'Finale opens after Round 1 is finalized. Bootstrap the Finale round from Setup.',
-    },
-  };
-}
-
-function roundOpenState(stageId, round1Status, finaleStatus) {
-  const status = String(round1Status || 'not_created').toLowerCase();
-  const finale = String(finaleStatus || 'not_created').toLowerCase();
-  if (stageId === 'round1') {
-    if (status === 'finalized' || status === 'locked') return 'complete';
-    if (status === 'live') return 'live';
-    if (status === 'scheduled') return 'ready';
-    return 'ready';
-  }
-  if (stageId === 'survival') {
-    return 'not_opened';
-  }
-  if (stageId === 'finale') {
-    const r1Done = status === 'finalized' || status === 'locked';
-    if (!r1Done && (!finale || finale === 'not_created')) return 'not_opened';
-    if (finale === 'finalized' || finale === 'locked') return 'complete';
-    if (finale === 'live') return 'live';
-    return 'ready';
-  }
-  return 'not_opened';
-}
-
-const BADGE = {
-  live: { label: 'LIVE', className: 'bg-[#0ECCEE]/20 text-[#0ECCEE]' },
-  complete: { label: 'COMPLETED', className: 'bg-emerald-500/20 text-emerald-200' },
-  ready: { label: 'OPEN', className: 'bg-white/10 text-white/80' },
-  not_opened: { label: 'NOT OPENED YET', className: 'bg-amber-500/15 text-amber-100' },
-};
+import { useEffect, useMemo, useState } from 'react';
+import { deriveCompetitionFormat } from './competitionFormat';
+import { deriveClueGeometry, suggestHuntLayout } from './campusHuntFormat';
 
 /**
- * Event hub: overall competition format, then clickable rounds.
- * Includes player-facing open/lock toggles for the post-login hub.
+ * Event hub — Round 1 only. Survival / Finale hidden for offline hunt reset.
+ * Competition size drives recommended starts + campus places.
  */
 export default function CampusHuntRoundsHub({
   round1Status,
-  finaleStatus,
   teamCapacity = 40,
   teamSize = 4,
-  directFromR1,
-  finaleTeams,
-  counts = {},
+  startCount: savedStartCount,
+  stationCount: savedStationCount,
+  roundPlan: roundPlanProp,
   onOpenRound,
-  playerRoundAccess,
-  onTogglePlayerRound,
   onSaveFormat,
   busy = false,
 }) {
-  const savedFormat = deriveCompetitionFormat({
-    teamCapacity,
-    teamSize,
-    directFromR1,
-    finaleTeams,
-  });
+  const savedFormat = deriveCompetitionFormat({ teamCapacity, teamSize, roundPlan: roundPlanProp });
+  const plan = savedFormat.roundPlan;
   const [draftCapacity, setDraftCapacity] = useState(String(savedFormat.teamCapacity));
   const [draftTeamSize, setDraftTeamSize] = useState(String(savedFormat.teamSize));
 
   useEffect(() => {
     setDraftCapacity(String(savedFormat.teamCapacity));
     setDraftTeamSize(String(savedFormat.teamSize));
-  }, [teamCapacity, teamSize]);
+  }, [teamCapacity, teamSize, savedFormat.teamCapacity, savedFormat.teamSize]);
 
   const previewFormat = deriveCompetitionFormat({
     teamCapacity: draftCapacity,
     teamSize: draftTeamSize,
-    directFromR1,
-    finaleTeams,
   });
-  const stages = buildStagesFromFormat(previewFormat);
-  const ROUND_META = buildRoundMeta(previewFormat);
-  const access = {
-    round1: playerRoundAccess?.round1 !== false,
-    survival: playerRoundAccess?.survival === true,
-    finale: playerRoundAccess?.finale === true,
-  };
+
+  const suggested = useMemo(
+    () => suggestHuntLayout(previewFormat.teamCapacity),
+    [previewFormat.teamCapacity],
+  );
+
+  const previewLayout = useMemo(
+    () => deriveClueGeometry(
+      previewFormat.teamCapacity,
+      previewFormat.teamSize,
+      {
+        startCount: suggested.startCount,
+        stationCount: suggested.stationCount,
+      },
+    ),
+    [previewFormat.teamCapacity, previewFormat.teamSize, suggested.startCount, suggested.stationCount],
+  );
+
+  const currentLayout = useMemo(
+    () => deriveClueGeometry(teamCapacity, teamSize, {
+      startCount: savedStartCount,
+      stationCount: savedStationCount,
+    }),
+    [teamCapacity, teamSize, savedStartCount, savedStationCount],
+  );
+
   const formatDirty = Number(draftCapacity) !== savedFormat.teamCapacity
-    || Number(draftTeamSize) !== savedFormat.teamSize;
+    || Number(draftTeamSize) !== savedFormat.teamSize
+    || Number(savedStartCount || 0) !== previewLayout.startCount
+    || Number(savedStationCount || 0) !== previewLayout.stationCount;
+
+  const status = String(round1Status || 'not_created').toLowerCase();
+  const badge = status === 'live'
+    ? { label: 'LIVE', className: 'bg-[#0ECCEE]/20 text-[#0ECCEE]' }
+    : (status === 'finalized' || status === 'locked')
+      ? { label: 'COMPLETED', className: 'bg-emerald-500/20 text-emerald-200' }
+      : { label: 'OPEN', className: 'bg-white/10 text-white/80' };
+
+  const save = (createDemoTeams = true) => {
+    onSaveFormat?.({
+      teamCapacity: previewFormat.teamCapacity,
+      teamSize: previewFormat.teamSize,
+      startCount: previewLayout.startCount,
+      stationCount: previewLayout.stationCount,
+      createDemoTeams,
+    });
+  };
 
   return (
     <div className="space-y-5">
       <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
-        <h2 className="text-lg font-bold uppercase tracking-wide">Overall format</h2>
+        <h2 className="text-lg font-bold uppercase tracking-wide">
+          Round 1 · {plan?.round1Name || 'Offline Hunt'}
+        </h2>
         <p className="mt-1 max-w-2xl text-sm text-white/55">
-          Set overall teams and people per team. Round 1, Survival, and Finale counts update from that.
+          Set teams and people per team first. Starts, campus places, plant fragments, and posters
+          update from that size — then open Round 1 to name places and finish setup.
+          {plan?.hasFinale ? (
+            <>
+              {' '}
+              Finals “{plan.finaleName}”: {plan.qualifyFromRound1} from R1
+              {plan.hasRound2 ? ` + ${plan.qualifyFromRound2} from R2` : ''}
+              {plan.hasRound3 ? ` + ${plan.qualifyFromRound3} from R3` : ''}
+              {' '}
+              = {plan.finaleCapacity}.
+            </>
+          ) : null}
         </p>
 
         {typeof onSaveFormat === 'function' && (
@@ -114,7 +107,7 @@ export default function CampusHuntRoundsHub({
             </h3>
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
               <label className="block text-xs text-white/50">
-                Overall teams
+                Teams
                 <input
                   type="number"
                   min={2}
@@ -135,157 +128,128 @@ export default function CampusHuntRoundsHub({
                   className="mt-1 w-full rounded-lg border border-white/20 bg-[#161718] px-3 py-2 text-sm text-white"
                 />
               </label>
-              <div className="flex flex-col justify-end">
+              <div className="flex flex-col justify-end gap-2">
                 <button
                   type="button"
                   disabled={busy || !formatDirty}
-                  onClick={() => onSaveFormat({
-                    teamCapacity: previewFormat.teamCapacity,
-                    teamSize: previewFormat.teamSize,
-                  })}
+                  onClick={() => save(true)}
                   className="rounded-lg bg-[#0ECCEE] px-3 py-2 text-sm font-semibold text-black disabled:opacity-40"
                 >
-                  {busy ? 'Saving…' : 'Save size'}
+                  {busy ? 'Updating all…' : 'Save + update all sections'}
                 </button>
-                <p className="mt-1 text-[11px] text-white/45">
-                  {previewFormat.totalPlayers} total players
+                <button
+                  type="button"
+                  disabled={busy || !formatDirty}
+                  onClick={() => save(false)}
+                  className="rounded-lg border border-white/20 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/80 disabled:opacity-40"
+                >
+                  Save layout only (no demo teams)
+                </button>
+                <p className="text-[11px] text-white/45">
+                  {previewFormat.totalPlayers} players · updates Locations, starts, places, Teams, Send links, Playtest, Live, Results. Demo teams OK to rename later.
                 </p>
               </div>
             </div>
+
+            <div className="mt-4 rounded-xl border border-white/10 bg-black/25 p-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-white/50">
+                Suggested layout for {previewFormat.teamCapacity} teams × {previewFormat.teamSize}
+              </p>
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+                {[
+                  ['Starting points', previewLayout.startCount],
+                  ['Campus places', previewLayout.stationCount],
+                  ['Teams / start', `~${previewLayout.teamsPerWait}`],
+                  ['Teams / place', `~${previewLayout.teamsPerStation}`],
+                  ['Fragments / stop', previewLayout.teamSize],
+                  ['QR posters', previewLayout.stationCount],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-lg bg-white/5 px-2.5 py-2">
+                    <p className="text-[10px] text-white/45">{label}</p>
+                    <p className="text-lg font-bold text-white">{value}</p>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 text-[11px] leading-relaxed text-white/55">
+                Save applies
+                {' '}
+                <strong className="text-white">
+                  {previewLayout.startCount} start
+                  {previewLayout.startCount === 1 ? '' : 's'}
+                </strong>
+                {' '}
+                and
+                {' '}
+                <strong className="text-white">
+                  {previewLayout.stationCount} hunt place
+                  {previewLayout.stationCount === 1 ? '' : 's'}
+                </strong>
+                .
+                Plant
+                {' '}
+                <strong className="text-white">{previewLayout.teamSize} shared written fragments</strong>
+                {' '}
+                and
+                {' '}
+                <strong className="text-white">1 QR poster</strong>
+                {' '}
+                at each place (not per team). You can still rename or tweak counts inside Round 1 → Locations / Clues.
+              </p>
+              {(savedStartCount != null || savedStationCount != null) && (
+                <p className="mt-2 text-[11px] text-white/40">
+                  Currently saved:
+                  {' '}
+                  {currentLayout.startCount} start
+                  {currentLayout.startCount === 1 ? '' : 's'}
+                  {' · '}
+                  {currentLayout.stationCount} place
+                  {currentLayout.stationCount === 1 ? '' : 's'}
+                  {formatDirty ? ' · will update on Save' : ' · matches suggestion'}
+                </p>
+              )}
+            </div>
           </div>
         )}
-
-        <div className="mt-4 flex flex-wrap items-center gap-2 text-sm font-semibold uppercase tracking-wide text-white/70">
-          <span className="rounded-lg bg-black/30 px-3 py-1.5">
-            <strong className="text-[#0ECCEE]">{previewFormat.round1Teams}</strong> → Round 1
-          </span>
-          <span className="text-white/30">→</span>
-          <span className="rounded-lg bg-black/30 px-3 py-1.5">
-            <strong className="text-[#0ECCEE]">{previewFormat.survivalTeams}</strong> Survival
-          </span>
-          <span className="text-white/30">→</span>
-          <span className="rounded-lg bg-black/30 px-3 py-1.5">
-            <strong className="text-[#0ECCEE]">{previewFormat.finaleTeams}</strong> Finale
-            <span className="ml-1 text-[11px] tracking-wide text-white/40">
-              (+{previewFormat.directFromR1} direct)
-            </span>
-          </span>
-          <span className="rounded-lg bg-black/30 px-3 py-1.5 text-[11px] normal-case tracking-wide text-white/50">
-            {previewFormat.teamSize} / team
-          </span>
-        </div>
-        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-          {[
-            ['Teams', counts.teams],
-            ['Active', counts.activeTeams],
-            ['Finished', counts.finishedTeams],
-            ['Open issues', counts.openIssues],
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-xl bg-black/25 px-3 py-3">
-              <p className="text-xs text-white/50">{label}</p>
-              <p className="text-2xl font-bold">{value ?? 0}</p>
-            </div>
-          ))}
-        </div>
       </section>
 
-      {typeof onTogglePlayerRound === 'function' && (
-        <section className="rounded-2xl border border-[#0ECCEE]/25 bg-[#0ECCEE]/5 p-4">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-[#0ECCEE]">
-            Player round locks
-          </h2>
-          <p className="mt-1 text-xs text-white/55">
-            After login, teams see all three rounds. Locked = visible but cannot open.
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {[
-              ['round1', 'Round 1'],
-              ['survival', 'Survival'],
-              ['finale', 'Finals'],
-            ].map(([id, label]) => {
-              const open = access[id];
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  disabled={busy}
-                  onClick={() => onTogglePlayerRound(id, !open)}
-                  className={`rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-40 ${
-                    open
-                      ? 'bg-emerald-400 text-black'
-                      : 'bg-white/10 text-white/70'
-                  }`}
-                >
-                  {label} · {open ? 'OPEN' : 'LOCKED'}
-                </button>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
       <section>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-white/45">
-          All rounds
-        </h2>
-        <div className="grid gap-3 md:grid-cols-3">
-          {stages.map((stage, index) => {
-            const openState = roundOpenState(stage.id, round1Status, finaleStatus);
-            const badge = BADGE[openState];
-            const meta = ROUND_META[stage.id];
-            const canEnter = stage.id === 'round1' || openState !== 'not_opened';
-
-            return (
-              <button
-                key={stage.id}
-                type="button"
-                onClick={() => onOpenRound?.(stage.id)}
-                className={`rounded-2xl border p-4 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0ECCEE] ${
-                  openState === 'not_opened'
-                    ? 'border-white/10 bg-black/25 hover:border-white/20'
-                    : openState === 'live'
-                      ? 'border-[#0ECCEE]/40 bg-[#0ECCEE]/10 hover:border-[#0ECCEE]/60'
-                      : openState === 'complete'
-                        ? 'border-emerald-400/30 bg-emerald-500/10 hover:border-emerald-400/50'
-                        : 'border-white/15 bg-white/5 hover:border-[#0ECCEE]/40'
-                }`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-white/40">
-                      Round {index + 1} · {stage.subtitle}
-                    </p>
-                    <h3 className="mt-1 text-xl font-bold uppercase tracking-wide text-white">{stage.label}</h3>
-                  </div>
-                  <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${badge.className}`}>
-                    {badge.label}
-                  </span>
-                </div>
-                <p className="mt-2 text-2xl font-bold tabular-nums text-[#0ECCEE]">
-                  {stage.teams}
-                  <span className="ml-1 text-xs font-medium text-white/45">teams</span>
-                </p>
-                <p className="mt-2 text-xs leading-relaxed text-white/50">{stage.detail}</p>
-                {stage.id === 'finale' && (
-                  <p className="mt-2 text-[11px] text-white/40">
-                    Path A: {previewFormat.directFromR1} direct from Round 1 · Path B: Survival top{' '}
-                    {previewFormat.manualPick}
-                  </p>
-                )}
-                <p className="mt-2 text-[11px] font-medium text-white/55">
-                  Players: {access[stage.id] ? 'can open' : 'locked on hub'}
-                </p>
-                <p className="mt-3 text-xs font-medium text-white/70">
-                  {canEnter && stage.id === 'round1'
-                    ? 'Open Round 1 →'
-                    : openState === 'not_opened'
-                      ? meta.lockedHint
-                      : meta.opensWhen}
-                </p>
-              </button>
-            );
-          })}
-        </div>
+        <button
+          type="button"
+          onClick={() => onOpenRound?.('round1')}
+          className="w-full rounded-2xl border border-[#0ECCEE]/40 bg-[#0ECCEE]/10 p-5 text-left transition hover:border-[#0ECCEE]/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0ECCEE]"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-white/40">
+                Round 1 · {plan?.round1Name || 'The Hunt'}
+              </p>
+              <h3 className="mt-1 text-2xl font-bold uppercase tracking-wide text-white">
+                Open Round 1
+              </h3>
+            </div>
+            <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${badge.className}`}>
+              {badge.label}
+            </span>
+          </div>
+          <p className="mt-2 text-sm text-white/60">
+            {previewFormat.round1Teams} teams · {previewFormat.teamSize}/team ·
+            {' '}
+            {previewLayout.startCount} start
+            {previewLayout.startCount === 1 ? '' : 's'}
+            {' · '}
+            {previewLayout.stationCount} place
+            {previewLayout.stationCount === 1 ? '' : 's'}
+            {' · '}
+            Locations → Clues → Teams →
+            {' '}
+            <strong className="text-white">Send links</strong>
+            {' '}
+            → Playtest / Live
+          </p>
+          <p className="mt-3 text-sm font-medium text-[#0ECCEE]">
+            Open setup →
+          </p>
+        </button>
       </section>
     </div>
   );
@@ -305,7 +269,7 @@ export function CampusHuntRoundLocked({
         onClick={onBack}
         className="mb-4 text-xs text-white/50 hover:text-white"
       >
-        ← All rounds
+        ← Back
       </button>
       <p className="text-xs font-semibold uppercase tracking-wide text-amber-100/80">
         {roundId}
@@ -320,5 +284,19 @@ export function CampusHuntRoundLocked({
   );
 }
 
-export const ROUND_META = buildRoundMeta(deriveCompetitionFormat({ teamCapacity: 40, teamSize: 4 }));
-export { roundOpenState };
+export const ROUND_META = {
+  round1: {
+    opensWhen: 'Available now',
+    lockedHint: '',
+  },
+};
+
+export function roundOpenState(stageId, round1Status) {
+  const status = String(round1Status || 'not_created').toLowerCase();
+  if (stageId === 'round1') {
+    if (status === 'finalized' || status === 'locked') return 'complete';
+    if (status === 'live') return 'live';
+    return 'ready';
+  }
+  return 'not_opened';
+}

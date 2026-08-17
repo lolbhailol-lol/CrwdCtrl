@@ -8,37 +8,33 @@ function installUrl(token) {
 
 export function teamWhatsAppText(row) {
   const url = installUrl(row.token);
+  const size = Number(row.teamSize) || 4;
   return [
     `Hunt — ${row.teamCode}`,
     '',
-    'This is a NEW Hunt icon. It is not the CrwdCtrl website.',
-    'Add Hunt so the game still opens after you turn data off.',
+    'One link for your team. Leader opens it (not the CrwdCtrl website).',
+    'Add the Hunt icon so the game still opens with data off.',
     '',
-    'TODAY on Wi-Fi — all 4 phones:',
+    'TODAY on Wi‑Fi — leader phone:',
     url,
-    `Password: ${row.password || '(ask your leader)'}`,
+    `Password: ${row.password || '(ask organizer)'}`,
     '',
     '1. Open the link',
     '2. Tap ⋮ → Open in Chrome (leave WhatsApp)',
-    '3. Wait until it says Pack saved AND airplane-mode pages are on this phone',
-    '4. Chrome menu → Install app / Add to Home screen',
-    '5. The name must be Hunt. If it says CrwdCtrl, cancel and stay on this page',
+    '3. Wait until Pack saved',
+    '4. Chrome → Install app / Add to Home screen → name must be Hunt',
     '',
-    'HOW TO PLAY',
-    '• Login → team page → Rounds → Round 1',
-    '• Leader starts at the desk, then shows Team QR. Others scan it',
-    '• Leader types answers. All 4 scan the color poster',
-    '• Members show proof QR. Leader collects, types team code, shows Team QR again',
+    'HOW TO PLAY (all teammates walk together · one phone)',
+    '• Login → Rounds → Round 1',
+    '• Leader types clue answers',
+    `• At each stop: find ${size} clues written nearby, join them into one word, type it, then scan the place QR once`,
+    '• Enter your team code → next location',
     '',
-    'TEST OFFLINE NOW (data off)',
-    'Turn off Wi-Fi + mobile data → tap the Hunt icon',
-    'Password → your name → team page → Rounds → Round 1',
-    'Leader: Start Round 1 → Show Team QR',
-    'Others: Scan leader QR',
-    'Camera still works with data off — try a poster scan, then a proof QR',
-    'If Hunt does not open, you added CrwdCtrl by mistake. Delete that shortcut and add Hunt again on Wi-Fi.',
+    'TEST OFFLINE (data off)',
+    'Turn off Wi‑Fi + mobile data → Hunt icon → password → Round 1',
+    'If Hunt does not open, you added CrwdCtrl by mistake — delete that shortcut and add Hunt again on Wi‑Fi.',
     '',
-    'At the fest: airplane mode → Hunt icon only. No laptop.',
+    'At the fest: Hunt icon on the leader phone. No laptop.',
   ].join('\n');
 }
 
@@ -73,7 +69,7 @@ export default function OfflineInstallCards({ installs = [] }) {
   return (
     <div className="mt-3 space-y-2 print:hidden">
       <p className="text-[11px] font-semibold text-white">
-        WhatsApp one link per team — that is the “one APK” for the website
+        WhatsApp — one link per team (leader phone)
       </p>
       {installs.map((row) => (
         <div
@@ -81,6 +77,11 @@ export default function OfflineInstallCards({ installs = [] }) {
           className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-black/30 px-3 py-2"
         >
           <span className="font-mono text-xs font-bold text-[#0ECCEE]">{row.teamCode}</span>
+          {row.installed ? (
+            <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[9px] font-bold uppercase text-emerald-200">
+              Installed
+            </span>
+          ) : null}
           <span className="min-w-0 flex-1 truncate text-[10px] text-white/45">
             {installUrl(row.token)}
           </span>

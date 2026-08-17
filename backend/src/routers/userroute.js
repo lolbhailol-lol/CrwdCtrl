@@ -20,7 +20,7 @@ const router = express.Router();
 // reCAPTCHA v3 is enforced only when RECAPTCHA_SECRET_KEY is set (otherwise a no-op).
 router.post('/register', verifyRecaptcha('register'), register);
 router.post('/login', verifyRecaptcha('login'), login);
-router.post('/social-auth', socialAuth);
+router.post('/social-auth', verifyRecaptcha('social_auth'), socialAuth);
 router.post('/check-email', checkEmailExists);
 
 // Protected routes (authentication required)

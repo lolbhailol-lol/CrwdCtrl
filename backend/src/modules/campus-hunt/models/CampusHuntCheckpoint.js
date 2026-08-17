@@ -66,6 +66,9 @@ const campusHuntCheckpointSchema = new mongoose.Schema(
       index: true,
     },
     publicInstruction: { type: String, default: '' },
+    /** Shared plant fragments for this stop (copied from station catalog on export). */
+    plantFragments: { type: [String], default: undefined },
+    joinedWord: { type: String, default: '', trim: true },
     /** Server secret for station identity — never expose to players. */
     qrSecret: {
       type: String,

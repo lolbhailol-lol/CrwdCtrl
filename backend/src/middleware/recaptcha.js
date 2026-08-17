@@ -3,30 +3,40 @@ const axios = require('axios');
 const VERIFY_URL = 'https://www.google.com/recaptcha/api/siteverify';
 const SECRET_KEY = process.env.RECAPTCHA_SECRET_KEY;
 const MIN_SCORE = Number(process.env.RECAPTCHA_MIN_SCORE) || 0.5;
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 /**
  * Express middleware factory that verifies a reCAPTCHA v3 token sent by the
  * client as `req.body.recaptchaToken`.
  *
- * - No-op (calls next) when RECAPTCHA_SECRET_KEY is not configured, so existing
- *   flows keep working until keys are added.
- * - Fails open on a Google/network outage so legitimate users are never locked
- *   out by an upstream problem.
+ * Behavior:
+ * - No-op when `RECAPTCHA_SECRET_KEY` is not configured (feature disabled).
+ * - Fail closed in production when the secret is configured and the client
+ *   sent no token — otherwise a client-side site-key omission silently
+ *   disables bot protection for everyone.
+ * - Non-production keeps the historic "warn and skip" behavior so local dev
+ *   without VITE_RECAPTCHA_SITE_KEY still works.
+ * - On a Google/network outage we still fail open. Rate limiters guard the
+ *   flood case; blocking real users because Google's endpoint blipped is
+ *   worse than a small window of unenforced captcha.
  *
- * @param {string} [expectedAction] action name to assert against the token (e.g. 'login').
+ * @param {string} [expectedAction] action name to assert against the token.
  */
 const verifyRecaptcha = (expectedAction) => async (req, res, next) => {
   if (!SECRET_KEY) return next();
 
   const token = req.body && req.body.recaptchaToken;
   if (!token) {
-    // No token from the client. This usually means the frontend site key
-    // (VITE_RECAPTCHA_SITE_KEY) is not configured even though the backend secret
-    // is — a one-sided/partial setup. Fail open so legitimate users are never
-    // locked out by a config mismatch; tokens that ARE sent still get verified.
+    if (IS_PRODUCTION) {
+      return res.status(400).json({
+        success: false,
+        code: 'CAPTCHA_TOKEN_REQUIRED',
+        message: 'Captcha verification is required. Refresh the page and try again.',
+      });
+    }
     console.warn(
-      '⚠️ reCAPTCHA: request has no token, skipping verification. ' +
-      'Set VITE_RECAPTCHA_SITE_KEY on the frontend to enforce captcha.'
+      '⚠️ reCAPTCHA: request has no token, skipping verification (non-production). ' +
+      'Set VITE_RECAPTCHA_SITE_KEY on the frontend to enforce captcha in production.'
     );
     return next();
   }
@@ -44,6 +54,7 @@ const verifyRecaptcha = (expectedAction) => async (req, res, next) => {
     if (!data.success) {
       return res.status(400).json({
         success: false,
+        code: 'CAPTCHA_FAILED',
         message: 'Captcha verification failed. Please try again.',
       });
     }
@@ -51,6 +62,7 @@ const verifyRecaptcha = (expectedAction) => async (req, res, next) => {
     if (expectedAction && data.action && data.action !== expectedAction) {
       return res.status(400).json({
         success: false,
+        code: 'CAPTCHA_ACTION_MISMATCH',
         message: 'Captcha action mismatch. Please try again.',
       });
     }
@@ -58,6 +70,7 @@ const verifyRecaptcha = (expectedAction) => async (req, res, next) => {
     if (typeof data.score === 'number' && data.score < MIN_SCORE) {
       return res.status(429).json({
         success: false,
+        code: 'CAPTCHA_LOW_SCORE',
         message: 'Suspicious activity detected. Please try again later.',
       });
     }
@@ -65,7 +78,7 @@ const verifyRecaptcha = (expectedAction) => async (req, res, next) => {
     req.recaptcha = { score: data.score, action: data.action };
   } catch (err) {
     console.error('❌ reCAPTCHA verification error:', err.message);
-    // Fail open — never block real users because Google is unreachable.
+    // Fail open on Google/network outage — rate limiter still caps abuse.
   }
 
   // Keep the token out of downstream controllers/payloads.

@@ -5,6 +5,7 @@ const CategoryRegistration = require('../model/category_registration_model');
 const SportsEvent = require('../model/sports_model');
 const { performCheckinFromRaw } = require('../services/checkinService');
 const { resolveTrekGroupLink } = require('../utils/resolveTrekGroupLink');
+const { captureFlowEvent } = require('../config/sentry');
 
 // ===== GET: Generate QR code for a registration =====
 const generateQR = async (req, res) => {
@@ -233,9 +234,17 @@ const verifyQR = async (req, res) => {
   try {
     const raw = req.params.hash || '';
     const result = await performCheckinFromRaw(raw, { scannedBy: 'Admin', logToSheets: true });
+    if (result.status >= 400) {
+      captureFlowEvent('qr_checkin', 'miss', {
+        status: result.status,
+        reason: result.body?.message,
+        source: 'hash_param',
+      });
+    }
     return res.status(result.status).json(result.body);
   } catch (error) {
     console.error('❌ QR verify error:', error);
+    captureFlowEvent('qr_checkin', 'error', { source: 'hash_param' });
     res.status(500).json({ success: false, status: 'error', message: 'Failed to verify QR code' });
   }
 };
@@ -244,9 +253,17 @@ const verifyQRFromPayload = async (req, res) => {
   try {
     const raw = req.body.qrData || req.body.payload || req.body.hash;
     const result = await performCheckinFromRaw(raw, { scannedBy: 'Admin', logToSheets: true });
+    if (result.status >= 400) {
+      captureFlowEvent('qr_checkin', 'miss', {
+        status: result.status,
+        reason: result.body?.message,
+        source: 'payload',
+      });
+    }
     return res.status(result.status).json(result.body);
   } catch (error) {
     console.error('❌ QR verify payload error:', error);
+    captureFlowEvent('qr_checkin', 'error', { source: 'payload' });
     res.status(500).json({ success: false, status: 'error', message: 'Failed to verify QR code' });
   }
 };

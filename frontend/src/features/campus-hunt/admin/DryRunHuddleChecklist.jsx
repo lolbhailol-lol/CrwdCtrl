@@ -200,18 +200,20 @@ function LocationTeamMatrix({ row, posterCols }) {
   );
 }
 
-function LocationWriteHereBox({ codesHere, propsHere }) {
+function LocationWriteHereBox({ codesHere, propsHere, plantFragments = [], joinedWord = '', people = 4 }) {
+  const frags = (plantFragments || []).map((f) => String(f || '').trim()).filter(Boolean);
+  const hasShared = frags.length > 0 || Boolean(joinedWord);
   const hasGreen = codesHere?.length > 0;
   const hasPurple = propsHere?.length > 0;
 
-  if (!hasGreen && !hasPurple) {
+  if (!hasShared && !hasGreen && !hasPurple) {
     return (
       <div className="mb-3 rounded-lg border border-white/12 bg-black/15 px-2.5 py-2 print:border-black/25 print:bg-gray-50">
         <p className="text-[10px] font-bold uppercase tracking-wide text-white/70 print:text-[9px] print:text-black/70">
           Write / hide at this location
         </p>
         <p className="mt-1 text-[10px] text-white/50 print:text-[8.5px] print:text-black/55">
-          No 3-digit marks or props here — tape all 4 QR posters only.
+          Set shared plant fragments in Clues first — then reprint. Meanwhile tape all 4 QR posters.
         </p>
       </div>
     );
@@ -220,19 +222,57 @@ function LocationWriteHereBox({ codesHere, propsHere }) {
   return (
     <div
       className="mb-3 rounded-lg border-2 px-2.5 py-2 print:border-black/40 print:py-1.5"
-      style={{ borderColor: `${T.clue2.hex}66`, background: `${T.clue2.hex}10` }}
+      style={{ borderColor: `${T.clue1.hex}66`, background: `${T.clue1.hex}10` }}
     >
-      <p className="text-[11px] font-black uppercase tracking-wide print:text-[10px]" style={{ color: T.clue2.hex }}>
+      <p className="text-[11px] font-black uppercase tracking-wide print:text-[10px]" style={{ color: T.clue1.hex }}>
         Write / hide at this location
       </p>
       <p className="mt-0.5 text-[9px] text-white/55 print:text-[8px] print:text-black/60">
-        Copy these exactly — one per team listed below
+        Shared for every team that visits this stop (not per-team slips)
       </p>
+
+      {hasShared ? (
+        <div className="mt-2 rounded border border-[#0ECCEE]/35 bg-[#0ECCEE]/10 px-2 py-1.5 print:border-black/30 print:bg-cyan-50">
+          <p className="text-[10px] font-bold text-[#0ECCEE] print:text-[9px] print:text-black">
+            Shared fragments ({frags.length || people}) → join word
+          </p>
+          <ul className="mt-1.5 space-y-1">
+            {(frags.length ? frags : Array.from({ length: people }, () => '')).map((frag, i) => (
+              <li
+                key={`frag-${i}`}
+                className="flex flex-wrap items-center gap-2 rounded border border-white/10 bg-black/20 px-2 py-1 print:border-black/15 print:bg-white"
+              >
+                <label className="huddle-check flex flex-1 flex-wrap items-center gap-2 text-[10px] print:text-[8.5px]">
+                  <input
+                    type="checkbox"
+                    className="h-3.5 w-3.5 shrink-0 print:h-3 print:w-3"
+                    style={{ accentColor: '#0ECCEE' }}
+                  />
+                  <span className="text-white/55 print:text-black/55">Slip {i + 1}</span>
+                  <span className="font-mono text-[14px] font-black tracking-wide text-[#0ECCEE] print:text-[12px] print:text-black">
+                    {frag || '— set in Clues'}
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+          {joinedWord ? (
+            <p className="mt-2 text-[10px] print:text-[9px]">
+              <span className="text-white/55 print:text-black/55">Joined answer (phone): </span>
+              <span className="font-mono font-black text-emerald-300 print:text-emerald-800">{joinedWord}</span>
+            </p>
+          ) : (
+            <p className="mt-2 text-[10px] text-amber-200 print:text-[9px] print:text-amber-900">
+              Missing joined word — set in Clues → Plant fragments.
+            </p>
+          )}
+        </div>
+      ) : null}
 
       {hasGreen ? (
         <div className="mt-2 rounded border border-emerald-400/35 bg-emerald-500/10 px-2 py-1.5 print:border-emerald-700 print:bg-emerald-50">
           <p className="text-[10px] font-bold print:text-[9px]" style={{ color: T.clue2.hex }}>
-            Near GREEN QR — write or tape 3-digit number
+            Optional · Near GREEN QR — team 3-digit marks (online legacy)
           </p>
           <ul className="mt-1.5 space-y-1">
             {codesHere.map((c) => (
@@ -249,17 +289,9 @@ function LocationWriteHereBox({ codesHere, propsHere }) {
                   <span className="font-bold text-white print:text-black">
                     Team #{c.teamNumber}
                   </span>
-                  <span className="font-mono text-[9px] text-white/55 print:text-black/55">
-                    {c.teamCode}
-                  </span>
-                  <span className="text-[9px] text-white/45 print:text-black/50">write</span>
-                  <span
-                    className="font-mono text-[18px] font-black tracking-[0.2em] print:text-[15px]"
-                    style={{ color: T.clue2.hex }}
-                  >
+                  <span className="font-mono text-[18px] font-black tracking-[0.2em]" style={{ color: T.clue2.hex }}>
                     {c.clue2Code}
                   </span>
-                  <span className="text-[9px] text-white/45 print:text-black/50">near green QR</span>
                 </label>
               </li>
             ))}
@@ -273,7 +305,7 @@ function LocationWriteHereBox({ codesHere, propsHere }) {
           style={{ borderColor: `${T.clue4.hex}55`, background: `${T.clue4.hex}14` }}
         >
           <p className="text-[10px] font-bold print:text-[9px]" style={{ color: T.clue4.hex }}>
-            On PURPLE prop — sticker word (exact spelling)
+            Optional · PURPLE prop sticker (if using prop hunt)
           </p>
           <ul className="mt-1.5 space-y-1">
             {propsHere.map((p) => (
@@ -290,17 +322,9 @@ function LocationWriteHereBox({ codesHere, propsHere }) {
                   <span className="font-bold text-white print:text-black">
                     Team #{p.teamNumber ?? '?'}
                   </span>
-                  <span className="font-mono text-[9px] text-white/55 print:text-black/55">
-                    {p.teamCode}
-                  </span>
-                  <span className="text-[9px] text-white/45 print:text-black/50">sticker</span>
-                  <span
-                    className="font-mono text-[14px] font-black tracking-wider print:text-[12px]"
-                    style={{ color: T.clue4.hex }}
-                  >
+                  <span className="font-mono text-[14px] font-black tracking-wider" style={{ color: T.clue4.hex }}>
                     {p.propCode}
                   </span>
-                  <span className="text-[9px] text-white/45 print:text-black/50">beside purple QR</span>
                 </label>
               </li>
             ))}
@@ -343,7 +367,7 @@ function LocationPlantCard({
             </span>
           </h4>
           <p className="mt-0.5 text-[10px] text-white/45 print:text-[8px] print:text-black/50">
-            Walk this spot · tape all 4 colors · plant props next to purple QR only
+            Walk this spot · tape 4 QR colors · plant shared written fragments
           </p>
         </div>
         <label className="huddle-check flex items-center gap-1.5 text-[10px] font-semibold print:text-[9px]">
@@ -352,7 +376,13 @@ function LocationPlantCard({
         </label>
       </header>
 
-      <LocationWriteHereBox codesHere={row.codesHere} propsHere={row.propsHere} />
+      <LocationWriteHereBox
+        codesHere={row.codesHere}
+        propsHere={row.propsHere}
+        plantFragments={row.plantFragments}
+        joinedWord={row.joinedWord}
+        people={people}
+      />
 
       <LocationTeamMatrix row={row} posterCols={posterCols} />
 
@@ -502,7 +532,7 @@ export default function DryRunHuddleChecklist({
   eventId,
   campusStations,
   campusStarts,
-  teamSize = 3,
+  teamSize = 4,
   stationCount,
 }) {
   const stations = useMemo(
@@ -743,6 +773,9 @@ export default function DryRunHuddleChecklist({
       }));
 
     return base.map((row) => {
+      const stationMeta = stations.find(
+        (s) => String(s.code || '').toUpperCase() === String(row.code || '').toUpperCase(),
+      );
       const propsHere = propRows.filter((r) => placeKey(r.purple) === String(row.code).toUpperCase());
       const codesHere = propRows
         .filter((r) => placeKey(r.green) === String(row.code).toUpperCase())
@@ -755,6 +788,8 @@ export default function DryRunHuddleChecklist({
         .sort((a, b) => (a.teamNumber || 0) - (b.teamNumber || 0));
       return {
         ...row,
+        plantFragments: Array.isArray(stationMeta?.plantFragments) ? stationMeta.plantFragments : [],
+        joinedWord: String(stationMeta?.joinedWord || '').trim(),
         propsHere,
         codesHere,
         orangeTeams: teamsAtPlace(propRows, 'orange', row.code),
@@ -788,15 +823,16 @@ export default function DryRunHuddleChecklist({
             Campus plant checklist · location by location
           </h2>
           <p className="mt-1 max-w-2xl text-xs text-white/55 print:mt-0.5 print:max-w-none print:text-[9px] print:leading-snug print:text-black/65">
-            Print this and walk each place. Tape
+            Tape
             {' '}
-            <strong>{stations.length} places × 4 QR colors = {expectedPosterCount} posters</strong>
+            <strong>{stations.length} place QR posters</strong>
             {' '}
-            + plant
+            (one shared QR per stop — not per team, not 4 colors) + plant
             {' '}
-            <strong>{propCount} prop objects</strong>
+            <strong>{teamSize || 4} written clue fragments per stop</strong>
             {' '}
-            with sticker codes at purple stops only.
+            (shared for all teams).
+            Teams: join fragments → type word → scan the place QR once.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 print:hidden">
@@ -830,9 +866,8 @@ export default function DryRunHuddleChecklist({
         <p>
           <strong className="text-white">How teams play (no laptop at venue):</strong>
           {' '}
-          Click <strong>Create team install links</strong> → Copy WhatsApp / Share for each team.
-          The message tells them to add the <strong>Hunt</strong> icon (not CrwdCtrl), why it is a new app,
-          how to play, and how to test with data off + camera scan.
+          Click <strong>Create team install links</strong> → or use the <strong>Send links</strong> tab.
+          WhatsApp each team one link. Leader opens once on Wi‑Fi. Play: find written clues → join word → type → scan once.
         </p>
         <OfflineInstallCards installs={installs} />
         <label className="mt-2 flex cursor-pointer items-center gap-2 text-[11px] text-white/60">
@@ -920,62 +955,39 @@ export default function DryRunHuddleChecklist({
                 {' '}
                 <ColorChip theme={T.clue1} short="Clue 1" />
                 {' '}
-                on phone → walks to their
+                on the
                 {' '}
-                <strong>Orange FIRST SCAN</strong>
+                <strong>leader phone</strong>
                 {' '}
-                place → all {people} scan + team code → unlocks Clue 2.
+                → walks to
+                {' '}
+                <strong>Orange</strong>
+                {' '}
+                → find
+                {' '}
+                {people}
+                {' '}
+                shared written fragments → join into one word → type → scan poster once + team code → Clue 2.
               </li>
               <li>
-                Solve
+                Same habit at
                 {' '}
-                <ColorChip theme={T.clue2} short="Clue 2" />
+                <ColorChip theme={T.clue2} short="Green" />
+                ,
                 {' '}
-                →
-                {' '}
-                <strong>Green SECOND SCAN</strong>
-                {' '}
-                → all {people} + team code → Clue 3.
-                {' '}
-                <strong className="text-emerald-300 print:text-emerald-800">
-                  Hide each team’s 3-digit mark near the green QR only
-                </strong>
-                {' '}
-                (not at blue).
-              </li>
-              <li>
-                Solve
-                {' '}
-                <ColorChip theme={T.clue3} short="Clue 3" />
-                {' '}
-                (Caesar riddle on phone — no hidden number)
-                →
-                {' '}
-                <strong>Blue THIRD SCAN</strong>
-                {' '}
-                → all {people} + team code → Prop hunt (Clue 4).
-              </li>
-              <li>
-                At their
+                <ColorChip theme={T.clue3} short="Blue" />
+                , and
                 {' '}
                 <ColorChip theme={T.clue4} short="Purple" />
-                {' '}
-                place: find planted prop, type sticker
-                {' '}
-                <strong>CODE</strong>
-                {' '}
-                → then all {people} scan
-                {' '}
-                <strong>Purple FOURTH SCAN</strong>
-                {' '}
-                + team code → Final (Clue 5).
+                :
+                find shared fragments → join word → type → one QR scan.
               </li>
               <li>
                 Solve
                 {' '}
                 <ColorChip theme={T.final} short="Final" />
                 {' '}
-                word on phone → return to START → organizer marks finish.
+                on phone → return to START → organizer marks finish.
                 {' '}
                 <strong>No player finish QR.</strong>
               </li>
@@ -983,22 +995,22 @@ export default function DryRunHuddleChecklist({
             <p className="rounded border border-amber-400/40 bg-amber-500/15 px-2 py-1.5 text-[10px] text-amber-100 print:border-amber-700 print:bg-amber-50 print:text-[8.5px] print:text-black">
               <strong>Rules:</strong>
               {' '}
-              Never swap poster colors · prop sticker CODE must match that team’s phone · purple QR sits next to that team’s prop · don’t move posters mid-hunt.
+              Fragments are shared per stop (print once) · one leader phone · never swap poster colors mid-hunt.
             </p>
           </div>
 
           <div className="mt-2 huddle-prep-grid grid gap-x-4 md:grid-cols-2">
             <CheckRow id="m1" accent="#0ECCEE">
-              Printed {expectedPosterCount} QR posters ({stations.length} places × 4 colors)
+              Printed {stations.length} place QR posters (1 shared QR per campus stop)
             </CheckRow>
             <CheckRow id="m1b" accent="#0ECCEE">
-              Prepared {propCount} prop objects + sticker codes
+              Planted {people} shared fragments + joined word at each stop (Clues tab)
             </CheckRow>
             <CheckRow id="m2" accent="#0ECCEE">Team links + password · phones on play screen</CheckRow>
             <CheckRow id="m3" accent="#0ECCEE">Schedule locked · Round started · finish desk staffed</CheckRow>
             <CheckRow id="m4" accent="#0ECCEE">Walked every location card below · checked each box</CheckRow>
             <CheckRow id="m5" accent={T.clue4.hex}>
-              Purple: teams type prop word FIRST, then scan purple QR
+              Day-before: every team Installed badge green on Send links
             </CheckRow>
           </div>
         </section>
@@ -1011,9 +1023,8 @@ export default function DryRunHuddleChecklist({
             Plant by location (detailed)
           </SectionTitle>
           <p className="mb-3 text-[10px] text-white/50 print:mb-2 print:text-[8.5px] print:text-black/55">
-            At each place: check <strong>Write / hide at this location</strong> first (3-digit numbers + prop stickers),
-            then Step 1 (4 QR posters), then Step 2 (props if listed).
-            Each card shows team numbers (#1–#8) for every scan color at that spot.
+            At each place: plant <strong>shared fragments + joined word</strong> (same for all teams),
+            then Step 1 (4 QR posters). Optional green marks / purple props only if you still use them.
           </p>
 
           {/* Print: quick location × team numbers grid */}

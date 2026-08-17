@@ -3,6 +3,7 @@ const {
   verifyWebhookSignature,
   inspectWebhookSignature,
 } = require('../services/cashfreeService');
+const { captureFlowEvent } = require('../config/sentry');
 
 /**
  * POST /api/payment/webhook
@@ -37,6 +38,12 @@ exports.handleCashfreeWebhook = async (req, res) => {
     if (!isValid) {
       // Detailed, non-secret-leaking diagnostics to pinpoint the mismatch.
       const diag = inspectWebhookSignature({ signature, timestamp, rawBody });
+      captureFlowEvent('payment_webhook', 'signature_invalid', {
+        hasSignature: diag.hasSignature,
+        hasTimestamp: diag.hasTimestamp,
+        cashfreeEnv: diag.cashfreeEnv,
+        bodyLength: diag.bodyLength,
+      });
       console.warn(
         '[paymentWebhook] Invalid webhook signature — acknowledged without processing',
         JSON.stringify(

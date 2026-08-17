@@ -10,39 +10,40 @@ const HOW_TO = {
   1: {
     title: 'How to play — Clue 1',
     steps: [
+      'All teammates walk together. One phone (leader).',
       'Read the sentence and type the campus location.',
-      'Correct answer = 50 points. After 3 wrong tries the location is revealed (0 points).',
-      'Go there — all members scan the shared orange QR.',
-      'Show your proof QR to the leader, then scan the leader Team QR.',
+      'Go there together. Find the written clues nearby, join them into one word, type it.',
+      'Then scan the place QR once → enter your team code → Clue 2.',
     ],
   },
   2: {
     title: 'How to play — Clue 2',
     steps: [
-      'Read the instructions (20 seconds), then a 3-minute timer starts.',
-      'Find the 3-digit number on the back of the green QR poster.',
-      'Leader types it. Then everyone scans the green poster.',
+      'Read the brief, then hunt as a team.',
+      'Find the written clues at the stop, join the word, type it.',
+      'Leader scans the place QR once → team code → Clue 3.',
     ],
   },
   3: {
     title: 'How to play — Clue 3',
     steps: [
       'Decode the Caesar riddle (leader submits).',
-      'Go to that place and scan the shared blue QR together.',
+      'Go to that place. Find the written clues, join the word, type it.',
+      'Scan the place QR once → team code → next stop.',
     ],
   },
   4: {
-    title: 'How to play — Crazy prop hunt',
+    title: 'How to play — Clue 4',
     steps: [
-      'Find the planted prop next to the purple QR and type its sticker code.',
-      'Then scan the purple poster — all members, proof QRs, team code.',
+      'At the stop: find the written clues (or prop tags), join the word, type it.',
+      'Scan the place QR once → team code → Final.',
     ],
   },
   5: {
     title: 'How to play — Final clue',
     steps: [
-      'Each teammate sees a fragment. Rebuild the word; leader submits.',
-      'Report to your start desk. Leader exports results.',
+      'Fragments are on this phone — read them aloud in order and rebuild the word.',
+      'Leader types the word. Report to your start desk.',
     ],
   },
 };
@@ -134,24 +135,25 @@ function checkpointStatus(bundle, state, session, now) {
   const key = pendingCheckpointKey(state.currentStage);
   if (!key) return null;
   const expected = checkpointForKey(bundle, key);
-  const required = teamSize(bundle);
+  const required = 1;
   const cp = state.checkpoints?.[key] || { scans: {}, confirmed: false };
   const scans = cp.scans || {};
   const verifiedCount = Object.keys(scans).length;
   const youScanned = Boolean(
     scans[session.memberKey]
+    || scans.leader
     || (session.localPosterScans || {})[String(key)],
   );
   const scanKind = key === 4 ? 'FOURTH SCAN' : key === 3 ? 'THIRD SCAN' : key === 2 ? 'SECOND SCAN' : 'FIRST SCAN';
+  const needJoin = Boolean(String(expected?.joinedWord || '').trim());
+  const joinWordOk = Boolean(cp.joinWordOk) || !needJoin;
   const awaiting = session.role === 'leader'
     && verifiedCount >= required
     && !cp.confirmed;
-  const rosterRows = (bundle.team.roster || []).map((m) => ({
-    userId: m.memberKey,
-    name: m.name,
-    role: m.role === 'leader' ? 'leader' : 'player',
-    scanned: Boolean(scans[m.memberKey]),
-  }));
+  const size = teamSize(bundle);
+  const plantCount = Array.isArray(expected?.plantFragments) && expected.plantFragments.length
+    ? expected.plantFragments.length
+    : size;
 
   return {
     checkpointId: expected?.id || null,
@@ -159,16 +161,25 @@ function checkpointStatus(bundle, state, session, now) {
     code: expected?.code || expected?.checkpointKey,
     locationName: expected?.locationName,
     posterLabel: { scanKind, sharedStation: true },
-    publicInstruction: expected?.publicInstruction
-      || `Scan the shared ${scanKind.toLowerCase()} poster, then hand proof QRs to your leader.`,
+    publicInstruction: joinWordOk
+      ? (expected?.publicInstruction
+        || 'Scan the place QR once, then enter your team code.')
+      : `Find ${plantCount} clues written nearby. Join them into one word and type it — then scan.`,
+    plantFragmentCount: plantCount,
+    joinedWordHint: needJoin && !joinWordOk
+      ? `Find ${plantCount} fragments → join → type`
+      : null,
+    needJoinWord: needJoin && !joinWordOk,
+    joinWordOk,
     verifiedCount,
     requiredCount: required,
     youScanned,
     status: cp.confirmed ? 'complete' : awaiting ? 'awaiting_claim' : 'pending',
     awaitingTeamCodeConfirm: awaiting,
-    membersNeeded: Math.max(0, required - verifiedCount),
-    scanRoster: rosterRows,
+    membersNeeded: 0,
+    scanRoster: [],
     assignmentMissing: !expected,
+    onePhoneMode: true,
   };
 }
 

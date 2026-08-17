@@ -361,7 +361,9 @@ export const authAPI = {
      * Social authentication (Google, Facebook, etc.)
      */
     async socialAuth(socialData) {
-        return apiClient.post('/users/social-auth', socialData);
+        const recaptchaToken = await getRecaptchaToken('social_auth');
+        const payload = recaptchaToken ? { ...socialData, recaptchaToken } : socialData;
+        return apiClient.post('/users/social-auth', payload);
     },
 
     /**

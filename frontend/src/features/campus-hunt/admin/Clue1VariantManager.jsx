@@ -143,7 +143,7 @@ function expectedFirstStop(point, waveIndex, stations, teamsPerWait = TEAMS_PER_
   const waitIndex = waitIndexForStart(startCode(point));
   const startRows = buildCampusStarts(stations, teamsPerWait, starts);
   const start = startRows.find((item) => item.code === startCode(point));
-  return firstStopForLocalTeam(waveIndex + 1, waitIndex, stations)
+  return firstStopForLocalTeam(waveIndex + 1, waitIndex, stations, teamsPerWait)
     || start?.firstStops?.[waveIndex]
     || '';
 }
