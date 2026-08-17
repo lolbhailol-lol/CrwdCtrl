@@ -112,6 +112,18 @@ function formatParticipantRow(reg, event = null) {
         paymentReviewNote: reg.paymentReviewNote || '',
         paymentReviewedAt: reg.paymentReviewedAt || null,
         paymentGateway: reg.payment_gateway || '',
+        paymentMethodLabel: (() => {
+            const gateway = String(reg.payment_gateway || '').toLowerCase();
+            if (gateway === 'cashfree') return 'Paid online';
+            if (gateway === 'organizer_qr') {
+                return reg.paymentStatus === 'pending' || booking.status === 'pending'
+                    ? 'UPI · needs review'
+                    : 'UPI / QR';
+            }
+            if (reg.paymentStatus === 'pending' || booking.status === 'pending') return 'Awaiting review';
+            if (grossCollected > 0 || reg.paymentStatus === 'paid') return 'Paid';
+            return reg.paymentStatus === 'free' ? 'Free' : '';
+        })(),
         couponCode: reg.couponCode || '',
         couponDiscount: Number(reg.couponDiscount) || 0,
         amountBeforeDiscount: Number(reg.amountBeforeDiscount) || 0,

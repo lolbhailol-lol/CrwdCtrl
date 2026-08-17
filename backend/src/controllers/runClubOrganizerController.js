@@ -946,7 +946,7 @@ exports.getDashboard = async (req, res) => {
         await expireStalePendingRegistrations(eventId);
 
         const event = await SportsEvent.findById(eventId)
-            .select('title city eventDate status maxParticipants registration.status registrationFee distance reportingTime')
+            .select('title city eventDate status maxParticipants registration.status registration.mode registrationFee distance reportingTime')
             .lean();
         if (!event) return res.status(404).json({ success: false, message: 'Run not found' });
 
@@ -986,6 +986,7 @@ exports.getDashboard = async (req, res) => {
                 distance: event.distance || '',
                 registrationFee: Number(event.registrationFee) || 0,
                 registrationStatus: event.registration?.status || 'open',
+                registrationMode: event.registration?.mode || 'internal_form',
             },
             stats: {
                 totalRegistrations,
@@ -1083,7 +1084,7 @@ exports.listParticipants = async (req, res) => {
                 .limit(limit)
                 .lean(),
             CategoryRegistration.countDocuments(filter),
-            SportsEvent.findById(eventId).select('title registration.formSchema registrationFee runClubId').lean(),
+            SportsEvent.findById(eventId).select('title registration.formSchema registrationFee registration.mode runClubId').lean(),
         ]);
 
         const formSchema = event?.registration?.formSchema || [];
@@ -1094,6 +1095,7 @@ exports.listParticipants = async (req, res) => {
             success: true,
             eventTitle: event?.title || '',
             trekName: event?.title || '',
+            registrationMode: event?.registration?.mode || 'internal_form',
             columns: buildSheetColumns(formSchema),
             participants: decrypted.map((r) => formatParticipantSheetRow(r, event)),
             pagination: {

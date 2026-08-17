@@ -126,6 +126,11 @@ export default function ParticipantCard({
                             <Pill tone={pendingReview ? 'pending' : rejected ? 'pending' : paid ? 'paid' : 'free'}>
                                 {participant.paymentStatus}
                             </Pill>
+                            {participant.paymentMethodLabel && !pendingReview ? (
+                                <Pill tone={participant.paymentGateway === 'cashfree' ? 'paid' : 'neutral'}>
+                                    {participant.paymentMethodLabel}
+                                </Pill>
+                            ) : null}
                             {isGuest ? <Pill tone="guest">Guest</Pill> : null}
                             {participant.tierName ? (
                                 <Pill tone="paid">{participant.tierName}</Pill>
@@ -275,7 +280,7 @@ export default function ParticipantCard({
                             ) : null}
                         </div>
 
-                        {pendingReview || participant.paymentScreenshotUrl ? (
+                        {pendingReview ? (
                             <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
                                 <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-300">Payment</p>
                                 {participant.paymentScreenshotUrl ? (

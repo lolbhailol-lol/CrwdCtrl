@@ -125,6 +125,7 @@ export default function RunClubOrganizerParticipantsPage() {
     const [eventTitle, setEventTitle] = useState('');
     const [stats, setStats] = useState(null);
     const [eventFee, setEventFee] = useState(0);
+    const [registrationMode, setRegistrationMode] = useState('internal_form');
     const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 1 });
     const [loading, setLoading] = useState(true);
     const [exporting, setExporting] = useState(false);
@@ -142,7 +143,9 @@ export default function RunClubOrganizerParticipantsPage() {
     const [notifyTarget, setNotifyTarget] = useState(null);
 
     const isPaidEvent = Number(eventFee) > 0;
+    const isOrganizerQr = registrationMode === 'organizer_qr';
     const pendingCount = isPaidEvent ? Number(stats?.pendingPaymentReview ?? 0) : 0;
+    const showPaymentReview = isPaidEvent && (isOrganizerQr || pendingCount > 0);
 
     const hasFilters = search || paymentFilter || checkInFilter;
 
@@ -201,6 +204,11 @@ export default function RunClubOrganizerParticipantsPage() {
             if (dashData?.event?.registrationFee != null) {
                 setEventFee(Number(dashData.event.registrationFee) || 0);
             }
+            if (dashData?.event?.registrationMode) {
+                setRegistrationMode(dashData.event.registrationMode);
+            } else if (listData.registrationMode) {
+                setRegistrationMode(listData.registrationMode);
+            }
         } catch (e) {
             toast(e.message || 'Failed to load participants');
         } finally {
@@ -217,13 +225,17 @@ export default function RunClubOrganizerParticipantsPage() {
             setPaymentFilter('');
             setPage(1);
         }
-    }, [isPaidEvent, paymentFilter]);
+        if (!showPaymentReview && paymentFilter === 'pending_review') {
+            setPaymentFilter('');
+            setPage(1);
+        }
+    }, [isPaidEvent, showPaymentReview, paymentFilter]);
 
     useEffect(() => {
-        if (isPaidEvent && paymentFilter === 'pending_review') {
+        if (showPaymentReview && paymentFilter === 'pending_review') {
             loadReviewQueue();
         }
-    }, [isPaidEvent, paymentFilter, loadReviewQueue]);
+    }, [showPaymentReview, paymentFilter, loadReviewQueue]);
 
     const advanceReviewQueue = useCallback((bookingIdJustHandled) => {
         setReviewQueue((prev) => {
@@ -371,6 +383,13 @@ export default function RunClubOrganizerParticipantsPage() {
                         {paymentFilter === 'pending_review' ? 'Payment review' : 'Participants'}
                     </h1>
                     <p className="text-sm text-gray-500 mt-0.5">{eventTitle || 'Run registrations'}</p>
+                    {isPaidEvent ? (
+                        <p className="text-[11px] text-gray-500 mt-1">
+                            {isOrganizerQr
+                                ? 'UPI + QR bookings · approve payments from screenshots'
+                                : 'Online checkout · payments confirm automatically'}
+                        </p>
+                    ) : null}
                 </div>
                 <div className="flex gap-2 shrink-0">
                     {rows.length > 0 ? (
@@ -390,7 +409,7 @@ export default function RunClubOrganizerParticipantsPage() {
                 </div>
             </div>
 
-            {isPaidEvent && pendingCount > 0 && paymentFilter !== 'pending_review' ? (
+            {showPaymentReview && pendingCount > 0 && paymentFilter !== 'pending_review' ? (
                 <button
                     type="button"
                     onClick={() => {
@@ -413,7 +432,7 @@ export default function RunClubOrganizerParticipantsPage() {
                 </button>
             ) : null}
 
-            {isPaidEvent && paymentFilter === 'pending_review' && pendingQueue.length > 0 ? (
+            {showPaymentReview && paymentFilter === 'pending_review' && pendingQueue.length > 0 ? (
                 <button
                     type="button"
                     onClick={() => startReviewQueue()}
@@ -429,10 +448,15 @@ export default function RunClubOrganizerParticipantsPage() {
                         <p className="text-[10px] uppercase text-gray-500 flex items-center gap-1"><Users size={11} /> Confirmed</p>
                         <p className="text-xl font-bold mt-0.5">{stats.totalRegistrations}</p>
                     </div>
-                    {isPaidEvent ? (
+                    {showPaymentReview ? (
                         <div className="rounded-xl border border-gray-800 bg-[#161718] px-3 py-3">
                             <p className="text-[10px] uppercase text-gray-500 flex items-center gap-1"><Hourglass size={11} /> Needs review</p>
                             <p className="text-xl font-bold mt-0.5 text-amber-400">{pendingCount}</p>
+                        </div>
+                    ) : isPaidEvent ? (
+                        <div className="rounded-xl border border-gray-800 bg-[#161718] px-3 py-3">
+                            <p className="text-[10px] uppercase text-gray-500">Payment</p>
+                            <p className="text-xs font-semibold mt-1 text-[#0ECCEE]">Auto · Cashfree</p>
                         </div>
                     ) : null}
                     <div className="rounded-xl border border-gray-800 bg-[#161718] px-3 py-3">
@@ -467,7 +491,9 @@ export default function RunClubOrganizerParticipantsPage() {
                     <FilterChip active={!paymentFilter && !checkInFilter} onClick={() => { setPaymentFilter(''); setCheckInFilter(''); setPage(1); }}>All</FilterChip>
                     {isPaidEvent ? (
                         <>
-                            <FilterChip active={paymentFilter === 'pending_review'} onClick={() => { setPaymentFilter(paymentFilter === 'pending_review' ? '' : 'pending_review'); setPage(1); }}>Needs review</FilterChip>
+                            {showPaymentReview ? (
+                                <FilterChip active={paymentFilter === 'pending_review'} onClick={() => { setPaymentFilter(paymentFilter === 'pending_review' ? '' : 'pending_review'); setPage(1); }}>Needs review</FilterChip>
+                            ) : null}
                             <FilterChip active={paymentFilter === 'paid'} onClick={() => { setPaymentFilter(paymentFilter === 'paid' ? '' : 'paid'); setPage(1); }}>Paid</FilterChip>
                             <FilterChip active={paymentFilter === 'free'} onClick={() => { setPaymentFilter(paymentFilter === 'free' ? '' : 'free'); setPage(1); }}>Free</FilterChip>
                             <FilterChip active={paymentFilter === 'rejected'} onClick={() => { setPaymentFilter(paymentFilter === 'rejected' ? '' : 'rejected'); setPage(1); }}>Rejected</FilterChip>
@@ -502,7 +528,7 @@ export default function RunClubOrganizerParticipantsPage() {
                             onNotify={row.status === 'confirmed' ? () => setNotifyTarget(row) : undefined}
                             onDelete={row.status === 'confirmed' ? handleDelete : undefined}
                             onReviewPayment={
-                                row.paymentStatus === 'Pending review' || row.status === 'pending'
+                                showPaymentReview && (row.paymentStatus === 'Pending review' || row.status === 'pending')
                                     ? () => setReviewTarget(row)
                                     : undefined
                             }

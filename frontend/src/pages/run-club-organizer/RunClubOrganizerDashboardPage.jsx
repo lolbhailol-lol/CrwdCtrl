@@ -313,6 +313,15 @@ export default function RunClubOrganizerDashboardPage() {
                                 <span className="px-2.5 py-1 rounded-full text-[10px] font-semibold border border-white/10 bg-white/5 text-gray-300">
                                     {fee > 0 ? `₹${fee}` : 'Free'}
                                 </span>
+                                {isPaid ? (
+                                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border ${
+                                        isOrganizerQr
+                                            ? 'bg-amber-500/10 text-amber-300 border-amber-500/25'
+                                            : 'bg-[#0ECCEE]/10 text-[#0ECCEE] border-[#0ECCEE]/25'
+                                    }`}>
+                                        {isOrganizerQr ? 'UPI + QR · manual review' : 'Online checkout · Cashfree'}
+                                    </span>
+                                ) : null}
                             </div>
                         </div>
                         <button
@@ -478,6 +487,11 @@ export default function RunClubOrganizerDashboardPage() {
                         <p className="text-sm font-semibold">Registration</p>
                         <p className="text-xs text-gray-500 mt-0.5">
                             {isOpen ? 'People can book this run right now.' : 'Booking is paused for new registrations.'}
+                            {isPaid ? (
+                                isOrganizerQr
+                                    ? ' · Runners pay via UPI — you review screenshots.'
+                                    : ' · Runners pay online — bookings confirm automatically.'
+                            ) : null}
                         </p>
                     </div>
                     <button
