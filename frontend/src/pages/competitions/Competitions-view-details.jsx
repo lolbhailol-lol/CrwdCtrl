@@ -23,6 +23,7 @@ import { resolveCompetitionFee, buildRegistrationPrefetch, saveRegistrationPrefe
 import { trackBookNowClick } from '../../services/analyticsService';
 import PrizePoolPodium from '../../components/PrizePoolPodium';
 import DetailPageLoader from '../../components/DetailPageLoader';
+import CompetitionCoverImage from '../../components/CompetitionCoverImage';
 import { signalDetailPageReady } from '../../utils/bootSplash';
 import { formatSlotsLabel, buildTeamSizeLabel } from '../../utils/teamSize';
 import {
@@ -677,7 +678,7 @@ function EventPage() {
     }, [pageReady, fetchDone, error]);
 
     if (!pageReady && !error) {
-        return <DetailPageLoader label="Hang tight — opening competition" />;
+        return <DetailPageLoader variant="competition" label="Loading competition" />;
     }
 
     if (error && !competitionData) {
@@ -729,7 +730,7 @@ function EventPage() {
     const showHeroImage = Boolean(eventData?.image);
 
     if (!eventData?.title) {
-        return <DetailPageLoader label="Hang tight — opening competition" />;
+        return <DetailPageLoader variant="competition" label="Loading competition" />;
     }
 
     // Get fest name from location state or URL params
@@ -1429,27 +1430,19 @@ function EventPage() {
                     <div className="block md:hidden w-full">
                             <div className="mx-auto w-full flex flex-col flex-1 overflow-x-clip">
                                 <div
-                                    className={`relative w-full shrink-0 overflow-hidden ${
-                                        showHeroImage ? 'h-[396px] bg-[#1A1B1D]' : 'bg-[#161718]'
+                                    className={`relative w-full shrink-0 overflow-hidden bg-[#1A1B1D] ${
+                                        showHeroImage ? 'h-[396px]' : 'h-52'
                                     }`}
                                 >
-                                    {showHeroImage ? (
-                                    <img
-                                        key={`${competitionId}-${eventData.image}`}
-                                        src={getImageUrl(eventData.image, { preset: 'hero' })}
+                                    <CompetitionCoverImage
+                                        key={`${competitionId}-${eventData.image || 'placeholder'}`}
+                                        src={showHeroImage ? eventData.image : null}
                                         alt={eventData.title || 'Competition'}
-                                        className="absolute inset-0 w-full h-full object-cover content-image animate-detail-enter"
-                                        loading="eager"
-                                        fetchPriority="high"
-                                        decoding="async"
+                                        preset="hero"
+                                        containerClassName="absolute inset-0 w-full h-full"
+                                        loaderSize="hero"
+                                        eager={showHeroImage}
                                     />
-                                    ) : (
-                                    <div
-                                        className="w-full"
-                                        style={{ height: 'calc(max(var(--safe-top), 0px) + 4.75rem)' }}
-                                        aria-hidden
-                                    />
-                                    )}
                                     {showHeroImage ? (
                                     <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-black/30 pointer-events-none" />
                                     ) : null}
@@ -1609,19 +1602,21 @@ function EventPage() {
                         >
                             {/* Left Column - Image and Rules */}
                             <div className="w-1/2 shrink-0 space-y-6">
-                                {/* Event Image Card — skip empty placeholder when no cover */}
-                                {showHeroImage ? (
+                                {/* Event Image Card — 3D trophy when cover missing or loading */}
                                 <div className={`rounded-3xl overflow-hidden shadow-sm ${isDark ? 'bg-[#111213]' : 'bg-white'} p-2`}>
-                                    <div className="rounded-2xl overflow-hidden bg-[#1A1B1D]">
-                                    <img
-                                        key={`${competitionId}-${eventData.image}`}
-                                        src={getImageUrl(eventData.image, { preset: 'hero' })}
+                                    <div className="rounded-2xl overflow-hidden bg-[#1A1B1D] h-80">
+                                    <CompetitionCoverImage
+                                        key={`${competitionId}-${eventData.image || 'placeholder'}`}
+                                        src={showHeroImage ? eventData.image : null}
                                         alt={eventData.title || 'Competition'}
-                                        className="w-full h-80 object-cover animate-detail-enter"
+                                        preset="hero"
+                                        containerClassName="w-full h-full"
+                                        className="w-full h-full object-cover animate-detail-enter"
+                                        loaderSize="hero"
+                                        eager={showHeroImage}
                                     />
                                     </div>
                                 </div>
-                                ) : null}
 
                                 <div className="space-y-6">
                                     {/* Desktop Prize Pool — classic medal podium (all fest competitions) */}

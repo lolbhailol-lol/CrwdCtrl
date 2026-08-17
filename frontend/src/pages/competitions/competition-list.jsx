@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { ChevronLeft } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDarkMode } from '../../context/DarkModeContext';
-import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
-import { getImageUrl } from '../../utils/imageImports';
+import DetailPageLoader from '../../components/DetailPageLoader';
+import CompetitionCoverImage from '../../components/CompetitionCoverImage';
 import {
   transformFestPublicData,
   buildCompetitionNavPayload,
@@ -137,14 +137,7 @@ const CompetitionListPage = () => {
 
     // Loading state
     if (loading) {
-        return (
-            <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500 mx-auto mb-4"></div>
-                    <h2 className="text-xl font-semibold">Loading competitions...</h2>
-                </div>
-            </div>
-        );
+        return <DetailPageLoader variant="competition" label="Loading competitions" />;
     }
 
     // Error state
@@ -235,12 +228,13 @@ const CompetitionListPage = () => {
                         >
                             <div className="flex gap-4 p-3">
                                 {/* Image */}
-                                <div className="w-32 h-32 shrink-0">
-                                    <img
-                                        src={getImageUrl(comp.image, { preset: 'cardSm' })}
-                                        alt={comp.name}
-                                        className="w-full h-full object-cover rounded-xl"
-                                        onError={(e) => handleImageErrorWithFallback(e, 128, 128, '#0ea5e9', comp.name || 'Competition')}
+                                <div className="w-32 h-32 shrink-0 rounded-xl overflow-hidden">
+                                    <CompetitionCoverImage
+                                        src={comp.image}
+                                        alt={typeof comp.name === 'string' ? comp.name : 'Competition'}
+                                        preset="cardSm"
+                                        containerClassName="w-full h-full"
+                                        loaderSize="compact"
                                     />
                                 </div>
 

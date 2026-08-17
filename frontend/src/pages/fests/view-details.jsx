@@ -30,6 +30,7 @@ import { festPath, competitionPath, entityMatchesRouteParam } from '../../utils/
 import { loadFestDetailCache, saveFestDetailCache, saveCompetitionDetailCache } from '../../utils/detailPageCache';
 import { signalDetailPageReady } from '../../utils/bootSplash';
 import DetailPageLoader from '../../components/DetailPageLoader';
+import CompetitionCoverImage from '../../components/CompetitionCoverImage';
 import FestPublicLiveStrip from '../../components/FestPublicLiveStrip';
 import { isMindSparkFest } from '../../features/fests/mindspark';
 
@@ -76,13 +77,11 @@ function CompetitionScrollCard({ comp, isDark, isFavorite, onToggleFavorite, onC
       }`}
     >
       <div className="relative h-48 w-full shrink-0">
-        <img
-          src={getImageUrl(comp.image, { preset: 'cardSm' })}
+        <CompetitionCoverImage
+          src={comp.image}
           alt={compName}
-          className="absolute inset-0 w-full h-full object-cover"
-          onError={(e) => {
-            handleImageErrorWithFallback(e, 184, 192, '#0ea5e9', compName);
-          }}
+          preset="cardSm"
+          containerClassName="absolute inset-0 w-full h-full"
         />
         <CardFavoriteButton isFavorite={isFavorite} onClick={onToggleFavorite} />
       </div>

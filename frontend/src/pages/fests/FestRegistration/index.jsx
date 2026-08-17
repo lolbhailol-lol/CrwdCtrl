@@ -1,4 +1,5 @@
 import CrwdCtrlLogin from '../../auth/login';
+import DetailPageLoader from '../../../components/DetailPageLoader';
 import useFestRegistration from './useFestRegistration';
 import FestRegistrationForm from './FestRegistrationForm';
 import PaymentStep, { CompletingPaymentStep } from './PaymentStep';
@@ -114,18 +115,12 @@ export default function FestRegistration() {
   if ((!fest && loading) || (isCompetitionRegistration && loading && !competition)) {
     return (
       <>
-        <div className={`crwdctrl-page crwdctrl-page--content min-h-screen pt-[calc(var(--safe-top)+0.5rem)] pb-32 ${isDark ? 'bg-[#0a0b0c]' : 'bg-gray-50'}`}>
-          <div className="max-w-4xl mx-auto px-4 animate-pulse">
-            <div className={`h-8 w-56 rounded-lg mb-6 ${isDark ? 'bg-gray-800' : 'bg-gray-200'}`} />
-            <div className={`rounded-2xl p-6 border space-y-4 ${isDark ? 'bg-[#1D1E20] border-gray-800' : 'bg-white border-gray-200'}`}>
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className={`h-12 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`} />
-              ))}
-            </div>
-          </div>
-        </div>
+        <DetailPageLoader
+          variant={isCompetitionRegistration ? 'competition' : 'default'}
+          label={isCompetitionRegistration ? 'Loading competition' : 'Loading registration'}
+        />
         {!hasAuth && (
-          <div className="fixed inset-0 z-50 pointer-events-none">
+          <div className="fixed inset-0 z-100060 pointer-events-none">
             <div className="pointer-events-auto h-full">
               <CrwdCtrlLogin
                 googleOnly

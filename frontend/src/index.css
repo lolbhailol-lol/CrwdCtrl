@@ -1244,6 +1244,61 @@ html:not(.dark) .crwdctrl-footer {
     opacity: 0.75;
 }
 
+.detail-loader-stage--compact {
+    width: 3.5rem;
+    height: 3.5rem;
+    perspective: 420px;
+}
+
+.detail-loader-stage--compact .detail-loader-card {
+    width: 2.15rem;
+    height: 2.15rem;
+}
+
+.detail-loader-stage--mini {
+    width: 2.75rem;
+    height: 2.75rem;
+    perspective: 360px;
+}
+
+.detail-loader-stage--mini .detail-loader-card {
+    width: 1.75rem;
+    height: 1.75rem;
+}
+
+.detail-loader-stage--hero {
+    width: 6.5rem;
+    height: 6.5rem;
+    perspective: 720px;
+}
+
+.detail-loader-stage--hero .detail-loader-card {
+    width: 4rem;
+    height: 4rem;
+}
+
+.detail-loader-icon--competition {
+    width: 1.35rem;
+    height: 1.35rem;
+    color: #0eccee;
+    filter: drop-shadow(0 0 12px rgba(14, 204, 238, 0.45));
+}
+
+.detail-loader-stage--compact .detail-loader-icon--competition {
+    width: 1rem;
+    height: 1rem;
+}
+
+.detail-loader-stage--mini .detail-loader-icon--competition {
+    width: 0.85rem;
+    height: 0.85rem;
+}
+
+.detail-loader-stage--hero .detail-loader-icon--competition {
+    width: 1.75rem;
+    height: 1.75rem;
+}
+
 .detail-loader-mark {
     font-size: 1.35rem;
     font-weight: 800;
