@@ -741,7 +741,7 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                                 <p className="text-xs text-gray-500">
                                     {(form.registration?.mode || 'internal_form') === 'internal_form' ? (
                                         <>
-                                            In-app booking form. Paid runs add a <span className="text-[#0ECCEE] font-semibold">3% platform fee</span> at checkout (secure Cashfree payment), same as treks.
+                                            In-app booking form. Runners pay the run fee only via secure Cashfree checkout — no extra platform fee.
                                         </>
                                     ) : (
                                         <>Form fields for QR / screenshot booking. No Cashfree — payment goes to the organizer.</>

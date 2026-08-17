@@ -1,15 +1,18 @@
 import { CheckCircle, ImagePlus, Loader } from 'lucide-react';
 
 /**
- * MindSpark-style UPI + QR payment block for run bookings.
- * Amount first → coupon → scan/pay → proof + txn ID.
+ * MindSpark-style checkout for runs — amount → coupon → pay (Cashfree or UPI/QR).
  */
-export default function RunQrPaymentPanel({
+export default function RunCheckoutPanel({
+    mode = 'organizer_qr',
     isDark,
     payableAmount,
     baseFee,
     chargePerPerson,
+    feePerPerson,
     people,
+    optionalAddOnLabel,
+    addOnFeePerPerson = 0,
     couponInfo,
     couponCode,
     couponLoading,
@@ -31,19 +34,23 @@ export default function RunQrPaymentPanel({
     transactionId,
     onTransactionIdChange,
 }) {
+    const isCashfree = mode === 'cashfree';
     const couponApplied = Boolean(couponInfo?.couponApplied);
     const saved = Number(couponInfo?.discountAmount) || 0;
-    const showPaySteps = payableAmount > 0;
+    const showQrSteps = !isCashfree && payableAmount > 0;
+    const ticketPerPerson = Number(feePerPerson ?? chargePerPerson) || 0;
+    const addOnTotal = addOnFeePerPerson > 0 ? addOnFeePerPerson * people : 0;
+    const ticketTotal = ticketPerPerson * people;
 
     const cardBorder = isDark ? 'border-gray-700/60' : 'border-gray-200';
     const cardBg = isDark ? 'bg-[#111213]' : 'bg-white shadow-sm';
 
     return (
         <div className={`rounded-2xl overflow-hidden border ${cardBorder} ${cardBg}`}>
-            {/* Amount payable — MindSpark pattern */}
+            {/* Amount payable */}
             <div className={`px-4 py-4 sm:px-5 ${isDark ? 'bg-linear-to-br from-[#0ECCEE]/10 to-transparent' : 'bg-linear-to-br from-cyan-50 to-white'}`}>
                 <p className={`text-[11px] font-semibold uppercase tracking-wider ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                    Amount to pay
+                    Amount payable
                 </p>
                 <div className="mt-1 flex items-baseline gap-2 flex-wrap">
                     <span className="text-3xl sm:text-4xl font-bold tabular-nums text-[#0ECCEE]">
@@ -61,7 +68,11 @@ export default function RunQrPaymentPanel({
                         : people > 1
                             ? `₹${chargePerPerson.toLocaleString('en-IN')} × ${people} people`
                             : '1 person'}
-                    {qrAutoConfirm ? ' · Confirms when you submit' : ' · Club approves after you submit'}
+                    {isCashfree
+                        ? ' · Secure checkout via Cashfree'
+                        : qrAutoConfirm
+                            ? ' · Confirms when you submit'
+                            : ' · Club approves after you submit'}
                 </p>
             </div>
 
@@ -79,7 +90,7 @@ export default function RunQrPaymentPanel({
                             </p>
                             <p className={`text-[11px] mt-0.5 ${isDark ? 'text-emerald-200/70' : 'text-emerald-800/80'}`}>
                                 You save ₹{saved.toLocaleString('en-IN')}
-                                {payableAmount === 0 ? ' · No UPI needed' : ''}
+                                {payableAmount === 0 ? (isCashfree ? ' · No payment needed' : ' · No UPI needed') : ''}
                             </p>
                         </div>
                         <button
@@ -124,9 +135,43 @@ export default function RunQrPaymentPanel({
                 )}
             </div>
 
-            {showPaySteps ? (
+            {isCashfree ? (
+                payableAmount > 0 ? (
+                    <div className={`px-4 py-3 sm:px-5 border-t space-y-1.5 text-sm ${isDark ? 'border-gray-800 text-gray-300' : 'border-gray-100 text-gray-700'}`}>
+                        <div className="flex justify-between gap-4">
+                            <span>
+                                Run fee
+                                <span className={`text-xs ml-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>× {people}</span>
+                            </span>
+                            <span className="tabular-nums">₹{ticketTotal.toLocaleString('en-IN')}</span>
+                        </div>
+                        {addOnTotal > 0 ? (
+                            <div className="flex justify-between gap-4">
+                                <span className="truncate pr-2">
+                                    {optionalAddOnLabel || 'Add-on'}
+                                    <span className={`text-xs ml-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>× {people}</span>
+                                </span>
+                                <span className="tabular-nums shrink-0">₹{addOnTotal.toLocaleString('en-IN')}</span>
+                            </div>
+                        ) : null}
+                        {couponApplied && saved > 0 ? (
+                            <div className={`flex justify-between gap-4 ${isDark ? 'text-green-400' : 'text-green-600'}`}>
+                                <span>Coupon discount</span>
+                                <span className="tabular-nums">−₹{saved.toLocaleString('en-IN')}</span>
+                            </div>
+                        ) : null}
+                        <div className={`flex justify-between gap-4 pt-2.5 mt-1 border-t font-bold text-base text-[#0ECCEE] ${isDark ? 'border-gray-800' : 'border-gray-200'}`}>
+                            <span>You pay</span>
+                            <span className="tabular-nums">₹{payableAmount.toLocaleString('en-IN')}</span>
+                        </div>
+                    </div>
+                ) : (
+                    <div className={`px-4 py-4 border-t text-sm ${isDark ? 'border-gray-800 text-gray-400' : 'border-gray-100 text-gray-600'}`}>
+                        Coupon covers the full fee — tap confirm below to book. No payment needed.
+                    </div>
+                )
+            ) : showQrSteps ? (
                 <>
-                    {/* QR + UPI */}
                     <div className={`px-4 py-4 border-t flex gap-4 items-start ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
                         {paymentQR ? (
                             <div className="shrink-0 size-[140px] sm:size-[152px] rounded-xl bg-white p-2 shadow-sm">
@@ -168,7 +213,6 @@ export default function RunQrPaymentPanel({
                         </div>
                     </div>
 
-                    {/* Screenshot */}
                     <div className={`border-t ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
                         <label
                             className={`flex items-center gap-3 px-4 py-3.5 cursor-pointer ${
@@ -224,13 +268,12 @@ export default function RunQrPaymentPanel({
                             />
                         </label>
 
-                        {/* Transaction ID */}
                         <div className={`mx-4 mb-4 pt-1 border-t ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
                             <label htmlFor="run-upi-txn-id" className={`block text-sm font-medium mt-3 mb-1.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                 3. UTR / transaction ID
                             </label>
                             <p className={`text-[11px] mb-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                Paste the 12-digit (or longer) ID from your UPI app — helps the club verify faster.
+                                Paste the ID from your UPI app — helps the club verify faster.
                             </p>
                             <input
                                 id="run-upi-txn-id"

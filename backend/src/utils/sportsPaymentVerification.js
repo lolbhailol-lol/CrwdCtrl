@@ -1,7 +1,6 @@
 const CategoryRegistration = require('../model/category_registration_model');
 const PaymentOrder = require('../model/payment_order_model');
 const { verifyCashfreePayment, fetchOrder } = require('../services/cashfreeService');
-const { buildPriceBreakdown } = require('./platformFee');
 
 /**
  * Server-side payment verification for run (sports) bookings.
@@ -39,7 +38,7 @@ async function verifySportsBookingPayment({ event, people, paymentOrderId, payme
     }
     return Number(event.registrationFee) || 0;
   })();
-  const { totalAmount: fullPriceTotal } = buildPriceBreakdown(ticketPricePerPerson * expectedPeople);
+  const fullPriceTotal = ticketPricePerPerson * expectedPeople;
 
   let orderTags = {};
   try {

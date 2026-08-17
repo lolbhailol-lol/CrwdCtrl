@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Loader, Users, X } from 'lucide-react';
 import { fetchFollowMembers } from '../services/api/follows.api';
 import { useDarkMode } from '../context/DarkModeContext';
@@ -37,6 +38,15 @@ export default function CommunityMembersSheet({
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open || !entityType || !entityId) return undefined;
@@ -79,8 +89,8 @@ export default function CommunityMembersSheet({
 
   if (!open) return null;
 
-  return (
-    <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center">
+  const sheet = (
+    <div className="fixed inset-0 z-100050 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <button
         type="button"
         aria-label="Close members"
@@ -88,12 +98,13 @@ export default function CommunityMembersSheet({
         onClick={onClose}
       />
       <div
-        className={`relative w-full max-w-md max-h-[78vh] rounded-t-3xl sm:rounded-3xl border flex flex-col overflow-hidden ${
+        className={`relative w-full max-w-md max-h-[min(78dvh,calc(100dvh-2rem))] sm:max-h-[78vh] rounded-t-3xl sm:rounded-3xl border flex flex-col overflow-hidden shadow-2xl pb-[max(var(--safe-bottom),0px)] ${
           isDark ? 'bg-[#161718] border-white/10' : 'bg-white border-gray-200'
         }`}
         role="dialog"
         aria-modal="true"
         aria-label={title}
+        onClick={(e) => e.stopPropagation()}
       >
         <div className={`flex items-center justify-between gap-3 px-4 py-3.5 border-b ${isDark ? 'border-white/10' : 'border-gray-100'}`}>
           <div className="min-w-0">
@@ -112,7 +123,7 @@ export default function CommunityMembersSheet({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 py-3">
+        <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-3 pb-4">
           {loading ? (
             <div className="flex justify-center py-12">
               <Loader className="animate-spin text-[#0ECCEE]" size={24} />
@@ -158,4 +169,6 @@ export default function CommunityMembersSheet({
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(sheet, document.body) : null;
 }

@@ -9,7 +9,7 @@ import CrwdCtrlRegister from '../auth/register';
 import { buildVerifiedPaymentFields } from '../../utils/useCashfree';
 
 import PaymentErrorModal from '../../components/PaymentErrorModal';
-import RunQrPaymentPanel from '../../components/sports/RunQrPaymentPanel';
+import RunCheckoutPanel from '../../components/sports/RunCheckoutPanel';
 import {
     getPendingPayment,
     clearPendingPayment,
@@ -21,7 +21,6 @@ import {
     classifyVerifyError,
     clearCashfreeReturnAndPending,
 } from '../../utils/paymentNavigation';
-import { calculatePlatformFee } from '../../utils/platformFee';
 import { API_BASE_URL, publicFetchJSONRetry } from '../../services/api/client';
 import { isInAppBrowser } from '../../config/apiBase';
 import { useBookingSuccessPopup } from '../../hooks/useSuccessPopup';
@@ -165,7 +164,6 @@ export default function RunEventBookingPage() {
     const [couponInfo, setCouponInfo] = useState(null);
     const [couponLoading, setCouponLoading] = useState(false);
     const [couponError, setCouponError] = useState('');
-    const [couponJustApplied, setCouponJustApplied] = useState(false);
     const [paymentModal, setPaymentModal] = useState({ open: false, message: '', orderId: '' });
     const [paymentScreenshotUrl, setPaymentScreenshotUrl] = useState('');
     const [transactionId, setTransactionId] = useState('');
@@ -427,11 +425,10 @@ export default function RunEventBookingPage() {
     }, [id, event, extraFields, selDate, selTime, people, step, selectedTierId, addOnSelected]);
 
     const baseFee = chargePerPerson * people;
-    const platformFee = chargePerPerson > 0 && !isOrganizerQr ? calculatePlatformFee(baseFee) : 0;
-    const total = baseFee + platformFee;
+    const total = baseFee;
     const payableAmount = couponInfo?.amountAfterDiscount != null
         ? Number(couponInfo.amountAfterDiscount)
-        : (isOrganizerQr ? baseFee : total);
+        : baseFee;
 
     const inp = `w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-600 hover:border-gray-500 text-white placeholder-gray-400' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900 placeholder-gray-500'}`;
 
@@ -446,7 +443,6 @@ export default function RunEventBookingPage() {
         couponSourceRef.current = 'cleared';
         setCouponInfo(null);
         setCouponCode('');
-        setCouponJustApplied(false);
         setCouponError('');
     };
 
@@ -585,7 +581,6 @@ export default function RunEventBookingPage() {
         const source = opts.source || 'manual';
         const code = String(opts.code ?? couponCodeRef.current).trim();
         setCouponError('');
-        setCouponJustApplied(false);
         setError((prev) => (prev && /failed to fetch|network error/i.test(prev) ? '' : prev));
         if (!code) {
             setCouponInfo(null);
@@ -637,8 +632,6 @@ export default function RunEventBookingPage() {
                 couponSourceRef.current = source;
                 setCouponCode(String(data.couponCode || code).toUpperCase());
                 setCouponInfo(data);
-                setCouponJustApplied(true);
-                window.setTimeout(() => setCouponJustApplied(false), 1600);
             } else {
                 setCouponInfo(null);
                 if (source === 'form') setCouponError('');
@@ -1500,27 +1493,33 @@ export default function RunEventBookingPage() {
                                     </div>
                                 ) : null}
 
-                                <div className={`flex items-start justify-between gap-3 pt-1 ${(page1CouponFields.length || selectedTier || optionalAddOn) ? `border-t ${isDark ? 'border-gray-800' : 'border-gray-100'} pt-3` : ''}`}>
-                                    <div className="min-w-0">
-                                        <p className={`text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Total</p>
-                                        {couponInfo?.couponApplied ? (
-                                            <p className={`text-[10px] mt-0.5 ${isDark ? 'text-emerald-400/80' : 'text-emerald-700'}`}>
-                                                Coupon {couponInfo.couponCode} · save {formatInr(couponInfo.discountAmount || 0)}
-                                            </p>
-                                        ) : couponError && autoCouponCode ? (
-                                            <p className={`text-[10px] mt-0.5 ${isDark ? 'text-amber-400/80' : 'text-amber-700'}`}>
-                                                {couponError}
-                                            </p>
-                                        ) : couponLoading && autoCouponCode ? (
-                                            <p className={`text-[10px] mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                                Checking coupon…
-                                            </p>
-                                        ) : null}
-                                    </div>
-                                    <div className="text-right">
-                                        {chargePerPerson > 0 ? (
-                                            <>
-                                                <p className={`text-xl font-bold tabular-nums leading-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                {chargePerPerson > 0 ? (
+                                    <div className={`rounded-xl px-3.5 py-3 ${(page1CouponFields.length || selectedTier || optionalAddOn) ? `border-t ${isDark ? 'border-gray-800' : 'border-gray-100'} pt-3 mt-1` : ''} ${isDark ? 'bg-[#0ECCEE]/8 border border-[#0ECCEE]/20' : 'bg-cyan-50 border border-cyan-100'}`}>
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <p className={`text-[10px] font-semibold uppercase tracking-wider ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                                    Estimated total
+                                                </p>
+                                                {couponInfo?.couponApplied ? (
+                                                    <p className={`text-[10px] mt-0.5 ${isDark ? 'text-emerald-400/80' : 'text-emerald-700'}`}>
+                                                        {couponInfo.couponCode} · save {formatInr(couponInfo.discountAmount || 0)}
+                                                    </p>
+                                                ) : couponError && autoCouponCode ? (
+                                                    <p className={`text-[10px] mt-0.5 ${isDark ? 'text-amber-400/80' : 'text-amber-700'}`}>
+                                                        {couponError}
+                                                    </p>
+                                                ) : couponLoading && autoCouponCode ? (
+                                                    <p className={`text-[10px] mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                                        Checking coupon…
+                                                    </p>
+                                                ) : (people > 1 || addOnFeePerPerson > 0) ? (
+                                                    <p className={`text-[10px] mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                                        {formatInr(chargePerPerson)} × {people}
+                                                    </p>
+                                                ) : null}
+                                            </div>
+                                            <div className="text-right shrink-0">
+                                                <p className="text-xl font-bold tabular-nums text-[#0ECCEE] leading-tight">
                                                     {formatInr(couponInfo?.couponApplied
                                                         ? Number(couponInfo.amountAfterDiscount ?? baseFee)
                                                         : baseFee)}
@@ -1529,34 +1528,38 @@ export default function RunEventBookingPage() {
                                                     <p className={`text-[10px] line-through ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                                                         {formatInr(couponInfo.amountBeforeDiscount ?? baseFee)}
                                                     </p>
-                                                ) : (people > 1 || addOnFeePerPerson > 0) ? (
-                                                    <p className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                                        {formatInr(chargePerPerson)} × {people}
-                                                    </p>
                                                 ) : null}
-                                            </>
-                                        ) : (
-                                            <p className="text-xl font-bold text-green-500 leading-tight">Free</p>
-                                        )}
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
+                                ) : (
+                                    <div className={`rounded-xl px-3.5 py-3 text-center ${isDark ? 'bg-emerald-500/10 border border-emerald-500/25' : 'bg-emerald-50 border border-emerald-200'}`}>
+                                        <p className="text-lg font-bold text-emerald-500 leading-tight">Free run</p>
+                                        <p className={`text-[10px] mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>No payment on next step</p>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
 
                     {step === 2 && !isFreeFlow && (
-                        <div className={`rounded-xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-gray-50 border-gray-200'}`}>
-                            <h3 className={`text-xs font-bold uppercase tracking-widest mb-4 pb-2.5 border-b ${isDark ? 'text-gray-400 border-gray-700/70' : 'text-gray-500 border-gray-200'}`}>
-                                Your Details
-                            </h3>
+                        <div className={`rounded-2xl border overflow-hidden ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-200 shadow-sm'}`}>
+                            <div className={`px-4 py-3 border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
+                                <p className={`text-[11px] font-semibold uppercase tracking-wider ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                    Your details
+                                </p>
+                                <p className={`text-sm font-semibold mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                    Complete the form to book
+                                </p>
+                            </div>
 
-                            {formInstructions && (
-                                <div className={`rounded-lg p-3 mb-4 border text-xs ${isDark ? 'bg-amber-900/20 border-amber-700/40 text-amber-400' : 'bg-amber-50 border-amber-300 text-amber-700'}`}>
-                                    {formInstructions}
-                                </div>
-                            )}
+                            <div className="px-4 py-4 space-y-4">
+                                {formInstructions && (
+                                    <div className={`rounded-lg p-3 border text-xs ${isDark ? 'bg-amber-900/20 border-amber-700/40 text-amber-400' : 'bg-amber-50 border-amber-300 text-amber-700'}`}>
+                                        {formInstructions}
+                                    </div>
+                                )}
 
-                            <div className="space-y-4">
                                 {step2Fields.map((field) => (
                                     <div key={field.id || field.fieldName}>
                                         <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
@@ -1570,19 +1573,22 @@ export default function RunEventBookingPage() {
                         </div>
                     )}
 
-                    {step === 2 && !isFreeFlow && chargePerPerson > 0 && isOrganizerQr && (
+                    {step === 2 && !isFreeFlow && chargePerPerson > 0 && (
                         <div className="mt-3">
-                            <RunQrPaymentPanel
+                            <RunCheckoutPanel
+                                mode={isOrganizerQr ? 'organizer_qr' : 'cashfree'}
                                 isDark={isDark}
                                 payableAmount={payableAmount}
                                 baseFee={baseFee}
                                 chargePerPerson={chargePerPerson}
+                                feePerPerson={fee}
                                 people={people}
+                                optionalAddOnLabel={optionalAddOn?.label}
+                                addOnFeePerPerson={addOnFeePerPerson}
                                 couponInfo={couponInfo}
                                 couponCode={couponCode}
                                 couponLoading={couponLoading}
                                 couponError={couponError}
-                                couponJustApplied={couponJustApplied}
                                 onCouponCodeChange={(v) => {
                                     couponSourceRef.current = 'cleared';
                                     setCouponCode(v);
@@ -1612,75 +1618,6 @@ export default function RunEventBookingPage() {
                                 transactionId={transactionId}
                                 onTransactionIdChange={setTransactionId}
                             />
-                        </div>
-                    )}
-
-                    {step === 2 && !isFreeFlow && chargePerPerson > 0 && !isOrganizerQr && (
-                        <div className={`mt-4 rounded-xl p-4 border ${isDark ? 'bg-[#111213] border-[#0ECCEE]/30' : 'bg-gray-50 border-[#0ECCEE]/40'}`}>
-                            <div className="mb-3">
-                                <p className={`text-sm font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Coupon code</p>
-                                {couponInfo?.couponApplied ? (
-                                    <div className={`coupon-applied-banner relative overflow-hidden rounded-xl px-3.5 py-3 mb-2 ${couponJustApplied ? 'coupon-applied-pop' : ''}`}>
-                                        <div className="coupon-applied-glow" aria-hidden />
-                                        <div className="relative flex items-center gap-3">
-                                            <div className="coupon-applied-check shrink-0 size-9 rounded-full flex items-center justify-center bg-emerald-400/20 text-emerald-400">
-                                                <CheckCircle size={20} strokeWidth={2.4} />
-                                            </div>
-                                            <div className="min-w-0 flex-1">
-                                                <p className={`text-sm font-bold ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
-                                                    Applied · {couponInfo.couponCode}
-                                                </p>
-                                                <p className={`text-[11px] mt-0.5 ${isDark ? 'text-emerald-200/70' : 'text-emerald-800/80'}`}>
-                                                    You save ₹{Number(couponInfo.discountAmount || 0).toLocaleString('en-IN')}
-                                                </p>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={clearAppliedCoupon}
-                                                className={`text-[11px] font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
-                                            >
-                                                Change
-                                            </button>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="flex gap-2">
-                                        <input value={couponCode} onChange={(e) => { couponSourceRef.current = 'cleared'; setCouponCode(e.target.value.toUpperCase()); setCouponError(''); }} placeholder="Enter coupon" className={`flex-1 px-3 py-2 rounded-lg border ${isDark ? 'bg-[#1D1E20] border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'}`} />
-                                        <button type="button" onClick={() => applyCoupon({ source: 'manual' })} disabled={couponLoading} className="px-3 py-2 rounded-lg bg-[#0ECCEE] text-black font-semibold text-sm">
-                                            {couponLoading ? 'Applying...' : 'Apply'}
-                                        </button>
-                                    </div>
-                                )}
-                                {couponError ? <p className="text-xs text-red-400 mt-1">{couponError}</p> : null}
-                            </div>
-                            <p className={`text-sm font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Payment Breakdown</p>
-                            <div className={`space-y-1.5 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                                <div className="flex justify-between gap-4">
-                                    <span>Ticket Price <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>× {people}</span></span>
-                                    <span>₹{(fee * people).toLocaleString('en-IN')}</span>
-                                </div>
-                                {addOnFeePerPerson > 0 ? (
-                                    <div className="flex justify-between gap-4">
-                                        <span className="truncate pr-2">{optionalAddOn?.label || 'Add-on'} <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>× {people}</span></span>
-                                        <span>₹{(addOnFeePerPerson * people).toLocaleString('en-IN')}</span>
-                                    </div>
-                                ) : null}
-                                <div className={`flex justify-between gap-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                    <span>Platform Fee</span>
-                                    <span>₹{platformFee}</span>
-                                </div>
-                                {couponInfo?.couponApplied ? (
-                                    <div className="flex justify-between gap-4 text-green-400">
-                                        <span>Coupon Discount</span>
-                                        <span>-₹{couponInfo.discountAmount}</span>
-                                    </div>
-                                ) : null}
-                                <div className="flex justify-between gap-4 pt-2.5 mt-1 border-t border-gray-700 font-bold text-base text-[#0ECCEE]">
-                                    <span>Amount Payable</span>
-                                    <span>₹{payableAmount.toLocaleString('en-IN')}</span>
-                                </div>
-                            </div>
-                            <p className={`text-xs mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Includes all charges · Secure payment via Cashfree</p>
                         </div>
                     )}
 

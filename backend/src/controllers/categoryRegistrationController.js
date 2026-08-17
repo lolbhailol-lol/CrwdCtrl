@@ -9,7 +9,6 @@ const {
     validateAndPriceCoupon,
     reserveCouponUsage,
 } = require('../utils/couponPricing');
-const { buildPriceBreakdown } = require('../utils/platformFee');
 const { findByIdOrSlug } = require('../utils/slug');
 const { resolveSportsTicketTotal } = require('../utils/sportsPricing');
 const {
@@ -385,7 +384,7 @@ exports.registerForEvent = async (req, res) => {
             if (!paymentOrderId) {
                 const rawCoupon = bookingDetails.couponCode || req.body.couponCode || '';
                 const ticketBase = chargePerPerson * people;
-                const { totalAmount: gross } = buildPriceBreakdown(ticketBase);
+                const gross = ticketBase;
                 try {
                     const couponResult = await validateAndPriceCoupon({
                         couponCode: rawCoupon,

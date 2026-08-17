@@ -338,10 +338,7 @@ exports.validateCoupon = async (req, res) => {
         return res.status(e.status || 400).json({ message: e.message || 'Invalid tier' });
       }
       const baseTicketTotal = ticket.baseTicketTotal;
-      // UPI/SS (organizer_qr) has no platform fee — discount against run fee only
-      const amountBeforeDiscount = event.registration?.mode === 'organizer_qr'
-        ? baseTicketTotal
-        : buildPriceBreakdown(baseTicketTotal).totalAmount;
+      const amountBeforeDiscount = baseTicketTotal;
       const coupon = await validateAndPriceCoupon({
         couponCode,
         entityType: 'sports',
@@ -1008,7 +1005,8 @@ exports.createSportsOrder = async (req, res) => {
     const baseTicketTotal = ticket.baseTicketTotal;
     const resolvedTier = ticket.tier;
     const ticketPricePerPerson = ticket.ticketPricePerPerson + ticket.addOnFeePerPerson;
-    const { platformFee, totalAmount: grossTotalAmount } = buildPriceBreakdown(baseTicketTotal);
+    const platformFee = 0;
+    const grossTotalAmount = baseTicketTotal;
     const coupon = await validateAndPriceCoupon({
       couponCode,
       entityType: 'sports',
@@ -1050,6 +1048,25 @@ exports.createSportsOrder = async (req, res) => {
 
     const resolvedEventId = String(event._id);
 
+    // Cashfree max 15 order_tags — keep essentials here; full metadata in PaymentOrder
+    const cashfreeOrderTags = {
+      entityType: 'sports',
+      eventId: resolvedEventId,
+      people: String(peopleCount),
+      totalAmount: String(totalAmount),
+      ticketPrice: String(ticketPricePerPerson),
+    };
+    if (coupon.couponCode) cashfreeOrderTags.couponCode = coupon.couponCode;
+    if (Number(coupon.discountAmount) > 0) {
+      cashfreeOrderTags.couponDiscount = String(coupon.discountAmount);
+      cashfreeOrderTags.amountBeforeDiscount = String(coupon.amountBeforeDiscount);
+    }
+    if (resolvedTier?.id) cashfreeOrderTags.tierId = resolvedTier.id;
+    if (ticket.addOnSelected) {
+      cashfreeOrderTags.addOnSelected = '1';
+      cashfreeOrderTags.addOnFee = String(ticket.addOnFeePerPerson || 0);
+    }
+
     const order = await createCashfreeOrder({
       orderAmount: totalAmount,
       currency,
@@ -1060,24 +1077,7 @@ exports.createSportsOrder = async (req, res) => {
         customerPhone,
       },
       orderNote: resolvedName,
-      orderTags: {
-        entityType: 'sports',
-        eventId: resolvedEventId,
-        eventName: resolvedName,
-        people: String(peopleCount),
-        ticketPrice: String(ticketPricePerPerson),
-        platformFee: String(platformFee),
-        couponCode: coupon.couponCode || '',
-        couponDiscount: String(coupon.discountAmount || 0),
-        amountBeforeDiscount: String(coupon.amountBeforeDiscount),
-        amountAfterDiscount: String(coupon.amountAfterDiscount),
-        totalAmount: String(totalAmount),
-        tierId: resolvedTier?.id || '',
-        tierName: resolvedTier?.name || '',
-        addOnSelected: ticket.addOnSelected ? '1' : '0',
-        addOnLabel: ticket.addOnSelected ? (ticket.addOn?.label || '') : '',
-        addOnFee: String(ticket.addOnFeePerPerson || 0),
-      },
+      orderTags: cashfreeOrderTags,
     });
 
     await PaymentOrder.create({
@@ -1098,10 +1098,14 @@ exports.createSportsOrder = async (req, res) => {
       status: 'PENDING',
       orderTags: {
         eventId: resolvedEventId,
+        eventName: resolvedName,
         people: String(peopleCount),
         totalAmount: String(totalAmount),
         tierId: resolvedTier?.id || '',
         tierName: resolvedTier?.name || '',
+        addOnSelected: ticket.addOnSelected ? '1' : '0',
+        addOnLabel: ticket.addOnSelected ? (ticket.addOn?.label || '') : '',
+        addOnFee: String(ticket.addOnFeePerPerson || 0),
       },
       customerEmail: email,
     });

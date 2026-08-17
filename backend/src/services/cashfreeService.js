@@ -44,6 +44,28 @@ const normalizePhone = (phone) => {
   return '9999999999';
 };
 
+/** Cashfree allows at most 15 order_tags keys — sanitize and cap. */
+function sanitizeCashfreeOrderTags(raw = {}, maxKeys = 15) {
+  const out = {};
+  const entries = Object.entries(raw || {});
+  if (entries.length > maxKeys) {
+    console.warn(`[cashfree] order_tags has ${entries.length} keys; truncating to ${maxKeys}`);
+  }
+  for (const [key, value] of entries) {
+    if (Object.keys(out).length >= maxKeys) break;
+    if (value === undefined || value === null) continue;
+    const k = String(key || '').trim();
+    if (!/^[a-zA-Z0-9_]{1,64}$/.test(k)) continue;
+    let str = String(value).trim().slice(0, 255);
+    if (!str) continue;
+    if (/^https?:\/\//i.test(str) && !/^https:\/\//i.test(str)) continue;
+    str = str.replace(/[^\w\s.@+\-:/]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!str) continue;
+    out[k] = str;
+  }
+  return out;
+}
+
 async function createCashfreeOrder({
   orderAmount,
   currency = 'INR',
@@ -69,7 +91,7 @@ async function createCashfreeOrder({
       ...orderMeta,
     },
     order_note: orderNote,
-    order_tags: orderTags,
+    order_tags: sanitizeCashfreeOrderTags(orderTags),
   };
 
   const response = await axios.post(`${getBaseUrl()}/orders`, payload, { headers: getHeaders() });
@@ -312,5 +334,6 @@ module.exports = {
   inspectWebhookSignature,
   generateOrderId,
   normalizePhone,
+  sanitizeCashfreeOrderTags,
   getCashfreeClientMode,
 };
