@@ -71,7 +71,7 @@ export function CompletingPaymentStep({
           <RegistrationStatusVisual
             mode={/pay|cashfree|checkout/i.test(String(submissionProgress || '')) ? 'payment' : 'server'}
             title="Finishing registration"
-            subtitle="Waiting for the server — this usually takes a moment"
+            subtitle="This usually takes a few seconds"
             progressMessage={submissionProgress || 'Confirming payment & saving your booking…'}
             isDark={isDark}
           />

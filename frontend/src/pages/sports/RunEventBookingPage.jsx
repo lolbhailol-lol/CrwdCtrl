@@ -20,6 +20,7 @@ import {
     goToBookings,
     verifyPaymentWithRetry,
     pollPaymentUntilVerified,
+    PAYMENT_BACKGROUND_MAX_WAIT_MS,
     classifyVerifyError,
     clearCashfreeReturnAndPending,
 } from '../../utils/paymentNavigation';
@@ -730,7 +731,7 @@ export default function RunEventBookingPage() {
                     search: location.search,
                     token: resolveAuthToken(authToken),
                     customerEmail: draftEmail,
-                });
+                }, { maxWaitMs: PAYMENT_BACKGROUND_MAX_WAIT_MS });
 
                 if (verifyResult.status === 'cancelled') {
                     clearCashfreeReturnAndPending(navigate, location);

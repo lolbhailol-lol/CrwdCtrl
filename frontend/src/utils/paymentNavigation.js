@@ -3,12 +3,17 @@
 import { clearPendingPayment } from './deepLinks';
 import { resolveAuthToken } from './authToken';
 
-export const BOOKING_REDIRECT_MS = 800;
-/** Inner retries per poll attempt (Cashfree UPI/GPay can lag 30–90s). */
-export const PAYMENT_VERIFY_RETRY_MS = [800, 1200, 2000, 3000, 5000, 5000];
-/** Gaps between poll rounds on /payment/return and booking resume. */
-export const PAYMENT_POLL_INTERVAL_MS = [1500, 2000, 3000, 4000, 5000, 6000, 8000, 10000];
-export const PAYMENT_POLL_MAX_WAIT_MS = 120000;
+export const BOOKING_REDIRECT_MS = 400;
+/** Per-attempt inner retries inside one verify call. */
+export const PAYMENT_VERIFY_RETRY_MS = [300, 500, 800, 1200, 2000];
+/** Max wait on /payment/return before handing off to the booking page. */
+export const PAYMENT_RETURN_MAX_WAIT_MS = 4500;
+/** Background poll on fest/event/booking pages (user sees “Finishing…” overlay). */
+export const PAYMENT_BACKGROUND_MAX_WAIT_MS = 45000;
+/** Gaps between poll rounds (background only). */
+export const PAYMENT_POLL_INTERVAL_MS = [600, 800, 1000, 1500, 2000, 3000];
+/** @deprecated use PAYMENT_BACKGROUND_MAX_WAIT_MS */
+export const PAYMENT_POLL_MAX_WAIT_MS = PAYMENT_BACKGROUND_MAX_WAIT_MS;
 
 export function goToBookings(navigate, pendingBooking = null) {
   navigate('/booking', {
@@ -234,6 +239,19 @@ export function stripCashfreeReturnParams(search = '') {
   CASHFREE_QUERY_KEYS.forEach((key) => params.delete(key));
   const qs = params.toString();
   return qs ? `?${qs}` : '';
+}
+
+/** Navigate to registration/booking page — finish verify there (fast handoff). */
+export function handoffPaymentToReturnPath(navigate, returnPath, extraState = {}) {
+  if (!returnPath || !navigate) return;
+  const [path, existingQuery = ''] = String(returnPath).split('?');
+  const merged = new URLSearchParams(existingQuery);
+  CASHFREE_QUERY_KEYS.forEach((key) => merged.delete(key));
+  const qs = merged.toString();
+  navigate(qs ? `${path}?${qs}` : path, {
+    replace: true,
+    state: { fromPaymentReturn: true, ...extraState },
+  });
 }
 
 /**

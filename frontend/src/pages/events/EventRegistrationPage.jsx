@@ -11,7 +11,7 @@ import PaymentErrorModal from '../../components/PaymentErrorModal';
 import { InlinePageLoader } from '../../components/DetailPageLoader';
 import { RegistrationStatusVisual } from '../../components/RegistrationStatusVisual';
 import { getPendingPayment, clearPendingPayment, shouldResumePendingPayment } from '../../utils/deepLinks';
-import { verifyPaymentWithRetry, pollPaymentUntilVerified, goToBookings, classifyVerifyError } from '../../utils/paymentNavigation';
+import { verifyPaymentWithRetry, pollPaymentUntilVerified, goToBookings, classifyVerifyError, PAYMENT_BACKGROUND_MAX_WAIT_MS } from '../../utils/paymentNavigation';
 import {
     saveEventRegistrationDraft,
     loadEventRegistrationDraft,
@@ -881,7 +881,12 @@ export default function EventRegistrationPage() {
             openLogin();
             throw new Error('Please log in to complete registration after payment.');
         }
-        const verifyResult = await pollPaymentUntilVerified(API, orderId, { token, kind: 'fest', search: location.search });
+        const verifyResult = await pollPaymentUntilVerified(
+          API,
+          orderId,
+          { token, kind: 'fest', search: location.search },
+          { maxWaitMs: PAYMENT_BACKGROUND_MAX_WAIT_MS },
+        );
         if (verifyResult.status === 'cancelled') {
             throw new Error('Payment was cancelled. Tap Pay to try again.');
         }

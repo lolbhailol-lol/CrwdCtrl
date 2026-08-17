@@ -13,6 +13,7 @@ import {
 import {
   verifyPaymentWithRetry,
   pollPaymentUntilVerified,
+  PAYMENT_BACKGROUND_MAX_WAIT_MS,
   classifyVerifyError,
   clearCashfreeReturnAndPending,
 } from '../../../utils/paymentNavigation';
@@ -229,6 +230,7 @@ export default function useFestRegistration() {
       API_BASE_URL,
       orderId,
       { token: submitToken, search: location.search },
+      { maxWaitMs: PAYMENT_BACKGROUND_MAX_WAIT_MS },
     );
 
     if (verifyResult.status === 'cancelled') {
@@ -352,6 +354,7 @@ export default function useFestRegistration() {
       API_BASE_URL,
       orderId,
       { token: submitToken, search: location.search },
+      { maxWaitMs: PAYMENT_BACKGROUND_MAX_WAIT_MS },
     );
 
     if (verifyResult.status === 'cancelled') {

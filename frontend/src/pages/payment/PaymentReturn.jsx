@@ -23,6 +23,8 @@ import {
   classifyVerifyError,
   clearCashfreeReturnAndPending,
   stripCashfreeReturnParams,
+  handoffPaymentToReturnPath,
+  PAYMENT_RETURN_MAX_WAIT_MS,
 } from '../../utils/paymentNavigation';
 import { buildVerifiedPaymentFields } from '../../utils/useCashfree';
 import { finalizeCompetitionAfterPayment } from '../../utils/competitionPaymentComplete';
@@ -153,7 +155,7 @@ async function finishFestCompetitionAndNavigate({
         fromPaymentReturn: true,
       },
     });
-  }, 700);
+  }, 250);
 }
 
 /**
@@ -209,7 +211,7 @@ export default function PaymentReturn() {
               API_BASE_URL,
               orderId,
               { token, kind: 'fest', search },
-              { onProgress: updateProgress },
+              { maxWaitMs: PAYMENT_RETURN_MAX_WAIT_MS, onProgress: updateProgress },
             );
 
             if (verifyResult.status === 'cancelled') {
@@ -228,10 +230,9 @@ export default function PaymentReturn() {
 
             if (verifyResult.status === 'pending' && !verifyResult.verified) {
               if (!cancelledRef.current) {
-                setStatus('pending');
-                setMessage(
-                  'Your payment may still be processing. Check My Bookings in a minute — do not pay again.',
-                );
+                setStatus('redirecting');
+                setMessage('Finishing your registration…');
+                handoffPaymentToReturnPath(navigate, returnPath);
               }
               return;
             }
@@ -281,7 +282,7 @@ export default function PaymentReturn() {
                         fromPaymentReturn: true,
                       },
                     });
-                  }, 700);
+                  }, 250);
                   return;
                 }
 
@@ -308,16 +309,9 @@ export default function PaymentReturn() {
           }
         }
 
-        const [path, existingQuery] = returnPath.split('?');
-        const merged = new URLSearchParams(existingQuery || '');
-        params.forEach((value, key) => {
-          if (['order_id', 'order_token', 'cf_payment_id', 'payment_id'].includes(key)) return;
-          if (!merged.has(key)) merged.set(key, value);
-        });
-        const qs = merged.toString();
         if (!cancelledRef.current) {
           setStatus('redirecting');
-          navigate(qs ? `${path}?${qs}` : path, { replace: true, state: { fromPaymentReturn: true } });
+          handoffPaymentToReturnPath(navigate, returnPath);
         }
         return;
       }
@@ -349,7 +343,7 @@ export default function PaymentReturn() {
             API_BASE_URL,
             orderId,
             { token, kind: 'fest', search },
-            { onProgress: updateProgress },
+            { maxWaitMs: PAYMENT_RETURN_MAX_WAIT_MS, onProgress: updateProgress },
           );
 
           if (verifyResult.status === 'cancelled') {
@@ -388,15 +382,14 @@ export default function PaymentReturn() {
               } else {
                 goToBookings(navigate);
               }
-            }, 900);
+            }, 300);
             return;
           }
 
           const { kind, message: verifyMsg } = classifyVerifyError(verifyResult);
           if (kind === 'pending') {
             if (!cancelledRef.current) {
-              setStatus('pending');
-              setMessage('Your payment may still be processing. Check My Bookings — do not pay again.');
+              handoffPaymentToReturnPath(navigate, `/events/${eventShowId}/register`);
             }
             return;
           }
@@ -419,7 +412,7 @@ export default function PaymentReturn() {
             API_BASE_URL,
             orderId,
             { token, kind: 'fest', search },
-            { onProgress: updateProgress },
+            { maxWaitMs: PAYMENT_RETURN_MAX_WAIT_MS, onProgress: updateProgress },
           );
 
           if (verifyResult.ok && verifyResult.verified) {
@@ -465,7 +458,7 @@ export default function PaymentReturn() {
                       fromPaymentReturn: true,
                     },
                   });
-                }, 700);
+                }, 250);
                 return;
               }
 
@@ -528,15 +521,6 @@ export default function PaymentReturn() {
         <DetailLoader3DIcon variant="payment" size="compact" className="mb-4" />
       )}
       <p className="text-sm text-gray-400 text-center max-w-sm">{message}</p>
-      {status === 'pending' ? (
-        <button
-          type="button"
-          onClick={() => goToBookings(navigate)}
-          className="mt-6 min-h-[44px] px-5 py-2.5 rounded-xl bg-[#0ECCEE] text-black text-sm font-bold"
-        >
-          Open My Bookings
-        </button>
-      ) : null}
     </div>
   );
 }

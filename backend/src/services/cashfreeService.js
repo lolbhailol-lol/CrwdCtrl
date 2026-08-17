@@ -198,12 +198,13 @@ async function verifyCashfreePayment({ orderId, paymentId }) {
     );
     if (!match) {
       return {
-        verified: false,
-        status: 'failed',
-        code: 'PAYMENT_ID_MISMATCH',
-        message: 'Payment ID not found or not successful',
-        retryable: true,
+        verified: true,
+        status: 'paid',
+        code: 'PAYMENT_PAID',
+        message: 'Payment confirmed.',
+        retryable: false,
         orderId,
+        paymentId: String(paymentId),
         orderStatus,
       };
     }
@@ -221,13 +222,15 @@ async function verifyCashfreePayment({ orderId, paymentId }) {
 
   const successPayment = payments.find((p) => p.payment_status === 'SUCCESS');
   if (!successPayment) {
+    // Order is PAID but payments list hasn't synced yet (common with UPI/GPay redirect).
     return {
-      verified: false,
-      status: 'pending',
-      code: 'PAYMENT_PENDING',
-      message: 'No successful payment found for this order yet.',
-      retryable: true,
+      verified: true,
+      status: 'paid',
+      code: 'PAYMENT_PAID',
+      message: 'Payment confirmed.',
+      retryable: false,
       orderId,
+      paymentId: paymentId || null,
       orderStatus,
     };
   }
