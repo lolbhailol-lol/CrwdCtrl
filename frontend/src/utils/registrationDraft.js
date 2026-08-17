@@ -191,29 +191,42 @@ export function saveFestRegistrationSuccess({
   });
 
   try {
-    sessionStorage.setItem(
-      FEST_REG_SUCCESS_KEY,
-      JSON.stringify({
-        festId: routeKey || mongo || '',
-        festMongoId: mongo || (isMongoObjectId(routeKey) ? routeKey : ''),
-        festAliases: aliases,
-        competitionId: competitionId ? String(competitionId) : '',
-        registrationId: registrationId ? String(registrationId) : '',
-        ts: Date.now(),
-      }),
-    );
+    const payload = JSON.stringify({
+      festId: routeKey || mongo || '',
+      festMongoId: mongo || (isMongoObjectId(routeKey) ? routeKey : ''),
+      festAliases: aliases,
+      competitionId: competitionId ? String(competitionId) : '',
+      registrationId: registrationId ? String(registrationId) : '',
+      ts: Date.now(),
+    });
+    sessionStorage.setItem(FEST_REG_SUCCESS_KEY, payload);
+    try {
+      localStorage.setItem(FEST_REG_SUCCESS_KEY, payload);
+    } catch {
+      /* quota */
+    }
   } catch {
     /* ignore */
   }
 }
 
+function readFestRegistrationSuccessRaw() {
+  try {
+    return sessionStorage.getItem(FEST_REG_SUCCESS_KEY)
+      || localStorage.getItem(FEST_REG_SUCCESS_KEY);
+  } catch {
+    return null;
+  }
+}
+
 export function loadFestRegistrationSuccess(festId, competitionId = null) {
   try {
-    const raw = sessionStorage.getItem(FEST_REG_SUCCESS_KEY);
+    const raw = readFestRegistrationSuccessRaw();
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed?.ts || Date.now() - parsed.ts > FEST_REG_SUCCESS_MAX_AGE_MS) {
       sessionStorage.removeItem(FEST_REG_SUCCESS_KEY);
+      try { localStorage.removeItem(FEST_REG_SUCCESS_KEY); } catch { /* ignore */ }
       return null;
     }
 
@@ -248,6 +261,7 @@ export function loadFestRegistrationSuccess(festId, competitionId = null) {
 export function clearFestRegistrationSuccess() {
   try {
     sessionStorage.removeItem(FEST_REG_SUCCESS_KEY);
+    localStorage.removeItem(FEST_REG_SUCCESS_KEY);
   } catch {
     /* ignore */
   }

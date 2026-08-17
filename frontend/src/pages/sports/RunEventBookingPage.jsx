@@ -19,6 +19,7 @@ import {
 import {
     goToBookings,
     verifyPaymentWithRetry,
+    pollPaymentUntilVerified,
     classifyVerifyError,
     clearCashfreeReturnAndPending,
 } from '../../utils/paymentNavigation';
@@ -724,7 +725,7 @@ export default function RunEventBookingPage() {
                     || draft?.extraFields?.e_mail
                     || '',
                 ).trim();
-                const verifyResult = await verifyPaymentWithRetry(API, pending.orderId, {
+                const verifyResult = await pollPaymentUntilVerified(API, pending.orderId, {
                     kind: 'sports',
                     search: location.search,
                     token: resolveAuthToken(authToken),
@@ -744,11 +745,11 @@ export default function RunEventBookingPage() {
                 if (!verifyResult.ok || !verifyResult.verified) {
                     const { kind, message } = classifyVerifyError(verifyResult);
                     if (kind === 'cancelled' || kind === 'failed') clearPendingPayment();
-                    setStep(2);
+                    setStep(3);
                     setPayDone(false);
                     setError(
                         kind === 'pending'
-                            ? 'Payment is still processing. Wait a moment and tap Pay again.'
+                            ? 'Payment is confirming. Check My Bookings — do not pay again.'
                             : (message || 'Payment verification failed after redirect. Contact support.'),
                     );
                     setPaying(false);

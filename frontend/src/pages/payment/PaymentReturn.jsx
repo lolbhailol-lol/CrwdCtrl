@@ -18,9 +18,11 @@ import {
 } from '../../utils/eventPaymentRecovery';
 import {
   verifyPaymentWithRetry,
+  pollPaymentUntilVerified,
   goToBookings,
   classifyVerifyError,
   clearCashfreeReturnAndPending,
+  stripCashfreeReturnParams,
 } from '../../utils/paymentNavigation';
 import { buildVerifiedPaymentFields } from '../../utils/useCashfree';
 import { finalizeCompetitionAfterPayment } from '../../utils/competitionPaymentComplete';
@@ -160,11 +162,20 @@ async function finishFestCompetitionAndNavigate({
  */
 export default function PaymentReturn() {
   const navigate = useNavigate();
-  const [status, setStatus] = useState('confirming'); // confirming | success | redirecting
+  const [status, setStatus] = useState('confirming'); // confirming | success | redirecting | pending
   const [message, setMessage] = useState('Confirming your payment…');
 
   useEffect(() => {
     const cancelledRef = { current: false };
+
+    const updateProgress = ({ attempt }) => {
+      if (cancelledRef.current) return;
+      setMessage(
+        attempt <= 2
+          ? 'Confirming your payment…'
+          : 'Payment received — waiting for bank confirmation…',
+      );
+    };
 
     (async () => {
       const search = typeof window !== 'undefined' ? window.location.search : '';
@@ -182,19 +193,32 @@ export default function PaymentReturn() {
         const orderId = orderIdFromUrl || pending?.orderId || orderCtx?.orderId || '';
         const token = resolveAuthToken();
 
+        if (orderId && !token) {
+          const returnUrl = `/payment/return?order_id=${encodeURIComponent(orderId)}`;
+          if (!cancelledRef.current) {
+            setStatus('redirecting');
+            setMessage('Sign in to finish your registration…');
+            navigate(`/login?redirect=${encodeURIComponent(returnUrl)}`, { replace: true });
+          }
+          return;
+        }
+
         if (orderId && token) {
           try {
-            const verifyResult = await verifyPaymentWithRetry(API_BASE_URL, orderId, {
-              token,
-              kind: 'fest',
-              search,
-            });
+            const verifyResult = await pollPaymentUntilVerified(
+              API_BASE_URL,
+              orderId,
+              { token, kind: 'fest', search },
+              { onProgress: updateProgress },
+            );
 
             if (verifyResult.status === 'cancelled') {
               clearCashfreeReturnAndPending(navigate, { pathname: returnPath.split('?')[0], search: '' });
               if (!cancelledRef.current) {
                 setStatus('redirecting');
-                navigate(returnPath.split('?')[0] + (returnPath.includes('?') ? `?${returnPath.split('?')[1]}` : ''), {
+                const basePath = returnPath.split('?')[0];
+                const cleanSearch = stripCashfreeReturnParams(returnPath.includes('?') ? `?${returnPath.split('?')[1]}` : '');
+                navigate(`${basePath}${cleanSearch}`, {
                   replace: true,
                   state: { paymentCancelled: true },
                 });
@@ -204,14 +228,10 @@ export default function PaymentReturn() {
 
             if (verifyResult.status === 'pending' && !verifyResult.verified) {
               if (!cancelledRef.current) {
-                setStatus('redirecting');
-                const [path, existingQuery] = returnPath.split('?');
-                const merged = new URLSearchParams(existingQuery || '');
-                params.forEach((value, key) => {
-                  if (!merged.has(key)) merged.set(key, value);
-                });
-                const qs = merged.toString();
-                navigate(qs ? `${path}?${qs}` : path, { replace: true, state: { fromPaymentReturn: true } });
+                setStatus('pending');
+                setMessage(
+                  'Your payment may still be processing. Check My Bookings in a minute — do not pay again.',
+                );
               }
               return;
             }
@@ -291,6 +311,7 @@ export default function PaymentReturn() {
         const [path, existingQuery] = returnPath.split('?');
         const merged = new URLSearchParams(existingQuery || '');
         params.forEach((value, key) => {
+          if (['order_id', 'order_token', 'cf_payment_id', 'payment_id'].includes(key)) return;
           if (!merged.has(key)) merged.set(key, value);
         });
         const qs = merged.toString();
@@ -324,11 +345,12 @@ export default function PaymentReturn() {
       if (eventShowId && token) {
         try {
           if (!cancelledRef.current) setMessage('Payment received — finishing your registration…');
-          const verifyResult = await verifyPaymentWithRetry(API_BASE_URL, orderId, {
-            token,
-            kind: 'fest',
-            search,
-          });
+          const verifyResult = await pollPaymentUntilVerified(
+            API_BASE_URL,
+            orderId,
+            { token, kind: 'fest', search },
+            { onProgress: updateProgress },
+          );
 
           if (verifyResult.status === 'cancelled') {
             clearCashfreeReturnAndPending(navigate, { pathname: `/events/${eventShowId}/register`, search: '' });
@@ -373,7 +395,8 @@ export default function PaymentReturn() {
           const { kind, message: verifyMsg } = classifyVerifyError(verifyResult);
           if (kind === 'pending') {
             if (!cancelledRef.current) {
-              navigate(`/events/${eventShowId}/register${search}`, { replace: true });
+              setStatus('pending');
+              setMessage('Your payment may still be processing. Check My Bookings — do not pay again.');
             }
             return;
           }
@@ -392,11 +415,12 @@ export default function PaymentReturn() {
       if (token) {
         try {
           if (!cancelledRef.current) setMessage('Payment received — finishing your registration…');
-          const verifyResult = await verifyPaymentWithRetry(API_BASE_URL, orderId, {
-            token,
-            kind: 'fest',
-            search,
-          });
+          const verifyResult = await pollPaymentUntilVerified(
+            API_BASE_URL,
+            orderId,
+            { token, kind: 'fest', search },
+            { onProgress: updateProgress },
+          );
 
           if (verifyResult.ok && verifyResult.verified) {
             const recovery = verifyResult.data?.recovery || {};
@@ -504,6 +528,15 @@ export default function PaymentReturn() {
         <DetailLoader3DIcon variant="payment" size="compact" className="mb-4" />
       )}
       <p className="text-sm text-gray-400 text-center max-w-sm">{message}</p>
+      {status === 'pending' ? (
+        <button
+          type="button"
+          onClick={() => goToBookings(navigate)}
+          className="mt-6 min-h-[44px] px-5 py-2.5 rounded-xl bg-[#0ECCEE] text-black text-sm font-bold"
+        >
+          Open My Bookings
+        </button>
+      ) : null}
     </div>
   );
 }

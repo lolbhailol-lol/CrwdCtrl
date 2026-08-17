@@ -4,7 +4,11 @@ import { clearPendingPayment } from './deepLinks';
 import { resolveAuthToken } from './authToken';
 
 export const BOOKING_REDIRECT_MS = 800;
-export const PAYMENT_VERIFY_RETRY_MS = [600, 1000, 1500, 2000, 3000, 5000];
+/** Inner retries per poll attempt (Cashfree UPI/GPay can lag 30–90s). */
+export const PAYMENT_VERIFY_RETRY_MS = [800, 1200, 2000, 3000, 5000, 5000];
+/** Gaps between poll rounds on /payment/return and booking resume. */
+export const PAYMENT_POLL_INTERVAL_MS = [1500, 2000, 3000, 4000, 5000, 6000, 8000, 10000];
+export const PAYMENT_POLL_MAX_WAIT_MS = 120000;
 
 export function goToBookings(navigate, pendingBooking = null) {
   navigate('/booking', {
@@ -220,5 +224,62 @@ export async function verifyPaymentWithRetry(
     data: lastData,
     response: lastRes,
     classified: lastClassified,
+  };
+}
+
+const CASHFREE_QUERY_KEYS = ['order_id', 'order_token', 'cf_payment_id', 'payment_id'];
+
+export function stripCashfreeReturnParams(search = '') {
+  const params = new URLSearchParams(search);
+  CASHFREE_QUERY_KEYS.forEach((key) => params.delete(key));
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
+/**
+ * Poll Cashfree verify until paid, cancelled, hard failure, or timeout.
+ * Use after GPay/UPI redirect — settlement often lags 15–90 seconds.
+ */
+export async function pollPaymentUntilVerified(
+  apiBase,
+  orderId,
+  verifyOptions = {},
+  { maxWaitMs = PAYMENT_POLL_MAX_WAIT_MS, onProgress = null } = {},
+) {
+  const started = Date.now();
+  let attempt = 0;
+  let lastResult = null;
+
+  while (Date.now() - started < maxWaitMs) {
+    attempt += 1;
+    if (onProgress) {
+      onProgress({ attempt, elapsedMs: Date.now() - started });
+    }
+
+    lastResult = await verifyPaymentWithRetry(apiBase, orderId, verifyOptions);
+
+    if (lastResult.verified) return lastResult;
+    if (lastResult.status === 'cancelled') return lastResult;
+    if (lastResult.status === 'failed' && !lastResult.classified?.retryable) {
+      return lastResult;
+    }
+
+    const delayIdx = Math.min(Math.max(attempt - 1, 0), PAYMENT_POLL_INTERVAL_MS.length - 1);
+    const delay = PAYMENT_POLL_INTERVAL_MS[delayIdx] || 5000;
+    if (Date.now() - started + delay >= maxWaitMs) break;
+    await new Promise((r) => setTimeout(r, delay));
+  }
+
+  return lastResult || {
+    ok: false,
+    verified: false,
+    status: 'pending',
+    code: 'PAYMENT_PENDING',
+    classified: classifyVerifyResponse({
+      verified: false,
+      status: 'pending',
+      code: 'PAYMENT_PENDING',
+      retryable: true,
+    }),
   };
 }

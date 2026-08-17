@@ -19,6 +19,7 @@ import {
 import {
     goToBookings,
     verifyPaymentWithRetry,
+    pollPaymentUntilVerified,
     classifyVerifyError,
     clearCashfreeReturnAndPending,
 } from '../../utils/paymentNavigation';
@@ -746,7 +747,7 @@ export default function TrekBookingPage() {
                     || draft?.extraFields?.e_mail
                     || '',
                 ).trim();
-                const verifyResult = await verifyPaymentWithRetry(API, pending.orderId, {
+                const verifyResult = await pollPaymentUntilVerified(API, pending.orderId, {
                     kind: 'trek',
                     search: location.search,
                     token: resolveAuthToken(authToken),
@@ -767,12 +768,12 @@ export default function TrekBookingPage() {
                 if (!verifyResult.ok || !verifyResult.verified) {
                     const { kind, message } = classifyVerifyError(verifyResult);
                     if (kind === 'cancelled' || kind === 'failed') clearPendingPayment();
-                    setStep(2);
+                    setStep(3);
                     setPayDone(false);
                     setPostPaymentError('');
                     setError(
                         kind === 'pending'
-                            ? 'Payment is still processing. Wait a moment and tap Pay again.'
+                            ? 'Payment is confirming. Check My Bookings — do not pay again.'
                             : (message || 'Payment verification failed after redirect. Contact support.'),
                     );
                     setPaying(false);

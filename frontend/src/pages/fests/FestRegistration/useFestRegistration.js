@@ -12,6 +12,7 @@ import {
 } from '../../../utils/deepLinks';
 import {
   verifyPaymentWithRetry,
+  pollPaymentUntilVerified,
   classifyVerifyError,
   clearCashfreeReturnAndPending,
 } from '../../../utils/paymentNavigation';
@@ -224,7 +225,7 @@ export default function useFestRegistration() {
       throw new Error('Please log in to complete your registration.');
     }
 
-    const verifyResult = await verifyPaymentWithRetry(
+    const verifyResult = await pollPaymentUntilVerified(
       API_BASE_URL,
       orderId,
       { token: submitToken, search: location.search },
@@ -237,8 +238,9 @@ export default function useFestRegistration() {
 
     if (!verifyResult.ok || !verifyResult.verified) {
       const { kind, message } = classifyVerifyError(verifyResult);
-      if (kind === 'pending' || kind === 'network') {
-        throw new Error(message);
+      if (kind === 'pending') {
+        setPaymentResumeWasPaid(true);
+        throw new Error('Payment is still confirming. Check My Bookings — do not pay again.');
       }
       throw new Error(message);
     }
@@ -346,7 +348,7 @@ export default function useFestRegistration() {
       throw new Error('Please log in to complete your registration.');
     }
 
-    const verifyResult = await verifyPaymentWithRetry(
+    const verifyResult = await pollPaymentUntilVerified(
       API_BASE_URL,
       orderId,
       { token: submitToken, search: location.search },
@@ -359,6 +361,10 @@ export default function useFestRegistration() {
 
     if (!verifyResult.ok || !verifyResult.verified) {
       const { kind, message } = classifyVerifyError(verifyResult);
+      if (kind === 'pending') {
+        setPaymentResumeWasPaid(true);
+        throw new Error('Payment is still confirming. Check My Bookings — do not pay again.');
+      }
       throw new Error(message);
     }
 
