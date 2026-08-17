@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { ArrowLeft, ChevronLeft, ChevronRight, ChevronDown, Loader, CheckCircle, Clock, ImagePlus, Check } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, ChevronDown, Loader, CheckCircle, Clock, Check } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationsContext';
@@ -9,6 +9,7 @@ import CrwdCtrlRegister from '../auth/register';
 import { buildVerifiedPaymentFields } from '../../utils/useCashfree';
 
 import PaymentErrorModal from '../../components/PaymentErrorModal';
+import RunQrPaymentPanel from '../../components/sports/RunQrPaymentPanel';
 import {
     getPendingPayment,
     clearPendingPayment,
@@ -170,7 +171,6 @@ export default function RunEventBookingPage() {
     const [transactionId, setTransactionId] = useState('');
     const [uploadingProof, setUploadingProof] = useState(false);
     const [upiCopied, setUpiCopied] = useState(false);
-    const [showCouponField, setShowCouponField] = useState(false);
     const [showTierIncludes, setShowTierIncludes] = useState(false);
     const retryCheckoutRef = useRef(null);
     const couponSourceRef = useRef(null);
@@ -1571,236 +1571,47 @@ export default function RunEventBookingPage() {
                     )}
 
                     {step === 2 && !isFreeFlow && chargePerPerson > 0 && isOrganizerQr && (
-                        <div className={`mt-3 rounded-xl overflow-hidden border ${isDark ? 'border-gray-700/60' : 'border-gray-200'}`}>
-                            {/* Header: amount + coupon */}
-                            <div className={`px-4 py-3.5 flex items-start justify-between gap-3 ${isDark ? 'bg-[#161718]' : 'bg-gray-50'}`}>
-                                <div className="min-w-0">
-                                    <p className={`text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>Amount to pay</p>
-                                    <p className={`text-2xl font-bold leading-tight tabular-nums ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                        ₹{payableAmount.toLocaleString('en-IN')}
-                                    </p>
-                                    <p className={`text-[11px] mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                                        {couponInfo?.couponApplied
-                                            ? `was ₹${(couponInfo.amountBeforeDiscount ?? baseFee).toLocaleString('en-IN')}`
-                                            : people > 1
-                                                ? `₹${chargePerPerson.toLocaleString('en-IN')} × ${people}`
-                                                : '1 person'}
-                                    </p>
-                                </div>
-                                {!showCouponField && !couponInfo?.couponApplied ? (
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowCouponField(true)}
-                                        className="shrink-0 text-xs font-semibold text-[#0ECCEE] pt-1"
-                                    >
-                                        Coupon
-                                    </button>
-                                ) : null}
-                            </div>
-
-                            {(showCouponField || couponInfo?.couponApplied) ? (
-                                <div className={`px-4 py-3 border-t ${isDark ? 'border-gray-700/60' : 'border-gray-200'}`}>
-                                    {couponInfo?.couponApplied ? (
-                                        <div
-                                            className={`coupon-applied-banner relative overflow-hidden rounded-xl px-3.5 py-3 ${
-                                                couponJustApplied ? 'coupon-applied-pop' : ''
-                                            }`}
-                                        >
-                                            <div className="coupon-applied-glow" aria-hidden />
-                                            <div className="relative flex items-center gap-3">
-                                                <div className="coupon-applied-check shrink-0 size-9 rounded-full flex items-center justify-center bg-emerald-400/20 text-emerald-300">
-                                                    <CheckCircle size={20} strokeWidth={2.4} />
-                                                </div>
-                                                <div className="min-w-0 flex-1">
-                                                    <p className="text-sm font-bold text-emerald-300 tracking-wide">
-                                                        Applied · {couponInfo.couponCode}
-                                                    </p>
-                                                    <p className={`text-[11px] mt-0.5 ${isDark ? 'text-emerald-200/70' : 'text-emerald-800/80'}`}>
-                                                        You save ₹{Number(couponInfo.discountAmount || 0).toLocaleString('en-IN')}
-                                                        {payableAmount === 0 ? ' · No payment needed' : ''}
-                                                    </p>
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={clearAppliedCoupon}
-                                                    className={`text-[11px] font-semibold shrink-0 ${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-800'}`}
-                                                >
-                                                    Change
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <div className="flex gap-2">
-                                                <input
-                                                    value={couponCode}
-                                                    onChange={(e) => {
-                                                        couponSourceRef.current = 'cleared';
-                                                        setCouponCode(e.target.value.toUpperCase());
-                                                        setCouponInfo(null);
-                                                        setCouponError('');
-                                                    }}
-                                                    placeholder="Code"
-                                                    className={`flex-1 min-w-0 h-10 px-3 rounded-lg border text-sm focus:outline-none focus:border-[#0ECCEE] ${
-                                                        isDark
-                                                            ? 'bg-[#0E0E0F] border-gray-700 text-white placeholder-gray-600'
-                                                            : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
-                                                    }`}
-                                                />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => applyCoupon({ source: 'manual' })}
-                                                    disabled={couponLoading || !couponCode.trim()}
-                                                    className="h-10 px-3.5 rounded-lg bg-[#0ECCEE] text-black text-sm font-bold disabled:opacity-50"
-                                                >
-                                                    {couponLoading ? '…' : 'Apply'}
-                                                </button>
-                                            </div>
-                                            {couponError ? <p className="text-[11px] text-red-400 mt-1.5">{couponError}</p> : null}
-                                        </>
-                                    )}
-                                </div>
-                            ) : null}
-
-                            {payableAmount > 0 ? (
-                                <>
-                                    {/* Pay row: QR + UPI aligned */}
-                                    <div className={`px-4 py-4 border-t flex gap-3.5 items-center ${isDark ? 'border-gray-700/60' : 'border-gray-200'}`}>
-                                        {paymentQR ? (
-                                            <div className="shrink-0 size-[148px] rounded-xl bg-white p-2">
-                                                <img src={paymentQR} alt="Payment QR" className="size-full object-contain" />
-                                            </div>
-                                        ) : (
-                                            <div className={`shrink-0 size-[148px] rounded-xl flex items-center justify-center text-[10px] text-center px-2 ${isDark ? 'bg-gray-800 text-red-400' : 'bg-gray-100 text-red-500'}`}>
-                                                QR not set
-                                            </div>
-                                        )}
-                                        <div className="min-w-0 flex-1 space-y-2">
-                                            <p className={`text-xs leading-snug ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                                {event?.registration?.qrAutoConfirm
-                                                    ? 'Scan QR or pay on UPI, then add proof below. Your booking confirms when you submit.'
-                                                    : 'Scan QR or pay on UPI, then add proof below. The club will approve your payment.'}
-                                            </p>
-                                            {paymentUpiId ? (
-                                                <button
-                                                    type="button"
-                                                    onClick={async () => {
-                                                        try {
-                                                            await navigator.clipboard.writeText(paymentUpiId);
-                                                            setUpiCopied(true);
-                                                            setTimeout(() => setUpiCopied(false), 2000);
-                                                        } catch {
-                                                            setError('Could not copy UPI ID');
-                                                        }
-                                                    }}
-                                                    className={`w-full flex items-center justify-between gap-2 h-10 px-3 rounded-lg text-left ${
-                                                        isDark ? 'bg-[#0E0E0F] border border-gray-700' : 'bg-white border border-gray-200'
-                                                    }`}
-                                                >
-                                                    <span className={`text-xs font-mono truncate ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                                                        {paymentUpiId}
-                                                    </span>
-                                                    <span className="text-xs font-bold text-[#0ECCEE] shrink-0">
-                                                        {upiCopied ? 'Copied' : 'Copy'}
-                                                    </span>
-                                                </button>
-                                            ) : null}
-                                            {paymentQRMessage ? (
-                                                <p className={`text-[11px] leading-snug line-clamp-2 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                                                    {paymentQRMessage}
-                                                </p>
-                                            ) : null}
-                                        </div>
-                                    </div>
-
-                                    {/* Proof rows — same alignment column */}
-                                    <div className={`border-t ${isDark ? 'border-gray-700/60' : 'border-gray-200'}`}>
-                                        <label
-                                            className={`flex items-center gap-3 px-4 py-3 cursor-pointer ${
-                                                uploadingProof ? 'opacity-60 pointer-events-none' : ''
-                                            } ${isDark ? 'active:bg-white/3' : 'active:bg-gray-50'}`}
-                                        >
-                                            {paymentScreenshotUrl ? (
-                                                <img
-                                                    src={paymentScreenshotUrl}
-                                                    alt=""
-                                                    className="size-11 rounded-lg object-cover shrink-0"
-                                                />
-                                            ) : (
-                                                <div className={`size-11 rounded-lg flex items-center justify-center shrink-0 ${isDark ? 'bg-[#0E0E0F] border border-gray-700' : 'bg-gray-100'}`}>
-                                                    {uploadingProof
-                                                        ? <Loader className="w-4 h-4 animate-spin text-[#0ECCEE]" />
-                                                        : <ImagePlus size={18} className="text-[#0ECCEE]" />}
-                                                </div>
-                                            )}
-                                            <div className="min-w-0 flex-1">
-                                                <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                    {uploadingProof
-                                                        ? 'Uploading…'
-                                                        : paymentScreenshotUrl
-                                                            ? 'Screenshot added'
-                                                            : 'Payment screenshot'}
-                                                </p>
-                                                <p className={`text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                                                    {paymentScreenshotUrl ? 'Tap to change' : 'Gallery or camera'}
-                                                </p>
-                                            </div>
-                                            {paymentScreenshotUrl ? (
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                        e.preventDefault();
-                                                        e.stopPropagation();
-                                                        setPaymentScreenshotUrl('');
-                                                    }}
-                                                    className={`text-[11px] font-medium shrink-0 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
-                                                >
-                                                    Remove
-                                                </button>
-                                            ) : (
-                                                <span className="text-xs font-semibold text-[#0ECCEE] shrink-0">Add</span>
-                                            )}
-                                            <input
-                                                type="file"
-                                                accept="image/*"
-                                                disabled={uploadingProof}
-                                                className="hidden"
-                                                onChange={(e) => {
-                                                    const file = e.target.files?.[0];
-                                                    e.target.value = '';
-                                                    uploadPaymentScreenshot(file);
-                                                }}
-                                            />
-                                        </label>
-
-                                        <div className={`mx-4 border-t ${isDark ? 'border-gray-800' : 'border-gray-100'}`} />
-
-                                        <div className="px-4 py-3">
-                                            <label htmlFor="upi-txn-id" className={`block text-[11px] mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                                                UTR / transaction ID
-                                            </label>
-                                            <input
-                                                id="upi-txn-id"
-                                                value={transactionId}
-                                                onChange={(e) => setTransactionId(e.target.value.replace(/\s+/g, ''))}
-                                                required
-                                                minLength={4}
-                                                autoComplete="off"
-                                                className={`w-full h-10 px-3 rounded-lg border text-sm font-mono focus:outline-none focus:border-[#0ECCEE] ${
-                                                    isDark
-                                                        ? 'bg-[#0E0E0F] border-gray-700 text-white placeholder-gray-600'
-                                                        : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
-                                                }`}
-                                                placeholder="Paste from UPI app"
-                                            />
-                                        </div>
-                                    </div>
-                                </>
-                            ) : (
-                                <div className={`px-4 py-4 border-t text-sm ${isDark ? 'border-gray-700/60 text-gray-400' : 'border-gray-200 text-gray-600'}`}>
-                                    Coupon covers the fee — confirm below.
-                                </div>
-                            )}
+                        <div className="mt-3">
+                            <RunQrPaymentPanel
+                                isDark={isDark}
+                                payableAmount={payableAmount}
+                                baseFee={baseFee}
+                                chargePerPerson={chargePerPerson}
+                                people={people}
+                                couponInfo={couponInfo}
+                                couponCode={couponCode}
+                                couponLoading={couponLoading}
+                                couponError={couponError}
+                                couponJustApplied={couponJustApplied}
+                                onCouponCodeChange={(v) => {
+                                    couponSourceRef.current = 'cleared';
+                                    setCouponCode(v);
+                                    setCouponInfo(null);
+                                    setCouponError('');
+                                }}
+                                onApplyCoupon={() => applyCoupon({ source: 'manual' })}
+                                onClearCoupon={clearAppliedCoupon}
+                                paymentQR={paymentQR}
+                                paymentUpiId={paymentUpiId}
+                                paymentQRMessage={paymentQRMessage}
+                                qrAutoConfirm={Boolean(event?.registration?.qrAutoConfirm)}
+                                upiCopied={upiCopied}
+                                onCopyUpi={async () => {
+                                    try {
+                                        await navigator.clipboard.writeText(paymentUpiId);
+                                        setUpiCopied(true);
+                                        setTimeout(() => setUpiCopied(false), 2000);
+                                    } catch {
+                                        setError('Could not copy UPI ID');
+                                    }
+                                }}
+                                paymentScreenshotUrl={paymentScreenshotUrl}
+                                uploadingProof={uploadingProof}
+                                onUploadScreenshot={uploadPaymentScreenshot}
+                                onRemoveScreenshot={() => setPaymentScreenshotUrl('')}
+                                transactionId={transactionId}
+                                onTransactionIdChange={setTransactionId}
+                            />
                         </div>
                     )}
 

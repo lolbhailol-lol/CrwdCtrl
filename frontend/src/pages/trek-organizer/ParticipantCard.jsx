@@ -170,6 +170,11 @@ export default function ParticipantCard({
                                 <Users size={12} />
                                 {peopleCount} {peopleCount === 1 ? 'person' : 'people'}
                             </span>
+                            {pendingReview && participant.transactionId ? (
+                                <span className="inline-flex items-center gap-1 font-mono text-amber-300/90 max-w-full truncate">
+                                    UTR · {participant.transactionId}
+                                </span>
+                            ) : null}
                             {!isOpen && fields.length > 0 ? (
                                 <span className="text-gray-600">
                                     {fields.length} form field{fields.length === 1 ? '' : 's'} · tap to view

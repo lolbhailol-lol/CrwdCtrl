@@ -334,6 +334,27 @@ export default function RunClubOrganizerDashboardPage() {
                 </div>
             ) : null}
 
+            {showPaymentReview && pendingReview > 0 ? (
+                <button
+                    type="button"
+                    onClick={() => navigate(`/run-club-organizer/events/${eventId}/participants?paymentStatus=pending_review`)}
+                    className="w-full flex items-center justify-between gap-3 rounded-2xl border border-amber-500/40 bg-linear-to-r from-amber-500/15 to-amber-500/5 px-4 py-4 min-h-[56px] text-left hover:border-amber-400/50 active:scale-[0.99] transition-all"
+                >
+                    <div className="min-w-0">
+                        <p className="text-sm font-semibold text-amber-100 flex items-center gap-2">
+                            <Hourglass size={16} />
+                            {pendingReview} payment{pendingReview === 1 ? '' : 's'} to review
+                        </p>
+                        <p className="text-[11px] text-amber-200/70 mt-0.5">
+                            Check UTR / transaction ID and screenshot, then approve or reject.
+                        </p>
+                    </div>
+                    <span className="shrink-0 px-3 py-1.5 rounded-lg bg-amber-400 text-black text-xs font-bold">
+                        Review now
+                    </span>
+                </button>
+            ) : null}
+
             {publicUrl && String(status).toLowerCase() === 'published' ? (
                 <SectionCard className="p-4 sm:p-5 space-y-3.5">
                     <div className="flex items-start gap-3">

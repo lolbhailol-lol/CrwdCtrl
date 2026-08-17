@@ -400,9 +400,14 @@ export default function RunClubOrganizerParticipantsPage() {
                     }}
                     className="w-full flex items-center justify-between gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3.5 min-h-[52px] text-left hover:bg-amber-500/15 active:scale-[0.99]"
                 >
-                    <span className="inline-flex items-center gap-2 text-sm text-amber-200 font-medium">
-                        <Hourglass size={16} />
-                        {pendingCount} payment{pendingCount === 1 ? '' : 's'} need review
+                    <span className="inline-flex flex-col gap-0.5 min-w-0">
+                        <span className="inline-flex items-center gap-2 text-sm text-amber-200 font-medium">
+                            <Hourglass size={16} />
+                            {pendingCount} payment{pendingCount === 1 ? '' : 's'} need review
+                        </span>
+                        <span className="text-[11px] text-amber-200/70 pl-6">
+                            Match UTR / transaction ID with screenshot
+                        </span>
                     </span>
                     <span className="text-xs text-amber-300 font-semibold shrink-0">Review →</span>
                 </button>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { X, CheckCircle, Phone, Copy, MessageCircle, ChevronLeft, ChevronRight, Loader } from 'lucide-react';
+import { X, CheckCircle, Phone, Copy, MessageCircle, ChevronLeft, ChevronRight, Loader, Hash } from 'lucide-react';
 
 const REJECT_PRESETS = [
     'Wrong amount',
@@ -45,12 +45,14 @@ export default function PaymentProofReviewModal({
     const [rejectMode, setRejectMode] = useState(false);
     const [note, setNote] = useState('');
     const [busy, setBusy] = useState(false);
+    const [txnCopied, setTxnCopied] = useState(false);
 
     useEffect(() => {
         if (!open) {
             setRejectMode(false);
             setNote('');
             setBusy(false);
+            setTxnCopied(false);
         }
     }, [open, participant?.bookingId]);
 
@@ -140,6 +142,53 @@ export default function PaymentProofReviewModal({
                 ) : null}
 
                 <div className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-4 pb-[max(1rem,var(--safe-bottom))]">
+                    <div className="rounded-xl border border-[#0ECCEE]/30 bg-[#0ECCEE]/8 px-4 py-3.5">
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500">Amount due</p>
+                        <p className="text-2xl font-bold tabular-nums text-[#0ECCEE] mt-0.5">
+                            ₹{expected.toLocaleString('en-IN')}
+                        </p>
+                        {participant.couponCode ? (
+                            <p className="text-[11px] text-emerald-300 mt-1">
+                                Coupon {participant.couponCode}
+                                {Number(participant.couponDiscount) > 0
+                                    ? ` · −₹${Number(participant.couponDiscount).toLocaleString('en-IN')}`
+                                    : ''}
+                            </p>
+                        ) : null}
+                    </div>
+
+                    {participant.transactionId ? (
+                        <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-3">
+                            <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-[10px] uppercase tracking-wide text-amber-300/80 flex items-center gap-1">
+                                        <Hash size={11} /> Transaction ID
+                                    </p>
+                                    <p className="font-mono text-sm sm:text-base text-white break-all mt-1 leading-snug">
+                                        {participant.transactionId}
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        navigator.clipboard?.writeText(participant.transactionId).then(() => {
+                                            setTxnCopied(true);
+                                            setTimeout(() => setTxnCopied(false), 2000);
+                                        }).catch(() => {});
+                                    }}
+                                    className="shrink-0 inline-flex items-center gap-1 px-3 py-2 min-h-[40px] rounded-lg border border-amber-500/40 text-xs font-semibold text-amber-200 hover:bg-amber-500/15"
+                                >
+                                    <Copy size={13} />
+                                    {txnCopied ? 'Copied' : 'Copy'}
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="rounded-xl border border-dashed border-gray-700 px-4 py-3 text-xs text-gray-500">
+                            No transaction ID submitted — match using screenshot only.
+                        </div>
+                    )}
+
                     {participant.paymentScreenshotUrl ? (
                         <a href={participant.paymentScreenshotUrl} target="_blank" rel="noopener noreferrer" className="block">
                             <img
@@ -156,16 +205,14 @@ export default function PaymentProofReviewModal({
                     )}
 
                     <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div className="rounded-lg bg-[#111213] border border-gray-800 px-3 py-2.5">
-                            <p className="text-[10px] uppercase text-gray-500">Due (UPI)</p>
-                            <p className="font-semibold text-[#0ECCEE] text-base">₹{expected.toLocaleString('en-IN')}</p>
-                        </div>
-                        <div className="rounded-lg bg-[#111213] border border-gray-800 px-3 py-2.5">
-                            <p className="text-[10px] uppercase text-gray-500">List price</p>
-                            <p className="font-semibold text-base">
-                                ₹{(listAmount || expected).toLocaleString('en-IN')}
-                            </p>
-                        </div>
+                        {(listAmount || 0) > expected ? (
+                            <div className="rounded-lg bg-[#111213] border border-gray-800 px-3 py-2.5">
+                                <p className="text-[10px] uppercase text-gray-500">List price</p>
+                                <p className="font-semibold text-base">
+                                    ₹{(listAmount || expected).toLocaleString('en-IN')}
+                                </p>
+                            </div>
+                        ) : null}
                         {participant.tierName ? (
                             <div className="col-span-2 rounded-lg bg-[#111213] border border-gray-800 px-3 py-2 text-xs text-gray-300">
                                 Tier: <span className="font-semibold text-white">{participant.tierName}</span>
@@ -182,17 +229,6 @@ export default function PaymentProofReviewModal({
                                     : ''}
                                 {people > 1 && Number(participant.addOnFee) > 0
                                     ? ` · ₹${Number(participant.addOnTotal || (participant.addOnFee * people)).toLocaleString('en-IN')} total`
-                                    : ''}
-                            </div>
-                        ) : null}
-                        {participant.couponCode ? (
-                            <div className="col-span-2 rounded-lg bg-green-500/10 border border-green-500/30 px-3 py-2 text-xs text-green-300">
-                                Coupon `{participant.couponCode}`
-                                {Number(participant.couponDiscount) > 0
-                                    ? ` · −₹${Number(participant.couponDiscount).toLocaleString('en-IN')}`
-                                    : ''}
-                                {listAmount > 0
-                                    ? ` (was ₹${listAmount.toLocaleString('en-IN')})`
                                     : ''}
                             </div>
                         ) : null}
@@ -216,12 +252,6 @@ export default function PaymentProofReviewModal({
                                     {runDate}
                                     {participant.trekTime ? ` · ${participant.trekTime}` : ''}
                                 </p>
-                            </div>
-                        ) : null}
-                        {participant.transactionId ? (
-                            <div className="col-span-2 rounded-lg bg-[#111213] border border-gray-800 px-3 py-2.5">
-                                <p className="text-[10px] uppercase text-gray-500">Txn ID</p>
-                                <p className="font-mono text-sm break-all">{participant.transactionId}</p>
                             </div>
                         ) : null}
                         {phone ? (
