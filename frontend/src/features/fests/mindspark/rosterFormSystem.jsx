@@ -125,11 +125,9 @@ export function getPersonScopedFields(competition) {
   return getPersonFields(competition).filter((f) => f.scope !== 'team');
 }
 
-/** Team name + MCQ step after team size (teams) or before solo person step */
-export function needsTeamDetailsStep(competition, teamSize = 0) {
-  const size = Math.max(0, Number(teamSize) || 0);
-  const teamFields = getTeamScopedFields(competition);
-  return size > 1 || teamFields.length > 0;
+/** Extra step only for once-per-registration MCQs — team name lives on the people-count step */
+export function needsTeamDetailsStep(competition) {
+  return getTeamScopedFields(competition).length > 0;
 }
 
 export function teamFieldMissingLabel(value, field) {
@@ -143,12 +141,17 @@ export function teamFieldMissingLabel(value, field) {
   return null;
 }
 
-export function validateTeamDetails(formData, competition) {
+export function validateTeamName(formData) {
   const chosen = Math.max(0, Number(formData?.team_size) || 0);
-  if (chosen > 1) {
-    const teamName = String(formData?.team_name || '').trim();
-    if (teamName.length < 2) return 'Team name (required, at least 2 characters)';
-  }
+  if (chosen <= 1) return null;
+  const teamName = String(formData?.team_name || '').trim();
+  if (teamName.length < 2) return 'Team name (required)';
+  return null;
+}
+
+export function validateTeamDetails(formData, competition) {
+  const nameErr = validateTeamName(formData);
+  if (nameErr) return nameErr;
   const teamResponses = formData?.team_responses && typeof formData.team_responses === 'object'
     ? formData.team_responses
     : {};
@@ -237,6 +240,7 @@ export function TeamSizeSelect({ competition, formData, setFormData, isDark }) {
       ...prev,
       team_size: size,
       team_members: nextMembers.slice(0, size),
+      team_name: size > 1 ? (prev.team_name || '') : '',
     }));
   };
 
@@ -296,21 +300,34 @@ export function TeamSizeSelect({ competition, formData, setFormData, isDark }) {
         <p className={`text-[10px] mt-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
           Allowed: {buildTeamSizeLabel(competition?.teamSizeMin, competition?.teamSizeMax)}
         </p>
+        {chosen > 1 ? (
+          <div className="mt-4">
+            <p className={`text-[11px] mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+              Team name
+              <span className="text-red-400 ml-0.5">*</span>
+            </p>
+            <input
+              type="text"
+              value={formData.team_name || ''}
+              onChange={(e) => setFormData((prev) => ({ ...prev, team_name: e.target.value }))}
+              placeholder="Your team name"
+              className={inputClass(isDark)}
+            />
+          </div>
+        ) : null}
       </div>
     </div>
   );
 }
 
-/** Step 2 — Team name + once-per-registration fields (MCQ subcategory, etc.) */
+/** Extra step — once-per-registration MCQs (subcategory). Team name is on the people-count step. */
 export function TeamDetailsStep({ competition, formData, setFormData, isDark }) {
-  const chosen = Math.max(0, Number(formData.team_size) || 0);
   const teamFields = getTeamScopedFields(competition);
   const teamResponses = formData.team_responses && typeof formData.team_responses === 'object'
     ? formData.team_responses
     : {};
-  const needsTeamName = chosen > 1;
 
-  if (!needsTeamName && teamFields.length === 0) return null;
+  if (teamFields.length === 0) return null;
 
   const setTeamField = (key, value) => {
     setFormData((prev) => ({
@@ -371,29 +388,13 @@ export function TeamDetailsStep({ competition, formData, setFormData, isDark }) 
     <div className={`rounded-2xl border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-200 shadow-sm'}`}>
       <div className={`px-4 py-3 border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
         <p className={`text-[11px] font-semibold uppercase tracking-wider ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-          {needsTeamName ? 'Team details' : 'Registration details'}
+          Registration details
         </p>
         <p className={`text-sm font-semibold mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>
           {competition?.name || 'Competition'}
         </p>
       </div>
       <div className="px-4 py-4 space-y-3">
-        {needsTeamName ? (
-          <div>
-            <p className={`text-[11px] mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-              Team name
-              <Req />
-            </p>
-            <input
-              type="text"
-              value={formData.team_name || ''}
-              onChange={(e) => setFormData((prev) => ({ ...prev, team_name: e.target.value }))}
-              placeholder="Your team name"
-              autoFocus
-              className={inputClass(isDark)}
-            />
-          </div>
-        ) : null}
         {teamFields.map((field) => (
           <div key={field.id || field.key}>
             <p className={`text-[11px] mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
@@ -527,8 +528,9 @@ export function RosterPersonStep({ personIndex, competition, formData, setFormDa
  * Admin / fest-organizer editor — modify which fields each person fills.
  * Bound to competition.registration.personFields
  */
-export function RosterFieldsEditor({ personFields, onChange, className = '' }) {
+export function RosterFieldsEditor({ personFields, onChange, className = '', teamSizeMin = 1, teamSizeMax = 1 }) {
   const fields = normalizePersonFields(personFields);
+  const isGroup = Math.max(Number(teamSizeMin) || 1, Number(teamSizeMax) || 1) >= 2;
 
   const update = (next) => onChange(normalizePersonFields(next));
 
@@ -572,9 +574,11 @@ export function RosterFieldsEditor({ personFields, onChange, className = '' }) {
     <div className={`rounded-xl border border-gray-700 bg-[#151617] p-4 space-y-3 ${className}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-medium text-[#0ECCEE]">Per-person form fields</p>
+          <p className="text-sm font-medium text-[#0ECCEE]">Registration form fields</p>
           <p className="text-xs text-gray-500 mt-1">
-            Solo comps show these once; teams show them once per person after team size. Same for admin and fest organizers.
+            {isGroup
+              ? 'Group comps: people count + team name, then these fields once per person.'
+              : 'Solo comps show these fields once.'}
           </p>
         </div>
         <button
@@ -585,6 +589,42 @@ export function RosterFieldsEditor({ personFields, onChange, className = '' }) {
           Reset defaults
         </button>
       </div>
+
+      {isGroup ? (
+        <div className="rounded-lg border border-[#0ECCEE]/30 bg-[#0ECCEE]/5 p-3 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs text-[#0ECCEE] font-medium">Team step (group only)</span>
+            <span className="text-[10px] text-gray-500">Always on</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <label className="block text-[10px] text-gray-500 mb-1">Label</label>
+              <input
+                type="text"
+                value="Team name"
+                readOnly
+                className="w-full px-2.5 py-2 rounded-lg bg-[#151617] border border-gray-700 text-sm text-white opacity-90"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] text-gray-500 mb-1">Key (saved on registration)</label>
+              <input
+                type="text"
+                value="team_name"
+                readOnly
+                className="w-full px-2.5 py-2 rounded-lg bg-[#151617] border border-gray-700 text-sm text-white font-mono opacity-90"
+              />
+            </div>
+          </div>
+          <p className="text-[11px] text-gray-400">
+            Shown just below people count when the team is 2 or more. Compulsory. Organizer dashboard lists this as the team title.
+          </p>
+        </div>
+      ) : (
+        <p className="text-[11px] text-gray-500">
+          Set Team max to 2 or more to collect a team name on registration.
+        </p>
+      )}
 
       <div className="space-y-3">
         {fields.map((field, index) => (

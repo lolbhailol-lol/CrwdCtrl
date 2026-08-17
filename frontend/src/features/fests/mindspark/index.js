@@ -17,6 +17,7 @@ export {
   getTeamScopedFields,
   getPersonScopedFields,
   needsTeamDetailsStep,
+  validateTeamName,
   validateTeamDetails,
   emptyTeamMember,
   normalizeTeamMember,

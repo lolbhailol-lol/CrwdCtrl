@@ -1741,7 +1741,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
                 <div className="rounded-xl border border-gray-700 bg-[#151617] p-4 space-y-3">
                   <p className="text-sm font-medium text-[#0ECCEE]">Capacity &amp; team</p>
                   <p className="text-xs text-gray-500">
-                    Shown above Register Now on the competition page. Team min/max also control the registration roster gate (3–6).
+                    Shown above Register Now on the competition page. Team min/max control how many people can register. Group comps (max 2+) also ask for a team name.
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
@@ -1821,6 +1821,8 @@ function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
                 {mindSpark ? (
                   <RosterFieldsEditor
                     personFields={form.registration?.personFields}
+                    teamSizeMin={form.teamSizeMin}
+                    teamSizeMax={form.teamSizeMax}
                     onChange={(personFields) =>
                       setForm({
                         ...form,
@@ -2061,8 +2063,9 @@ function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
                       <div className="rounded-lg border border-[#0ECCEE]/30 bg-[#0ECCEE]/5 p-4">
                         <p className="text-sm font-medium text-[#0ECCEE]">MindSpark registration form</p>
                         <p className="text-xs text-gray-400 mt-1">
-                          Participants fill the <span className="text-white">Per-person form fields</span> above
-                          (solo = one details step; teams = team size then Person 1…N). Edit those fields to change what is collected.
+                          Participants fill: people count
+                          {Number(form.teamSizeMax) >= 2 ? ' + team name (if 2+ people)' : ''}
+                          , then the fields above once per person.
                           {` Currently ${normalizePersonFields(form.registration?.personFields).length} field(s) per person.`}
                         </p>
                       </div>

@@ -40,6 +40,7 @@ import {
   getPersonFields,
   getPersonScopedFields,
   needsTeamDetailsStep,
+  validateTeamName,
   validateTeamDetails,
   isMindSparkFest,
 } from '../../../features/fests/mindspark';
@@ -693,11 +694,8 @@ export default function useFestRegistration() {
 
   const isOnParticipantStep = () => needsTeamSizePicker() && currentStep === 1;
 
-  const rosterTeamDetailsActive = () => {
-    if (!hasParticipantStep()) return false;
-    const chosen = getPeopleCount();
-    return needsTeamDetailsStep(competition, chosen);
-  };
+  const rosterTeamDetailsActive = () =>
+    hasParticipantStep() && needsTeamDetailsStep(competition);
 
   const getTeamDetailsStepNumber = () => (needsTeamSizePicker() ? 2 : 1);
 
@@ -767,14 +765,13 @@ export default function useFestRegistration() {
 
     let n = 1;
     if (needsTeamSizePicker()) {
-      steps.push({ stepNumber: n, stepTitle: 'Team size' });
+      steps.push({ stepNumber: n, stepTitle: 'Team' });
       n += 1;
     }
     if (rosterTeamDetailsActive()) {
-      const chosen = getPeopleCount();
       steps.push({
         stepNumber: n,
-        stepTitle: chosen > 1 ? 'Team details' : 'Registration details',
+        stepTitle: 'Category',
       });
       n += 1;
     }
@@ -802,6 +799,11 @@ export default function useFestRegistration() {
     const chosen = Math.max(0, Number(formData.team_size) || 0);
     if (chosen < min || chosen > max) {
       setError(`Select between ${min} and ${max} participant${max === 1 ? '' : 's'}`);
+      return false;
+    }
+    const nameErr = validateTeamName(formData);
+    if (nameErr) {
+      setError(nameErr);
       return false;
     }
     return true;
