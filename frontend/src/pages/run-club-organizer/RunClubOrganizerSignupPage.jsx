@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Footprints, Loader, ArrowLeft } from 'lucide-react';
+import { DetailLoader3DIcon } from '../../components/DetailPageLoader';
 import {
     fetchRunClubOrganizerSignupClubs,
     runClubOrganizerSignup,
@@ -30,7 +31,7 @@ export default function RunClubOrganizerSignupPage() {
                     if (data.clubs?.length === 1) setRunClubId(String(data.clubs[0].id));
                 }
             } catch (e) {
-                if (!cancelled) setError(e.message || 'Failed to load run clubs');
+                if (!cancelled) setError(e.message || 'Failed to load communities');
             } finally {
                 if (!cancelled) setLoadingClubs(false);
             }
@@ -131,8 +132,9 @@ export default function RunClubOrganizerSignupPage() {
                     <div>
                         <label className="block text-xs font-medium text-gray-400 mb-1.5">Run club</label>
                         {loadingClubs ? (
-                            <div className="flex items-center gap-2 text-sm text-gray-500 py-3">
-                                <Loader className="animate-spin" size={16} /> Loading clubs…
+                            <div className="flex items-center gap-3 text-sm text-gray-500 py-3">
+                                <DetailLoader3DIcon size="mini" />
+                                Loading clubs…
                             </div>
                         ) : (
                             <select

@@ -11,14 +11,22 @@ test('authorize allows verify when order has no user and no email captured', () 
   assert.equal(result.ok, true);
 });
 
-test('authorize rejects a user-owned order when the request has no matching JWT', () => {
+test('authorize allows a user-owned order when there is no JWT but checkout email matches', () => {
+  const result = authorizePaymentVerify({
+    paymentOrder: { userId: 'user_a', customerEmail: 'a@example.com' },
+    req: { user: null, body: { customerEmail: 'a@example.com' } },
+  });
+  assert.equal(result.ok, true);
+});
+
+test('authorize asks for checkout email when a user-owned order is verified without JWT', () => {
   const result = authorizePaymentVerify({
     paymentOrder: { userId: 'user_a', customerEmail: 'a@example.com' },
     req: { user: null, body: {} },
   });
   assert.equal(result.ok, false);
   assert.equal(result.status, 401);
-  assert.equal(result.code, 'ORDER_OWNERSHIP_MISMATCH');
+  assert.equal(result.code, 'ORDER_EMAIL_REQUIRED');
 });
 
 test('authorize rejects a user-owned order when the JWT belongs to a different user', () => {

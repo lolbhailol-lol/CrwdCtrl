@@ -12,7 +12,6 @@ import {
     resolvePostLoginRedirect,
     markLoginModalOpen,
 } from '../../utils/loginFlow';
-import { showRecaptchaBadge, hideRecaptchaBadge } from '../../utils/recaptcha';
 
 function GoogleIcon({ className = 'w-5 h-5 sm:w-6 sm:h-6' }) {
     return (
@@ -55,12 +54,6 @@ export default function CrwdCtrlLogin({
     const isAdminLogin = location.pathname === '/admin/login';
 
     const googleAuthInFlightRef = useRef(false);
-
-    // Show the reCAPTCHA badge only while the login screen is on-screen.
-    useEffect(() => {
-        showRecaptchaBadge();
-        return () => hideRecaptchaBadge();
-    }, []);
 
     useEffect(() => {
         if (!isModal) return undefined;

@@ -969,7 +969,7 @@ export default function SectionManager() {
             .map((s) => norm(s, s.upcomingPriority ?? s.priority ?? 999))
             .sort((a, b) => a._priority - b._priority);
         const runClubCarousel = runClubs
-            .filter((c) => c.showOnSportsPage !== false && c.showInRunClubs !== false)
+            .filter((c) => c.showOnSportsPage !== false && c.showInRunClubs !== false && c.listingHub !== 'events')
             .map((c) => ({ ...normalizeHomeCarouselItem('runclub', c), _priority: c.runClubPriority ?? 999 }))
             .sort((a, b) => a._priority - b._priority);
         return { upcoming, run_clubs: runClubCarousel };

@@ -27,14 +27,15 @@ import {
     fetchRunClub,
     fetchSportsByRunClub,
 } from '../../services/api/public.api';
-import { runClubPath, sportRunPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
+import { eventCommunityPath, eventCommunityEventPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
+import { organizerHubCopy } from '../../utils/listingHubCopy';
 import {
     classifyDetailLoadError,
     isTransientDetailError,
     createDetailCache,
 } from '../../utils/detailPageLoad';
 
-const runClubDetailCache = createDetailCache('crwdctrl_run_club_v1_');
+const runClubDetailCache = createDetailCache('crwdctrl_event_community_v1_');
 
 const resolveGallerySrc = (url, preset = 'thumb') =>
     getImageUrl(url, { preset }) || normalizeImageUrl(url) || url;
@@ -93,7 +94,7 @@ const normalizeRunClub = (raw) => {
         listingHub: raw.listingHub === 'events' ? 'events' : 'sports',
         name: raw.name || raw.title || '',
         title: raw.title || raw.name || '',
-        subtitle: raw.subtitle || raw.basedIn || '',
+        subtitle: raw.tagline || raw.subtitle || raw.basedIn || '',
         coverImage,
         coverImages: raw.coverImages || null,
         image: normalizeImageUrl(raw.image) || coverImage || galleryImages[0] || null,
@@ -203,7 +204,7 @@ function RunCard({ run, isDark, isFav, onFav, onClick }) {
     );
 }
 
-export default function RunClubDetailPage() {
+export default function EventCommunityDetailPage() {
     const navigate = useNavigate();
     const location = useLocation();
     const { id } = useParams();
@@ -308,7 +309,7 @@ export default function RunClubDetailPage() {
 
     useEffect(() => {
         if (!club || !id) return;
-        const canonical = runClubPath(club);
+        const canonical = eventCommunityPath(club);
         if (canonical && window.location.pathname !== canonical) {
             navigate(`${canonical}${window.location.search || ''}`, { replace: true, state: location.state });
         }
@@ -377,7 +378,7 @@ export default function RunClubDetailPage() {
     }, [categoryOptions, activeCategory]);
 
     const showPageLoader = loading || (club && id && !entityMatchesRouteParam(club, id, ['name', 'title']));
-    const isEventHub = false;
+    const isEventHub = true;
 
     const name = club?.title || '';
     const basedIn = club?.subtitle || '';
@@ -404,7 +405,7 @@ export default function RunClubDetailPage() {
                 <p className="text-gray-500 text-sm text-center max-w-xs">
                     {isNetwork
                         ? 'Slow network or server waking up — tap Retry.'
-                        : 'This club may have been removed or the link is outdated.'}
+                        : 'This community may have been removed or the link is outdated.'}
                 </p>
                 {isNetwork ? (
                     <button
@@ -445,7 +446,7 @@ export default function RunClubDetailPage() {
                 images: run.image ? [run.image] : [],
                 coverImage: run.image || '',
             };
-        navigate(sportRunPath(eventSeed), {
+        navigate(eventCommunityEventPath(eventSeed), {
             state: {
                 event: {
                     ...eventSeed,
@@ -464,28 +465,28 @@ export default function RunClubDetailPage() {
         });
     };
 
-    const canonicalPath = runClubPath(club || { id });
+    const canonicalPath = eventCommunityPath(club || { id });
 
     return (
         <div className="crwdctrl-page flex flex-col min-h-screen pb-24" style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}>
             <Seo
-                title={`${name} — Running Club`}
+                title={`${name} — Community`}
                 description={description}
                 canonical={canonicalPath}
                 image={club?.coverImage || club?.image}
                 jsonLd={[
                     breadcrumbSchema([
                         { name: 'Home', path: '/' },
-                        { name: 'Sports', path: '/sports' },
+                            { name: 'Events', path: '/events' },
                         { name, path: canonicalPath },
                     ]),
                     itemListSchema({
-                        name: `Runs by ${name}`,
+                        name: `Events by ${name}`,
                         description,
                         url: canonicalPath,
                         items: runs
                             .filter((r) => r?.id && r?.title)
-                            .map((r) => ({ name: r.title, url: sportRunPath(r) })),
+                            .map((r) => ({ name: r.title, url: eventCommunityEventPath(r) })),
                     }),
                 ]}
             />
@@ -545,7 +546,7 @@ export default function RunClubDetailPage() {
                 </div>
                 <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-black/30 pointer-events-none" />
 
-                {/* Floating stats — Nike Run Club feel */}
+                {/* Floating stats */}
                 <div className="absolute bottom-20 left-4 right-4 flex gap-2 pointer-events-none z-10">
                     {[
                         { label: isEventHub ? 'Upcoming Events' : 'Upcoming Runs', value: runs.length },
@@ -696,7 +697,7 @@ export default function RunClubDetailPage() {
                         </div>
                     ) : (
                         <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                            No run categories set yet.
+                            {organizerHubCopy(true).noCategories}
                         </p>
                     )}
 
@@ -911,7 +912,7 @@ export default function RunClubDetailPage() {
                                 }}
                                 className="w-full flex items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-[#0ECCEE] text-black active:opacity-90 transition"
                             >
-                                {extLink ? 'Join Community' : 'Join Run Club'}
+                                {extLink ? 'Join Community' : 'Join community'}
                             </button>
                         );
                     })()}

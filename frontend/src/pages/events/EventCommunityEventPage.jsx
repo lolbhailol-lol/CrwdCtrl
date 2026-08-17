@@ -11,16 +11,17 @@ import TrekDetailIcon from '../../components/TrekDetailIcon';
 import DetailPageLoader from '../../components/DetailPageLoader';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { shareContent } from '../../utils/externalLink';
-import { sportRunPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
-import { normalizeRunDetailBoxes, resolveRunMapPin } from '../../utils/trekDetailBoxes';
+import { eventCommunityEventPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
+import { eventDetailTabBoxes, eventMapSideFacts, resolveRunMapPin } from '../../utils/trekDetailBoxes';
 import { resolveRunContacts, instagramHandle } from '../../utils/runContacts';
 import { getSportsTiers, isTiersPricing, minSportsFee, formatInr } from '../../utils/sportsTiers';
 
 import { publicFetchJSONRetry } from '../../services/api/client';
 import { DETAIL_FETCH_OPTS, classifyDetailLoadError } from '../../utils/detailPageLoad';
 import { trackBookNowClick } from '../../services/analyticsService';
+import { organizerHubCopy } from '../../utils/listingHubCopy';
 
-const RUN_DETAIL_CACHE_PREFIX = 'crwdctrl_run_detail_v1_';
+const RUN_DETAIL_CACHE_PREFIX = 'crwdctrl_event_community_detail_v12_';
 const readRunDetailCache = (key) => {
     try {
         const raw = sessionStorage.getItem(`${RUN_DETAIL_CACHE_PREFIX}${key}`);
@@ -33,13 +34,6 @@ const writeRunDetailCache = (key, event) => {
     try {
         if (key && event) sessionStorage.setItem(`${RUN_DETAIL_CACHE_PREFIX}${key}`, JSON.stringify(event));
     } catch { /* storage full */ }
-};
-
-const SKILL_LABELS = {
-    all: 'All Levels',
-    beginner: 'Beginner',
-    intermediate: 'Moderate',
-    advanced: 'Advanced',
 };
 
 function seedEventFromNav(navEvent) {
@@ -73,14 +67,6 @@ const ClockIcon = ({ size = 20 }) => (
     </svg>
 );
 
-const ChartIcon = ({ size = 20 }) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-        <rect x="3" y="14" width="4" height="7" rx="1.5" fill="#4ADE80" />
-        <rect x="10" y="9" width="4" height="12" rx="1.5" fill="#22C55E" />
-        <rect x="17" y="4" width="4" height="17" rx="1.5" fill="#16A34A" />
-    </svg>
-);
-
 const GridIcon = ({ size = 20 }) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
         <circle cx="12" cy="12" r="9" stroke="#0ECCEE" strokeWidth="1.5" />
@@ -89,7 +75,22 @@ const GridIcon = ({ size = 20 }) => (
     </svg>
 );
 
-export default function RunEventDetailPage() {
+const CafeIcon = ({ size = 20 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <path d="M6 8h10v6a4 4 0 0 1-4 4H10a4 4 0 0 1-4-4V8z" fill="#C4A484" />
+        <path d="M16 9h2.2a2.3 2.3 0 0 1 0 4.6H16" stroke="#A67C52" strokeWidth="1.6" strokeLinecap="round" />
+        <rect x="7" y="19" width="8" height="1.6" rx="0.8" fill="#8B6914" />
+        <path d="M9 4c.4 1.2-.2 2 .4 3M12 3.5c.4 1.2-.2 2.2.4 3.2" stroke="#94A3B8" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+);
+
+const MAP_SIDE_ICONS = {
+    clock: ClockIcon,
+    star: GridIcon,
+    food: CafeIcon,
+};
+
+export default function EventCommunityEventPage() {
     const navigate = useNavigate();
     const location = useLocation();
     const { id } = useParams();
@@ -192,7 +193,7 @@ export default function RunEventDetailPage() {
 
     useEffect(() => {
         if (!event || !id) return;
-        const canonical = sportRunPath(event);
+        const canonical = eventCommunityEventPath(event);
         if (canonical && window.location.pathname !== canonical) {
             navigate(`${canonical}${window.location.search || ''}`, { replace: true, state: location.state });
         }
@@ -201,7 +202,7 @@ export default function RunEventDetailPage() {
     const showPageLoader = loading || (event && id && !entityMatchesRouteParam(event, id, ['title', 'name']));
 
     if (showPageLoader) {
-        return <DetailPageLoader label="Loading run" />;
+        return <DetailPageLoader label="Loading event" />;
     }
 
     if (!event) {
@@ -210,7 +211,7 @@ export default function RunEventDetailPage() {
         return (
             <div className="crwdctrl-page crwdctrl-page--content flex flex-col items-center justify-center min-h-screen gap-3 px-6">
                 <p className={`text-sm text-center font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    {isRetryable ? "Couldn't load this run" : 'This run is no longer available'}
+                    {isRetryable ? "Couldn't load this event" : 'This event is no longer available'}
                 </p>
                 <p className="text-gray-500 text-sm text-center max-w-xs">
                     {isRetryable
@@ -228,10 +229,10 @@ export default function RunEventDetailPage() {
                 ) : null}
                 <button
                     type="button"
-                    onClick={() => (isRetryable ? navigate('/sports') : navigate(-1))}
+                    onClick={() => (isRetryable ? navigate('/events') : navigate(-1))}
                     className="text-[#0ECCEE] text-sm font-semibold"
                 >
-                    {isRetryable ? 'Browse sports' : '← Go back'}
+                    {isRetryable ? 'Browse events' : '← Go back'}
                 </button>
             </div>
         );
@@ -249,20 +250,20 @@ export default function RunEventDetailPage() {
     // Top slider = gallery uploads only (cover/card stays out). Fall back to cover if no gallery yet.
     const images = galleryImages.length ? galleryImages : (coverImg ? [coverImg] : [null]);
     const communityName = club?.name || event.organizer || '';
+    const copy = organizerHubCopy(true);
     const mapPin = resolveRunMapPin(event);
     const mapQuery = mapPin.query;
     const mapUrl = mapPin.mapUrl;
     const mapCaption = mapPin.caption;
     const desc =
         event.description?.trim() ||
-        `${event.title || 'This run'} is hosted by ${communityName}. Join fellow runners for a great session.`;
+        `${event.title || 'This event'} is hosted by ${communityName}. Join the community for a great session.`;
     const shortDesc = desc.slice(0, 150);
     const terms = event.termsAndConditions?.length
         ? event.termsAndConditions
         : [
-              'Participants must be medically fit for the scheduled run distance.',
-              'Follow all safety instructions from run leaders at all times.',
-              'Cancellation policy varies by organiser — contact the club for details.',
+              'Follow all safety instructions from organizers at all times.',
+              'Cancellation policy varies by organiser — contact the community for details.',
               'The organiser reserves the right to modify or cancel due to weather or safety.',
           ];
 
@@ -270,12 +271,12 @@ export default function RunEventDetailPage() {
         shareContent({ title: event.title, url: window.location.href });
     };
 
-    const canonicalPath = sportRunPath(event || { id });
+    const canonicalPath = eventCommunityEventPath(event || { id });
 
     return (
         <div className="crwdctrl-page flex flex-col min-h-screen" style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}>
             <Seo
-                title={event.title || 'Run Event'}
+                title={event.title || 'Event'}
                 description={desc}
                 canonical={canonicalPath}
                 image={coverImg || images?.[0]}
@@ -283,11 +284,11 @@ export default function RunEventDetailPage() {
                 jsonLd={[
                     breadcrumbSchema([
                         { name: 'Home', path: '/' },
-                        { name: 'Sports', path: '/sports' },
-                        { name: event.title || 'Run Event', path: canonicalPath },
+                        { name: 'Events', path: '/events' },
+                        { name: event.title || 'Event', path: canonicalPath },
                     ]),
                     eventSchema({
-                        name: event.title || 'Run Event',
+                        name: event.title || 'Event',
                         description: desc,
                         url: canonicalPath,
                         image: coverImg || images?.[0],
@@ -471,7 +472,7 @@ export default function RunEventDetailPage() {
                                         mode: event.registration?.mode || 'internal_form',
                                         destination: 'internal_book_page',
                                     });
-                                    navigate(`${sportRunPath(event)}/book`, { state: { event, runClub: club } });
+                                    navigate(`${eventCommunityEventPath(event)}/book`, { state: { event, runClub: club } });
                                 }}
                                 className="flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-[#0ECCEE] text-black active:opacity-90 transition"
                             >
@@ -558,7 +559,7 @@ export default function RunEventDetailPage() {
                                                         setTierSheetOpen(false);
                                                         setExpandedTierId(null);
                                                         setSelectingTierId(null);
-                                                        navigate(`${sportRunPath(event)}/book?tier=${encodeURIComponent(tier.id)}`, {
+                                                        navigate(`${eventCommunityEventPath(event)}/book?tier=${encodeURIComponent(tier.id)}`, {
                                                             state: { event, runClub: club, tierId: tier.id },
                                                         });
                                                     }, 320);
@@ -661,9 +662,12 @@ export default function RunEventDetailPage() {
             <div className={`relative -mt-10 flex-1 rounded-t-3xl z-10 pb-28 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
                 <div className="px-4 pt-5 pb-3">
                     <h1 className={`text-[26px] font-bold leading-8 wrap-break-word ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {event.title || 'Run Name'}
+                        {event.title || 'Event'}
                     </h1>
                     <p className={`text-sm font-semibold mt-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{communityName}</p>
+                    {club?.tagline && club.tagline !== communityName ? (
+                        <p className={`text-xs font-medium mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>{club.tagline}</p>
+                    ) : null}
                     {event.seatsRemaining != null ? (
                         <p className={`text-xs mt-1.5 ${
                             event.seatsRemaining === 0
@@ -680,26 +684,25 @@ export default function RunEventDetailPage() {
                 </div>
 
                 <div className="px-4 flex items-start gap-3 mb-5">
-                    <div className="flex-1 min-w-0 space-y-3.5">
-                        {[
-                            { Icon: ClockIcon, label: 'Distance', value: event.distance || '—' },
-                            { Icon: ChartIcon, label: 'Run Level', value: SKILL_LABELS[event.skillLevel] || event.skillLevel || '—' },
-                            { Icon: GridIcon, label: 'Run Style', value: event.runCategory || event.displayType || '—' },
-                        ].map((row) => (
-                            <div key={row.label} className="flex items-center gap-2.5">
-                                <row.Icon size={22} />
-                                <div>
-                                    <p className={`text-[15px] font-semibold leading-5 ${isDark ? 'text-white' : 'text-gray-900'}`}>{row.value}</p>
-                                    <p className={`text-[11px] font-medium leading-4 mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{row.label}</p>
+                    <div className="flex-1 min-w-0 space-y-3.5 pt-1">
+                        {eventMapSideFacts(event).map((row) => {
+                            const Icon = MAP_SIDE_ICONS[row.icon] || ClockIcon;
+                            return (
+                                <div key={row.key} className="flex items-center gap-2.5">
+                                    <Icon size={22} />
+                                    <div className="min-w-0">
+                                        <p className={`text-[15px] font-semibold leading-5 ${isDark ? 'text-white' : 'text-gray-900'}`}>{row.value}</p>
+                                        <p className={`text-[11px] font-medium leading-4 mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{row.label}</p>
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
 
                     <div className="w-60 shrink-0 flex flex-col">
                         <div className="w-full h-[132px] rounded-2xl overflow-hidden relative">
                             {(mapQuery || mapUrl) ? (
-                                <LazyMap query={mapQuery} mapUrl={mapUrl || undefined} isDark={isDark} title="run-location" />
+                                <LazyMap query={mapQuery} mapUrl={mapUrl || undefined} isDark={isDark} title={copy.mapTitle} />
                             ) : (
                                 <div className="w-full h-full bg-linear-to-br from-green-50 to-blue-50 flex flex-col items-center justify-center gap-1">
                                     <span className="text-[10px] text-gray-400">No location</span>
@@ -730,13 +733,13 @@ export default function RunEventDetailPage() {
                 </div>
 
                 {(() => {
-                    const detailCards = normalizeRunDetailBoxes(event.detailBoxes, event);
+                    const detailCards = eventDetailTabBoxes(event);
                     const inclusions = event.inclusions || [];
                     const infoSections = event.infoSections || [];
                     if (!detailCards.length && !inclusions.length && !infoSections.length) return null;
                     return (
                         <div className="px-4 mb-5">
-                            <h2 className={`text-lg font-semibold leading-7 tracking-wide mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Run Info</h2>
+                            <h2 className={`text-lg font-semibold leading-7 tracking-wide mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>{copy.infoTitle}</h2>
                             <div className={`rounded-2xl p-1 mb-4 ${isDark ? 'bg-[#111213]' : 'bg-white shadow-sm'}`}>
                                 <div className="flex rounded-xl p-1 gap-0.5">
                                     {['Details', 'Included'].map((tab) => (
@@ -801,10 +804,12 @@ export default function RunEventDetailPage() {
 
                                 {activeRunTab === 'Included' && (
                                     inclusions.length > 0 ? (
-                                        <ul className="space-y-1.5 px-0.5">
+                                        <ul className="space-y-2.5 px-0.5">
                                             {inclusions.map((item, i) => (
-                                                <li key={i} className={`flex gap-2 text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                                    <span className="mt-[5px] size-1.5 rounded-full bg-[#0ECCEE] shrink-0" />
+                                                <li key={i} className={`flex gap-2.5 text-sm leading-6 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                                                    <span className={`mt-0.5 size-5 shrink-0 rounded-full flex items-center justify-center text-[11px] font-bold ${isDark ? 'bg-[#1D1E20] text-[#0ECCEE]' : 'bg-cyan-50 text-[#0891b2]'}`}>
+                                                        {i + 1}
+                                                    </span>
                                                     <span>{String(item).replace(/^[-*•\s]+/, '')}</span>
                                                 </li>
                                             ))}

@@ -7,6 +7,8 @@ const runClubSchema = new mongoose.Schema(
         name: { type: String, required: true, trim: true },
         slug: { type: String, trim: true, lowercase: true, index: true },
         basedIn: { type: String, trim: true, default: '' },
+        /** Short line under the name, e.g. Sports & Social Community */
+        tagline: { type: String, trim: true, default: '' },
         organizer: { type: String, trim: true, default: '' },
         aboutUs: { type: String, trim: true, default: '' },
         /** Filter chips on run club detail page — runs use matching runCategory */
@@ -27,6 +29,11 @@ const runClubSchema = new mongoose.Schema(
         groupLink: { type: String, trim: true, default: '' },
         showOnSportsPage: { type: Boolean, default: true },
         showInRunClubs: { type: Boolean, default: true },
+        /**
+         * sports = Explore Run Clubs on /sports
+         * events = community on /events (not a run club)
+         */
+        listingHub: { type: String, enum: ['sports', 'events'], default: 'sports', index: true },
         runClubPriority: { type: Number, default: 999, min: 1, max: 999 },
         homeSection: { type: String, default: null },
         /** Home page hero / moving banner (preferred over legacy homeSection:'slide') */

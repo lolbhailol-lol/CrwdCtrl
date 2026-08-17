@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Loader, Users, X } from 'lucide-react';
+import { Users, X } from 'lucide-react';
+import { DetailLoader3DIcon } from './DetailPageLoader';
 import { fetchFollowMembers } from '../services/api/follows.api';
 import { useDarkMode } from '../context/DarkModeContext';
 
@@ -126,7 +127,7 @@ export default function CommunityMembersSheet({
         <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-3 pb-4">
           {loading ? (
             <div className="flex justify-center py-12">
-              <Loader className="animate-spin text-[#0ECCEE]" size={24} />
+              <DetailLoader3DIcon size="compact" />
             </div>
           ) : error ? (
             <p className="text-sm text-red-400 py-8 text-center">{error}</p>

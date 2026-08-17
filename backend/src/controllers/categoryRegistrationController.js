@@ -10,6 +10,11 @@ const {
     reserveCouponUsage,
 } = require('../utils/couponPricing');
 const { findByIdOrSlug } = require('../utils/slug');
+const {
+    listingHubForRunClubId,
+    hubSourceFromListing,
+    sportsActivityNoun,
+} = require('../utils/listingHubCopy');
 const { resolveSportsTicketTotal } = require('../utils/sportsPricing');
 const {
     expireStalePendingRegistrations,
@@ -83,9 +88,16 @@ exports.registerForEvent = async (req, res) => {
         const requireLogin = category === 'sports'
             ? event.registration?.requireLogin !== false
             : true;
+        let sportsNoun = 'run';
+        if (category === 'sports') {
+            const listingHub = await listingHubForRunClubId(event.runClubId);
+            sportsNoun = sportsActivityNoun(hubSourceFromListing(listingHub));
+        }
         if (requireLogin && !userId) {
             return res.status(401).json({
-                message: 'Please log in to book this run.',
+                message: category === 'sports'
+                    ? `Please log in to book this ${sportsNoun}.`
+                    : 'Please log in to complete this booking.',
                 requireLogin: true,
             });
         }
@@ -268,6 +280,7 @@ exports.registerForEvent = async (req, res) => {
                 capacity,
                 forPendingQr: false,
                 excludeId: excludeRegId,
+                noun: sportsNoun,
             });
             if (!pre.ok) {
                 return res.status(400).json({ message: pre.message });
@@ -314,7 +327,7 @@ exports.registerForEvent = async (req, res) => {
 
             if (amountPaid > 0) {
                 if (!String(event.registration?.paymentQR || '').trim()) {
-                    return res.status(400).json({ message: 'Payment QR is not configured for this run' });
+                    return res.status(400).json({ message: `Payment QR is not configured for this ${sportsNoun}` });
                 }
                 if (!paymentScreenshotUrl) {
                     return res.status(400).json({ message: 'Please upload a payment screenshot' });
@@ -326,7 +339,7 @@ exports.registerForEvent = async (req, res) => {
                 }
                 if (transactionId.length < 4) {
                     return res.status(400).json({
-                        message: 'Please enter your UPI / transaction ID (helps the club verify faster)',
+                        message: `Please enter your UPI / transaction ID (helps the ${sportsNoun === 'event' ? 'community' : 'club'} verify faster)`,
                     });
                 }
 
@@ -340,7 +353,7 @@ exports.registerForEvent = async (req, res) => {
                 });
                 if (dup) {
                     return res.status(409).json({
-                        message: 'This UPI / transaction ID was already used for this run. Enter a unique ID from your payment app.',
+                        message: `This UPI / transaction ID was already used for this ${sportsNoun}. Enter a unique ID from your payment app.`,
                     });
                 }
 
@@ -350,6 +363,7 @@ exports.registerForEvent = async (req, res) => {
                     capacity,
                     forPendingQr: !qrAutoConfirm,
                     excludeId: excludeRegId,
+                    noun: sportsNoun,
                 });
                 if (!capCheck.ok) {
                     return res.status(400).json({ message: capCheck.message });
@@ -842,14 +856,16 @@ exports.adminUpdateStatus = async (req, res) => {
                 });
             }
             if (existing.category === 'sports') {
-                const event = await SportsEvent.findById(existing.eventId).select('maxParticipants').lean();
+                const event = await SportsEvent.findById(existing.eventId).select('maxParticipants runClubId').lean();
                 const capacity = Math.max(0, Number(event?.maxParticipants) || 0);
                 if (capacity > 0) {
                     const people = Math.max(1, Number(existing.bookingPeople) || 1);
+                    const listingHub = await listingHubForRunClubId(event?.runClubId);
                     const check = await assertSportsCapacityAvailable(existing.eventId, people, {
                         excludeId: existing._id,
                         capacity,
                         forPendingQr: false,
+                        noun: sportsActivityNoun(hubSourceFromListing(listingHub)),
                     });
                     if (!check.ok) {
                         return res.status(400).json({ message: check.message });

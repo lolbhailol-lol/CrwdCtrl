@@ -2731,22 +2731,8 @@ html.dark .mobile-search-overlay__back {
     }
 }
 
-/*
- * reCAPTCHA v3 badge: hidden everywhere by default, revealed only while an auth
- * screen (login/register) is mounted via the `recaptcha-visible` class on <html>.
- * Lifted above the mobile bottom navigation bar so it never sits behind it.
- */
+/* reCAPTCHA is unused — hide leftover badge if a cached script still loads */
 .grecaptcha-badge {
     visibility: hidden !important;
-    bottom: calc(var(--safe-bottom) + 84px) !important;
-}
-
-html.recaptcha-visible .grecaptcha-badge {
-    visibility: visible !important;
-}
-
-@media (min-width: 768px) {
-    .grecaptcha-badge {
-        bottom: 14px !important;
-    }
+    display: none !important;
 }

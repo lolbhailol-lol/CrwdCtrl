@@ -206,15 +206,18 @@ async function assertSportsCapacityAvailable(eventId, people, {
     excludeId = null,
     forPendingQr = false,
     capacity = 0,
+    noun = 'run',
 } = {}) {
     const cap = Math.max(0, Number(capacity) || 0);
     if (cap <= 0) return { ok: true };
+    const activity = noun === 'event' ? 'event' : 'run';
+    const reviewer = activity === 'event' ? 'community' : 'club';
 
     const confirmed = await sumConfirmedSeats(eventId, { excludeId });
     if (confirmed + people > cap) {
         return {
             ok: false,
-            message: confirmed >= cap ? 'This run is full' : `Only ${cap - confirmed} seat(s) left`,
+            message: confirmed >= cap ? `This ${activity} is full` : `Only ${cap - confirmed} seat(s) left`,
         };
     }
 
@@ -223,7 +226,7 @@ async function assertSportsCapacityAvailable(eventId, people, {
         if (pending + people > cap) {
             return {
                 ok: false,
-                message: 'Too many payments are awaiting club review. Try again later or contact the organizer.',
+                message: `Too many payments are awaiting ${reviewer} review. Try again later or contact the organizer.`,
             };
         }
     }

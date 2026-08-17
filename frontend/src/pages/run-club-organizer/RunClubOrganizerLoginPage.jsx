@@ -3,8 +3,10 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Footprints, Loader, ArrowLeft } from 'lucide-react';
 import { runClubOrganizerLogin, tryRunClubOrganizerAppSession } from '../../services/api/runClubOrganizer.api';
 import { setRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
+import { isEventsListingHub, organizerHubCopy } from '../../utils/listingHubCopy';
 import { showAppPopup } from '../../utils/appPopup';
 import { useAuth } from '../../context/AuthContext';
+import DetailPageLoader from '../../components/DetailPageLoader';
 
 function resolvePostLoginPath(events, from) {
     if (from) return from;
@@ -63,7 +65,7 @@ export default function RunClubOrganizerLoginPage() {
             });
             showAppPopup({
                 title: 'Signed in successfully',
-                message: 'Welcome to your run club organizer portal.',
+                message: organizerHubCopy(isEventsListingHub(data.runClub)).welcome,
                 tone: 'login',
             });
             navigate(resolvePostLoginPath(data.events, location.state?.from), { replace: true });
@@ -74,14 +76,12 @@ export default function RunClubOrganizerLoginPage() {
         }
     };
 
+    if (booting) {
+        return <DetailPageLoader label="Checking your session" />;
+    }
+
     return (
         <div className="min-h-dvh bg-[#0f1011] flex items-center justify-center px-4 py-6 pt-[max(1.5rem,var(--safe-top))] pb-[max(1.5rem,var(--safe-bottom))]">
-            {booting ? (
-                <div className="text-sm text-gray-500 flex items-center gap-2">
-                    <Loader className="animate-spin" size={18} />
-                    Checking your CrwdCtrl session…
-                </div>
-            ) : (
             <div className="w-full max-w-md rounded-2xl border border-gray-800 bg-[#161718] p-6 sm:p-8 shadow-xl">
                 <button
                     type="button"
@@ -152,7 +152,6 @@ export default function RunClubOrganizerLoginPage() {
                     <Link to="/run-club-organizer/signup" className="text-[#0ECCEE] hover:underline">create your account</Link>.
                 </p>
             </div>
-            )}
         </div>
     );
 }

@@ -22,7 +22,7 @@ function formatCount(n) {
 export default function FollowCommunityBar({
   entityType,
   entityId,
-  followLabel = 'Follow Community',
+  followLabel = 'Follow',
   followingLabel = 'Following',
   membersTitle = 'Members',
   onRequireLogin,
@@ -114,65 +114,44 @@ export default function FollowCommunityBar({
 
   return (
     <>
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center justify-start gap-2">
         <motion.button
           type="button"
           onClick={handleFollowToggle}
           disabled={busy}
-          whileTap={reduceMotion ? undefined : { scale: 0.96 }}
-          className={`relative flex-1 overflow-hidden inline-flex items-center justify-center gap-2 min-h-12 px-4 rounded-2xl text-sm font-semibold disabled:cursor-wait ${
+          whileTap={reduceMotion ? undefined : { scale: 0.97 }}
+          className={`inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-xl text-[13px] font-semibold disabled:cursor-wait transition-colors ${
             following
               ? isDark
-                ? 'border border-emerald-400/30 bg-emerald-500/10 text-emerald-300'
-                : 'border border-emerald-500/25 bg-emerald-50 text-emerald-700'
-              : 'border border-transparent text-white'
+                ? 'border border-[#0ECCEE]/30 bg-[#0ECCEE]/10 text-[#0ECCEE]'
+                : 'border border-[#0ECCEE]/35 bg-[#0ECCEE]/10 text-[#0891b2]'
+              : 'border border-transparent bg-[#0ECCEE] text-black hover:brightness-110'
           }`}
-          style={following ? undefined : {
-            background: 'linear-gradient(105deg, #EF4444 0%, #EC4899 55%, #F472B6 100%)',
-            boxShadow: '0 10px 24px rgba(236, 72, 153, 0.32)',
-          }}
           aria-pressed={following}
         >
-          {/* Soft sheen on follow CTA */}
-          {!following && !reduceMotion ? (
-            <motion.span
-              aria-hidden
-              className="pointer-events-none absolute inset-y-0 w-1/3 bg-linear-to-r from-transparent via-white/25 to-transparent skew-x-12"
-              initial={{ left: '-40%' }}
-              animate={{ left: ['-40%', '120%'] }}
-              transition={{ duration: 2.4, repeat: Infinity, repeatDelay: 2.2, ease: 'easeInOut' }}
-            />
-          ) : null}
-
           {busy ? (
-            <span className="inline-flex">
-              <Loader size={16} className="animate-spin" />
-            </span>
+            <Loader size={14} className="animate-spin" />
           ) : following ? (
-            <span className="inline-flex items-center justify-center size-6 rounded-full bg-emerald-500/20">
-              <Check size={14} strokeWidth={2.75} className="text-emerald-400" />
-            </span>
+            <Check size={14} strokeWidth={2.75} />
           ) : (
-            <span className="inline-flex">
-              <Heart size={16} strokeWidth={2.4} />
-            </span>
+            <Heart size={14} strokeWidth={2.4} />
           )}
-          <span className="relative">{following ? followingLabel : followLabel}</span>
+          <span>{following ? followingLabel : followLabel}</span>
         </motion.button>
 
         <motion.button
           type="button"
           onClick={() => setMembersOpen(true)}
-          whileTap={reduceMotion ? undefined : { scale: 0.96 }}
-          className={`shrink-0 inline-flex flex-col items-center justify-center gap-0.5 min-h-12 min-w-17 px-3 rounded-2xl text-[10px] font-medium border transition ${
+          whileTap={reduceMotion ? undefined : { scale: 0.97 }}
+          className={`inline-flex items-center gap-1.5 h-9 px-2.5 rounded-xl text-[12px] font-medium border transition-colors ${
             isDark
-              ? 'border-white/10 bg-white/5 text-gray-400 hover:text-white hover:border-[#0ECCEE]/35'
+              ? 'border-white/10 bg-[#1D1E20] text-gray-400 hover:text-white hover:border-[#0ECCEE]/40'
               : 'border-gray-200 bg-gray-50 text-gray-500 hover:text-gray-900 hover:border-[#0ECCEE]/40'
           }`}
           aria-label="View followers"
         >
-          <Users size={14} className="text-[#0ECCEE]" />
-          <span className={`tabular-nums text-xs font-bold leading-none ${isDark ? 'text-white' : 'text-gray-900'}`}>
+          <Users size={13} className="text-[#0ECCEE]" />
+          <span className={`tabular-nums text-[13px] font-semibold leading-none ${isDark ? 'text-white' : 'text-gray-900'}`}>
             {loading ? '…' : formatCount(followerCount)}
           </span>
         </motion.button>

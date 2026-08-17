@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Bell, Megaphone, Loader, User, Search, X } from 'lucide-react';
+import { Bell, Megaphone, Loader, User, Search, X, Mail, Smartphone, MessageSquare } from 'lucide-react';
 import { DetailLoader3DIcon } from '../../components/DetailPageLoader';
 import {
     broadcastRunClubOrganizerAnnouncement,
@@ -9,25 +9,11 @@ import {
     notifyRunClubOrganizerParticipant,
 } from '../../services/api/runClubOrganizer.api';
 import { useDialog } from '../../context/DialogContext';
-import { getRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
 import {
-    isEventsListingHub,
     organizerHubCopy,
     organizerBroadcastPresets,
     organizerIndividualPresets,
 } from '../../utils/listingHubCopy';
-
-const BROADCAST_PRESETS = [
-    { title: 'Reporting time updated', message: 'The reporting time for the run has been updated. Please check the run page for the latest schedule.' },
-    { title: 'Meeting point changed', message: 'The meeting point has changed. Please see the updated location on the run details page before you travel.' },
-    { title: 'Run cancelled', message: 'We regret to inform you that this run has been cancelled. Refund details will be shared shortly.' },
-];
-
-const INDIVIDUAL_PRESETS = [
-    { title: 'Payment received', message: 'We received your payment — see you at the run!' },
-    { title: 'Please arrive early', message: 'Please arrive 10 minutes early for check-in and warm-up.' },
-    { title: 'Quick check-in', message: 'Bring your QR ticket ready for a faster check-in.' },
-];
 
 function formatDeliveryToast(res) {
     const d = res.delivery;
@@ -40,21 +26,21 @@ function formatDeliveryToast(res) {
     return parts.length ? `${res.message} · ${parts.join(', ')}` : res.message || 'Sent';
 }
 
-export default function RunClubOrganizerNotificationsPage() {
+const inputClass = 'w-full px-3 py-3 min-h-12 rounded-xl bg-[#111213] border border-white/10 text-base focus:outline-none focus:border-[#0ECCEE]/50';
+
+export default function EventCommunityOrganizerNotificationsPage() {
     const { eventId } = useParams();
     const { confirm, toast } = useDialog();
-    const isEventHub = isEventsListingHub(getRunClubOrganizerSession()?.runClub);
-    const copy = organizerHubCopy(isEventHub);
-    const BROADCAST_PRESETS = organizerBroadcastPresets(isEventHub);
-    const INDIVIDUAL_PRESETS = organizerIndividualPresets(isEventHub);
-    const [tab, setTab] = useState('all'); // all | one
+    const copy = organizerHubCopy(true);
+    const broadcastPresets = organizerBroadcastPresets(true);
+    const individualPresets = organizerIndividualPresets(true);
+    const [tab, setTab] = useState('all');
     const [reminderTitle, setReminderTitle] = useState('');
     const [reminderMessage, setReminderMessage] = useState('');
     const [broadcastTitle, setBroadcastTitle] = useState('');
     const [broadcastMessage, setBroadcastMessage] = useState('');
     const [sendingReminder, setSendingReminder] = useState(false);
     const [sendingBroadcast, setSendingBroadcast] = useState(false);
-
     const [participants, setParticipants] = useState([]);
     const [loadingPeople, setLoadingPeople] = useState(false);
     const [peopleSearch, setPeopleSearch] = useState('');
@@ -75,7 +61,7 @@ export default function RunClubOrganizerNotificationsPage() {
             });
             setParticipants((data.participants || []).filter((p) => p.status === 'confirmed'));
         } catch (e) {
-            toast(e.message || 'Failed to load participants');
+            toast(e.message || 'Failed to load guests');
         } finally {
             setLoadingPeople(false);
         }
@@ -98,7 +84,7 @@ export default function RunClubOrganizerNotificationsPage() {
 
     const sendReminder = async (e) => {
         e.preventDefault();
-        const ok = await confirm('Send reminder to all confirmed participants?');
+        const ok = await confirm('Send reminder to all confirmed guests?');
         if (!ok) return;
         setSendingReminder(true);
         try {
@@ -120,7 +106,7 @@ export default function RunClubOrganizerNotificationsPage() {
             toast('Title and message are required');
             return;
         }
-        const ok = await confirm('Broadcast this announcement to all participants?');
+        const ok = await confirm('Broadcast this announcement to all guests?');
         if (!ok) return;
         setSendingBroadcast(true);
         try {
@@ -139,7 +125,7 @@ export default function RunClubOrganizerNotificationsPage() {
     const sendOne = async (e) => {
         e.preventDefault();
         if (!selected) {
-            toast('Pick a participant first');
+            toast('Pick a guest first');
             return;
         }
         if (!oneTitle.trim() || !oneMessage.trim()) {
@@ -165,17 +151,39 @@ export default function RunClubOrganizerNotificationsPage() {
 
     return (
         <div className="space-y-5 max-w-2xl mx-auto">
-            <div>
-                <h1 className="text-2xl font-bold">Notifications</h1>
-                <p className="text-sm text-gray-500">{copy.messageEveryone}</p>
+            <div className="rounded-2xl border border-white/10 bg-[#161718] p-4 sm:p-5">
+                <div className="flex items-start gap-3">
+                    <div className="size-10 rounded-xl bg-[#0ECCEE]/12 text-[#0ECCEE] flex items-center justify-center shrink-0">
+                        <Bell size={18} />
+                    </div>
+                    <div className="min-w-0">
+                        <h1 className="text-xl font-semibold text-white">Notifications</h1>
+                        <p className="text-sm text-gray-500 mt-0.5">{copy.messageEveryone}</p>
+                    </div>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                    {[
+                        { icon: MessageSquare, label: 'In-app' },
+                        { icon: Smartphone, label: 'Push' },
+                        { icon: Mail, label: 'Email' },
+                    ].map((ch) => (
+                        <span
+                            key={ch.label}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-white/10 bg-white/5 text-[11px] text-gray-400"
+                        >
+                            <ch.icon size={12} className="text-[#0ECCEE]" />
+                            {ch.label}
+                        </span>
+                    ))}
+                </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-[#161718] border border-gray-800">
+            <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-[#161718] border border-white/10">
                 <button
                     type="button"
                     onClick={() => setTab('all')}
-                    className={`py-3 min-h-[48px] rounded-lg text-sm font-semibold transition-colors ${
-                        tab === 'all' ? 'bg-[#0ECCEE] text-black' : 'text-gray-400'
+                    className={`py-3 min-h-12 rounded-xl text-sm font-semibold transition-colors ${
+                        tab === 'all' ? 'bg-[#0ECCEE] text-black' : 'text-gray-400 hover:text-white'
                     }`}
                 >
                     Everyone
@@ -183,33 +191,38 @@ export default function RunClubOrganizerNotificationsPage() {
                 <button
                     type="button"
                     onClick={() => setTab('one')}
-                    className={`py-3 min-h-[48px] rounded-lg text-sm font-semibold transition-colors ${
-                        tab === 'one' ? 'bg-[#0ECCEE] text-black' : 'text-gray-400'
+                    className={`py-3 min-h-12 rounded-xl text-sm font-semibold transition-colors ${
+                        tab === 'one' ? 'bg-[#0ECCEE] text-black' : 'text-gray-400 hover:text-white'
                     }`}
                 >
-                    One person
+                    One guest
                 </button>
             </div>
 
             {tab === 'all' ? (
                 <>
-                    <form onSubmit={sendReminder} className="rounded-xl border border-gray-800 bg-[#161718] p-4 sm:p-5 space-y-4">
-                        <div className="flex items-center gap-2">
-                            <Bell size={18} className="text-[#0ECCEE]" />
-                            <h2 className="font-semibold">Send reminder</h2>
+                    <form onSubmit={sendReminder} className="rounded-2xl border border-white/10 bg-[#161718] p-4 sm:p-5 space-y-4">
+                        <div className="flex items-center gap-2.5">
+                            <div className="size-9 rounded-xl bg-[#0ECCEE]/12 text-[#0ECCEE] flex items-center justify-center">
+                                <Bell size={16} />
+                            </div>
+                            <div>
+                                <h2 className="font-semibold text-white">Send reminder</h2>
+                                <p className="text-[11px] text-gray-500">Optional title and message — or send the default reminder</p>
+                            </div>
                         </div>
                         <input
                             value={reminderTitle}
                             onChange={(e) => setReminderTitle(e.target.value)}
                             placeholder="Reminder title (optional)"
-                            className="w-full px-3 py-3 min-h-[48px] rounded-xl bg-[#111213] border border-gray-800 text-base"
+                            className={inputClass}
                         />
                         <textarea
                             value={reminderMessage}
                             onChange={(e) => setReminderMessage(e.target.value)}
                             rows={3}
                             placeholder="Reminder message (optional)"
-                            className="w-full px-3 py-3 rounded-xl bg-[#111213] border border-gray-800 text-base resize-none"
+                            className={`${inputClass} resize-none min-h-0`}
                         />
                         <button
                             type="submit"
@@ -221,13 +234,18 @@ export default function RunClubOrganizerNotificationsPage() {
                         </button>
                     </form>
 
-                    <form onSubmit={sendBroadcast} className="rounded-xl border border-gray-800 bg-[#161718] p-4 sm:p-5 space-y-4">
-                        <div className="flex items-center gap-2">
-                            <Megaphone size={18} className="text-amber-400" />
-                            <h2 className="font-semibold">Broadcast announcement</h2>
+                    <form onSubmit={sendBroadcast} className="rounded-2xl border border-white/10 bg-[#161718] p-4 sm:p-5 space-y-4">
+                        <div className="flex items-center gap-2.5">
+                            <div className="size-9 rounded-xl bg-amber-500/15 text-amber-300 flex items-center justify-center">
+                                <Megaphone size={16} />
+                            </div>
+                            <div>
+                                <h2 className="font-semibold text-white">Broadcast announcement</h2>
+                                <p className="text-[11px] text-gray-500">Timing, venue, or cancellation — tap a preset to start</p>
+                            </div>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                            {BROADCAST_PRESETS.map((preset) => (
+                            {broadcastPresets.map((preset) => (
                                 <button
                                     key={preset.title}
                                     type="button"
@@ -235,7 +253,7 @@ export default function RunClubOrganizerNotificationsPage() {
                                         setBroadcastTitle(preset.title);
                                         setBroadcastMessage(preset.message);
                                     }}
-                                    className="px-3 py-2 min-h-[36px] rounded-lg border border-gray-700 text-[11px] text-gray-400 hover:border-[#0ECCEE]/40"
+                                    className="px-3 py-2 min-h-9 rounded-lg border border-white/10 text-[11px] text-gray-400 hover:border-[#0ECCEE]/40 hover:text-white"
                                 >
                                     {preset.title}
                                 </button>
@@ -246,7 +264,7 @@ export default function RunClubOrganizerNotificationsPage() {
                             onChange={(e) => setBroadcastTitle(e.target.value)}
                             placeholder="Announcement title"
                             required
-                            className="w-full px-3 py-3 min-h-[48px] rounded-xl bg-[#111213] border border-gray-800 text-base"
+                            className={inputClass}
                         />
                         <textarea
                             value={broadcastMessage}
@@ -254,12 +272,12 @@ export default function RunClubOrganizerNotificationsPage() {
                             rows={4}
                             placeholder="Announcement message"
                             required
-                            className="w-full px-3 py-3 rounded-xl bg-[#111213] border border-gray-800 text-base resize-none"
+                            className={`${inputClass} resize-none min-h-0`}
                         />
                         <button
                             type="submit"
                             disabled={sendingBroadcast}
-                            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-3.5 min-h-[52px] rounded-xl border border-amber-500/40 text-amber-400 text-sm font-bold disabled:opacity-60"
+                            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-3.5 min-h-[52px] rounded-xl border border-amber-500/40 text-amber-300 text-sm font-bold disabled:opacity-60 hover:bg-amber-500/10"
                         >
                             {sendingBroadcast ? <Loader className="animate-spin" size={16} /> : null}
                             Broadcast to all
@@ -267,10 +285,15 @@ export default function RunClubOrganizerNotificationsPage() {
                     </form>
                 </>
             ) : (
-                <form onSubmit={sendOne} className="rounded-xl border border-gray-800 bg-[#161718] p-4 sm:p-5 space-y-4">
-                    <div className="flex items-center gap-2">
-                        <User size={18} className="text-[#0ECCEE]" />
-                        <h2 className="font-semibold">{copy.messageOne}</h2>
+                <form onSubmit={sendOne} className="rounded-2xl border border-white/10 bg-[#161718] p-4 sm:p-5 space-y-4">
+                    <div className="flex items-center gap-2.5">
+                        <div className="size-9 rounded-xl bg-[#0ECCEE]/12 text-[#0ECCEE] flex items-center justify-center">
+                            <User size={16} />
+                        </div>
+                        <div>
+                            <h2 className="font-semibold text-white">{copy.messageOne}</h2>
+                            <p className="text-[11px] text-gray-500">Search confirmed guests, then send</p>
+                        </div>
                     </div>
 
                     {selected ? (
@@ -296,16 +319,16 @@ export default function RunClubOrganizerNotificationsPage() {
                                     value={peopleSearch}
                                     onChange={(e) => setPeopleSearch(e.target.value)}
                                     placeholder={copy.searchPeople}
-                                    className="w-full pl-9 pr-3 py-3 min-h-[48px] rounded-xl bg-[#111213] border border-gray-800 text-base"
+                                    className={`${inputClass} pl-9`}
                                 />
                             </div>
-                            <div className="max-h-56 overflow-y-auto rounded-xl border border-gray-800 divide-y divide-gray-800/80">
+                            <div className="max-h-56 overflow-y-auto rounded-xl border border-white/10 divide-y divide-white/5">
                                 {loadingPeople ? (
                                     <div className="flex justify-center py-8">
                                         <DetailLoader3DIcon size="compact" />
                                     </div>
                                 ) : filteredPeople.length === 0 ? (
-                                    <p className="text-sm text-gray-500 text-center py-8">No confirmed participants</p>
+                                    <p className="text-sm text-gray-500 text-center py-8">No confirmed guests</p>
                                 ) : (
                                     filteredPeople.map((p) => (
                                         <button
@@ -327,7 +350,7 @@ export default function RunClubOrganizerNotificationsPage() {
                     )}
 
                     <div className="flex flex-wrap gap-2">
-                        {INDIVIDUAL_PRESETS.map((preset) => (
+                        {individualPresets.map((preset) => (
                             <button
                                 key={preset.title}
                                 type="button"
@@ -335,7 +358,7 @@ export default function RunClubOrganizerNotificationsPage() {
                                     setOneTitle(preset.title);
                                     setOneMessage(preset.message);
                                 }}
-                                className="px-3 py-2 min-h-[36px] rounded-lg border border-gray-700 text-[11px] text-gray-400 hover:border-[#0ECCEE]/40"
+                                className="px-3 py-2 min-h-9 rounded-lg border border-white/10 text-[11px] text-gray-400 hover:border-[#0ECCEE]/40 hover:text-white"
                             >
                                 {preset.title}
                             </button>
@@ -348,16 +371,16 @@ export default function RunClubOrganizerNotificationsPage() {
                         placeholder="Message title"
                         required
                         maxLength={120}
-                        className="w-full px-3 py-3 min-h-[48px] rounded-xl bg-[#111213] border border-gray-800 text-base"
+                        className={inputClass}
                     />
                     <textarea
                         value={oneMessage}
                         onChange={(e) => setOneMessage(e.target.value)}
                         rows={4}
-                        placeholder="Write your message…"
+                        placeholder={copy.guestMessage}
                         required
                         maxLength={2000}
-                        className="w-full px-3 py-3 rounded-xl bg-[#111213] border border-gray-800 text-base resize-none"
+                        className={`${inputClass} resize-none min-h-0`}
                     />
                     <button
                         type="submit"

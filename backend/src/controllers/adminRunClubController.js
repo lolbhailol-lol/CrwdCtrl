@@ -18,6 +18,7 @@ function sanitizeRunClubBody(body = {}) {
     const payload = {};
     if (body.name !== undefined) payload.name = String(body.name).trim();
     if (body.basedIn !== undefined) payload.basedIn = String(body.basedIn || '').trim();
+    if (body.tagline !== undefined) payload.tagline = String(body.tagline || '').trim();
     if (body.organizer !== undefined) payload.organizer = String(body.organizer || '').trim();
     if (body.aboutUs !== undefined) payload.aboutUs = String(body.aboutUs || '').trim();
     if (body.runCategories !== undefined) {
@@ -50,6 +51,13 @@ function sanitizeRunClubBody(body = {}) {
     if (body.groupLink !== undefined) payload.groupLink = String(body.groupLink || '').trim();
     if (body.showOnSportsPage !== undefined) payload.showOnSportsPage = Boolean(body.showOnSportsPage);
     if (body.showInRunClubs !== undefined) payload.showInRunClubs = Boolean(body.showInRunClubs);
+    if (body.listingHub !== undefined) {
+        payload.listingHub = body.listingHub === 'events' ? 'events' : 'sports';
+        if (payload.listingHub === 'events') {
+            payload.showOnSportsPage = false;
+            payload.showInRunClubs = false;
+        }
+    }
     if (body.runClubPriority !== undefined) {
         const p = parseInt(body.runClubPriority, 10);
         payload.runClubPriority = Number.isNaN(p) ? 999 : Math.max(1, Math.min(999, p));

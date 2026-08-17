@@ -6,6 +6,7 @@ import {
     isRunClubOrganizerTokenExpired,
 } from '../../utils/runClubOrganizerSession';
 import { tryRunClubOrganizerAppSession } from '../../services/api/runClubOrganizer.api';
+import DetailPageLoader from '../../components/DetailPageLoader';
 
 export default function RunClubOrganizerProtectedRoute({ children }) {
     const location = useLocation();
@@ -36,11 +37,7 @@ export default function RunClubOrganizerProtectedRoute({ children }) {
     }, []);
 
     if (status === 'checking') {
-        return (
-            <div className="min-h-dvh bg-[#0f1011] flex items-center justify-center text-sm text-gray-500">
-                Opening club manager…
-            </div>
-        );
+        return <DetailPageLoader label="Opening club manager" />;
     }
 
     if (status === 'guest') {

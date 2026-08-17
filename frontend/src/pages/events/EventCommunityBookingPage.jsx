@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { ArrowLeft, ChevronLeft, ChevronRight, ChevronDown, Loader, CheckCircle, Clock, Check } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, ChevronDown, Loader, CheckCircle, Clock, Check, CalendarX } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationsContext';
@@ -9,6 +9,7 @@ import CrwdCtrlRegister from '../auth/register';
 import { buildVerifiedPaymentFields } from '../../utils/useCashfree';
 
 import PaymentErrorModal from '../../components/PaymentErrorModal';
+import GenderQuickPick from '../../components/GenderQuickPick';
 import RunCheckoutPanel from '../../components/sports/RunCheckoutPanel';
 import DetailPageLoader from '../../components/DetailPageLoader';
 import {
@@ -25,7 +26,7 @@ import {
 import { API_BASE_URL, publicFetchJSONRetry } from '../../services/api/client';
 import { isInAppBrowser } from '../../config/apiBase';
 import { useBookingSuccessPopup } from '../../hooks/useSuccessPopup';
-import { sportRunPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
+import { eventCommunityEventPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
 import { mergeRunFormFields, profileToRunFormData, isDefaultContactField, responseAliasGroup } from '../../utils/formFieldDedupe';
 import { resolveAuthToken, getBearerAuthHeaders, hasUsableAuthToken, isAuthFailureMessage } from '../../utils/authToken';
 import {
@@ -41,6 +42,7 @@ import {
     setPaymentFlowToSuccess,
 } from '../../utils/bookingFlowShared';
 import { openLoginSheet } from '../../utils/loginFlow';
+import { organizerHubCopy } from '../../utils/listingHubCopy';
 import {
     findSportsTier,
     getSportsTiers,
@@ -50,18 +52,19 @@ import {
     formatInr,
 } from '../../utils/sportsTiers';
 import {
-    firstPageCouponFields,
-    hasAutoCouponOptions,
+    bookingPage1Fields,
+    isBookingPage1Field,
     resolveFormAutoCouponCode,
     selectOptionLabels,
 } from '../../utils/formOptionCoupons';
 
-const runDetailCache = createDetailCache('crwdctrl_run_detail_v1_');
+const runDetailCache = createDetailCache('crwdctrl_event_community_detail_v1_');
 
 const API = API_BASE_URL;
+const copy = organizerHubCopy(true);
 
 function runDraftKey(eventId) {
-    return `sports_booking_draft_${eventId}`;
+    return `event_community_booking_draft_${eventId}`;
 }
 
 function formatRunDate(baseDate) {
@@ -69,6 +72,15 @@ function formatRunDate(baseDate) {
     const d = new Date(baseDate);
     if (Number.isNaN(d.getTime())) return String(baseDate);
     return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function isGenderChoiceField(field) {
+    const key = String(field?.fieldName || '').toLowerCase();
+    if (key === 'gender') return true;
+    const labels = selectOptionLabels(field);
+    return labels.some((o) => /^female$/i.test(o))
+        && labels.some((o) => /^male$/i.test(o))
+        && labels.length <= 3;
 }
 
 const PAID_STEPS = ['Party size', 'Your Details', 'Confirm'];
@@ -94,7 +106,7 @@ function getInitialUi(eventId, search, locationState) {
     return getInitialBookingUiState({
         entityId: eventId,
         search,
-        returnPath: `/sports/run/${eventId}/book`,
+        returnPath: `/events/community-event/${eventId}/book`,
         defaults: {
             ...defaults,
             tierId,
@@ -104,7 +116,7 @@ function getInitialUi(eventId, search, locationState) {
     });
 }
 
-export default function RunEventBookingPage() {
+export default function EventCommunityBookingPage() {
     const navigate = useNavigate();
     const location = useLocation();
     const { id } = useParams();
@@ -160,6 +172,7 @@ export default function RunEventBookingPage() {
     const [paying, setPaying] = useState(initialUi.paying);
     const [payDone, setPayDone] = useState(initialUi.payDone);
     const [paymentId, setPaymentId] = useState('');
+    const [cashfreeOrderId, setCashfreeOrderId] = useState('');
     const [bookingId, setBookingId] = useState('');
     const [couponCode, setCouponCode] = useState('');
     const [couponInfo, setCouponInfo] = useState(null);
@@ -269,9 +282,9 @@ export default function RunEventBookingPage() {
     const maxSelectablePeople = onePersonFreeLimit ? 1 : maxPeople;
 
     const regSchema = useMemo(() => mergeRunFormFields(reg.formSchema || []), [reg.formSchema]);
-    const page1CouponFields = useMemo(() => firstPageCouponFields(reg.formSchema || []), [reg.formSchema]);
+    const page1CouponFields = useMemo(() => bookingPage1Fields(reg.formSchema || []), [reg.formSchema]);
     const step2Fields = useMemo(
-        () => regSchema.filter((field) => !hasAutoCouponOptions(field)),
+        () => regSchema.filter((field) => !isBookingPage1Field(field)),
         [regSchema],
     );
     const autoCouponCode = useMemo(
@@ -342,7 +355,7 @@ export default function RunEventBookingPage() {
 
     useEffect(() => {
         if (!event) return;
-        const canonical = `${sportRunPath(event)}/book`;
+        const canonical = `${eventCommunityEventPath(event)}/book`;
         const params = new URLSearchParams(window.location.search || '');
         let tierParam = params.get('tier') || selectedTierId || '';
 
@@ -354,7 +367,7 @@ export default function RunEventBookingPage() {
                 tierParam = fallbackTier.id;
                 if (tierParam !== selectedTierId) setSelectedTierId(tierParam);
             } else {
-                navigate(sportRunPath(event), { replace: true, state: { event, runClub: location.state?.runClub } });
+                navigate(eventCommunityEventPath(event), { replace: true, state: { event, runClub: location.state?.runClub } });
                 return;
             }
         }
@@ -375,7 +388,7 @@ export default function RunEventBookingPage() {
     useEffect(() => {
         const evId = id || event?._id || event?.id;
         if (!evId) return;
-        const returnPath = `/sports/run/${evId}/book`;
+        const returnPath = `/events/community-event/${evId}/book`;
         if (shouldResumePendingPayment(getPendingPayment(), returnPath, location.search)) return;
 
         const raw = sessionStorage.getItem(runDraftKey(evId));
@@ -463,6 +476,8 @@ export default function RunEventBookingPage() {
     const renderField = (field, { couponSelect } = {}) => {
         const val = extraFields[field.fieldName] || '';
         const onChange = (v) => setExtraFieldValue(field.fieldName, v, { couponSelect });
+        const labels = selectOptionLabels(field);
+        const isGender = isGenderChoiceField(field);
 
         if (field.type === 'textarea') {
             return (
@@ -471,38 +486,39 @@ export default function RunEventBookingPage() {
                     className={`${inp} resize-none`} />
             );
         }
-        if (field.type === 'select') {
-            const labels = selectOptionLabels(field);
-            if (couponSelect) {
+        if (field.type === 'select' || field.type === 'radio') {
+            if (isGender) {
                 return (
-                    <div className="flex flex-wrap gap-2">
-                        {labels.map((o) => {
-                            const selected = val === o;
-                            return (
-                                <button
-                                    key={o}
-                                    type="button"
-                                    onClick={() => onChange(selected ? '' : o)}
-                                    className={`px-3 py-2 rounded-xl border text-sm font-medium transition-colors ${
-                                        selected
-                                            ? 'border-[#0ECCEE] bg-[#0ECCEE]/15 text-[#0ECCEE]'
-                                            : isDark
-                                                ? 'border-gray-700 bg-[#0E0F10] text-gray-200 hover:border-gray-500'
-                                                : 'border-gray-200 bg-gray-50 text-gray-800 hover:border-gray-300'
-                                    }`}
-                                >
-                                    {o}
-                                </button>
-                            );
-                        })}
-                    </div>
+                    <GenderQuickPick
+                        value={val}
+                        onChange={onChange}
+                        label={String(field.fieldName || '').toLowerCase() === 'gender' ? 'You are' : (field.label || 'You are')}
+                    />
                 );
             }
+            const stacked = couponSelect || labels.some((o) => o.length > 28) || labels.length > 4;
             return (
-                <select value={val} onChange={(e) => onChange(e.target.value)} onFocus={scrollFieldIntoView} className={inp}>
-                    <option value="">Select...</option>
-                    {labels.map((o) => <option key={o} value={o}>{o}</option>)}
-                </select>
+                <div className={stacked ? 'space-y-2' : 'flex flex-wrap gap-2'}>
+                    {labels.map((o) => {
+                        const selected = val === o;
+                        return (
+                            <button
+                                key={o}
+                                type="button"
+                                onClick={() => onChange(selected ? '' : o)}
+                                className={`${stacked ? 'w-full text-left px-3.5 py-2.5' : 'px-3 py-2'} rounded-xl border text-sm font-medium transition-colors ${
+                                    selected
+                                        ? 'border-[#0ECCEE] bg-[#0ECCEE]/15 text-[#0ECCEE]'
+                                        : isDark
+                                            ? 'border-gray-700 bg-[#0E0F10] text-gray-200 hover:border-gray-500'
+                                            : 'border-gray-200 bg-gray-50 text-gray-800 hover:border-gray-300'
+                                }`}
+                            >
+                                {o}
+                            </button>
+                        );
+                    })}
+                </div>
             );
         }
         if (field.type === 'file') {
@@ -532,7 +548,7 @@ export default function RunEventBookingPage() {
         booking = {},
     }) => {
         const evId = event?._id || event?.id || id;
-        if (!evId) throw new Error('Run not found');
+        if (!evId) throw new Error('Event not found');
 
         if (requireLogin && !isAuthed()) {
             openLogin();
@@ -697,7 +713,7 @@ export default function RunEventBookingPage() {
         if (!evId || loadingEvent || paymentResumeRef.current) return;
 
         const pending = getPendingPayment();
-        const returnPath = `/sports/run/${evId}/book`;
+        const returnPath = `/events/community-event/${evId}/book`;
         if (!shouldResumePendingPayment(pending, returnPath, location.search)) return;
 
         paymentResumeRef.current = true;
@@ -760,6 +776,7 @@ export default function RunEventBookingPage() {
                 const v = verifyResult.data;
                 const verified = buildVerifiedPaymentFields(v, pending.orderId);
                 setPaymentId(verified.payment_id);
+                setCashfreeOrderId(verified.payment_order_id || pending.orderId || '');
                 setPayDone(true);
                 await submitRunRegistration({
                     paymentOrderId: verified.payment_order_id || pending.orderId,
@@ -790,7 +807,7 @@ export default function RunEventBookingPage() {
         if (onePersonFreeLimit && people !== 1) setPeople(1);
         if (requireLogin && !isAuthed()) {
             openLogin();
-            setError('Please log in to book this run.');
+            setError('Please log in to book this event.');
             return;
         }
 
@@ -972,7 +989,7 @@ export default function RunEventBookingPage() {
                     if (res.status === 401 || isAuthFailureMessage(order.message) || order.requireLogin) {
                         if (requireLogin || order.requireLogin) {
                             openLogin();
-                            setError('Please log in to book this run.');
+                            setError('Please log in to book this event.');
                             setPaying(false);
                             return;
                         }
@@ -991,7 +1008,7 @@ export default function RunEventBookingPage() {
 
                 const checkoutFlow = await runCashfreeCheckoutAndVerify({
                     order,
-                    returnPath: `/sports/run/${id || event?._id || event?.id}/book`,
+                    returnPath: `/events/community-event/${id || event?._id || event?.id}/book`,
                     entityType: 'sports',
                     cashfreeMode: order.cashfreeMode,
                     verifyOrder: ({ orderId, paymentId }) => verifyPaymentWithRetry(API, orderId, {
@@ -1038,6 +1055,7 @@ export default function RunEventBookingPage() {
                 if (checkoutFlow.status === 'verified') {
                     const { verified } = checkoutFlow;
                     setPaymentId(verified.payment_id);
+                    setCashfreeOrderId(verified.payment_order_id || order.orderId || '');
                     await submitRunRegistration({
                         paymentOrderId: verified.payment_order_id || order.orderId,
                         paymentId: verified.payment_id,
@@ -1099,12 +1117,12 @@ export default function RunEventBookingPage() {
         return (
             <div className="crwdctrl-page crwdctrl-page--content min-h-dvh flex flex-col items-center justify-center gap-3 px-6">
                 <p className={`text-sm text-center font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    {isRetryable ? "Couldn't load this run" : 'This run is no longer available'}
+                    {isRetryable ? "Couldn't load this event" : 'This event is no longer available'}
                 </p>
                 <p className={`text-sm text-center max-w-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                     {isRetryable
                         ? 'Slow network or server waking up — tap Retry.'
-                        : 'Open booking from the run page, or the link may be outdated.'}
+                        : 'Open booking from the event page, or the link may be outdated.'}
                 </p>
                 {isRetryable ? (
                     <button
@@ -1115,8 +1133,8 @@ export default function RunEventBookingPage() {
                         Retry
                     </button>
                 ) : null}
-                <button type="button" onClick={() => navigate('/sports')} className="text-[#0ECCEE] text-sm font-semibold">
-                    Browse runs
+                <button type="button" onClick={() => navigate('/events')} className="text-[#0ECCEE] text-sm font-semibold">
+                    Browse events
                 </button>
             </div>
         );
@@ -1128,16 +1146,16 @@ export default function RunEventBookingPage() {
     if ((registrationClosed || registrationFull) && !showSuccess && !showProcessing) {
         return (
             <div className="crwdctrl-page crwdctrl-page--content min-h-dvh flex flex-col items-center justify-center gap-3 px-6">
-                <span className="text-4xl">🏃</span>
+                <CalendarX className={`size-10 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
                 <p className={`text-sm text-center font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    {registrationClosed ? 'Registration is closed for this run' : 'This run is full'}
+                    {registrationClosed ? copy.closed : copy.full}
                 </p>
                 <button
                     type="button"
-                    onClick={() => navigate(event ? sportRunPath(event) : '/sports')}
+                    onClick={() => navigate(event ? eventCommunityEventPath(event) : '/events')}
                     className="text-[#0ECCEE] text-sm font-semibold"
                 >
-                    Back to run
+                    Back to event
                 </button>
             </div>
         );
@@ -1182,9 +1200,11 @@ export default function RunEventBookingPage() {
                     ) : null}
 
                     <div className={`rounded-xl p-5 mb-6 text-left ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-50'}`}>
-                        <p className={`text-sm font-semibold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Booking Details</p>
+                        <p className={`text-sm font-semibold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            {isPendingQr || total > 0 ? 'Receipt' : 'Booking Details'}
+                        </p>
                         {[
-                            { label: 'Status', value: isPendingQr ? 'Pending club approval' : 'Confirmed' },
+                            { label: 'Status', value: isPendingQr ? 'Pending community approval' : 'Confirmed' },
                             { label: 'Date', value: selDate || '—' },
                             ...(selTime ? [{ label: 'Time', value: selTime }] : []),
                             { label: 'People', value: `${people} ${people > 1 ? 'people' : 'person'}` },
@@ -1194,10 +1214,14 @@ export default function RunEventBookingPage() {
                                 : []),
                             { label: 'Entry Fee', value: fee > 0 ? formatInr(fee * people) : 'Free' },
                             ...(isPendingQr
-                                ? [{ label: 'Amount paid to club', value: `₹${payableAmount.toLocaleString('en-IN')}` }]
+                                ? [{ label: 'Amount paid to community', value: `₹${payableAmount.toLocaleString('en-IN')}` }]
                                 : total > 0
                                     ? [{ label: 'Total Paid', value: `₹${total.toLocaleString('en-IN')}` }]
                                     : []),
+                            ...(total > 0 && !isPendingQr
+                                ? [{ label: 'Platform fee', value: '₹0' }]
+                                : []),
+                            ...(cashfreeOrderId ? [{ label: 'Order ID', value: cashfreeOrderId }] : []),
                             ...(paymentId ? [{ label: 'Payment ID', value: paymentId.slice(0, 18) + '…' }] : []),
                             ...(transactionId && isPendingQr ? [{ label: 'UPI / Txn ID', value: transactionId }] : []),
                         ].map((r) => (
@@ -1251,9 +1275,9 @@ export default function RunEventBookingPage() {
                             View My Bookings
                         </button>
                         <button type="button"
-                            onClick={() => navigate('/sports')}
+                            onClick={() => navigate('/events')}
                             className={`w-full py-2.5 rounded-xl text-sm font-medium transition ${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'}`}>
-                            Browse more runs
+                            Browse more events
                         </button>
                     </div>
                 </div>
@@ -1360,7 +1384,7 @@ export default function RunEventBookingPage() {
                                             </div>
                                             <button
                                                 type="button"
-                                                onClick={() => navigate(sportRunPath(event), { state: { event } })}
+                                                onClick={() => navigate(eventCommunityEventPath(event), { state: { event } })}
                                                 className="text-[11px] font-semibold text-[#0ECCEE] shrink-0"
                                             >
                                                 Change
@@ -1457,7 +1481,23 @@ export default function RunEventBookingPage() {
                                     </button>
                                 ) : null}
 
-                                <div className={`pt-1 ${(selectedTier || optionalAddOn) ? `border-t ${isDark ? 'border-gray-800' : 'border-gray-100'} pt-3` : ''}`}>
+                                {page1CouponFields.length > 0 ? (
+                                    <div className={`space-y-4 pt-1 ${(selectedTier || optionalAddOn) ? `border-t ${isDark ? 'border-gray-800' : 'border-gray-100'} pt-3` : ''}`}>
+                                        {page1CouponFields.map((field) => (
+                                            <div key={field.id || field.fieldName}>
+                                                {isGenderChoiceField(field) ? null : (
+                                                <p className={`text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                                    {field.label}
+                                                    {field.required ? <span className="text-red-400 ml-0.5">*</span> : null}
+                                                </p>
+                                                )}
+                                                {renderField(field, { couponSelect: true })}
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : null}
+
+                                <div className={`pt-1 ${(selectedTier || optionalAddOn || page1CouponFields.length) ? `border-t ${isDark ? 'border-gray-800' : 'border-gray-100'} pt-3` : ''}`}>
                                     <p className={`text-[11px] mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>People</p>
                                     <div className="flex items-center">
                                         <button
@@ -1486,20 +1526,6 @@ export default function RunEventBookingPage() {
                                         </p>
                                     ) : null}
                                 </div>
-
-                                {page1CouponFields.length > 0 ? (
-                                    <div className={`space-y-3 pt-1 border-t ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
-                                        {page1CouponFields.map((field) => (
-                                            <div key={field.id || field.fieldName}>
-                                                <p className={`text-[11px] mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                                    {field.label}
-                                                    {field.required ? <span className="text-red-400 ml-0.5">*</span> : null}
-                                                </p>
-                                                {renderField(field, { couponSelect: true })}
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : null}
 
                                 {chargePerPerson > 0 ? (
                                     <div className={`rounded-xl px-3.5 py-3 ${(page1CouponFields.length || selectedTier || optionalAddOn) ? `border-t ${isDark ? 'border-gray-800' : 'border-gray-100'} pt-3 mt-1` : ''} ${isDark ? 'bg-[#0ECCEE]/8 border border-[#0ECCEE]/20' : 'bg-cyan-50 border border-cyan-100'}`}>
@@ -1570,10 +1596,12 @@ export default function RunEventBookingPage() {
 
                                 {step2Fields.map((field) => (
                                     <div key={field.id || field.fieldName}>
+                                        {isGenderChoiceField(field) ? null : (
                                         <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                                             {field.label}
                                             {field.required && <span className="text-red-400 ml-1">*</span>}
                                         </label>
+                                        )}
                                         {renderField(field)}
                                     </div>
                                 ))}
@@ -1586,6 +1614,9 @@ export default function RunEventBookingPage() {
                             <RunCheckoutPanel
                                 mode={isOrganizerQr ? 'organizer_qr' : 'cashfree'}
                                 isDark={isDark}
+                                feeLabel={copy.feeLabel}
+                                approverLabel={copy.checkoutApprover}
+                                showZeroPlatformFee
                                 payableAmount={payableAmount}
                                 baseFee={baseFee}
                                 chargePerPerson={chargePerPerson}

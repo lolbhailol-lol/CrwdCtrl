@@ -43,7 +43,7 @@ async function organizerCanAccessEvent(organizer, eventId) {
 async function getOrganizerRunClub(organizer) {
     if (!organizer?.runClubId) return null;
     return RunClub.findById(organizer.runClubId)
-        .select('name basedIn aboutUs runCategories contactPhone contactInstagram coverImage status')
+        .select('name basedIn aboutUs runCategories contactPhone contactInstagram coverImage status listingHub')
         .lean();
 }
 

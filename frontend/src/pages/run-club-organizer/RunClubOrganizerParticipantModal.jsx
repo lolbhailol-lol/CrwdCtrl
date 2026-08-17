@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { X, Loader, Clock, CheckCircle, AlertCircle } from 'lucide-react';
+import { X, Clock, CheckCircle, AlertCircle } from 'lucide-react';
 import { fetchRunClubOrganizerParticipant, resendRunClubOrganizerConfirmation } from '../../services/api/runClubOrganizer.api';
 import { useDialog } from '../../context/DialogContext';
 import TrekRegistrationResponses from '../trek-organizer/TrekRegistrationResponses';
+import { DetailLoader3DIcon } from '../../components/DetailPageLoader';
 
 function Badge({ children, tone = 'neutral' }) {
     const tones = {
@@ -72,7 +73,9 @@ export default function RunClubOrganizerParticipantModal({ eventId, bookingId, o
                 </div>
 
                 {loading ? (
-                    <div className="flex justify-center py-16"><Loader className="animate-spin text-[#0ECCEE]" /></div>
+                    <div className="flex justify-center py-16">
+                        <DetailLoader3DIcon size="compact" />
+                    </div>
                 ) : participant ? (
                     <div className="p-4 space-y-5">
                         <div>

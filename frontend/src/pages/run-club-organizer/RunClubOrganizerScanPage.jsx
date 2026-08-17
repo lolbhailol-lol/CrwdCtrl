@@ -3,15 +3,17 @@ import { useParams } from 'react-router-dom';
 import { Search, Loader, UserCheck } from 'lucide-react';
 import CheckinScannerPage from '../../components/admin/CheckinScannerPage';
 import { getApiBaseUrl } from '../../config/apiBase';
-import { getRunClubOrganizerToken } from '../../utils/runClubOrganizerSession';
+import { getRunClubOrganizerToken, getRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
 import { lookupRunClubOrganizerParticipant, runClubOrganizerCheckin } from '../../services/api/runClubOrganizer.api';
 import { useDialog } from '../../context/DialogContext';
 import RunClubOrganizerParticipantModal from './RunClubOrganizerParticipantModal';
+import { isEventsListingHub, organizerHubCopy } from '../../utils/listingHubCopy';
 
 export default function RunClubOrganizerScanPage() {
     const { eventId } = useParams();
     const { toast, confirm } = useDialog();
     const api = getApiBaseUrl();
+    const copy = organizerHubCopy(isEventsListingHub(getRunClubOrganizerSession()?.runClub));
     const [manualQuery, setManualQuery] = useState('');
     const [lookupLoading, setLookupLoading] = useState(false);
     const [lookupResults, setLookupResults] = useState([]);
@@ -76,7 +78,7 @@ export default function RunClubOrganizerScanPage() {
                 showStats
                 showSheetStatus={false}
                 sportEventId={eventId}
-                festName="Run check-in"
+                festName={copy.scanName}
                 getAuthToken={getRunClubOrganizerToken}
                 checkinUrl={`${api}/run-club-organizer/events/${eventId}/checkin`}
                 statsUrl={`${api}/run-club-organizer/events/${eventId}/checkin/stats`}

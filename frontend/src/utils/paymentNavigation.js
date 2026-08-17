@@ -1,6 +1,7 @@
 /** Shared post-payment navigation — keeps redirects fast and consistent */
 
 import { clearPendingPayment } from './deepLinks';
+import { resolveAuthToken } from './authToken';
 
 export const BOOKING_REDIRECT_MS = 800;
 export const PAYMENT_VERIFY_RETRY_MS = [600, 1000, 1500, 2000, 3000, 5000];
@@ -82,6 +83,20 @@ export function classifyVerifyError(result = {}) {
     };
   }
 
+  if (code === 'ORDER_OWNERSHIP_MISMATCH') {
+    return {
+      kind: 'failed',
+      message: message || 'This payment belongs to a different account. Sign in and try again.',
+    };
+  }
+
+  if (code === 'ORDER_EMAIL_REQUIRED') {
+    return {
+      kind: 'failed',
+      message: message || 'Use the same email from checkout to confirm this payment.',
+    };
+  }
+
   if (
     code === 'NETWORK_ERROR'
     || /network|timeout|timed out|offline|internet|connection|failed to fetch/i.test(message)
@@ -133,7 +148,8 @@ export async function verifyPaymentWithRetry(
     : kind === 'sports' ? `${apiBase}/payment/sports-verify`
     : `${apiBase}/payment/verify`;
   const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
-  if (token) headers.Authorization = `Bearer ${token}`;
+  const authToken = token || resolveAuthToken();
+  if (authToken) headers.Authorization = `Bearer ${authToken}`;
 
   const resolvedPaymentId = paymentId || getCashfreeReturnPaymentId(search);
   const body = { payment_order_id: orderId };

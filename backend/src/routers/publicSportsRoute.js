@@ -12,6 +12,12 @@ const { getJwtSecret } = require('../config/jwtSecret');
 const { registrationLimiter } = require('../middleware/rateLimiter');
 const uploadCtrl = require('../controllers/uploadController');
 const { sanitizePublicSportsEvent } = require('../utils/publicEntitySanitize');
+const {
+    listingHubForRunClubId,
+    hubSourceFromListing,
+    sportsActivityNoun,
+    sportsNotFoundMessage,
+} = require('../utils/listingHubCopy');
 
 function getOptionalUserId(req) {
     try {
@@ -51,7 +57,8 @@ router.get('/', async (req, res) => {
                     { eventDate: { $gte: startOfToday } },
                 ],
             });
-            and.push({ showOnSportsPage: { $ne: false } });
+        } else if (hasClub) {
+            and.push({ status: 'published' });
         } else {
             and.push({ status: 'published' });
             and.push({ showOnSportsPage: { $ne: false } });
@@ -100,7 +107,7 @@ router.get('/:idOrSlug', async (req, res) => {
             _id: eventMatch._id,
             status: { $in: ['published', 'completed'] },
         })
-            .populate('runClubId', 'name basedIn contactPhone contactInstagram')
+            .populate('runClubId', 'name basedIn tagline organizer contactPhone contactInstagram listingHub slug')
             .lean();
         if (!event) return res.status(404).json({ message: 'Sports event not found' });
         if (event.runClubId && typeof event.runClubId === 'object') {
@@ -181,19 +188,23 @@ router.post(
                 baseFilter: { status: 'published' },
                 pickName: (row) => row.title || '',
                 lean: true,
+                select: 'runClubId registration status title',
             });
-            if (!eventMatch) return res.status(404).json({ message: 'Run not found' });
+            const listingHub = eventMatch ? await listingHubForRunClubId(eventMatch.runClubId) : 'sports';
+            const hub = hubSourceFromListing(listingHub);
+            const noun = sportsActivityNoun(hub);
+            if (!eventMatch) return res.status(404).json({ message: sportsNotFoundMessage(hub) });
 
             const event = await SportsEvent.findById(eventMatch._id).select('registration status').lean();
             if (!event || event.status !== 'published') {
-                return res.status(404).json({ message: 'Run not found' });
+                return res.status(404).json({ message: sportsNotFoundMessage(hub) });
             }
             if ((event.registration?.mode || 'internal_form') !== 'organizer_qr') {
-                return res.status(400).json({ message: 'Payment screenshots are only used for UPI / QR runs.' });
+                return res.status(400).json({ message: `Payment screenshots are only used for UPI / QR ${noun === 'event' ? 'events' : 'runs'}.` });
             }
             if (event.registration?.requireLogin !== false && !getOptionalUserId(req)) {
                 return res.status(401).json({
-                    message: 'Please log in to upload a payment screenshot for this run.',
+                    message: `Please log in to upload a payment screenshot for this ${noun}.`,
                     requireLogin: true,
                 });
             }

@@ -2,13 +2,13 @@ import { Route } from 'react-router-dom';
 import {
     RunClubOrganizerLoginPage,
     RunClubOrganizerSignupPage,
-    RunClubOrganizerLayout,
     RunClubOrganizerProtectedRoute,
-    RunClubOrganizerHomePage,
-    RunClubOrganizerDashboardPage,
     RunClubOrganizerParticipantsPage,
     RunClubOrganizerScanPage,
-    RunClubOrganizerNotificationsPage,
+    OrganizerLayoutGate,
+    OrganizerHomeGate,
+    OrganizerDashboardGate,
+    OrganizerNotificationsGate,
 } from './lazyPages';
 
 export const runClubOrganizerRoutes = (
@@ -19,15 +19,15 @@ export const runClubOrganizerRoutes = (
             path="/run-club-organizer"
             element={
                 <RunClubOrganizerProtectedRoute>
-                    <RunClubOrganizerLayout />
+                    <OrganizerLayoutGate />
                 </RunClubOrganizerProtectedRoute>
             }
         >
-            <Route index element={<RunClubOrganizerHomePage />} />
-            <Route path="events/:eventId" element={<RunClubOrganizerDashboardPage />} />
+            <Route index element={<OrganizerHomeGate />} />
+            <Route path="events/:eventId" element={<OrganizerDashboardGate />} />
             <Route path="events/:eventId/participants" element={<RunClubOrganizerParticipantsPage />} />
             <Route path="events/:eventId/scan" element={<RunClubOrganizerScanPage />} />
-            <Route path="events/:eventId/notifications" element={<RunClubOrganizerNotificationsPage />} />
+            <Route path="events/:eventId/notifications" element={<OrganizerNotificationsGate />} />
         </Route>
     </>
 );

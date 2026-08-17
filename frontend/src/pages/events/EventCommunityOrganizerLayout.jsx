@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, useNavigate, useParams, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, QrCode, LogOut, Footprints, Bell, Menu, Home, ArrowLeft, ExternalLink } from 'lucide-react';
+import { CalendarDays, LayoutDashboard, Users, QrCode, LogOut, Bell, Menu, Home, ArrowLeft, ExternalLink } from 'lucide-react';
 import { clearRunClubOrganizerSession, getRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
 import { organizerHubCopy } from '../../utils/listingHubCopy';
 
@@ -38,13 +38,14 @@ function OrgNavButton({ to, end = false, className, onNavigate, children, ...res
     );
 }
 
-export default function RunClubOrganizerLayout() {
+export default function EventCommunityOrganizerLayout() {
     const navigate = useNavigate();
     const { eventId } = useParams();
     const session = getRunClubOrganizerSession();
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    const copy = organizerHubCopy(false);
-    const BrandIcon = Footprints;
+    const isEventHub = true;
+    const copy = organizerHubCopy(true);
+    const BrandIcon = CalendarDays;
 
     const logout = () => {
         clearRunClubOrganizerSession();

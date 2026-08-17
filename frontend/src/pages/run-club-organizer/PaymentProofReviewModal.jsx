@@ -7,12 +7,14 @@ const REJECT_PRESETS = [
     'Transaction not found',
 ];
 
-function whatsappHref(phone, name) {
+function whatsappHref(phone, name, messageFn) {
     const digits = String(phone || '').replace(/\D/g, '');
     if (digits.length < 10) return '';
     const withCountry = digits.length === 10 ? `91${digits}` : digits;
     const text = encodeURIComponent(
-        `Hi${name ? ` ${name}` : ''}, this is about your run registration payment on CrwdCtrl.`,
+        typeof messageFn === 'function'
+            ? messageFn(name)
+            : `Hi${name ? ` ${name}` : ''}, this is about your run registration payment on CrwdCtrl.`,
     );
     return `https://wa.me/${withCountry}?text=${text}`;
 }
@@ -38,6 +40,8 @@ export default function PaymentProofReviewModal({
     eventTitle = '',
     onClose,
     onApprove,
+    guestNotePlaceholder = 'Add or edit the note the runner will see',
+    whatsappMessage,
     onReject,
     onPrev,
     onNext,
@@ -262,9 +266,9 @@ export default function PaymentProofReviewModal({
                                 >
                                     <Phone size={13} /> {phone}
                                 </a>
-                                {whatsappHref(phone, participant.participantName) ? (
+                                {whatsappHref(phone, participant.participantName, whatsappMessage) ? (
                                     <a
-                                        href={whatsappHref(phone, participant.participantName)}
+                                        href={whatsappHref(phone, participant.participantName, whatsappMessage)}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="inline-flex items-center gap-1.5 px-3 py-2.5 min-h-[44px] rounded-lg bg-emerald-500/15 text-emerald-400 text-xs font-medium"
@@ -331,7 +335,7 @@ export default function PaymentProofReviewModal({
                                     onChange={(e) => setNote(e.target.value)}
                                     rows={3}
                                     className="mt-1 w-full rounded-lg bg-[#111213] border border-gray-700 px-3 py-2.5 text-base focus:outline-none focus:border-red-400/50"
-                                    placeholder="Add or edit the note the runner will see"
+                                    placeholder={guestNotePlaceholder}
                                 />
                             </label>
                             <div className="flex gap-2">

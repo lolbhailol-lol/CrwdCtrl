@@ -8,7 +8,10 @@
  * leaked orderId could mark an order PAID and mint a paymentProof JWT.
  *
  * Behavior:
- * - If order.userId is set: require req.user.userId to match (401 otherwise).
+ * - If order.userId is set and JWT matches: allow.
+ * - If order.userId is set and JWT is a different user: reject.
+ * - If there is no JWT (Cashfree return / in-app browser often drop the
+ *   token): fall through to customerEmail match — same bar as guest orders.
  * - If order is a guest order (no userId) and no JWT: require customerEmail
  *   in the request body to match the stored order.customerEmail.
  * - If no PaymentOrder is found for the orderId, allow the caller through —
@@ -22,8 +25,8 @@ function authorizePaymentVerify({ paymentOrder, req }) {
   const orderUserId = paymentOrder.userId ? String(paymentOrder.userId) : '';
   const reqUserId = req.user?.userId ? String(req.user.userId) : '';
 
-  if (orderUserId) {
-    if (reqUserId && reqUserId === orderUserId) {
+  if (orderUserId && reqUserId) {
+    if (reqUserId === orderUserId) {
       return { ok: true };
     }
     return {

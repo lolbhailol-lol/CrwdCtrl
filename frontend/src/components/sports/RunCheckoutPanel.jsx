@@ -33,6 +33,9 @@ export default function RunCheckoutPanel({
     onRemoveScreenshot,
     transactionId,
     onTransactionIdChange,
+    feeLabel = 'Run fee',
+    approverLabel = 'club',
+    showZeroPlatformFee = false,
 }) {
     const isCashfree = mode === 'cashfree';
     const couponApplied = Boolean(couponInfo?.couponApplied);
@@ -72,7 +75,7 @@ export default function RunCheckoutPanel({
                         ? ' · Secure checkout via Cashfree'
                         : qrAutoConfirm
                             ? ' · Confirms when you submit'
-                            : ' · Club approves after you submit'}
+                            : ` · ${approverLabel === 'community' ? 'Community' : 'Club'} approves after you submit`}
                 </p>
             </div>
 
@@ -140,11 +143,17 @@ export default function RunCheckoutPanel({
                     <div className={`px-4 py-3 sm:px-5 border-t space-y-1.5 text-sm ${isDark ? 'border-gray-800 text-gray-300' : 'border-gray-100 text-gray-700'}`}>
                         <div className="flex justify-between gap-4">
                             <span>
-                                Run fee
+                                {feeLabel}
                                 <span className={`text-xs ml-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>× {people}</span>
                             </span>
                             <span className="tabular-nums">₹{ticketTotal.toLocaleString('en-IN')}</span>
                         </div>
+                        {showZeroPlatformFee ? (
+                            <div className={`flex justify-between gap-4 text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                <span>Platform fee</span>
+                                <span className="tabular-nums">₹0</span>
+                            </div>
+                        ) : null}
                         {addOnTotal > 0 ? (
                             <div className="flex justify-between gap-4">
                                 <span className="truncate pr-2">

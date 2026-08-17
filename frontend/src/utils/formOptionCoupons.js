@@ -38,3 +38,16 @@ export function resolveFormAutoCouponCode(schema, extraFields = {}) {
 export function firstPageCouponFields(schema) {
   return (Array.isArray(schema) ? schema : []).filter(hasAutoCouponOptions);
 }
+
+/** Extra selects shown on booking step 1 (chips), plus coupon-linked dropdowns. */
+export function isBookingPage1Field(field) {
+  if (!field) return false;
+  if (hasAutoCouponOptions(field)) return true;
+  return Number(field.bookingStep) === 1;
+}
+
+export function bookingPage1Fields(schema) {
+  return (Array.isArray(schema) ? schema : []).filter((field) => (
+    field?.label?.trim() && field?.fieldName?.trim() && isBookingPage1Field(field)
+  ));
+}

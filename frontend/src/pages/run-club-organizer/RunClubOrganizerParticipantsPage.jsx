@@ -13,9 +13,12 @@ import {
     reviewRunClubOrganizerPayment,
     notifyRunClubOrganizerParticipant,
 } from '../../services/api/runClubOrganizer.api';
+import { DetailLoader3DIcon } from '../../components/DetailPageLoader';
 import { useDialog } from '../../context/DialogContext';
 import ParticipantCard from '../trek-organizer/ParticipantCard';
 import PaymentProofReviewModal from './PaymentProofReviewModal';
+import { getRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
+import { isEventsListingHub, organizerHubCopy } from '../../utils/listingHubCopy';
 
 function FilterChip({ active, onClick, children }) {
     return (
@@ -31,19 +34,7 @@ function FilterChip({ active, onClick, children }) {
     );
 }
 
-function SkeletonCard() {
-    return (
-        <div className="rounded-xl border border-gray-800 bg-[#161718] p-4 animate-pulse flex gap-3">
-            <div className="size-11 rounded-xl bg-gray-800 shrink-0" />
-            <div className="flex-1 space-y-2">
-                <div className="h-4 bg-gray-800 rounded w-2/5" />
-                <div className="h-3 bg-gray-800/70 rounded w-3/5" />
-            </div>
-        </div>
-    );
-}
-
-function NotifyParticipantModal({ open, participant, onClose, onSend }) {
+function NotifyParticipantModal({ open, participant, onClose, onSend, copy }) {
     const [title, setTitle] = useState('');
     const [message, setMessage] = useState('');
     const [busy, setBusy] = useState(false);
@@ -101,7 +92,7 @@ function NotifyParticipantModal({ open, participant, onClose, onSend }) {
                     required
                     maxLength={2000}
                     rows={4}
-                    placeholder="Your message to this runner…"
+                    placeholder={copy.guestMessage}
                     className="w-full px-3 py-3 rounded-xl bg-[#111213] border border-gray-700 text-base resize-none focus:outline-none focus:border-[#0ECCEE]/50"
                 />
                 <button
@@ -110,7 +101,7 @@ function NotifyParticipantModal({ open, participant, onClose, onSend }) {
                     className="w-full inline-flex items-center justify-center gap-2 px-4 py-3.5 min-h-[52px] rounded-xl bg-[#0ECCEE] text-black text-base font-bold disabled:opacity-60"
                 >
                     {busy ? <Loader className="animate-spin" size={18} /> : <Bell size={18} />}
-                    Send to this runner
+                    {copy.notifyGuest}
                 </button>
             </form>
         </div>
@@ -121,6 +112,7 @@ export default function RunClubOrganizerParticipantsPage() {
     const { eventId } = useParams();
     const [searchParams] = useSearchParams();
     const { confirm, toast } = useDialog();
+    const copy = organizerHubCopy(isEventsListingHub(getRunClubOrganizerSession()?.runClub));
     const [rows, setRows] = useState([]);
     const [eventTitle, setEventTitle] = useState('');
     const [stats, setStats] = useState(null);
@@ -272,7 +264,7 @@ export default function RunClubOrganizerParticipantsPage() {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `${(eventTitle || 'run').replace(/[^a-z0-9-_]+/gi, '_')}_participants.csv`;
+            a.download = `${(eventTitle || copy.csvFallback).replace(/[^a-z0-9-_]+/gi, '_')}_participants.csv`;
             a.click();
             URL.revokeObjectURL(url);
             toast('CSV downloaded');
@@ -290,7 +282,7 @@ export default function RunClubOrganizerParticipantsPage() {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `${(eventTitle || 'run').replace(/[^a-z0-9-_]+/gi, '_')}_participants.xlsx`;
+            a.download = `${(eventTitle || copy.csvFallback).replace(/[^a-z0-9-_]+/gi, '_')}_participants.xlsx`;
             a.click();
             URL.revokeObjectURL(url);
             toast('Excel downloaded');
@@ -316,8 +308,8 @@ export default function RunClubOrganizerParticipantsPage() {
         const ok = await confirm({
             title: 'Delete entry?',
             message: participantName
-                ? `Remove ${participantName} from this run? This cannot be undone.`
-                : 'Remove this participant from the run? This cannot be undone.',
+                ? copy.removeNamed(participantName)
+                : copy.removeAnon,
             confirmText: 'Delete',
             tone: 'danger',
         });
@@ -335,7 +327,7 @@ export default function RunClubOrganizerParticipantsPage() {
     const handleApprovePayment = async (bookingId) => {
         try {
             await reviewRunClubOrganizerPayment(eventId, bookingId, 'approve');
-            toast('Payment approved — runner notified');
+            toast(copy.approvedToast);
             advanceReviewQueue(bookingId);
             await load();
         } catch (e) {
@@ -347,7 +339,7 @@ export default function RunClubOrganizerParticipantsPage() {
     const handleRejectPayment = async (bookingId, note = '') => {
         try {
             await reviewRunClubOrganizerPayment(eventId, bookingId, 'reject', note);
-            toast('Payment rejected — runner notified');
+            toast(copy.rejectedToast);
             advanceReviewQueue(bookingId);
             await load();
         } catch (e) {
@@ -382,7 +374,7 @@ export default function RunClubOrganizerParticipantsPage() {
                     <h1 className="text-2xl font-bold">
                         {paymentFilter === 'pending_review' ? 'Payment review' : 'Participants'}
                     </h1>
-                    <p className="text-sm text-gray-500 mt-0.5">{eventTitle || 'Run registrations'}</p>
+                    <p className="text-sm text-gray-500 mt-0.5">{eventTitle || copy.registrations}</p>
                     {isPaidEvent ? (
                         <p className="text-[11px] text-gray-500 mt-1">
                             {isOrganizerQr
@@ -508,7 +500,9 @@ export default function RunClubOrganizerParticipantsPage() {
             </div>
 
             {loading ? (
-                <div className="space-y-3">{[1, 2, 3, 4].map((n) => <SkeletonCard key={n} />)}</div>
+                <div className="flex justify-center py-16">
+                    <DetailLoader3DIcon size="compact" />
+                </div>
             ) : rows.length === 0 ? (
                 <div className="text-center py-16 rounded-xl border border-dashed border-gray-800">
                     <Users className="mx-auto text-gray-600 mb-3" size={32} />
@@ -521,8 +515,8 @@ export default function RunClubOrganizerParticipantsPage() {
                             key={row.bookingId}
                             participant={row}
                             index={startIndex + i + 1}
-                            activityLabelSingular="run"
-                            activityLabelPlural="runs"
+                            activityLabelSingular={copy.activitySingular}
+                            activityLabelPlural={copy.activityPlural}
                             forceOpen={expandAll || paymentFilter === 'pending_review'}
                             onResend={row.status === 'confirmed' ? handleResend : undefined}
                             onNotify={row.status === 'confirmed' ? () => setNotifyTarget(row) : undefined}
@@ -572,6 +566,8 @@ export default function RunClubOrganizerParticipantsPage() {
                         ? () => setReviewTarget(pendingQueue[reviewIndex + 1])
                         : undefined
                 }
+                guestNotePlaceholder={copy.guestNote}
+                whatsappMessage={copy.whatsappPayment}
             />
 
             <NotifyParticipantModal
@@ -579,6 +575,7 @@ export default function RunClubOrganizerParticipantsPage() {
                 participant={notifyTarget}
                 onClose={() => setNotifyTarget(null)}
                 onSend={handleNotify}
+                copy={copy}
             />
         </div>
     );

@@ -39,10 +39,85 @@ export const RUN_DETAIL_BOX_PRESETS = [
     { label: 'Ice Bath', value: '', icon: 'ice' },
 ];
 
+export const EVENT_DETAIL_BOX_PRESETS = [
+    { label: 'Sport', value: '', icon: 'star' },
+    { label: 'Game', value: '', icon: 'clock' },
+    { label: 'Café', value: '', icon: 'food' },
+    { label: 'Location partner', value: '', icon: 'map-pin' },
+    { label: 'Café partner', value: '', icon: 'food' },
+    { label: 'Event Timing', value: '', icon: 'sun' },
+    { label: 'End Time', value: '', icon: 'moon' },
+    { label: 'Meeting Point', value: '', icon: 'map-pin' },
+    { label: 'Duration', value: '', icon: 'clock' },
+    { label: 'Max People', value: '', icon: 'people' },
+    { label: 'Age Limit', value: '', icon: 'age' },
+];
+
+const EVENT_MAP_SIDE_RULES = [
+    { key: 'sport', label: 'Sport', icon: 'star', match: /^(sport)$/i },
+    { key: 'game', label: 'Game', icon: 'clock', match: /^(game|session|activity)$/i },
+    { key: 'cafe', label: 'Café', icon: 'food', match: /^(caf[eé]|hang)$/i },
+];
+
+export function isEventMapSideDetailBox(box) {
+    const label = String(box?.label || '').trim();
+    return EVENT_MAP_SIDE_RULES.some((rule) => rule.match.test(label));
+}
+
+/** Keep Game as a time range even if an older box still prefixes the sport name. */
+function gameTimeOnly(value, sport) {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    const sportName = String(sport || '').trim();
+    if (sportName && raw.toLowerCase() === sportName.toLowerCase()) return '';
+    if (/[·•|]/.test(raw)) {
+        const parts = raw.split(/[·•|]/).map((part) => part.trim()).filter(Boolean);
+        const timed = parts.find((part) => /\d/.test(part) && /(am|pm|:|–|-)/i.test(part));
+        if (timed) return timed;
+        return parts
+            .filter((part) => !sportName || part.toLowerCase() !== sportName.toLowerCase())
+            .join(' · ');
+    }
+    return raw;
+}
+
+/** Sport + Game time + Café time beside the map on event community pages. */
+export function eventMapSideFacts(event) {
+    if (!event) return [];
+    const boxes = normalizeRunDetailBoxes(event.detailBoxes, event);
+    const findBox = (re) => boxes.find((box) => re.test(String(box.label || '').trim()));
+    const fallbacks = {
+        sport: String(event.displayType || event.runCategory || '').trim(),
+        game: String(event.reportingTime || '').trim(),
+        cafe: String(event.returnTime || '').trim(),
+    };
+    const sport = String(findBox(/^(sport)$/i)?.value || fallbacks.sport || '').trim();
+
+    return EVENT_MAP_SIDE_RULES.map((rule) => {
+        const box = findBox(rule.match);
+        let value = String(box?.value || fallbacks[rule.key] || '').trim();
+        if (rule.key === 'game') value = gameTimeOnly(value, sport);
+        if (!value) return null;
+        return {
+            key: rule.key,
+            label: box?.label || rule.label,
+            value,
+            icon: box?.icon || rule.icon,
+        };
+    }).filter(Boolean);
+}
+
+/** Details-tab cards — Game / Café times stay beside the map only. */
+export function eventDetailTabBoxes(event) {
+    return normalizeRunDetailBoxes(event?.detailBoxes, event).filter((box) => !isEventMapSideDetailBox(box));
+}
+
 const LABEL_ICON_RULES = [
     { match: /people|participant|group|seat/i, icon: 'people' },
     { match: /depart|start|timing|morning/i, icon: 'sun' },
     { match: /return|end|evening/i, icon: 'moon' },
+    { match: /location partner/i, icon: 'map-pin' },
+    { match: /caf[eé] partner/i, icon: 'food' },
     { match: /meet|location|point|pick/i, icon: 'map-pin' },
     { match: /age/i, icon: 'age' },
     { match: /fitness|health|stamina/i, icon: 'fitness' },
@@ -51,7 +126,8 @@ const LABEL_ICON_RULES = [
     { match: /altitude|elevation|mountain|peak/i, icon: 'mountain' },
     { match: /distance|route|km/i, icon: 'route' },
     { match: /camp|tent|stay/i, icon: 'tent' },
-    { match: /meal|food|breakfast|lunch|dinner/i, icon: 'food' },
+    { match: /meal|food|breakfast|lunch|dinner|caf[eé]|brunch|coffee/i, icon: 'food' },
+    { match: /game|sport|badminton|session/i, icon: 'star' },
     { match: /weather|rain|season/i, icon: 'weather' },
     { match: /ice|cold.?plunge|cryo|snow/i, icon: 'ice' },
 ];

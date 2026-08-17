@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Footprints, ChevronRight, MapPin, Phone, Instagram } from 'lucide-react';
+import { CalendarDays, ChevronRight, MapPin, Phone, Instagram, CreditCard } from 'lucide-react';
 import { fetchRunClubOrganizerMe } from '../../services/api/runClubOrganizer.api';
 import DetailPageLoader from '../../components/DetailPageLoader';
 import { getRunClubOrganizerSession, setRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
@@ -19,14 +19,14 @@ function statusBadge(status) {
     return 'bg-amber-500/15 text-amber-400';
 }
 
-export default function RunClubOrganizerHomePage() {
+export default function EventCommunityOrganizerHomePage() {
     const navigate = useNavigate();
     const session = getRunClubOrganizerSession();
     const [events, setEvents] = useState(session?.events || []);
     const [runClub, setRunClub] = useState(session?.runClub || null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const copy = organizerHubCopy(false);
+    const copy = organizerHubCopy(true);
 
     useEffect(() => {
         (async () => {
@@ -45,7 +45,7 @@ export default function RunClubOrganizerHomePage() {
                     });
                 }
             } catch (e) {
-                setError(e.message || 'Failed to load run club');
+                setError(e.message || 'Failed to load community');
             } finally {
                 setLoading(false);
             }
@@ -78,7 +78,7 @@ export default function RunClubOrganizerHomePage() {
                     {runClub.coverImage ? (
                         <div className="h-32 sm:h-40 bg-cover bg-center" style={{ backgroundImage: `url(${runClub.coverImage})` }} />
                     ) : (
-                        <div className="h-24 bg-linear-to-r from-emerald-900/40 to-[#0ECCEE]/20" />
+                        <div className="h-24 bg-linear-to-r from-teal-900/40 to-[#0ECCEE]/20" />
                     )}
                     <div className="p-4 sm:p-5 space-y-3">
                         <div>
@@ -138,7 +138,7 @@ export default function RunClubOrganizerHomePage() {
                             >
                                 <div className="flex items-center gap-3 min-w-0">
                                     <div className="size-10 rounded-lg bg-[#0ECCEE]/10 flex items-center justify-center shrink-0">
-                                        <Footprints className="text-[#0ECCEE]" size={18} />
+                                        <CalendarDays className="text-[#0ECCEE]" size={18} />
                                     </div>
                                     <div className="min-w-0">
                                         <div className="flex items-center gap-2 min-w-0 flex-wrap">
@@ -146,11 +146,20 @@ export default function RunClubOrganizerHomePage() {
                                             <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-medium capitalize ${statusBadge(event.status)}`}>
                                                 {event.status || 'draft'}
                                             </span>
-                                            <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-medium border border-white/10 bg-white/5 text-gray-300">
+                                            <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-medium border ${
+                                                isPaid
+                                                    ? 'border-teal-400/25 bg-teal-500/12 text-teal-300'
+                                                    : 'border-white/10 bg-white/5 text-gray-300'
+                                            }`}>
                                                 {isPaid
                                                     ? `₹${Number(event.registrationFee).toLocaleString('en-IN')}`
                                                     : 'Free'}
                                             </span>
+                                            {isPaid && String(event.registration?.mode || event.registrationMode || '') !== 'organizer_qr' ? (
+                                                <span className="shrink-0 inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-teal-500/12 text-teal-300 border border-teal-400/20">
+                                                    <CreditCard size={10} /> Cashfree
+                                                </span>
+                                            ) : null}
                                             {pendingReview > 0 ? (
                                                 <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/20 text-amber-300">
                                                     {pendingReview} to review

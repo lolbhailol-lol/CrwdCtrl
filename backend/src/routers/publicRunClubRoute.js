@@ -6,11 +6,16 @@ const { sanitizePublicRunClub } = require('../utils/publicEntitySanitize');
 
 router.get('/', async (req, res) => {
     try {
-        const clubs = await RunClub.find({
-            status: 'published',
-            showOnSportsPage: { $ne: false },
-            showInRunClubs: { $ne: false },
-        })
+        const hub = String(req.query.hub || '').toLowerCase();
+        const filter = hub === 'events'
+            ? { status: 'published', listingHub: 'events' }
+            : {
+                status: 'published',
+                showOnSportsPage: { $ne: false },
+                showInRunClubs: { $ne: false },
+                listingHub: { $ne: 'events' },
+            };
+        const clubs = await RunClub.find(filter)
             .sort({ runClubPriority: 1, createdAt: -1 })
             .limit(100)
             .lean();
@@ -27,7 +32,6 @@ router.get('/:idOrSlug', async (req, res) => {
         const club = await findByIdOrSlug(RunClub, req.params.idOrSlug, {
             baseFilter: {
             status: 'published',
-            showOnSportsPage: { $ne: false },
             },
             pickName: (row) => row.name,
             lean: true,

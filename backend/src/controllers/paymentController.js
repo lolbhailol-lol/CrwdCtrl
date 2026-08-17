@@ -32,6 +32,12 @@ const { authorizePaymentVerify } = require('../utils/paymentVerifyAuth');
 const { validateAndPriceCoupon } = require('../utils/couponPricing');
 const { findByIdOrSlug } = require('../utils/slug');
 const {
+  listingHubForRunClubId,
+  hubSourceFromListing,
+  sportsNotFoundMessage,
+  sportsActivityNoun,
+} = require('../utils/listingHubCopy');
+const {
   resolveSportsTicketTotal,
   resolveSportsPerPersonFee,
   resolveEventAddOns,
@@ -323,7 +329,7 @@ exports.validateCoupon = async (req, res) => {
         pickName: (row) => row.title || '',
         lean: true,
       });
-      if (!event) return res.status(404).json({ message: 'Run not found' });
+      if (!event) return res.status(404).json({ message: 'Not found or not published' });
       let ticket;
       try {
         ticket = resolveSportsTicketTotal(event, {
@@ -937,15 +943,27 @@ exports.createSportsOrder = async (req, res) => {
       pickName: (row) => row.title || '',
       lean: false,
     });
+    let listingHub = 'sports';
+    if (event) {
+      listingHub = await listingHubForRunClubId(event.runClubId);
+    } else {
+      const unpublished = await findByIdOrSlug(SportsEvent, eventId, {
+        pickName: (row) => row.title || '',
+        lean: true,
+      });
+      if (unpublished) listingHub = await listingHubForRunClubId(unpublished.runClubId);
+    }
+    const hub = hubSourceFromListing(listingHub);
+    const noun = sportsActivityNoun(hub);
     if (!event) {
-      return res.status(404).json({ success: false, message: 'Run not found or not published' });
+      return res.status(404).json({ success: false, message: sportsNotFoundMessage(hub, { orNotPublished: true }) });
     }
 
     const requireLogin = event.registration?.requireLogin !== false;
     if (requireLogin && !req.user?.userId) {
       return res.status(401).json({
         success: false,
-        message: 'Please log in to book this run.',
+        message: `Please log in to book this ${noun}.`,
         requireLogin: true,
       });
     }
@@ -953,11 +971,11 @@ exports.createSportsOrder = async (req, res) => {
     if (event.registration?.mode === 'organizer_qr') {
       return res.status(400).json({
         success: false,
-        message: 'This run uses UPI + screenshot payment, not online checkout.',
+        message: `This ${noun} uses UPI + screenshot payment, not online checkout.`,
       });
     }
     if (event.registration?.status === 'closed') {
-      return res.status(400).json({ success: false, message: 'Registration is currently closed for this run' });
+      return res.status(400).json({ success: false, message: `Registration is currently closed for this ${noun}` });
     }
 
     let ticket;
@@ -967,7 +985,7 @@ exports.createSportsOrder = async (req, res) => {
       return res.status(e.status || 400).json({ success: false, message: e.message || 'Invalid tier' });
     }
     if (ticket.baseTicketTotal <= 0) {
-      return res.status(400).json({ success: false, message: 'This run does not require payment' });
+      return res.status(400).json({ success: false, message: `This ${noun} does not require payment` });
     }
 
     const peopleCount = ticket.people;
@@ -990,7 +1008,7 @@ exports.createSportsOrder = async (req, res) => {
       if (seatsHeld >= capacity) {
         return res.status(400).json({
           success: false,
-          message: 'This run is full',
+          message: `This ${noun} is full`,
         });
       }
       if (seatsHeld + peopleCount > capacity) {
@@ -1028,7 +1046,7 @@ exports.createSportsOrder = async (req, res) => {
         totalAmount: 0,
       });
     }
-    const resolvedName = event.title || eventName || 'Run Booking';
+    const resolvedName = event.title || eventName || (noun === 'event' ? 'Event booking' : 'Run Booking');
 
     const existingPending = await findReusablePendingOrder({
       customerEmail: email,

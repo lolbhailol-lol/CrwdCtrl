@@ -33,7 +33,7 @@ import Seo from '../../components/Seo';
 import FaqSection from '../../components/FaqSection';
 import { breadcrumbSchema, faqSchema, itemListSchema } from '../../utils/seo';
 import { EVENTS_FAQ } from '../../constants/faqs';
-import { eventShowPath } from '../../utils/slugRoutes';
+import { eventShowPath, runClubPath } from '../../utils/slugRoutes';
 import { usePublicConfig } from '../../hooks/usePublicConfig';
 import AnnouncementBanner from '../../components/AnnouncementBanner';
 
@@ -205,6 +205,7 @@ export default function EventsPage() {
     const [carouselCommunities, setCarouselCommunities] = useState(() => (Array.isArray(cached?.communities) ? cached.communities : []));
     const [carouselSports, setCarouselSports] = useState(() => (Array.isArray(cached?.sports) ? cached.sports : []));
     const [carouselRunClubs, setCarouselRunClubs] = useState(() => (Array.isArray(cached?.clubs) ? cached.clubs : []));
+    const [eventCommunities, setEventCommunities] = useState(() => (Array.isArray(cached?.eventCommunities) ? cached.eventCommunities : []));
     const [loading, setLoading] = useState(!cached);
     const [upcomingPg, setUpcomingPg] = useState(0);
     const upcomingScrollRef = useRef(null);
@@ -232,12 +233,13 @@ export default function EventsPage() {
             }
 
             // Phase 2: carousel catalogs (shared in-memory cache, deduped across hub pages)
-            const [festsRes, treksRes, commRes, sportsRes, clubsRes] = await Promise.all([
+            const [festsRes, treksRes, commRes, sportsRes, clubsRes, eventClubsRes] = await Promise.all([
                 fetchCatalogJSON('/fests/all', { retries: 1 }).catch(() => null),
                 fetchCatalogJSON('/treks', { retries: 1 }).catch(() => null),
                 fetchCatalogJSON('/trek-communities', { retries: 1 }).catch(() => null),
                 fetchCatalogJSON('/sports', { retries: 1 }).catch(() => null),
                 fetchCatalogJSON('/run-clubs', { retries: 1 }).catch(() => null),
+                fetchCatalogJSON('/run-clubs?hub=events', { retries: 1 }).catch(() => null),
             ]);
 
             let nextFests = [];
@@ -245,6 +247,7 @@ export default function EventsPage() {
             let nextCommunities = [];
             let nextSports = [];
             let nextClubs = [];
+            let nextEventCommunities = [];
 
             if (festsRes?.data) {
                 nextFests = Array.isArray(festsRes.data?.fests) ? festsRes.data.fests : Array.isArray(festsRes.data) ? festsRes.data : [];
@@ -266,6 +269,10 @@ export default function EventsPage() {
                 nextClubs = Array.isArray(clubsRes.data?.clubs) ? clubsRes.data.clubs : [];
                 setCarouselRunClubs(nextClubs);
             }
+            if (eventClubsRes?.data) {
+                nextEventCommunities = Array.isArray(eventClubsRes.data?.clubs) ? eventClubsRes.data.clubs : [];
+                setEventCommunities(nextEventCommunities);
+            }
 
             writeEventsCache({
                 shows: nextShows,
@@ -274,6 +281,7 @@ export default function EventsPage() {
                 communities: nextCommunities,
                 sports: nextSports,
                 clubs: nextClubs,
+                eventCommunities: nextEventCommunities,
             });
         } catch {
             // Phase 1 already handled its own errors and cleared the loading gate;
@@ -306,6 +314,19 @@ export default function EventsPage() {
     const spotlightShows = useMemo(() => sortByPriority(shows.filter((s) => s.pageSection === 'spotlight')), [shows, sortByPriority]);
     const upcomingShows = useMemo(() => sortByPriority(shows.filter((s) => s.pageSection === 'upcoming')), [shows, sortByPriority]);
     const communityShows = useMemo(() => sortByPriority(shows.filter((s) => s.pageSection === 'community')), [shows, sortByPriority]);
+    const eventCommunityCards = useMemo(
+        () => eventCommunities.map((c) => ({
+            id: c._id,
+            listingHub: 'events',
+            title: c.name,
+            basedIn: c.tagline || c.basedIn || 'Community',
+            image: c.coverImage || c.coverImages?.portrait || null,
+            coverImages: c.coverImages,
+            slug: c.slug,
+            name: c.name,
+        })),
+        [eventCommunities],
+    );
 
     const heroBannerEvents = useMemo(
         () => heroShows.map((show) => ({
@@ -527,7 +548,7 @@ export default function EventsPage() {
                             <div className="carousel-scroll-gutter overflow-x-auto scrollbar-hide">
                                 <CompactPortraitCardsRowSkeleton count={3} className="" />
                             </div>
-                        ) : communityShows.length === 0 ? (
+                        ) : eventCommunityCards.length === 0 && communityShows.length === 0 ? (
                             <EmptyState label={publicConfig.emptyStates.events.community} />
                         ) : (
                             <div
@@ -535,6 +556,17 @@ export default function EventsPage() {
                                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
                             >
                                 <div className="flex gap-4 pb-2">
+                                    {eventCommunityCards.map((club) => (
+                                        <div key={club.id} className="shrink-0">
+                                            <CommunityEventCard
+                                                show={club}
+                                                isDark={isDark}
+                                                isFavorite={isFavorite(club.id)}
+                                                onToggleFavorite={() => handleFav(club)}
+                                                onClick={() => navigate(runClubPath(club))}
+                                            />
+                                        </div>
+                                    ))}
                                     {communityShows.map((show) => (
                                         <div key={show.id} className="shrink-0">
                                             <CommunityEventCard

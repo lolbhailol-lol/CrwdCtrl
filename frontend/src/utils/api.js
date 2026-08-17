@@ -2,7 +2,6 @@
 // New code should import from `services/api/*` (auth.api.js, client.js, etc.).
 import { API_CONFIG, AUTH_CONFIG } from '../config/env.js';
 import { getApiBaseUrl } from '../config/apiBase.js';
-import { getRecaptchaToken } from './recaptcha.js';
 
 /**
  * Base API configuration and utilities
@@ -340,9 +339,7 @@ export const authAPI = {
      * User login
      */
     async login(credentials) {
-        const recaptchaToken = await getRecaptchaToken('login');
-        const payload = recaptchaToken ? { ...credentials, recaptchaToken } : credentials;
-        return apiClient.post('/users/login', payload);
+        return apiClient.post('/users/login', credentials);
     },
  //Admin login
     async adminLogin(credentials) {
@@ -352,18 +349,14 @@ export const authAPI = {
      * User registration
      */
     async register(userData) {
-        const recaptchaToken = await getRecaptchaToken('register');
-        const payload = recaptchaToken ? { ...userData, recaptchaToken } : userData;
-        return apiClient.post('/users/register', payload);
+        return apiClient.post('/users/register', userData);
     },
 
     /**
      * Social authentication (Google, Facebook, etc.)
      */
     async socialAuth(socialData) {
-        const recaptchaToken = await getRecaptchaToken('social_auth');
-        const payload = recaptchaToken ? { ...socialData, recaptchaToken } : socialData;
-        return apiClient.post('/users/social-auth', payload);
+        return apiClient.post('/users/social-auth', socialData);
     },
 
     /**

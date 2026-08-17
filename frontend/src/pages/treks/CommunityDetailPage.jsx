@@ -512,7 +512,7 @@ export default function CommunityDetailPage() {
                             <FollowCommunityBar
                                 entityType="trek_community"
                                 entityId={communityId}
-                                followLabel="Follow Community"
+                                followLabel="Follow"
                                 followingLabel="Following"
                                 membersTitle={`${name || 'Community'} members`}
                                 onRequireLogin={() => setShowLogin(true)}

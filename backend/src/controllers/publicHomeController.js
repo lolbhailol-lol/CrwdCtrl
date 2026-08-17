@@ -60,7 +60,7 @@ exports.getHomeFeed = async (_req, res) => {
     safe(() => Trek.find({ status: 'published' }).sort({ trekDate: 1, createdAt: -1 }).limit(50).lean(), []),
     safe(() => TrekCommunity.find({ status: 'published' }).sort({ trekPagePriority: 1, createdAt: -1 }).limit(50).lean(), []),
     safe(() => SportsEvent.find({ status: 'published', showOnSportsPage: { $ne: false } }).sort({ priority: 1, eventDate: 1, createdAt: -1 }).limit(100).lean(), []),
-    safe(() => RunClub.find({ status: 'published', showOnSportsPage: { $ne: false }, showInRunClubs: { $ne: false } }).sort({ runClubPriority: 1, createdAt: -1 }).limit(100).lean(), []),
+    safe(() => RunClub.find({ status: 'published', showOnSportsPage: { $ne: false }, showInRunClubs: { $ne: false }, listingHub: { $ne: 'events' } }).sort({ runClubPriority: 1, createdAt: -1 }).limit(100).lean(), []),
     safe(() => EventShow.find({ status: 'published' }).sort({ pagePriority: 1, createdAt: -1 }).limit(100).lean(), []),
     safe(() => readHomeSectionLabels(), { ...DEFAULT_HOME_SECTION_LABELS }),
     safe(() => homepageSectionCtrl.listEnabledForPage('home'), []),

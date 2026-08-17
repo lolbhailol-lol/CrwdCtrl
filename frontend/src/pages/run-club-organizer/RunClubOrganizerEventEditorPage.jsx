@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader, Plus, Trash2, Upload } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Upload } from 'lucide-react';
 import {
     createRunClubOrganizerEvent,
     fetchRunClubOrganizerEvent,
@@ -9,13 +9,16 @@ import {
     uploadRunClubOrganizerImage,
 } from '../../services/api/runClubOrganizer.api';
 import { getRunClubOrganizerSession, setRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
+import { isEventsListingHub, organizerHubCopy } from '../../utils/listingHubCopy';
 import { sportRunPath } from '../../utils/slugRoutes';
+import DetailPageLoader from '../../components/DetailPageLoader';
 import TrekDetailBoxesEditor from '../../components/admin/TrekDetailBoxesEditor';
 import MultiContactListField from '../../components/admin/MultiContactListField';
 import SelectFieldOptionsEditor from '../../components/admin/SelectFieldOptionsEditor';
 import {
     normalizeRunDetailBoxes,
     sanitizeDetailBoxesPayload,
+    EVENT_DETAIL_BOX_PRESETS,
     RUN_DETAIL_BOX_PRESETS,
 } from '../../utils/trekDetailBoxes';
 import { contactsFromEvent, contactsToPayload } from '../../utils/runContacts';
@@ -173,6 +176,8 @@ export default function RunClubOrganizerEventEditorPage() {
     const navigate = useNavigate();
     const session = getRunClubOrganizerSession();
     const categories = session?.runClub?.runCategories || [];
+    const isEventHub = isEventsListingHub(session?.runClub);
+    const copy = organizerHubCopy(isEventHub);
 
     const [form, setForm] = useState(emptyForm);
     const [loading, setLoading] = useState(!isNew);
@@ -207,7 +212,7 @@ export default function RunClubOrganizerEventEditorPage() {
                 setSavedEvent(res.event);
                 setForm(eventToForm(res.event));
             } catch (e) {
-                if (!cancelled) setError(e.message || 'Failed to load run');
+                if (!cancelled) setError(e.message || `Failed to load ${copy.activitySingular}`);
             } finally {
                 if (!cancelled) setLoading(false);
             }
@@ -296,7 +301,7 @@ export default function RunClubOrganizerEventEditorPage() {
                     event = pub.event;
                     syncSessionEvent(event);
                 }
-                setNotice(andPublish ? 'Run published — live on the website' : 'Draft saved — click Publish run to show it on the website');
+                setNotice(andPublish ? copy.publishLive : copy.draftSaved);
                 navigate(`/run-club-organizer/events/${event._id}/edit`, { replace: true });
             } else {
                 const res = await updateRunClubOrganizerEvent(eventId, payload);
@@ -308,7 +313,7 @@ export default function RunClubOrganizerEventEditorPage() {
                 syncSessionEvent(event);
                 setSavedEvent(event);
                 setForm(eventToForm(event));
-                setNotice(andPublish ? 'Run published — live on the website' : 'Draft saved — click Publish run to show it on the website');
+                setNotice(andPublish ? copy.publishLive : copy.draftSaved);
             }
         } catch (e) {
             setError(e.message || 'Save failed');
@@ -319,11 +324,7 @@ export default function RunClubOrganizerEventEditorPage() {
     };
 
     if (loading) {
-        return (
-            <div className="flex justify-center py-20">
-                <Loader className="animate-spin text-[#0ECCEE]" />
-            </div>
-        );
+        return <DetailPageLoader label={isNew ? copy.loadingEditor : copy.loadingEvent} />;
     }
 
     return (
@@ -336,7 +337,7 @@ export default function RunClubOrganizerEventEditorPage() {
                     >
                         <ArrowLeft size={14} /> Back
                     </Link>
-                    <h1 className="text-2xl font-bold">{isNew ? 'Create run' : 'Edit run'}</h1>
+                    <h1 className="text-2xl font-bold">{isNew ? copy.createTitle : copy.editTitle}</h1>
                     <p className="text-sm text-gray-500 mt-1">
                         Free registration only — guests fill your form, no payment on CrwdCtrl.
                     </p>
@@ -406,17 +407,17 @@ export default function RunClubOrganizerEventEditorPage() {
                         placeholder="Paste Google Maps pin / share link"
                     />
                     <p className="text-[10px] text-gray-500">
-                        Shown on the public run page map. Place name goes in Venue; paste a Maps link here for an exact pin.
+                        {copy.publicMapHint}
                     </p>
                 </label>
                 <div className="grid sm:grid-cols-2 gap-3">
                     <label className="block space-y-1.5">
-                        <span className="text-xs text-gray-400">Distance</span>
+                        <span className="text-xs text-gray-400">{copy.distanceLabel}</span>
                         <input
                             value={form.distance}
                             onChange={(e) => setField('distance', e.target.value)}
                             className="w-full rounded-xl bg-[#0f1011] border border-gray-700 px-3 py-2.5 text-sm focus:outline-none focus:border-[#0ECCEE]"
-                            placeholder="5K"
+                            placeholder={copy.distancePlaceholder}
                         />
                     </label>
                     <label className="block space-y-1.5">
@@ -432,7 +433,7 @@ export default function RunClubOrganizerEventEditorPage() {
                 </div>
                 {categories.length > 0 ? (
                     <label className="block space-y-1.5">
-                        <span className="text-xs text-gray-400">Run category</span>
+                        <span className="text-xs text-gray-400">{copy.categoryLabel}</span>
                         <select
                             value={form.runCategory}
                             onChange={(e) => setField('runCategory', e.target.value)}
@@ -452,7 +453,7 @@ export default function RunClubOrganizerEventEditorPage() {
                         onChange={(e) => setField('description', e.target.value)}
                         rows={4}
                         className="w-full rounded-xl bg-[#0f1011] border border-gray-700 px-3 py-2.5 text-sm focus:outline-none focus:border-[#0ECCEE] resize-y"
-                        placeholder="What runners should know…"
+                        placeholder={copy.whatGuests}
                     />
                 </label>
             </section>
@@ -461,7 +462,7 @@ export default function RunClubOrganizerEventEditorPage() {
                 <div>
                     <h2 className="font-semibold">Contact</h2>
                     <p className="text-xs text-gray-500 mt-0.5">
-                        Add multiple phones and Instagram handles for the public run page.
+                        Add multiple phones and Instagram handles for the public {copy.activitySingular} page.
                     </p>
                 </div>
                 <div className="grid sm:grid-cols-2 gap-4">
@@ -516,15 +517,15 @@ export default function RunClubOrganizerEventEditorPage() {
                 <div>
                     <h2 className="font-semibold">Detail boxes</h2>
                     <p className="text-xs text-gray-500 mt-0.5">
-                        Add cards one by one (timing, meeting point, fitness…) — shown on the public run page Details tab.
+                        {copy.detailBoxesHint}
                     </p>
                 </div>
                 <TrekDetailBoxesEditor
                     boxes={form.detailBoxes || []}
                     onChange={(detailBoxes) => setField('detailBoxes', detailBoxes)}
-                    presets={RUN_DETAIL_BOX_PRESETS}
+                    presets={isEventHub ? EVENT_DETAIL_BOX_PRESETS : RUN_DETAIL_BOX_PRESETS}
                     hint="Tap a preset or Custom box. Drag to reorder."
-                    emptyText="No detail boxes yet. Start with Run Timing or Meeting Point."
+                    emptyText={copy.detailBoxesEmpty}
                 />
             </section>
 
@@ -663,7 +664,7 @@ export default function RunClubOrganizerEventEditorPage() {
                     onClick={() => save({ andPublish: true })}
                     className="px-4 py-3 min-h-[44px] rounded-xl bg-[#0ECCEE] text-black text-sm font-bold disabled:opacity-50"
                 >
-                    {publishing ? 'Publishing…' : form.status === 'published' ? 'Save & keep live' : 'Publish run'}
+                    {publishing ? 'Publishing…' : form.status === 'published' ? 'Save & keep live' : copy.publishBtn}
                 </button>
                 {!isNew ? (
                     <Link

@@ -39,6 +39,9 @@ import {
   EventDetailsPage,
   EventRegistrationPage,
   CommunityDetailPage,
+  EventCommunityDetailPage,
+  EventCommunityEventPage,
+  EventCommunityBookingPage,
   RunClubDetailPage,
   RunEventDetailPage,
   RunEventBookingPage,
@@ -72,6 +75,9 @@ export const publicRoutes = (
       <Route path="/sports-fest" element={<SportsFestPage />} />
       <Route path="/treks" element={<PublicTreksPage />} />
       <Route path="/events" element={<PublicEventsPage />} />
+      <Route path="/events/community/:id" element={<EventCommunityDetailPage />} />
+      <Route path="/events/community-event/:id/book" element={<EventCommunityBookingPage />} />
+      <Route path="/events/community-event/:id" element={<EventCommunityEventPage />} />
       <Route path="/events/:eventId" element={<EventDetailsPage />} />
       <Route path="/events/:eventId/register" element={<EventRegistrationPage />} />
       {theatreRedirect}

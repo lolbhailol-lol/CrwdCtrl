@@ -36,6 +36,7 @@ function sanitizeFormSchema(formSchema) {
                 options,
                 optionCoupons: sanitizeOptionCoupons(options, f.optionCoupons),
                 placeholder: String(f.placeholder || '').trim(),
+                bookingStep: Number(f.bookingStep) === 1 ? 1 : 2,
             };
         })
         .filter((f) => f.label && f.fieldName);

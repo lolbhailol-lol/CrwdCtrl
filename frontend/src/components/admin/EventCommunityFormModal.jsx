@@ -11,6 +11,7 @@ import { adminFetchJSON } from '../../services/api/admin.api.js';
 const EMPTY = {
     name: '',
     basedIn: '',
+    tagline: '',
     organizer: '',
     aboutUs: '',
     runCategories: [],
@@ -22,7 +23,7 @@ const EMPTY = {
     contactPhone: '',
     contactInstagram: '',
     groupLink: '',
-    listingHub: 'sports',
+    listingHub: 'events',
     status: 'published',
 };
 
@@ -33,6 +34,7 @@ function pickClubFormFields(source = {}) {
     return {
         name: source.name || '',
         basedIn: source.basedIn || '',
+        tagline: source.tagline || '',
         organizer: source.organizer || '',
         aboutUs: source.aboutUs || '',
         runCategories: Array.isArray(source.runCategories) ? source.runCategories : [],
@@ -44,7 +46,7 @@ function pickClubFormFields(source = {}) {
         contactPhone: source.contactPhone || '',
         contactInstagram: source.contactInstagram || '',
         groupLink: source.groupLink || '',
-        listingHub: source.listingHub === 'events' ? 'events' : 'sports',
+        listingHub: 'events',
         status: source.status || 'published',
     };
 }
@@ -61,7 +63,7 @@ function AdminFormSection({ title, hint, children }) {
     );
 }
 
-export default function RunClubFormModal({ club, onClose, onSaved }) {
+export default function EventCommunityFormModal({ club, onClose, onSaved }) {
     const [form, setForm] = useState(EMPTY);
     const [uploading, setUploading] = useState(false);
     const [uploadingGallery, setUploadingGallery] = useState(false);
@@ -70,10 +72,10 @@ export default function RunClubFormModal({ club, onClose, onSaved }) {
 
     useEffect(() => {
         if (!club) {
-            setForm({ ...EMPTY, listingHub: 'sports' });
+            setForm({ ...EMPTY, listingHub: 'events' });
             return;
         }
-        setForm({ ...pickClubFormFields(club), listingHub: 'sports' });
+        setForm({ ...pickClubFormFields(club), listingHub: 'events' });
     }, [club]);
 
     const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
@@ -91,7 +93,7 @@ export default function RunClubFormModal({ club, onClose, onSaved }) {
         e.preventDefault();
         setError('');
         if (!form.name.trim()) {
-            setError('Run club name is required.');
+            setError('Community name is required.');
             return;
         }
         if (uploading || uploadingGallery) {
@@ -111,9 +113,9 @@ export default function RunClubFormModal({ club, onClose, onSaved }) {
                     coverImages,
                     coverImage,
                     galleryImages: excludeCoverUrlsFromGallery(fields.galleryImages, coverImages, coverImage),
-                    listingHub: 'sports',
-                    showOnSportsPage: true,
-                    showInRunClubs: true,
+                    listingHub: 'events',
+                    showOnSportsPage: false,
+                    showInRunClubs: false,
                 }),
             });
             localStorage.setItem('admin_data_updated', Date.now().toString());
@@ -135,10 +137,10 @@ export default function RunClubFormModal({ club, onClose, onSaved }) {
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
                     <div>
                         <h2 className="text-lg font-bold text-white">
-                            {club ? 'Edit Run Club' : 'Add Run Club'}
+                            {club ? 'Edit event community' : 'Add event community'}
                         </h2>
                         <p className="text-xs text-gray-500 mt-0.5">
-                            Fields map to the public run club detail page
+                            Shown on /events — add events inside this community
                         </p>
                     </div>
                     <button type="button" onClick={onClose} className="text-gray-400 hover:text-white">
@@ -155,19 +157,19 @@ export default function RunClubFormModal({ club, onClose, onSaved }) {
 
                     <AdminFormSection
                         title="Hero & identity"
-                        hint="Name, organizer and location shown at the top of the detail page"
+                        hint="Name, tagline and location shown at the top of the community page"
                     >
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-300 mb-1">
-                                    Club Name <span className="text-red-400">*</span>
+                                    Community name <span className="text-red-400">*</span>
                                 </label>
                                 <input
                                     type="text"
                                     value={form.name}
                                     onChange={(e) => set('name', e.target.value)}
                                     className={inp}
-                                    placeholder="e.g. Mumbai Runners"
+                                    placeholder="e.g. Delulu Athletes"
                                 />
                             </div>
                             <div>
@@ -183,13 +185,23 @@ export default function RunClubFormModal({ club, onClose, onSaved }) {
                         </div>
 
                         <div>
+                            <label className="block text-sm font-medium text-gray-300 mb-1">Tagline</label>
+                            <input
+                                type="text"
+                                value={form.tagline}
+                                onChange={(e) => set('tagline', e.target.value)}
+                                className={inp}
+                                placeholder="e.g. Sports & Social Community"
+                            />
+                        </div>
+                        <div>
                             <label className="block text-sm font-medium text-gray-300 mb-1">Organizer</label>
                             <input
                                 type="text"
                                 value={form.organizer}
                                 onChange={(e) => set('organizer', e.target.value)}
                                 className={inp}
-                                placeholder="Club organizer"
+                                placeholder="Community organizer"
                             />
                         </div>
                     </AdminFormSection>
@@ -212,8 +224,8 @@ export default function RunClubFormModal({ club, onClose, onSaved }) {
                     </AdminFormSection>
 
                     <AdminFormSection
-                        title="Run Club detail banner (393 × 396)"
-                        hint="Separate upload for the Run Club page top banner frame. Use this for exact-fit hero crop."
+                        title="Community detail banner (393 × 396)"
+                        hint="Separate upload for the community page top banner frame."
                     >
                         <CommunityHeroBannerField
                             value={form.coverImages?.hero || ''}
@@ -227,23 +239,23 @@ export default function RunClubFormModal({ club, onClose, onSaved }) {
                             }}
                             onError={(msg) => setError(`Detail banner upload failed: ${msg}`)}
                             onUploadingChange={setUploading}
-                            communityName={form.name || 'Run Club'}
+                            communityName={form.name || 'Community'}
                         />
                     </AdminFormSection>
 
-                    <AdminFormSection title="About Us" hint="Description block below the club name">
+                    <AdminFormSection title="About Us" hint="Description block below the community name">
                         <textarea
                             value={form.aboutUs}
                             onChange={(e) => set('aboutUs', e.target.value)}
                             rows={4}
                             className={`${inp} resize-none`}
-                            placeholder="About this run club..."
+                            placeholder="About this community..."
                         />
                     </AdminFormSection>
 
                     <AdminFormSection
-                        title="Upcoming Runs categories"
-                        hint="Filter chips on the detail page — runs must use a matching category to appear under each chip"
+                        title="Upcoming event categories"
+                        hint="Filter chips on the community page — events must use a matching category to appear under each chip"
                     >
                         <div className="flex flex-wrap gap-2">
                             {RUN_CATEGORY_OPTIONS.map((cat) => (
@@ -312,7 +324,7 @@ export default function RunClubFormModal({ club, onClose, onSaved }) {
                                         placeholder="https://chat.whatsapp.com/…"
                                     />
                                     <p className="text-[11px] text-gray-500 mt-1">
-                                        Sent to runners after payment is approved. Falls back to club phone if empty.
+                                        Sent to guests after payment is approved. Falls back to community phone if empty.
                                     </p>
                                 </div>
                             </div>
@@ -360,7 +372,7 @@ export default function RunClubFormModal({ club, onClose, onSaved }) {
                     </AdminFormSection>
 
                     <p className="text-[11px] text-gray-600 px-1">
-                        Visibility, carousel order &amp; home page placement → <span className="text-gray-500">Home &amp; Sections → Run Clubs</span>
+                        Visibility, carousel order &amp; home page placement → <span className="text-gray-500">Home &amp; Sections → Events</span>
                     </p>
 
                     <div>
@@ -395,7 +407,7 @@ export default function RunClubFormModal({ club, onClose, onSaved }) {
                             disabled={saving || uploading || uploadingGallery}
                             className="flex-1 px-4 py-2.5 bg-[#0ECCEE] hover:bg-[#0ECCEE]/80 text-black rounded-lg text-sm font-bold transition-colors disabled:opacity-50"
                         >
-                            {saving ? 'Saving...' : club ? 'Update Run Club' : 'Add Run Club'}
+                            {saving ? 'Saving...' : club ? 'Update community' : 'Add community'}
                         </button>
                     </div>
                 </form>

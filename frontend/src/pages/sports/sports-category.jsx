@@ -16,9 +16,9 @@ import AppLogo from '../../components/AppLogo';
 import CardFavoriteButton from '../../components/CardFavoriteButton';
 import CardShareButton from '../../components/CardShareButton';
 import HomeCarouselSection from '../../components/HomeCarouselSection';
+import DetailPageLoader, { DetailLoader3DIcon } from '../../components/DetailPageLoader';
 import CustomPageSectionsRenderer from '../../components/CustomPageSectionsRenderer';
 import { usePageSectionHandlers } from '../../utils/pageSectionHandlers';
-import { CompactPortraitCardsRowSkeleton } from '../../components/HomeEventCardSkeleton';
 import { usePageContentLoading } from '../../hooks/usePageContentLoading';
 import { SPORTS_BROWSE_CATEGORIES } from '../../constants/sportsBrowseCategories';
 import {
@@ -280,7 +280,7 @@ export default function SportsCategoryPage() {
 
     const runClubs = useMemo(() => {
         return runClubEntities
-            .filter((c) => c.showOnSportsPage !== false && c.showInRunClubs !== false)
+            .filter((c) => c.showOnSportsPage !== false && c.showInRunClubs !== false && c.listingHub !== 'events')
             .map((c) => ({
                 id: c._id,
                 kind: 'club',
@@ -376,6 +376,10 @@ export default function SportsCategoryPage() {
         [navigate],
     );
 
+    if (loading && !hasSportsContent) {
+        return <DetailPageLoader label="Loading runs" />;
+    }
+
     return (
         <div className="crwdctrl-page min-h-screen transition-colors">
             <Seo
@@ -467,6 +471,16 @@ export default function SportsCategoryPage() {
                         isDark={isDark}
                         wideCard
                         loading={loading}
+                        loadingFallback={
+                            <section className="home-section-block">
+                                <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                    {publicConfig.labels.sports.upcoming}
+                                </h2>
+                                <div className="flex justify-center py-10">
+                                    <DetailLoader3DIcon size="compact" />
+                                </div>
+                            </section>
+                        }
                         emptyFallback={
                             <section className="home-section-block">
                                 <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -495,7 +509,9 @@ export default function SportsCategoryPage() {
                 <section className="home-section-block">
                     <h2 className={sectionTitle}>{publicConfig.labels.sports.runClubs}</h2>
                     {loading ? (
-                        <CompactPortraitCardsRowSkeleton count={3} withShare />
+                        <div className="flex justify-center py-10">
+                            <DetailLoader3DIcon size="compact" />
+                        </div>
                     ) : runClubs.length === 0 ? (
                         <div
                             className={`mx-4 py-8 text-center rounded-2xl text-sm ${

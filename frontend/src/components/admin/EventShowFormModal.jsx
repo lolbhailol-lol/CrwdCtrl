@@ -570,7 +570,7 @@ export default function EventShowFormModal({ show, onClose, onSaved }) {
                                     onPlatformFeePercentChange={(platformFeePercent) => set('platformFeePercent', platformFeePercent)}
                                 />
                                 <p className="text-[11px] text-gray-500">
-                                    Platform fee % applies on top of whichever package the user selects. Package list below.
+                                    Standalone shows only: platform fee % is added on top of the package the guest selects. Event communities have no extra platform fee.
                                 </p>
                                 <div className="flex items-center justify-between gap-2 pt-1 border-t border-gray-700">
                                     <p className="text-xs text-gray-500">Packages users pick on Register</p>

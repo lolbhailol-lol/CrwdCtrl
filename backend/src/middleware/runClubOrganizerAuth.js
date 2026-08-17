@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
 const RunClubOrganizerAccount = require('../model/run_club_organizer_account_model');
 const { getJwtSecret } = require('../config/jwtSecret');
-const { organizerCanAccessEvent } = require('../utils/runClubOrganizerAccess');
+const { organizerCanAccessEvent, getOrganizerRunClub } = require('../utils/runClubOrganizerAccess');
 
 async function authenticateRunClubOrganizer(req, res, next) {
     try {
@@ -24,6 +24,8 @@ async function authenticateRunClubOrganizer(req, res, next) {
 
         req.organizer = organizer;
         req.organizerId = organizer._id;
+        const club = await getOrganizerRunClub(organizer);
+        req.listingHub = club?.listingHub === 'events' ? 'events' : 'sports';
         next();
     } catch (error) {
         if (error.name === 'TokenExpiredError') {
@@ -42,7 +44,12 @@ async function requireEventAccess(req, res, next) {
 
         const access = await organizerCanAccessEvent(req.organizer, eventId);
         if (!access.allowed || !access.eventId) {
-            return res.status(403).json({ success: false, message: 'You do not have access to this run' });
+            return res.status(403).json({
+                success: false,
+                message: req.listingHub === 'events'
+                    ? 'You do not have access to this event'
+                    : 'You do not have access to this run',
+            });
         }
 
         // Always store resolved Mongo id (URL may be a title slug)

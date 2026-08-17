@@ -17,7 +17,9 @@ const LEGACY_SLUG_ROUTE_PATTERNS = [
     /^\/trek\/([^/]+)(?:\/book)?$/,
     /^\/treks\/community\/([^/]+)$/,
     /^\/sports\/run-club\/([^/]+)$/,
+    /^\/events\/community\/([^/]+)$/,
     /^\/sports\/run\/([^/]+)(?:\/book)?$/,
+    /^\/events\/community-event\/([^/]+)(?:\/book)?$/,
     /^\/events\/([^/]+)(?:\/register)?$/,
     /^\/view-details\/([^/]+)$/,
     /^\/fest\/([^/]+)\/register$/,
@@ -86,13 +88,32 @@ export function communityPath(community = {}) {
     return `/treks/community/${slug || ''}`;
 }
 
+export function eventCommunityPath(club = {}) {
+    const id = pickId(club);
+    const slug = toSlug(club.slug || club.name || club.title || '');
+    return `/events/community/${slug || id}`;
+}
+
 export function runClubPath(club = {}) {
     const id = pickId(club);
-    const slug = toSlug(club.name || club.title || '');
+    const slug = toSlug(club.slug || club.name || club.title || '');
+    if (club.listingHub === 'events') {
+        return eventCommunityPath(club);
+    }
     return `/sports/run-club/${slug || id}`;
 }
 
+export function eventCommunityEventPath(run = {}) {
+    const id = pickId(run);
+    const persisted = toSlug(run.slug || '');
+    if (persisted) return `/events/community-event/${persisted}`;
+    return id ? `/events/community-event/${id}` : '';
+}
+
 export function sportRunPath(run = {}) {
+    if (run?.listingHub === 'events' || run?.runClub?.listingHub === 'events' || run?.runClubId?.listingHub === 'events') {
+        return eventCommunityEventPath(run);
+    }
     const id = pickId(run);
     const persisted = toSlug(run.slug || '');
     if (persisted) return `/sports/run/${persisted}`;

@@ -38,6 +38,8 @@ const {
 const RunClubManagerProfileInvite = require('../model/run_club_manager_profile_invite_model');
 const { sanitizeFormSchema } = require('../utils/formSchemaSanitize');
 
+const notFoundMsg = (req) => (req.listingHub === 'events' ? 'Event not found' : 'Run not found');
+
 const TOKEN_TTL = process.env.RUN_CLUB_ORGANIZER_JWT_TTL || '30d';
 const STATUSES = new Set(['draft', 'published', 'completed', 'cancelled']);
 
@@ -245,10 +247,16 @@ exports.listSignupClubs = async (req, res) => {
     try {
         const clubs = await RunClub.find({
             status: 'published',
-            showOnSportsPage: { $ne: false },
-            showInRunClubs: { $ne: false },
+            $or: [
+                { listingHub: 'events' },
+                {
+                    listingHub: { $ne: 'events' },
+                    showOnSportsPage: { $ne: false },
+                    showInRunClubs: { $ne: false },
+                },
+            ],
         })
-            .select('name basedIn')
+            .select('name basedIn listingHub')
             .sort({ name: 1 })
             .limit(200)
             .lean();
@@ -259,11 +267,12 @@ exports.listSignupClubs = async (req, res) => {
                 id: c._id,
                 name: c.name,
                 basedIn: c.basedIn || '',
+                listingHub: c.listingHub === 'events' ? 'events' : 'sports',
             })),
         });
     } catch (error) {
         console.error('[runClubOrganizer.listSignupClubs]', error);
-        res.status(500).json({ success: false, message: 'Failed to load run clubs' });
+        res.status(500).json({ success: false, message: 'Failed to load communities' });
     }
 };
 
@@ -574,7 +583,7 @@ exports.listEvents = async (req, res) => {
 exports.getEvent = async (req, res) => {
     try {
         const event = await SportsEvent.findById(req.eventId).lean();
-        if (!event) return res.status(404).json({ success: false, message: 'Run not found' });
+        if (!event) return res.status(404).json({ success: false, message: notFoundMsg(req) });
         res.json({ success: true, event: formatOrganizerEvent(event) });
     } catch (error) {
         console.error('[runClubOrganizer.getEvent]', error);
@@ -638,9 +647,9 @@ exports.createEvent = async (req, res) => {
             })(),
             runCategory: defaultCategory,
             status,
-            showInUpcoming: true,
+            showInUpcoming: runClub?.listingHub !== 'events',
             showInRunClubs: false,
-            showOnSportsPage: true,
+            showOnSportsPage: runClub?.listingHub !== 'events',
             featuredSection: 'upcoming',
             images: [],
             registration: body.registration || {
@@ -671,14 +680,14 @@ exports.createEvent = async (req, res) => {
         if (error.name === 'ValidationError') {
             return res.status(400).json({ success: false, message: error.message });
         }
-        res.status(500).json({ success: false, message: 'Failed to create run' });
+        res.status(500).json({ success: false, message: req.listingHub === 'events' ? 'Failed to create event' : 'Failed to create run' });
     }
 };
 
 exports.updateEvent = async (req, res) => {
     try {
         const existing = await SportsEvent.findById(req.eventId);
-        if (!existing) return res.status(404).json({ success: false, message: 'Run not found' });
+        if (!existing) return res.status(404).json({ success: false, message: notFoundMsg(req) });
 
         const body = sanitizeOrganizerEventBody(req.body, { partial: true, existing });
         if (body.title !== undefined && !body.title) {
@@ -692,9 +701,11 @@ exports.updateEvent = async (req, res) => {
 
         body.sportType = 'run_club';
         body.runClubId = req.organizer.runClubId;
-        // Cover/card image stays on coverImage — do not overwrite gallery images[]
-        body.showOnSportsPage = true;
-        if (body.showInUpcoming === undefined) body.showInUpcoming = true;
+        const parentClub = await RunClub.findById(req.organizer.runClubId).select('listingHub').lean();
+        const onEventsHub = parentClub?.listingHub === 'events';
+        body.showOnSportsPage = !onEventsHub;
+        if (body.showInUpcoming === undefined) body.showInUpcoming = !onEventsHub;
+        if (onEventsHub) body.showInUpcoming = false;
 
         const oldTitleSlug = toSlug(existing.title);
         const primarySlug = toSlug(existing.slug);
@@ -731,14 +742,14 @@ exports.updateEvent = async (req, res) => {
         if (error.name === 'ValidationError') {
             return res.status(400).json({ success: false, message: error.message });
         }
-        res.status(500).json({ success: false, message: 'Failed to update run' });
+        res.status(500).json({ success: false, message: req.listingHub === 'events' ? 'Failed to update event' : 'Failed to update run' });
     }
 };
 
 exports.publishEvent = async (req, res) => {
     try {
         const event = await SportsEvent.findById(req.eventId);
-        if (!event) return res.status(404).json({ success: false, message: 'Run not found' });
+        if (!event) return res.status(404).json({ success: false, message: notFoundMsg(req) });
 
         if (!String(event.title || '').trim()) {
             return res.status(400).json({ success: false, message: 'Add a title before publishing' });
@@ -746,8 +757,10 @@ exports.publishEvent = async (req, res) => {
 
         event.status = 'published';
         event.sportType = 'run_club';
-        event.showOnSportsPage = true;
-        event.showInUpcoming = true;
+        const parentClub = await RunClub.findById(req.organizer.runClubId).select('listingHub').lean();
+        const onEventsHub = parentClub?.listingHub === 'events';
+        event.showOnSportsPage = !onEventsHub;
+        event.showInUpcoming = !onEventsHub;
         if (!event.registration) event.registration = {};
         // Preserve admin payment mode / QR / fee — only ensure registration is open if unset
         if (!event.registration.status) event.registration.status = 'open';
@@ -772,7 +785,7 @@ exports.setRegistrationStatus = async (req, res) => {
         }
 
         const event = await SportsEvent.findById(req.eventId);
-        if (!event) return res.status(404).json({ success: false, message: 'Run not found' });
+        if (!event) return res.status(404).json({ success: false, message: notFoundMsg(req) });
 
         if (!event.registration) event.registration = {};
         event.registration.status = status;
@@ -948,7 +961,7 @@ exports.getDashboard = async (req, res) => {
         const event = await SportsEvent.findById(eventId)
             .select('title city eventDate status maxParticipants registration.status registration.mode registrationFee distance reportingTime')
             .lean();
-        if (!event) return res.status(404).json({ success: false, message: 'Run not found' });
+        if (!event) return res.status(404).json({ success: false, message: notFoundMsg(req) });
 
         const today = startOfToday();
         const tomorrow = new Date(today);
@@ -958,17 +971,29 @@ exports.getDashboard = async (req, res) => {
         const pendingFilter = { category: 'sports', eventId, status: 'pending', paymentStatus: 'pending' };
         const holdingFilter = { category: 'sports', eventId, status: { $in: ['pending', 'confirmed'] } };
 
-        const [totalRegistrations, checkedIn, paidRegs, todayRegistrations, pendingPaymentReview, holdingRegs, pendingRegs] = await Promise.all([
+        const [totalRegistrations, checkedIn, paidRegs, todayRegistrations, pendingPaymentReview, holdingRegs, pendingRegs, failedOrExpired] = await Promise.all([
             CategoryRegistration.countDocuments(baseFilter),
             CategoryRegistration.countDocuments({ ...baseFilter, checkedIn: true }),
-            CategoryRegistration.find(baseFilter).select('amountPaid').lean(),
+            CategoryRegistration.find(baseFilter).select('amountPaid payment_gateway paymentScreenshotUrl').lean(),
             CategoryRegistration.countDocuments({ ...baseFilter, createdAt: { $gte: today, $lt: tomorrow } }),
             CategoryRegistration.countDocuments(pendingFilter),
             CategoryRegistration.find(holdingFilter).select('bookingPeople responses').lean(),
             CategoryRegistration.find(pendingFilter).select('amountPaid').lean(),
+            CategoryRegistration.countDocuments({
+                category: 'sports',
+                eventId,
+                status: 'cancelled',
+            }),
         ]);
 
         const organizerRevenue = paidRegs.reduce((sum, r) => sum + (Number(r.amountPaid) || 0), 0);
+        const cashfreePaid = paidRegs.filter((r) => String(r.payment_gateway || '').toLowerCase() === 'cashfree');
+        const qrPaid = paidRegs.filter((r) => {
+            const gw = String(r.payment_gateway || '').toLowerCase();
+            return gw === 'organizer_qr' || Boolean(r.paymentScreenshotUrl);
+        });
+        const cashfreeCollected = cashfreePaid.reduce((sum, r) => sum + (Number(r.amountPaid) || 0), 0);
+        const qrCollected = qrPaid.reduce((sum, r) => sum + (Number(r.amountPaid) || 0), 0);
         const capacity = getEventCapacity(event);
         const seatsFilled = holdingRegs.reduce((sum, r) => sum + peopleFromRegistration(r), 0);
         const pendingAmountAtRisk = pendingRegs.reduce((sum, r) => sum + (Number(r.amountPaid) || 0), 0);
@@ -1005,6 +1030,9 @@ exports.getDashboard = async (req, res) => {
                 organizerRevenue,
                 platformFees: 0,
                 grossCollected: organizerRevenue,
+                cashfreeCollected,
+                qrCollected,
+                failedOrExpired,
                 todayRegistrations,
             },
         });
@@ -1351,7 +1379,7 @@ exports.sendReminder = async (req, res) => {
         const event = await SportsEvent.findById(req.eventId)
             .select('title meetingPoint reportingTime venue')
             .lean();
-        if (!event) return res.status(404).json({ success: false, message: 'Run not found' });
+        if (!event) return res.status(404).json({ success: false, message: notFoundMsg(req) });
 
         const title = String(req.body.title || `Reminder: ${event.title}`).trim();
         const message = String(

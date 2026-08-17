@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const SportsEvent = require('../model/sports_model');
+const RunClub = require('../model/run_club_model');
 const { sanitizeCoverImages, primaryCoverUrl, excludeCoverUrlsFromGallery } = require('../utils/sanitizeCoverImages');
 const {
     sanitizeSportsTiers,
@@ -271,6 +272,17 @@ function finalizeSportsPayload(payload, existing = null) {
     return payload;
 }
 
+async function applyEventHubListingFlags(payload) {
+    const clubId = payload.runClubId;
+    if (!clubId) return payload;
+    const club = await RunClub.findById(clubId).select('listingHub').lean();
+    if (club?.listingHub === 'events') {
+        payload.showOnSportsPage = false;
+        payload.showInUpcoming = false;
+    }
+    return payload;
+}
+
 function defaultSectionFlags(payload) {
     if (payload.showInUpcoming === undefined) payload.showInUpcoming = true;
     if (payload.showInRunClubs === undefined) {
@@ -314,7 +326,9 @@ function validateOrganizerQrPayment(payload, existing = null) {
 
 exports.createSportsEvent = async (req, res) => {
     try {
-        const payload = finalizeSportsPayload(defaultSectionFlags(sanitizeSportsPayload(req.body)));
+        const payload = await applyEventHubListingFlags(
+            finalizeSportsPayload(defaultSectionFlags(sanitizeSportsPayload(req.body))),
+        );
         if (!payload.title || !payload.sportType) {
             return res.status(400).json({ message: 'title and sportType are required' });
         }
@@ -392,7 +406,9 @@ exports.updateSportsEvent = async (req, res) => {
         const existing = await SportsEvent.findById(id).lean();
         if (!existing) return res.status(404).json({ message: 'Sports event not found' });
 
-        const payload = finalizeSportsPayload(sanitizeSportsPayload(req.body), existing);
+        const payload = await applyEventHubListingFlags(
+            finalizeSportsPayload(sanitizeSportsPayload(req.body), existing),
+        );
         const qrErr = validateOrganizerQrPayment(payload, existing);
         if (qrErr) return res.status(400).json({ message: qrErr });
 

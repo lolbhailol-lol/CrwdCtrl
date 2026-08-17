@@ -1533,7 +1533,7 @@ export default function EventRegistrationPage() {
                                 {ticketPrice > 0 && breakdown.platformFee > 0 ? (
                                     <div className="flex justify-between text-sm">
                                         <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>
-                                            Platform fee ({platformFeePercent}%)
+                                            CrwdCtrl platform fee ({platformFeePercent}%)
                                         </span>
                                         <span className={`font-semibold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
                                             {formatInr(breakdown.platformFee)}
@@ -1557,7 +1557,7 @@ export default function EventRegistrationPage() {
                                 {skippingDrive
                                     ? 'Select a Trackday package.'
                                     : 'Select your Trackday package. Independence Day Drive is included free.'}
-                                {platformFeePercent > 0 ? ' Platform fee is added at checkout.' : ''}
+                                {platformFeePercent > 0 ? ' A CrwdCtrl platform fee is added at checkout for this show.' : ''}
                             </p>
                             <div className="space-y-4">
                                 {(() => {
@@ -1897,7 +1897,7 @@ export default function EventRegistrationPage() {
                                     ))}
                                     {breakdown.platformFee > 0 ? (
                                         <div className={`flex justify-between gap-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                            <span>Platform fee ({platformFeePercent}%)</span>
+                                            <span>CrwdCtrl platform fee ({platformFeePercent}%)</span>
                                             <span>₹{breakdown.platformFee}</span>
                                         </div>
                                     ) : null}

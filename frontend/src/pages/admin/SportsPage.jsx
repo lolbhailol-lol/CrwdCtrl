@@ -39,7 +39,7 @@ function formatDate(d) {
     return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-function AdminRunRow({ run, onEdit, onDelete }) {
+export function AdminRunRow({ run, onEdit, onDelete }) {
     const [imgErr, setImgErr] = useState(false);
     const thumb = normalizeImageUrl(run.images?.[0] || run.coverImage);
 
@@ -151,7 +151,7 @@ export default function SportsPage() {
         setClubsLoading(true);
         setError('');
         adminFetchJSON('/admin/run-clubs?limit=100')
-            .then((d) => setClubs(d.clubs || []))
+            .then((d) => setClubs((d.clubs || []).filter((c) => c.listingHub !== 'events')))
             .catch((err) => setError(err.message || 'Failed to load run clubs'))
             .finally(() => setClubsLoading(false));
     };
