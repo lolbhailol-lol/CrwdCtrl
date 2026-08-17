@@ -11,6 +11,7 @@ import { isNativeApp } from './utils/capacitorPlatform'
 import { initCashfreeNativeGateway } from './utils/bootstrapCashfreeNative'
 import { initGlobalErrorHandlers } from './utils/chunkError'
 import { preloadCategoryNavIcons } from './constants/categoryNavIcons'
+import { SpeedInsights } from '@vercel/speed-insights/react'
 
 initThemeClass()
 initSentry()
@@ -65,6 +66,7 @@ createRoot(document.getElementById('root')).render(
   import.meta.env.PROD ? (
     <ErrorBoundary>
       <App />
+      {!isNativeApp() && <SpeedInsights />}
     </ErrorBoundary>
   ) : (
     <StrictMode>
