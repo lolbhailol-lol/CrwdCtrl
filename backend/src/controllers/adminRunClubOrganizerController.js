@@ -1,7 +1,35 @@
 const mongoose = require('mongoose');
 const RunClubOrganizerAccount = require('../model/run_club_organizer_account_model');
 const RunClub = require('../model/run_club_model');
+const SportsEvent = require('../model/sports_model');
 const { normalizeUsername } = require('../utils/runClubOrganizerAccess');
+const {
+    sendCommunityOrganizerApprovalEmail,
+    sendCommunityOrganizerProfileInviteEmail,
+} = require('../services/emailService');
+
+const SITE = () => String(process.env.FRONTEND_URL || 'https://crwdctrl.in').replace(/\/$/, '');
+
+async function clubIdsForHub(hub) {
+    const h = String(hub || '').toLowerCase();
+    if (h === 'events') {
+        return RunClub.find({ listingHub: 'events' }).distinct('_id');
+    }
+    if (h === 'sports') {
+        return RunClub.find({ listingHub: { $ne: 'events' } }).distinct('_id');
+    }
+    return null;
+}
+
+async function eventTitlesForClub(runClubId) {
+    if (!runClubId) return [];
+    const events = await SportsEvent.find({ runClubId })
+        .select('title')
+        .sort({ eventDate: -1 })
+        .limit(8)
+        .lean();
+    return events.map((e) => e.title || '').filter(Boolean);
+}
 
 function serializeOrganizer(org) {
     const plain = typeof org.toObject === 'function' ? org.toObject() : { ...org };
@@ -35,9 +63,15 @@ exports.listOrganizers = async (req, res) => {
             }
         }
 
+        const hub = String(req.query.hub || '').toLowerCase();
+        const hubClubIds = await clubIdsForHub(hub);
+        if (hubClubIds) {
+            filter.runClubId = { $in: hubClubIds };
+        }
+
         const organizers = await RunClubOrganizerAccount.find(filter)
             .select('-passwordHash')
-            .populate('runClubId', 'name basedIn')
+            .populate('runClubId', 'name basedIn listingHub')
             .sort({ createdAt: -1 })
             .lean();
 
@@ -98,10 +132,49 @@ exports.createOrganizer = async (req, res) => {
             createdBy: req.user?.userId || null,
         });
 
+        const populated = await RunClubOrganizerAccount.findById(organizer._id)
+            .select('-passwordHash')
+            .populate('runClubId', 'name basedIn listingHub')
+            .lean();
+
+        let emailStatus = { attempted: false, sent: false, reason: '' };
+        try {
+            if (email) {
+                const club = await RunClub.findById(runClubId).select('name listingHub').lean();
+                const listingHub = club?.listingHub === 'events' ? 'events' : 'sports';
+                const eventTitles = await eventTitlesForClub(runClubId);
+                const loginUrl = `${SITE()}/run-club-organizer/login${listingHub === 'events' ? '?hub=events' : ''}`;
+                const signupUrl = `${SITE()}/run-club-organizer/signup${listingHub === 'events' ? '?hub=events' : ''}`;
+                const mailResult = await sendCommunityOrganizerApprovalEmail({
+                    toEmail: email,
+                    organizerName: name,
+                    username,
+                    temporaryPassword: password,
+                    accountCreatedByAdmin: true,
+                    loginUrl,
+                    signupUrl,
+                    communityName: club?.name || '',
+                    eventTitles,
+                    listingHub,
+                });
+                emailStatus = {
+                    attempted: true,
+                    sent: Boolean(mailResult?.success !== false && !mailResult?.error),
+                    reason: mailResult?.error || '',
+                };
+            } else {
+                emailStatus = { attempted: false, sent: false, reason: 'Organizer email not provided' };
+            }
+        } catch (mailErr) {
+            console.error('[adminRunClubOrganizer.create] account mail failed:', mailErr.message);
+            emailStatus = { attempted: true, sent: false, reason: mailErr.message || 'Failed to send email' };
+        }
+
         res.status(201).json({
             success: true,
             message: 'Run club organizer account created',
-            organizer: serializeOrganizer(organizer),
+            organizer: serializeOrganizer(populated || organizer),
+            emailStatus,
         });
     } catch (error) {
         console.error('[adminRunClubOrganizer.create]', error);
@@ -214,10 +287,48 @@ exports.approveOrganizer = async (req, res) => {
         organizer.rejectedReason = '';
         await organizer.save();
 
+        let emailStatus = { attempted: false, sent: false, reason: '' };
+        try {
+            if (organizer.email) {
+                const club = await RunClub.findById(organizer.runClubId).select('name listingHub').lean();
+                const listingHub = club?.listingHub === 'events' ? 'events' : 'sports';
+                const eventTitles = await eventTitlesForClub(organizer.runClubId);
+                const loginUrl = `${SITE()}/run-club-organizer/login${listingHub === 'events' ? '?hub=events' : ''}`;
+                const signupUrl = `${SITE()}/run-club-organizer/signup${listingHub === 'events' ? '?hub=events' : ''}`;
+                const mailResult = await sendCommunityOrganizerApprovalEmail({
+                    toEmail: organizer.email,
+                    organizerName: organizer.name || '',
+                    username: organizer.username || '',
+                    loginUrl,
+                    signupUrl,
+                    communityName: club?.name || '',
+                    eventTitles,
+                    listingHub,
+                    existingAccountApproved: true,
+                });
+                emailStatus = {
+                    attempted: true,
+                    sent: Boolean(mailResult?.success !== false && !mailResult?.error),
+                    reason: mailResult?.error || '',
+                };
+            } else {
+                emailStatus = { attempted: false, sent: false, reason: 'Organizer email not provided' };
+            }
+        } catch (mailErr) {
+            console.error('[adminRunClubOrganizer.approve] approval mail failed:', mailErr.message);
+            emailStatus = { attempted: true, sent: false, reason: mailErr.message || 'Failed to send email' };
+        }
+
+        const populated = await RunClubOrganizerAccount.findById(organizer._id)
+            .select('-passwordHash')
+            .populate('runClubId', 'name basedIn listingHub')
+            .lean();
+
         res.json({
             success: true,
             message: 'Organizer approved — they can sign in now',
-            organizer: serializeOrganizer(organizer),
+            organizer: serializeOrganizer(populated || organizer),
+            emailStatus,
         });
     } catch (error) {
         console.error('[adminRunClubOrganizer.approve]', error);
@@ -274,7 +385,14 @@ function normalizeInviteEmail(email) {
 
 exports.listProfileInvites = async (req, res) => {
     try {
-        const invites = await RunClubManagerProfileInvite.find()
+        const hub = String(req.query.hub || '').toLowerCase();
+        const filter = {};
+        if (hub === 'events') {
+            filter.listingHub = 'events';
+        } else if (hub === 'sports') {
+            filter.listingHub = { $ne: 'events' };
+        }
+        const invites = await RunClubManagerProfileInvite.find(filter)
             .sort({ createdAt: -1 })
             .lean();
         res.json({ success: true, invites });
@@ -287,37 +405,58 @@ exports.addProfileInvite = async (req, res) => {
     try {
         const email = normalizeInviteEmail(req.body.email);
         const note = String(req.body.note || '').trim();
+        const listingHub = req.body.listingHub === 'events' ? 'events' : 'sports';
         if (!email || !email.includes('@')) {
             return res.status(400).json({ success: false, message: 'Valid email is required' });
         }
 
-        const existing = await RunClubManagerProfileInvite.findOne({ email });
+        let existing = await RunClubManagerProfileInvite.findOne({ email, listingHub });
+        let invite = existing;
         if (existing) {
             existing.isActive = true;
             if (note) existing.note = note;
             await existing.save();
-            return res.json({
-                success: true,
-                message: 'Email re-activated for Club manager profile access',
-                invite: existing,
+        } else {
+            invite = await RunClubManagerProfileInvite.create({
+                email,
+                note,
+                listingHub,
+                isActive: true,
+                createdBy: req.user?.userId || null,
             });
         }
 
-        const invite = await RunClubManagerProfileInvite.create({
-            email,
-            note,
-            isActive: true,
-            createdBy: req.user?.userId || null,
-        });
+        let emailStatus = { attempted: false, sent: false, reason: '' };
+        try {
+            const signupUrl = `${SITE()}/run-club-organizer/signup${listingHub === 'events' ? '?hub=events' : ''}`;
+            const mailResult = await sendCommunityOrganizerProfileInviteEmail({
+                toEmail: email,
+                signupUrl,
+                listingHub,
+                note,
+            });
+            emailStatus = {
+                attempted: true,
+                sent: Boolean(mailResult?.success !== false && !mailResult?.error),
+                reason: mailResult?.error || '',
+            };
+        } catch (mailErr) {
+            console.error('[adminRunClubOrganizer.addProfileInvite] invite mail failed:', mailErr.message);
+            emailStatus = { attempted: true, sent: false, reason: mailErr.message || 'Failed to send email' };
+        }
 
-        res.status(201).json({
+        const label = listingHub === 'events' ? 'Community organizer' : 'Club manager';
+        res.status(existing ? 200 : 201).json({
             success: true,
-            message: 'Email approved — user will see Club manager in Profile',
+            message: existing
+                ? `Email re-activated for Profile → ${label}`
+                : `Email approved — invite sent for ${label} signup`,
             invite,
+            emailStatus,
         });
     } catch (error) {
         if (error.code === 11000) {
-            return res.status(409).json({ success: false, message: 'Email already added' });
+            return res.status(409).json({ success: false, message: 'Email already added for this hub' });
         }
         console.error('[adminRunClubOrganizer.addProfileInvite]', error);
         res.status(500).json({ success: false, message: 'Failed to add email' });

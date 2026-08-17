@@ -10,6 +10,7 @@ import {
     fetchFestOrganizerProShowTickets,
     issueFestOrganizerProShowPass,
 } from '../../services/api/festOrganizer.api';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 import { useDialog } from '../../context/DialogContext';
 
 function waLink(phone) {
@@ -209,11 +210,7 @@ export default function FestOrganizerProShowPage() {
     };
 
     if (loading && !data) {
-        return (
-            <div className="flex justify-center py-20 text-gray-400 gap-2">
-                <Loader className="animate-spin" size={18} /> Loading Pro Show…
-            </div>
-        );
+        return <InlinePageLoader label="Loading Pro Show…" variant="fest" />;
     }
 
     if (error && !data) {

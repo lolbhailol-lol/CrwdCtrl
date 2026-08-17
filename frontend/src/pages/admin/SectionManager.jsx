@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { AlertCircle, Check, ExternalLink, GripVertical, LayoutGrid, Layers, Loader2, RefreshCw, Search, Flag, Mountain, Users, Dumbbell, Footprints, Theater } from 'lucide-react';
 import { buildHomeCarouselItems, normalizeHomeCarouselItem } from '../../utils/homeCarouselItems';
 import { getCardSizeLabel } from '../../utils/homeCardSize';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 import {
     getTargetPageLabel,
     getCustomPageAssignmentKeys,
@@ -1449,9 +1450,7 @@ export default function SectionManager() {
             {/* Content */}
             <div className="bg-[#17181A] rounded-2xl border border-white/8 overflow-hidden">
                 {loading ? (
-                    <div className="flex items-center justify-center gap-3 py-20 text-gray-500 text-sm">
-                        <Loader2 size={20} className="animate-spin text-[#0ECCEE]" /> Loading…
-                    </div>
+                    <InlinePageLoader label="Loading…" minHeight={false} />
                 ) : mode === 'reorder' ? (
                     <>
                         {renderReorderContent()}

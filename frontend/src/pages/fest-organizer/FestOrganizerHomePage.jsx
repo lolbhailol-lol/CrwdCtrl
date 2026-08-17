@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PartyPopper, ChevronRight, Loader, MapPin } from 'lucide-react';
+import { PartyPopper, ChevronRight, MapPin } from 'lucide-react';
 import { fetchFestOrganizerMe } from '../../services/api/festOrganizer.api';
 import { getFestOrganizerSession, setFestOrganizerSession } from '../../utils/festOrganizerSession';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 
 export default function FestOrganizerHomePage() {
     const navigate = useNavigate();
@@ -37,11 +38,7 @@ export default function FestOrganizerHomePage() {
     }, []);
 
     if (loading) {
-        return (
-            <div className="flex items-center justify-center py-20 text-gray-400 gap-2">
-                <Loader className="animate-spin" size={18} /> Loading fests…
-            </div>
-        );
+        return <InlinePageLoader label="Loading fests…" variant="fest" />;
     }
 
     const meName = session?.organizer?.name || session?.organizer?.username || '';

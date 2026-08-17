@@ -6,6 +6,7 @@ import { useDarkMode } from '../../context/DarkModeContext';
 import { API_BASE_URL } from '../../services/api/client';
 import { authenticatedFetchJSON } from '../../services/api/auth.api';
 import { useAuth } from '../../context/AuthContext';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 
 const formatAmount = (amount) =>
   `₹${Number(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -79,8 +80,8 @@ export default function PaymentInvoicePage() {
 
   if (loading) {
     return (
-      <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-gray-400">Loading receipt...</div>
+      <div className="crwdctrl-page crwdctrl-page--content min-h-screen">
+        <InlinePageLoader label="Loading receipt..." variant="payment" />
       </div>
     );
   }

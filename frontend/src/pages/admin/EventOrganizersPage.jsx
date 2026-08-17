@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, Plus, Loader, Pencil, Trash2, Search, Check, X } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { CalendarDays, Plus, Pencil, Trash2, Search, Check, X, Users2 } from 'lucide-react';
+import { DetailLoader3DIcon } from '../../components/DetailPageLoader';
 import { adminFetchJSON } from '../../services/api/admin.api.js';
 import { useDialog } from '../../context/DialogContext';
 
@@ -255,14 +257,29 @@ export default function EventOrganizersPage() {
 
     return (
         <div className="space-y-6">
+            <div className="rounded-xl border border-[#0ECCEE]/30 bg-[#0ECCEE]/5 px-4 py-3 text-sm text-gray-300 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-start gap-2">
+                    <Users2 size={18} className="text-[#0ECCEE] shrink-0 mt-0.5" />
+                    <span>
+                        Managing <strong>Delulu-style event communities</strong> (guests, scan, notify)?
+                        Use Event Community Organizers — not this page.
+                    </span>
+                </div>
+                <Link
+                    to="/admin/event-community-organizers"
+                    className="shrink-0 px-3 py-2 rounded-xl bg-[#0ECCEE] text-black text-xs font-bold hover:opacity-90"
+                >
+                    Event Community Organizers
+                </Link>
+            </div>
             <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                     <h1 className="text-2xl font-bold flex items-center gap-2">
                         <CalendarDays className="text-[#0ECCEE]" size={22} />
-                        Event Organizers
+                        Event Show Organizers
                     </h1>
                     <p className="text-sm text-gray-500 mt-1">
-                        Assign EventShows to organizer accounts. Portal: {loginUrl}
+                        Standalone shows on /events (theatre, comedy, etc.). Assign EventShows to organizer accounts. Portal: {loginUrl}
                     </p>
                 </div>
                 <div className="flex gap-2">
@@ -326,7 +343,7 @@ export default function EventOrganizersPage() {
             </div>
 
             {loading ? (
-                <div className="flex justify-center py-16"><Loader className="animate-spin text-[#0ECCEE]" /></div>
+                <div className="flex justify-center py-16"><DetailLoader3DIcon size="compact" variant="event" /></div>
             ) : filtered.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-gray-700 p-8 text-center text-gray-500 text-sm">
                     No organizers yet.
@@ -399,7 +416,7 @@ export default function EventOrganizersPage() {
 
                     <div className="rounded-xl border border-gray-800 overflow-hidden">
                         {loading ? (
-                            <div className="py-16 flex justify-center"><Loader className="animate-spin text-[#0ECCEE]" /></div>
+                            <div className="py-16 flex justify-center"><DetailLoader3DIcon size="compact" variant="event" /></div>
                         ) : (
                             <table className="w-full text-sm">
                                 <thead className="bg-[#111213] text-gray-500 text-[11px] uppercase">

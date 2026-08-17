@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { PartyPopper, Plus, Loader, Pencil, Trash2, Search, Check, X } from 'lucide-react';
+import { PartyPopper, Plus, Pencil, Trash2, Search, Check, X } from 'lucide-react';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 import { adminFetchJSON } from '../../services/api/admin.api.js';
 import { useDialog } from '../../context/DialogContext';
 
@@ -346,9 +347,7 @@ export default function FestOrganizersPage() {
                     </div>
 
                     {loading ? (
-                        <div className="flex items-center gap-2 text-gray-400 py-12 justify-center">
-                            <Loader className="animate-spin" size={18} /> Loading…
-                        </div>
+                        <InlinePageLoader label="Loading…" variant="fest" minHeight={false} />
                     ) : (
                         <div className="space-y-2">
                             {filtered.map((org) => (

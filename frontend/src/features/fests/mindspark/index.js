@@ -8,6 +8,14 @@ export {
 } from './isMindSparkFest';
 
 export {
+  MINDSPARK_MODULE_ORDER,
+  resolveMindSparkModule,
+  sortMindSparkModules,
+  sortMindSparkModuleGroups,
+  formatMindSparkModuleLabel,
+} from './modules';
+
+export {
   PERSON_FIELD_TYPES,
   FIELD_SCOPES,
   DEFAULT_PERSON_FIELDS,
@@ -31,4 +39,5 @@ export {
 
 export { default as MindSparkSuccessStep } from './MindSparkSuccessStep';
 export { default as ResourceLinksEditor } from './ResourceLinksEditor';
+export { default as MindSparkLiveBadge } from './MindSparkLiveBadge';
 export { default as MindSparkWhatsAppLinksAdmin } from './MindSparkWhatsAppLinksAdmin';

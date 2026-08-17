@@ -3,6 +3,12 @@
  * Keeps view-details, competition-list, and admin-driven fields in sync.
  */
 
+import {
+  isMindSparkFest,
+  resolveMindSparkModule,
+  sortMindSparkModuleGroups,
+} from '../features/fests/mindspark';
+
 export function mapFestRegistration(registration = {}) {
   const externalLink = registration.externalLink || '';
   return {
@@ -99,6 +105,7 @@ export function transformCompetitionItem(comp, festData) {
     contact: comp.contact,
     competitionType: comp.competitionType,
     category: comp.category,
+    module: isMindSparkFest(festData) ? resolveMindSparkModule(comp) : '',
     registrationFee: fee.known ? fee.label : (comp.registrationFee || 'Free'),
     feeAmount: fee.amount ?? 0,
     registrationLink: comp.registrationLink || '',
@@ -121,13 +128,16 @@ export function transformCompetitionItem(comp, festData) {
 export function groupCompetitionsByType(competitions, festData) {
   if (!Array.isArray(competitions) || competitions.length === 0) return {};
 
+  const mindSpark = isMindSparkFest(festData);
   const grouped = {};
   competitions.forEach((comp) => {
-    const category = comp.competitionType?.toUpperCase() || 'OTHER';
+    const category = mindSpark
+      ? resolveMindSparkModule(comp)
+      : (comp.competitionType?.toUpperCase() || 'OTHER');
     if (!grouped[category]) grouped[category] = [];
     grouped[category].push(transformCompetitionItem(comp, festData));
   });
-  return grouped;
+  return mindSpark ? sortMindSparkModuleGroups(grouped) : grouped;
 }
 
 /** True when transformed fest data already has competition cards to paint. */

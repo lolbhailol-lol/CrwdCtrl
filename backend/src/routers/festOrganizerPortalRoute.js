@@ -4,6 +4,7 @@ const stallCtrl = require('../controllers/festStallLeadController');
 const probableCtrl = require('../controllers/festCompetitionProbableController');
 const proShowCtrl = require('../controllers/festProShowController');
 const liveCtrl = require('../controllers/festLiveUpdateController');
+const couponCtrl = require('../controllers/festOrganizerCouponController');
 const uploadCtrl = require('../controllers/uploadController');
 const { authenticateFestOrganizer, requireFestAccess } = require('../middleware/festOrganizerAuth');
 const { authLimiter } = require('../middleware/rateLimiter');
@@ -73,6 +74,11 @@ router.patch('/fests/:festId/leads/:leadId', authenticateFestOrganizer, requireF
 router.delete('/fests/:festId/leads/:leadId', authenticateFestOrganizer, requireFestAccess, stallCtrl.deleteLead);
 router.post('/fests/:festId/leads', authenticateFestOrganizer, requireFestAccess, stallCtrl.createKioskLead);
 router.get('/fests/:festId/leads', authenticateFestOrganizer, requireFestAccess, stallCtrl.listLeads);
+
+router.get('/fests/:festId/coupons', authenticateFestOrganizer, requireFestAccess, couponCtrl.listCoupons);
+router.post('/fests/:festId/coupons', authenticateFestOrganizer, requireFestAccess, couponCtrl.createCoupon);
+router.patch('/fests/:festId/coupons/:couponId', authenticateFestOrganizer, requireFestAccess, couponCtrl.updateCoupon);
+router.delete('/fests/:festId/coupons/:couponId', authenticateFestOrganizer, requireFestAccess, couponCtrl.deleteCoupon);
 
 router.get('/fests/:festId/checkin/stats', authenticateFestOrganizer, requireFestAccess, ctrl.getCheckinStats);
 router.post('/fests/:festId/checkin', authenticateFestOrganizer, requireFestAccess, ctrl.checkin);

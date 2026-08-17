@@ -203,7 +203,9 @@ const CompetitionListPage = () => {
                             : isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-600 hover:text-gray-900'
                             }`}
                     >
-                        {tab}
+                        {tab === tab.toUpperCase() || tab.includes(' ') || tab.includes('-')
+                            ? tab
+                            : (tab.charAt(0) + tab.slice(1).toLowerCase())}
                     </button>
                 ))}
             </div>

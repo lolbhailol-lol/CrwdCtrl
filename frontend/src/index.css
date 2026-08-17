@@ -1277,6 +1277,32 @@ html:not(.dark) .crwdctrl-footer {
     height: 4rem;
 }
 
+.detail-loader-stage--splash {
+    width: 10rem;
+    height: 10rem;
+    perspective: 960px;
+}
+
+.detail-loader-stage--splash .detail-loader-card {
+    width: 6.25rem;
+    height: 6.25rem;
+}
+
+.detail-loader-stage--splash .detail-loader-mark--brand {
+    font-size: 1.65rem;
+}
+
+.detail-loader-mark--brand {
+    font-size: 0.95rem;
+    font-weight: 800;
+    letter-spacing: -0.08em;
+    color: #0eccee;
+    text-shadow: 0 0 22px rgba(14, 204, 238, 0.4);
+    line-height: 1;
+    text-transform: lowercase;
+}
+
+.detail-loader-icon,
 .detail-loader-icon--competition {
     width: 1.35rem;
     height: 1.35rem;
@@ -1284,16 +1310,19 @@ html:not(.dark) .crwdctrl-footer {
     filter: drop-shadow(0 0 12px rgba(14, 204, 238, 0.45));
 }
 
+.detail-loader-stage--compact .detail-loader-icon,
 .detail-loader-stage--compact .detail-loader-icon--competition {
     width: 1rem;
     height: 1rem;
 }
 
+.detail-loader-stage--mini .detail-loader-icon,
 .detail-loader-stage--mini .detail-loader-icon--competition {
     width: 0.85rem;
     height: 0.85rem;
 }
 
+.detail-loader-stage--hero .detail-loader-icon,
 .detail-loader-stage--hero .detail-loader-icon--competition {
     width: 1.75rem;
     height: 1.75rem;
@@ -1445,16 +1474,32 @@ html:not(.dark) .crwdctrl-footer {
     }
 }
 
-/* Hide chrome while route skeleton or page data is loading */
+/* Hide chrome while route overlay or page data is loading — display:none avoids footer flash */
 body.page-transition-active #crwdctrl-bottom-nav,
 body.page-content-loading #crwdctrl-bottom-nav,
 body.page-transition-active .bottom-nav-spacer,
 body.page-content-loading .bottom-nav-spacer,
 body.page-transition-active .crwdctrl-footer,
-body.page-content-loading .crwdctrl-footer {
-    opacity: 0 !important;
-    visibility: hidden !important;
-    pointer-events: none !important;
+body.page-content-loading .crwdctrl-footer,
+html[data-home-hub-loading] #crwdctrl-bottom-nav,
+html[data-home-hub-loading] .bottom-nav-spacer,
+html[data-home-hub-loading] .crwdctrl-footer {
+    display: none !important;
+}
+
+/* One solid viewport while home hub loads — no half black / half white split */
+html[data-home-hub-loading],
+html[data-home-hub-loading] body,
+html[data-home-hub-loading] #root,
+html[data-home-hub-loading] .crwdctrl-app-shell {
+    background-color: #ffffff !important;
+}
+
+html.dark[data-home-hub-loading],
+html.dark[data-home-hub-loading] body,
+html.dark[data-home-hub-loading] #root,
+html.dark[data-home-hub-loading] .crwdctrl-app-shell {
+    background-color: #161718 !important;
 }
 
 /* Detail deep-link loaders: hide header chrome so the screen stays one flat color */
@@ -1462,9 +1507,7 @@ body.detail-page-loading .mobile-header-shell,
 body.detail-page-loading #crwdctrl-bottom-nav,
 body.detail-page-loading .bottom-nav-spacer,
 body.detail-page-loading .crwdctrl-footer {
-    opacity: 0 !important;
-    visibility: hidden !important;
-    pointer-events: none !important;
+    display: none !important;
 }
 
 /* Custom animations */

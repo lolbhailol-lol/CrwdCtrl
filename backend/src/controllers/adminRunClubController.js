@@ -115,7 +115,14 @@ exports.create = async (req, res) => {
 exports.getAll = async (req, res) => {
     try {
         if (!dbOk()) return res.status(503).json({ message: 'DB not connected' });
-        const clubs = await RunClub.find()
+        const filter = {};
+        const hub = String(req.query.hub || '').toLowerCase();
+        if (hub === 'events') {
+            filter.listingHub = 'events';
+        } else if (hub === 'sports') {
+            filter.listingHub = { $ne: 'events' };
+        }
+        const clubs = await RunClub.find(filter)
             .sort({ runClubPriority: 1, createdAt: -1 })
             .limit(parseInt(req.query.limit, 10) || 100)
             .lean();

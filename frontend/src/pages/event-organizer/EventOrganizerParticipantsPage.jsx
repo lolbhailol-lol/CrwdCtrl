@@ -9,6 +9,7 @@ import {
 } from '../../services/api/eventShowOrganizer.api';
 import { useDialog } from '../../context/DialogContext';
 import EventOrganizerManualAddModal from './EventOrganizerManualAddModal';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 
 /** Keys already shown in structured Drivers / summary — hide from raw dump */
 const HIDDEN_RESPONSE_KEYS = new Set([
@@ -252,7 +253,7 @@ export default function EventOrganizerParticipantsPage() {
             </div>
 
             {loading ? (
-                <div className="flex justify-center py-16"><Loader className="animate-spin text-[#0ECCEE]" /></div>
+                <InlinePageLoader variant="event" minHeight={false} />
             ) : rows.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-gray-700 p-8 text-center text-gray-500 text-sm">
                     No guests match these filters.

@@ -15,6 +15,7 @@ import {
 } from '../../services/api/festOrganizer.api';
 import { useDialog } from '../../context/DialogContext';
 import { isMindSparkFest } from '../../features/fests/mindspark';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 
 const emptyForm = {
     title: '',
@@ -546,9 +547,7 @@ export default function FestOrganizerLiveUpdatesPage() {
             </div>
 
             {loading && !rows.length ? (
-                <div className="flex justify-center py-14 text-gray-400 gap-2">
-                    <Loader className="animate-spin" size={18} /> Loading…
-                </div>
+                <InlinePageLoader label="Loading…" variant="fest" minHeight={false} />
             ) : (
                 <div className="space-y-2.5">
                     {rows.map((row) => (

@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Footprints, Loader, ArrowLeft } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import { Footprints, Users, Loader, ArrowLeft } from 'lucide-react';
 import { runClubOrganizerLogin, tryRunClubOrganizerAppSession } from '../../services/api/runClubOrganizer.api';
 import { setRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
 import { isEventsListingHub, organizerHubCopy } from '../../utils/listingHubCopy';
@@ -19,6 +19,11 @@ function resolvePostLoginPath(events, from) {
 export default function RunClubOrganizerLoginPage() {
     const navigate = useNavigate();
     const location = useLocation();
+    const [searchParams] = useSearchParams();
+    const isEventHub = searchParams.get('hub') === 'events';
+    const copy = useMemo(() => organizerHubCopy(isEventHub), [isEventHub]);
+    const HubIcon = isEventHub ? Users : Footprints;
+    const hub = isEventHub ? 'events' : 'sports';
     const { isAuthenticated } = useAuth();
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
@@ -34,14 +39,14 @@ export default function RunClubOrganizerLoginPage() {
                 return;
             }
             try {
-                const session = await tryRunClubOrganizerAppSession();
+                const session = await tryRunClubOrganizerAppSession(null, hub);
                 if (!cancelled && session?.token) {
                     navigate(resolvePostLoginPath(session.events, location.state?.from), { replace: true });
                     return;
                 }
             } catch (err) {
                 if (!cancelled && err?.code === 'no_organizer_account') {
-                    navigate('/run-club-organizer/signup', { replace: true });
+                    navigate(isEventHub ? '/run-club-organizer/signup?hub=events' : '/run-club-organizer/signup', { replace: true });
                     return;
                 }
                 /* fall through to manual login */
@@ -49,7 +54,7 @@ export default function RunClubOrganizerLoginPage() {
             if (!cancelled) setBooting(false);
         })();
         return () => { cancelled = true; };
-    }, [isAuthenticated, navigate, location.state?.from]);
+    }, [isAuthenticated, navigate, location.state?.from, hub, isEventHub]);
 
     const submit = async (e) => {
         e.preventDefault();
@@ -93,11 +98,11 @@ export default function RunClubOrganizerLoginPage() {
 
                 <div className="flex items-center gap-3 mb-6">
                     <div className="size-12 rounded-xl bg-[#0ECCEE]/10 flex items-center justify-center">
-                        <Footprints className="text-[#0ECCEE]" size={24} />
+                        <HubIcon className="text-[#0ECCEE]" size={24} />
                     </div>
                     <div>
-                        <h1 className="text-xl font-bold">Club manager</h1>
-                        <p className="text-xs text-gray-500">Your club dashboard — participants & check-ins</p>
+                        <h1 className="text-xl font-bold">{copy.managerTitle}</h1>
+                        <p className="text-xs text-gray-500">{copy.managerSubtitle}</p>
                     </div>
                 </div>
 
@@ -148,8 +153,9 @@ export default function RunClubOrganizerLoginPage() {
                     </button>
                 </form>
                 <p className="text-[11px] text-gray-600 mt-5 text-center">
-                    New club? Ask CrwdCtrl to approve your email, then{' '}
-                    <Link to="/run-club-organizer/signup" className="text-[#0ECCEE] hover:underline">create your account</Link>.
+                    {isEventHub ? 'New community organizer?' : 'New club?'}{' '}
+                    Ask CrwdCtrl to approve your email, then{' '}
+                    <Link to={copy.signupPath} className="text-[#0ECCEE] hover:underline">create your account</Link>.
                 </p>
             </div>
         </div>

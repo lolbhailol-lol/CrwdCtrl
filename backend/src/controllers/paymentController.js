@@ -226,6 +226,8 @@ const getPricingForRequest = async (req) => {
     userId: req.user?.userId || null,
     amountBeforeDiscount: breakdown.totalAmount,
     people: Math.max(1, Number(req.body.people) || 1),
+    festId: pricedEntity.notes?.festId || '',
+    competitionId: pricedEntity.notes?.competitionId || '',
   });
 
   return {
@@ -368,6 +370,8 @@ exports.validateCoupon = async (req, res) => {
       amountBeforeDiscount: pricing.amountBeforeDiscount ?? pricing.totalAmount,
       people: Math.max(1, Number(people) || 1),
       failOnMissingCode: true,
+      festId: pricing.notes?.festId || '',
+      competitionId: pricing.notes?.competitionId || '',
     });
     return res.json(coupon);
   } catch (err) {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { X, Loader, Check, Ban, RotateCcw, MessageCircle, Phone, Trash2 } from 'lucide-react';
+import { DetailLoader3DIcon } from '../../components/DetailPageLoader';
 import {
     fetchFestOrganizerParticipant,
     deleteFestOrganizerParticipant,
@@ -177,8 +178,8 @@ export default function FestOrganizerParticipantModal({ festId, registrationId, 
                 </div>
 
                 {loading ? (
-                    <div className="flex justify-center py-16 text-gray-400 gap-2">
-                        <Loader className="animate-spin" size={18} /> Loading…
+                    <div className="flex justify-center py-16">
+                        <DetailLoader3DIcon size="compact" variant="fest" />
                     </div>
                 ) : participant ? (
                     <div className="p-4 space-y-4">

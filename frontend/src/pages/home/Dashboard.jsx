@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { Heart, ChevronRight, ChevronLeft, Bell, User, Search, Calendar, MapPin, Instagram, Navigation, X, Loader2, Zap, Clock, Wifi, ImageOff } from 'lucide-react';
+import { Heart, ChevronRight, ChevronLeft, Bell, User, Search, Calendar, MapPin, Instagram, Navigation, X, Zap, Clock, Wifi, ImageOff } from 'lucide-react';
 import CardFavoriteButton from '../../components/CardFavoriteButton';
+import { DetailLoader3DIcon } from '../../components/DetailPageLoader';
 import ShareIcon from '../../assets/share.svg';
 import AppLogo from '../../components/AppLogo';
 import CulturalFestImage from '../../assets/mobile-icons/cultural-events-icon-02.svg';
@@ -17,12 +18,12 @@ import { useNotifications } from '../../context/NotificationsContext';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import ContentImage from '../../components/ContentImage';
 import { usePageContentLoading } from '../../hooks/usePageContentLoading';
+import { setHomeShellReady } from '../../utils/homeShellReady';
 import { buildSearchKeywordsFromCatalog } from '../../utils/buildSearchKeywords';
 import { clearSearchKeywordsCache } from '../../services/searchService';
 import CrwdCtrlLogin from '../auth/login';
 import { useAuth } from '../../context/AuthContext';
 import CrwdCtrlRegister from '../auth/register';
-import { HeroBannerSkeleton } from '../../components/HomeEventCardSkeleton';
 import { TRENDING_CARD_GAP } from '../../hooks/useHomeCarousel';
 import HeroBanner from '../../components/HeroBanner';
 import MobileHeroSearchField from '../../components/MobileHeroSearchField';
@@ -98,7 +99,7 @@ const AutoRetryError = React.memo(({ isDark, onRetry }) => {
         <div className={`text-center py-8 px-4 rounded-xl ${isDark ? 'bg-[#111213]' : 'bg-gray-100'}`}>
             <div className="flex justify-center mb-3">
                 {isRetrying
-                    ? <Loader2 className="w-9 h-9 text-cyan-500 animate-spin" />
+                    ? <DetailLoader3DIcon size="compact" />
                     : <Wifi className="w-9 h-9 text-gray-400" />}
             </div>
             <p className={`text-lg font-medium mb-2 ${isDark ? 'text-white' : 'text-gray-800'}`}>
@@ -109,11 +110,7 @@ const AutoRetryError = React.memo(({ isDark, onRetry }) => {
                     ? 'Please wait while we connect to the server'
                     : `Retrying automatically in ${countdown}s...`}
             </p>
-            {isRetrying ? (
-                <div className="flex justify-center">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-cyan-500"></div>
-                </div>
-            ) : (
+            {isRetrying ? null : (
                 <button
                     onClick={() => { setIsRetrying(true); onRetry(); }}
                     className="px-6 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg transition-colors text-sm font-medium"
@@ -1222,6 +1219,16 @@ const Dashboard = () => {
         [fests, homeTreks, homeCommunities, homeSports],
     );
 
+    const homeBooting = isFestsLoading || !homeAuxLoaded;
+
+    useLayoutEffect(() => {
+        setHomeShellReady(!homeBooting);
+    }, [homeBooting]);
+
+    if (homeBooting) {
+        return null;
+    }
+
     return (
         <div className="crwdctrl-page crwdctrl-page--hub flex flex-col min-h-screen transition-colors">
           <Seo
@@ -1335,7 +1342,7 @@ const Dashboard = () => {
             {/* Main content - shared mobile + desktop */}
             <main className="flex-1 pb-4">
                 {/* Hero  full chrome width on desktop (aligns with navbar Pune  profile) */}
-                {!isFestsLoading && homeAuxLoaded && heroEvents.length > 0 && (
+                {heroEvents.length > 0 && (
                     <HeroBanner
                         events={heroEvents}
                         onEventClick={(id) => {
@@ -1351,7 +1358,6 @@ const Dashboard = () => {
                         isDark={isDark}
                     />
                 )}
-                {(isFestsLoading || !homeAuxLoaded) && <HeroBannerSkeleton />}
 
                 <AnnouncementBanner announcement={publicConfig.announcement} />
 
@@ -1363,7 +1369,6 @@ const Dashboard = () => {
                         isDark={isDark}
                         tallCard
                         cardGap={TRENDING_CARD_GAP}
-                        loading={isFestsLoading || !homeAuxLoaded}
                         emptyFallback={
                             (homeFeedError || festError) && trendingItems.length === 0 ? (
                                 <section className="home-section-block">
@@ -1395,7 +1400,6 @@ const Dashboard = () => {
                         items={happeningItems}
                         isDark={isDark}
                         wideCard
-                        loading={isFestsLoading || !homeAuxLoaded}
                         emptyFallback={
                             (homeFeedError || festError) && happeningItems.length === 0 ? (
                                 <section className="home-section-block">
@@ -1432,7 +1436,6 @@ const Dashboard = () => {
                         eventShows={homeEventShows}
                         transformedFests={transformedFests}
                         isDark={isDark}
-                        loading={isFestsLoading || !homeAuxLoaded}
                         isFavorite={(id) => isFavorite(id)}
                         onToggleFavorite={(item) => handleLike(getHomeItemId(item), item)}
                         onItemClick={navigateToHomeItem}

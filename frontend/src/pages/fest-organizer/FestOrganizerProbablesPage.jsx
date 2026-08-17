@@ -12,6 +12,7 @@ import {
     convertFestOrganizerProbable,
 } from '../../services/api/festOrganizer.api';
 import { useDialog } from '../../context/DialogContext';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 
 function waLink(phone, competitionName) {
     const digits = String(phone || '').replace(/\D/g, '');
@@ -297,9 +298,7 @@ export default function FestOrganizerProbablesPage() {
             {error ? <p className="text-sm text-red-400">{error}</p> : null}
 
             {loading && !rows.length ? (
-                <div className="flex justify-center py-16 text-gray-400 gap-2">
-                    <Loader className="animate-spin" size={18} /> Loading…
-                </div>
+                <InlinePageLoader label="Loading…" variant="fest" minHeight={false} />
             ) : (
                 <div className="space-y-2.5">
                     {rows.map((row) => {

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-    Users, UserCheck, Clock, IndianRupee, Loader, Bell, QrCode, ExternalLink, RefreshCw,
+    Users, UserCheck, Clock, IndianRupee, Bell, QrCode, ExternalLink, RefreshCw,
     Trophy, Calendar, MapPin, Building2, ArrowRight, AlertCircle, CheckCircle2, Mic2, Radio,
     Pencil, Download,
 } from 'lucide-react';
@@ -10,6 +10,7 @@ import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { isMindSparkFest } from '../../features/fests/mindspark';
 import FestOrganizerCompetitionQrModal from './FestOrganizerCompetitionQrModal';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 
 function formatWhen(d) {
     if (!d) return '';
@@ -76,11 +77,7 @@ export default function FestOrganizerDashboardPage() {
     }, [comps]);
 
     if (loading) {
-        return (
-            <div className="flex items-center justify-center py-20 text-gray-400 gap-2">
-                <Loader className="animate-spin" size={18} /> Loading overview…
-            </div>
-        );
+        return <InlinePageLoader label="Loading overview…" variant="fest" />;
     }
 
     if (error || !data) {

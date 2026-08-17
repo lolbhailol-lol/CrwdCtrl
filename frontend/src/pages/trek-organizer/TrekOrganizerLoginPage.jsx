@@ -5,6 +5,7 @@ import { trekOrganizerLogin, tryTrekOrganizerAppSession } from '../../services/a
 import { setTrekOrganizerSession } from '../../utils/trekOrganizerSession';
 import { showAppPopup } from '../../utils/appPopup';
 import { useAuth } from '../../context/AuthContext';
+import DetailPageLoader from '../../components/DetailPageLoader';
 
 function resolvePostLoginPath(treks, from) {
     if (from) return from;
@@ -71,14 +72,12 @@ export default function TrekOrganizerLoginPage() {
         }
     };
 
+    if (booting) {
+        return <DetailPageLoader label="Checking your session" variant="trek" />;
+    }
+
     return (
         <div className="min-h-dvh bg-[#0f1011] flex items-center justify-center px-4 py-6 pt-[max(1.5rem,var(--safe-top))] pb-[max(1.5rem,var(--safe-bottom))]">
-            {booting ? (
-                <div className="text-sm text-gray-500 flex items-center gap-2">
-                    <Loader className="animate-spin" size={18} />
-                    Checking your CrwdCtrl session…
-                </div>
-            ) : (
             <div className="w-full max-w-md rounded-2xl border border-gray-800 bg-[#161718] p-6 sm:p-8 shadow-2xl">
                 <button
                     type="button"
@@ -150,7 +149,6 @@ export default function TrekOrganizerLoginPage() {
                     <Link to="/trek-organizer/signup" className="text-[#0ECCEE] hover:underline">create your account</Link>.
                 </p>
             </div>
-            )}
         </div>
     );
 }

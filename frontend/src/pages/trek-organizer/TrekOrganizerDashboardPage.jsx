@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-    Users, UserCheck, Clock, IndianRupee, Loader, Bell, QrCode,
+    Users, UserCheck, Clock, IndianRupee, Bell, QrCode,
     Copy, ExternalLink, RefreshCw, MapPin, Venus, Mars,
     Link2, Share2, Sparkles, ContactRound,
 } from 'lucide-react';
@@ -12,6 +12,7 @@ import {
 import { trekPath } from '../../utils/slugRoutes';
 import { formatOrganizerTrekDate } from '../../utils/trekDateDisplay';
 import TrekOrganizerRegistrationPanel from './TrekOrganizerRegistrationPanel';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 
 function StatTile({ label, value, tone = 'default', icon: Icon, onClick, to, hint }) {
     const navigate = useNavigate();
@@ -147,12 +148,7 @@ export default function TrekOrganizerDashboardPage() {
     }, [publicPath]);
 
     if (loading) {
-        return (
-            <div className="flex flex-col items-center justify-center py-24 gap-3">
-                <Loader className="animate-spin text-[#0ECCEE]" size={28} />
-                <p className="text-xs text-gray-500 tracking-wide">Loading trek dashboard…</p>
-            </div>
-        );
+        return <InlinePageLoader label="Loading trek dashboard…" variant="trek" />;
     }
 
     if (error) {

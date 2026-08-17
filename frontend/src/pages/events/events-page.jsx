@@ -42,7 +42,7 @@ const EVENTS_DESCRIPTION =
 
 import { fetchCatalogJSON } from '../../services/api/catalogCache';
 
-const EVENTS_CACHE_KEY = 'crwdctrl_events_page_v1';
+const EVENTS_CACHE_KEY = 'crwdctrl_events_page_v2';
 const readEventsCache = () => {
     try {
         const raw = sessionStorage.getItem(EVENTS_CACHE_KEY);
@@ -174,7 +174,7 @@ function CommunityEventCard({ show, isDark, isFavorite, onToggleFavorite, onClic
                         {toCardText(show.title)}
                     </p>
                     <p className={`card-event-subtitle line-clamp-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {toCardText(show.date)}
+                        {toCardText(show.basedIn || show.date || show.subtitle)}
                     </p>
                 </div>
                 <CardShareButton

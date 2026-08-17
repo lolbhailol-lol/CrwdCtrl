@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Loader, Search, Users2, Plus, Eye, EyeOff, Edit2, Trash2, ExternalLink, Images } from 'lucide-react';
+import { Search, Users2, Plus, Eye, EyeOff, Edit2, Trash2, ExternalLink, Images, UserCog } from 'lucide-react';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 import EventShowFormModal from '../../components/admin/EventShowFormModal';
 import EventCommunityEventFormModal from '../../components/admin/EventCommunityEventFormModal';
 import EventCommunityFormModal from '../../components/admin/EventCommunityFormModal';
@@ -52,11 +53,11 @@ export default function AdminEventsPage() {
     const fetchCommunities = () => {
         setCommunitiesLoading(true);
         Promise.all([
-            adminFetchJSON('/admin/run-clubs?limit=200'),
+            adminFetchJSON('/admin/run-clubs?limit=200&hub=events'),
             adminFetchJSON('/admin/sports?limit=200'),
         ])
             .then(([clubData, sportData]) => {
-                const hubs = (clubData.clubs || []).filter((c) => c.listingHub === 'events');
+                const hubs = clubData.clubs || [];
                 setCommunities(hubs);
                 setCommunityEvents((sportData.events || []).filter((ev) => ev.runClubId));
                 setExpandedCommunity((prev) => {
@@ -190,14 +191,23 @@ export default function AdminEventsPage() {
                     <Users2 size={20} className="text-[#0ECCEE]" />
                     Event communities
                 </h2>
-                <button
-                    type="button"
-                    onClick={() => { setSelectedCommunity(null); setShowCommunityForm(true); }}
-                    className="flex items-center gap-2 bg-[#0ECCEE] hover:bg-[#0ECCEE]/80 text-black px-4 py-2.5 rounded-xl font-bold text-sm"
-                >
-                    <Plus size={16} />
-                    Add community
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                    <Link
+                        to="/admin/event-community-organizers"
+                        className="flex items-center gap-2 border border-[#0ECCEE]/40 text-[#0ECCEE] hover:bg-[#0ECCEE]/10 px-4 py-2.5 rounded-xl font-bold text-sm"
+                    >
+                        <UserCog size={16} />
+                        Organizers
+                    </Link>
+                    <button
+                        type="button"
+                        onClick={() => { setSelectedCommunity(null); setShowCommunityForm(true); }}
+                        className="flex items-center gap-2 bg-[#0ECCEE] hover:bg-[#0ECCEE]/80 text-black px-4 py-2.5 rounded-xl font-bold text-sm"
+                    >
+                        <Plus size={16} />
+                        Add community
+                    </button>
+                </div>
             </div>
             {communitiesLoading ? (
                 <div className="space-y-3">
@@ -366,9 +376,7 @@ export default function AdminEventsPage() {
             )}
 
             {loading ? (
-                <div className="flex items-center justify-center py-16 text-gray-400">
-                    <Loader className="w-6 h-6 animate-spin text-[#0ECCEE]" />
-                </div>
+                <InlinePageLoader variant="event" minHeight={false} />
             ) : shows.length === 0 ? (
                 <div className="text-center py-12 text-gray-400">
                     No events found. Create your first event!

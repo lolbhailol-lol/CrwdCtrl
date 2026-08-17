@@ -10,6 +10,7 @@ import { authAPI, handleApiError } from '../../services/api/auth.api';
 import CrwdCtrlLogin from '../auth/login';
 import CrwdCtrlRegister from '../auth/register';
 import ProfileAvatarUpload from '../../components/ProfileAvatarUpload';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 
 function EditProfile() {
     const { isDark } = useDarkMode();
@@ -350,9 +351,8 @@ function EditProfile() {
         const storedToken = localStorage.getItem('crwdctrl_token');
 
         return (
-            <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex flex-col items-center justify-center">
-                <Loader2 className="w-8 h-8 animate-spin mb-4" />
-                <p className="text-sm text-gray-500 mb-4">Loading profile data...</p>
+            <div className="crwdctrl-page crwdctrl-page--content min-h-screen">
+                <InlinePageLoader label="Loading profile data..." />
 
                 {/* Debug info */}
                 {import.meta.env.DEV && (

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Loader, QrCode, RefreshCw, Search, Upload } from 'lucide-react';
+import { QrCode, RefreshCw, Search, Upload } from 'lucide-react';
 import CompetitionModal from '../../components/admin/Competition_Modal';
 import CompetitionBulkImport from '../../components/admin/CompetitionBulkImport';
 import CompetitionCheckinQrPrint from '../../components/admin/CompetitionCheckinQrPrint';
 import { adminFetchJSON } from '../../services/api/admin.api.js';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 
 export default function CompetitionsPage() {
   const [fests, setFests] = useState([]);
@@ -86,9 +87,7 @@ export default function CompetitionsPage() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-16 text-gray-400">
-            <Loader className="w-6 h-6 animate-spin text-[#0ECCEE]" />
-          </div>
+          <InlinePageLoader label="Loading fests…" variant="fest" minHeight={false} />
         ) : filteredFests.length === 0 ? (
           <div className="text-center py-12 text-gray-400">
             {fests.length === 0

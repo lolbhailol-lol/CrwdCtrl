@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mountain, ChevronRight, Loader, MapPin, Phone, Instagram, Sparkles, ContactRound } from 'lucide-react';
+import { Mountain, ChevronRight, MapPin, Phone, Instagram, Sparkles, ContactRound } from 'lucide-react';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 import { fetchTrekOrganizerMe } from '../../services/api/trekOrganizer.api';
 import { getTrekOrganizerSession, setTrekOrganizerSession } from '../../utils/trekOrganizerSession';
 import { formatOrganizerTrekDate } from '../../utils/trekDateDisplay';
@@ -49,12 +50,7 @@ export default function TrekOrganizerHomePage() {
     }, []);
 
     if (loading) {
-        return (
-            <div className="flex flex-col items-center justify-center py-24 gap-3">
-                <Loader className="animate-spin text-[#0ECCEE]" />
-                <p className="text-xs text-gray-500">Loading community…</p>
-            </div>
-        );
+        return <InlinePageLoader label="Loading community…" variant="trek" />;
     }
 
     if (error) {

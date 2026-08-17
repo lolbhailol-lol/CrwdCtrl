@@ -6,6 +6,7 @@ import {
 import { adminFetchJSON } from '../../services/api/admin.api.js';
 import { getCardSizeShortLabel } from '../../utils/homeCardSize';
 import { getTargetPageLabel } from '../../utils/pageSections';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 import CardSizePicker from '../../components/admin/CardSizePicker';
 import TargetPagePicker from '../../components/admin/TargetPagePicker';
 import SectionListByPage from '../../components/admin/SectionListByPage';
@@ -161,12 +162,7 @@ export default function PageSectionsPage() {
     };
 
     if (loading) {
-        return (
-            <div className="flex flex-col items-center justify-center gap-3 py-24">
-                <Loader2 size={28} className="animate-spin text-[#0ECCEE]" />
-                <p className="text-sm text-gray-500">Loading page sections…</p>
-            </div>
-        );
+        return <InlinePageLoader label="Loading page sections…" />;
     }
 
     return (

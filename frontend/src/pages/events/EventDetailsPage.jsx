@@ -18,6 +18,7 @@ import { EVENT_TYPE_LABELS, formatEventShowDate } from '../../constants/eventsPa
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { eventShowPath } from '../../utils/slugRoutes';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 import { trackBookNowClick } from '../../services/analyticsService';
 import { getEventShowTiers, isEventShowTiersPricing, formatInr } from '../../utils/eventShowTiers';
 
@@ -271,11 +272,8 @@ export default function EventDetailsPage() {
 
   if (loading) {
     return (
-      <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500 mx-auto mb-4" />
-          <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Loading event…</h2>
-        </div>
+      <div className="crwdctrl-page crwdctrl-page--content min-h-screen">
+        <InlinePageLoader label="Loading event…" variant="event" />
       </div>
     );
   }

@@ -128,7 +128,7 @@ export function applyRunClubOrganizerAuthPayload(data) {
 }
 
 /** Use main CrwdCtrl login to open club manager without a second password. */
-export async function tryRunClubOrganizerAppSession(authToken = null) {
+export async function tryRunClubOrganizerAppSession(authToken = null, hub = '') {
     const existing = getRunClubOrganizerToken();
     if (existing && !isRunClubOrganizerTokenExpired(existing)) {
         return getRunClubOrganizerSession();
@@ -137,7 +137,8 @@ export async function tryRunClubOrganizerAppSession(authToken = null) {
     const token = resolveAuthToken(authToken);
     if (!token) return null;
 
-    const res = await fetch(`${API}/run-club-organizer/auth/app-session`, {
+    const hubQuery = hub ? `?hub=${encodeURIComponent(hub)}` : '';
+    const res = await fetch(`${API}/run-club-organizer/auth/app-session${hubQuery}`, {
         method: 'POST',
         headers: getBearerAuthHeaders(token),
         mode: 'cors',
@@ -172,8 +173,9 @@ export async function runClubOrganizerSignup(payload) {
     });
 }
 
-export async function fetchRunClubOrganizerSignupClubs() {
-    return runClubOrganizerFetch('/run-club-organizer/auth/clubs');
+export async function fetchRunClubOrganizerSignupClubs(hub = '') {
+    const hubQuery = hub ? `?hub=${encodeURIComponent(hub)}` : '';
+    return runClubOrganizerFetch(`/run-club-organizer/auth/clubs${hubQuery}`);
 }
 
 /** Consumer user JWT — whether Profile should show Club manager */

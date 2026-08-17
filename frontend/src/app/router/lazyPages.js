@@ -91,6 +91,7 @@ export const TrekOrganizerScanPage = lazyWithRetry(() => import('../../pages/tre
 export const TrekOrganizerNotificationsPage = lazyWithRetry(() => import('../../pages/trek-organizer/TrekOrganizerNotificationsPage'));
 export const TrekOrganizersPage = lazyWithRetry(() => import('../../pages/admin/TrekOrganizersPage'));
 export const RunClubOrganizersPage = lazyWithRetry(() => import('../../pages/admin/RunClubOrganizersPage'));
+export const EventCommunityOrganizersPage = lazyWithRetry(() => import('../../pages/admin/EventCommunityOrganizersPage'));
 export const FestOrganizersPage = lazyWithRetry(() => import('../../pages/admin/FestOrganizersPage'));
 export const EventOrganizersPage = lazyWithRetry(() => import('../../pages/admin/EventOrganizersPage'));
 
@@ -133,6 +134,7 @@ export const FestOrganizerProShowPage = lazyWithRetry(() => import('../../pages/
 export const FestOrganizerLiveUpdatesPage = lazyWithRetry(() => import('../../pages/fest-organizer/FestOrganizerLiveUpdatesPage'));
 export const FestOrganizerInfoPage = lazyWithRetry(() => import('../../pages/fest-organizer/FestOrganizerInfoPage'));
 export const FestOrganizerListingEditPage = lazyWithRetry(() => import('../../pages/fest-organizer/FestOrganizerListingEditPage'));
+export const FestOrganizerCouponsPage = lazyWithRetry(() => import('../../pages/fest-organizer/FestOrganizerCouponsPage'));
 export const FestStallInterestPage = lazyWithRetry(() => import('../../pages/stall/FestStallInterestPage'));
 export const FestOrganizerLeadsPage = lazyWithRetry(() => import('../../pages/fest-organizer/FestOrganizerLeadsPage'));
 

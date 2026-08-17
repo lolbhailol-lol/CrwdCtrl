@@ -14,6 +14,7 @@ import {
 } from '../../services/api/festOrganizer.api';
 import { useDialog } from '../../context/DialogContext';
 import { getFestOrganizerSession } from '../../utils/festOrganizerSession';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 import { openWhatsApp } from '../../utils/whatsappDeepLink';
 
 const INTERESTS = [
@@ -694,9 +695,7 @@ export default function FestOrganizerLeadsPage() {
                 ) : null}
 
                 {loading ? (
-                    <div className="flex justify-center py-12 text-gray-400 gap-2">
-                        <Loader className="animate-spin" size={18} /> Loading…
-                    </div>
+                    <InlinePageLoader label="Loading…" variant="fest" minHeight={false} />
                 ) : (
                     <div className="space-y-2">
                         {leads.map((lead) => {

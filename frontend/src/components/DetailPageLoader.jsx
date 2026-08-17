@@ -1,14 +1,45 @@
 import { createPortal } from 'react-dom';
-import { ArrowLeft, Trophy } from 'lucide-react';
+import {
+  ArrowLeft,
+  Calendar,
+  CreditCard,
+  Flag,
+  Footprints,
+  Mountain,
+  Ticket,
+  Trophy,
+} from 'lucide-react';
+import { isHomeHubPath } from '../utils/homeShellReady';
 
-/** Reusable floating 3D card — default CrwdCtrl mark or competition trophy */
+function readShellDark() {
+  if (typeof document === 'undefined') return false;
+  return document.documentElement.classList.contains('dark');
+}
+
+function shellBgClass(isDark = readShellDark()) {
+  return isDark ? 'bg-[#161718]' : 'bg-white';
+}
+
+const LOADER_VARIANT_ICONS = {
+  competition: Trophy,
+  trek: Mountain,
+  event: Calendar,
+  booking: Ticket,
+  payment: CreditCard,
+  run: Footprints,
+  fest: Flag,
+};
+
+/** Reusable floating 3D card — default CrwdCtrl mark or contextual icon */
 export function DetailLoader3DIcon({
   variant = 'default',
   size = 'md',
   className = '',
 }) {
   const stageClass =
-    size === 'hero'
+    size === 'splash'
+      ? 'detail-loader-stage detail-loader-stage--splash'
+      : size === 'hero'
       ? 'detail-loader-stage detail-loader-stage--hero'
       : size === 'compact'
         ? 'detail-loader-stage detail-loader-stage--compact'
@@ -16,13 +47,17 @@ export function DetailLoader3DIcon({
           ? 'detail-loader-stage detail-loader-stage--mini'
           : 'detail-loader-stage';
 
+  const VariantIcon = LOADER_VARIANT_ICONS[variant];
+
   return (
     <div className={`${stageClass} shrink-0 ${className}`.trim()} aria-hidden>
       <div className="detail-loader-orb" />
       <div className="detail-loader-card">
         <div className="detail-loader-card-face detail-loader-card-front">
-          {variant === 'competition' ? (
-            <Trophy className="detail-loader-icon detail-loader-icon--competition" strokeWidth={2.25} />
+          {variant === 'brand' ? (
+            <span className="detail-loader-mark detail-loader-mark--brand">ctrl</span>
+          ) : VariantIcon ? (
+            <VariantIcon className="detail-loader-icon" strokeWidth={2.25} />
           ) : (
             <span className="detail-loader-mark">C</span>
           )}
@@ -33,6 +68,73 @@ export function DetailLoader3DIcon({
       </div>
     </div>
   );
+}
+
+/** Inline page/section loader — sits inside layouts (organizer, admin, booking, etc.) */
+export function InlinePageLoader({
+  label = '',
+  variant = 'default',
+  size = 'md',
+  className = '',
+  labelClassName = 'text-sm text-gray-400',
+  minHeight = true,
+}) {
+  return (
+    <div
+      className={`flex flex-col items-center justify-center gap-4 ${
+        minHeight ? 'min-h-[50vh] py-16' : 'py-12'
+      } ${className}`.trim()}
+      role="status"
+      aria-live="polite"
+      aria-label={label || 'Loading'}
+    >
+      <DetailLoader3DIcon variant={variant} size={size} />
+      {label ? <p className={labelClassName}>{label}</p> : null}
+    </div>
+  );
+}
+
+/** Full-viewport home hub loader — one overlay for boot handoff, Suspense, and data fetch */
+export function HomeHubLoadingScreen() {
+  const node = (
+    <div
+      className={`home-hub-loading-screen fixed inset-0 z-100020 flex items-center justify-center ${shellBgClass()}`}
+      style={{
+        paddingTop: 'max(var(--safe-top), 0px)',
+        paddingBottom: 'max(var(--safe-bottom), 0px)',
+        paddingLeft: 'max(var(--safe-left), 0px)',
+        paddingRight: 'max(var(--safe-right), 0px)',
+      }}
+      role="status"
+      aria-live="polite"
+      aria-label="Loading"
+    >
+      <DetailLoader3DIcon variant="brand" size="splash" />
+    </div>
+  );
+
+  if (typeof document === 'undefined') return node;
+  return createPortal(node, document.body);
+}
+
+/** Suspense / lazy-route fallback */
+export function RouteLoadingFallback({ className = '' }) {
+  if (typeof window !== 'undefined' && isHomeHubPath(window.location.pathname)) {
+    return null;
+  }
+
+  const node = (
+    <div
+      className={`fixed inset-0 z-100020 flex items-center justify-center ${shellBgClass()} ${className}`.trim()}
+      aria-busy="true"
+      aria-label="Loading page"
+    >
+      <DetailLoader3DIcon variant="brand" size="hero" />
+    </div>
+  );
+
+  if (typeof document === 'undefined') return node;
+  return createPortal(node, document.body);
 }
 
 /**

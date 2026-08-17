@@ -67,6 +67,10 @@
           // WhatsApp / shared fest links: tiny logo, then the page — no black spinner
           document.documentElement.classList.add('short-boot-splash');
         }
+        if (p === '/' || p === '/dashboard') {
+          document.documentElement.dataset.homeHubLoading = '1';
+          document.body.classList.add('page-content-loading');
+        }
       } catch (e) {}
     })();
   </script>
@@ -96,10 +100,11 @@
   <link rel="canonical" href="https://www.crwdctrl.in/" />
 
   <!-- Favicon / site icon (shown in Google Search results) -->
-  <link rel="icon" type="image/png" href="/favicon.png" sizes="48x48" />
-  <link rel="icon" type="image/png" href="/icon-192x192.png" sizes="192x192" />
-  <link rel="icon" type="image/png" href="/icon-512x512.png" sizes="512x512" />
-  <link rel="apple-touch-icon" href="/icon-192x192.png" />
+  <link rel="icon" href="https://www.crwdctrl.in/favicon.ico" sizes="48x48" />
+  <link rel="icon" type="image/png" href="https://www.crwdctrl.in/favicon.png" sizes="192x192" />
+  <link rel="icon" type="image/png" href="https://www.crwdctrl.in/icon-192x192.png" sizes="192x192" />
+  <link rel="icon" type="image/png" href="https://www.crwdctrl.in/icon-512x512.png" sizes="512x512" />
+  <link rel="apple-touch-icon" href="https://www.crwdctrl.in/icon-192x192.png" />
 
   <!-- Open Graph / social -->
   <meta property="og:type" content="website" />
@@ -135,7 +140,7 @@
         "url": "https://www.crwdctrl.in",
         "logo": {
           "@type": "ImageObject",
-          "url": "https://www.crwdctrl.in/logo-crwdctrl.png",
+          "url": "https://www.crwdctrl.in/icon-512x512.png",
           "width": 512,
           "height": 512
         },

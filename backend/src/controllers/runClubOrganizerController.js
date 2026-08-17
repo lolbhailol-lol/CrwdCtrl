@@ -245,17 +245,26 @@ async function buildOrganizerAuthResponse(organizer) {
 /** Published clubs for signup dropdown (id + name + city only). */
 exports.listSignupClubs = async (req, res) => {
     try {
-        const clubs = await RunClub.find({
-            status: 'published',
-            $or: [
+        const hub = String(req.query.hub || '').toLowerCase();
+        const filter = { status: 'published' };
+        if (hub === 'events') {
+            filter.listingHub = 'events';
+        } else if (hub === 'sports') {
+            filter.listingHub = { $ne: 'events' };
+            filter.showOnSportsPage = { $ne: false };
+            filter.showInRunClubs = { $ne: false };
+        } else {
+            filter.$or = [
                 { listingHub: 'events' },
                 {
                     listingHub: { $ne: 'events' },
                     showOnSportsPage: { $ne: false },
                     showInRunClubs: { $ne: false },
                 },
-            ],
-        })
+            ];
+        }
+
+        const clubs = await RunClub.find(filter)
             .select('name basedIn listingHub')
             .sort({ name: 1 })
             .limit(200)
@@ -277,51 +286,53 @@ exports.listSignupClubs = async (req, res) => {
 };
 
 /**
- * Consumer Profile sidebar: only allowlisted emails see Club manager.
+ * Consumer Profile sidebar: allowlisted emails see Club manager / Community organizer.
  * Requires normal user JWT (not organizer token).
- * Eligible if Profile-emails invite OR approved organizer account with same email.
  */
 exports.profileEligible = async (req, res) => {
     try {
         const userId = req.user?.userId;
         if (!userId) {
-            return res.json({ success: true, eligible: false });
+            return res.json({ success: true, eligible: false, sportsEligible: false, eventsEligible: false });
         }
         const User = require('../model/usermodel');
         const user = await User.findById(userId).select('email').lean();
         const email = String(user?.email || '').trim().toLowerCase();
         if (!email) {
-            return res.json({ success: true, eligible: false });
+            return res.json({ success: true, eligible: false, sportsEligible: false, eventsEligible: false });
         }
 
-        // Exact match first (normalized invites), then case-insensitive for legacy rows
-        let invite = await RunClubManagerProfileInvite.findOne({
-            email,
+        const emailRegex = new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+        const invites = await RunClubManagerProfileInvite.find({
+            $or: [{ email }, { email: emailRegex }],
             isActive: true,
-        }).select('_id').lean();
+        }).select('listingHub').lean();
 
-        if (!invite) {
-            invite = await RunClubManagerProfileInvite.findOne({
-                email: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
-                isActive: true,
-            }).select('_id').lean();
-        }
-
-        if (invite) {
-            return res.json({ success: true, eligible: true });
-        }
+        let sportsEligible = invites.some((i) => i.listingHub !== 'events');
+        let eventsEligible = invites.some((i) => i.listingHub === 'events');
 
         const organizers = await RunClubOrganizerAccount.find({
-            $or: [
-                { email },
-                { email: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
-            ],
-        }).lean();
-        const approved = organizers.some((org) => RunClubOrganizerAccount.canLogin(org));
-        res.json({ success: true, eligible: approved });
+            $or: [{ email }, { email: emailRegex }],
+        })
+            .populate('runClubId', 'listingHub')
+            .lean();
+
+        for (const org of organizers) {
+            if (!RunClubOrganizerAccount.canLogin(org)) continue;
+            const hub = org.runClubId?.listingHub === 'events' ? 'events' : 'sports';
+            if (hub === 'events') eventsEligible = true;
+            else sportsEligible = true;
+        }
+
+        res.json({
+            success: true,
+            eligible: sportsEligible || eventsEligible,
+            sportsEligible,
+            eventsEligible,
+        });
     } catch (error) {
         console.error('[runClubOrganizer.profileEligible]', error);
-        res.status(500).json({ success: false, eligible: false, message: 'Failed to check access' });
+        res.status(500).json({ success: false, eligible: false, sportsEligible: false, eventsEligible: false, message: 'Failed to check access' });
     }
 };
 
@@ -332,6 +343,7 @@ exports.profileEligible = async (req, res) => {
 exports.appSession = async (req, res) => {
     try {
         const userId = req.user?.userId;
+        const hub = String(req.query.hub || req.body?.hub || '').toLowerCase();
         if (!userId) {
             return res.status(401).json({ success: false, message: 'Sign in to CrwdCtrl first' });
         }
@@ -342,7 +354,9 @@ exports.appSession = async (req, res) => {
         if (!email) {
             return res.status(403).json({
                 success: false,
-                message: 'Add an email to your CrwdCtrl account to use Club manager',
+                message: hub === 'events'
+                    ? 'Add an email to your CrwdCtrl account to use Community organizer'
+                    : 'Add an email to your CrwdCtrl account to use Club manager',
             });
         }
 
@@ -351,13 +365,25 @@ exports.appSession = async (req, res) => {
                 { email },
                 { email: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
             ],
-        }).sort({ updatedAt: -1 });
-        const organizer = organizers.find((org) => RunClubOrganizerAccount.canLogin(org));
+        })
+            .populate('runClubId', 'listingHub')
+            .sort({ updatedAt: -1 });
+
+        const organizer = organizers.find((org) => {
+            if (!RunClubOrganizerAccount.canLogin(org)) return false;
+            const clubHub = org.runClubId?.listingHub === 'events' ? 'events' : 'sports';
+            if (hub === 'events') return clubHub === 'events';
+            if (hub === 'sports') return clubHub !== 'events';
+            return true;
+        });
+
         if (!organizer) {
             return res.status(403).json({
                 success: false,
                 code: 'no_organizer_account',
-                message: 'No approved club manager account for this email. Create one or sign in with your organizer username and password.',
+                message: hub === 'events'
+                    ? 'No approved community organizer account for this email. Create one or sign in with your organizer username and password.'
+                    : 'No approved club manager account for this email. Create one or sign in with your organizer username and password.',
             });
         }
 
@@ -365,7 +391,7 @@ exports.appSession = async (req, res) => {
         res.json(payload);
     } catch (error) {
         console.error('[runClubOrganizer.appSession]', error);
-        res.status(500).json({ success: false, message: 'Failed to open club manager session' });
+        res.status(500).json({ success: false, message: 'Failed to open organizer session' });
     }
 };
 
@@ -384,7 +410,7 @@ exports.signup = async (req, res) => {
         if (!email) {
             return res.status(400).json({
                 success: false,
-                message: 'Email is required — use the same email CrwdCtrl approved for Club manager access',
+                message: 'Email is required — use the same email CrwdCtrl approved for organizer access',
             });
         }
         if (username.length < 3) {
@@ -397,28 +423,33 @@ exports.signup = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Password must be at least 8 characters' });
         }
         if (!runClubId || !mongoose.Types.ObjectId.isValid(runClubId)) {
-            return res.status(400).json({ success: false, message: 'Select a valid run club' });
-        }
-
-        const invite = await RunClubManagerProfileInvite.findOne({
-            email,
-            isActive: true,
-        }).select('_id').lean();
-        if (!invite) {
-            return res.status(403).json({
-                success: false,
-                code: 'invite_required',
-                message:
-                    'This email is not approved for club manager signup. Ask CrwdCtrl to add your email under Admin → Profile emails first.',
-            });
+            return res.status(400).json({ success: false, message: 'Select a valid community' });
         }
 
         const runClub = await RunClub.findOne({
             _id: runClubId,
             status: 'published',
-        }).select('_id name').lean();
+        }).select('_id name listingHub').lean();
         if (!runClub) {
-            return res.status(400).json({ success: false, message: 'Run club not found or not published yet' });
+            return res.status(400).json({ success: false, message: 'Community not found or not published yet' });
+        }
+
+        const clubHub = runClub.listingHub === 'events' ? 'events' : 'sports';
+        const inviteFilter = { email, isActive: true };
+        if (clubHub === 'events') {
+            inviteFilter.listingHub = 'events';
+        } else {
+            inviteFilter.listingHub = { $ne: 'events' };
+        }
+        const invite = await RunClubManagerProfileInvite.findOne(inviteFilter).select('_id listingHub').lean();
+        if (!invite) {
+            return res.status(403).json({
+                success: false,
+                code: 'invite_required',
+                message: clubHub === 'events'
+                    ? 'This email is not approved for event community signup. Ask CrwdCtrl to invite you under Admin → Events → Organizers.'
+                    : 'This email is not approved for club manager signup. Ask CrwdCtrl to add your email under Admin → Profile emails first.',
+            });
         }
 
         const existing = await RunClubOrganizerAccount.findOne({ username });

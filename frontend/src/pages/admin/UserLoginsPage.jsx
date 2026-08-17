@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { adminFetchJSON } from '../../services/api/admin.api.js';
 import { normalizeImageUrl } from '../../utils/uploadUrls';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 
 const ROLE_FILTERS = [
     { id: 'all', label: 'All roles' },
@@ -299,9 +300,7 @@ export default function UserLoginsPage() {
 
                 <div className="p-4 space-y-3 min-h-[300px]">
                     {loading ? (
-                        <div className="flex items-center justify-center gap-2 py-20 text-sm text-gray-500">
-                            <Loader2 size={18} className="animate-spin text-[#0ECCEE]" /> Loading users…
-                        </div>
+                        <InlinePageLoader label="Loading users…" minHeight={false} />
                     ) : users.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-20 text-gray-600">
                             <Users size={36} className="mb-2 opacity-40" />

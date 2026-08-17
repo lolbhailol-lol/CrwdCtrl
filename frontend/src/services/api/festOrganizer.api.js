@@ -169,6 +169,30 @@ export async function fetchFestOrganizerDashboard(festId) {
     return festOrganizerFetch(`/fest-organizer/fests/${festId}/dashboard`);
 }
 
+export async function fetchFestOrganizerCoupons(festId) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/coupons`);
+}
+
+export async function createFestOrganizerCoupon(festId, body) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/coupons`, {
+        method: 'POST',
+        body,
+    });
+}
+
+export async function updateFestOrganizerCoupon(festId, couponId, body) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/coupons/${couponId}`, {
+        method: 'PATCH',
+        body,
+    });
+}
+
+export async function deleteFestOrganizerCoupon(festId, couponId) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/coupons/${couponId}`, {
+        method: 'DELETE',
+    });
+}
+
 export async function fetchFestOrganizerProShow(festId) {
     return festOrganizerFetch(`/fest-organizer/fests/${festId}/pro-show`);
 }

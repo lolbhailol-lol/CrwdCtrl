@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Footprints, Plus, Loader, Pencil, Trash2, Search, Check, X } from 'lucide-react';
+import { Footprints, Users, Plus, Pencil, Trash2, Search, Check, X } from 'lucide-react';
+import { DetailLoader3DIcon } from '../../components/DetailPageLoader';
 import { adminFetchJSON } from '../../services/api/admin.api.js';
 import { useDialog } from '../../context/DialogContext';
+import { COMMUNITY_ORGANIZER_HUB_COPY } from '../../constants/communityOrganizersAdmin.js';
 
 const emptyForm = {
     name: '',
@@ -27,7 +29,9 @@ function statusBadge(org) {
     return <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400">Approved</span>;
 }
 
-export default function RunClubOrganizersPage() {
+export function CommunityOrganizersAdminPage({ hub = 'sports' }) {
+    const copy = COMMUNITY_ORGANIZER_HUB_COPY[hub] || COMMUNITY_ORGANIZER_HUB_COPY.sports;
+    const HubIcon = copy.icon === 'users' ? Users : Footprints;
     const { confirm, toast } = useDialog();
     const [organizers, setOrganizers] = useState([]);
     const [pendingCount, setPendingCount] = useState(0);
@@ -47,11 +51,13 @@ export default function RunClubOrganizersPage() {
     const [inviteSaving, setInviteSaving] = useState(false);
 
     const organizerLoginUrl = typeof window !== 'undefined'
-        ? `${window.location.origin}/run-club-organizer/login`
-        : '/run-club-organizer/login';
+        ? `${window.location.origin}/run-club-organizer/login${copy.signupUrlSuffix}`
+        : `/run-club-organizer/login${copy.signupUrlSuffix}`;
     const organizerSignupUrl = typeof window !== 'undefined'
-        ? `${window.location.origin}/run-club-organizer/signup`
-        : '/run-club-organizer/signup';
+        ? `${window.location.origin}/run-club-organizer/signup${copy.signupUrlSuffix}`
+        : `/run-club-organizer/signup${copy.signupUrlSuffix}`;
+
+    const hubQuery = `hub=${hub}`;
 
     const copyUrl = async (url, label) => {
         try {
@@ -65,11 +71,11 @@ export default function RunClubOrganizersPage() {
     const load = async () => {
         setLoading(true);
         try {
-            const statusParam = tab === 'all' ? '' : `?status=${tab}`;
+            const statusParam = tab === 'all' ? `?${hubQuery}` : `?status=${tab}&${hubQuery}`;
             const [orgData, clubData, inviteData] = await Promise.all([
                 adminFetchJSON(`/admin/run-club-organizers${statusParam}`),
-                adminFetchJSON('/admin/run-clubs?limit=500'),
-                adminFetchJSON('/admin/run-club-organizers/profile-invites').catch(() => ({ invites: [] })),
+                adminFetchJSON(`/admin/run-clubs?limit=500&hub=${hub}`),
+                adminFetchJSON(`/admin/run-club-organizers/profile-invites?${hubQuery}`).catch(() => ({ invites: [] })),
             ]);
             setOrganizers(orgData.organizers || []);
             setPendingCount(orgData.pendingCount ?? 0);
@@ -84,7 +90,7 @@ export default function RunClubOrganizersPage() {
 
     useEffect(() => {
         load();
-    }, [tab]);
+    }, [tab, hub]);
 
     const addInvite = async (e) => {
         e.preventDefault();
@@ -95,11 +101,11 @@ export default function RunClubOrganizersPage() {
         }
         setInviteSaving(true);
         try {
-            await adminFetchJSON('/admin/run-club-organizers/profile-invites', {
+            const data = await adminFetchJSON('/admin/run-club-organizers/profile-invites', {
                 method: 'POST',
-                body: JSON.stringify({ email, note: inviteNote.trim() }),
+                body: JSON.stringify({ email, note: inviteNote.trim(), listingHub: hub }),
             });
-            toast('Email approved for Profile → Club manager');
+            toast(data.message || copy.profileInviteToast);
             setInviteEmail('');
             setInviteNote('');
             load();
@@ -111,7 +117,7 @@ export default function RunClubOrganizersPage() {
     };
 
     const removeInvite = async (invite) => {
-        const ok = await confirm(`Remove ${invite.email} from Club manager profile access?`);
+        const ok = await confirm(`${copy.profileInviteRemove.replace('?', '')} (${invite.email})?`);
         if (!ok) return;
         try {
             await adminFetchJSON(`/admin/run-club-organizers/profile-invites/${invite._id}`, {
@@ -186,7 +192,7 @@ export default function RunClubOrganizersPage() {
                     return;
                 }
                 if (!form.runClubId) {
-                    toast('Select a run club');
+                    toast(`Select a ${copy.clubFieldLabel.toLowerCase()}`);
                     setSaving(false);
                     return;
                 }
@@ -209,13 +215,13 @@ export default function RunClubOrganizersPage() {
     const approve = async (org) => {
         setActionBusy(org._id);
         try {
-            await adminFetchJSON(`/admin/run-club-organizers/${org._id}/approve`, {
+            const data = await adminFetchJSON(`/admin/run-club-organizers/${org._id}/approve`, {
                 method: 'POST',
                 body: JSON.stringify({
                     runClubId: org.runClubId?._id || org.runClubId || undefined,
                 }),
             });
-            toast('Approved — they can sign in. Club manager also shows in Profile if this email matches their CrwdCtrl login.');
+            toast(data.message || copy.approveToast);
             load();
         } catch (err) {
             toast(err.message || 'Approve failed');
@@ -271,11 +277,8 @@ export default function RunClubOrganizersPage() {
         <div className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-bold">Run Club Organizers</h1>
-                    <p className="text-sm text-gray-500">
-                        Approve club logins, and choose which app emails see Club manager in Profile.
-                        Approved organizers whose email matches their CrwdCtrl login also see Club manager automatically.
-                    </p>
+                    <h1 className="text-2xl font-bold">{copy.title}</h1>
+                    <p className="text-sm text-gray-500">{copy.subtitle}</p>
                 </div>
                 {section === 'accounts' ? (
                     <button
@@ -291,7 +294,7 @@ export default function RunClubOrganizersPage() {
 
             {section === 'accounts' && runClubs.length === 0 && !loading ? (
                 <div className="rounded-xl border border-amber-800/60 bg-amber-900/15 px-4 py-3 text-sm text-amber-200">
-                    Publish a run club under Admin → Sports / Run Clubs first, then you can add a club organizer.
+                    {copy.emptyClubs}
                 </div>
             ) : null}
 
@@ -319,12 +322,8 @@ export default function RunClubOrganizersPage() {
                 <div className="space-y-4">
                     <div className="rounded-xl border border-gray-800 bg-[#161718] p-4 space-y-3">
                         <div>
-                            <h2 className="text-sm font-semibold text-white">Approve Profile → Club manager</h2>
-                            <p className="text-xs text-gray-500 mt-1">
-                                These CrwdCtrl user emails see Club manager in Profile and can request signup.
-                                Separately approve the organizer username under Organizer accounts.
-                                Tip: if you already approved an organizer with the same email, Profile shows Club manager without adding them here.
-                            </p>
+                            <h2 className="text-sm font-semibold text-white">{copy.profileSectionTitle}</h2>
+                            <p className="text-xs text-gray-500 mt-1">{copy.profileSectionHint}</p>
                         </div>
                         <form onSubmit={addInvite} className="flex flex-col sm:flex-row gap-2">
                             <input
@@ -353,7 +352,7 @@ export default function RunClubOrganizersPage() {
 
                     <div className="rounded-xl border border-gray-800 overflow-hidden">
                         {loading ? (
-                            <div className="py-16 flex justify-center"><Loader className="animate-spin text-[#0ECCEE]" /></div>
+                            <div className="py-16 flex justify-center"><DetailLoader3DIcon size="compact" variant="run" /></div>
                         ) : (
                             <table className="w-full text-sm">
                                 <thead className="bg-[#111213] text-gray-500 text-[11px] uppercase">
@@ -368,7 +367,7 @@ export default function RunClubOrganizersPage() {
                                     {invites.length === 0 ? (
                                         <tr>
                                             <td colSpan={4} className="px-4 py-12 text-center text-gray-500">
-                                                No emails yet — add a user email to show Club manager in their Profile
+                                                No emails yet — add a user email to show {copy.profileLabel} in their Profile
                                             </td>
                                         </tr>
                                     ) : invites.map((inv) => (
@@ -431,14 +430,14 @@ export default function RunClubOrganizersPage() {
 
             <div className="rounded-xl border border-gray-800 overflow-hidden">
                 {loading ? (
-                    <div className="py-16 flex justify-center"><Loader className="animate-spin text-[#0ECCEE]" /></div>
+                    <div className="py-16 flex justify-center"><DetailLoader3DIcon size="compact" variant="run" /></div>
                 ) : (
                     <table className="w-full text-sm">
                         <thead className="bg-[#111213] text-gray-500 text-[11px] uppercase">
                             <tr>
                                 <th className="text-left px-4 py-3">Name</th>
                                 <th className="text-left px-4 py-3">Username</th>
-                                <th className="text-left px-4 py-3 hidden md:table-cell">Run club</th>
+                                <th className="text-left px-4 py-3 hidden md:table-cell">{copy.clubFieldLabel}</th>
                                 <th className="text-left px-4 py-3">Status</th>
                                 <th className="text-right px-4 py-3">Actions</th>
                             </tr>
@@ -518,7 +517,7 @@ export default function RunClubOrganizersPage() {
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                     <button type="button" className="absolute inset-0 bg-black/60" onClick={() => setModalOpen(false)} aria-label="Close" />
                     <form onSubmit={save} className="relative w-full max-w-lg max-h-[90dvh] overflow-y-auto rounded-2xl border border-gray-800 bg-[#161718] p-5 space-y-4">
-                        <h2 className="text-lg font-bold flex items-center gap-2"><Footprints size={18} className="text-[#0ECCEE]" />{editing ? 'Edit organizer' : 'New organizer (support)'}</h2>
+                        <h2 className="text-lg font-bold flex items-center gap-2"><HubIcon size={18} className="text-[#0ECCEE]" />{editing ? 'Edit organizer' : 'New organizer (support)'}</h2>
                         <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Display name" className="w-full px-3 py-2.5 rounded-xl bg-[#111213] border border-gray-800 text-sm" />
                         <div>
                             <label className="block text-xs font-medium text-gray-400 mb-1">Username</label>
@@ -531,18 +530,21 @@ export default function RunClubOrganizersPage() {
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-gray-400 mb-1">Run club</label>
+                            <label className="block text-xs font-medium text-gray-400 mb-1">{copy.clubFieldLabel}</label>
                             <select
                                 required
                                 value={form.runClubId}
                                 onChange={(e) => setForm({ ...form, runClubId: e.target.value })}
                                 className="w-full px-3 py-2.5 rounded-xl bg-[#111213] border border-gray-800 text-sm"
                             >
-                                <option value="">Select run club</option>
+                                <option value="">{copy.clubSelectPlaceholder}</option>
                                 {runClubs.map((c) => (
                                     <option key={c._id} value={c._id}>{c.name}{c.basedIn ? ` · ${c.basedIn}` : ''}</option>
                                 ))}
                             </select>
+                            {runClubs.length === 0 ? (
+                                <p className="text-[11px] text-amber-400/90 mt-1.5">{copy.emptyClubs}</p>
+                            ) : null}
                         </div>
                         <div>
                             <label className="block text-xs font-medium text-gray-400 mb-1">{editing ? 'New password (optional)' : 'Password'}</label>
@@ -573,4 +575,8 @@ export default function RunClubOrganizersPage() {
             ) : null}
         </div>
     );
+}
+
+export default function RunClubOrganizersPage() {
+    return <CommunityOrganizersAdminPage hub="sports" />;
 }

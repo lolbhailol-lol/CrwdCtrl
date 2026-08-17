@@ -1,14 +1,20 @@
-import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Footprints, Loader, ArrowLeft } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Footprints, Users, Loader, ArrowLeft } from 'lucide-react';
 import { DetailLoader3DIcon } from '../../components/DetailPageLoader';
 import {
     fetchRunClubOrganizerSignupClubs,
     runClubOrganizerSignup,
 } from '../../services/api/runClubOrganizer.api';
+import { organizerHubCopy } from '../../utils/listingHubCopy';
 
 export default function RunClubOrganizerSignupPage() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const isEventHub = searchParams.get('hub') === 'events';
+    const copy = useMemo(() => organizerHubCopy(isEventHub), [isEventHub]);
+    const HubIcon = isEventHub ? Users : Footprints;
+
     const [clubs, setClubs] = useState([]);
     const [loadingClubs, setLoadingClubs] = useState(true);
     const [name, setName] = useState('');
@@ -25,7 +31,7 @@ export default function RunClubOrganizerSignupPage() {
         let cancelled = false;
         (async () => {
             try {
-                const data = await fetchRunClubOrganizerSignupClubs();
+                const data = await fetchRunClubOrganizerSignupClubs(isEventHub ? 'events' : 'sports');
                 if (!cancelled) {
                     setClubs(data.clubs || []);
                     if (data.clubs?.length === 1) setRunClubId(String(data.clubs[0].id));
@@ -37,18 +43,18 @@ export default function RunClubOrganizerSignupPage() {
             }
         })();
         return () => { cancelled = true; };
-    }, []);
+    }, [isEventHub]);
 
     const submit = async (e) => {
         e.preventDefault();
         setError('');
         setSuccess('');
         if (!email.trim()) {
-            setError('Email is required — use the email CrwdCtrl approved for Club manager');
+            setError(`Email is required — ${copy.signupEmailHint}`);
             return;
         }
         if (!runClubId) {
-            setError('Select your run club');
+            setError(`Select your ${copy.signupClubLabel.toLowerCase()}`);
             return;
         }
         if (password.length < 8) {
@@ -66,7 +72,7 @@ export default function RunClubOrganizerSignupPage() {
                 runClubId,
             });
             setSuccess(data.message || 'Account created. Await CrwdCtrl approval before signing in.');
-            setTimeout(() => navigate('/run-club-organizer/login', { replace: true }), 2200);
+            setTimeout(() => navigate(copy.signupLoginPath, { replace: true }), 2200);
         } catch (err) {
             setError(err.message || 'Signup failed');
         } finally {
@@ -87,16 +93,16 @@ export default function RunClubOrganizerSignupPage() {
 
                 <div className="flex items-center gap-3 mb-6">
                     <div className="size-12 rounded-xl bg-[#0ECCEE]/10 flex items-center justify-center">
-                        <Footprints className="text-[#0ECCEE]" size={24} />
+                        <HubIcon className="text-[#0ECCEE]" size={24} />
                     </div>
                     <div>
-                        <h1 className="text-xl font-bold">Create club manager account</h1>
-                        <p className="text-xs text-gray-500">Invite-only — then CrwdCtrl approves login</p>
+                        <h1 className="text-xl font-bold">{copy.signupTitle}</h1>
+                        <p className="text-xs text-gray-500">{copy.signupHint}</p>
                     </div>
                 </div>
 
                 <p className="text-[11px] text-gray-500 mb-4 rounded-lg border border-gray-800 bg-[#111213] px-3 py-2">
-                    Use the same email CrwdCtrl added under Profile emails. After signup, wait for account approval before signing in.
+                    {copy.signupEmailHint}
                 </p>
 
                 {error ? (
@@ -115,7 +121,7 @@ export default function RunClubOrganizerSignupPage() {
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             className="w-full bg-[#111213] border border-gray-700 rounded-xl px-4 py-3.5 text-white text-base focus:outline-none focus:border-[#0ECCEE] min-h-[48px]"
-                            placeholder="you@club.com"
+                            placeholder="you@example.com"
                             autoComplete="email"
                         />
                     </div>
@@ -130,11 +136,11 @@ export default function RunClubOrganizerSignupPage() {
                         />
                     </div>
                     <div>
-                        <label className="block text-xs font-medium text-gray-400 mb-1.5">Run club</label>
+                        <label className="block text-xs font-medium text-gray-400 mb-1.5">{copy.signupClubLabel}</label>
                         {loadingClubs ? (
                             <div className="flex items-center gap-3 text-sm text-gray-500 py-3">
                                 <DetailLoader3DIcon size="mini" />
-                                Loading clubs…
+                                Loading…
                             </div>
                         ) : (
                             <select
@@ -143,7 +149,7 @@ export default function RunClubOrganizerSignupPage() {
                                 onChange={(e) => setRunClubId(e.target.value)}
                                 className="w-full bg-[#111213] border border-gray-700 rounded-xl px-4 py-3.5 text-white text-base focus:outline-none focus:border-[#0ECCEE] min-h-[48px]"
                             >
-                                <option value="">Select your club</option>
+                                <option value="">Select {copy.signupClubLabel.toLowerCase()}</option>
                                 {clubs.map((c) => (
                                     <option key={c.id} value={c.id}>
                                         {c.name}{c.basedIn ? ` · ${c.basedIn}` : ''}
@@ -152,7 +158,7 @@ export default function RunClubOrganizerSignupPage() {
                             </select>
                         )}
                         {!loadingClubs && clubs.length === 0 ? (
-                            <p className="text-[11px] text-amber-400/90 mt-1.5">No published clubs yet. Ask CrwdCtrl to publish your club first.</p>
+                            <p className="text-[11px] text-amber-400/90 mt-1.5">{copy.signupClubEmpty}</p>
                         ) : null}
                     </div>
                     <div>
@@ -164,7 +170,7 @@ export default function RunClubOrganizerSignupPage() {
                             value={username}
                             onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
                             className="w-full bg-[#111213] border border-gray-700 rounded-xl px-4 py-3.5 text-white text-base font-mono focus:outline-none focus:border-[#0ECCEE] min-h-[48px]"
-                            placeholder="e.g. sunday_runners"
+                            placeholder="e.g. delulu_ops"
                             minLength={3}
                         />
                     </div>
@@ -202,7 +208,7 @@ export default function RunClubOrganizerSignupPage() {
 
                 <p className="text-[11px] text-gray-600 mt-5 text-center">
                     Already have an account?{' '}
-                    <Link to="/run-club-organizer/login" className="text-[#0ECCEE] hover:underline">Sign in</Link>
+                    <Link to={copy.signupLoginPath} className="text-[#0ECCEE] hover:underline">Sign in</Link>
                 </p>
             </div>
         </div>

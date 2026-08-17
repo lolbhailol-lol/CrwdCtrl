@@ -13,7 +13,7 @@ import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator
 import { normalizeImageList, normalizeImageUrl } from '../../utils/uploadUrls';
 import { shareContent, openExternalUrl } from '../../utils/externalLink';
 import DetailPageLoader, { DetailLoader3DIcon } from '../../components/DetailPageLoader';
-import { normalizeRunCategory } from '../../constants/runClubCategories';
+import { eventCommunityCategoryChips, normalizeEventCommunityCategory } from '../../constants/eventCommunityCategories';
 import {
     AnimatedCard,
     AnimatedCounter,
@@ -28,14 +28,13 @@ import {
     fetchSportsByRunClub,
 } from '../../services/api/public.api';
 import { eventCommunityPath, eventCommunityEventPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
-import { organizerHubCopy } from '../../utils/listingHubCopy';
 import {
     classifyDetailLoadError,
     isTransientDetailError,
     createDetailCache,
 } from '../../utils/detailPageLoad';
 
-const runClubDetailCache = createDetailCache('crwdctrl_event_community_v1_');
+const runClubDetailCache = createDetailCache('crwdctrl_event_community_v2_');
 
 const resolveGallerySrc = (url, preset = 'thumb') =>
     getImageUrl(url, { preset }) || normalizeImageUrl(url) || url;
@@ -230,13 +229,10 @@ export default function EventCommunityDetailPage() {
 
     const clubId = club?.id || id || null;
 
-    const categoryOptions = useMemo(() => {
-        const fromClub = (club?.runCategories || [])
-            .map((label) => ({ label, value: normalizeRunCategory(label) }))
-            .filter((option) => option.value);
-        if (!fromClub.length) return [];
-        return [{ label: 'All', value: 'all' }, ...fromClub];
-    }, [club]);
+    const categoryOptions = useMemo(
+        () => eventCommunityCategoryChips(club?.runCategories),
+        [club],
+    );
 
     const heroImages = useMemo(() => buildHeroImages(club), [club]);
     const galleryImages = useMemo(() => buildGalleryImages(club), [club]);
@@ -327,7 +323,7 @@ export default function EventCommunityDetailPage() {
               })
             : null,
         image: e.coverImage || e.images?.[0] || null,
-        runCategory: normalizeRunCategory(e.runCategory),
+        runCategory: normalizeEventCommunityCategory(e.runCategory) || 'Sports',
         registrationLink: e.registrationLink || '',
         status: e.status || null,
         // Keep list payload for detail seed (avoids Free/demo fee flash)
@@ -384,12 +380,20 @@ export default function EventCommunityDetailPage() {
     const basedIn = club?.subtitle || '';
     const description = club?.aboutUs?.trim() || '';
     const paragraphs = useMemo(() => buildReadableParagraphs(description), [description]);
-    const previewParagraphs = paragraphs.slice(0, 2);
-    const hasMoreText = paragraphs.length > 2;
+    const hasMoreText = paragraphs.length > 1 || (paragraphs[0] || '').length > 220;
+    const previewParagraphs = useMemo(() => {
+        if (!paragraphs.length) return [];
+        if (paragraphs.length > 1) return paragraphs.slice(0, 1);
+        const first = paragraphs[0];
+        if (first.length > 220) {
+            return [`${first.slice(0, 220).replace(/\s+\S*$/, '')}…`];
+        }
+        return paragraphs;
+    }, [paragraphs]);
 
     const filteredRuns = !activeCategory || activeCategory === 'all'
         ? runs
-        : runs.filter((run) => run.runCategory === activeCategory);
+        : runs.filter((run) => (run.runCategory || 'Sports') === activeCategory);
 
     if (showPageLoader) {
         return <DetailPageLoader label={isEventHub ? 'Loading community' : 'Loading run club'} />;
@@ -658,7 +662,7 @@ export default function EventCommunityDetailPage() {
                             onClick={() => setExpanded((prev) => !prev)}
                             className="mt-3 text-[#0ECCEE] text-sm font-semibold hover:opacity-90"
                         >
-                            {expanded ? 'Read less' : 'Read more'}
+                            {expanded ? 'Show less' : 'Show more'}
                         </button>
                     )}
                 </ScrollReveal>
@@ -695,11 +699,7 @@ export default function EventCommunityDetailPage() {
                                 })}
                             </div>
                         </div>
-                    ) : (
-                        <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                            {organizerHubCopy(true).noCategories}
-                        </p>
-                    )}
+                    ) : null}
 
                     <div
                         className="overflow-x-auto scrollbar-hide -mx-4 px-4 mt-4"

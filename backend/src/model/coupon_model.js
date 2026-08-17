@@ -36,6 +36,23 @@ const couponSchema = new mongoose.Schema(
      */
     minPeople: { type: Number, default: 1, min: 1, max: 50 },
     maxPeople: { type: Number, default: 0, min: 0, max: 50 },
+    /** Min payable ₹ before discount. 0 = no floor. */
+    minAmount: { type: Number, default: 0, min: 0 },
+    /**
+     * Organizer-scoped coupon. Null = legacy global admin coupon.
+     * Empty competitionIds + festId = all competitions in that fest.
+     */
+    festId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'FestOrganizer',
+      default: null,
+      index: true,
+    },
+    competitionIds: {
+      type: [mongoose.Schema.Types.ObjectId],
+      ref: 'Competition',
+      default: [],
+    },
     applicableEntityTypes: {
       type: [String],
       default: [],
@@ -47,5 +64,6 @@ const couponSchema = new mongoose.Schema(
 
 couponSchema.index({ active: 1, code: 1 });
 couponSchema.index({ expiresAt: 1 });
+couponSchema.index({ festId: 1, active: 1 });
 
 module.exports = mongoose.models.Coupon || mongoose.model('Coupon', couponSchema);

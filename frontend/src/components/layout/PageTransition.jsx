@@ -25,6 +25,8 @@ function shouldSkipPageTransition(pathname) {
         pathname === '/profile'
         || pathname === '/edit-profile'
         || pathname === '/help-center'
+        || pathname === '/'
+        || pathname === '/dashboard'
         || pathname.startsWith('/campus-hunt')
         || pathname.startsWith('/admin')
         || pathname.startsWith('/trek-organizer')

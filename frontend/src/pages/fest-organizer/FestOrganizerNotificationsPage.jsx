@@ -11,6 +11,7 @@ import {
     fetchFestOrganizerNotifyContacts,
     buildFestOrganizerAdminApi,
 } from '../../services/api/festOrganizer.api';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 import { useDialog } from '../../context/DialogContext';
 import { isMindSparkFest, MindSparkWhatsAppLinksAdmin } from '../../features/fests/mindspark';
 
@@ -533,9 +534,7 @@ export default function FestOrganizerNotificationsPage() {
                     </div>
 
                     {loading ? (
-                        <div className="flex justify-center py-12 text-gray-400 gap-2">
-                            <Loader className="animate-spin" size={18} /> Loading contacts…
-                        </div>
+                        <InlinePageLoader label="Loading contacts…" variant="fest" minHeight={false} />
                     ) : (
                         <div className="space-y-2">
                             {filtered.map((c) => {

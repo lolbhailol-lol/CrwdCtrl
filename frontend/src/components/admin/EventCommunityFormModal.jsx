@@ -5,7 +5,7 @@ import GalleryImagesUploadField from './GalleryImagesUploadField';
 import CommunityHeroBannerField from './CommunityHeroBannerField';
 import { normalizeCoverImages, primaryCoverUrl, EMPTY_COVER_IMAGES, excludeCoverUrlsFromGallery } from '../../utils/coverImages';
 import { normalizeImageUrl } from '../../utils/uploadUrls';
-import { RUN_CATEGORY_OPTIONS } from '../../constants/runClubCategories';
+import { EVENT_COMMUNITY_CATEGORY_OPTIONS } from '../../constants/eventCommunityCategories';
 import { adminFetchJSON } from '../../services/api/admin.api.js';
 
 const EMPTY = {
@@ -14,7 +14,7 @@ const EMPTY = {
     tagline: '',
     organizer: '',
     aboutUs: '',
-    runCategories: [],
+    runCategories: ['Sports'],
     coverImage: '',
     coverImages: EMPTY_COVER_IMAGES(),
     galleryImages: [],
@@ -258,7 +258,7 @@ export default function EventCommunityFormModal({ club, onClose, onSaved }) {
                         hint="Filter chips on the community page — events must use a matching category to appear under each chip"
                     >
                         <div className="flex flex-wrap gap-2">
-                            {RUN_CATEGORY_OPTIONS.map((cat) => (
+                            {EVENT_COMMUNITY_CATEGORY_OPTIONS.map((cat) => (
                                 <button
                                     key={cat}
                                     type="button"

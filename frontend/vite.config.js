@@ -59,7 +59,7 @@ export default defineConfig(({ mode }) => ({
       // We'll register the SW in `src/main.jsx` to control update behavior.
       injectRegister: null,
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.png', 'logo-crwdctrl.png', 'crwdctrl-mark.png', 'icon-192x192.png', 'icon-512x512.png', 'robots.txt', 'sitemap.xml', 'llms.txt', 'category-icons/*.webp', 'offline-hunt.webmanifest'],
+      includeAssets: ['favicon.ico', 'favicon.png', 'logo-crwdctrl.png', 'crwdctrl-mark.png', 'icon-192x192.png', 'icon-512x512.png', 'robots.txt', 'sitemap.xml', 'llms.txt', 'category-icons/*.webp', 'offline-hunt.webmanifest'],
       manifest: {
         name: 'CrwdCtrl — Discover College Fests',
         short_name: 'CrwdCtrl',

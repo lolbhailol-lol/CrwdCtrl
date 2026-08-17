@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { ExternalLink, Info, Loader, Pencil, RefreshCw } from 'lucide-react';
+import { ExternalLink, Info, Pencil, RefreshCw } from 'lucide-react';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 import {
     fetchFestOrganizerFestDetails,
     buildFestOrganizerAdminApi,
@@ -36,11 +37,7 @@ export default function FestOrganizerInfoPage() {
     }, [festId]);
 
     if (loading) {
-        return (
-            <div className="flex justify-center py-20 text-gray-400 gap-2">
-                <Loader className="animate-spin" size={18} /> Loading…
-            </div>
-        );
+        return <InlinePageLoader label="Loading…" variant="fest" />;
     }
 
     if (error || !fest) {

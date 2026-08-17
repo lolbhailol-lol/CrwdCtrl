@@ -7,6 +7,7 @@ import { useDialog } from '../../context/DialogContext';
 import { useNotifications } from '../../context/NotificationsContext';
 import { searchAll } from '../../services/searchService';
 import { CATEGORY_NAV_ICONS } from '../../constants/categoryNavIcons';
+import { DetailLoader3DIcon } from '../DetailPageLoader';
 import { openExternalUrl } from '../../utils/externalLink';
 import { isNativeApp } from '../../utils/capacitorPlatform';
 import { canOfferBrowserNotifications } from '../../utils/notificationPrompt';
@@ -731,7 +732,7 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
                                     />
                                 )}
                                 {isSearching && (
-                                    <Loader2 className="w-4 h-4 text-[#007BFF] animate-spin" />
+                                    <DetailLoader3DIcon size="mini" />
                                 )}
                             </div>
 
@@ -805,7 +806,7 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
                                     }`}>
                                     {isSearching ? (
                                         <div className="p-4 text-center">
-                                            <Loader2 className={`w-6 h-6 mx-auto mb-2 animate-spin ${isDark ? 'text-gray-400' : 'text-gray-600'}`} />
+                                            <DetailLoader3DIcon size="compact" className="mx-auto mb-2" />
                                             <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                                                 Searching fests and competitions...
                                             </p>

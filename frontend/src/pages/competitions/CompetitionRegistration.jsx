@@ -4,6 +4,8 @@ import { ArrowLeft, Upload, Loader, CheckCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { openCashfreeCheckout, buildVerifiedPaymentFields, classifyCheckoutError } from '../../utils/useCashfree';
 import PaymentErrorModal from '../../components/PaymentErrorModal';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
+import { RegistrationStatusVisual } from '../../components/RegistrationStatusVisual';
 import {
     discardStalePaymentRecovery,
     getPendingPayment,
@@ -1436,12 +1438,11 @@ export default function CompetitionRegistration() {
                         </div>
                     </div>
                 ) : (
-                    <>
-                        <Loader className="w-8 h-8 animate-spin text-[#0ECCEE] mb-4" />
-                        <p className="text-sm text-gray-300 text-center">
-                            {submissionProgress || 'Completing your registration...'}
-                        </p>
-                    </>
+                    <RegistrationStatusVisual
+                        mode="processing"
+                        title="Completing registration"
+                        progressMessage={submissionProgress || 'Completing your registration...'}
+                    />
                 )}
             </div>
         );
@@ -1514,9 +1515,11 @@ export default function CompetitionRegistration() {
 
     if ((loading || waitingOnAuth) && !success && !completingPayment) {
         return (
-            <div className="min-h-screen bg-[#111213] flex items-center justify-center">
-                <Loader className="w-6 h-6 animate-spin text-[#0ECCEE]" />
-            </div>
+            <InlinePageLoader
+                label="Loading registration"
+                variant="competition"
+                className="min-h-screen bg-[#111213]"
+            />
         );
     }
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Loader, RefreshCw, Search, ChevronRight, Trophy, UserPlus, QrCode, MessageCircle, Download } from 'lucide-react';
+import { RefreshCw, Search, ChevronRight, Trophy, UserPlus, QrCode, MessageCircle, Download } from 'lucide-react';
 import {
     fetchFestOrganizerDashboard,
     updateFestOrganizerCompetitionSlots,
@@ -8,12 +8,16 @@ import {
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { useDialog } from '../../context/DialogContext';
-import { isMindSparkFest } from '../../features/fests/mindspark';
+import { isMindSparkFest, resolveMindSparkModule, sortMindSparkModules, formatMindSparkModuleLabel } from '../../features/fests/mindspark';
 import FestOrganizerCompetitionQrModal from './FestOrganizerCompetitionQrModal';
 import { downloadCompetitionQrPng } from '../../utils/competitionPublicQr';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 
 function formatCategoryLabel(tab) {
     if (!tab || tab === 'OTHER') return 'Other';
+    if (tab === tab.toUpperCase() || tab.includes(' ') || tab.includes('-')) {
+        return formatMindSparkModuleLabel(tab);
+    }
     return tab.charAt(0) + tab.slice(1).toLowerCase();
 }
 
@@ -99,27 +103,35 @@ export default function FestOrganizerCompetitionsPage() {
         }
     };
 
+    const noReview = isMindSparkFest(festId, fest);
+
     const categories = useMemo(() => {
         const set = new Set();
         rows.forEach((c) => {
-            if (c.id) set.add(c.category || 'OTHER');
+            if (!c.id) return;
+            if (noReview) set.add(resolveMindSparkModule(c));
+            else set.add(c.category || 'OTHER');
         });
-        return ['ALL', ...Array.from(set).sort()];
-    }, [rows]);
+        const list = noReview ? sortMindSparkModules([...set]) : Array.from(set).sort();
+        return ['ALL', ...list];
+    }, [rows, noReview]);
 
     const needsReview = useMemo(
         () => rows.reduce((sum, c) => sum + (c.id ? Number(c.pending) || 0 : 0), 0),
         [rows],
     );
 
-    const noReview = isMindSparkFest(festId, fest);
     const outsideHub = Number(stats?.pendingCheckIn || 0);
 
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase();
         let list = rows.filter((c) => c.id);
         if (activeTab !== 'ALL') {
-            list = list.filter((c) => (c.category || 'OTHER') === activeTab);
+            list = list.filter((c) => (
+                noReview
+                    ? resolveMindSparkModule(c) === activeTab
+                    : (c.category || 'OTHER') === activeTab
+            ));
         }
         if (q) {
             list = list.filter((c) => {
@@ -156,11 +168,7 @@ export default function FestOrganizerCompetitionsPage() {
     }, [categories, activeTab]);
 
     if (loading) {
-        return (
-            <div className="flex justify-center py-20 text-gray-400 gap-2">
-                <Loader className="animate-spin" size={18} /> Loading…
-            </div>
-        );
+        return <InlinePageLoader label="Loading competitions…" variant="competition" />;
     }
 
     return (
@@ -328,7 +336,7 @@ export default function FestOrganizerCompetitionsPage() {
                                                     <span className={feeLabel(c.feeAmount) === 'Free' ? 'text-emerald-400' : 'text-[#0ECCEE]'}>
                                                         {feeLabel(c.feeAmount)}
                                                     </span>
-                                                    {c.category ? ` · ${formatCategoryLabel(c.category)}` : ''}
+                                                    {c.category || noReview ? ` · ${formatCategoryLabel(noReview ? resolveMindSparkModule(c) : c.category)}` : ''}
                                                 </p>
                                             </div>
                                             <ChevronRight size={18} className="shrink-0 text-gray-600 group-hover:text-[#0ECCEE] mt-0.5" />

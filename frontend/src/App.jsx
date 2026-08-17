@@ -29,6 +29,10 @@ import { prepareLogin, resolvePostLoginRedirect, currentAppPath } from './utils/
 import { showLoginPopup } from './utils/appPopup'
 import { appRoutes, CrwdCtrlLogin, CrwdCtrlRegister } from './app/router'
 import { resolveUrl } from './services/api/client'
+import { RouteLoadingFallback, HomeHubLoadingScreen } from './components/DetailPageLoader'
+import { useBodyHasClass } from './hooks/useBodyHasClass'
+import { useHomeShellReady } from './hooks/useHomeShellReady'
+import { isHomeHubPath } from './utils/homeShellReady'
 
 import './App.css'
 
@@ -37,7 +41,9 @@ function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick
   const location = useLocation();
   const navigate = useNavigate();
   const mobileSearch = useMobileSearchOptional();
-  const { prepareRouteNavigation, startOverlayTransition } = usePageTransition();
+  const { prepareRouteNavigation, startOverlayTransition, hideChrome } = usePageTransition();
+  const pageContentLoading = useBodyHasClass('page-content-loading');
+  const homeShellReady = useHomeShellReady();
 
   const handleNavFromProfile = useCallback((path) => {
     if (path === '/profile') return;
@@ -56,7 +62,10 @@ function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick
     onProfileClose();
   }, [location.pathname, navigate, onProfileClose, prepareRouteNavigation, startOverlayTransition]);
 
-  const shouldHideMobileBottomNav = location.pathname === '/login' ||
+  const shouldHideMobileBottomNav = hideChrome ||
+    pageContentLoading ||
+    !homeShellReady ||
+    location.pathname === '/login' ||
     location.pathname === '/register' ||
     location.pathname === '/verify-email' ||
     location.pathname === '/profile' ||
@@ -102,9 +111,13 @@ function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick
 function ConditionalFooter() {
   const location = useLocation();
   const { hideChrome } = usePageTransition();
+  const pageContentLoading = useBodyHasClass('page-content-loading');
+  const homeShellReady = useHomeShellReady();
 
   const shouldHideFooter =
     hideChrome ||
+    pageContentLoading ||
+    !homeShellReady ||
     location.pathname === '/login' ||
     location.pathname === '/register' ||
     location.pathname === '/verify-email' ||
@@ -139,9 +152,7 @@ function ConditionalFooter() {
 }
 
 function RouteSuspenseFallback() {
-  return (
-    <div className="min-h-[40vh] w-full bg-transparent" aria-busy="true" aria-label="Loading page" />
-  );
+  return <RouteLoadingFallback />;
 }
 
 // Component to conditionally render Navbar and Sidebar
@@ -197,6 +208,8 @@ function AppContent({
   const isEventOrganizerRoute = location.pathname.startsWith('/event-organizer');
   const isCampusHuntRoute = location.pathname.startsWith('/campus-hunt') || location.pathname.startsWith('/campus-hunt-volunteer');
   const isStandaloneRoute = isAdminRoute || isTrekOrganizerRoute || isFestOrganizerRoute || isStallRoute || isRunClubOrganizerRoute || isEventOrganizerRoute || isCampusHuntRoute;
+  const isHomeHub = isHomeHubPath(location.pathname);
+  const homeShellReady = useHomeShellReady();
 
   useGlobalSmoothScroll();
 
@@ -263,6 +276,7 @@ function AppContent({
 
   return (
     <div className={`crwdctrl-app-shell relative min-h-screen overflow-x-clip ${!isStandaloneRoute ? '' : ''}`}>
+      {isHomeHub && !homeShellReady ? <HomeHubLoadingScreen /> : null}
       <ConditionalNavigation
         isProfileOpen={isProfileOpen}
         setIsProfileOpen={setIsProfileOpen}

@@ -1011,6 +1011,136 @@ const sendEventOrganizerApprovalEmail = async ({
     }
 };
 
+const sendCommunityOrganizerApprovalEmail = async ({
+    toEmail,
+    organizerName,
+    username,
+    loginUrl,
+    signupUrl,
+    communityName = '',
+    eventTitles = [],
+    listingHub = 'sports',
+    accountCreatedByAdmin = false,
+    existingAccountApproved = false,
+    temporaryPassword = '',
+}) => {
+    try {
+        const email = String(toEmail || '').trim().toLowerCase();
+        if (!email || !EMAIL_ADDRESS_REGEX.test(email)) {
+            return { success: false, error: 'Organizer email missing or invalid' };
+        }
+        const isEvents = listingHub === 'events';
+        const portalLabel = isEvents ? 'Event community organizer' : 'Run club organizer';
+        const safeLogin = String(loginUrl || `${getSiteUrl()}/run-club-organizer/login`).trim();
+        const safeSignup = String(signupUrl || `${getSiteUrl()}/run-club-organizer/signup${isEvents ? '?hub=events' : ''}`).trim();
+        const eventsList = (Array.isArray(eventTitles) ? eventTitles : [])
+            .map((t) => String(t || '').trim())
+            .filter(Boolean)
+            .slice(0, 8);
+        const eventsHtml = eventsList.length
+            ? `<ul style="margin:10px 0 0 18px;padding:0;color:#374151;font-size:14px;line-height:1.6;">
+                ${eventsList.map((t) => `<li style="margin:0 0 6px;">${t}</li>`).join('')}
+            </ul>`
+            : `<p style="margin:8px 0 0;font-size:14px;color:#6b7280;">Your ${isEvents ? 'events' : 'runs'} appear in the portal after login.</p>`;
+        const hasTempPassword = String(temporaryPassword || '').trim().length > 0;
+        const subject = accountCreatedByAdmin
+            ? `✅ Your CrwdCtrl ${portalLabel} account is ready`
+            : `✅ Your CrwdCtrl ${portalLabel} account is approved`;
+        const credentialsHint = accountCreatedByAdmin
+            ? ''
+            : existingAccountApproved
+                ? `<p style="margin:0 0 12px;font-size:13px;color:#6b7280;">Sign in with the username and password you chose when you requested access.</p>`
+                : (!hasTempPassword
+                    ? `<p style="margin:0 0 12px;font-size:13px;color:#6b7280;">No account yet? <a href="${safeSignup}" style="color:#0ea5e9;">Create one here</a> with this email after CrwdCtrl invites you.</p>`
+                    : '');
+        const mailOptions = {
+            from: getDefaultFrom(),
+            to: email,
+            subject,
+            html: buildEmailShell({
+                preheader: accountCreatedByAdmin
+                    ? 'Your organizer account is ready to use'
+                    : 'You can sign in and manage your community',
+                eyebrow: portalLabel,
+                title: accountCreatedByAdmin ? 'Account ready' : 'You\'re approved',
+                subtitle: communityName ? `Community: ${communityName}` : 'CrwdCtrl organizer portal',
+                bodyHtml: `
+                    <p style="margin:0 0 12px;">Hi <strong>${organizerName || 'Organizer'}</strong>,</p>
+                    <p style="margin:0 0 12px;">
+                        ${accountCreatedByAdmin
+        ? `Your ${portalLabel} account on CrwdCtrl is active. Use the details below to sign in.`
+        : `Your ${portalLabel} access is approved. Sign in to manage registrations, scan guests in, and send updates.`}
+                    </p>
+                    <p style="margin:0 0 8px;"><strong>Login</strong></p>
+                    <p style="margin:0 0 12px;font-size:14px;color:#374151;">
+                        Username: <strong>${username || '—'}</strong><br/>
+                        ${hasTempPassword ? `Temporary password: <strong>${String(temporaryPassword)}</strong><br/>` : ''}
+                        Portal: <a href="${safeLogin}" style="color:#0ea5e9;text-decoration:underline;">${safeLogin}</a>
+                    </p>
+                    ${credentialsHint}
+                    <div style="margin:14px 0;padding:14px;border-radius:12px;background:#f9fafb;border:1px solid #e5e7eb;">
+                        <p style="margin:0;font-size:13px;color:#6b7280;">${isEvents ? 'Your events' : 'Your runs'}</p>
+                        ${eventsHtml}
+                    </div>
+                `,
+                ctaLabel: 'Open organizer portal',
+                ctaHref: safeLogin,
+                footnote: 'This email was sent automatically by CrwdCtrl.',
+            }),
+        };
+        return await sendEmail(mailOptions);
+    } catch (error) {
+        console.error('❌ Community organizer approval email failed:', error.message);
+        return { success: false, error: error.message };
+    }
+};
+
+const sendCommunityOrganizerProfileInviteEmail = async ({
+    toEmail,
+    signupUrl,
+    listingHub = 'sports',
+    note = '',
+}) => {
+    try {
+        const email = String(toEmail || '').trim().toLowerCase();
+        if (!email || !EMAIL_ADDRESS_REGEX.test(email)) {
+            return { success: false, error: 'Email missing or invalid' };
+        }
+        const isEvents = listingHub === 'events';
+        const portalLabel = isEvents ? 'Event community organizer' : 'Run club organizer';
+        const safeSignup = String(signupUrl || `${getSiteUrl()}/run-club-organizer/signup${isEvents ? '?hub=events' : ''}`).trim();
+        const mailOptions = {
+            from: getDefaultFrom(),
+            to: email,
+            subject: `You're invited — CrwdCtrl ${portalLabel}`,
+            html: buildEmailShell({
+                preheader: 'Create your organizer account on CrwdCtrl',
+                eyebrow: 'Organizer invite',
+                title: `Join as ${portalLabel}`,
+                subtitle: 'CrwdCtrl approved your email for the organizer portal',
+                bodyHtml: `
+                    <p style="margin:0 0 12px;">Hi,</p>
+                    <p style="margin:0 0 12px;">
+                        CrwdCtrl added your email for <strong>${portalLabel}</strong> access.
+                        Create your account with this same email — we'll review and approve your login shortly.
+                    </p>
+                    ${note ? `<p style="margin:0 0 12px;font-size:13px;color:#6b7280;"><em>Note from admin: ${note}</em></p>` : ''}
+                    <p style="margin:0 0 12px;font-size:14px;color:#374151;">
+                        Signup link: <a href="${safeSignup}" style="color:#0ea5e9;text-decoration:underline;">${safeSignup}</a>
+                    </p>
+                    <p style="margin:0;font-size:13px;color:#6b7280;">Use the email this message was sent to when signing up.</p>
+                `,
+                ctaLabel: 'Create organizer account',
+                ctaHref: safeSignup,
+            }),
+        };
+        return await sendEmail(mailOptions);
+    } catch (error) {
+        console.error('❌ Community organizer invite email failed:', error.message);
+        return { success: false, error: error.message };
+    }
+};
+
 // Generate HTML content for organizer notification email
 const generateOrganizerNotificationEmailHTML = (userName, userEmail, festName, competitionName, registrationId, submissionDate) => {
     return `
@@ -1341,6 +1471,8 @@ module.exports = {
     sendTrekRegistrationEmails,
     sendOrganizerNotificationEmail,
     sendEventOrganizerApprovalEmail,
+    sendCommunityOrganizerApprovalEmail,
+    sendCommunityOrganizerProfileInviteEmail,
     sendLoginConfirmationEmail,
     sendEventBroadcast,
     sendTrekParticipantEmails,

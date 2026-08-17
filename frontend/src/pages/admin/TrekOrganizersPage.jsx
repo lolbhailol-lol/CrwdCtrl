@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Mountain, Plus, Loader, Pencil, Trash2, Search, Check, X } from 'lucide-react';
+import { Mountain, Plus, Pencil, Trash2, Search, Check, X } from 'lucide-react';
+import { DetailLoader3DIcon } from '../../components/DetailPageLoader';
 import { adminFetchJSON } from '../../services/api/admin.api.js';
 import { useDialog } from '../../context/DialogContext';
 
@@ -356,7 +357,7 @@ export default function TrekOrganizersPage() {
 
                     <div className="rounded-xl border border-gray-800 overflow-hidden">
                         {loading ? (
-                            <div className="py-16 flex justify-center"><Loader className="animate-spin text-[#0ECCEE]" /></div>
+                            <div className="py-16 flex justify-center"><DetailLoader3DIcon size="compact" variant="trek" /></div>
                         ) : (
                             <table className="w-full text-sm">
                                 <thead className="bg-[#111213] text-gray-500 text-[11px] uppercase">
@@ -434,7 +435,7 @@ export default function TrekOrganizersPage() {
 
             <div className="rounded-xl border border-gray-800 overflow-hidden">
                 {loading ? (
-                    <div className="py-16 flex justify-center"><Loader className="animate-spin text-[#0ECCEE]" /></div>
+                    <div className="py-16 flex justify-center"><DetailLoader3DIcon size="compact" variant="trek" /></div>
                 ) : (
                     <table className="w-full text-sm">
                         <thead className="bg-[#111213] text-gray-500 text-[11px] uppercase">

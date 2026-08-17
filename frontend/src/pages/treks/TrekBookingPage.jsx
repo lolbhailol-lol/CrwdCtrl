@@ -9,6 +9,8 @@ import CrwdCtrlRegister from '../auth/register';
 import { buildVerifiedPaymentFields } from '../../utils/useCashfree';
 
 import PaymentErrorModal from '../../components/PaymentErrorModal';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
+import { RegistrationStatusVisual } from '../../components/RegistrationStatusVisual';
 import {
     getPendingPayment,
     clearPendingPayment,
@@ -1065,11 +1067,7 @@ export default function TrekBookingPage() {
     const waitingOnAuth = !hasStoredSession && (authLoading || isAuthProcessing || isRedirectProcessing);
 
     if ((loadingTrek || waitingOnAuth) && !showSuccess && !showProcessing) {
-        return (
-            <div className="crwdctrl-page crwdctrl-page--content min-h-dvh flex items-center justify-center">
-                <Loader className="w-8 h-8 animate-spin text-[#0ECCEE]" />
-            </div>
-        );
+        return <InlinePageLoader variant="booking" className="min-h-dvh" />;
     }
 
     if (!trek && !showSuccess && !showProcessing) {
@@ -1184,10 +1182,12 @@ export default function TrekBookingPage() {
     if (showProcessing) {
         return (
             <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex flex-col items-center justify-center px-4">
-                <Loader className="w-8 h-8 animate-spin text-[#0ECCEE] mb-4" />
-                <p className={`text-sm text-center ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                    Verifying payment and confirming your booking...
-                </p>
+                <RegistrationStatusVisual
+                    mode="processing"
+                    isDark={isDark}
+                    subtitle="Verifying payment and confirming your booking..."
+                    showProgress={false}
+                />
             </div>
         );
     }

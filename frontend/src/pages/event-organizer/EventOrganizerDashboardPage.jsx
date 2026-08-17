@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-    Users, UserCheck, Clock, IndianRupee, Loader, Bell, QrCode, RefreshCw, ExternalLink,
+    Users, UserCheck, Clock, IndianRupee, Bell, QrCode, RefreshCw, ExternalLink,
 } from 'lucide-react';
 import {
     fetchEventOrganizerDashboard,
     setEventOrganizerRegistrationStatus,
 } from '../../services/api/eventShowOrganizer.api';
 import { eventShowPath } from '../../utils/slugRoutes';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 
 function StatTile({ label, value, tone = 'default', icon: Icon, to, hint }) {
     const navigate = useNavigate();
@@ -82,7 +83,7 @@ export default function EventOrganizerDashboardPage() {
     };
 
     if (loading) {
-        return <div className="flex justify-center py-20"><Loader className="animate-spin text-[#0ECCEE]" /></div>;
+        return <InlinePageLoader variant="event" />;
     }
     if (error) {
         return <p className="text-red-400 text-sm">{error}</p>;

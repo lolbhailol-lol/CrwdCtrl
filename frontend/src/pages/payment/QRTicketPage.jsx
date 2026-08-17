@@ -9,6 +9,7 @@ import { openExternalUrl } from '../../utils/externalLink';
 import { API_BASE_URL } from '../../services/api/client';
 import { authenticatedFetchJSON } from '../../services/api/auth.api';
 import { useAuth } from '../../context/AuthContext';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 
 const ticketCacheKey = (type, id) => `crwdctrl_ticket_${type || 'fest'}_${id}`;
 
@@ -143,9 +144,7 @@ export default function QRTicketPage() {
 
   if (loading) {
     return (
-      <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-gray-400">Loading ticket...</div>
-      </div>
+      <InlinePageLoader label="Loading ticket…" variant="booking" className="min-h-screen" />
     );
   }
 

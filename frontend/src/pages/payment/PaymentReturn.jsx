@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle, Loader } from 'lucide-react';
+import { CheckCircle } from 'lucide-react';
+import { DetailLoader3DIcon } from '../../components/DetailPageLoader';
 import {
   getPendingPayment,
   isStalePendingPayment,
@@ -500,7 +501,7 @@ export default function PaymentReturn() {
       {status === 'success' ? (
         <CheckCircle className="w-10 h-10 text-emerald-400 mb-4" />
       ) : (
-        <Loader className="w-8 h-8 animate-spin text-[#0ECCEE] mb-4" />
+        <DetailLoader3DIcon variant="payment" size="compact" className="mb-4" />
       )}
       <p className="text-sm text-gray-400 text-center max-w-sm">{message}</p>
     </div>

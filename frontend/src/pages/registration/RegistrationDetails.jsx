@@ -13,6 +13,7 @@ import {
   mergeRunFormFields,
 } from '../../utils/formFieldDedupe';
 import { primaryCoverUrl } from '../../utils/coverImages';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 
 function normalizeResponses(responses) {
   if (!responses) return {};
@@ -161,9 +162,7 @@ export default function RegistrationDetails() {
 
   if (loading) {
     return (
-      <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500"></div>
-      </div>
+      <InlinePageLoader label="Loading registration" variant="booking" className="min-h-screen" />
     );
   }
 

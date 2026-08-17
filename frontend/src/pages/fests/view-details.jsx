@@ -32,10 +32,13 @@ import { signalDetailPageReady } from '../../utils/bootSplash';
 import DetailPageLoader from '../../components/DetailPageLoader';
 import CompetitionCoverImage from '../../components/CompetitionCoverImage';
 import FestPublicLiveStrip from '../../components/FestPublicLiveStrip';
-import { isMindSparkFest } from '../../features/fests/mindspark';
+import { isMindSparkFest, formatMindSparkModuleLabel, MindSparkLiveBadge } from '../../features/fests/mindspark';
 
 function formatCompetitionTabLabel(tab) {
   if (!tab || tab === 'OTHER') return 'Other';
+  if (tab === tab.toUpperCase() || tab.includes(' ') || tab.includes('-')) {
+    return formatMindSparkModuleLabel(tab);
+  }
   return tab.charAt(0) + tab.slice(1).toLowerCase();
 }
 
@@ -662,8 +665,11 @@ function EventDetailsPage() {
               {/* Right Column - Registration Card & Artists */}
               <div className="lg:col-span-1 space-y-4 sm:space-y-5">
                 <div className={`sticky top-24 ${isDark ? 'bg-[#111213]' : 'bg-gray-100'} rounded-2xl p-4 sm:p-6 mb-10 pt-6 sm:pt-8 pb-8 sm:pb-10 transition-colors duration-300`}>
-                  <div className="flex items-start justify-between mb-4 sm:mb-6">
-                    <h1 className={`text-lg sm:text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{pageEvent.title}{collegeLabel ? <><br />{collegeLabel}</> : null}</h1>
+                  <div className="flex items-start justify-between mb-4 sm:mb-6 gap-3">
+                    <h1 className={`text-lg sm:text-2xl font-bold min-w-0 ${isDark ? 'text-white' : 'text-gray-900'}`}>{pageEvent.title}{collegeLabel ? <><br />{collegeLabel}</> : null}</h1>
+                    {isMindSparkFest(pageEvent.id || eventId, pageEvent) ? (
+                      <MindSparkLiveBadge />
+                    ) : null}
                   </div>
 
                   <div className="space-y-3 sm:space-y-4 mb-4 sm:mb-6">
@@ -925,15 +931,20 @@ function EventDetailsPage() {
               </p>
               ) : null}
             </div>
-            {primaryPhone && (
-              <a
-                href={`tel:${primaryPhone.replace(/[\s-]/g, '')}`}
-                className="shrink-0 size-11 rounded-full bg-[#0ECCEE] flex items-center justify-center shadow-md"
-                aria-label="Call organizer"
-              >
-                <Phone size={20} className="text-black" />
-              </a>
-            )}
+            <div className="flex items-center gap-2 shrink-0">
+              {isMindSparkFest(pageEvent.id || eventId, pageEvent) ? (
+                <MindSparkLiveBadge />
+              ) : null}
+              {primaryPhone && (
+                <a
+                  href={`tel:${primaryPhone.replace(/[\s-]/g, '')}`}
+                  className="size-11 rounded-full bg-[#0ECCEE] flex items-center justify-center shadow-md"
+                  aria-label="Call organizer"
+                >
+                  <Phone size={20} className="text-black" />
+                </a>
+              )}
+            </div>
           </div>
 
           {(dateLabel || venueLabel) ? (

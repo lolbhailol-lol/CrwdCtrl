@@ -13,6 +13,7 @@ import { useDialog } from '../../context/DialogContext';
 import { getTrekOrganizerSession } from '../../utils/trekOrganizerSession';
 import { isValidWhatsAppPhone } from '../../utils/whatsappDeepLink';
 import TrekOrganizerWhatsAppModal from './TrekOrganizerWhatsAppModal';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 
 const COMMUNITY_SORT = [
     { value: 'trekCount:desc', label: 'Most treks' },
@@ -602,10 +603,7 @@ export default function TrekOrganizerCustomersPage() {
             ) : null}
 
             {loading ? (
-                <div className="flex flex-col items-center justify-center py-20 gap-3">
-                    <Loader className="animate-spin text-[#0ECCEE]" />
-                    <p className="text-xs text-gray-500">Loading customers…</p>
-                </div>
+                <InlinePageLoader label="Loading customers…" variant="trek" minHeight={false} />
             ) : rows.length === 0 ? (
                 <div className="text-center py-16 rounded-3xl border border-dashed border-white/15 bg-white/5 px-4">
                     <div className="mx-auto size-12 rounded-2xl bg-[#0ECCEE]/10 text-[#0ECCEE] flex items-center justify-center mb-3">

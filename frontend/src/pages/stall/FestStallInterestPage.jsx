@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Loader, CheckCircle2 } from 'lucide-react';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 import { publicFetchJSONRetry } from '../../services/api/client';
 
 const INTERESTS = [
@@ -152,8 +153,8 @@ export default function FestStallInterestPage() {
 
     if (loading) {
         return (
-            <div className="min-h-dvh bg-[#0c0d0e] text-white flex items-center justify-center gap-2">
-                <Loader className="animate-spin text-[#0ECCEE]" size={20} /> Loading…
+            <div className="min-h-dvh bg-[#0c0d0e] text-white">
+                <InlinePageLoader label="Loading…" variant="fest" />
             </div>
         );
     }

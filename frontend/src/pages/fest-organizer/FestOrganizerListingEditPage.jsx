@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams } from 'react-router-dom';
 import {
-    ExternalLink, Loader, Pencil, Plus, RefreshCw, Trophy, PartyPopper,
+    ExternalLink, Pencil, Plus, RefreshCw, Trophy, PartyPopper,
 } from 'lucide-react';
 import {
     fetchFestOrganizerFestDetails,
@@ -13,8 +13,10 @@ import {
 import { getFestOrganizerSession } from '../../utils/festOrganizerSession';
 import CompetitionModal from '../../components/admin/Competition_Modal';
 import FestFormModal from '../../components/admin/FestFormModal';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
+import { isMindSparkFest, resolveMindSparkModule } from '../../features/fests/mindspark';
 
 function ModalHost({ children }) {
     if (typeof document === 'undefined') return null;
@@ -128,11 +130,7 @@ export default function FestOrganizerListingEditPage() {
     };
 
     if (loading && !fest?._id) {
-        return (
-            <div className="flex justify-center py-20 text-gray-400 gap-2">
-                <Loader className="animate-spin" size={18} /> Loading…
-            </div>
-        );
+        return <InlinePageLoader label="Loading…" variant="fest" />;
     }
 
     return (
@@ -272,7 +270,11 @@ export default function FestOrganizerListingEditPage() {
                                         {c.feeAmount > 0
                                             ? `₹${Number(c.feeAmount).toLocaleString('en-IN')}`
                                             : (c.registrationFee || 'Free')}
-                                        {c.category ? ` · ${c.category}` : ''}
+                                        {c.category || isMindSparkFest(festId, fest)
+                                            ? ` · ${isMindSparkFest(festId, fest)
+                                                ? resolveMindSparkModule(c)
+                                                : c.category}`
+                                            : ''}
                                     </p>
                                 </div>
                                 <Pencil size={14} className="text-[#0ECCEE] shrink-0" />

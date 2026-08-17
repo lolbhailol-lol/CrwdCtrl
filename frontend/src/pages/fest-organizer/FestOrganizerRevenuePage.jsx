@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
-    ArrowRight, IndianRupee, Loader, MessageCircle, Phone, RefreshCw,
+    ArrowRight, IndianRupee, MessageCircle, Phone, RefreshCw,
     Trophy, Users, AlertCircle,
 } from 'lucide-react';
 import {
     fetchFestOrganizerDashboard,
     fetchFestOrganizerNotifyContacts,
 } from '../../services/api/festOrganizer.api';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 import { isMindSparkFest } from '../../features/fests/mindspark';
 
 function waLink(phone, text) {
@@ -71,11 +72,7 @@ export default function FestOrganizerRevenuePage() {
         `Hi${name ? ` ${name.split(' ')[0]}` : ''}! Reminder to complete payment for ${festName || 'our fest'}. Reply here if you need help.`;
 
     if (loading) {
-        return (
-            <div className="flex justify-center py-20 text-gray-400 gap-2">
-                <Loader className="animate-spin" size={18} /> Loading revenue…
-            </div>
-        );
+        return <InlinePageLoader label="Loading revenue…" variant="fest" />;
     }
 
     if (error || !data) {

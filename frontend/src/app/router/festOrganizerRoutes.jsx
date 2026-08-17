@@ -19,6 +19,7 @@ import {
     FestOrganizerInfoPage,
     FestOrganizerListingEditPage,
     FestOrganizerLeadsPage,
+    FestOrganizerCouponsPage,
 } from './lazyPages';
 
 export const festOrganizerRoutes = (
@@ -43,6 +44,7 @@ export const festOrganizerRoutes = (
             <Route path="fests/:festId/participants" element={<FestOrganizerParticipantsPage />} />
             <Route path="fests/:festId/scan" element={<FestOrganizerScanPage />} />
             <Route path="fests/:festId/revenue" element={<FestOrganizerRevenuePage />} />
+            <Route path="fests/:festId/coupons" element={<FestOrganizerCouponsPage />} />
             <Route path="fests/:festId/pro-show" element={<FestOrganizerProShowPage />} />
             <Route path="fests/:festId/live" element={<FestOrganizerLiveUpdatesPage />} />
             <Route path="fests/:festId/notifications" element={<FestOrganizerNotificationsPage />} />

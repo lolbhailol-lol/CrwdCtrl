@@ -97,6 +97,15 @@ export function organizerHubCopy(isEventHub) {
             feeLabel: 'Entry fee',
             checkoutApprover: 'community',
             goneHint: 'This community may have been removed or the link is outdated.',
+            managerTitle: 'Community organizer',
+            managerSubtitle: 'Your community dashboard — guests & check-ins',
+            signupTitle: 'Create community organizer account',
+            signupHint: 'Invite-only — then CrwdCtrl approves login',
+            signupEmailHint: 'Use the same email CrwdCtrl invited you with. After signup, wait for account approval before signing in.',
+            signupClubLabel: 'Event community',
+            signupClubEmpty: 'No published communities yet. Ask CrwdCtrl to publish your community first.',
+            signupLoginPath: '/run-club-organizer/login?hub=events',
+            signupPath: '/run-club-organizer/signup?hub=events',
         };
     }
     return {
@@ -185,6 +194,15 @@ export function organizerHubCopy(isEventHub) {
             feeLabel: 'Run fee',
             checkoutApprover: 'club',
             goneHint: 'This club may have been removed or the link is outdated.',
+            managerTitle: 'Club manager',
+            managerSubtitle: 'Your club dashboard — participants & check-ins',
+            signupTitle: 'Create club manager account',
+            signupHint: 'Invite-only — then CrwdCtrl approves login',
+            signupEmailHint: 'Use the same email CrwdCtrl added under Profile emails. After signup, wait for account approval before signing in.',
+            signupClubLabel: 'Run club',
+            signupClubEmpty: 'No published clubs yet. Ask CrwdCtrl to publish your club first.',
+            signupLoginPath: '/run-club-organizer/login',
+            signupPath: '/run-club-organizer/signup',
         };
     }
 

@@ -8,6 +8,8 @@ import CrwdCtrlLogin from '../auth/login';
 import CrwdCtrlRegister from '../auth/register';
 import { openCashfreeCheckout, classifyCheckoutError } from '../../utils/useCashfree';
 import PaymentErrorModal from '../../components/PaymentErrorModal';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
+import { RegistrationStatusVisual } from '../../components/RegistrationStatusVisual';
 import { getPendingPayment, clearPendingPayment, shouldResumePendingPayment } from '../../utils/deepLinks';
 import { verifyPaymentWithRetry, goToBookings, classifyVerifyError } from '../../utils/paymentNavigation';
 import {
@@ -1300,11 +1302,7 @@ export default function EventRegistrationPage() {
     }, [isPaymentStepPreview, suggestedCoupon]);
 
     if (loading && !done && !paying) {
-        return (
-            <div className="crwdctrl-page crwdctrl-page--content min-h-dvh flex items-center justify-center">
-                <Loader className="w-8 h-8 animate-spin text-[#0ECCEE]" />
-            </div>
-        );
+        return <InlinePageLoader variant="event" className="min-h-dvh" />;
     }
 
     if (paying && !done) {
@@ -1322,14 +1320,16 @@ export default function EventRegistrationPage() {
                         </button>
                     </div>
                 ) : (
-                    <>
-                        <Loader className="w-8 h-8 animate-spin text-[#0ECCEE] mb-4" />
-                        <p className={`text-sm text-center max-w-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                            {awaitingPaymentOrderId
+                    <RegistrationStatusVisual
+                        mode="payment"
+                        isDark={isDark}
+                        subtitle={
+                            awaitingPaymentOrderId
                                 ? 'Complete payment in Google Pay. You can return here anytime — we will confirm automatically.'
-                                : 'Verifying payment and completing your registration...'}
-                        </p>
-                    </>
+                                : 'Verifying payment and completing your registration...'
+                        }
+                        showProgress={false}
+                    />
                 )}
             </div>
         );

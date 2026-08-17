@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Outlet, useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
     LayoutDashboard, Users, QrCode, LogOut, PartyPopper, Bell, Menu, Home,
-    Trophy, IndianRupee, Info, ClipboardList, Mic2, Radio, Pencil,
+    Trophy, IndianRupee, Info, ClipboardList, Mic2, Radio, Pencil, Tag,
 } from 'lucide-react';
 import { clearFestOrganizerSession, getFestOrganizerSession } from '../../utils/festOrganizerSession';
 import { isMindSparkFest } from '../../features/fests/mindspark';
@@ -20,6 +20,9 @@ const navForFest = (festId, { hideStallLeads = false, hideProShow = false } = {}
         : []),
     { label: 'Participants', path: `/fest-organizer/fests/${festId}/participants`, icon: Users, short: 'Guests', group: 'ops' },
     { label: 'Check-in', path: `/fest-organizer/fests/${festId}/scan`, icon: QrCode, short: 'Scan', group: 'ops' },
+    ...(hideProShow
+        ? [{ label: 'Coupons', path: `/fest-organizer/fests/${festId}/coupons`, icon: Tag, short: 'Codes', group: 'ops' }]
+        : []),
     { label: 'Revenue', path: `/fest-organizer/fests/${festId}/revenue`, icon: IndianRupee, short: '₹', group: 'ops' },
     { label: 'Connect', path: `/fest-organizer/fests/${festId}/notifications`, icon: Bell, short: 'Msg', group: 'ops' },
     { label: 'Fest info', path: `/fest-organizer/fests/${festId}/info`, icon: Info, short: 'Info', group: 'ops' },

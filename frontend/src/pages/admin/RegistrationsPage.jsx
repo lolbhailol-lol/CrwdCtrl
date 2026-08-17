@@ -6,6 +6,7 @@ import {
 import { adminFetchJSON } from '../../services/api/admin.api.js';
 import { primaryCoverUrl } from '../../utils/coverImages';
 import { normalizeImageUrl } from '../../utils/uploadUrls';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 
 const TABS = [
     { id: 'fests', label: 'Fests', icon: Flag },
@@ -422,9 +423,7 @@ export default function RegistrationsPage() {
                     </div>
                     <div className="max-h-[520px] overflow-y-auto p-2">
                         {loading ? (
-                            <div className="flex items-center justify-center gap-2 py-12 text-sm text-gray-500">
-                                <Loader2 size={16} className="animate-spin text-[#0ECCEE]" /> Loading…
-                            </div>
+                            <InlinePageLoader label="Loading…" minHeight={false} />
                         ) : filteredEvents.length === 0 ? (
                             <p className="text-center py-12 text-sm text-gray-600">No {tab} found</p>
                         ) : (
@@ -577,9 +576,7 @@ export default function RegistrationsPage() {
 
                             <div className="flex-1 overflow-y-auto p-4 space-y-3 max-h-[520px]">
                                 {regsLoading ? (
-                                    <div className="flex items-center justify-center gap-2 py-16 text-sm text-gray-500">
-                                        <Loader2 size={18} className="animate-spin text-[#0ECCEE]" /> Loading registrations…
-                                    </div>
+                                    <InlinePageLoader label="Loading registrations…" minHeight={false} />
                                 ) : filteredRegistrations.length === 0 ? (
                                     <div className="flex flex-col items-center justify-center py-16 text-gray-600">
                                         <User size={36} className="mb-2 opacity-40" />

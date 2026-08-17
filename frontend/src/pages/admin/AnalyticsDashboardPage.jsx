@@ -8,6 +8,7 @@ import {
   Radio, Settings, ExternalLink, CalendarRange,
 } from 'lucide-react';
 import { adminFetchJSON as adminFetch } from '../../services/api/admin.api.js';
+import { InlinePageLoader, DetailLoader3DIcon } from '../../components/DetailPageLoader';
 
 function formatINR(amount) {
   return `₹${(amount ?? 0).toLocaleString('en-IN')}`;
@@ -340,7 +341,7 @@ function GoogleAnalyticsSection() {
 
       {loading && !ga ? (
         <div className="bg-[#111213] rounded-xl border border-gray-800 p-8 flex items-center justify-center">
-          <RefreshCw className="animate-spin text-[#0ECCEE]" size={24} />
+          <DetailLoader3DIcon size="compact" />
         </div>
       ) : error ? (
         <GASetupCard error={error} steps={ga?.setupSteps} />
@@ -487,11 +488,7 @@ export default function AnalyticsDashboardPage() {
   }, []);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <RefreshCw className="animate-spin text-[#0ECCEE]" size={32} />
-      </div>
-    );
+    return <InlinePageLoader label="Loading analytics…" minHeight={false} className="min-h-64" />;
   }
 
   if (error) {

@@ -25,6 +25,9 @@ function sanitizeCouponPayload(body = {}) {
   if (body.flatDiscountAmount !== undefined) {
     payload.flatDiscountAmount = Math.max(0, Math.round(Number(body.flatDiscountAmount) || 0));
   }
+  if (body.minAmount !== undefined) {
+    payload.minAmount = Math.max(0, Math.round(Number(body.minAmount) || 0));
+  }
 
   if (body.active !== undefined) payload.active = Boolean(body.active);
   if (body.startsAt !== undefined) payload.startsAt = parseAdminDateTime(body.startsAt, 'start');

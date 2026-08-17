@@ -38,6 +38,36 @@ function assertCouponAppliesToEntity(coupon, entityType) {
   );
 }
 
+function idStr(value) {
+  if (!value) return '';
+  if (typeof value === 'object' && value._id) return String(value._id);
+  return String(value);
+}
+
+/**
+ * Organizer coupons (festId set) only work on that fest / listed competitions.
+ * Legacy admin coupons with no festId skip this check.
+ */
+function assertCouponScope(coupon, { festId = '', competitionId = '' } = {}) {
+  const scopedFest = idStr(coupon.festId);
+  if (!scopedFest) return;
+
+  const currentFest = idStr(festId);
+  if (!currentFest || currentFest !== scopedFest) {
+    throw new Error('This coupon is not valid for this fest.');
+  }
+
+  const allowedComps = Array.isArray(coupon.competitionIds)
+    ? coupon.competitionIds.map(idStr).filter(Boolean)
+    : [];
+  if (!allowedComps.length) return;
+
+  const currentComp = idStr(competitionId);
+  if (!currentComp || !allowedComps.includes(currentComp)) {
+    throw new Error('This coupon is not valid for this competition.');
+  }
+}
+
 function computeCouponDiscount({
   baseAmount,
   discountType = 'percent',
@@ -91,6 +121,8 @@ async function validateAndPriceCoupon({
   amountBeforeDiscount,
   people = 1,
   failOnMissingCode = false,
+  festId = '',
+  competitionId = '',
 }) {
   const normalizedCode = normalizeCouponCode(couponCode);
   const baseAmount = Math.max(0, Number(amountBeforeDiscount) || 0);
@@ -126,6 +158,13 @@ async function validateAndPriceCoupon({
     throw new Error('This coupon has expired. Ask the organizer to extend the expiry date in admin.');
   }
   assertCouponAppliesToEntity(coupon, entityType);
+  assertCouponScope(coupon, { festId, competitionId });
+
+  const minAmount = Math.max(0, Number(coupon.minAmount) || 0);
+  if (minAmount > 0 && baseAmount < minAmount) {
+    throw new Error(`This coupon needs a minimum payable of ₹${minAmount}.`);
+  }
+
   if (coupon.maxTotalUses > 0 && Number(coupon.usedCount || 0) >= Number(coupon.maxTotalUses)) {
     throw new Error('This coupon has reached its total usage limit.');
   }

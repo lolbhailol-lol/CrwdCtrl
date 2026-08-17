@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader, Pencil, RefreshCw, Trophy } from 'lucide-react';
+import { ArrowLeft, Pencil, RefreshCw, Trophy } from 'lucide-react';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 import {
     fetchFestOrganizerCompetitionDetails,
     buildFestOrganizerAdminApi,
@@ -46,11 +47,7 @@ export default function FestOrganizerCompetitionDetailsPage() {
     }, [festId, competitionId]);
 
     if (loading) {
-        return (
-            <div className="flex justify-center py-20 text-gray-400 gap-2">
-                <Loader className="animate-spin" size={18} /> Loading…
-            </div>
-        );
+        return <InlinePageLoader label="Loading…" variant="competition" />;
     }
 
     return (

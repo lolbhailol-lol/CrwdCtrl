@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CalendarDays, ChevronRight, Loader } from 'lucide-react';
+import { CalendarDays, ChevronRight } from 'lucide-react';
 import { fetchEventOrganizerMe } from '../../services/api/eventShowOrganizer.api';
 import { getEventOrganizerSession, setEventOrganizerSession } from '../../utils/eventShowOrganizerSession';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 
 function statusBadge(status) {
     const s = String(status || 'draft').toLowerCase();
@@ -41,11 +42,7 @@ export default function EventOrganizerHomePage() {
     }, []);
 
     if (loading) {
-        return (
-            <div className="flex justify-center py-20">
-                <Loader className="animate-spin text-[#0ECCEE]" />
-            </div>
-        );
+        return <InlinePageLoader label="Loading events…" variant="event" />;
     }
 
     if (error) {

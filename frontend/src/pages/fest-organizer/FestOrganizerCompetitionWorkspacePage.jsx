@@ -22,8 +22,9 @@ import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator
 import FestOrganizerManualAddModal from './FestOrganizerManualAddModal';
 import OrganizerTeamRoster, { OrganizerRosterPreview } from './OrganizerTeamRoster';
 import WhatsAppGroupToggle from './WhatsAppGroupToggle';
-import { isMindSparkFest } from '../../features/fests/mindspark';
+import { isMindSparkFest, resolveMindSparkModule } from '../../features/fests/mindspark';
 import { downloadCompetitionQrPng } from '../../utils/competitionPublicQr';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 
 const TABS = [
     { id: 'solo', label: 'Solo entries' },
@@ -1061,11 +1062,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
     }, [solo, teams]);
 
     if (loading && !data) {
-        return (
-            <div className="flex justify-center py-20 text-gray-400 gap-2">
-                <Loader className="animate-spin" size={18} /> Loading…
-            </div>
-        );
+        return <InlinePageLoader label="Loading…" variant="competition" />;
     }
 
     if (error && !data) {
@@ -1134,7 +1131,11 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                                 {competition?.feeAmount
                                     ? ` · ₹${Number(competition.feeAmount).toLocaleString('en-IN')}`
                                     : ' · Free'}
-                                {competition?.category ? ` · ${competition.category}` : ''}
+                                {competition?.category || isMindSparkFest(festId, data?.fest)
+                                    ? ` · ${isMindSparkFest(festId, data?.fest)
+                                        ? resolveMindSparkModule(competition)
+                                        : competition.category}`
+                                    : ''}
                             </p>
                         </div>
                         <button

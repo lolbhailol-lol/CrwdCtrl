@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, User, HelpCircle, LogOut, Sun, Moon, Footprints, Mountain, CalendarDays, MapPinned, KeyRound } from 'lucide-react';
+import { ChevronLeft, ChevronRight, User, HelpCircle, LogOut, Sun, Moon, Footprints, Users, Mountain, CalendarDays, MapPinned, KeyRound } from 'lucide-react';
 import { isCampusHuntEnabled, CAMPUS_HUNT_PATHS } from '../../features/campus-hunt/config';
 import {
     clearCampusHuntProfileCache,
@@ -59,6 +59,9 @@ export default function ProfileSidebar({
     const [clubManagerEligible, setClubManagerEligible] = useState(
         () => Boolean(organizerEligibilityCache?.club),
     );
+    const [communityOrganizerEligible, setCommunityOrganizerEligible] = useState(
+        () => Boolean(organizerEligibilityCache?.eventsCommunity),
+    );
     const [trekCommunityEligible, setTrekCommunityEligible] = useState(
         () => Boolean(organizerEligibilityCache?.trek),
     );
@@ -97,6 +100,7 @@ export default function ProfileSidebar({
         setCampusHuntMyTeams([]);
         setCampusHuntEntriesPending(isCampusHuntEnabled());
         setClubManagerEligible(false);
+        setCommunityOrganizerEligible(false);
         setTrekCommunityEligible(false);
         setEventOrganizerEligible(false);
         return undefined;
@@ -160,6 +164,7 @@ export default function ProfileSidebar({
 
         if (!isAuthenticated) {
             setClubManagerEligible(false);
+            setCommunityOrganizerEligible(false);
             setTrekCommunityEligible(false);
             setEventOrganizerEligible(false);
             organizerEligibilityCache = null;
@@ -174,6 +179,7 @@ export default function ProfileSidebar({
         const cacheKey = String(user?.email || authToken).toLowerCase();
         if (organizerEligibilityCache?.key === cacheKey) {
             setClubManagerEligible(Boolean(organizerEligibilityCache.club));
+            setCommunityOrganizerEligible(Boolean(organizerEligibilityCache.eventsCommunity));
             setTrekCommunityEligible(Boolean(organizerEligibilityCache.trek));
             setEventOrganizerEligible(Boolean(organizerEligibilityCache.event));
             return undefined;
@@ -189,12 +195,14 @@ export default function ProfileSidebar({
                 if (cancelled) return;
                 const next = {
                     key: cacheKey,
-                    club: Boolean(clubData?.eligible),
+                    club: Boolean(clubData?.sportsEligible ?? clubData?.eligible),
+                    eventsCommunity: Boolean(clubData?.eventsEligible),
                     trek: Boolean(trekData?.eligible),
                     event: Boolean(eventData?.eligible),
                 };
                 organizerEligibilityCache = next;
                 setClubManagerEligible(next.club);
+                setCommunityOrganizerEligible(next.eventsCommunity);
                 setTrekCommunityEligible(next.trek);
                 setEventOrganizerEligible(next.event);
             } catch {
@@ -225,6 +233,7 @@ export default function ProfileSidebar({
         setCampusHuntMyTeams([]);
         setCampusHuntEntriesPending(isCampusHuntEnabled());
         setClubManagerEligible(false);
+        setCommunityOrganizerEligible(false);
         setTrekCommunityEligible(false);
         setEventOrganizerEligible(false);
         logout();
@@ -291,13 +300,24 @@ export default function ProfileSidebar({
 
         if (label === 'Club manager') {
             try {
-                const booted = await tryRunClubOrganizerAppSession(token);
+                const booted = await tryRunClubOrganizerAppSession(token, 'sports');
                 goToPath(booted?.token ? '/run-club-organizer' : '/run-club-organizer/login');
             } catch (err) {
-                // Profile-email invite without organizer account → signup, not a failed login loop
                 goToPath(err?.code === 'no_organizer_account'
                     ? '/run-club-organizer/signup'
                     : '/run-club-organizer/login');
+            }
+            return;
+        }
+
+        if (label === 'Community organizer') {
+            try {
+                const booted = await tryRunClubOrganizerAppSession(token, 'events');
+                goToPath(booted?.token ? '/run-club-organizer' : '/run-club-organizer/login?hub=events');
+            } catch (err) {
+                goToPath(err?.code === 'no_organizer_account'
+                    ? '/run-club-organizer/signup?hub=events'
+                    : '/run-club-organizer/login?hub=events');
             }
             return;
         }
@@ -368,6 +388,9 @@ export default function ProfileSidebar({
         ...(clubManagerEligible
             ? [{ icon: Footprints, label: 'Club manager', hint: 'Runs, guests, check-in & notify' }]
             : []),
+        ...(communityOrganizerEligible
+            ? [{ icon: Users, label: 'Community organizer', hint: 'Events, guests, scan & notify' }]
+            : []),
         ...(trekCommunityEligible
             ? [{ icon: Mountain, label: 'Trek community', hint: 'Treks, participants, check-in & notify' }]
             : []),
@@ -402,6 +425,9 @@ export default function ProfileSidebar({
             : []),
         ...(clubManagerEligible
             ? [{ icon: Footprints, label: 'Club manager', requiresAuth: true, hint: 'Runs, guests, check-in & notify' }]
+            : []),
+        ...(communityOrganizerEligible
+            ? [{ icon: Users, label: 'Community organizer', requiresAuth: true, hint: 'Events, guests, scan & notify' }]
             : []),
         ...(trekCommunityEligible
             ? [{ icon: Mountain, label: 'Trek community', requiresAuth: true, hint: 'Treks, participants, check-in & notify' }]
