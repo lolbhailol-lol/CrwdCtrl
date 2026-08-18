@@ -18,6 +18,7 @@ const {
     sanitizeCompetitionFeeTiers,
     resolveCompetitionTicketPrice,
 } = require('../utils/competitionFeeTiers');
+const { parseTicketPrice } = require('../utils/platformFee');
 
 const TOKEN_TTL = '7d';
 
@@ -1823,8 +1824,6 @@ exports.updateCompetitionSlots = async (req, res) => {
         res.status(500).json({ success: false, message: 'Failed' });
     }
 };
-
-const { parseTicketPrice } = require('../utils/platformFee');
 
 function getCompetitionBaseFee(registrationFee, feeAmount) {
     const numericFeeAmount = parseTicketPrice(feeAmount);

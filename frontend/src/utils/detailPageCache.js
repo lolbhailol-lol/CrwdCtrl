@@ -62,6 +62,39 @@ export function loadCompetitionDetailCache(compId) {
   return read(`${COMP_PREFIX}${compId}`);
 }
 
+function removeKey(key) {
+  try {
+    sessionStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function clearFestDetailCache(festId) {
+  if (!festId) return;
+  removeKey(`${FEST_PREFIX}${festId}`);
+}
+
+export function clearCompetitionDetailCache(compId) {
+  if (!compId) return;
+  removeKey(`${COMP_PREFIX}${compId}`);
+}
+
+export function clearAllDetailCaches() {
+  try {
+    const keys = [];
+    for (let i = 0; i < sessionStorage.length; i += 1) {
+      const key = sessionStorage.key(i);
+      if (key && (key.startsWith(FEST_PREFIX) || key.startsWith(COMP_PREFIX))) {
+        keys.push(key);
+      }
+    }
+    keys.forEach((key) => sessionStorage.removeItem(key));
+  } catch {
+    /* ignore */
+  }
+}
+
 /** Cache + navigation state for instant fest detail paint */
 export function buildFestDetailNavState(fest) {
   const eventData = transformFestPublicData(fest);

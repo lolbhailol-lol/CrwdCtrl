@@ -1,4 +1,5 @@
 import { invalidateCatalogCache } from '../services/api/catalogCache';
+import { clearAllDetailCaches } from './detailPageCache';
 
 const TREKS_PAGE_SESSION_KEY = 'crwdctrl_treks_page_v1';
 const PUBLIC_CONFIG_LOCAL_KEY = 'crwdctrl_public_config_v1';
@@ -9,6 +10,7 @@ const PUBLIC_CONFIG_LOCAL_KEY = 'crwdctrl_public_config_v1';
  */
 export function notifyAdminDataUpdated() {
     invalidateCatalogCache();
+    clearAllDetailCaches();
     try {
         sessionStorage.removeItem(TREKS_PAGE_SESSION_KEY);
     } catch {

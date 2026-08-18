@@ -405,14 +405,6 @@ exports.createCompetition = async (req, res) => {
       });
     }
 
-    // ✅ NEW: Validate competitionType
-    if (!competitionType) {
-      logger.error('❌ Missing required field: competitionType');
-      return res.status(400).json({
-        message: 'Please select a Competition Type'
-      });
-    }
-
     const { normalizeTeamSizeFields } = require('../utils/teamSize');
     const { withNormalizedPersonFields } = require('../utils/personFields');
     const teamSize = normalizeTeamSizeFields({

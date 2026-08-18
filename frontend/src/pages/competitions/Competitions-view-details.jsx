@@ -638,7 +638,6 @@ function EventPage() {
         const handleAdminUpdate = () => {
             // Only refetch if we have a competitionId
             if (competitionId) {
-                console.log('🔄 Admin update detected - refetching competition details');
                 // Refetch the competition data with cache busting
                 const fetchUpdatedData = async () => {
                     try {
@@ -647,8 +646,9 @@ function EventPage() {
                         const compData = response.data;
 
                         if (compData) {
-                            setCompetitionData(buildCompetitionData(compData, { useFestRegistrationFallback: true }));
-                            console.log('Competition data updated from admin changes');
+                            const built = buildCompetitionData(compData, { useFestRegistrationFallback: true });
+                            setCompetitionData(built);
+                            saveCompetitionDetailCache(competitionId, built);
                         }
                     } catch (err) {
                         console.error('Error refetching updated competition data:', err);
@@ -664,7 +664,6 @@ function EventPage() {
         // Also listen for storage events (cross-tab updates)
         const handleStorageChange = (e) => {
             if (e.key === 'admin_data_updated') {
-                console.log('🔄 Admin update detected (cross-tab) - refetching competition details');
                 handleAdminUpdate({ detail: {} });
             }
         };
@@ -695,10 +694,7 @@ function EventPage() {
     // ✅ CRITICAL FIX: Auto-close login/register modal when user becomes authenticated
     // This is essential for phone login which uses redirect-based authentication
     useEffect(() => {
-        console.log('🔄 [VIEW-DETAILS] Auth state check:', { isAuthenticated, showLogin, showRegister });
-        
         if (isAuthenticated && showLogin) {
-            console.log('✅ [VIEW-DETAILS] User authenticated, closing login modal');
             setShowLogin(false);
             // Clear URL parameters
             const url = new URL(window.location);
@@ -706,7 +702,6 @@ function EventPage() {
             window.history.replaceState({}, '', url);
         }
         if (isAuthenticated && showRegister) {
-            console.log('✅ [VIEW-DETAILS] User authenticated, closing register modal');
             setShowRegister(false);
         }
     }, [isAuthenticated, showLogin, showRegister]);
@@ -1082,19 +1077,7 @@ function EventPage() {
             const steps = eventData?.registration?.steps || [];
             hasFormFields = steps.length > 0 && steps.some(step => step.fields && step.fields.length > 0);
         }
-        
-        console.log('🔍 Form configuration check:', {
-            formType,
-            isCustomForm: true,
-            hasFormFields,
-            singleStepLength: eventData?.registration?.formSchema?.length || 0,
-            multiStepCount: eventData?.registration?.steps?.length || 0,
-            multiStepFields: eventData?.registration?.steps?.map(s => ({ 
-                stepNumber: s.stepNumber, 
-                fieldsCount: s.fields?.length || 0 
-            }))
-        });
-        
+
         return hasFormFields;
     };
 

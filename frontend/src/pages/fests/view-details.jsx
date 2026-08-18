@@ -171,16 +171,13 @@ function EventDetailsPage() {
     const gen = fetchGenRef.current;
     const fetchEventData = async () => {
       if (!eventId) {
-        console.log('ViewDetails - No eventId provided, redirecting to dashboard');
         navigate('/');
         return;
       }
 
       try {
         setError(null);
-        
-        console.log('ViewDetails - Fetching event data for ID:', eventId);
-        
+
         // ✅ iOS/Safari compatibility - longer timeout
         const userAgent = navigator.userAgent || '';
         const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
@@ -193,16 +190,7 @@ function EventDetailsPage() {
           timeout: timeout,
           cacheBust: false,
         });
-        console.log('ViewDetails - API Response:', response.data);
-        console.log('ViewDetails - Contacts in API Response:', response.data.contacts);
-        console.log('ViewDetails - Artists Heading in API Response:', response.data.artistsHeading);
-        console.log('ViewDetails - Competitions Heading in API Response:', response.data.competitionsHeading);
-        console.log('🔍 ViewDetails - Competitions in API Response:', response.data.competitions);
-        console.log('🔍 ViewDetails - Competitions count:', response.data.competitions?.length || 0);
         const festData = response.data;
-
-        // Debug: Check if registrationLink exists in the response
-        console.log('ViewDetails - Registration Link from API:', festData.registrationLink);
 
         const transformedData = transformFestPublicData(festData);
         if (gen !== fetchGenRef.current) return;
@@ -255,7 +243,6 @@ function EventDetailsPage() {
     const handleAdminUpdate = (e) => {
       // Only refetch if the updated fest is the one we're viewing
       if (!e.detail?.festId || e.detail?.festId === eventId) {
-        console.log('🔄 Admin update detected for current fest - refetching details');
         // Refetch the event data with cache busting
         const fetchUpdatedData = async () => {
           try {
@@ -265,7 +252,7 @@ function EventDetailsPage() {
             if (transformedData) {
               setEventData(transformedData);
               setCurrentHeroImage(transformedData.heroImage || transformedData.image);
-              console.log('✅ Event data updated with new admin changes');
+              saveFestDetailCache(eventId, transformedData);
             }
           } catch (err) {
             console.error('Error refetching updated event data:', err);
@@ -281,7 +268,6 @@ function EventDetailsPage() {
     // Also listen for localStorage changes (cross-tab updates)
     const handleStorageChange = (e) => {
       if (e.key === 'admin_data_updated') {
-        console.log('🔄 Admin update detected (cross-tab) - refetching event details');
         handleAdminUpdate({ detail: { festId: eventId } });
       }
     };
@@ -301,11 +287,9 @@ function EventDetailsPage() {
   // ✅ CRITICAL FIX: Auto-close login modal when user becomes authenticated
   useEffect(() => {
     if (isAuthenticated && showLogin) {
-      console.log('✅ User authenticated, closing login modal in view-details');
       setShowLogin(false);
     }
     if (isAuthenticated && showRegister) {
-      console.log('✅ User authenticated, closing register modal in view-details');
       setShowRegister(false);
     }
   }, [isAuthenticated, showLogin, showRegister]);
