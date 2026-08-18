@@ -1800,7 +1800,6 @@ export default function EventRegistrationPage() {
                                         }
                                         : null,
                                 ].filter(Boolean)}
-                                showZeroPlatformFee={isOrganizerQr && ticketPrice > 0}
                                 showCoupon={couponsEnabled}
                                 couponInfo={couponInfo}
                                 couponCode={couponCode}

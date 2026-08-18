@@ -1618,7 +1618,6 @@ export default function EventCommunityBookingPage() {
                                 isDark={isDark}
                                 feeLabel={copy.feeLabel}
                                 approverLabel={copy.checkoutApprover}
-                                showZeroPlatformFee
                                 payableAmount={payableAmount}
                                 baseFee={baseFee}
                                 chargePerPerson={chargePerPerson}

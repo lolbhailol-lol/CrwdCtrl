@@ -35,7 +35,6 @@ export default function RunCheckoutPanel({
     onTransactionIdChange,
     feeLabel = 'Run fee',
     approverLabel = 'club',
-    showZeroPlatformFee = false,
     amountHint = '',
     extraLineItems = [],
     peopleLabel = 'people',
@@ -61,6 +60,10 @@ export default function RunCheckoutPanel({
     const peopleWord = peopleCount === 1
         ? (peopleLabel === 'drivers' ? 'driver' : peopleLabel === 'people' ? 'person' : peopleLabel.replace(/s$/, ''))
         : peopleLabel;
+    const hasUsefulBreakdown = peopleCount > 1
+        || addOnTotal > 0
+        || extraItems.length > 0
+        || (couponApplied && saved > 0);
 
     const cardBorder = isDark ? 'border-gray-700/60' : 'border-gray-200';
     const cardBg = isDark ? 'bg-[#111213]' : 'bg-white shadow-sm';
@@ -181,21 +184,17 @@ export default function RunCheckoutPanel({
                 <div className={`px-4 py-4 border-t text-sm ${isDark ? 'border-gray-800 text-gray-400' : 'border-gray-100 text-gray-600'}`}>
                     Coupon covers the full fee — tap confirm below to book. No payment needed.
                 </div>
-            ) : (isCashfree || showQrSteps) && payableAmount > 0 ? (
+            ) : (isCashfree || showQrSteps) && payableAmount > 0 && hasUsefulBreakdown ? (
                 <div className={`px-4 py-3 sm:px-5 border-t space-y-1.5 text-sm ${isDark ? 'border-gray-800 text-gray-300' : 'border-gray-100 text-gray-700'}`}>
-                    <div className="flex justify-between gap-4">
-                        <span>
-                            {feeLabel}
-                            {peopleCount > 1 ? (
-                                <span className={`text-xs ml-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>× {peopleCount} {peopleLabel}</span>
-                            ) : null}
-                        </span>
-                        <span className="tabular-nums">₹{ticketTotal.toLocaleString('en-IN')}</span>
-                    </div>
-                    {showZeroPlatformFee ? (
-                        <div className={`flex justify-between gap-4 text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                            <span>Platform fee</span>
-                            <span className="tabular-nums">₹0</span>
+                    {peopleCount > 1 || addOnTotal > 0 ? (
+                        <div className="flex justify-between gap-4">
+                            <span>
+                                {feeLabel}
+                                {peopleCount > 1 ? (
+                                    <span className={`text-xs ml-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>× {peopleCount} {peopleLabel}</span>
+                                ) : null}
+                            </span>
+                            <span className="tabular-nums">₹{ticketTotal.toLocaleString('en-IN')}</span>
                         </div>
                     ) : null}
                     {addOnTotal > 0 ? (
@@ -228,10 +227,6 @@ export default function RunCheckoutPanel({
                             <span className="tabular-nums">−₹{saved.toLocaleString('en-IN')}</span>
                         </div>
                     ) : null}
-                    <div className={`flex justify-between gap-4 pt-2.5 mt-1 border-t font-bold text-base text-[#0ECCEE] ${isDark ? 'border-gray-800' : 'border-gray-200'}`}>
-                        <span>{isCashfree ? 'You pay' : 'Pay on UPI'}</span>
-                        <span className="tabular-nums">₹{payableAmount.toLocaleString('en-IN')}</span>
-                    </div>
                 </div>
             ) : null}
 
