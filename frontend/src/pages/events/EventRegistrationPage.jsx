@@ -37,6 +37,7 @@ import {
     formatInr,
 } from '../../utils/eventShowTiers';
 import { getSuggestedCouponCode, getSuggestedCouponLabel } from '../../utils/suggestedCoupon';
+import RunCheckoutPanel from '../../components/sports/RunCheckoutPanel';
 
 const API = API_BASE_URL;
 
@@ -170,6 +171,7 @@ export default function EventRegistrationPage() {
     const [paymentScreenshotUrl, setPaymentScreenshotUrl] = useState('');
     const [transactionId, setTransactionId] = useState('');
     const [uploadingProof, setUploadingProof] = useState(false);
+    const [upiCopied, setUpiCopied] = useState(false);
     const [selectedTierId, setSelectedTierId] = useState(() => {
         try {
             return new URLSearchParams(window.location.search).get('tier') || location.state?.tierId || '';
@@ -1766,233 +1768,94 @@ export default function EventRegistrationPage() {
 
                     {/* Payment / confirm step */}
                     {isPaymentStep && (
+                        ticketPrice > 0 ? (
+                            <RunCheckoutPanel
+                                mode={isOrganizerQr ? 'organizer_qr' : 'cashfree'}
+                                isDark={isDark}
+                                payableAmount={payableAmount}
+                                baseFee={breakdown.totalAmount}
+                                chargePerPerson={ticketPrice}
+                                feePerPerson={packagePrice}
+                                people={1}
+                                feeLabel={tiersMode && selectedTier ? 'Package fee' : 'Entry fee'}
+                                amountHint={
+                                    couponInfo?.couponApplied
+                                        ? `Was ₹${Number(couponInfo.amountBeforeDiscount ?? breakdown.totalAmount).toLocaleString('en-IN')}`
+                                        : selectedTier?.name || 'Registration fee'
+                                }
+                                extraLineItems={[
+                                    selectedTier ? { label: 'Package', value: selectedTier.name } : null,
+                                    tiersMode && selectedTier
+                                        ? { label: 'Drivers', value: `${driverCount} ${driverCount === 1 ? 'driver' : 'drivers'}` }
+                                        : null,
+                                    ...selectedAddOns.map((addOn) => ({
+                                        label: addOn.name,
+                                        value: `₹${addOn.fee.toLocaleString('en-IN')}`,
+                                    })),
+                                    breakdown.platformFee > 0
+                                        ? {
+                                            label: `CrwdCtrl platform fee (${platformFeePercent}%)`,
+                                            value: `₹${breakdown.platformFee}`,
+                                            tone: 'muted',
+                                        }
+                                        : null,
+                                ].filter(Boolean)}
+                                showZeroPlatformFee={isOrganizerQr && ticketPrice > 0}
+                                showCoupon={couponsEnabled}
+                                couponInfo={couponInfo}
+                                couponCode={couponCode}
+                                couponLoading={couponLoading}
+                                couponError={couponError}
+                                suggestedCoupon={suggestedCoupon}
+                                suggestedCouponLabel={suggestedCouponLabel}
+                                onCouponCodeChange={(v) => {
+                                    setCouponCode(v);
+                                    setCouponInfo(null);
+                                    setCouponError('');
+                                }}
+                                onApplyCoupon={(code) => applyCoupon(code)}
+                                onClearCoupon={() => {
+                                    setCouponInfo(null);
+                                    setCouponCode(suggestedCoupon || '');
+                                    setCouponError('');
+                                    autoAppliedCouponRef.current = '';
+                                }}
+                                paymentQR={reg.paymentQR}
+                                paymentUpiId={reg.paymentUpiId}
+                                paymentQRMessage={reg.paymentQRMessage}
+                                qrAutoConfirm={Boolean(reg.qrAutoConfirm)}
+                                approverLabel="organizer"
+                                upiCopied={upiCopied}
+                                onCopyUpi={async () => {
+                                    if (!reg.paymentUpiId) return;
+                                    try {
+                                        await navigator.clipboard.writeText(reg.paymentUpiId);
+                                        setUpiCopied(true);
+                                        window.setTimeout(() => setUpiCopied(false), 2000);
+                                    } catch { /* ignore */ }
+                                }}
+                                paymentScreenshotUrl={paymentScreenshotUrl}
+                                uploadingProof={uploadingProof}
+                                onUploadScreenshot={uploadPaymentProof}
+                                onRemoveScreenshot={() => setPaymentScreenshotUrl('')}
+                                transactionId={transactionId}
+                                onTransactionIdChange={(v) => setTransactionId(String(v || '').toUpperCase().replace(/\s+/g, ''))}
+                                txnHint="Paste the UTR from GPay / PhonePe / Paytm so the organizer can match it."
+                            />
+                        ) : (
                         <div className={`rounded-2xl overflow-hidden border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-100 shadow-md'}`}>
-                            {ticketPrice > 0 ? (
-                                <div className={`px-4 py-3.5 flex items-start justify-between gap-3 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
-                                    <div className="min-w-0">
-                                        <p className={`text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                                            {isOrganizerQr ? 'Amount to pay' : 'Amount payable'}
-                                        </p>
-                                        <p className={`text-2xl font-bold leading-tight tabular-nums ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                            ₹{payableAmount.toLocaleString('en-IN')}
-                                        </p>
-                                        <p className={`text-[11px] mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                                            {couponInfo?.couponApplied
-                                                ? `was ₹${Number(couponInfo.amountBeforeDiscount ?? breakdown.totalAmount).toLocaleString('en-IN')}`
-                                                : selectedTier
-                                                    ? selectedTier.name
-                                                    : 'Registration fee'}
-                                        </p>
-                                    </div>
-                                    {couponsEnabled && !showCouponField && !couponInfo?.couponApplied ? (
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowCouponField(true)}
-                                            className="shrink-0 text-xs font-semibold text-[#0ECCEE] pt-1"
-                                        >
-                                            Coupon
-                                        </button>
-                                    ) : null}
-                                </div>
-                            ) : (
-                                <div className={`px-4 py-3.5 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
-                                    <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Confirm Registration</p>
-                                </div>
-                            )}
-
-                            {couponsEnabled && ticketPrice > 0 && (showCouponField || couponInfo?.couponApplied) ? (
-                                <div className={`px-4 py-3 border-t ${isDark ? 'border-gray-700/60 bg-[#111213]' : 'border-gray-200 bg-white'}`}>
-                                    {couponInfo?.couponApplied ? (
-                                        <div className={`rounded-xl px-3.5 py-3 border ${isDark ? 'bg-emerald-900/20 border-emerald-700/40' : 'bg-green-50 border-green-200'}`}>
-                                            <div className="flex items-center gap-3">
-                                                <CheckCircle size={18} className="text-emerald-400 shrink-0" />
-                                                <div className="min-w-0 flex-1">
-                                                    <p className={`text-sm font-bold ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
-                                                        Applied · {couponInfo.couponCode}
-                                                    </p>
-                                                    <p className={`text-[11px] mt-0.5 ${isDark ? 'text-emerald-200/70' : 'text-emerald-800/80'}`}>
-                                                        You save ₹{Number(couponInfo.discountAmount || 0).toLocaleString('en-IN')}
-                                                        {payableAmount === 0 ? ' · No payment needed' : ''}
-                                                    </p>
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setCouponInfo(null);
-                                                        setCouponCode(suggestedCoupon || '');
-                                                        setCouponError('');
-                                                        autoAppliedCouponRef.current = '';
-                                                    }}
-                                                    className={`text-[11px] font-semibold shrink-0 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
-                                                >
-                                                    Change
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            {suggestedCoupon ? (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => applyCoupon(suggestedCoupon)}
-                                                    disabled={couponLoading}
-                                                    className={`mb-2.5 w-full flex items-center justify-between gap-2 rounded-xl px-3 py-2.5 border text-left ${
-                                                        isDark
-                                                            ? 'bg-emerald-500/10 border-emerald-500/30'
-                                                            : 'bg-emerald-50 border-emerald-200'
-                                                    }`}
-                                                >
-                                                    <span className={`text-xs font-semibold ${isDark ? 'text-emerald-200' : 'text-emerald-800'}`}>
-                                                        Use {suggestedCoupon}
-                                                        {suggestedCouponLabel ? ` · ${suggestedCouponLabel}` : ''}
-                                                    </span>
-                                                    <span className="text-[11px] font-bold text-[#0ECCEE]">
-                                                        {couponLoading ? '…' : 'Apply'}
-                                                    </span>
-                                                </button>
-                                            ) : null}
-                                            <div className="flex gap-2">
-                                                <input
-                                                    value={couponCode}
-                                                    onChange={(e) => {
-                                                        setCouponCode(e.target.value.toUpperCase());
-                                                        setCouponInfo(null);
-                                                        setCouponError('');
-                                                    }}
-                                                    placeholder="Enter coupon"
-                                                    className={`flex-1 min-w-0 h-10 px-3 rounded-lg border text-sm focus:outline-none focus:border-[#0ECCEE] ${
-                                                        isDark
-                                                            ? 'bg-[#0E0E0F] border-gray-700 text-white placeholder-gray-600'
-                                                            : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
-                                                    }`}
-                                                />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => applyCoupon()}
-                                                    disabled={couponLoading || !couponCode.trim()}
-                                                    className="h-10 px-3.5 rounded-lg bg-[#0ECCEE] text-black text-sm font-bold disabled:opacity-50"
-                                                >
-                                                    {couponLoading ? '…' : 'Apply'}
-                                                </button>
-                                            </div>
-                                            {couponError ? <p className="text-[11px] text-red-400 mt-1.5">{couponError}</p> : null}
-                                        </>
-                                    )}
-                                </div>
-                            ) : null}
-
-                            <div className={`px-4 py-4 border-t space-y-3 ${isDark ? 'border-gray-700/60 bg-[#111213]' : 'border-gray-200 bg-white'}`}>
-                            {ticketPrice > 0 ? (
-                                <div className={`space-y-1.5 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                                    {selectedTier ? (
-                                        <div className="flex justify-between gap-4">
-                                            <span>Package</span>
-                                            <span className="text-right font-medium">{selectedTier.name}</span>
-                                        </div>
-                                    ) : null}
-                                    {tiersMode && selectedTier ? (
-                                        <div className="flex justify-between gap-4"><span>Drivers</span><span>{driverCount} {driverCount === 1 ? 'driver' : 'drivers'}</span></div>
-                                    ) : null}
-                                    <div className="flex justify-between gap-4"><span>{tiersMode && selectedTier ? 'Package fee' : 'Entry fee'}</span><span>₹{packagePrice.toLocaleString('en-IN')}</span></div>
-                                    {selectedAddOns.map((addOn) => (
-                                        <div key={addOn.id} className="flex justify-between gap-4">
-                                            <span>{addOn.name}</span>
-                                            <span>₹{addOn.fee.toLocaleString('en-IN')}</span>
-                                        </div>
-                                    ))}
-                                    {breakdown.platformFee > 0 ? (
-                                        <div className={`flex justify-between gap-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                            <span>CrwdCtrl platform fee ({platformFeePercent}%)</span>
-                                            <span>₹{breakdown.platformFee}</span>
-                                        </div>
-                                    ) : null}
-                                    {couponInfo?.couponApplied ? <div className="flex justify-between gap-4 text-green-400"><span>Coupon Discount</span><span>-₹{couponInfo.discountAmount}</span></div> : null}
-                                    <div className={`flex justify-between gap-4 pt-2.5 mt-1 border-t font-bold text-base text-[#0ECCEE] ${isDark ? 'border-gray-700' : 'border-gray-100'}`}><span>Amount Payable</span><span>₹{payableAmount.toLocaleString('en-IN')}</span></div>
-                                    {isOrganizerQr && payableAmount > 0 ? (
-                                        <div className={`mt-3 rounded-xl border p-3 space-y-3 ${isDark ? 'border-gray-700 bg-[#1D1E20]' : 'border-gray-100 bg-white shadow-sm'}`}>
-                                            {reg.paymentQR ? (
-                                                <div className="flex items-start gap-3">
-                                                    <img src={reg.paymentQR} alt="Payment QR" className="h-28 w-28 rounded-xl object-contain bg-white p-1.5 border border-gray-200 shrink-0" />
-                                                    <div className="flex-1 min-w-0 pt-0.5">
-                                                        <p className={`text-xs font-semibold mb-1 ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                                                            Pay ₹{payableAmount.toLocaleString('en-IN')} via UPI
-                                                        </p>
-                                                        {reg.paymentUpiId ? (
-                                                            <p className={`text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                                                                UPI ID: <span className="font-semibold break-all">{reg.paymentUpiId}</span>
-                                                            </p>
-                                                        ) : null}
-                                                        {reg.paymentQRMessage ? (
-                                                            <p className={`text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{reg.paymentQRMessage}</p>
-                                                        ) : (
-                                                            <p className={`text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                                                Scan QR, pay the amount above, then upload screenshot + UTR.
-                                                            </p>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <p className="text-xs text-red-400">Payment QR not configured yet. Please contact organizer.</p>
-                                            )}
-                                            <label className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 cursor-pointer ${
-                                                isDark ? 'border-gray-600 bg-[#111213]' : 'border-gray-200 bg-white'
-                                            } ${uploadingProof ? 'opacity-60 pointer-events-none' : ''}`}>
-                                                {paymentScreenshotUrl ? (
-                                                    <img src={paymentScreenshotUrl} alt="" className="size-12 rounded-lg object-cover shrink-0" />
-                                                ) : (
-                                                    <div className={`size-12 rounded-lg border border-dashed flex items-center justify-center text-[10px] ${isDark ? 'border-gray-600 text-gray-500' : 'border-gray-300 text-gray-400'}`}>
-                                                        Proof
-                                                    </div>
-                                                )}
-                                                <div className="min-w-0 flex-1">
-                                                    <p className={`text-xs font-semibold ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                                                        {uploadingProof ? 'Uploading…' : paymentScreenshotUrl ? 'Screenshot added' : 'Upload payment screenshot'}
-                                                    </p>
-                                                    <p className={`text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                                                        {paymentScreenshotUrl ? 'Tap to change' : 'Choose from gallery or camera'}
-                                                    </p>
-                                                </div>
-                                                <span className="text-xs font-semibold text-[#0ECCEE] shrink-0">
-                                                    {paymentScreenshotUrl ? 'Change' : 'Add'}
-                                                </span>
-                                                <input
-                                                    type="file"
-                                                    accept="image/*"
-                                                    className="hidden"
-                                                    onChange={(e) => {
-                                                        const file = e.target.files?.[0];
-                                                        if (file) uploadPaymentProof(file);
-                                                        e.target.value = '';
-                                                    }}
-                                                />
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={transactionId}
-                                                onChange={(e) => setTransactionId(e.target.value.toUpperCase().replace(/\s+/g, ''))}
-                                                placeholder="UPI / transaction ID (UTR)"
-                                                className={`w-full px-3 py-2.5 rounded-xl border text-sm ${isDark ? 'bg-[#111213] border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
-                                            />
-                                        </div>
-                                    ) : isOrganizerQr && payableAmount === 0 ? (
-                                        <p className={`text-xs mt-2 ${isDark ? 'text-emerald-300/80' : 'text-emerald-700'}`}>
-                                            Coupon covers the full amount — no QR payment needed.
-                                        </p>
-                                    ) : (
-                                        <p className={`text-xs mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                            Secure payment via Cashfree
-                                        </p>
-                                    )}
-                                </div>
-                            ) : (
+                            <div className={`px-4 py-3.5 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
+                                <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Confirm Registration</p>
+                            </div>
+                            <div className={`px-4 py-4 border-t ${isDark ? 'border-gray-700/60' : 'border-gray-200'}`}>
                                 <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                                     {driveOnlyPath
                                         ? 'Independence Day Drive only — free. Confirm to finish registration (no payment).'
                                         : 'This registration is free. Click confirm to complete.'}
                                 </p>
-                            )}
                             </div>
                         </div>
+                        )
                     )}
 
                     {/* Nav buttons */}

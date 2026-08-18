@@ -36,6 +36,13 @@ export default function RunCheckoutPanel({
     feeLabel = 'Run fee',
     approverLabel = 'club',
     showZeroPlatformFee = false,
+    amountHint = '',
+    extraLineItems = [],
+    peopleLabel = 'people',
+    suggestedCoupon = '',
+    suggestedCouponLabel = '',
+    txnHint = '',
+    showCoupon = true,
 }) {
     const isCashfree = mode === 'cashfree';
     const couponApplied = Boolean(couponInfo?.couponApplied);
@@ -44,6 +51,15 @@ export default function RunCheckoutPanel({
     const ticketPerPerson = Number(feePerPerson ?? chargePerPerson) || 0;
     const addOnTotal = addOnFeePerPerson > 0 ? addOnFeePerPerson * people : 0;
     const ticketTotal = ticketPerPerson * people;
+    const extraItems = Array.isArray(extraLineItems) ? extraLineItems.filter((row) => row?.label) : [];
+    const approveCopy = approverLabel === 'community'
+        ? 'Community'
+        : approverLabel === 'organizer'
+            ? 'Organizer'
+            : 'Club';
+    const peopleWord = people === 1
+        ? (peopleLabel === 'drivers' ? 'driver' : peopleLabel === 'people' ? 'person' : peopleLabel.replace(/s$/, ''))
+        : peopleLabel;
 
     const cardBorder = isDark ? 'border-gray-700/60' : 'border-gray-200';
     const cardBg = isDark ? 'bg-[#111213]' : 'bg-white shadow-sm';
@@ -66,20 +82,21 @@ export default function RunCheckoutPanel({
                     ) : null}
                 </div>
                 <p className={`text-[11px] mt-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                    {couponApplied && baseFee > payableAmount
-                        ? `Was ₹${Number(couponInfo?.amountBeforeDiscount ?? baseFee).toLocaleString('en-IN')}`
-                        : people > 1
-                            ? `₹${chargePerPerson.toLocaleString('en-IN')} × ${people} people`
-                            : '1 person'}
+                    {amountHint
+                        || (couponApplied && baseFee > payableAmount
+                            ? `Was ₹${Number(couponInfo?.amountBeforeDiscount ?? baseFee).toLocaleString('en-IN')}`
+                            : people > 1
+                                ? `₹${chargePerPerson.toLocaleString('en-IN')} × ${people} ${peopleLabel}`
+                                : `1 ${peopleWord}`)}
                     {isCashfree
                         ? ' · Secure checkout via Cashfree'
                         : qrAutoConfirm
                             ? ' · Confirms when you submit'
-                            : ` · ${approverLabel === 'community' ? 'Community' : 'Club'} approves after you submit`}
+                            : ` · ${approveCopy} approves after you submit`}
                 </p>
             </div>
 
-            {/* Coupon */}
+            {showCoupon ? (
             <div className={`px-4 py-3 sm:px-5 border-t ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
                 <p className={`text-[11px] mb-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Have a coupon?</p>
                 {couponApplied ? (
@@ -106,6 +123,26 @@ export default function RunCheckoutPanel({
                     </div>
                 ) : (
                     <>
+                        {suggestedCoupon && !couponApplied ? (
+                            <button
+                                type="button"
+                                onClick={() => onApplyCoupon(suggestedCoupon)}
+                                disabled={couponLoading}
+                                className={`mb-2.5 w-full flex items-center justify-between gap-2 rounded-xl px-3 py-2.5 border text-left ${
+                                    isDark
+                                        ? 'bg-emerald-500/10 border-emerald-500/30'
+                                        : 'bg-emerald-50 border-emerald-200'
+                                }`}
+                            >
+                                <span className={`text-xs font-semibold ${isDark ? 'text-emerald-200' : 'text-emerald-800'}`}>
+                                    Use {suggestedCoupon}
+                                    {suggestedCouponLabel ? ` · ${suggestedCouponLabel}` : ''}
+                                </span>
+                                <span className="text-[11px] font-bold text-[#0ECCEE]">
+                                    {couponLoading ? '…' : 'Apply'}
+                                </span>
+                            </button>
+                        ) : null}
                         <div className="flex gap-2">
                             <input
                                 value={couponCode}
@@ -126,7 +163,7 @@ export default function RunCheckoutPanel({
                             />
                             <button
                                 type="button"
-                                onClick={onApplyCoupon}
+                                onClick={() => onApplyCoupon()}
                                 disabled={couponLoading || !couponCode.trim()}
                                 className="shrink-0 px-4 py-2.5 rounded-lg bg-[#0ECCEE] text-black text-sm font-bold disabled:opacity-50"
                             >
@@ -137,6 +174,7 @@ export default function RunCheckoutPanel({
                     </>
                 )}
             </div>
+            ) : null}
 
             {isCashfree ? (
                 payableAmount > 0 ? (
@@ -144,7 +182,9 @@ export default function RunCheckoutPanel({
                         <div className="flex justify-between gap-4">
                             <span>
                                 {feeLabel}
-                                <span className={`text-xs ml-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>× {people}</span>
+                                {people > 1 ? (
+                                    <span className={`text-xs ml-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>× {people}</span>
+                                ) : null}
                             </span>
                             <span className="tabular-nums">₹{ticketTotal.toLocaleString('en-IN')}</span>
                         </div>
@@ -163,6 +203,21 @@ export default function RunCheckoutPanel({
                                 <span className="tabular-nums shrink-0">₹{addOnTotal.toLocaleString('en-IN')}</span>
                             </div>
                         ) : null}
+                        {extraItems.map((row) => (
+                            <div
+                                key={row.label}
+                                className={`flex justify-between gap-4 ${
+                                    row.tone === 'muted'
+                                        ? (isDark ? 'text-gray-500' : 'text-gray-400')
+                                        : row.tone === 'discount'
+                                            ? (isDark ? 'text-green-400' : 'text-green-600')
+                                            : ''
+                                }`}
+                            >
+                                <span className="truncate pr-2">{row.label}</span>
+                                <span className="tabular-nums shrink-0">{row.value}</span>
+                            </div>
+                        ))}
                         {couponApplied && saved > 0 ? (
                             <div className={`flex justify-between gap-4 ${isDark ? 'text-green-400' : 'text-green-600'}`}>
                                 <span>Coupon discount</span>
@@ -181,6 +236,23 @@ export default function RunCheckoutPanel({
                 )
             ) : showQrSteps ? (
                 <>
+                    {extraItems.length > 0 ? (
+                    <div className={`px-4 py-3 sm:px-5 border-t space-y-1.5 text-sm ${isDark ? 'border-gray-800 text-gray-300' : 'border-gray-100 text-gray-700'}`}>
+                        {extraItems.map((row) => (
+                            <div
+                                key={row.label}
+                                className={`flex justify-between gap-4 ${
+                                    row.tone === 'muted'
+                                        ? (isDark ? 'text-gray-500' : 'text-gray-400')
+                                        : ''
+                                }`}
+                            >
+                                <span className="truncate pr-2">{row.label}</span>
+                                <span className="tabular-nums shrink-0">{row.value}</span>
+                            </div>
+                        ))}
+                    </div>
+                    ) : null}
                     <div className={`px-4 py-4 border-t flex gap-4 items-start ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
                         {paymentQR ? (
                             <div className="shrink-0 size-[140px] sm:size-[152px] rounded-xl bg-white p-2 shadow-sm">
@@ -282,7 +354,7 @@ export default function RunCheckoutPanel({
                                 3. UTR / transaction ID
                             </label>
                             <p className={`text-[11px] mb-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                Paste the ID from your UPI app — helps the club verify faster.
+                                {txnHint || 'Paste the ID from your UPI app — helps verify faster.'}
                             </p>
                             <input
                                 id="run-upi-txn-id"

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Share2, Heart, Calendar, MapPin,
@@ -320,7 +321,7 @@ export default function EventDetailsPage() {
       : null);
 
   return (
-    <div className="crwdctrl-page min-h-screen pb-28">
+    <div className="crwdctrl-page min-h-screen pb-[max(7.5rem,calc(var(--safe-bottom)+6.5rem))]">
       <Seo
         title={event.title}
         description={event.about ? event.about.slice(0, 160) : `${event.title} — ${event.type}`}
@@ -702,31 +703,33 @@ export default function EventDetailsPage() {
         </div>
       </div>
 
-      {/* Sticky bottom bar: Register only */}
-      <div
-        className="fixed bottom-0 left-0 right-0 z-40 px-2"
-        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 6px)' }}
-      >
-        <div className={`mx-auto w-full max-w-md md:max-w-2xl rounded-[30px] px-5 py-3.5 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'}`}>
-          <button
-            type="button"
-            onClick={handleRegister}
-            disabled={registrationClosed}
-            className={`flex w-full items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg transition ${
-              registrationClosed
-                ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
-                : 'bg-[#0ECCEE] text-black active:opacity-90'
-            }`}
-          >
-            {registrationClosed ? 'Registration Closed' : 'Register Now'}
-            {!registrationClosed && <ChevronRight size={20} />}
-          </button>
-        </div>
-      </div>
+      {typeof document !== 'undefined' && createPortal(
+        <>
+          {!tierSheetOpen && !showLogin && lightboxIndex == null ? (
+            <div
+              className="fixed inset-x-0 bottom-0 z-100040 px-2 pointer-events-none"
+              style={{ paddingBottom: 'max(var(--safe-bottom), 6px)' }}
+            >
+              <div className={`pointer-events-auto mx-auto w-full max-w-md md:max-w-2xl rounded-[30px] px-5 py-3.5 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'}`}>
+                <button
+                  type="button"
+                  onClick={handleRegister}
+                  disabled={registrationClosed}
+                  className={`flex w-full items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg transition ${
+                    registrationClosed
+                      ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
+                      : 'bg-[#0ECCEE] text-black active:opacity-90'
+                  }`}
+                >
+                  {registrationClosed ? 'Registration Closed' : 'Register Now'}
+                  {!registrationClosed && <ChevronRight size={20} />}
+                </button>
+              </div>
+            </div>
+          ) : null}
 
-      {/* Package sheet — same pattern as run clubs */}
-      {tierSheetOpen && packageTiers.length > 0 && (
-        <div className="fixed inset-0 z-60 flex items-end justify-center">
+          {tierSheetOpen && packageTiers.length > 0 ? (
+        <div className="fixed inset-0 z-100055 flex items-end justify-center">
           <button
             type="button"
             aria-label="Close"
@@ -738,7 +741,7 @@ export default function EventDetailsPage() {
             }}
           />
           <div
-            className={`relative w-full max-w-md md:max-w-2xl max-h-[85vh] overflow-y-auto rounded-t-3xl px-4 pt-3 pb-[max(1.5rem,env(safe-area-inset-bottom))] ${
+            className={`relative w-full max-w-md md:max-w-2xl max-h-[85vh] overflow-y-auto rounded-t-3xl px-4 pt-3 pb-[max(1.5rem,var(--safe-bottom))] ${
               isDark ? 'bg-[#161718]' : 'bg-white'
             }`}
           >
@@ -866,6 +869,9 @@ export default function EventDetailsPage() {
             </div>
           </div>
         </div>
+          ) : null}
+        </>,
+        document.body,
       )}
 
       {/* Gallery lightbox */}
