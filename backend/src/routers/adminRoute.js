@@ -11,6 +11,11 @@ const adminSectionCtrl = require('../controllers/adminSectionController');
 const homepageSectionCtrl = require('../controllers/homepageSectionController');
 const uploadCtrl = require('../controllers/uploadController');
 const { parseTicketPrice } = require('../utils/platformFee');
+const {
+  sanitizeCompetitionFeeTiers,
+  minCompetitionFeeAmount,
+  formatCompetitionFeeTiersLabel,
+} = require('../utils/competitionFeeTiers');
 
 const getCompetitionBaseFee = (registrationFee, feeAmount) => {
   const numericFeeAmount = parseTicketPrice(feeAmount);
@@ -360,6 +365,15 @@ router.put(
         },
         legacyRegistration: req.body.legacyRegistration || { status: 'NOT_STARTED' }
       };
+
+      if (Array.isArray(req.body.feeTiers)) {
+        const tiers = sanitizeCompetitionFeeTiers(req.body.feeTiers);
+        updateFields.feeTiers = tiers;
+        if (tiers.length) {
+          updateFields.feeAmount = minCompetitionFeeAmount(tiers);
+          updateFields.registrationFee = formatCompetitionFeeTiersLabel(tiers);
+        }
+      }
 
       Object.keys(updateFields).forEach(key => {
         if (key !== 'rounds' && key !== 'commonRulesMessage' && key !== 'registration') {

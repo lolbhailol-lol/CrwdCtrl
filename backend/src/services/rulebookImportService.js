@@ -12,6 +12,7 @@ const FOLDER_TYPE_MAP = {
   DESIGNOVA: { competitionType: 'design', category: 'TECHNICAL' },
   STRUKTURA: { competitionType: 'design', category: 'TECHNICAL' },
   LOGICA: { competitionType: 'quiz', category: 'ACADEMIC' },
+  QUANTUMANIA: { competitionType: 'quiz', category: 'ACADEMIC' },
   QUANTAMANIA: { competitionType: 'quiz', category: 'ACADEMIC' },
   PRODIGIUM: { competitionType: 'quiz', category: 'ACADEMIC' },
   'FAN-FRENZY': { competitionType: 'informals', category: 'CULTURAL' },

@@ -6,6 +6,7 @@ const { sendRegistrationThankYouEmail, sendRegistrationConfirmationEmail } = req
 const { consumeCouponUsageForOrder } = require('../../utils/couponPricing');
 const { buildPriceBreakdown, parseTicketPrice } = require('../../utils/platformFee');
 const { resolveTrekPlatformFeePercent } = require('../../utils/trekRegistrationFee');
+const { competitionRequiresPayment, resolvePaidOrderTotal } = require('../../utils/competitionFeeTiers');
 const { logger } = require('../../utils/logger');
 const { findByIdOrSlug } = require('../../utils/slug');
 const { saveRegistrationIdempotent } = require('../../utils/registrationIdempotency');
@@ -180,9 +181,9 @@ const payAndRegister = async (req, res) => {
     if (!competition) return res.status(404).json({ error: 'Competition not found' });
     const competitionTicketPrice = parseTicketPrice(competition.feeAmount) || parseTicketPrice(competition.registrationFee);
     const festPlatformFeePercent = resolveTrekPlatformFeePercent(competition.fest?.platformFeePercent, 3);
-    const competitionTotalAmount = buildPriceBreakdown(competitionTicketPrice, festPlatformFeePercent).totalAmount;
+    let competitionTotalAmount = buildPriceBreakdown(competitionTicketPrice, festPlatformFeePercent).totalAmount;
 
-    if (competitionTicketPrice <= 0) {
+    if (!competitionRequiresPayment(competition)) {
       return res.status(400).json({ error: 'This competition does not require payment' });
     }
 
@@ -194,6 +195,7 @@ const payAndRegister = async (req, res) => {
 
     const payment_order_id = paymentCheck.orderId;
     const payment_id = paymentCheck.paymentId;
+    competitionTotalAmount = await resolvePaidOrderTotal(payment_order_id, competitionTotalAmount);
 
     // Idempotent: if this exact payment already produced a registration, return it
     // so a re-fired resume (double submit / page revisit) succeeds instead of erroring.

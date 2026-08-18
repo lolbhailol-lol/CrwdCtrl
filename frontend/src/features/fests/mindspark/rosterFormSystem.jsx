@@ -5,6 +5,7 @@
 import { useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import { needsParticipantCountStep, buildTeamSizeLabel, getRosterBounds } from '../../../utils/teamSize';
+import { getCompetitionFeeTiers } from '../../../utils/competitionFeeTiers';
 
 export const PERSON_FIELD_TYPES = [
   { value: 'text', label: 'Text' },
@@ -315,6 +316,68 @@ export function TeamSizeSelect({ competition, formData, setFormData, isDark }) {
             />
           </div>
         ) : null}
+      </div>
+    </div>
+  );
+}
+
+/** Extra step — pick a student-category fee (e.g. Game of Innovation). */
+export function FeeTierStep({ competition, formData, setFormData, isDark }) {
+  const tiers = getCompetitionFeeTiers(competition);
+  if (!tiers.length) return null;
+
+  const selected = String(formData.feeTierId || '');
+
+  return (
+    <div className={`rounded-2xl border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-200 shadow-sm'}`}>
+      <div className={`px-4 py-3 border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
+        <p className={`text-[11px] font-semibold uppercase tracking-wider ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+          Category
+        </p>
+        <p className={`text-sm font-semibold mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+          Student category
+        </p>
+        <p className={`text-[10px] mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+          Registration fee depends on the category you select
+        </p>
+      </div>
+      <div className="px-4 py-4 space-y-2">
+        {tiers.map((tier) => {
+          const active = selected === tier.id;
+          return (
+            <label
+              key={tier.id}
+              className={`flex items-center justify-between gap-3 rounded-xl border px-3.5 py-3 cursor-pointer transition ${
+                active
+                  ? 'border-[#0ECCEE] bg-[#0ECCEE]/10'
+                  : isDark
+                    ? 'border-gray-700/70 bg-[#1D1E20] hover:border-gray-600'
+                    : 'border-gray-200 bg-gray-50 hover:border-gray-300'
+              }`}
+            >
+              <span className="flex items-center gap-3 min-w-0">
+                <input
+                  type="radio"
+                  name="fee_tier"
+                  value={tier.id}
+                  checked={active}
+                  onChange={() => setFormData((prev) => ({
+                    ...prev,
+                    feeTierId: tier.id,
+                    feeTierLabel: tier.label,
+                  }))}
+                  className="text-[#0ECCEE] focus:ring-[#0ECCEE]"
+                />
+                <span className={`text-sm font-medium ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
+                  {tier.label}
+                </span>
+              </span>
+              <span className="text-sm font-bold tabular-nums text-[#0ECCEE] shrink-0">
+                ₹{Number(tier.amount).toLocaleString('en-IN')}/-
+              </span>
+            </label>
+          );
+        })}
       </div>
     </div>
   );

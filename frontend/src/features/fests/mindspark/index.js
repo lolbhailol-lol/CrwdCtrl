@@ -33,6 +33,7 @@ export {
   isTeamMemberComplete,
   TeamSizeSelect,
   TeamDetailsStep,
+  FeeTierStep,
   RosterPersonStep,
   RosterFieldsEditor,
 } from './rosterFormSystem';

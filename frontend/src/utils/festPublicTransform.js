@@ -9,6 +9,12 @@ import {
   sortMindSparkModuleGroups,
 } from '../features/fests/mindspark';
 
+import {
+  sanitizeCompetitionFeeTiers,
+  minCompetitionFeeAmount,
+  formatCompetitionFeeFromLabel,
+} from './competitionFeeTiers';
+
 export function mapFestRegistration(registration = {}) {
   const externalLink = registration.externalLink || '';
   return {
@@ -52,6 +58,19 @@ export function parseCompetitionFeeAmount(raw) {
  * Avoids showing Free when registrationFee is "2500" but feeAmount is still 0.
  */
 export function resolveCompetitionFee(comp = {}) {
+  const tiers = sanitizeCompetitionFeeTiers(comp.feeTiers);
+  if (tiers.length) {
+    const min = minCompetitionFeeAmount(tiers);
+    const allFree = tiers.every((t) => (Number(t.amount) || 0) === 0);
+    return {
+      amount: min,
+      label: formatCompetitionFeeFromLabel(tiers) || (allFree ? 'Free' : `₹${min.toLocaleString('en-IN')}`),
+      isFree: allFree,
+      known: true,
+      tiers,
+    };
+  }
+
   const fromAmount = parseCompetitionFeeAmount(comp.feeAmount);
   const fromLabel = parseCompetitionFeeAmount(
     comp.registrationFee ?? comp.entryFee ?? comp.fee,
@@ -63,16 +82,17 @@ export function resolveCompetitionFee(comp = {}) {
   else if (fromAmount === 0) amount = 0;
 
   if (amount == null) {
-    return { amount: null, label: '—', isFree: false, known: false };
+    return { amount: null, label: '—', isFree: false, known: false, tiers: [] };
   }
   if (amount === 0) {
-    return { amount: 0, label: 'Free', isFree: true, known: true };
+    return { amount: 0, label: 'Free', isFree: true, known: true, tiers: [] };
   }
   return {
     amount,
     label: `₹${amount.toLocaleString('en-IN')}`,
     isFree: false,
     known: true,
+    tiers: [],
   };
 }
 
@@ -108,6 +128,7 @@ export function transformCompetitionItem(comp, festData) {
     module: isMindSparkFest(festData) ? resolveMindSparkModule(comp) : '',
     registrationFee: fee.known ? fee.label : (comp.registrationFee || 'Free'),
     feeAmount: fee.amount ?? 0,
+    feeTiers: fee.tiers || [],
     registrationLink: comp.registrationLink || '',
     registrationType: comp.registrationType || 'fest',
     registration: comp.registration || { status: 'not_started' },
@@ -274,6 +295,7 @@ export function buildRegistrationPrefetch({ fest, competition } = {}) {
           name: competition.name || competition.title,
           feeAmount: competition.feeAmount ?? 0,
           registrationFee: competition.registrationFee || competition.entryFee || competition.fee,
+          feeTiers: sanitizeCompetitionFeeTiers(competition.feeTiers),
           registrationType: competition.registrationType || 'fest',
           registration: competition.registration,
           teamSizeMin: Math.max(1, Number(competition.teamSizeMin) || 1),

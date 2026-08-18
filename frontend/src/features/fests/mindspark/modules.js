@@ -4,7 +4,7 @@ export const MINDSPARK_MODULE_ORDER = [
   'HACKATHON',
   'AMUZIA',
   'AVIONICA',
-  'QUANTAMANIA',
+  'QUANTUMANIA',
   'ILLUMINATI',
   'LOGICA',
   'DESIGNOVA',
@@ -22,6 +22,11 @@ export const MINDSPARK_MODULE_ORDER = [
 
 const MODULE_SET = new Set(MINDSPARK_MODULE_ORDER);
 
+/** Older / misspelled labels still resolve to the official module. */
+const MODULE_ALIASES = {
+  QUANTAMANIA: 'QUANTUMANIA',
+};
+
 /** Event title → module (normalized keys). */
 const EVENT_TO_MODULE = {
   flash: 'AMUZIA',
@@ -36,8 +41,8 @@ const EVENT_TO_MODULE = {
 
   hackathon: 'HACKATHON',
 
-  quantquest: 'QUANTAMANIA',
-  'quant quest': 'QUANTAMANIA',
+  quantquest: 'QUANTUMANIA',
+  'quant quest': 'QUANTUMANIA',
 
   worldwize: 'ILLUMINATI',
   'world wize': 'ILLUMINATI',
@@ -56,7 +61,7 @@ const EVENT_TO_MODULE = {
 
   sherlocked: 'PRODIGIUM',
   googler: 'PRODIGIUM',
-  utopia: 'PRODIGIUM',
+  utopia: 'STRUKTURA',
 
   edifex: 'STRUKTURA',
 
@@ -103,6 +108,7 @@ function lookupModule(value = '') {
   if (!raw) return '';
   const upper = raw.toUpperCase();
   if (MODULE_SET.has(upper)) return upper;
+  if (MODULE_ALIASES[upper]) return MODULE_ALIASES[upper];
   const key = normKey(raw);
   if (!key) return '';
   if (EVENT_TO_MODULE[key]) return EVENT_TO_MODULE[key];

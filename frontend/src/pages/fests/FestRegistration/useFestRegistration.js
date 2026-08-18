@@ -46,6 +46,7 @@ import {
   validateTeamDetails,
   isMindSparkFest,
 } from '../../../features/fests/mindspark';
+import { getCompetitionFeeTiers } from '../../../utils/competitionFeeTiers';
 import { waitAtLeast, sleep } from '../../../components/RegistrationStatusVisual';
 import { API_BASE_URL } from '../../../services/api/client';
 import { festRegisterPath } from '../../../utils/slugRoutes';
@@ -543,13 +544,27 @@ export default function useFestRegistration() {
   useEffect(() => {
     if (loading || !fest) return;
 
+    const competitionFeeTiers = getCompetitionFeeTiers(competition);
     const competitionBaseFee = competition
-      ? parseTicketPrice(competition.feeAmount) || parseTicketPrice(competition.registrationFee)
+      ? (
+        competitionFeeTiers.length
+          ? Math.max(...competitionFeeTiers.map((t) => Number(t.amount) || 0))
+          : parseTicketPrice(competition.feeAmount) || parseTicketPrice(competition.registrationFee)
+      )
       : 0;
 
     let pricingPayload = null;
     if (isCompetitionRegistration && competitionBaseFee > 0) {
-      pricingPayload = { competitionId: competition?._id || competitionId, couponCode: appliedCouponCode || undefined };
+      if (competitionFeeTiers.length && !String(formData.feeTierId || '').trim()) {
+        setPriceBreakdown(null);
+        setCouponQuoting(false);
+        return;
+      }
+      pricingPayload = {
+        competitionId: competition?._id || competitionId,
+        couponCode: appliedCouponCode || undefined,
+        tierId: formData.feeTierId || undefined,
+      };
     } else if ((fest.feeAmount || 0) > 0) {
       pricingPayload = { festId: fest._id || festId, couponCode: appliedCouponCode || undefined };
     }
@@ -616,6 +631,7 @@ export default function useFestRegistration() {
     isAuthProcessing,
     firebaseUser,
     appliedCouponCode,
+    formData.feeTierId,
   ]);
 
   const handleCouponCodeChange = (raw) => {
@@ -684,7 +700,7 @@ export default function useFestRegistration() {
     hasParticipantStep() && needsParticipantCountStep(competition);
 
   /** Fest MULTI_STEP or competition with injected Team-size step */
-  const isEffectiveMultiStep = () => isMultiStepForm() || hasParticipantStep();
+  const isEffectiveMultiStep = () => isMultiStepForm() || hasParticipantStep() || needsFeeTierStep();
 
   const getPeopleCount = () => {
     if (!hasParticipantStep()) return 0;
@@ -701,12 +717,28 @@ export default function useFestRegistration() {
     return 1;
   };
 
-  const isOnParticipantStep = () => needsTeamSizePicker() && currentStep === 1;
-
   const rosterTeamDetailsActive = () =>
     hasParticipantStep() && needsTeamDetailsStep(competition);
 
-  const getTeamDetailsStepNumber = () => (needsTeamSizePicker() ? 2 : 1);
+  const needsFeeTierStep = () =>
+    isCompetitionRegistration && getCompetitionFeeTiers(competition).length > 0;
+
+  /** Fee category is always first when this competition has multiple prices. */
+  const getFeeTierStepNumber = () => 1;
+
+  const isOnFeeTierStep = () => needsFeeTierStep() && currentStep === getFeeTierStepNumber();
+
+  const getTeamSizeStepNumber = () => (needsFeeTierStep() ? 2 : 1);
+
+  const isOnParticipantStep = () =>
+    needsTeamSizePicker() && currentStep === getTeamSizeStepNumber();
+
+  const getTeamDetailsStepNumber = () => {
+    let n = 1;
+    if (needsFeeTierStep()) n += 1;
+    if (needsTeamSizePicker()) n += 1;
+    return n;
+  };
 
   const isOnTeamDetailsStep = () => {
     if (!rosterTeamDetailsActive()) return false;
@@ -715,6 +747,7 @@ export default function useFestRegistration() {
 
   const getPersonStepsStart = () => {
     let start = 1;
+    if (needsFeeTierStep()) start += 1;
     if (needsTeamSizePicker()) start += 1;
     if (rosterTeamDetailsActive()) start += 1;
     return start;
@@ -738,7 +771,7 @@ export default function useFestRegistration() {
   };
 
   const getCurrentStepFields = () => {
-    if (isOnParticipantStep() || isOnPersonStep() || isOnTeamDetailsStep() || hasParticipantStep()) return [];
+    if (isOnParticipantStep() || isOnPersonStep() || isOnTeamDetailsStep() || isOnFeeTierStep() || hasParticipantStep()) return [];
 
     if (!isMultiStepForm()) {
       return fest?.registration?.formSchema || [];
@@ -755,6 +788,7 @@ export default function useFestRegistration() {
     }
     return (needsTeamSizePicker() ? 1 : 0)
       + (rosterTeamDetailsActive() ? 1 : 0)
+      + (needsFeeTierStep() ? 1 : 0)
       + getPeopleCount()
       + getFormStepsCount();
   };
@@ -773,6 +807,13 @@ export default function useFestRegistration() {
     }
 
     let n = 1;
+    if (needsFeeTierStep()) {
+      steps.push({
+        stepNumber: n,
+        stepTitle: 'Fee',
+      });
+      n += 1;
+    }
     if (needsTeamSizePicker()) {
       steps.push({ stepNumber: n, stepTitle: 'Team' });
       n += 1;
@@ -795,7 +836,7 @@ export default function useFestRegistration() {
   };
 
   const getCurrentStepData = () => {
-    if (!isMultiStepForm() || isOnParticipantStep() || isOnTeamDetailsStep() || isOnPersonStep()) {
+    if (!isMultiStepForm() || isOnParticipantStep() || isOnTeamDetailsStep() || isOnFeeTierStep() || isOnPersonStep()) {
       return formData;
     }
     return stepData[currentStep] || {};
@@ -841,6 +882,15 @@ export default function useFestRegistration() {
     return true;
   };
 
+  const validateFeeTierStep = () => {
+    if (!needsFeeTierStep()) return true;
+    if (!String(formData.feeTierId || '').trim()) {
+      setError('Please select a registration category');
+      return false;
+    }
+    return true;
+  };
+
   /** Final check: every selected person has full compulsory details */
   const validateMemberNames = () => {
     if (!hasParticipantStep()) return true;
@@ -869,6 +919,10 @@ export default function useFestRegistration() {
 
     if (isOnTeamDetailsStep()) {
       return validateTeamDetailsStep();
+    }
+
+    if (isOnFeeTierStep()) {
+      return validateFeeTierStep();
     }
 
     if (isOnPersonStep()) {
@@ -905,7 +959,7 @@ export default function useFestRegistration() {
     }
     
     // Save fest field steps only (team size / person names live on formData)
-    if (isMultiStepForm() && !isOnParticipantStep() && !isOnTeamDetailsStep() && !isOnPersonStep()) {
+    if (isMultiStepForm() && !isOnParticipantStep() && !isOnTeamDetailsStep() && !isOnFeeTierStep() && !isOnPersonStep()) {
       setStepData(prev => ({
         ...prev,
         [currentStep]: getCurrentStepData()
@@ -1216,6 +1270,8 @@ export default function useFestRegistration() {
         if (!validateParticipantStep()) return;
       } else if (isOnTeamDetailsStep()) {
         if (!validateTeamDetailsStep()) return;
+      } else if (isOnFeeTierStep()) {
+        if (!validateFeeTierStep()) return;
       } else if (isOnPersonStep()) {
         if (!validateCurrentPerson()) return;
       } else {
@@ -1293,6 +1349,9 @@ export default function useFestRegistration() {
     }
 
     if (!paidResume && hasParticipantStep() && !validateMemberNames()) {
+      return;
+    }
+    if (!paidResume && needsFeeTierStep() && !validateFeeTierStep()) {
       return;
     }
     
@@ -1401,7 +1460,11 @@ export default function useFestRegistration() {
         setSubmissionProgress('Opening payment gateway...');
 
         const orderNotes = isCompetitionRegistration
-          ? { competitionId, registrationDraft: buildOrderRegistrationDraft() }
+          ? {
+            competitionId,
+            tierId: formData.feeTierId || undefined,
+            registrationDraft: buildOrderRegistrationDraft(),
+          }
           : { festId, registrationDraft: buildOrderRegistrationDraft() };
         const orderRes = await fetch(`${API_BASE_URL}/payment/order`, {
           method: 'POST',
@@ -1560,6 +1623,11 @@ export default function useFestRegistration() {
             textResponses[key] = String(value).trim();
           }
         });
+        if (formData.feeTierId) {
+          textResponses.feeTierId = String(formData.feeTierId);
+          if (formData.feeTierLabel) textResponses.feeTierLabel = String(formData.feeTierLabel);
+          textResponses['Student category'] = String(formData.feeTierLabel || formData.feeTierId);
+        }
         // Lead (person 1) identity for organizer list / receipts
         if (members[0]) {
           if (members[0].name) textResponses.full_name = members[0].name;
@@ -1999,6 +2067,7 @@ export default function useFestRegistration() {
     hasParticipantStep,
     isOnParticipantStep,
     isOnTeamDetailsStep,
+    isOnFeeTierStep,
     isOnPersonStep,
     getPersonIndex,
     getStepMeta,

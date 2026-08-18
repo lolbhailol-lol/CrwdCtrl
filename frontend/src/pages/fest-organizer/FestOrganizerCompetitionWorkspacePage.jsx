@@ -23,6 +23,12 @@ import FestOrganizerManualAddModal from './FestOrganizerManualAddModal';
 import OrganizerTeamRoster, { OrganizerRosterPreview } from './OrganizerTeamRoster';
 import WhatsAppGroupToggle from './WhatsAppGroupToggle';
 import { isMindSparkFest, resolveMindSparkModule } from '../../features/fests/mindspark';
+import CompetitionFeeTiersEditor from '../../components/admin/CompetitionFeeTiersEditor';
+import {
+    getCompetitionFeeTiers,
+    organizerCompetitionFeeLabel,
+    sanitizeCompetitionFeeTiers,
+} from '../../utils/competitionFeeTiers';
 import { downloadCompetitionQrPng } from '../../utils/competitionPublicQr';
 import { InlinePageLoader } from '../../components/DetailPageLoader';
 
@@ -528,6 +534,8 @@ export default function FestOrganizerCompetitionWorkspacePage() {
     const [maxPeopleInput, setMaxPeopleInput] = useState('1');
     const [showSlotsPublic, setShowSlotsPublic] = useState(true);
     const [capacityBusy, setCapacityBusy] = useState(false);
+    const [feeTiersDraft, setFeeTiersDraft] = useState([]);
+    const [feeTiersBusy, setFeeTiersBusy] = useState(false);
     const [notifyOpen, setNotifyOpen] = useState(null);
     const [notifyForm, setNotifyForm] = useState({ title: '', message: '', inApp: true, email: true });
     const [notifyBusy, setNotifyBusy] = useState(false);
@@ -584,6 +592,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
         setSlotsRemainInput(left === '' ? '' : String(left));
         setMaxPeopleInput(String(Math.max(1, Number(data.competition.teamSizeMax) || 1)));
         setShowSlotsPublic(data.competition.showSlotsPublic !== false);
+        setFeeTiersDraft(sanitizeCompetitionFeeTiers(data.competition.feeTiers));
     }, [
         competitionId,
         data?.competition?.id,
@@ -592,6 +601,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
         data?.competition?.slotsLeft,
         data?.competition?.showSlotsPublic,
         data?.competition?.teamSizeMax,
+        data?.competition?.feeTiers,
         data?.stats?.slotsFilled,
         data?.stats?.slotsLeft,
         data?.stats?.approved,
@@ -1055,6 +1065,36 @@ export default function FestOrganizerCompetitionWorkspacePage() {
         }
     };
 
+    const saveFeeTiers = async () => {
+        setFeeTiersBusy(true);
+        try {
+            const res = await updateFestOrganizerCompetitionDetails(festId, competitionId, {
+                feeTiers: sanitizeCompetitionFeeTiers(feeTiersDraft),
+            });
+            const next = res?.competition;
+            if (next) {
+                setData((prev) => {
+                    if (!prev) return prev;
+                    return {
+                        ...prev,
+                        competition: {
+                            ...prev.competition,
+                            feeTiers: next.feeTiers || [],
+                            feeAmount: next.feeAmount ?? prev.competition?.feeAmount,
+                            registrationFee: next.registrationFee || prev.competition?.registrationFee,
+                        },
+                    };
+                });
+                setFeeTiersDraft(sanitizeCompetitionFeeTiers(next.feeTiers));
+            }
+            toast('Fees saved');
+        } catch (e) {
+            toast(e.message || 'Failed to save fees');
+        } finally {
+            setFeeTiersBusy(false);
+        }
+    };
+
     const unpaidCount = useMemo(() => {
         const fromSolo = solo.filter((p) => p.paymentStatus === 'pending' || p.paymentStatus === 'failed').length;
         const fromTeams = teams.filter((t) => t.paymentStatus === 'pending' || t.paymentStatus === 'failed').length;
@@ -1128,9 +1168,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                             </h1>
                             <p className="text-xs text-gray-300 mt-1">
                                 {data?.fest?.festName || ''}
-                                {competition?.feeAmount
-                                    ? ` · ₹${Number(competition.feeAmount).toLocaleString('en-IN')}`
-                                    : ' · Free'}
+                                {` · ${organizerCompetitionFeeLabel(competition)}`}
                                 {competition?.category || isMindSparkFest(festId, data?.fest)
                                     ? ` · ${isMindSparkFest(festId, data?.fest)
                                         ? resolveMindSparkModule(competition)
@@ -1313,6 +1351,36 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                     </div>
                 </section>
             ) : null}
+
+            {/* Registration fees */}
+            <section className="rounded-2xl border border-white/10 bg-[#161718] p-3.5 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                    <div>
+                        <h2 className="text-sm font-semibold text-white">Registration fees</h2>
+                        <p className="text-[11px] text-gray-500 mt-0.5">
+                            One event can have multiple student-category fees. Same fields as Edit competition.
+                        </p>
+                    </div>
+                    <Link
+                        to={`/fest-organizer/fests/${festId}/competitions/${competitionId}/details`}
+                        className="text-[11px] font-semibold text-[#0ECCEE] shrink-0"
+                    >
+                        Full form
+                    </Link>
+                </div>
+                <CompetitionFeeTiersEditor
+                    value={feeTiersDraft}
+                    onChange={setFeeTiersDraft}
+                />
+                <button
+                    type="button"
+                    disabled={feeTiersBusy}
+                    onClick={saveFeeTiers}
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#0ECCEE] text-black text-sm font-semibold disabled:opacity-50"
+                >
+                    {feeTiersBusy ? 'Saving…' : 'Save fees'}
+                </button>
+            </section>
 
             {/* Capacity: slots remain + max people */}
             <section className="rounded-2xl border border-white/10 bg-[#161718] p-3.5 space-y-3">
@@ -1628,6 +1696,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                 competitionId={competitionId}
                 competitionName={competition?.name}
                 defaultFee={competition?.feeAmount || 0}
+                feeTiers={getCompetitionFeeTiers(competition)}
                 onCreated={() => {
                     toast('Added');
                     load();

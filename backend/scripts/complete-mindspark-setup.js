@@ -29,6 +29,15 @@ const FEE_FIXES = {
   Assemblix: { registrationFee: '₹99 per team', feeAmount: 99 },
   WORLDWIZE: { registrationFee: '₹199 per team', feeAmount: 199 },
   QuantQuest: { registrationFee: '₹199 per team', feeAmount: 199 },
+  'Game of Innovation': {
+    feeTiers: [
+      { id: 'under_18', label: 'Under 18 students', amount: 150 },
+      { id: 'ug', label: 'UG students', amount: 300 },
+      { id: 'pg_phd', label: 'PG students / PhD Scholars', amount: 500 },
+    ],
+    feeAmount: 150,
+    registrationFee: '₹150/- for Under 18 students · ₹300/- for UG students · ₹500/- for PG students / PhD Scholars',
+  },
 };
 
 (async () => {
@@ -77,8 +86,12 @@ const FEE_FIXES = {
     }
 
     if (FEE_FIXES[comp.name]) {
-      comp.registrationFee = FEE_FIXES[comp.name].registrationFee;
-      comp.feeAmount = FEE_FIXES[comp.name].feeAmount;
+      const fix = FEE_FIXES[comp.name];
+      comp.registrationFee = fix.registrationFee;
+      comp.feeAmount = fix.feeAmount;
+      if (Array.isArray(fix.feeTiers)) {
+        comp.feeTiers = fix.feeTiers;
+      }
       changed = true;
     }
 
@@ -108,7 +121,7 @@ const FEE_FIXES = {
     if (comp.name === 'QuantQuest') {
       if (!comp.description || comp.description.includes('placeholder')) {
         comp.description =
-          'QuantQuest is a quiz competition under Quantamania at MindSpark\'26, testing analytical and problem-solving skills. Full rulebook details will be updated on the official MindSpark website.';
+          'QuantQuest is a quiz competition under Quantumania at MindSpark\'26, testing analytical and problem-solving skills. Full rulebook details will be updated on the official MindSpark website.';
         changed = true;
       }
       if (!comp.commonRules?.length) {

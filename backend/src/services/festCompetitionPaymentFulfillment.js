@@ -75,7 +75,20 @@ async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides 
     const competitionTicketPrice = parseTicketPrice(competition.feeAmount)
       || parseTicketPrice(competition.registrationFee);
     const festPlatformFeePercent = resolveTrekPlatformFeePercent(competition.fest?.platformFeePercent, 3);
-    const competitionTotalAmount = buildPriceBreakdown(competitionTicketPrice, festPlatformFeePercent).totalAmount;
+    const quotedTotal = buildPriceBreakdown(competitionTicketPrice, festPlatformFeePercent).totalAmount;
+    const paidTotal = Number(paymentOrder.totalAmount);
+    const competitionTotalAmount = Number.isFinite(paidTotal) && paidTotal >= 0
+      ? paidTotal
+      : quotedTotal;
+
+    const draftResponses = draftToResponses(draft);
+    if (paymentOrder.orderTags?.tierId) {
+      draftResponses.feeTierId = paymentOrder.orderTags.tierId;
+      if (paymentOrder.orderTags.tierName) {
+        draftResponses.feeTierLabel = paymentOrder.orderTags.tierName;
+        draftResponses['Student category'] = paymentOrder.orderTags.tierName;
+      }
+    }
 
     const registration = new Registration({
       fest: competition.fest._id,
@@ -83,7 +96,7 @@ async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides 
       competitionId: competition._id,
       responses: mergeRegistrationResponses(
         { name: user.name || '', email: user.email || '', phone: user.phoneNumber || '' },
-        draftToResponses(draft),
+        draftResponses,
       ),
       status: 'approved',
       payment_order_id,

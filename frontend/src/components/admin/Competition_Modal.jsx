@@ -2,6 +2,14 @@ import { useEffect, useState, useCallback } from 'react';
 import { X, Plus, Edit2, Trash2, ChevronRight, ChevronLeft, Upload, Loader, Printer } from 'lucide-react';
 import CompetitionCheckinQrPrint, { printCompetitionCheckinSheets } from './CompetitionCheckinQrPrint';
 import { buildPriceBreakdown, parseTicketPrice } from '../../utils/platformFee';
+import {
+  sanitizeCompetitionFeeTiers,
+  formatCompetitionFeeTiersLabel,
+  minCompetitionFeeAmount,
+  organizerCompetitionFeeLabel,
+  getCompetitionFeeTiers,
+} from '../../utils/competitionFeeTiers';
+import CompetitionFeeTiersEditor from './CompetitionFeeTiersEditor';
 import { adminFetch, adminFetchJSON } from '../../services/api/admin.api.js';
 import { useDialog } from '../../context/DialogContext';
 import {
@@ -387,14 +395,12 @@ export default function CompetitionModal({
                         <span>Type: <span className="text-white capitalize">{comp.competitionType}</span></span>
                         <span>Venue: <span className="text-white">{comp.venue}</span></span>
                         {(() => {
+                          const feeLabel = organizerCompetitionFeeLabel(comp);
                           const feeNum = Number(comp.feeAmount) || 0;
-                          const feeLabel = feeNum > 0
-                            ? `₹${feeNum.toLocaleString('en-IN')}`
-                            : (comp.registrationFee || 'Free');
                           return (
                             <span>
                               Fee: <span className="text-white">{feeLabel}</span>
-                              {!api && feeNum > 0 ? (
+                              {!api && feeNum > 0 && !getCompetitionFeeTiers(comp).length ? (
                                 <span className="text-gray-500">
                                   {' '}· Payable ₹{buildPriceBreakdown(comp.feeAmount || comp.registrationFee).totalAmount}
                                 </span>
@@ -468,6 +474,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
     prizePool: '',
     registrationFee: '',
     feeAmount: 0,
+    feeTiers: [],
     slotsAllotted: 50,
     teamSizeMin: 1,
     teamSizeMax: 1,
@@ -553,57 +560,62 @@ function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
   }, [error]);
 
   useEffect(() => {
+    let cancelled = false;
+    (async () => {
     try {
       if (competition) {
-        console.log('Competition_Modal - Editing competition:', competition);
-        console.log('Competition_Modal - commonRulesMessage from competition:', competition.commonRulesMessage);
-        console.log('Competition_Modal - rounds from competition:', competition.rounds);
-        console.log('Competition_Modal - rounds detailed:', competition.rounds?.map(r => ({
-          title: r.title,
-          roundRulesMessage: r.roundRulesMessage,
-          hasRoundRulesMessage: Object.prototype.hasOwnProperty.call(r, 'roundRulesMessage')
-        })));
-        
-        // Safely extract form data with proper fallbacks
+        let source = competition;
+        const competitionId = competition._id || competition.id;
+        if (api?.getCompetition && competitionId) {
+          try {
+            const data = await api.getCompetition(competitionId);
+            if (data?.competition) source = { ...competition, ...data.competition };
+          } catch (_) {
+            /* list payload is enough to edit; details fetch is best-effort */
+          }
+        }
+        if (cancelled) return;
+
         const formData = {
-          name: competition.name || '',
-          subtitle: competition.subtitle || '',
-          description: competition.description || '',
-          competitionType: competition.competitionType || 'other',
-          category: competition.category || 'OTHER',
-          prizePool: competition.prizePool ? competition.prizePool.toString() : '',
-          registrationFee: competition.registrationFee || '',
-          feeAmount: parseTicketPrice(competition.feeAmount) || parseTicketPrice(competition.registrationFee),
-          slotsAllotted: Math.max(0, Number(competition.slotsAllotted) || 0),
-          teamSizeMin: Math.max(1, Number(competition.teamSizeMin) || 1),
-          teamSizeMax: Math.max(1, Number(competition.teamSizeMax) || Number(competition.teamSizeMin) || 1),
-          teamSizeLabel: competition.teamSizeLabel || 'Solo',
-          registrationLink: competition.registrationLink || '',
-          registrationType: competition.registrationType || 'fest',
+          name: source.name || '',
+          subtitle: source.subtitle || '',
+          description: source.description || '',
+          competitionType: source.competitionType || 'other',
+          category: source.category || 'OTHER',
+          prizePool: source.prizePool ? source.prizePool.toString() : '',
+          registrationFee: source.registrationFee || '',
+          feeAmount: parseTicketPrice(source.feeAmount) || parseTicketPrice(source.registrationFee),
+          feeTiers: sanitizeCompetitionFeeTiers(source.feeTiers),
+          slotsAllotted: Math.max(0, Number(source.slotsAllotted) || 0),
+          teamSizeMin: Math.max(1, Number(source.teamSizeMin) || 1),
+          teamSizeMax: Math.max(1, Number(source.teamSizeMax) || Number(source.teamSizeMin) || 1),
+          teamSizeLabel: source.teamSizeLabel || 'Solo',
+          registrationLink: source.registrationLink || '',
+          registrationType: source.registrationType || 'fest',
           registration: {
-            status: competition.registration?.status || 'not_started',
-            externalUrl: competition.registration?.externalUrl || '',
-            googleSheetsUrl: competition.registration?.googleSheetsUrl || '',
-            whatsappGroupLink: competition.registration?.whatsappGroupLink || '',
-            shareSheetUrl: competition.registration?.shareSheetUrl || '',
-            resourceLinks: Array.isArray(competition.registration?.resourceLinks)
-              ? competition.registration.resourceLinks.map((l) => ({
+            status: source.registration?.status || 'not_started',
+            externalUrl: source.registration?.externalUrl || '',
+            googleSheetsUrl: source.registration?.googleSheetsUrl || '',
+            whatsappGroupLink: source.registration?.whatsappGroupLink || '',
+            shareSheetUrl: source.registration?.shareSheetUrl || '',
+            resourceLinks: Array.isArray(source.registration?.resourceLinks)
+              ? source.registration.resourceLinks.map((l) => ({
                   label: l?.label || '',
                   url: l?.url || '',
                 }))
               : [],
-            formType: competition.registration?.formType || 'SINGLE_STEP',
-            formSchema: Array.isArray(competition.registration?.formSchema) ? competition.registration.formSchema.map(field => ({
+            formType: source.registration?.formType || 'SINGLE_STEP',
+            formSchema: Array.isArray(source.registration?.formSchema) ? source.registration.formSchema.map(field => ({
               ...field,
               id: field.id || crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
               fieldName: field.fieldName || `field_${(field.id || crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`).slice(0, 8)}`
             })) : [],
             personFields: mindSpark
-              ? normalizePersonFields(competition.registration?.personFields)
-              : (Array.isArray(competition.registration?.personFields)
-                ? competition.registration.personFields
+              ? normalizePersonFields(source.registration?.personFields)
+              : (Array.isArray(source.registration?.personFields)
+                ? source.registration.personFields
                 : []),
-            steps: competition.registration?.steps?.map(step => ({
+            steps: source.registration?.steps?.map(step => ({
               ...step,
               fields: (step.fields || []).map(field => ({
                 ...field,
@@ -611,61 +623,53 @@ function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
                 fieldName: field.fieldName || `field_${(field.id || crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`).slice(0, 8)}`
               }))
             })) || [],
-            qrCode: competition.registration?.qrCode || '',
-            qrCodeMessage: competition.registration?.qrCodeMessage || '',
-            confirmationEmail: competition.registration?.confirmationEmail || '',
+            qrCode: source.registration?.qrCode || '',
+            qrCodeMessage: source.registration?.qrCodeMessage || '',
+            confirmationEmail: source.registration?.confirmationEmail || '',
             settings: {
-              allowMultipleRegistrations: competition.registration?.settings?.allowMultipleRegistrations ?? true,
-              requireEmailVerification: competition.registration?.settings?.requireEmailVerification ?? false,
-              autoConfirmation: competition.registration?.settings?.autoConfirmation ?? true,
-              maxRegistrations: competition.registration?.settings?.maxRegistrations || null,
-              registrationDeadline: competition.registration?.settings?.registrationDeadline || null
+              allowMultipleRegistrations: source.registration?.settings?.allowMultipleRegistrations ?? true,
+              requireEmailVerification: source.registration?.settings?.requireEmailVerification ?? false,
+              autoConfirmation: source.registration?.settings?.autoConfirmation ?? true,
+              maxRegistrations: source.registration?.settings?.maxRegistrations || null,
+              registrationDeadline: source.registration?.settings?.registrationDeadline || null
             }
           },
-          // Legacy registration for backward compatibility
           legacyRegistration: {
-            status: competition.legacyRegistration?.status || competition.registration?.status || 'NOT_STARTED'
+            status: source.legacyRegistration?.status || source.registration?.status || 'NOT_STARTED'
           },
-          dateTime: competition.dateTime || '',
-          venue: competition.venue || '',
-          commonRules: Array.isArray(competition.commonRules) ? competition.commonRules : 
-                      Array.isArray(competition.rules) ? competition.rules : [],
-          commonRulesMessage: competition.commonRulesMessage || '',
-          competitionPhotos: Array.isArray(competition.gallery) ? competition.gallery : 
-                           competition.coverImage ? [competition.coverImage] : [],
-          rounds: Array.isArray(competition.rounds) ? competition.rounds.map(round => ({
+          dateTime: source.dateTime || '',
+          venue: source.venue || '',
+          commonRules: Array.isArray(source.commonRules) ? source.commonRules :
+                      Array.isArray(source.rules) ? source.rules : [],
+          commonRulesMessage: source.commonRulesMessage || '',
+          competitionPhotos: Array.isArray(source.gallery) ? source.gallery :
+                           source.coverImage ? [source.coverImage] : [],
+          rounds: Array.isArray(source.rounds) ? source.rounds.map(round => ({
             roundNumber: round.roundNumber || 1,
             roundName: round.title || round.roundName || '',
             message: round.description || round.message || '',
-            roundRules: Array.isArray(round.rules) ? round.rules : 
+            roundRules: Array.isArray(round.rules) ? round.rules :
                        Array.isArray(round.roundRules) ? round.roundRules : [],
             roundRulesMessage: round.roundRulesMessage || '',
           })) : [],
           contact: {
-            name: competition.contact?.name || '',
-            phone: competition.contact?.phone || '',
-            email: competition.contact?.email || '',
-            instagram: competition.contact?.instagram || ''
+            name: source.contact?.name || '',
+            phone: source.contact?.phone || '',
+            email: source.contact?.email || '',
+            instagram: source.contact?.instagram || ''
           }
         };
-        
-        console.log('Competition_Modal - Form populated with data:', {
-          commonRulesMessage: formData.commonRulesMessage,
-          rounds: formData.rounds.map(r => ({
-            roundName: r.roundName,
-            roundRulesMessage: r.roundRulesMessage
-          }))
-        });
-        
+
         setForm(formData);
-        console.log('Competition_Modal - Form populated successfully with data:', formData);
       }
     } catch (err) {
       console.error('Error populating competition form:', err);
       setError('Failed to load competition data');
       setHasError(true);
     }
-  }, [competition]);
+    })();
+    return () => { cancelled = true; };
+  }, [competition, api, mindSpark]);
 
   // Error boundary fallback
   if (hasError) {
@@ -1250,7 +1254,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
       });
 
       // ✅ ENHANCED: Add validation for dateTime and competitionType
-      if (!form.name || !form.description || !form.prizePool || !form.registrationFee) {
+      if (!form.name || !form.description || !form.prizePool || (!form.registrationFee && !sanitizeCompetitionFeeTiers(form.feeTiers).length)) {
         setError('Please fill Competition Name, Description, Prize Pool and Registration Fee');
         setLoading(false);
         return;
@@ -1349,6 +1353,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
         }
       }
 
+      const feeTiers = sanitizeCompetitionFeeTiers(form.feeTiers);
       const payload = {
         name: form.name,
         subtitle: form.subtitle,
@@ -1356,8 +1361,13 @@ function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
         competitionType: form.competitionType,
         category: form.category,
         prizePool: form.prizePool,
-        registrationFee: form.registrationFee,
-        feeAmount: parseTicketPrice(form.feeAmount) || parseTicketPrice(form.registrationFee),
+        registrationFee: feeTiers.length
+          ? formatCompetitionFeeTiersLabel(feeTiers)
+          : form.registrationFee,
+        feeAmount: feeTiers.length
+          ? minCompetitionFeeAmount(feeTiers)
+          : (parseTicketPrice(form.feeAmount) || parseTicketPrice(form.registrationFee)),
+        feeTiers,
         slotsAllotted: Math.max(0, Number(form.slotsAllotted) || 0),
         teamSizeMin: Math.max(1, Number(form.teamSizeMin) || 1),
         teamSizeMax: Math.max(1, Number(form.teamSizeMax) || Number(form.teamSizeMin) || 1),
@@ -1738,6 +1748,11 @@ function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
                   )}
                 </div>
 
+                <CompetitionFeeTiersEditor
+                  value={form.feeTiers}
+                  onChange={(feeTiers) => setForm((prev) => ({ ...prev, feeTiers }))}
+                />
+
                 <div className="rounded-xl border border-gray-700 bg-[#151617] p-4 space-y-3">
                   <p className="text-sm font-medium text-[#0ECCEE]">Capacity &amp; team</p>
                   <p className="text-xs text-gray-500">
@@ -1819,20 +1834,26 @@ function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
                 </div>
 
                 {mindSpark ? (
-                  <RosterFieldsEditor
-                    personFields={form.registration?.personFields}
-                    teamSizeMin={form.teamSizeMin}
-                    teamSizeMax={form.teamSizeMax}
-                    onChange={(personFields) =>
-                      setForm({
-                        ...form,
-                        registration: {
-                          ...form.registration,
-                          personFields,
-                        },
-                      })
-                    }
-                  />
+                  <>
+                    <CompetitionFeeTiersEditor
+                      value={form.feeTiers}
+                      onChange={(feeTiers) => setForm((prev) => ({ ...prev, feeTiers }))}
+                    />
+                    <RosterFieldsEditor
+                      personFields={form.registration?.personFields}
+                      teamSizeMin={form.teamSizeMin}
+                      teamSizeMax={form.teamSizeMax}
+                      onChange={(personFields) =>
+                        setForm({
+                          ...form,
+                          registration: {
+                            ...form.registration,
+                            personFields,
+                          },
+                        })
+                      }
+                    />
+                  </>
                 ) : null}
 
                 {/* MindSpark: participant WhatsApp / sheet / links — always editable */}

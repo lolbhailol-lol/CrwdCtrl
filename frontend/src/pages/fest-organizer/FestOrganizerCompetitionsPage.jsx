@@ -9,6 +9,7 @@ import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { useDialog } from '../../context/DialogContext';
 import { isMindSparkFest, resolveMindSparkModule, sortMindSparkModules, formatMindSparkModuleLabel } from '../../features/fests/mindspark';
+import { organizerCompetitionFeeLabel } from '../../utils/competitionFeeTiers';
 import FestOrganizerCompetitionQrModal from './FestOrganizerCompetitionQrModal';
 import { downloadCompetitionQrPng } from '../../utils/competitionPublicQr';
 import { InlinePageLoader } from '../../components/DetailPageLoader';
@@ -19,12 +20,6 @@ function formatCategoryLabel(tab) {
         return formatMindSparkModuleLabel(tab);
     }
     return tab.charAt(0) + tab.slice(1).toLowerCase();
-}
-
-function feeLabel(feeAmount) {
-    const n = Number(feeAmount) || 0;
-    if (n <= 0) return 'Free';
-    return `₹${n.toLocaleString('en-IN')}`;
 }
 
 function MiniBox({ label, value, tone = 'default' }) {
@@ -333,8 +328,8 @@ export default function FestOrganizerCompetitionsPage() {
                                                     {c.name}
                                                 </p>
                                                 <p className="text-xs text-gray-500 mt-0.5 truncate">
-                                                    <span className={feeLabel(c.feeAmount) === 'Free' ? 'text-emerald-400' : 'text-[#0ECCEE]'}>
-                                                        {feeLabel(c.feeAmount)}
+                                                    <span className={organizerCompetitionFeeLabel(c) === 'Free' ? 'text-emerald-400' : 'text-[#0ECCEE]'}>
+                                                        {organizerCompetitionFeeLabel(c)}
                                                     </span>
                                                     {c.category || noReview ? ` · ${formatCategoryLabel(noReview ? resolveMindSparkModule(c) : c.category)}` : ''}
                                                 </p>

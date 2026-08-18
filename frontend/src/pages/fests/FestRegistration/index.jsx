@@ -266,6 +266,7 @@ export default function FestRegistration() {
       isEffectiveMultiStep={r.isEffectiveMultiStep}
       isOnParticipantStep={r.isOnParticipantStep}
       isOnTeamDetailsStep={r.isOnTeamDetailsStep}
+      isOnFeeTierStep={r.isOnFeeTierStep}
       isOnPersonStep={r.isOnPersonStep}
       getPersonIndex={r.getPersonIndex}
       hasParticipantStep={r.hasParticipantStep}

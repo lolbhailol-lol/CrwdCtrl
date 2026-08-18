@@ -139,6 +139,13 @@ const competitionSchema = new mongoose.Schema(
     default: 0, // numeric INR amount for online payment; 0 means free
   },
 
+  /** Multiple fees on one event (e.g. Under 18 / UG / PG). When set, checkout requires a selected tier. */
+  feeTiers: [{
+    id: { type: String, trim: true },
+    label: { type: String, trim: true },
+    amount: { type: Number, default: 0, min: 0 },
+  }],
+
   /** Organizer-allotted seats for this competition (0 = not set / open). Default 50 — edit later. */
   slotsAllotted: {
     type: Number,

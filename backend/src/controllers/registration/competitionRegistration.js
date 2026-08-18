@@ -5,6 +5,7 @@ const { sendRegistrationThankYouEmail, sendRegistrationConfirmationEmail, sendOr
 const { consumeCouponUsageForOrder } = require('../../utils/couponPricing');
 const { buildPriceBreakdown, parseTicketPrice } = require('../../utils/platformFee');
 const { resolveTrekPlatformFeePercent } = require('../../utils/trekRegistrationFee');
+const { competitionRequiresPayment, resolvePaidOrderTotal } = require('../../utils/competitionFeeTiers');
 const { logger } = require('../../utils/logger');
 const {
   parseResponsesBody,
@@ -170,9 +171,9 @@ const submitCustomCompetitionRegistration = async (req, res) => {
     let paymentStatus = 'free';
     const competitionTicketPrice = parseTicketPrice(competition.feeAmount) || parseTicketPrice(competition.registrationFee);
     const festPlatformFeePercent = resolveTrekPlatformFeePercent(competition.fest?.platformFeePercent, 3);
-    const competitionTotalAmount = buildPriceBreakdown(competitionTicketPrice, festPlatformFeePercent).totalAmount;
+    let competitionTotalAmount = buildPriceBreakdown(competitionTicketPrice, festPlatformFeePercent).totalAmount;
 
-    if (competitionTicketPrice > 0) {
+    if (competitionRequiresPayment(competition)) {
       const { verifyPaymentForRegistration } = require('../../utils/paymentVerification');
       const paymentCheck = await verifyPaymentForRegistration(req.body);
       if (!paymentCheck.ok) {
@@ -182,6 +183,7 @@ const submitCustomCompetitionRegistration = async (req, res) => {
       paymentOrderId = paymentCheck.orderId;
       paymentId = paymentCheck.paymentId;
       paymentStatus = 'paid';
+      competitionTotalAmount = await resolvePaidOrderTotal(paymentOrderId, competitionTotalAmount);
       logger.debug('✅ Cashfree payment verified:', paymentId);
 
       const existingRegistration = await Registration.findOne({
@@ -687,8 +689,8 @@ const submitCompetitionRegistration = async (req, res) => {
     let paymentStatusRoute = 'free';
     const competitionTicketPrice = parseTicketPrice(competition.feeAmount) || parseTicketPrice(competition.registrationFee);
     const festPlatformFeePercent = resolveTrekPlatformFeePercent(fest?.platformFeePercent, 3);
-    const competitionTotalAmount = buildPriceBreakdown(competitionTicketPrice, festPlatformFeePercent).totalAmount;
-    const paymentVerified = competitionTicketPrice > 0;
+    let competitionTotalAmount = buildPriceBreakdown(competitionTicketPrice, festPlatformFeePercent).totalAmount;
+    const paymentVerified = competitionRequiresPayment(competition);
 
     if (paymentVerified) {
       const { verifyPaymentForRegistration } = require('../../utils/paymentVerification');
@@ -700,6 +702,7 @@ const submitCompetitionRegistration = async (req, res) => {
       paymentOrderId = paymentCheck.orderId;
       paymentId = paymentCheck.paymentId;
       paymentStatusRoute = 'paid';
+      competitionTotalAmount = await resolvePaidOrderTotal(paymentOrderId, competitionTotalAmount);
       logger.debug('✅ Cashfree payment verified (competition route):', paymentId);
 
       const existingPaid = await Registration.findOne({

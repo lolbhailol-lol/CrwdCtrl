@@ -85,17 +85,61 @@ function RegisterMetaChips({ slotsLabel, teamLabel, isDark }) {
     );
 }
 
-function RegisterFeeLabel({ feeLabel, feeIsFree, isDark }) {
+function compactRegisterMinAmount(feeTiers) {
+    const list = Array.isArray(feeTiers) ? feeTiers.filter((t) => t && (t.label || t.amount >= 0)) : [];
+    if (list.length <= 1) return null;
+    return Math.min(...list.map((t) => Math.max(0, Number(t.amount) || 0)));
+}
+
+function RegisterFeeLabel({ feeLabel, feeIsFree, isDark, feeTiers }) {
+    const fromAmount = compactRegisterMinAmount(feeTiers);
+    const display = fromAmount != null ? `₹${fromAmount.toLocaleString('en-IN')}` : feeLabel;
     return (
         <div className="min-w-0 flex-1 flex flex-col justify-center h-14">
-            <p className={`text-sm font-semibold leading-none ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Fee</p>
+            {!feeIsFree ? (
+                <p className={`text-sm font-semibold leading-none ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {fromAmount != null ? 'From' : ''}
+                </p>
+            ) : null}
             {feeIsFree ? (
-                <p className="mt-1 text-3xl font-bold leading-none text-green-500">Free</p>
+                <p className="mt-1 text-xl font-bold leading-none text-green-500">Free</p>
             ) : (
-                <p className={`mt-1 text-3xl font-bold leading-none truncate tabular-nums ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    {feeLabel}
+                <p className={`mt-1 text-xl font-bold leading-none truncate tabular-nums ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {display}
                 </p>
             )}
+        </div>
+    );
+}
+
+function RegistrationFeeLines({ tiers, feeLabel, feeIsFree, isDark }) {
+    const list = Array.isArray(tiers) ? tiers.filter((t) => t && (t.label || t.amount >= 0)) : [];
+    if (list.length > 1) {
+        return (
+            <div className={`text-sm space-y-1.5 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                <p className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Registration fees</p>
+                {list.map((tier) => (
+                    <p key={tier.id || tier.label} className="flex items-baseline justify-between gap-3">
+                        <span className="min-w-0">{tier.label}</span>
+                        <span className={`font-bold tabular-nums shrink-0 ${feeIsFree ? 'text-green-500' : 'text-[#0ECCEE]'}`}>
+                            {Number(tier.amount) > 0
+                                ? `₹${Number(tier.amount).toLocaleString('en-IN')}/-`
+                                : 'Free'}
+                        </span>
+                    </p>
+                ))}
+            </div>
+        );
+    }
+    if (!feeLabel) return null;
+    return (
+        <div className={`text-sm space-y-1 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+            <p>
+                <span className="font-semibold">Registration fee: </span>
+                <span className={`font-bold ${feeIsFree ? 'text-green-500' : 'text-[#0ECCEE]'}`}>
+                    {feeLabel}
+                </span>
+            </p>
         </div>
     );
 }
@@ -390,6 +434,7 @@ const buildCompetitionData = (compData, options = {}) => {
         feeLabel: fee.known ? fee.label : '',
         feeIsFree: fee.isFree,
         feeKnown: fee.known,
+        feeTiers: fee.tiers || [],
         prize: (() => {
             const raw = String(compData.prizePool || compData.prize || '').trim();
             return !raw || /^(tbd|tba|n\/a|na|-|subject to change)$/i.test(raw) ? '' : raw;
@@ -1492,13 +1537,13 @@ function EventPage() {
                                     bodyClass: `text-sm leading-relaxed text-left ${isDark ? 'text-gray-400' : 'text-gray-600'}`,
                                 })}
                                 {eventData.feeKnown ? (
-                                <div className={`text-sm space-y-1 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                                    <p>
-                                        <span className="font-semibold">Registration fee: </span>
-                                        <span className={`font-bold ${eventData.feeIsFree ? 'text-green-500' : 'text-[#0ECCEE]'}`}>
-                                            {eventData.feeLabel}
-                                        </span>
-                                    </p>
+                                <div className="mb-1">
+                                    <RegistrationFeeLines
+                                        tiers={eventData.feeTiers}
+                                        feeLabel={eventData.feeLabel}
+                                        feeIsFree={eventData.feeIsFree}
+                                        isDark={isDark}
+                                    />
                                 </div>
                                 ) : null}
                             </div>
@@ -1666,6 +1711,17 @@ function EventPage() {
                                         bodyClass: `text-sm leading-relaxed text-left ${isDark ? 'text-gray-300' : 'text-gray-600'}`,
                                     })}
 
+                                    {eventData.feeKnown ? (
+                                        <div className="mb-4">
+                                            <RegistrationFeeLines
+                                                tiers={eventData.feeTiers}
+                                                feeLabel={eventData.feeLabel}
+                                                feeIsFree={eventData.feeIsFree}
+                                                isDark={isDark}
+                                            />
+                                        </div>
+                                    ) : null}
+
                                     {(eventData.date || (eventData.venue && eventData.venue !== 'TBD')) && (
                                     <div className="space-y-2 mb-4">
                                         {eventData.date ? (
@@ -1698,14 +1754,18 @@ function EventPage() {
 
                                         {eventData.feeKnown ? (
                                             <div className="min-w-0 flex flex-col justify-center h-14">
-                                                <p className={`text-sm font-semibold leading-none ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Fee</p>
-                                                <p className={`mt-1 text-3xl font-bold tabular-nums leading-none truncate ${
-                                                    eventData.feeIsFree
-                                                        ? 'text-green-500'
-                                                        : isDark ? 'text-white' : 'text-gray-900'
-                                                }`}>
-                                                    {eventData.feeLabel}
-                                                </p>
+                                                {!eventData.feeIsFree && compactRegisterMinAmount(eventData.feeTiers) != null ? (
+                                                    <p className={`text-sm font-semibold leading-none ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>From</p>
+                                                ) : null}
+                                                {eventData.feeIsFree ? (
+                                                    <p className="mt-1 text-xl font-bold tabular-nums leading-none text-green-500">Free</p>
+                                                ) : (
+                                                    <p className={`mt-1 text-xl font-bold tabular-nums leading-none truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                        {compactRegisterMinAmount(eventData.feeTiers) != null
+                                                            ? `₹${compactRegisterMinAmount(eventData.feeTiers).toLocaleString('en-IN')}`
+                                                            : eventData.feeLabel}
+                                                    </p>
+                                                )}
                                             </div>
                                         ) : (
                                             <div />
@@ -1836,6 +1896,7 @@ function EventPage() {
                                 isDark={isDark}
                                 feeLabel={eventData.feeLabel}
                                 feeIsFree={eventData.feeIsFree}
+                                feeTiers={eventData.feeTiers}
                             />
                         ) : (
                             <div />

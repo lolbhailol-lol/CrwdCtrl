@@ -13,6 +13,11 @@ const {
     getOrganizerFests,
 } = require('../utils/festOrganizerAccess');
 const FestOrganizerLoginLog = require('../model/fest_organizer_login_log_model');
+const {
+    applyFeeTiersToCompetition,
+    sanitizeCompetitionFeeTiers,
+    resolveCompetitionTicketPrice,
+} = require('../utils/competitionFeeTiers');
 
 const TOKEN_TTL = '7d';
 
@@ -716,7 +721,7 @@ exports.getDashboard = async (req, res) => {
             }),
             Registration.countDocuments({ ...notProShow, status: { $in: ['pending', 'approved'] } }),
             Competition.find({ fest: festId })
-                .select('name competitionType category coverImage subtitle feeAmount registrationFee slotsAllotted showSlotsPublic registration.whatsappGroupLink')
+                .select('name competitionType category coverImage subtitle feeAmount registrationFee feeTiers slotsAllotted showSlotsPublic registration.whatsappGroupLink')
                 .sort({ name: 1 })
                 .lean(),
             Registration.aggregate([
@@ -823,6 +828,8 @@ exports.getDashboard = async (req, res) => {
                 subtitle: c.subtitle || '',
                 coverImage: c.coverImage || '',
                 feeAmount,
+                registrationFee: c.registrationFee || '',
+                feeTiers: sanitizeCompetitionFeeTiers(c.feeTiers),
                 slotsAllotted,
                 slotsFilled,
                 slotsLeft,
@@ -1597,7 +1604,7 @@ exports.getCompetitionOps = async (req, res) => {
         const [fest, competition] = await Promise.all([
             FestOrganizer.findById(festId).select('festName slug').lean(),
             Competition.findOne({ _id: competitionId, fest: festId })
-                .select('name subtitle competitionType category feeAmount registrationFee registration description coverImage slotsAllotted showSlotsPublic teamSizeMin teamSizeMax teamSizeLabel')
+                .select('name subtitle competitionType category feeAmount registrationFee feeTiers registration description coverImage slotsAllotted showSlotsPublic teamSizeMin teamSizeMax teamSizeLabel')
                 .lean(),
         ]);
         if (!fest) return res.status(404).json({ success: false, message: 'Fest not found' });
@@ -1672,6 +1679,8 @@ exports.getCompetitionOps = async (req, res) => {
                 category: competition.category || '',
                 coverImage: competition.coverImage || '',
                 feeAmount: Number(competition.feeAmount ?? competition.registrationFee) || 0,
+                registrationFee: competition.registrationFee || '',
+                feeTiers: sanitizeCompetitionFeeTiers(competition.feeTiers),
                 slotsAllotted,
                 slotsFilled,
                 slotsLeft,
@@ -1868,6 +1877,7 @@ function serializeCompetitionDetails(competition) {
         prizePool: competition.prizePool || '',
         registrationFee: competition.registrationFee || '',
         feeAmount: Number(competition.feeAmount) || 0,
+        feeTiers: sanitizeCompetitionFeeTiers(competition.feeTiers),
         registrationLink: competition.registrationLink || '',
         registrationType: competition.registrationType || 'fest',
         registration: competition.registration || { status: 'not_started' },
@@ -2026,6 +2036,10 @@ function applyCompetitionPayload(competition, body = {}) {
         competition.teamSizeMax = next.teamSizeMax;
         competition.teamSizeLabel = next.teamSizeLabel;
     }
+    if (Array.isArray(body.feeTiers)) {
+        applyFeeTiersToCompetition(competition, body.feeTiers);
+        competition.markModified('feeTiers');
+    }
 }
 
 function tryClearPublicCaches() {
@@ -2081,7 +2095,12 @@ exports.getCompetitionDetails = async (req, res) => {
 exports.createCompetition = async (req, res) => {
     try {
         const body = req.body || {};
-        if (!body.name || !body.description || !body.prizePool || !body.registrationFee) {
+        if (
+            !body.name
+            || !body.description
+            || !body.prizePool
+            || (!body.registrationFee && !sanitizeCompetitionFeeTiers(body.feeTiers).length)
+        ) {
             return res.status(400).json({
                 success: false,
                 message: 'Please fill Competition Name, Description, Prize Pool and Registration Fee',
@@ -2165,6 +2184,10 @@ exports.createCompetition = async (req, res) => {
             })(),
             legacyRegistration: body.legacyRegistration || { status: 'NOT_STARTED' },
         });
+
+        if (Array.isArray(body.feeTiers) && body.feeTiers.length) {
+            applyFeeTiersToCompetition(competition, body.feeTiers);
+        }
 
         await competition.save();
         if (!Array.isArray(fest.competitions)) fest.competitions = [];
@@ -2388,7 +2411,7 @@ exports.createManualParticipant = async (req, res) => {
             }
             const Competition = mongoose.model('Competition');
             competition = await Competition.findOne({ _id: competitionIdRaw, fest: req.festId })
-                .select('name feeAmount registrationFee')
+                .select('name feeAmount registrationFee feeTiers')
                 .lean();
             if (!competition) {
                 return res.status(404).json({ success: false, message: 'Competition not found for this fest' });
@@ -2496,7 +2519,24 @@ exports.createManualParticipant = async (req, res) => {
         const paymentStatus = ['free', 'pending', 'paid', 'failed'].includes(paymentStatusRaw)
             ? paymentStatusRaw
             : 'paid';
-        const feeDefault = Number(competition?.feeAmount ?? competition?.registrationFee) || 0;
+        let feeDefault = Number(competition?.feeAmount ?? competition?.registrationFee) || 0;
+        const feeTierId = String(req.body.feeTierId || cleanResponses.feeTierId || '').trim();
+        if (competition && sanitizeCompetitionFeeTiers(competition.feeTiers).length) {
+            try {
+                const priced = resolveCompetitionTicketPrice(competition, feeTierId);
+                feeDefault = priced.ticketPrice;
+                if (priced.tier) {
+                    cleanResponses.feeTierId = priced.tier.id;
+                    cleanResponses.feeTierLabel = priced.tier.label;
+                    cleanResponses['Student category'] = priced.tier.label;
+                }
+            } catch (tierErr) {
+                if (tierErr.status === 400) {
+                    return res.status(400).json({ success: false, message: tierErr.message });
+                }
+                throw tierErr;
+            }
+        }
         let amountPaid = Number(req.body.amountPaid);
         if (!Number.isFinite(amountPaid)) {
             amountPaid = paymentStatus === 'paid' ? feeDefault : 0;

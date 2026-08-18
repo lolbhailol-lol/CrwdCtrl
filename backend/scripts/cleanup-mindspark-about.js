@@ -32,7 +32,7 @@ function cleanAbout(desc) {
   const qq = await Competition.findOne({ fest: '6a7f1010ed26d983b34e55c2', name: /quant\s*quest/i });
   if (qq) {
     qq.description =
-      "QuantQuest is a quiz under Quantamania at MindSpark'26 that tests analytical thinking, quantitative aptitude, and problem-solving speed across multiple rounds.";
+      "QuantQuest is a quiz under Quantumania at MindSpark'26 that tests analytical thinking, quantitative aptitude, and problem-solving speed across multiple rounds.";
     if (!(qq.commonRules || []).length) {
       qq.commonRules = [
         'Participants must carry a valid college ID card and registration receipt.',

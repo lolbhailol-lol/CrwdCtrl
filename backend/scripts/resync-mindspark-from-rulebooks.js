@@ -212,10 +212,17 @@ const OVERRIDES = {
       }
       return out;
     },
+    feeAmount: 150,
+    registrationFee: '₹150/- for Under 18 students · ₹300/- for UG students · ₹500/- for PG students / PhD Scholars',
+    feeTiers: [
+      { id: 'under_18', label: 'Under 18 students', amount: 150 },
+      { id: 'ug', label: 'UG students', amount: 300 },
+      { id: 'pg_phd', label: 'PG students / PhD Scholars', amount: 500 },
+    ],
   },
   QuantQuest: {
     description:
-      "QuantQuest is a quiz under Quantamania at MindSpark'26 that tests analytical thinking, quantitative aptitude, and problem-solving speed across multiple rounds.",
+      "QuantQuest is a quiz under Quantumania at MindSpark'26 that tests analytical thinking, quantitative aptitude, and problem-solving speed across multiple rounds.",
     teamSize: 'Max 2 participants per team',
     registrationFee: '₹199 per team',
     feeAmount: 199,
@@ -367,6 +374,9 @@ function applyDescriptionTeamSize(description, teamSize) {
       venue: doc.venue || VENUE,
       dateTime: (!doc.dateTime || /tba/i.test(doc.dateTime)) ? DEFAULT_DATETIME : doc.dateTime,
     };
+    if (Array.isArray(override.feeTiers) && override.feeTiers.length) {
+      patch.feeTiers = override.feeTiers;
+    }
 
     // Prefer richer contact from parse when available
     if (override.contact && (override.contact.phone || override.contact.name)) {
@@ -400,6 +410,7 @@ function applyDescriptionTeamSize(description, teamSize) {
       doc.markModified('commonRules');
       doc.markModified('rounds');
       doc.markModified('contact');
+      if (patch.feeTiers) doc.markModified('feeTiers');
       await doc.save();
       // refresh map key if renamed
       compsByNorm.delete(normName(doc.name));

@@ -3,6 +3,7 @@ const { logger } = require('../utils/logger');
 const FestOrganizer = require('../model/fest_organizer_model');
 const Competition = require('../model/competition_model');
 const { parseTicketPrice } = require('../utils/platformFee');
+const { applyFeeTiersToCompetition, sanitizeCompetitionFeeTiers } = require('../utils/competitionFeeTiers');
 const User = require('../model/usermodel'); // Check if your file is userModel.js or user.js
 const { sendEventBroadcast } = require('../services/emailService');
 const {
@@ -370,6 +371,7 @@ exports.createCompetition = async (req, res) => {
       rounds,
       registrationFee,
       feeAmount,
+      feeTiers,
       registrationLink,
       registrationFields,
       contact,
@@ -379,7 +381,8 @@ exports.createCompetition = async (req, res) => {
     } = req.body;
 
     // ✅ Enhanced validation with detailed error messages
-    if (!name || !description || !prizePool || !registrationFee) {
+    const hasFeeTiers = sanitizeCompetitionFeeTiers(feeTiers).length > 0;
+    if (!name || !description || !prizePool || (!registrationFee && !hasFeeTiers)) {
       logger.error('❌ Missing required fields:', { name, description, prizePool, registrationFee });
       return res.status(400).json({
         message: 'Please fill Competition Name, Description, Prize Pool and Registration Fee'
@@ -435,6 +438,7 @@ exports.createCompetition = async (req, res) => {
       rounds: rounds || [],
       registrationFee: registrationFee || 'Free',
       feeAmount: getCompetitionBaseFee(registrationFee, feeAmount),
+      feeTiers: [],
       slotsAllotted: (() => {
         if (req.body.slotsAllotted === undefined || req.body.slotsAllotted === null || req.body.slotsAllotted === '') {
           return 50;
@@ -480,6 +484,10 @@ exports.createCompetition = async (req, res) => {
       // Legacy registration for backward compatibility
       legacyRegistration: legacyRegistration || { status: 'NOT_STARTED' }
     });
+
+    if (Array.isArray(feeTiers) && feeTiers.length) {
+      applyFeeTiersToCompetition(competition, feeTiers);
+    }
 
     logger.debug('Backend - Creating competition with:', {
       name: competition.name,

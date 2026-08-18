@@ -12,6 +12,7 @@ const PaymentOrder = require('../model/payment_order_model');
 const { buildPriceBreakdown, buildTrekPriceBreakdown, buildEventPriceBreakdown, parseTicketPrice } = require('../utils/platformFee');
 const { resolveTrekPlatformFeePercent } = require('../utils/trekRegistrationFee');
 const { validateTrekGenderRegistration } = require('../utils/trekGenderRegistration');
+const { resolveCompetitionTicketPrice } = require('../utils/competitionFeeTiers');
 
 async function sumTrekConfirmedSeats(trekId) {
   const rows = await TrekBooking.aggregate([
@@ -154,17 +155,19 @@ const resolvePricedEntity = async ({
 
   if (resolvedCompetitionId) {
     const competition = await Competition.findById(resolvedCompetitionId)
-      .select('name feeAmount registrationFee fest')
+      .select('name feeAmount registrationFee feeTiers fest')
       .populate('fest', 'platformFeePercent')
       .lean();
     if (!competition) return null;
+    const { ticketPrice, tier } = resolveCompetitionTicketPrice(competition, resolvedTierId);
     return {
       entityType: 'competition',
-      ticketPrice: parseTicketPrice(competition.feeAmount) || parseTicketPrice(competition.registrationFee),
+      ticketPrice,
       platformFeePercent: resolveTrekPlatformFeePercent(competition.fest?.platformFeePercent, 3),
       notes: {
         competitionId: competition._id.toString(),
         festId: competition.fest?._id?.toString?.() || '',
+        ...(tier ? { tierId: tier.id, tierName: tier.label } : {}),
       },
     };
   }

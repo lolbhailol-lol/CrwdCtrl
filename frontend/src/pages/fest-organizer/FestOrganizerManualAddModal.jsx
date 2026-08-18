@@ -13,6 +13,7 @@ const empty = {
     amountPaid: '',
     note: '',
     whatsappGroupJoined: false,
+    feeTierId: '',
 };
 
 export default function FestOrganizerManualAddModal({
@@ -20,6 +21,7 @@ export default function FestOrganizerManualAddModal({
     competitionId,
     competitionName,
     defaultFee = 0,
+    feeTiers = [],
     open,
     onClose,
     onCreated,
@@ -34,6 +36,7 @@ export default function FestOrganizerManualAddModal({
             ...empty,
             amountPaid: defaultFee > 0 ? String(defaultFee) : '',
             paymentStatus: defaultFee > 0 ? 'paid' : 'free',
+            feeTierId: '',
         });
         setError('');
     }, [open, defaultFee]);
@@ -58,6 +61,7 @@ export default function FestOrganizerManualAddModal({
                 membersText: form.membersText.trim(),
                 paymentStatus: form.paymentStatus,
                 amountPaid: Number.isFinite(amount) ? amount : undefined,
+                feeTierId: form.feeTierId || undefined,
                 status: 'approved',
                 note: form.note.trim(),
                 whatsappGroupJoined: Boolean(form.whatsappGroupJoined),
@@ -141,6 +145,32 @@ export default function FestOrganizerManualAddModal({
                             className="w-full px-3 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 text-sm text-white"
                         />
                     </label>
+                    {Array.isArray(feeTiers) && feeTiers.length > 0 ? (
+                        <label className="block space-y-1">
+                            <span className="text-[11px] text-gray-500">Student category</span>
+                            <select
+                                value={form.feeTierId}
+                                onChange={(e) => {
+                                    const id = e.target.value;
+                                    const tier = feeTiers.find((t) => t.id === id);
+                                    setForm((prev) => ({
+                                        ...prev,
+                                        feeTierId: id,
+                                        amountPaid: tier ? String(tier.amount) : prev.amountPaid,
+                                        paymentStatus: tier && Number(tier.amount) > 0 ? 'paid' : prev.paymentStatus,
+                                    }));
+                                }}
+                                className="w-full px-3 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 text-sm text-white"
+                            >
+                                <option value="">Select category</option>
+                                {feeTiers.map((tier) => (
+                                    <option key={tier.id} value={tier.id}>
+                                        {tier.label} · ₹{Number(tier.amount).toLocaleString('en-IN')}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+                    ) : null}
                     <div className="grid grid-cols-2 gap-3">
                         <label className="block space-y-1">
                             <span className="text-[11px] text-gray-500">Payment</span>

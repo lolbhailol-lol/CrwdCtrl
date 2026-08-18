@@ -7,6 +7,7 @@ import { generateFieldId } from './helpers';
 import {
   TeamSizeSelect,
   TeamDetailsStep,
+  FeeTierStep,
   RosterPersonStep,
   isMindSparkFest,
 } from '../../../features/fests/mindspark';
@@ -27,6 +28,7 @@ export default function FestRegistrationForm({
   isEffectiveMultiStep,
   isOnParticipantStep,
   isOnTeamDetailsStep,
+  isOnFeeTierStep,
   isOnPersonStep,
   getPersonIndex,
   hasParticipantStep,
@@ -74,6 +76,7 @@ export default function FestRegistrationForm({
   const hideFestCommonForm = mindSparkComp;
   const onParticipantStep = typeof isOnParticipantStep === 'function' && isOnParticipantStep();
   const onTeamDetailsStep = typeof isOnTeamDetailsStep === 'function' && isOnTeamDetailsStep();
+  const onFeeTierStep = typeof isOnFeeTierStep === 'function' && isOnFeeTierStep();
   const onPersonStep = typeof isOnPersonStep === 'function' && isOnPersonStep();
 
   const paymentModalEl = (
@@ -219,7 +222,15 @@ export default function FestRegistrationForm({
               </div>
             )}
 
-            {/* Step 1 — pick team size (teams of 2+) */}
+            {onFeeTierStep ? (
+              <FeeTierStep
+                competition={competition}
+                formData={formData}
+                setFormData={setFormData}
+                isDark={isDark}
+              />
+            ) : null}
+
             {onParticipantStep ? (
               <TeamSizeSelect
                 competition={competition}
@@ -250,7 +261,7 @@ export default function FestRegistrationForm({
             ) : null}
 
             {/* Fest MULTI_STEP — never for MindSpark roster comps */}
-            {isMultiStepForm() && !hideFestCommonForm && !hasParticipantStep?.() && !onParticipantStep && !onTeamDetailsStep && !onPersonStep && (
+            {isMultiStepForm() && !hideFestCommonForm && !hasParticipantStep?.() && !onParticipantStep && !onTeamDetailsStep && !onFeeTierStep && !onPersonStep && (
               <div className={`rounded-xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-gray-50 border-gray-200'}`}>
                 {(() => {
                   const meta = getStepMeta().find((s) => s.stepNumber === currentStep);
@@ -294,7 +305,7 @@ export default function FestRegistrationForm({
             )}
 
             {/* Single-step fest schema — never for MindSpark roster comps */}
-            {!isMultiStepForm() && !hideFestCommonForm && !hasParticipantStep?.() && !onParticipantStep && !onTeamDetailsStep && !onPersonStep && (fest.registration?.formSchema || []).length > 0 && (
+            {!isMultiStepForm() && !hideFestCommonForm && !hasParticipantStep?.() && !onParticipantStep && !onTeamDetailsStep && !onFeeTierStep && !onPersonStep && (fest.registration?.formSchema || []).length > 0 && (
               <div className="space-y-4">
                 <div className={`rounded-xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-gray-50 border-gray-200'}`}>
                   <h3 className={`text-xs font-bold uppercase tracking-widest mb-4 pb-2.5 border-b ${isDark ? 'text-gray-400 border-gray-700/70' : 'text-gray-500 border-gray-200'}`}>
@@ -326,7 +337,7 @@ export default function FestRegistrationForm({
             )}
 
             {/* Fee box — amount first, coupon secondary */}
-            {!paymentFields && !onParticipantStep && !onTeamDetailsStep && (!onPersonStep || currentStep === getTotalSteps()) && (() => {
+            {!paymentFields && !onFeeTierStep && !onParticipantStep && !onTeamDetailsStep && (!onPersonStep || currentStep === getTotalSteps()) && (() => {
               if (!priceBreakdown) return null;
               const total = Number(priceBreakdown.totalAmount) || 0;
               const saved = Number(priceBreakdown.couponDiscount) || 0;

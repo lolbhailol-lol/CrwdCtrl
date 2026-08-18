@@ -61,3 +61,38 @@ test('empty draft sanitizes to null', () => {
   assert.equal(sanitizeFestCompetitionDraft({ formData: { photo: { uploaded: true, fileName: 'id.png' } } }), null);
   assert.equal(sanitizeFestCompetitionDraft(null), null);
 });
+
+const {
+  GAME_OF_INNOVATION_FEE_TIERS,
+  sanitizeCompetitionFeeTiers,
+  resolveCompetitionTicketPrice,
+  competitionRequiresPayment,
+  formatCompetitionFeeFromLabel,
+} = require('../src/utils/competitionFeeTiers');
+
+test('Game of Innovation fee tiers resolve by selected category', () => {
+  const competition = {
+    feeAmount: 150,
+    registrationFee: '₹150',
+    feeTiers: GAME_OF_INNOVATION_FEE_TIERS,
+  };
+  assert.equal(competitionRequiresPayment(competition), true);
+  assert.equal(formatCompetitionFeeFromLabel(competition.feeTiers), '₹150 · ₹300 · ₹500');
+
+  const ug = resolveCompetitionTicketPrice(competition, 'ug');
+  assert.equal(ug.ticketPrice, 300);
+  assert.equal(ug.tier.label, 'UG students');
+
+  const pg = resolveCompetitionTicketPrice(competition, 'pg_phd');
+  assert.equal(pg.ticketPrice, 500);
+
+  assert.throws(() => resolveCompetitionTicketPrice(competition, ''), /select a registration category/i);
+  assert.throws(() => resolveCompetitionTicketPrice(competition, 'alumni'), /Invalid registration category/i);
+});
+
+test('competitions without feeTiers keep a single ticket price', () => {
+  const priced = resolveCompetitionTicketPrice({ feeAmount: 199, registrationFee: '₹199' }, 'ug');
+  assert.equal(priced.ticketPrice, 199);
+  assert.equal(priced.tier, null);
+  assert.deepEqual(sanitizeCompetitionFeeTiers(null), []);
+});
