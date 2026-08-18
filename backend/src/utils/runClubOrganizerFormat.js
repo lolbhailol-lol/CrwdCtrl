@@ -7,6 +7,44 @@ const {
     participantsToXlsx,
 } = require('./trekOrganizerFormat');
 
+/** Keys persisted on responses for ops — not guest form answers. */
+const INTERNAL_FORM_KEYS = new Set([
+    'people',
+    'date',
+    'time',
+    'tierid',
+    'tiername',
+    'tierfee',
+    'addonselected',
+    'addonlabel',
+    'addonfee',
+    'coupon_code',
+    'couponcode',
+    'name',
+    'phone',
+]);
+
+const DEFAULT_CONTACT_FIELDS = [
+    { fieldName: 'full_name', label: 'Full Name', type: 'text' },
+    { fieldName: 'contact_no', label: 'Contact No.', type: 'tel' },
+    { fieldName: 'email', label: 'E-mail', type: 'email' },
+];
+
+function mergeFormSchemaForDisplay(formSchema = []) {
+    const custom = (Array.isArray(formSchema) ? formSchema : []).filter((f) => f?.fieldName);
+    const seen = new Set(custom.map((f) => String(f.fieldName).toLowerCase()));
+    const defaults = DEFAULT_CONTACT_FIELDS.filter((f) => !seen.has(f.fieldName));
+    return [...defaults, ...custom];
+}
+
+function isInternalFormKey(key) {
+    return INTERNAL_FORM_KEYS.has(String(key || '').toLowerCase());
+}
+
+function filterRegistrationFields(fields = []) {
+    return (fields || []).filter((f) => !isInternalFormKey(f?.fieldName));
+}
+
 function responsesToObject(reg) {
     if (!reg?.responses) return {};
     if (reg.responses instanceof Map) {
@@ -74,6 +112,10 @@ function formatParticipantRow(reg, event = null) {
         phone:
             pickFormField(form, ['contact_no', 'phone', 'mobile', 'contact']) ||
             booking.userId?.phoneNumber ||
+            '—',
+        participantGender:
+            pickFormField(form, ['gender', 'sex', 'Gender']) ||
+            booking.userId?.gender ||
             '—',
         emergencyContact:
             pickFormField(form, ['emergency_contact', 'emergency', 'emergency_phone', 'guardian_contact']) ||
@@ -158,8 +200,8 @@ function formatParticipantRow(reg, event = null) {
 }
 
 function buildSheetColumns(formSchema = []) {
-    const formCols = (Array.isArray(formSchema) ? formSchema : [])
-        .filter((f) => f?.fieldName)
+    const formCols = mergeFormSchemaForDisplay(formSchema)
+        .filter((f) => !isInternalFormKey(f.fieldName))
         .map((f) => ({
             key: `form:${f.fieldName}`,
             fieldName: f.fieldName,
@@ -172,12 +214,16 @@ function buildSheetColumns(formSchema = []) {
     return [
         { key: '_index', label: '#', group: 'system', sticky: true, minWidth: 46 },
         { key: 'bookingId', label: 'Booking ID', group: 'system', sticky: true, minWidth: 112 },
+        { key: 'participantGender', label: 'Gender', group: 'booking', minWidth: 88 },
         ...formCols,
         { key: 'trekDate', label: 'Run Date', group: 'booking', minWidth: 118 },
         { key: 'trekTime', label: 'Time', group: 'booking', minWidth: 96 },
         { key: 'people', label: 'People', group: 'booking', minWidth: 72 },
         { key: 'tierLabel', label: 'Tier', group: 'booking', minWidth: 140 },
         { key: 'addOnLabelFull', label: 'Add-on', group: 'booking', minWidth: 160 },
+        { key: 'couponCode', label: 'Coupon', group: 'status', minWidth: 96 },
+        { key: 'couponDiscount', label: 'Discount (₹)', group: 'status', minWidth: 104 },
+        { key: 'listAmount', label: 'List (₹)', group: 'status', minWidth: 88 },
         { key: 'paymentStatus', label: 'Payment', group: 'status', minWidth: 88 },
         { key: 'organizerNet', label: 'Revenue (₹)', group: 'status', minWidth: 104 },
         { key: 'checkInStatus', label: 'Check-in', group: 'status', minWidth: 100 },
@@ -188,22 +234,23 @@ function buildSheetColumns(formSchema = []) {
 
 function formatParticipantSheetRow(reg, event = null) {
     const row = formatParticipantRow(reg, event);
-    const formSchema = event?.registration?.formSchema || [];
+    const formSchema = mergeFormSchemaForDisplay(event?.registration?.formSchema || []);
+    const base = responsesToObject(reg);
     const formData = {
-        ...responsesToObject(reg),
+        ...base,
         // Ensure organizer always sees Google/profile contact even if schema omitted defaults
         ...(row.participantName && row.participantName !== '—'
-            ? { full_name: responsesToObject(reg).full_name || row.participantName }
+            ? { full_name: base.full_name || row.participantName }
             : {}),
-        ...(row.userEmail ? { email: responsesToObject(reg).email || row.userEmail } : {}),
+        ...(row.userEmail ? { email: base.email || row.userEmail } : {}),
         ...(row.phone && row.phone !== '—'
-            ? { contact_no: responsesToObject(reg).contact_no || row.phone }
+            ? { contact_no: base.contact_no || row.phone }
             : {}),
     };
     return {
         ...row,
         formData,
-        registrationFields: buildRegistrationFields(formSchema, formData),
+        registrationFields: filterRegistrationFields(buildRegistrationFields(formSchema, formData)),
     };
 }
 
@@ -261,7 +308,7 @@ function buildParticipantTimeline(reg, event = null) {
 
 function formatParticipantDetail(reg, event = null) {
     const row = formatParticipantRow(reg, event);
-    const formSchema = event?.registration?.formSchema || [];
+    const formSchema = mergeFormSchemaForDisplay(event?.registration?.formSchema || []);
     const baseForm = responsesToObject(reg);
     const formData = {
         ...baseForm,
@@ -278,7 +325,7 @@ function formatParticipantDetail(reg, event = null) {
     return {
         ...row,
         formData,
-        registrationFields: buildRegistrationFields(formSchema, formData),
+        registrationFields: filterRegistrationFields(buildRegistrationFields(formSchema, formData)),
         bookingDetails: {
             ...bd,
             grossCollected: row.grossCollected,
@@ -297,6 +344,8 @@ module.exports = {
     formatParticipantDetail,
     formatParticipantSheetRow,
     buildSheetColumns,
+    mergeFormSchemaForDisplay,
+    INTERNAL_FORM_KEYS,
     participantsToCsv,
     participantsToXlsx,
 };

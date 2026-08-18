@@ -353,14 +353,14 @@ export default function EventRegistrationPage() {
 
     const formSteps = useMemo(() => {
         const configuredSteps = (() => {
-            if (reg.formType === 'MULTI_STEP' && Array.isArray(reg.steps) && reg.steps.length > 0) {
-                return reg.steps.map((s, i) => ({
-                    title: s.stepTitle || `Step ${i + 1}`,
-                    description: s.stepDescription || '',
-                    fields: (s.fields || []).filter((f) => f.label && f.fieldName),
-                }));
-            }
-            const fields = (reg.formSchema || []).filter((f) => f.label && f.fieldName);
+        if (reg.formType === 'MULTI_STEP' && Array.isArray(reg.steps) && reg.steps.length > 0) {
+            return reg.steps.map((s, i) => ({
+                title: s.stepTitle || `Step ${i + 1}`,
+                description: s.stepDescription || '',
+                fields: (s.fields || []).filter((f) => f.label && f.fieldName),
+            }));
+        }
+        const fields = (reg.formSchema || []).filter((f) => f.label && f.fieldName);
             return fields.length ? [{ title: 'Your Details', description: '', fields }] : [];
         })();
 
@@ -1392,7 +1392,7 @@ export default function EventRegistrationPage() {
                             </>
                         ) : (
                             <>
-                                You're registered for <span className="text-[#0ECCEE] font-semibold">{title}</span>.
+                        You're registered for <span className="text-[#0ECCEE] font-semibold">{title}</span>.
                             </>
                         )}
                     </p>
@@ -1754,10 +1754,10 @@ export default function EventRegistrationPage() {
                                             renderField(field)
                                         ) : (
                                             <>
-                                                <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                                                    {field.label}{field.required && <span className="text-red-400 ml-1">*</span>}
-                                                </label>
-                                                {renderField(field)}
+                                        <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                            {field.label}{field.required && <span className="text-red-400 ml-1">*</span>}
+                                        </label>
+                                        {renderField(field)}
                                             </>
                                         )}
                                     </div>
@@ -1845,15 +1845,15 @@ export default function EventRegistrationPage() {
                         <div className={`rounded-2xl overflow-hidden border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-100 shadow-md'}`}>
                             <div className={`px-4 py-3.5 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
                                 <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Confirm Registration</p>
-                            </div>
+                                    </div>
                             <div className={`px-4 py-4 border-t ${isDark ? 'border-gray-700/60' : 'border-gray-200'}`}>
                                 <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                                     {driveOnlyPath
                                         ? 'Independence Day Drive only — free. Confirm to finish registration (no payment).'
                                         : 'This registration is free. Click confirm to complete.'}
                                 </p>
-                            </div>
-                        </div>
+                                        </div>
+                                </div>
                         )
                     )}
 

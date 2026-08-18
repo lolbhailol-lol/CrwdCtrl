@@ -106,6 +106,11 @@ exports.handleCashfreeWebhook = async (req, res) => {
       orderStatus === 'FAILED' ||
       (paymentData.payment_status || '').toUpperCase() === 'FAILED';
 
+    const isDropped =
+      eventType.includes('USER_DROPPED') ||
+      eventType.includes('PAYMENT_CANCELLED') ||
+      ['EXPIRED', 'CANCELLED', 'TERMINATED', 'USER_DROPPED'].includes(orderStatus);
+
     if (isPaid) {
       try {
         const updated = await PaymentOrder.findOneAndUpdate(
@@ -148,6 +153,16 @@ exports.handleCashfreeWebhook = async (req, res) => {
         );
       } catch (dbErr) {
         console.error('[paymentWebhook] Failed to mark order FAILED:', dbErr.message);
+      }
+    } else if (isDropped) {
+      try {
+        await PaymentOrder.findOneAndUpdate(
+          { orderId, status: 'PENDING' },
+          { status: 'EXPIRED' },
+          { upsert: false }
+        );
+      } catch (dbErr) {
+        console.error('[paymentWebhook] Failed to mark order EXPIRED:', dbErr.message);
       }
     }
 

@@ -55,12 +55,16 @@ import {
 } from '../../utils/sportsTiers';
 import {
     bookingPage1Fields,
+    buildBookingStepLabels,
     isBookingPage1Field,
+    isStandaloneQuestionField,
     resolveFormAutoCouponCode,
     selectOptionLabels,
+    shortBookingStepLabel,
+    standaloneQuestionFields,
 } from '../../utils/formOptionCoupons';
 
-const runDetailCache = createDetailCache('crwdctrl_event_community_detail_v1_');
+const runDetailCache = createDetailCache('crwdctrl_event_community_detail_v2_');
 
 const API = API_BASE_URL;
 const copy = organizerHubCopy(true);
@@ -83,13 +87,6 @@ function isGenderChoiceField(field) {
     return labels.some((o) => /^female$/i.test(o))
         && labels.some((o) => /^male$/i.test(o))
         && labels.length <= 3;
-}
-
-const PAID_STEPS = ['Party size', 'Your Details', 'Confirm'];
-const FREE_STEPS = ['Party size', 'Confirm'];
-
-function getBookingSteps(isFree) {
-    return isFree ? FREE_STEPS : PAID_STEPS;
 }
 
 function getInitialUi(eventId, search, locationState) {
@@ -254,19 +251,27 @@ export default function EventCommunityBookingPage() {
     const addOnFeePerPerson = optionalAddOn && addOnSelected ? optionalAddOn.fee : 0;
     const chargePerPerson = fee + addOnFeePerPerson;
     const isFreeFlow = chargePerPerson <= 0;
-    const bookingSteps = getBookingSteps(isFreeFlow);
-    const successStep = isFreeFlow ? 2 : 3;
+    const extraQuestionFields = useMemo(
+        () => standaloneQuestionFields(event?.registration?.formSchema || []),
+        [event?.registration?.formSchema],
+    );
+    const extraCount = extraQuestionFields.length;
+    const detailsStep = isFreeFlow ? null : 2 + extraCount;
+    const confirmStep = (isFreeFlow ? 2 : 3) + extraCount;
+    const bookingSteps = buildBookingStepLabels(isFreeFlow, extraQuestionFields);
+    const successStep = confirmStep;
+    const questionField = extraQuestionFields[step - 2] || null;
     const regMode = event?.registration?.mode || 'internal_form';
     const isOrganizerQr = regMode === 'organizer_qr';
     const paymentQR = event?.registration?.paymentQR || '';
     const paymentQRMessage = event?.registration?.paymentQRMessage || '';
     const paymentUpiId = event?.registration?.paymentUpiId || '';
     const showSuccess = isFreeFlow
-        ? step === 2 && payDone && !paying
-        : step === 3 && payDone && !paying;
+        ? step === confirmStep && payDone && !paying
+        : step === confirmStep && payDone && !paying;
     const showProcessing = isFreeFlow
-        ? step === 2 && paying
-        : step === 3 && paying;
+        ? step === confirmStep && paying
+        : step === confirmStep && paying;
     const qrNeedsReview = chargePerPerson > 0 && isOrganizerQr && !(couponInfo?.amountAfterDiscount === 0);
 
     useBookingSuccessPopup(showSuccess && !qrNeedsReview, {
@@ -286,7 +291,7 @@ export default function EventCommunityBookingPage() {
     const regSchema = useMemo(() => mergeRunFormFields(reg.formSchema || []), [reg.formSchema]);
     const page1CouponFields = useMemo(() => bookingPage1Fields(reg.formSchema || []), [reg.formSchema]);
     const step2Fields = useMemo(
-        () => regSchema.filter((field) => !isBookingPage1Field(field)),
+        () => regSchema.filter((field) => !isBookingPage1Field(field) && !isStandaloneQuestionField(field)),
         [regSchema],
     );
     const autoCouponCode = useMemo(
@@ -407,12 +412,12 @@ export default function EventCommunityBookingPage() {
         } catch { /* ignore corrupt draft */ }
     }, [id, event?._id, event?.id, location.search]);
 
-    // Free runs only have 2 steps; clamp drafts saved under the old 3-step flow
+    // Free runs only have 2 steps when there are no extra questions; clamp old drafts
     useEffect(() => {
-        if (!event || !isFreeFlow) return;
-        if (payDone && step > 2) setStep(2);
+        if (!event || !isFreeFlow || extraCount > 0) return;
+        if (payDone && step > confirmStep) setStep(confirmStep);
         else if (!payDone && step > 1) setStep(1);
-    }, [event, isFreeFlow, payDone, step]);
+    }, [event, isFreeFlow, extraCount, confirmStep, payDone, step]);
 
     // Free run policy: one seat per logged-in account.
     useEffect(() => {
@@ -719,7 +724,7 @@ export default function EventCommunityBookingPage() {
         if (!shouldResumePendingPayment(pending, returnPath, location.search)) return;
 
         paymentResumeRef.current = true;
-        setStep(3);
+        setStep(confirmStep);
         setPayDone(false);
         setPaying(true);
         setError('');
@@ -752,7 +757,7 @@ export default function EventCommunityBookingPage() {
                 if (verifyResult.status === 'cancelled') {
                     clearCashfreeReturnAndPending(navigate, location);
                     clearPendingPayment();
-                    setStep(2);
+                    setStep(detailsStep || 2);
                     setPayDone(false);
                     setError('Payment cancelled.');
                     setPaying(false);
@@ -762,7 +767,7 @@ export default function EventCommunityBookingPage() {
                 if (!verifyResult.ok || !verifyResult.verified) {
                     const { kind, message } = classifyVerifyError(verifyResult);
                     if (kind === 'cancelled' || kind === 'failed') clearPendingPayment();
-                    setStep(3);
+                    setStep(confirmStep);
                     setPayDone(false);
                     setError(
                         kind === 'pending'
@@ -793,16 +798,16 @@ export default function EventCommunityBookingPage() {
                         addOnSelected: typeof draft.addOnSelected === 'boolean' ? draft.addOnSelected : addOnSelected,
                     },
                 });
-                setStep(3);
+                setStep(confirmStep);
             } catch (e) {
-                setStep(2);
+                setStep(detailsStep || 2);
                 setPayDone(false);
                 setError(e.message || 'Could not complete booking after payment');
             } finally {
                 setPaying(false);
             }
         })();
-    }, [id, event, loadingEvent, navigate, location.search]);
+    }, [id, event, loadingEvent, navigate, location.search, confirmStep, detailsStep]);
 
     const next = async () => {
         setError('');
@@ -814,8 +819,8 @@ export default function EventCommunityBookingPage() {
         }
 
         const isFreeRun = isFreeFlow;
-        // Free run: only 2 steps — party size → confirm (skip details form)
-        if (step === 1 && isFreeRun) {
+        // Free run with no extra questions: party size → confirm
+        if (step === 1 && isFreeRun && extraCount === 0) {
             const missingPage1 = page1CouponFields.filter((f) => {
                 if (!f.required) return false;
                 return !String(extraFields[f.fieldName] || '').trim();
@@ -874,7 +879,53 @@ export default function EventCommunityBookingPage() {
             return;
         }
 
-        if (step === 2) {
+        if (questionField) {
+            if (questionField.required && !String(extraFields[questionField.fieldName] || '').trim()) {
+                setError(`Please select: ${questionField.label}`);
+                return;
+            }
+            if (isFreeRun && step + 1 >= confirmStep) {
+                const formData = {
+                    ...profileToRunFormData(user),
+                    ...extraFields,
+                };
+                if (!formData.full_name) formData.full_name = user?.name || user?.fullName || '';
+                if (!formData.email) formData.email = user?.email || '';
+                if (!formData.contact_no) {
+                    formData.contact_no = user?.phoneNumber || user?.phone || user?.mobile || '';
+                }
+                if (!formData.full_name?.trim() || !formData.email?.trim()) {
+                    setError('Sign in with Google so we can reserve your spot.');
+                    openLogin();
+                    return;
+                }
+                setExtraFields(formData);
+                setPaying(true);
+                try {
+                    await submitRunRegistration({
+                        amountPaid: 0,
+                        formData,
+                        booking: {
+                            people: 1,
+                            couponCode: couponCode.trim() || undefined,
+                            tierId: selectedTierId || undefined,
+                            addOnSelected: Boolean(addOnSelected && optionalAddOn),
+                        },
+                    });
+                    setStep(confirmStep);
+                    setPayDone(true);
+                } catch (e) {
+                    setError(e.message || 'Registration failed');
+                } finally {
+                    setPaying(false);
+                }
+                return;
+            }
+            setStep((s) => s + 1);
+            return;
+        }
+
+        if (step === detailsStep) {
             const mergedFields = {
                 ...profileToRunFormData(user),
                 ...extraFields,
@@ -944,7 +995,7 @@ export default function EventCommunityBookingPage() {
                             couponCode: couponCode.trim() || undefined,
                         },
                     });
-                    setStep(3);
+                    setStep(confirmStep);
                     setPayDone(true);
                 } catch (e) {
                     setError(e.message || 'Registration failed');
@@ -954,7 +1005,7 @@ export default function EventCommunityBookingPage() {
                 return;
             }
 
-            saveDraft({ step: 2 });
+            saveDraft({ step: detailsStep });
             setPaying(true);
             try {
                 const res = await fetch(`${API}/payment/sports-order`, {
@@ -982,7 +1033,7 @@ export default function EventCommunityBookingPage() {
                             addOnSelected: Boolean(addOnSelected && optionalAddOn),
                         },
                     });
-                    setStep(3);
+                    setStep(confirmStep);
                     setPayDone(true);
                     setPaying(false);
                     return;
@@ -1006,7 +1057,7 @@ export default function EventCommunityBookingPage() {
                     return;
                 }
 
-                saveDraft({ step: 2, extraFields, selDate, selTime, people, tierId: selectedTierId, addOnSelected });
+                saveDraft({ step: detailsStep, extraFields, selDate, selTime, people, tierId: selectedTierId, addOnSelected });
 
                 const checkoutFlow = await runCashfreeCheckoutAndVerify({
                     order,
@@ -1022,7 +1073,7 @@ export default function EventCommunityBookingPage() {
                 });
 
                 if (checkoutFlow.status === 'redirect_deferred') {
-                    setStep(3);
+                    setStep(confirmStep);
                     setPaying(true);
                     return;
                 }
@@ -1034,6 +1085,7 @@ export default function EventCommunityBookingPage() {
                         setPaying,
                         setError,
                         message: '',
+                        step: detailsStep || 2,
                     });
                     return;
                 }
@@ -1045,13 +1097,14 @@ export default function EventCommunityBookingPage() {
                         setPaying,
                         setError,
                         message: '',
+                        step: detailsStep || 2,
                     });
                     retryCheckoutRef.current = () => next();
                     setPaymentModal({ open: true, message: checkoutFlow.message, orderId: order.orderId });
                     return;
                 }
 
-                setStep(3);
+                setStep(confirmStep);
                 setPaying(true);
 
                 if (checkoutFlow.status === 'verified') {
@@ -1071,6 +1124,7 @@ export default function EventCommunityBookingPage() {
                         setPaying,
                         setError,
                         message: checkoutFlow.message || 'Payment verification failed. Contact support.',
+                        step: detailsStep || 2,
                     });
                 }
             } catch (e) {
@@ -1080,6 +1134,7 @@ export default function EventCommunityBookingPage() {
                     setPaying,
                     setError,
                     message: 'Payment error: ' + e.message,
+                    step: detailsStep || 2,
                 });
             }
         }
@@ -1347,7 +1402,7 @@ export default function EventCommunityBookingPage() {
                         </div>
                         <div className="flex justify-between">
                             {bookingSteps.map((s, i) => (
-                                <div key={s} className="flex flex-col items-center">
+                                <div key={`${s}-${i}`} className="flex flex-col items-center min-w-0 flex-1">
                                     <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
                                         i + 1 === step ? 'bg-[#0ECCEE] text-black'
                                         : i + 1 < step ? 'bg-green-600 text-white'
@@ -1356,7 +1411,7 @@ export default function EventCommunityBookingPage() {
                                     }`}>
                                         {i + 1 < step ? '✓' : i + 1}
                                     </div>
-                                    <span className={`text-xs mt-1 text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{s}</span>
+                                    <span className={`text-[10px] mt-1 text-center leading-tight px-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{s}</span>
                                 </div>
                             ))}
                         </div>
@@ -1578,7 +1633,24 @@ export default function EventCommunityBookingPage() {
                         </div>
                     )}
 
-                    {step === 2 && !isFreeFlow && (
+                    {questionField ? (
+                        <div className={`rounded-2xl border overflow-hidden ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-200 shadow-sm'}`}>
+                            <div className={`px-4 py-3 border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
+                                <p className={`text-[11px] font-semibold uppercase tracking-wider ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                    {shortBookingStepLabel(questionField)}
+                                </p>
+                                <p className={`text-sm font-semibold mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                    {questionField.label}
+                                    {questionField.required ? <span className="text-red-400 ml-1">*</span> : null}
+                                </p>
+                            </div>
+                            <div className="px-4 py-4">
+                                {renderField(questionField, { couponSelect: true })}
+                            </div>
+                        </div>
+                    ) : null}
+
+                    {step === detailsStep && !isFreeFlow && (
                         <div className={`rounded-2xl border overflow-hidden ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-200 shadow-sm'}`}>
                             <div className={`px-4 py-3 border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
                                 <p className={`text-[11px] font-semibold uppercase tracking-wider ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
@@ -1611,7 +1683,7 @@ export default function EventCommunityBookingPage() {
                         </div>
                     )}
 
-                    {step === 2 && !isFreeFlow && chargePerPerson > 0 && (
+                    {step === detailsStep && !isFreeFlow && chargePerPerson > 0 && (
                         <div className="mt-3">
                             <RunCheckoutPanel
                                 mode={isOrganizerQr ? 'organizer_qr' : 'cashfree'}
@@ -1661,7 +1733,7 @@ export default function EventCommunityBookingPage() {
                         </div>
                     )}
 
-                    {step === 2 && !isFreeFlow && chargePerPerson <= 0 && (
+                    {step === detailsStep && !isFreeFlow && chargePerPerson <= 0 && (
                         <div className={`mt-4 rounded-xl p-4 border ${isDark ? 'bg-emerald-900/15 border-emerald-700/40' : 'bg-emerald-50 border-emerald-200'}`}>
                             <p className={`text-sm font-semibold ${isDark ? 'text-emerald-300' : 'text-emerald-800'}`}>Free run</p>
                             <p className={`text-xs mt-1 ${isDark ? 'text-emerald-400/80' : 'text-emerald-700'}`}>
@@ -1672,7 +1744,7 @@ export default function EventCommunityBookingPage() {
                         </div>
                     )}
 
-                    {!(isFreeFlow && step === 2) ? (
+                    {!(isFreeFlow && step === confirmStep) ? (
                     <div className="flex flex-col sm:flex-row gap-3 pt-5">
                         <button type="button" onClick={back} disabled={paying}
                             className={`px-4 sm:px-6 py-3 rounded-xl border font-medium transition-colors text-sm ${isDark ? 'border-gray-700 text-white hover:bg-gray-800/60' : 'border-gray-300 text-gray-900 hover:bg-gray-100'}`}>
@@ -1682,15 +1754,15 @@ export default function EventCommunityBookingPage() {
                             className="flex-1 px-4 sm:px-6 py-3 rounded-xl bg-[#0ECCEE] text-black font-bold hover:bg-[#0ECCEE]/90 active:scale-[0.98] transition-all text-sm flex items-center justify-center gap-2 shadow-lg shadow-[#0ECCEE]/10 disabled:opacity-60">
                             {paying ? (
                                 <><Loader className="w-4 h-4 animate-spin" /> Processing...</>
-                            ) : step === 1 && isFreeFlow ? (
+                            ) : step === 1 && isFreeFlow && extraCount === 0 ? (
                                 'Confirm free spot'
-                            ) : step === 2 && chargePerPerson > 0 && isOrganizerQr ? (
+                            ) : step === detailsStep && chargePerPerson > 0 && isOrganizerQr ? (
                                 payableAmount > 0
                                     ? `Pay ₹${payableAmount.toLocaleString('en-IN')} · Submit proof`
                                     : 'Confirm free booking'
-                            ) : step === 2 && total > 0 ? (
+                            ) : step === detailsStep && total > 0 ? (
                                 `Pay ₹${payableAmount.toLocaleString('en-IN')} & Book`
-                            ) : step === 2 ? (
+                            ) : step === detailsStep ? (
                                 'Confirm free booking'
                             ) : (
                                 'Next Step'

@@ -339,4 +339,5 @@ module.exports = {
   normalizePhone,
   sanitizeCashfreeOrderTags,
   getCashfreeClientMode,
+  mapOrderStatus,
 };

@@ -1,6 +1,7 @@
 /** Filter chips on event community pages — not run-club categories. */
 export const EVENT_COMMUNITY_CATEGORY_OPTIONS = [
     'Sports',
+    'Badminton',
     'Games',
     'Café',
     'Meetups',

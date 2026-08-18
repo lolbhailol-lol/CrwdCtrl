@@ -117,6 +117,16 @@ registrationSchema.index({ user: 1, submittedAt: -1 });
 registrationSchema.index({ fest: 1, status: 1 });
 registrationSchema.index({ fest: 1, isProShow: 1, status: 1 });
 registrationSchema.index({ reminderSent: 1, status: 1 });
+registrationSchema.index(
+  { payment_order_id: 1 },
+  {
+    unique: true,
+    name: 'payment_order_id_unique_paid',
+    partialFilterExpression: {
+      payment_order_id: { $type: 'string', $gt: '' },
+    },
+  },
+);
 
 registrationSchema.pre('save', function assignQrCodeData(next) {
   if (!this.qrCodeData) {
@@ -147,6 +157,20 @@ const dropLegacyRegistrationUniqueIndex = async () => {
     await Registration.collection.createIndex({ fest: 1, user: 1, competitionId: 1 });
   } catch {
     /* ignore */
+  }
+  try {
+    await Registration.collection.createIndex(
+      { payment_order_id: 1 },
+      {
+        unique: true,
+        name: 'payment_order_id_unique_paid',
+        partialFilterExpression: {
+          payment_order_id: { $type: 'string', $gt: '' },
+        },
+      },
+    );
+  } catch {
+    /* duplicates or already exists — controllers still de-dupe by findOne */
   }
 };
 

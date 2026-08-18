@@ -2,6 +2,17 @@
 
 import { clearPendingPayment } from './deepLinks';
 import { resolveAuthToken } from './authToken';
+import {
+  classifyVerifyResponse,
+  classifyVerifyError,
+  classifyCheckoutError,
+} from './paymentClassify';
+
+export {
+  classifyVerifyResponse,
+  classifyVerifyError,
+  classifyCheckoutError,
+};
 
 export const BOOKING_REDIRECT_MS = 400;
 /** Per-attempt inner retries inside one verify call. */
@@ -47,79 +58,6 @@ export function scheduleTicketOrBookings(navigate, regId, delayMs = BOOKING_REDI
 export function getCashfreeReturnPaymentId(search = '') {
   const params = new URLSearchParams(search);
   return params.get('cf_payment_id') || params.get('payment_id') || null;
-}
-
-/**
- * Mirror backend verify codes into a stable client shape.
- */
-export function classifyVerifyResponse(data = {}, httpStatus = 200) {
-  const verified = Boolean(data?.verified);
-  const status = data?.status || (verified ? 'paid' : 'failed');
-  const code = data?.code || (verified ? 'PAYMENT_PAID' : 'PAYMENT_FAILED');
-  const retryable = data?.retryable ?? status === 'pending';
-
-  return {
-    verified,
-    status,
-    code,
-    message: data?.message || '',
-    retryable,
-    data,
-    httpStatus,
-  };
-}
-
-/**
- * Map verify outcome to UI kind + user-safe message.
- * Returns { kind: 'paid' | 'pending' | 'cancelled' | 'network' | 'failed', message }.
- */
-export function classifyVerifyError(result = {}) {
-  const status = result.status || result.classified?.status;
-  const code = result.code || result.classified?.code;
-  const message = result.data?.message || result.message || result.classified?.message || '';
-
-  if (status === 'cancelled' || code === 'PAYMENT_CANCELLED') {
-    return {
-      kind: 'cancelled',
-      message: message || 'Payment was cancelled. You can try again when ready.',
-    };
-  }
-
-  if (status === 'pending' || code === 'PAYMENT_PENDING') {
-    return {
-      kind: 'pending',
-      message: message || 'Payment is still processing. Please wait a moment…',
-    };
-  }
-
-  if (code === 'ORDER_OWNERSHIP_MISMATCH') {
-    return {
-      kind: 'failed',
-      message: message || 'This payment belongs to a different account. Sign in and try again.',
-    };
-  }
-
-  if (code === 'ORDER_EMAIL_REQUIRED') {
-    return {
-      kind: 'failed',
-      message: message || 'Use the same email from checkout to confirm this payment.',
-    };
-  }
-
-  if (
-    code === 'NETWORK_ERROR'
-    || /network|timeout|timed out|offline|internet|connection|failed to fetch/i.test(message)
-  ) {
-    return {
-      kind: 'network',
-      message: 'We couldn’t verify your payment. Check your connection and try again.',
-    };
-  }
-
-  return {
-    kind: 'failed',
-    message: message || 'Payment could not be verified.',
-  };
 }
 
 export function clearCashfreeReturnAndPending(navigate, location) {

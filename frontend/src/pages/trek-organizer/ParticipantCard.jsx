@@ -74,6 +74,14 @@ export default function ParticipantCard({
     const meetingPoint = participant.meetingPoint || participant.trekTime || '';
     const trekDate = participant.trekDate || participant.bookingDetails?.date || '';
     const peopleCount = Number(participant.people ?? participant.bookingDetails?.people ?? 1) || 1;
+    const answerHighlights = (fields || [])
+        .filter((f) => {
+            const key = String(f.fieldName || '').toLowerCase();
+            if (!f.value) return false;
+            if (['full_name', 'name', 'email', 'contact_no', 'phone', 'gender'].includes(key)) return false;
+            return true;
+        })
+        .slice(0, 4);
     const bookingDetails = {
         date: trekDate,
         time: meetingPoint,
@@ -143,6 +151,14 @@ export default function ParticipantCard({
                             {participant.participantGender && participant.participantGender !== '—' ? (
                                 <Pill tone="neutral">{participant.participantGender}</Pill>
                             ) : null}
+                            {participant.couponCode ? (
+                                <Pill tone="paid">
+                                    {participant.couponCode}
+                                    {Number(participant.couponDiscount) > 0
+                                        ? ` · −₹${Number(participant.couponDiscount).toLocaleString('en-IN')}`
+                                        : ''}
+                                </Pill>
+                            ) : null}
                             <Pill tone={checkedIn ? 'in' : 'pending'}>
                                 {checkedIn ? 'Checked in' : 'Awaiting'}
                             </Pill>
@@ -180,11 +196,21 @@ export default function ParticipantCard({
                             {Number(participant.amountPaid || participant.organizerNet || 0) > 0 ? (
                                 <span className="inline-flex items-center gap-1 font-semibold text-emerald-400 tabular-nums">
                                     ₹{Number(participant.amountPaid || participant.organizerNet).toLocaleString('en-IN')}
-                                    {peopleCount > 1
-                                        ? ` total`
+                                    {peopleCount > 1 ? ' total' : ''}
+                                    {Number(participant.listAmount) > Number(participant.amountPaid || participant.organizerNet || 0)
+                                        ? ` · list ₹${Number(participant.listAmount).toLocaleString('en-IN')}`
                                         : ''}
                                 </span>
                             ) : null}
+                            {answerHighlights.map((field) => (
+                                <span
+                                    key={field.fieldName}
+                                    className="inline-flex items-center max-w-[16rem] truncate text-[11px] text-gray-300"
+                                    title={`${field.label}: ${field.value}`}
+                                >
+                                    {field.value}
+                                </span>
+                            ))}
                             {pendingReview && participant.transactionId ? (
                                 <span className="inline-flex items-center gap-1 font-mono text-amber-300/90 max-w-full truncate">
                                     UTR · {participant.transactionId}
@@ -311,6 +337,17 @@ export default function ParticipantCard({
                                         ₹{Number(participant.amountPaid || participant.organizerNet).toLocaleString('en-IN')}
                                         {peopleCount > 1
                                             ? ` · ${peopleCount} people`
+                                            : ''}
+                                    </p>
+                                ) : null}
+                                {participant.couponCode ? (
+                                    <p className="text-xs text-[#0ECCEE]">
+                                        Coupon {participant.couponCode}
+                                        {Number(participant.couponDiscount) > 0
+                                            ? ` · −₹${Number(participant.couponDiscount).toLocaleString('en-IN')}`
+                                            : ''}
+                                        {Number(participant.listAmount) > 0
+                                            ? ` · list ₹${Number(participant.listAmount).toLocaleString('en-IN')}`
                                             : ''}
                                     </p>
                                 ) : null}

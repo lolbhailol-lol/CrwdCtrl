@@ -34,7 +34,7 @@ import {
     createDetailCache,
 } from '../../utils/detailPageLoad';
 
-const runClubDetailCache = createDetailCache('crwdctrl_event_community_v2_');
+const runClubDetailCache = createDetailCache('crwdctrl_event_community_v4_');
 
 const resolveGallerySrc = (url, preset = 'thumb') =>
     getImageUrl(url, { preset }) || normalizeImageUrl(url) || url;
@@ -194,6 +194,11 @@ function RunCard({ run, isDark, isFav, onFav, onClick }) {
                     <p className={`card-event-title line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         {run.title}
                     </p>
+                    {run.subtitle ? (
+                        <p className={`text-[11px] font-medium line-clamp-1 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                            {run.subtitle}
+                        </p>
+                    ) : null}
                     <p className={`card-event-subtitle line-clamp-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                         {run.date || 'Date TBA'}
                     </p>
@@ -323,7 +328,8 @@ export default function EventCommunityDetailPage() {
               })
             : null,
         image: e.coverImage || e.images?.[0] || null,
-        runCategory: normalizeEventCommunityCategory(e.runCategory) || 'Sports',
+        runCategory: normalizeEventCommunityCategory(e.runCategory) || '',
+        subtitle: String(e.displayType || '').trim(),
         registrationLink: e.registrationLink || '',
         status: e.status || null,
         // Keep list payload for detail seed (avoids Free/demo fee flash)
@@ -393,7 +399,7 @@ export default function EventCommunityDetailPage() {
 
     const filteredRuns = !activeCategory || activeCategory === 'all'
         ? runs
-        : runs.filter((run) => (run.runCategory || 'Sports') === activeCategory);
+        : runs.filter((run) => (run.runCategory || '') === activeCategory);
 
     if (showPageLoader) {
         return <DetailPageLoader label={isEventHub ? 'Loading community' : 'Loading run club'} />;

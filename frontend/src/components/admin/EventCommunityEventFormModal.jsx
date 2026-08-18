@@ -356,8 +356,8 @@ export default function EventCommunityEventFormModal({ event, runClubId, clubNam
                             <Field label="Start time">
                                 <input type="text" value={form.reportingTime} onChange={(e) => set('reportingTime', e.target.value)} className={inp} placeholder="e.g. 3:00 PM" />
                             </Field>
-                            <Field label="End time">
-                                <input type="text" value={form.returnTime} onChange={(e) => set('returnTime', e.target.value)} className={inp} placeholder="e.g. 7:00 PM" />
+                            <Field label="Café / second-half time">
+                                <input type="text" value={form.returnTime} onChange={(e) => set('returnTime', e.target.value)} className={inp} placeholder="e.g. 5:00 PM" />
                             </Field>
                         </div>
                         {(form.runClubId || runClubId) && (
@@ -793,13 +793,16 @@ export default function EventCommunityEventFormModal({ event, runClubId, clubNam
                                                             {['text', 'email', 'tel', 'number', 'textarea', 'select', 'file', 'date'].map((t) => <option key={t} value={t}>{t}</option>)}
                                                         </select>
                                                         <select
-                                                            value={Number(field.bookingStep) === 1 ? '1' : '2'}
+                                                            value={String(Number(field.bookingStep) >= 1 ? Number(field.bookingStep) : 2)}
                                                             onChange={(e) => { const u = [...(form.registration?.formSchema || [])]; u[idx] = { ...field, bookingStep: Number(e.target.value) }; set('registration', { ...form.registration, formSchema: u }); }}
-                                                            className="w-[7.5rem] bg-[#111213] border border-gray-600 rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-[#0ECCEE]"
+                                                            className="w-[8.5rem] bg-[#111213] border border-gray-600 rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-[#0ECCEE]"
                                                             title="Which booking step this field appears on"
                                                         >
-                                                            <option value="1">Step 1</option>
-                                                            <option value="2">Step 2</option>
+                                                            <option value="1">Party size</option>
+                                                            <option value="2">Details</option>
+                                                            <option value="3">Own step 1</option>
+                                                            <option value="4">Own step 2</option>
+                                                            <option value="5">Own step 3</option>
                                                         </select>
                                                         <button type="button" onClick={() => { const u = (form.registration?.formSchema || []).filter((_, i) => i !== idx); set('registration', { ...form.registration, formSchema: u }); }}
                                                             className="text-red-400 hover:text-red-300 px-2">✕</button>

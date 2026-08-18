@@ -2,6 +2,19 @@ const PaymentOrder = require('../model/payment_order_model');
 
 const PENDING_ORDER_WINDOW_MS = 10 * 60 * 1000;
 
+/** Mapped Cashfree statuses that can still complete on the same session. */
+function shouldReuseMappedStatus(mapped) {
+  return mapped === 'pending' || mapped === 'paid';
+}
+
+async function expireCancelledPaymentOrder(orderId) {
+  if (!orderId) return;
+  await PaymentOrder.updateOne(
+    { orderId: String(orderId), status: 'PENDING' },
+    { $set: { status: 'EXPIRED' } },
+  );
+}
+
 function extractEntityId(notes = {}) {
   const raw =
     notes.eventShowId ||
@@ -50,7 +63,23 @@ async function findReusablePendingOrder({
 
   // Must return a Mongoose document (not lean) — createOrder may call .save()
   // to refresh registrationDraft on reused pending sessions.
-  return PaymentOrder.findOne(filter).sort({ createdAt: -1 });
+  const existing = await PaymentOrder.findOne(filter).sort({ createdAt: -1 });
+  if (!existing) return null;
+
+  try {
+    const { fetchOrder, mapOrderStatus } = require('../services/cashfreeService');
+    const cashfreeOrder = await fetchOrder(existing.orderId);
+    const mapped = mapOrderStatus(cashfreeOrder?.order_status);
+    if (!shouldReuseMappedStatus(mapped)) {
+      existing.status = mapped === 'failed' ? 'FAILED' : 'EXPIRED';
+      await existing.save().catch(() => {});
+      return null;
+    }
+  } catch {
+    // Cashfree unreachable: keep the pending session so a double-tap cannot open two charges.
+  }
+
+  return existing;
 }
 
 function buildOrderResponse(existing, extras = {}) {
@@ -76,4 +105,6 @@ module.exports = {
   extractEntityId,
   findReusablePendingOrder,
   buildOrderResponse,
+  shouldReuseMappedStatus,
+  expireCancelledPaymentOrder,
 };

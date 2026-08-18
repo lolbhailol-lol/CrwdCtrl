@@ -32,6 +32,10 @@ function FieldValue({ field }) {
 
 const SKIP_KEYS = new Set([
     'full_name', 'name', 'fullname', 'contact_no', 'phone', 'mobile', 'whatsapp',
+    'people', 'date', 'time',
+    'tierid', 'tiername', 'tierfee',
+    'addonselected', 'addonlabel', 'addonfee',
+    'coupon_code', 'couponcode',
 ]);
 
 function shouldSkipField(field, { skipNamePhone = true } = {}) {

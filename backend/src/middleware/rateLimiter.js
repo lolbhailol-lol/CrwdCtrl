@@ -71,6 +71,10 @@ const apiLimiter = rateLimit({
     if (req.method === 'GET') {
       if (/^\/sports\/[^/]+$/.test(path)) return true;
       if (/^\/treks\/[^/]+$/.test(path)) return true;
+      // MindSpark / fest browse — college NAT + WhatsApp blast must not 429 the brochure
+      if (/^\/fests\/(all|upcoming|search)$/.test(path)) return true;
+      if (/^\/fests\/[^/]+\/public$/.test(path)) return true;
+      if (/^\/fests\/competitions\/[^/]+\/public$/.test(path)) return true;
       // Stall form meta — many phones load this at once on shared WiFi
       if (/^\/fests\/[^/]+\/stall$/.test(path)) return true;
       // Ticket QR fetch — the whole gate queue loads this at once from one venue IP,

@@ -46,7 +46,7 @@ export const EVENT_DETAIL_BOX_PRESETS = [
     { label: 'Location partner', value: '', icon: 'map-pin' },
     { label: 'Café partner', value: '', icon: 'food' },
     { label: 'Event Timing', value: '', icon: 'sun' },
-    { label: 'End Time', value: '', icon: 'moon' },
+    { label: 'Start Time', value: '', icon: 'sun' },
     { label: 'Meeting Point', value: '', icon: 'map-pin' },
     { label: 'Duration', value: '', icon: 'clock' },
     { label: 'Max People', value: '', icon: 'people' },

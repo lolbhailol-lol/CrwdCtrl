@@ -51,3 +51,30 @@ export function bookingPage1Fields(schema) {
     field?.label?.trim() && field?.fieldName?.trim() && isBookingPage1Field(field)
   ));
 }
+
+/** Custom questions that each get their own wizard page (bookingStep 3+). */
+export function isStandaloneQuestionField(field) {
+  return Number(field?.bookingStep) >= 3
+    && Boolean(String(field?.label || '').trim())
+    && Boolean(String(field?.fieldName || '').trim());
+}
+
+export function standaloneQuestionFields(schema) {
+  return (Array.isArray(schema) ? schema : [])
+    .filter(isStandaloneQuestionField)
+    .sort((a, b) => Number(a.bookingStep) - Number(b.bookingStep));
+}
+
+export function shortBookingStepLabel(field) {
+  const label = String(field?.label || '').trim();
+  if (/fuel|mokaroma|drink|coffee|latte|mocha/i.test(label)) return 'Café';
+  if (/rate yourself|player|skill|badminton/i.test(label)) return 'Skill';
+  const short = label.split(/[?—]/)[0].trim();
+  return (short || 'Question').slice(0, 16);
+}
+
+export function buildBookingStepLabels(isFree, extraFields = []) {
+  const extras = extraFields.map(shortBookingStepLabel);
+  if (isFree) return ['Party size', ...extras, 'Confirm'];
+  return ['Party size', ...extras, 'Your Details', 'Confirm'];
+}

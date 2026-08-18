@@ -311,6 +311,7 @@ router.get('/competitions/:competitionId/public', async (req, res) => {
             registrationType: competitionData.registrationType
         });
 
+        res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
         res.status(200).json(sanitizePublicCompetition(competitionData));
     } catch (err) {
         console.error('Error in public competition fetch:', err);

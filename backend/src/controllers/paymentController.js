@@ -46,6 +46,7 @@ const {
   extractEntityId,
   findReusablePendingOrder,
   buildOrderResponse,
+  expireCancelledPaymentOrder,
 } = require('../utils/paymentOrderIdempotency');
 const { captureFlowEvent } = require('../config/sentry');
 
@@ -407,7 +408,7 @@ exports.createOrder = async (req, res) => {
     const userId = req.user?.userId || null;
 
     const { sanitizeRegistrationDraft } = require('../services/eventShowPaymentFulfillment');
-    const { sanitizeFestCompetitionDraft } = require('../services/festCompetitionPaymentFulfillment');
+    const { sanitizeFestCompetitionDraft } = require('../utils/festCompetitionDraft');
     const eventDraft = sanitizeRegistrationDraft(req.body.registrationDraft);
     const festCompDraft = sanitizeFestCompetitionDraft(req.body.registrationDraft);
     const registrationDraft = eventDraft || festCompDraft;
@@ -586,6 +587,9 @@ exports.verifyPayment = async (req, res) => {
     }
 
     const result = await verifyCashfreePayment({ orderId, paymentId });
+    if (result.status === 'cancelled' || result.status === 'failed') {
+      expireCancelledPaymentOrder(orderId).catch(() => {});
+    }
     let paymentOrder = null;
     if (result.verified) {
       paymentOrder = await markOrderPaidAndFulfill(result);

@@ -325,13 +325,8 @@ exports.getPublicFestById = async (req, res) => {
         publicFest.cached = false;
         publicFest.timestamp = new Date().toISOString();
 
-        const isProduction = process.env.NODE_ENV === 'production';
-        const cacheMaxAge = isProduction ? 30 : 10;
         res.set({
-            'Cache-Control': `public, max-age=${cacheMaxAge}, must-revalidate`,
-            'X-Cache': 'BYPASS',
-            'ETag': `"${Date.now()}"`,
-            'Last-Modified': new Date().toUTCString(),
+            'Cache-Control': 'public, max-age=60, stale-while-revalidate=300',
         });
 
         res.status(200).json(publicFest);
@@ -415,7 +410,7 @@ exports.getAllFests = async (req, res) => {
             console.log('⚡ Returning cached fests data');
             // Add cache headers for client-side caching
             res.set({
-                'Cache-Control': 'public, max-age=30', // 30 seconds client cache
+                'Cache-Control': 'public, max-age=60, stale-while-revalidate=300',
                 'X-Cache': 'HIT'
             });
             return res.status(200).json(cachedData);
@@ -492,7 +487,7 @@ exports.getAllFests = async (req, res) => {
 
         // Add cache headers
         res.set({
-            'Cache-Control': 'public, max-age=30', // 30 seconds client cache
+            'Cache-Control': 'public, max-age=60, stale-while-revalidate=300',
             'X-Cache': 'MISS'
         });
 

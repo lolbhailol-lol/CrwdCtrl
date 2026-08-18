@@ -36,7 +36,11 @@ function sanitizeFormSchema(formSchema) {
                 options,
                 optionCoupons: sanitizeOptionCoupons(options, f.optionCoupons),
                 placeholder: String(f.placeholder || '').trim(),
-                bookingStep: Number(f.bookingStep) === 1 ? 1 : 2,
+                bookingStep: (() => {
+                    const step = Number(f.bookingStep);
+                    if (!Number.isFinite(step) || step < 1) return 2;
+                    return Math.min(10, Math.round(step));
+                })(),
             };
         })
         .filter((f) => f.label && f.fieldName);

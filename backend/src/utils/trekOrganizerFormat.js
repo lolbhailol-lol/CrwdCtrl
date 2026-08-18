@@ -297,10 +297,20 @@ function buildParticipantExportTable(rows, options = {}) {
         .map((f) => ({ key: f.fieldName, label: f.label || humanizeFieldName(f.fieldName) }));
 
     if (!requiredOnlyFormFields) {
+        const skipExtra = new Set([
+            'people', 'date', 'time',
+            'tierid', 'tiername', 'tierfee',
+            'addonselected', 'addonlabel', 'addonfee',
+            'coupon_code', 'couponcode',
+            'name', 'phone', 'fullname',
+            'full_name', 'contact_no', 'email',
+            'gender', 'sex',
+        ]);
         const extraKeys = new Set();
         for (const row of rows) {
             const form = row.formData || {};
             for (const key of Object.keys(form)) {
+                if (skipExtra.has(String(key).toLowerCase())) continue;
                 if (!dynamicCols.some((c) => c.key === key)) extraKeys.add(key);
             }
         }
@@ -340,6 +350,9 @@ function buildParticipantExportTable(rows, options = {}) {
         'Platform Fee (CrwdCtrl)',
         'Customer Paid (Total)',
         'People',
+        'Coupon Code',
+        'Discount (₹)',
+        'List Amount (₹)',
         'Booking Date',
         'Trek Date',
         'Meeting Point / Time',
@@ -367,6 +380,9 @@ function buildParticipantExportTable(rows, options = {}) {
             r.platformFee ?? 0,
             r.grossCollected ?? r.amountPaid ?? 0,
             r.people,
+            r.couponCode || '',
+            Number(r.couponDiscount) || 0,
+            Number(r.listAmount) || 0,
             r.bookingDate ? new Date(r.bookingDate).toISOString() : '',
             r.trekDate,
             r.trekTime,

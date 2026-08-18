@@ -22,7 +22,7 @@ import { DETAIL_FETCH_OPTS, classifyDetailLoadError } from '../../utils/detailPa
 import { trackBookNowClick } from '../../services/analyticsService';
 import { organizerHubCopy } from '../../utils/listingHubCopy';
 
-const RUN_DETAIL_CACHE_PREFIX = 'crwdctrl_event_community_detail_v12_';
+const RUN_DETAIL_CACHE_PREFIX = 'crwdctrl_event_community_detail_v14_';
 const readRunDetailCache = (key) => {
     try {
         const raw = sessionStorage.getItem(`${RUN_DETAIL_CACHE_PREFIX}${key}`);
@@ -262,7 +262,8 @@ export default function EventCommunityEventPage() {
     const desc =
         event.description?.trim() ||
         `${event.title || 'This event'} is hosted by ${communityName}. Join the community for a great session.`;
-    const shortDesc = desc.slice(0, 150);
+    const firstBlock = desc.split(/\n\s*\n/)[0]?.trim() || desc;
+    const shortDesc = firstBlock.length > 180 ? `${firstBlock.slice(0, 150).replace(/\s+\S*$/, '')}...` : firstBlock;
     const terms = event.termsAndConditions?.length
         ? event.termsAndConditions
         : [
@@ -727,11 +728,10 @@ export default function EventCommunityEventPage() {
 
                 <div className="px-4 mb-5">
                     <h2 className={`text-lg font-semibold leading-7 tracking-wide mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>Overview</h2>
-                    <p className={`text-sm leading-6 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                    <p className={`text-sm leading-6 whitespace-pre-line ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                         {overviewExpanded ? desc : shortDesc}
-                        {desc.length > 150 && (
+                        {desc !== shortDesc && (
                             <>
-                                {!overviewExpanded && '...'}
                                 <button onClick={() => setOverviewExpanded((v) => !v)} className="text-[#0ECCEE] text-sm font-medium ml-0.5">
                                     {overviewExpanded ? ' show less' : 'read more'}
                                 </button>
@@ -870,7 +870,7 @@ export default function EventCommunityEventPage() {
                                     >
                                         {i + 1}
                                     </span>
-                                    <p className={`text-sm leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{term}</p>
+                                    <p className={`text-sm leading-relaxed whitespace-pre-line ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{term}</p>
                                 </div>
                             ))}
                         </div>

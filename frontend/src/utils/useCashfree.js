@@ -12,7 +12,7 @@ import {
   isTrekPaymentPending,
   hasCashfreeReturnParams,
 } from './deepLinks';
-import { classifyVerifyResponse, clearCashfreeReturnAndPending } from './paymentNavigation';
+import { classifyVerifyResponse, clearCashfreeReturnAndPending, classifyCheckoutError } from './paymentNavigation';
 
 let cashfreeInstance = null;
 let cashfreeMode = null;
@@ -217,43 +217,14 @@ export async function openCashfreeCheckout({
   return result;
 }
 
+export { classifyCheckoutError } from './paymentNavigation';
+
 /**
  * Classify a checkout error into a coarse kind + a user-friendly message so the
  * UI can show a styled fallback (retry / contact support) instead of a raw error.
  * Returns { kind: 'cancelled' | 'network' | 'failed', message }.
+ * @deprecated import from paymentNavigation — re-exported here for existing call sites.
  */
-export function classifyCheckoutError(error) {
-  const raw =
-    (typeof error === 'string' ? error : error?.message) || 'Payment could not be completed.';
-  const msg = raw.toLowerCase();
-
-  if (
-    /cancel|dismiss|closed by user|user closed|user_cancelled|aborted|back press/i.test(msg)
-  ) {
-    return {
-      kind: 'cancelled',
-      message: 'Payment was cancelled. You can try again whenever you’re ready.',
-    };
-  }
-
-  if (
-    /network|timeout|timed out|offline|internet|connection|failed to fetch|econn|unreachable/i.test(
-      msg,
-    )
-  ) {
-    return {
-      kind: 'network',
-      message:
-        'We couldn’t reach the payment gateway. Check your internet connection and try again.',
-    };
-  }
-
-  return {
-    kind: 'failed',
-    message:
-      'Your payment didn’t go through. If money was deducted it will be refunded automatically. Please try again.',
-  };
-}
 
 export function buildVerifiedPaymentFields(verifyData, orderId) {
   return {

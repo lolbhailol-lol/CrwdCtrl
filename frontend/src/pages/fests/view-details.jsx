@@ -189,9 +189,9 @@ function EventDetailsPage() {
         
         // Fetch from public fests API - this already includes populated competitions
         // Add cache busting timestamp to ensure fresh data
-        const timestamp = Date.now();
-        const response = await fetchJSON(`/fests/${eventId}/public?t=${timestamp}`, {
-          timeout: timeout
+        const response = await fetchJSON(`/fests/${eventId}/public`, {
+          timeout: timeout,
+          cacheBust: false,
         });
         console.log('ViewDetails - API Response:', response.data);
         console.log('ViewDetails - Contacts in API Response:', response.data.contacts);

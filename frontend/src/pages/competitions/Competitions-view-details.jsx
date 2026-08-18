@@ -523,13 +523,8 @@ function EventPage() {
 
             try {
                 setError(null);
-                const timestamp = Date.now();
-                const response = await fetchJSON(`/fests/competitions/${competitionId}/public?t=${timestamp}`, {
-                    headers: {
-                        'Cache-Control': 'no-cache, no-store, must-revalidate',
-                        'Pragma': 'no-cache',
-                        'Expires': '0'
-                    }
+                const response = await fetchJSON(`/fests/competitions/${competitionId}/public`, {
+                    cacheBust: false,
                 });
                 if (gen !== fetchGenRef.current) return;
 

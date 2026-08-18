@@ -157,16 +157,18 @@ export async function publicFetchJSONRetry(path, options = {}) {
     const isSameOriginBase = typeof window !== 'undefined'
       && base.startsWith(window.location.origin);
 
+    const allowHttpCache = options.cacheBust === false && (method === 'GET' || method === 'HEAD');
+
     try {
       const response = await fetch(url, {
         method,
         credentials: options.credentials ?? 'omit',
         mode: isSameOriginBase ? 'same-origin' : 'cors',
-        cache: 'no-store',
+        cache: allowHttpCache ? 'default' : 'no-store',
         headers: {
           Accept: 'application/json',
           ...(hasJsonBody ? { 'Content-Type': 'application/json' } : {}),
-          ...(options.cacheControl !== false && (method === 'GET' || method === 'HEAD')
+          ...(!allowHttpCache && options.cacheControl !== false && (method === 'GET' || method === 'HEAD')
             ? { 'Cache-Control': 'no-cache', Pragma: 'no-cache' }
             : {}),
           ...(options.headers || {}),

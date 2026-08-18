@@ -12,74 +12,11 @@ const { sendRegistrationThankYouEmail, sendRegistrationConfirmationEmail } = req
 const { appendPaymentOnlyToSheets } = require('./googleSheetsService');
 const { consumeCouponUsageForOrder } = require('../utils/couponPricing');
 const { logger } = require('../utils/logger');
-
-function sanitizeFestCompetitionDraft(raw) {
-  if (!raw || typeof raw !== 'object') return null;
-
-  const formData = raw.formData && typeof raw.formData === 'object' ? raw.formData : raw.values;
-  const stepData = raw.stepData && typeof raw.stepData === 'object' ? raw.stepData : null;
-
-  const cleanForm = {};
-  if (formData && typeof formData === 'object') {
-    for (const [key, value] of Object.entries(formData)) {
-      if (key.endsWith('_file')) continue;
-      if (value === null || value === undefined) continue;
-      if (typeof value === 'object' && !Array.isArray(value)) continue;
-      if (
-        typeof value === 'string'
-        || typeof value === 'number'
-        || typeof value === 'boolean'
-        || Array.isArray(value)
-      ) {
-        cleanForm[key] = value;
-      }
-    }
-  }
-
-  const cleanSteps = {};
-  if (stepData) {
-    for (const [step, fields] of Object.entries(stepData)) {
-      if (!fields || typeof fields !== 'object') continue;
-      const slice = {};
-      for (const [key, value] of Object.entries(fields)) {
-        if (key.endsWith('_file')) continue;
-        if (value === null || value === undefined) continue;
-        if (typeof value === 'object' && !Array.isArray(value)) continue;
-        if (
-          typeof value === 'string'
-          || typeof value === 'number'
-          || typeof value === 'boolean'
-          || Array.isArray(value)
-        ) {
-          slice[key] = value;
-        }
-      }
-      if (Object.keys(slice).length) cleanSteps[step] = slice;
-    }
-  }
-
-  if (!Object.keys(cleanForm).length && !Object.keys(cleanSteps).length) return null;
-
-  return {
-    formData: cleanForm,
-    stepData: cleanSteps,
-    currentStep: raw.currentStep ?? 1,
-    festId: raw.festId ? String(raw.festId).trim() : '',
-    competitionId: raw.competitionId ? String(raw.competitionId).trim() : '',
-    couponCode: raw.couponCode ? String(raw.couponCode).trim().toUpperCase() : '',
-  };
-}
-
-function draftToResponses(draft) {
-  if (!draft) return {};
-  const merged = { ...(draft.formData || {}) };
-  if (draft.stepData && typeof draft.stepData === 'object') {
-    for (const fields of Object.values(draft.stepData)) {
-      if (fields && typeof fields === 'object') Object.assign(merged, fields);
-    }
-  }
-  return merged;
-}
+const {
+  sanitizeFestCompetitionDraft,
+  draftToResponses,
+} = require('../utils/festCompetitionDraft');
+const { saveRegistrationIdempotent } = require('../utils/registrationIdempotency');
 
 async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides = {}) {
   const orderId = paymentOrderInput?.orderId || paymentOrderInput;
@@ -157,8 +94,16 @@ async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides 
       submittedAt: new Date(),
     });
 
-    await registration.save();
-    logger.debug('✅ Competition registration fulfilled from payment:', payment_order_id, registration._id);
+    const saved = await saveRegistrationIdempotent(registration, {
+      payment_order_id,
+      fest: competition.fest._id,
+      competitionId: competition._id,
+      user: userId,
+    });
+    if (!saved.created) {
+      return { ok: true, registrationId: saved.registration._id, alreadyExists: true };
+    }
+    logger.debug('✅ Competition registration fulfilled from payment:', payment_order_id, saved.registration._id);
 
     setImmediate(async () => {
       try {
@@ -200,6 +145,19 @@ async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides 
             groupLink: competition.registration?.whatsappGroupLink || '',
           },
         ).catch(() => {});
+        const sheetsUrl = competition.fest?.registration?.googleSheetsUrl
+          || competition.registration?.googleSheetsUrl;
+        if (sheetsUrl) {
+          await appendPaymentOnlyToSheets(sheetsUrl, {
+            name: user.name,
+            email: user.email,
+            phone: user.phoneNumber || '',
+            amountPaid: competitionTotalAmount,
+            paymentId: payment_id,
+            entityName: competition.name,
+            entityType: 'Competition',
+          }).catch((e) => logger.error('❌ Sheets error (competition fulfill):', e.message));
+        }
       } catch (bgErr) {
         logger.error('❌ competition fulfill background error:', bgErr.message);
       }
@@ -247,8 +205,16 @@ async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides 
     submittedAt: new Date(),
   });
 
-  await registration.save();
-  logger.debug('✅ Fest registration fulfilled from payment:', payment_order_id, registration._id);
+    const savedFest = await saveRegistrationIdempotent(registration, {
+      payment_order_id,
+      fest: fest._id,
+      user: userId,
+      competitionId: null,
+    });
+    if (!savedFest.created) {
+      return { ok: true, registrationId: savedFest.registration._id, alreadyExists: true };
+    }
+    logger.debug('✅ Fest registration fulfilled from payment:', payment_order_id, savedFest.registration._id);
 
   setImmediate(async () => {
     try {
@@ -278,7 +244,18 @@ async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides 
         new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
         { status: 'paid', method: 'cashfree', type: 'fest', ticketLink },
       ).catch(() => {});
-      await appendPaymentOnlyToSheets(fest, registration).catch(() => {});
+      const sheetsUrl = fest.registration?.googleSheetsUrl;
+      if (sheetsUrl) {
+        await appendPaymentOnlyToSheets(sheetsUrl, {
+          name: user.name,
+          email: user.email,
+          phone: user.phoneNumber || '',
+          amountPaid: festTotalAmount,
+          paymentId: payment_id,
+          entityName: fest.festName,
+          entityType: 'Fest',
+        }).catch((e) => logger.error('❌ Sheets error (fest fulfill):', e.message));
+      }
     } catch (bgErr) {
       logger.error('❌ fest fulfill background error:', bgErr.message);
     }

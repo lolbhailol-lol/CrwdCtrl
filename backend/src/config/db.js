@@ -12,7 +12,7 @@ const MONGODB_OPTIONS = {
   socketTimeoutMS: 45000,
   connectTimeoutMS: 30000,
   heartbeatFrequencyMS: 10000,
-  maxPoolSize: Number(process.env.MONGODB_MAX_POOL_SIZE) || 10,
+  maxPoolSize: Number(process.env.MONGODB_MAX_POOL_SIZE) || 20,
   minPoolSize: 1,
   /**
    * 0 = do not close idle sockets (driver default).

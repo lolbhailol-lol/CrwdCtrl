@@ -219,7 +219,7 @@ export default function useFestRegistration() {
     setPaymentResumeWasPaid(false);
     setPaymentError('');
     setError('');
-    setSubmissionProgress('Confirming payment?');
+    setSubmissionProgress('Confirming payment…');
 
     const submitToken = resolveAuthToken(authToken) || localStorage.getItem('crwdctrl_token');
     if (!submitToken) {
@@ -248,7 +248,7 @@ export default function useFestRegistration() {
     }
 
     setPaymentResumeWasPaid(true);
-    setSubmissionProgress('Completing registration?');
+    setSubmissionProgress('Completing registration…');
 
     const regRes = await fetch(`${API_BASE_URL}/registrations/fests/${festId}/pay-and-register`, {
       method: 'POST',
@@ -296,7 +296,7 @@ export default function useFestRegistration() {
     setPaymentLoading(true);
     setPaymentError('');
     setPaymentResumeError('');
-    setSubmissionProgress('Confirming payment?');
+    setSubmissionProgress('Confirming payment…');
 
     (async () => {
       try {
@@ -343,7 +343,7 @@ export default function useFestRegistration() {
     setPaymentResumeWasPaid(false);
     setPaymentError('');
     setError('');
-    setSubmissionProgress('Confirming payment?');
+    setSubmissionProgress('Confirming payment…');
 
     const submitToken = resolveAuthToken(authToken) || localStorage.getItem('crwdctrl_token');
     if (!submitToken) {
@@ -431,7 +431,7 @@ export default function useFestRegistration() {
 
   const retryPaymentResume = async () => {
     setPaymentResumeError('');
-    setSubmissionProgress('Retrying?');
+    setSubmissionProgress('Retrying…');
     try {
       if (isCompetitionRegistration) {
         await completeCompetitionPaymentResume(paymentResumeOrderId);
@@ -878,12 +878,7 @@ export default function useFestRegistration() {
     const currentFields = getCurrentStepFields();
     const currentData = getCurrentStepData();
     
-    console.log('?? DEBUG - validateCurrentStep:', {
-      currentFields: currentFields.map(f => ({ label: f.label, required: f.required, fieldName: f.fieldName })),
-      currentData,
-      currentStep
-    });
-    
+        
     if (currentFields.length === 0) {
       // No fields to validate, skip validation for this step
       return true;
@@ -892,32 +887,21 @@ export default function useFestRegistration() {
       if (field.required) {
         const fieldId = generateFieldId(field);
         const value = currentData[fieldId];
-        console.log('?? Validating required field:', { fieldId, value, hasValue: !!value });
-        
+                
         if (!value || (typeof value === 'string' && value.trim() === '')) {
           setError(`Please fill in the required field: ${field.label}`);
-          console.log('? Validation failed for field:', field.label);
-          return false;
+                    return false;
         }
       }
     }
 
-    console.log('? Step validation passed');
-    return true;
+        return true;
   };
 
   const handleStepNext = () => {
-    console.log('?? DEBUG - handleStepNext called:', {
-      currentStep,
-      totalSteps: getTotalSteps(),
-      isValid: validateCurrentStep(),
-      currentFields: getCurrentStepFields(),
-      currentData: getCurrentStepData()
-    });
-    
+        
     if (!validateCurrentStep()) {
-      console.log('? Step validation failed, not proceeding to next step');
-      return;
+            return;
     }
     
     // Save fest field steps only (team size / person names live on formData)
@@ -930,8 +914,7 @@ export default function useFestRegistration() {
     setCompletedSteps(prev => new Set([...prev, currentStep]));
     
     if (currentStep < getTotalSteps()) {
-      console.log('? Moving to next step:', currentStep + 1);
-      setCurrentStep(prev => prev + 1);
+            setCurrentStep(prev => prev + 1);
       setError(''); // Clear any errors
     }
   };
@@ -983,8 +966,7 @@ export default function useFestRegistration() {
 
   const getAllFormData = () => {
     if (!isMultiStepForm()) {
-      console.log('?? Single-step form data:', formData);
-      return formData;
+            return formData;
     }
     
     // Combine all step data - THIS IS CRITICAL FOR MULTI-STEP FORMS
@@ -992,23 +974,14 @@ export default function useFestRegistration() {
     
     // First, merge all completed steps
     Object.entries(stepData).forEach(([stepNum, stepFormData]) => {
-      console.log(`?? Merging step ${stepNum} data:`, stepFormData);
-      Object.assign(allData, stepFormData);
+            Object.assign(allData, stepFormData);
     });
     
     // Then, include current step data (in case it hasn't been saved yet)
     const currentStepData = getCurrentStepData();
-    console.log(`?? Current step ${currentStep} data:`, currentStepData);
-    Object.assign(allData, currentStepData);
+        Object.assign(allData, currentStepData);
     
-    console.log('?? Multi-step combined data:', {
-      stepDataKeys: Object.keys(stepData),
-      currentStep,
-      allDataKeys: Object.keys(allData),
-      fileKeys: Object.keys(allData).filter(key => key.includes('_file')),
-      allData
-    });
-    
+        
     return allData;
   };
 
@@ -1042,8 +1015,7 @@ export default function useFestRegistration() {
 
   const fetchFestDetails = async () => {
     try {
-      console.log('?? Fetching fest details for:', festId);
-      // Add cache busting parameter to ensure fresh data
+            // Add cache busting parameter to ensure fresh data
       const cacheBuster = Date.now();
       const response = await fetch(`${API_BASE_URL}/fests/${festId}/public?_cb=${cacheBuster}`, {
         credentials: 'omit', // ? iOS/Safari fix - no credentials for public API
@@ -1073,19 +1045,7 @@ export default function useFestRegistration() {
         });
       }
 
-      console.log('?? DEBUG - Fest registration data loaded:', {
-        mode: data.registration?.mode,
-        formType: data.registration?.formType,
-        formSchemaLength: data.registration?.formSchema?.length,
-        stepsLength: data.registration?.steps?.length,
-        steps: data.registration?.steps?.map(step => ({
-          stepNumber: step.stepNumber,
-          stepTitle: step.stepTitle,
-          fieldsCount: step.fields?.length
-        })),
-        fullStepsData: data.registration?.steps
-      });
-
+      
       // Merge schema with existing user input ? do not wipe fields on background refresh
       setFormData((prev) => mergeFormDataWithSchema(prev, data.registration));
       restoreRegistrationDraft();
@@ -1099,8 +1059,7 @@ export default function useFestRegistration() {
 
   const fetchCompetitionAndFestDetails = async () => {
     try {
-      console.log('?? Fetching competition and fest details...', { competitionId, festId });
-      
+            
       // Fetch competition details first
       const competitionResponse = await fetch(`${API_BASE_URL}/fests/competitions/${competitionId}/public`, {
         credentials: 'omit', // ? iOS/Safari fix - no credentials for public API
@@ -1111,12 +1070,7 @@ export default function useFestRegistration() {
         throw new Error('Failed to fetch competition details');
       }
       const competitionData = await competitionResponse.json();
-      console.log('? Competition data received:', {
-        name: competitionData.name,
-        registrationType: competitionData.registrationType,
-        festId: competitionData.fest?._id
-      });
-      setCompetition(competitionData);
+            setCompetition(competitionData);
 
       const cacheBuster = Date.now();
       const festResponse = await fetch(`${API_BASE_URL}/fests/${festId}/public?_cb=${cacheBuster}`, {
@@ -1152,18 +1106,7 @@ export default function useFestRegistration() {
           competition: competitionData,
         });
       }
-      console.log('?? DEBUG - Competition fest registration data loaded:', {
-        mode: festData.registration?.mode,
-        formType: festData.registration?.formType,
-        formSchemaLength: festData.registration?.formSchema?.length,
-        stepsLength: festData.registration?.steps?.length,
-        steps: festData.registration?.steps?.map(step => ({
-          stepNumber: step.stepNumber,
-          stepTitle: step.stepTitle,
-          fieldsCount: step.fields?.length
-        }))
-      });
-
+      
       setFormData((prev) => mergeFormDataWithSchema(prev, festData.registration));
       restoreRegistrationDraft();
     } catch (err) {
@@ -1180,8 +1123,7 @@ export default function useFestRegistration() {
       return;
     }
 
-    console.log('?? Starting file upload for field:', fieldId, 'File:', file.name);
-
+    
     setUploadingFiles(prev => ({
       ...prev,
       [fieldId]: true
@@ -1205,27 +1147,15 @@ export default function useFestRegistration() {
       // ? PERFORMANCE: Compress images if they're large
       let processedFile = file;
       if (file.type.startsWith('image/') && file.size > 2 * 1024 * 1024) { // 2MB threshold
-        console.log('??? Compressing large image:', file.name);
-        try {
+                try {
           processedFile = await compressImage(file);
-          console.log('? Image compressed:', {
-            original: `${(file.size / 1024 / 1024).toFixed(2)}MB`,
-            compressed: `${(processedFile.size / 1024 / 1024).toFixed(2)}MB`,
-            reduction: `${(((file.size - processedFile.size) / file.size) * 100).toFixed(1)}%`
-          });
-        } catch (compressionError) {
+                  } catch (compressionError) {
           console.warn('?? Image compression failed, using original:', compressionError);
           processedFile = file;
         }
       }
 
-      console.log('? File validated:', {
-        name: processedFile.name,
-        size: `${(processedFile.size / 1024 / 1024).toFixed(2)}MB`,
-        type: processedFile.type,
-        fieldId: fieldId
-      });
-
+      
       // ? PERFORMANCE FIX: Store file immediately without uploading
       // Upload will happen during form submission to avoid blocking UI
       const fileInfo = { 
@@ -1255,8 +1185,7 @@ export default function useFestRegistration() {
         }));
       }
       
-      console.log('? File prepared for upload:', fieldId, '- Will upload during form submission');
-    } catch (err) {
+          } catch (err) {
       console.error('? File validation error:', err);
       setError(err.message || 'Failed to validate file');
     } finally {
@@ -1275,19 +1204,10 @@ export default function useFestRegistration() {
       draft = null,
     } = options;
     const formSubmissionStartTime = Date.now(); // Track submission time for error reporting
-    console.log('?? Starting form submission...');
-    console.log('?? DEBUG - Form submission state:', {
-      isMultiStep: isMultiStepForm(),
-      currentStep,
-      totalSteps: getTotalSteps(),
-      isNotFinalStep: currentStep < getTotalSteps(),
-      submitting
-    });
-    
+            
     // ? PERFORMANCE: Prevent double submission
     if (submitting) {
-      console.log('?? Submission already in progress, ignoring duplicate request');
-      return;
+            return;
     }
     
     // Validate only current step's required fields for multi-step forms
@@ -1367,8 +1287,7 @@ export default function useFestRegistration() {
 
     // ? NEW: For multi-step forms, validate current step first
     if (!paidResume && isEffectiveMultiStep() && currentStep < getTotalSteps()) {
-      console.log('?? Multi-step form: Moving to next step instead of submitting');
-      // This is not the final step, just go to next step
+            // This is not the final step, just go to next step
       handleStepNext();
       return;
     }
@@ -1377,14 +1296,12 @@ export default function useFestRegistration() {
       return;
     }
     
-    console.log('?? Final step reached, proceeding with actual submission');
-    // Final fest-step validation ? not used for MindSpark roster (person fields only)
+        // Final fest-step validation ? not used for MindSpark roster (person fields only)
     if (!paidResume && isMultiStepForm() && !hasParticipantStep() && !validateCurrentStep()) {
       return;
     }
 
-    console.log('? All required fields validated');
-    
+        
     processUiStartedAt.current = Date.now();
     setProcessOverlayMode('server');
     setSubmitting(true);
@@ -1398,12 +1315,7 @@ export default function useFestRegistration() {
 
       const allFormData = draft ? buildFormDataFromDraft(draft) : getAllFormData();
 
-      console.log('?? Auth check for submission:', {
-        hasToken: !!token,
-        hasUser: !!user,
-        tokenLength: token?.length,
-      });
-
+      
       if (!token) {
         clearStoredAuthSession();
         setShowLogin(true);
@@ -1412,12 +1324,7 @@ export default function useFestRegistration() {
 
       setSubmissionProgress('Checking registration availability...');
       // ? CRITICAL: Double-check registration mode before submission
-      console.log('?? Final registration mode check:', {
-        festRegistrationMode: fest.registration?.mode,
-        isCompetitionRegistration,
-        competitionRegistrationType: competition?.registrationType
-      });
-
+      
       if (!isCompetitionRegistration && fest.registration?.mode !== 'INTERNAL_FORM') {
         throw new Error(`Registration is not available. Current mode: ${fest.registration?.mode}`);
       }
@@ -1435,14 +1342,7 @@ export default function useFestRegistration() {
       // ? NEW: Get all form data (single-step or combined multi-step)
       // allFormData already obtained at line 841 for single-step or will be obtained below
       
-      console.log('?? Form validation starting:', {
-        isMultiStep: isMultiStepForm(),
-        currentStep,
-        allFormDataKeys: Object.keys(allFormData),
-        fileKeys: Object.keys(allFormData).filter(key => key.includes('_file')),
-        mindSparkRoster: hasParticipantStep(),
-      });
-      
+            
       // MindSpark roster: empty schema so common fest "Full Name" is never required/sent
       const formSchema = hasParticipantStep()
         ? []
@@ -1453,46 +1353,17 @@ export default function useFestRegistration() {
       if (!hasParticipantStep()) {
       const requiredFields = formSchema.filter(field => field.required);
       
-      console.log('?? Form schema fields:', formSchema.map(field => ({
-        id: field.id,
-        fieldName: field.fieldName,
-        label: field.label,
-        type: field.type,
-        generatedId: generateFieldId(field)
-      })));
-      
-      console.log('?? Validating', requiredFields.length, 'required fields...');
-      
+            
+            
       for (const field of requiredFields) {
         const fieldId = generateFieldId(field);
         const value = allFormData[fieldId];
         
-        console.log('?? Checking field:', { 
-          fieldId, 
-          label: field.label, 
-          type: field.type, 
-          hasValue: !!value,
-          valueType: typeof value,
-          hasFileData: !!(field.type === 'file' || field.type === 'image') && !!allFormData[`${fieldId}_file`],
-          isReady: value?.ready,
-          fieldValue: value,
-          fileKey: `${fieldId}_file`,
-          fileData: allFormData[`${fieldId}_file`],
-          allFormDataKeys: Object.keys(allFormData).filter(key => key.includes(fieldId))
-        });
-        
+                
         // For file/image fields, check if file was selected and is ready
         if (field.type === 'file' || field.type === 'image') {
           if (paidResume) continue;
-          console.log('?? File field validation:', {
-            fieldId,
-            label: field.label,
-            hasValue: !!value,
-            valueReady: value?.ready,
-            hasFileData: !!allFormData[`${fieldId}_file`],
-            fileDataType: typeof allFormData[`${fieldId}_file`]
-          });
-          
+                    
           if (!value || !value.ready || !allFormData[`${fieldId}_file`]) {
             console.error('? File validation failed:', {
               fieldId,
@@ -1521,10 +1392,8 @@ export default function useFestRegistration() {
         }
       }
 
-      console.log('? All required fields validated');
-      } else {
-        console.log('? MindSpark roster ? skipped fest formSchema validation');
-      }
+            } else {
+              }
       // Cashfree: open checkout if competition/fest has a fee and payment not yet done
       const effectiveFeeAmount = priceBreakdown?.ticketPrice || (isCompetitionRegistration ? (parseTicketPrice(competition?.feeAmount) || parseTicketPrice(competition?.registrationFee)) : (fest.feeAmount || 0));
       let verifiedPaymentFields = verifiedPaymentOverride || paymentFields;
@@ -1594,7 +1463,7 @@ export default function useFestRegistration() {
 
         setCompletingPayment(true);
         setProcessOverlayMode('payment');
-        setSubmissionProgress('Confirming payment?');
+        setSubmissionProgress('Confirming payment…');
 
         const verifyResult = await verifyPaymentWithRetry(
           API_BASE_URL,
@@ -1627,23 +1496,11 @@ export default function useFestRegistration() {
       let fileCount = 0;
 
       // Debug: Log all available form data and files
-      console.log('?? DEBUG - All Form Data Keys:', Object.keys(allFormData));
-      console.log('?? DEBUG - File Keys:', Object.keys(allFormData).filter(key => key.includes('_file')));
-      console.log('?? DEBUG - Full allFormData:', allFormData);
-
+                  
       // formSchema already defined above for validation purposes
 
       // Process form fields with consistent field naming
-      console.log('?? PROCESSING FIELDS - Starting:', {
-        formSchemaLength: formSchema.length,
-        allFormDataKeys: Object.keys(allFormData),
-        fileFieldsInSchema: formSchema.filter(f => f.type === 'file' || f.type === 'image').map(f => ({
-          label: f.label,
-          fieldId: generateFieldId(f),
-          lookingFor: `${generateFieldId(f)}_file`
-        }))
-      });
-      
+            
       formSchema.forEach(field => {
         const fieldId = generateFieldId(field);
         const value = allFormData[fieldId];
@@ -1657,63 +1514,30 @@ export default function useFestRegistration() {
           const fileData = allFormData[`${fieldId}_file`];
           
           // Debug: Check what we have
-          console.log('?? FILE DEBUG:', {
-            fieldId,
-            fieldLabel: field.label,
-            hasFileData: !!fileData,
-            fileDataType: typeof fileData,
-            isFile: fileData instanceof File,
-            isBlob: fileData instanceof Blob,
-            fileDataSize: fileData?.size || 'N/A',
-            fileDataName: fileData?.name || 'N/A'
-          });
-          
+                    
           if (fileData && fileData.size > 0) {
             submissionFormData.append(backendFieldName, fileData);
             const fileSizeInMB = (fileData.size / 1024 / 1024).toFixed(2);
             totalFileSize += fileData.size;
             fileCount++;
-            console.log('?? Added file to form data:', {
-              fieldName: backendFieldName,
-              fileName: fileData.name,
-              fileSize: `${fileSizeInMB}MB`,
-              actualSize: fileData.size,
-              totalFileSize: `${(totalFileSize / 1024 / 1024).toFixed(2)}MB`
-            });
-          } else {
-            console.log('?? No valid file found for field:', {
-              fieldId,
-              label: field.label,
-              lookingForKey: `${fieldId}_file`,
-              hasFileData: !!fileData,
-              fileSize: fileData?.size,
-              allFormDataKeys: Object.keys(allFormData),
-              allFormDataFileKeys: Object.keys(allFormData).filter(k => k.includes('_file'))
-            });
-            
+                      } else {
+                        
             // ? FALLBACK: Try to get file from DOM input element
             try {
               const fileInput = document.querySelector(`input[data-field-id="${fieldId}"]`);
               if (fileInput?.files?.length > 0) {
                 const file = fileInput.files[0];
-                console.log('? FALLBACK: Found file in DOM:', {
-                  fieldId,
-                  fileName: file.name,
-                  fileSize: `${(file.size / 1024 / 1024).toFixed(2)}MB`
-                });
-                submissionFormData.append(backendFieldName, file);
+                                submissionFormData.append(backendFieldName, file);
                 totalFileSize += file.size;
                 fileCount++;
               }
             } catch (error) {
-              console.log('?? No fallback file input found for:', fieldId, error?.message);
-            }
+                          }
           }
         } else {
           // Add text data to responses object using backend field name
           textResponses[backendFieldName] = value;
-          console.log('?? Added text response:', backendFieldName, typeof value === 'string' ? value.substring(0, 50) : value);
-        }
+                  }
       });
 
       // Add text responses as JSON
@@ -1772,40 +1596,14 @@ export default function useFestRegistration() {
         ? `${API_BASE_URL}/registrations/competitions/${competitionId}/register`
         : `${API_BASE_URL}/registrations/fests/${festId}/register`;
 
-      console.log('?? Making registration request to:', endpoint);
-      console.log('? [DEBUG] Submission details:', {
-        endpoint: endpoint,
-        isCompetition: isCompetitionRegistration,
-        competitionId: competitionId,
-        festId: festId,
-        hasCompetitionId: !!competitionId,
-        competitionIdType: typeof competitionId,
-        competitionIdLength: competitionId?.length,
-        competitionIdValue: competitionId
-      });
-      console.log('??? Submission summary:', {
-        textFields: Object.keys(textResponses).length,
-        fileFields: fileCount,
-        totalFileSize: `${(totalFileSize / 1024 / 1024).toFixed(2)}MB`,
-        estimatedUploadTime: `${Math.ceil(totalFileSize / (1024 * 1024))}s`
-      });
-
+                  
 
       // ? PERFORMANCE: Dynamic timeout based on file size
       // Base timeout: 90s (enough for backend file processing and response)
       // Plus additional time for file upload: 30s per MB
       // Backend will continue sending emails in background after response
       
-      console.log('?? BEFORE TIMEOUT CALCULATION:', {
-        totalFileSize: totalFileSize,
-        totalFileSizeInMB: (totalFileSize / 1024 / 1024).toFixed(2),
-        fileCount: fileCount,
-        formSchemaLength: formSchema.length,
-        allFormDataKeys: Object.keys(allFormData).length,
-        allFormDataFileKeys: Object.keys(allFormData).filter(k => k.includes('_file')),
-        isMultiStep: isMultiStepForm()
-      });
-      
+            
       // ? OPTIMIZED: Backend now responds IMMEDIATELY (files upload in background)
       // Base timeout: 120s - allowing time for server processing and slow connections
       // Backend responds with registration ID immediately, files upload in background
@@ -1821,11 +1619,8 @@ export default function useFestRegistration() {
         controller.abort();
       }, baseTimeout);
 
-      console.log(`?? Request timeout: ${(baseTimeout / 1000).toFixed(0)}s (backend responds immediately, files upload in background)`);
-
-      console.log('?? Making fetch request to:', endpoint);
-      console.log('?? FormData size:', submissionFormData.size || 'unknown');
       
+                  
       // ? FIX: Ensure we have a valid token before submission
       const submitToken = token;
       if (!submitToken) {
@@ -1852,14 +1647,7 @@ export default function useFestRegistration() {
       clearTimeout(timeoutId);
       const uploadTime = ((Date.now() - startTime) / 1000).toFixed(1);
 
-      console.log('?? Registration response received:', { 
-        status: response.status, 
-        ok: response.ok,
-        statusText: response.statusText,
-        uploadTime: `${uploadTime}s`,
-        contentType: response.headers.get('content-type')
-      });
-
+      
       if (!response.ok) {
         let errorMessage = 'Failed to submit registration';
         
@@ -1902,8 +1690,7 @@ export default function useFestRegistration() {
 
       setSubmissionProgress('Processing registration...');
       const result = await response.json();
-      console.log('? Registration successful:', result);
-
+      
       setSubmissionProgress('Registration completed successfully!');
       const regId = result._id || result.registration?._id || result.registrationId;
       setRegistrationId(regId);
@@ -1950,8 +1737,7 @@ export default function useFestRegistration() {
       if (err.name === 'AbortError') {
         const elapsedTime = ((Date.now() - formSubmissionStartTime) / 1000).toFixed(1);
         console.error('? Request was aborted/timed out after', elapsedTime, 'seconds');
-        console.log('?? Registration may have been saved on the server. Checking registered events...');
-        userMessage = 'Registration is taking longer than expected. Your submission may have been saved. Please check My Bookings in a moment. Contact support if needed.';
+                userMessage = 'Registration is taking longer than expected. Your submission may have been saved. Please check My Bookings in a moment. Contact support if needed.';
       } else if (
         err.message.includes('Authentication')
         || err.message.includes('session')
@@ -2070,7 +1856,7 @@ export default function useFestRegistration() {
 
       setCompletingPayment(true);
       setProcessOverlayMode('payment');
-      setSubmissionProgress('Confirming payment?');
+      setSubmissionProgress('Confirming payment…');
 
       const verifyResult = await verifyPaymentWithRetry(
         API_BASE_URL,
@@ -2087,7 +1873,7 @@ export default function useFestRegistration() {
       }
 
       setProcessOverlayMode('server');
-      setSubmissionProgress('Completing registration?');
+      setSubmissionProgress('Completing registration…');
 
       const regRes = await fetch(`${API_BASE_URL}/registrations/fests/${festId}/pay-and-register`, {
         method: 'POST',

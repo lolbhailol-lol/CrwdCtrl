@@ -8,6 +8,7 @@ const { buildPriceBreakdown, parseTicketPrice } = require('../../utils/platformF
 const { resolveTrekPlatformFeePercent } = require('../../utils/trekRegistrationFee');
 const { logger } = require('../../utils/logger');
 const { findByIdOrSlug } = require('../../utils/slug');
+const { saveRegistrationIdempotent } = require('../../utils/registrationIdempotency');
 const {
   parseResponsesBody,
   mergeRegistrationResponses,
@@ -96,29 +97,39 @@ const payAndRegisterFest = async (req, res) => {
       submittedAt: new Date(),
     });
 
-    await registration.save();
-    logger.debug('✅ Fest pay-and-register saved:', registration._id);
+    const savedFestReg = await saveRegistrationIdempotent(registration, {
+      payment_order_id,
+      fest: festObjectId,
+      user: userId,
+      competitionId: null,
+    });
+    const persistedFest = savedFestReg.registration;
+    if (savedFestReg.created) {
+      logger.debug('✅ Fest pay-and-register saved:', persistedFest._id);
+    }
     if (payment_order_id) {
       consumeCouponUsageForOrder({ paymentOrderId: payment_order_id, userId }).catch(() => {});
     }
 
-    const festRegistrationLink = `/registration-details/${registration._id}`;
+    const festRegistrationLink = `/registration-details/${persistedFest._id}`;
 
-    res.status(201).json({
+    res.status(savedFestReg.created ? 201 : 200).json({
       success: true,
-      message: 'Registration successful',
-      _id: registration._id,
-      registrationId: registration._id,
+      message: savedFestReg.created ? 'Registration successful' : 'Registration already completed',
+      _id: persistedFest._id,
+      registrationId: persistedFest._id,
       festName: fest.festName,
-      amountPaid: festTotalAmount,
+      amountPaid: persistedFest.amountPaid || festTotalAmount,
     });
+
+    if (!savedFestReg.created) return;
 
     scheduleRegistrationNotification(userId, {
       title: 'Fest Registration Confirmed!',
       message: `You've successfully registered for ${fest.festName}.`,
       body: `You've registered for ${fest.festName}`,
       link: festRegistrationLink,
-      metadata: { festId: fest._id, registrationId: registration._id },
+      metadata: { festId: fest._id, registrationId: persistedFest._id },
     });
 
     setImmediate(async () => {
@@ -130,7 +141,7 @@ const payAndRegisterFest = async (req, res) => {
         await sendRegistrationConfirmationEmail(
           user.email, user.name,
           fest.festName, null,
-          registration._id.toString(),
+          persistedFest._id.toString(),
           new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
           { status: 'paid', method: 'cashfree', type: 'fest', ticketLink: festRegistrationLink },
         ).catch(() => {});
@@ -237,22 +248,32 @@ const payAndRegister = async (req, res) => {
       submittedAt: new Date(),
     });
 
-    await registration.save();
-    logger.debug('✅ Pay-and-register saved:', registration._id);
+    const savedCompReg = await saveRegistrationIdempotent(registration, {
+      payment_order_id,
+      fest: competition.fest._id,
+      competitionId: competition._id,
+      user: userId,
+    });
+    const persistedComp = savedCompReg.registration;
+    if (savedCompReg.created) {
+      logger.debug('✅ Pay-and-register saved:', persistedComp._id);
+    }
     if (payment_order_id) {
       consumeCouponUsageForOrder({ paymentOrderId: payment_order_id, userId }).catch(() => {});
     }
 
-    const payCompRegistrationLink = `/registration-details/${registration._id}`;
+    const payCompRegistrationLink = `/registration-details/${persistedComp._id}`;
 
-    res.status(201).json({
+    res.status(savedCompReg.created ? 201 : 200).json({
       success: true,
-      message: 'Registration successful',
-      _id: registration._id,
-      registrationId: registration._id,
+      message: savedCompReg.created ? 'Registration successful' : 'Registration already completed',
+      _id: persistedComp._id,
+      registrationId: persistedComp._id,
       competitionName: competition.name,
-      amountPaid: competitionTotalAmount,
+      amountPaid: persistedComp.amountPaid || competitionTotalAmount,
     });
+
+    if (!savedCompReg.created) return;
 
     scheduleRegistrationNotification(userId, {
       title: 'Registration Confirmed!',
@@ -262,7 +283,7 @@ const payAndRegister = async (req, res) => {
       metadata: {
         competitionId: competition._id,
         festId: competition.fest?._id,
-        registrationId: registration._id,
+        registrationId: persistedComp._id,
       },
     });
 
@@ -277,7 +298,7 @@ const payAndRegister = async (req, res) => {
           user.email, user.name,
           competition.fest?.festName || competition.name,
           competition.name,
-          registration._id.toString(),
+          persistedComp._id.toString(),
           new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
           { status: 'paid', method: 'cashfree', type: 'competition', ticketLink: payCompRegistrationLink },
         ).catch(() => {});

@@ -140,8 +140,8 @@ export async function runCashfreeCheckoutAndVerify({
     };
 }
 
-export function setPaymentFlowToStepTwo({ setStep, setPayDone, setPaying, setError, message = '' }) {
-    setStep(2);
+export function setPaymentFlowToStepTwo({ setStep, setPayDone, setPaying, setError, message = '', step = 2 }) {
+    setStep(step);
     setPayDone(false);
     setPaying(false);
     if (typeof message === 'string') setError(message);

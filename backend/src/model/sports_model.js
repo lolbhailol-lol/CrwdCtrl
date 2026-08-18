@@ -178,8 +178,8 @@ const sportsEventSchema = new mongoose.Schema(
                 /** option label → coupon code; booking page 1 auto-applies if coupon rules pass */
                 optionCoupons: { type: mongoose.Schema.Types.Mixed, default: {} },
                 placeholder: String,
-                /** 1 = booking page 1 (chips), 2 = details step */
-                bookingStep: { type: Number, enum: [1, 2], default: 2 },
+                /** 1 = party size, 2 = details, 3+ = each field is its own wizard step */
+                bookingStep: { type: Number, min: 1, max: 10, default: 2 },
             }],
         },
 

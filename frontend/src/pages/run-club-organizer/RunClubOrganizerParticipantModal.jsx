@@ -89,6 +89,17 @@ export default function RunClubOrganizerParticipantModal({ eventId, bookingId, o
                             {participant.tierName ? (
                                 <Badge tone="info">{participant.tierName}</Badge>
                             ) : null}
+                            {participant.participantGender && participant.participantGender !== '—' ? (
+                                <Badge tone="neutral">{participant.participantGender}</Badge>
+                            ) : null}
+                            {participant.couponCode ? (
+                                <Badge tone="info">
+                                    {participant.couponCode}
+                                    {Number(participant.couponDiscount) > 0
+                                        ? ` · −₹${Number(participant.couponDiscount).toLocaleString('en-IN')}`
+                                        : ''}
+                                </Badge>
+                            ) : null}
                             {participant.addOnSelected && participant.addOnLabel ? (
                                 <Badge tone="success">+ {participant.addOnLabel}</Badge>
                             ) : null}
@@ -130,6 +141,8 @@ export default function RunClubOrganizerParticipantModal({ eventId, bookingId, o
                                 fields={participant.registrationFields || []}
                                 bookingDetails={participant.bookingDetails}
                                 userEmail={participant.userEmail}
+                                phone={participant.phone}
+                                gender={participant.participantGender}
                             />
                         </div>
 
@@ -146,6 +159,14 @@ export default function RunClubOrganizerParticipantModal({ eventId, bookingId, o
                                 <div>
                                     <p className="text-[11px] text-gray-500 uppercase">Amount paid</p>
                                     <p className="text-emerald-400 font-medium">₹{Number(participant.organizerNet).toLocaleString('en-IN')}</p>
+                                    {participant.couponCode ? (
+                                        <p className="text-[11px] text-gray-500 mt-0.5">
+                                            {participant.couponCode}
+                                            {Number(participant.listAmount) > 0
+                                                ? ` · list ₹${Number(participant.listAmount).toLocaleString('en-IN')}`
+                                                : ''}
+                                        </p>
+                                    ) : null}
                                 </div>
                             ) : null}
                         </div>
