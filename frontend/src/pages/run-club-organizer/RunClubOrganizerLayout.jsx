@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Outlet, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Users, QrCode, LogOut, Footprints, Bell, Menu, Home, ArrowLeft, ExternalLink } from 'lucide-react';
-import { clearRunClubOrganizerSession, getRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
+import { markRunClubOrganizerLoggedOut, getRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
 import { organizerHubCopy } from '../../utils/listingHubCopy';
 
 const navForEvent = (eventId) => [
@@ -47,7 +47,7 @@ export default function RunClubOrganizerLayout() {
     const BrandIcon = Footprints;
 
     const logout = () => {
-        clearRunClubOrganizerSession();
+        markRunClubOrganizerLoggedOut();
         navigate('/run-club-organizer/login', { replace: true });
     };
 
@@ -59,7 +59,7 @@ export default function RunClubOrganizerLayout() {
 
     return (
         <div className="min-h-dvh bg-[#0f1011] text-white flex">
-            <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-[#161718] border-r border-gray-800 transform transition-transform lg:translate-x-0 pt-[var(--safe-top)] pb-[var(--safe-bottom)] ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+            <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#161718] border-r border-gray-800 transform transition-transform lg:translate-x-0 pt-[var(--safe-top)] pb-[var(--safe-bottom)] ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                 <div className="px-5 py-5 border-b border-gray-800">
                     <div className="flex items-center gap-2">
                         <BrandIcon className="text-[#0ECCEE]" size={22} />
@@ -102,7 +102,7 @@ export default function RunClubOrganizerLayout() {
                         </OrgNavButton>
                     ))}
                 </nav>
-                <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-gray-800 space-y-1">
+                <div className="absolute bottom-0 left-0 right-0 p-3 pb-[max(0.75rem,var(--safe-bottom))] border-t border-gray-800 space-y-1">
                     <button
                         type="button"
                         onClick={() => {
@@ -146,32 +146,43 @@ export default function RunClubOrganizerLayout() {
                             {activeEvent ? copy.portalSubtitle : 'CrwdCtrl'}
                         </p>
                     </div>
-                    {hasEventContext ? (
+                    <div className="flex items-center gap-1.5 shrink-0">
+                        {hasEventContext ? (
+                            <button
+                                type="button"
+                                onClick={() => navigate('/run-club-organizer')}
+                                className="text-xs text-[#0ECCEE] min-h-[44px] px-2 font-medium"
+                            >
+                                {copy.allEvents}
+                            </button>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={() => navigate('/')}
+                                className="hidden lg:inline-flex items-center gap-1 text-xs text-[#0ECCEE] min-h-[44px] px-2 font-medium"
+                            >
+                                <ArrowLeft size={14} /> Website
+                            </button>
+                        )}
                         <button
                             type="button"
-                            onClick={() => navigate('/run-club-organizer')}
-                            className="text-xs text-[#0ECCEE] shrink-0 min-h-[44px] px-2 font-medium"
+                            onClick={logout}
+                            className="inline-flex items-center gap-1.5 min-h-[44px] px-2.5 rounded-lg text-gray-300 text-xs font-semibold border border-gray-800 hover:text-red-400 hover:border-red-400/30 hover:bg-red-500/10"
+                            aria-label="Log out"
                         >
-                            {copy.allEvents}
+                            <LogOut size={14} />
+                            Log out
                         </button>
-                    ) : (
-                        <button
-                            type="button"
-                            onClick={() => navigate('/')}
-                            className="hidden lg:inline-flex items-center gap-1 text-xs text-[#0ECCEE] shrink-0 min-h-[44px] px-2 font-medium"
-                        >
-                            <ArrowLeft size={14} /> Website
-                        </button>
-                    )}
+                    </div>
                 </header>
                 <main className={`flex-1 p-4 sm:p-6 max-w-7xl mx-auto w-full ${hasEventContext ? 'pb-[calc(5.5rem+var(--safe-bottom))] lg:pb-6' : ''}`}>
                     <Outlet />
                 </main>
             </div>
 
-            {hasEventContext ? (
+            {hasEventContext && !sidebarOpen ? (
                 <nav
-                    className="lg:hidden fixed bottom-0 inset-x-0 z-40 border-t border-gray-800 bg-[#161718]/95 backdrop-blur pb-[var(--safe-bottom)]"
+                    className="lg:hidden fixed bottom-0 inset-x-0 z-30 border-t border-gray-800 bg-[#161718]/95 backdrop-blur pb-[var(--safe-bottom)]"
                     aria-label={copy.navAria}
                 >
                     <div className="grid grid-cols-4">
@@ -207,7 +218,7 @@ export default function RunClubOrganizerLayout() {
                 </nav>
             ) : null}
 
-            {sidebarOpen ? <button type="button" className="fixed inset-0 z-30 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close menu" /> : null}
+            {sidebarOpen ? <button type="button" className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close menu" /> : null}
         </div>
     );
 }

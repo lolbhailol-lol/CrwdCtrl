@@ -175,9 +175,15 @@ export default function RunClubOrganizerEventEditorPage() {
     const isNew = !eventId || eventId === 'new';
     const navigate = useNavigate();
     const session = getRunClubOrganizerSession();
-    const categories = session?.runClub?.runCategories || [];
     const isEventHub = isEventsListingHub(session?.runClub);
     const copy = organizerHubCopy(isEventHub);
+    const categories = (() => {
+        const clubCats = (session?.runClub?.runCategories || []).filter(
+            (cat) => cat && (!isEventHub || !/\bruns?\b/i.test(String(cat))),
+        );
+        if (!isEventHub) return clubCats;
+        return clubCats.length ? clubCats : ['Sports'];
+    })();
 
     const [form, setForm] = useState(emptyForm);
     const [loading, setLoading] = useState(!isNew);
@@ -440,7 +446,11 @@ export default function RunClubOrganizerEventEditorPage() {
                             className="w-full rounded-xl bg-[#0f1011] border border-gray-700 px-3 py-2.5 text-sm focus:outline-none focus:border-[#0ECCEE]"
                         >
                             <option value="">Select category</option>
-                            {categories.map((cat) => (
+                            {(form.runCategory &&
+                            !categories.some((cat) => String(cat).toLowerCase() === form.runCategory.toLowerCase())
+                                ? [...categories, form.runCategory]
+                                : categories
+                            ).map((cat) => (
                                 <option key={cat} value={cat}>{cat}</option>
                             ))}
                         </select>

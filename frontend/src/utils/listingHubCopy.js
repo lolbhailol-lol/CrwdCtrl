@@ -7,7 +7,30 @@ export function isEventsListingHub(source) {
         source.listingHub === 'events'
         || source.runClub?.listingHub === 'events'
         || source.club?.listingHub === 'events'
+        || source.runClubId?.listingHub === 'events'
     );
+}
+
+export function runClubIdOf(entity) {
+    const rc = entity?.runClubId;
+    if (!rc) return '';
+    if (typeof rc === 'object') return String(rc._id || rc.id || '');
+    return String(rc);
+}
+
+export function eventCommunityIdSet(clubs = []) {
+    return new Set(
+        (clubs || [])
+            .filter((c) => c?.listingHub === 'events')
+            .map((c) => String(c._id || c.id)),
+    );
+}
+
+export function isEventHubSportsEvent(event, eventClubIds) {
+    if (!event) return false;
+    if (isEventsListingHub(event)) return true;
+    const id = runClubIdOf(event);
+    return Boolean(id && eventClubIds?.has(String(id)));
 }
 
 export function organizerHubCopy(isEventHub) {

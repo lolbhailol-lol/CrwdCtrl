@@ -1487,18 +1487,36 @@ html[data-home-hub-loading] .crwdctrl-footer {
     display: none !important;
 }
 
-/* One solid viewport while home hub loads — no half black / half white split */
+/* One solid viewport while home hub / page data / route overlay loads — no black/grey split */
 html[data-home-hub-loading],
 html[data-home-hub-loading] body,
 html[data-home-hub-loading] #root,
-html[data-home-hub-loading] .crwdctrl-app-shell {
+html[data-home-hub-loading] .crwdctrl-app-shell,
+body.page-content-loading,
+body.page-content-loading #root,
+body.page-content-loading .crwdctrl-app-shell,
+body.page-transition-active,
+body.page-transition-active #root,
+body.page-transition-active .crwdctrl-app-shell,
+body.detail-page-loading,
+body.detail-page-loading #root,
+body.detail-page-loading .crwdctrl-app-shell {
     background-color: #ffffff !important;
 }
 
 html.dark[data-home-hub-loading],
 html.dark[data-home-hub-loading] body,
 html.dark[data-home-hub-loading] #root,
-html.dark[data-home-hub-loading] .crwdctrl-app-shell {
+html.dark[data-home-hub-loading] .crwdctrl-app-shell,
+html.dark body.page-content-loading,
+html.dark body.page-content-loading #root,
+html.dark body.page-content-loading .crwdctrl-app-shell,
+html.dark body.page-transition-active,
+html.dark body.page-transition-active #root,
+html.dark body.page-transition-active .crwdctrl-app-shell,
+html.dark body.detail-page-loading,
+html.dark body.detail-page-loading #root,
+html.dark body.detail-page-loading .crwdctrl-app-shell {
     background-color: #161718 !important;
 }
 
@@ -2157,6 +2175,26 @@ h3, h4, h5, h6 {
     .mobile-header-shell.is-collapsed > .mobile-header-inner {
         background: var(--header-bg) !important;
     }
+}
+
+/* Loading / wait screens — kill header→page chrome gradient so the fill is one colour */
+body.page-content-loading .crwdctrl-page,
+body.page-content-loading .crwdctrl-page.crwdctrl-page--hub,
+body.page-content-loading .crwdctrl-page.crwdctrl-page--content,
+body.page-transition-active .crwdctrl-page,
+body.page-transition-active .crwdctrl-page.crwdctrl-page--hub,
+body.page-transition-active .crwdctrl-page.crwdctrl-page--content,
+html[data-home-hub-loading] .crwdctrl-page,
+html[data-home-hub-loading] .crwdctrl-page.crwdctrl-page--hub,
+body.detail-page-loading .crwdctrl-page,
+body.detail-page-loading .crwdctrl-page.crwdctrl-page--hub,
+body.detail-page-loading .crwdctrl-page.crwdctrl-page--content,
+.crwdctrl-page.crwdctrl-page--flat,
+.crwdctrl-page.crwdctrl-page--flat.crwdctrl-page--hub,
+.crwdctrl-page.crwdctrl-page--flat.crwdctrl-page--content {
+    --header-bg: var(--page-bg);
+    background-image: none !important;
+    background-color: var(--page-bg) !important;
 }
 
 /* Mobile header layout — inherit page tokens; fallbacks for non-crwdctrl-page routes */

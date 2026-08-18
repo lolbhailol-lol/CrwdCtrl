@@ -55,13 +55,29 @@ const safe = async (fn, fallback) => {
  * can fall back instead of treating empty arrays as a healthy catalog.
  */
 exports.getHomeFeed = async (_req, res) => {
-  const [festsBody, treks, communities, sports, runClubs, eventShows, sectionLabels, homepageSections, config] = await Promise.all([
+  const [festsBody, treks, communities, sports, runClubs, eventShows, eventClubIds, sectionLabels, homepageSections, config] = await Promise.all([
     safe(() => captureHandler(festOrganizerController.getAllFests), null),
     safe(() => Trek.find({ status: 'published' }).sort({ trekDate: 1, createdAt: -1 }).limit(50).lean(), []),
     safe(() => TrekCommunity.find({ status: 'published' }).sort({ trekPagePriority: 1, createdAt: -1 }).limit(50).lean(), []),
-    safe(() => SportsEvent.find({ status: 'published', showOnSportsPage: { $ne: false } }).sort({ priority: 1, eventDate: 1, createdAt: -1 }).limit(100).lean(), []),
-    safe(() => RunClub.find({ status: 'published', showOnSportsPage: { $ne: false }, showInRunClubs: { $ne: false }, listingHub: { $ne: 'events' } }).sort({ runClubPriority: 1, createdAt: -1 }).limit(100).lean(), []),
+    safe(() => SportsEvent.find({
+      status: 'published',
+      $or: [
+        { showOnSportsPage: { $ne: false } },
+        { showOnEventsPage: true },
+        { homeSection: { $nin: [null, ''] } },
+        { showOnHomeSlide: true },
+        { 'customPageSections.0': { $exists: true } },
+      ],
+    }).sort({ priority: 1, eventDate: 1, createdAt: -1 }).limit(150).lean(), []),
+    safe(() => RunClub.find({
+      status: 'published',
+      $or: [
+        { listingHub: { $ne: 'events' }, showOnSportsPage: { $ne: false }, showInRunClubs: { $ne: false } },
+        { listingHub: 'events' },
+      ],
+    }).sort({ runClubPriority: 1, createdAt: -1 }).limit(150).lean(), []),
     safe(() => EventShow.find({ status: 'published' }).sort({ pagePriority: 1, createdAt: -1 }).limit(100).lean(), []),
+    safe(() => RunClub.find({ listingHub: 'events' }).distinct('_id'), []),
     safe(() => readHomeSectionLabels(), { ...DEFAULT_HOME_SECTION_LABELS }),
     safe(() => homepageSectionCtrl.listEnabledForPage('home'), []),
     safe(() => readPublicConfig(), null),
@@ -70,6 +86,7 @@ exports.getHomeFeed = async (_req, res) => {
   const festsOk = festsBody != null && Array.isArray(festsBody.fests);
   const fests = festsOk ? festsBody.fests : [];
   const partial = !festsOk;
+  const eventClubSet = new Set((Array.isArray(eventClubIds) ? eventClubIds : []).map(String));
 
   // Do not let intermediaries / SW cache empty or partial home payloads
   res.set('Cache-Control', 'no-store');
@@ -79,7 +96,11 @@ exports.getHomeFeed = async (_req, res) => {
     fests,
     treks: Array.isArray(treks) ? treks.map(sanitizePublicTrek) : [],
     communities: Array.isArray(communities) ? communities.map(sanitizePublicCommunity) : [],
-    sports: Array.isArray(sports) ? sports.map(sanitizePublicSportsEvent) : [],
+    sports: Array.isArray(sports) ? sports.map((s) => {
+      const clean = sanitizePublicSportsEvent(s);
+      if (s.runClubId && eventClubSet.has(String(s.runClubId))) clean.listingHub = 'events';
+      return clean;
+    }) : [],
     runClubs: Array.isArray(runClubs) ? runClubs.map(sanitizePublicRunClub) : [],
     eventShows: Array.isArray(eventShows) ? eventShows.map(sanitizePublicEventShow) : [],
     homepageSections: Array.isArray(homepageSections) ? homepageSections : [],

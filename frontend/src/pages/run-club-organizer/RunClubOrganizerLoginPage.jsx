@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { Footprints, Users, Loader, ArrowLeft } from 'lucide-react';
 import { runClubOrganizerLogin, tryRunClubOrganizerAppSession } from '../../services/api/runClubOrganizer.api';
-import { setRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
+import { isRunClubOrganizerManualLogout, setRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
 import { isEventsListingHub, organizerHubCopy } from '../../utils/listingHubCopy';
 import {
     organizerEventPath,
@@ -63,7 +63,7 @@ export default function RunClubOrganizerLoginPage() {
     useEffect(() => {
         let cancelled = false;
         (async () => {
-            if (!isAuthenticated) {
+            if (!isAuthenticated || isRunClubOrganizerManualLogout()) {
                 if (!cancelled) setBooting(false);
                 return;
             }

@@ -34,6 +34,8 @@ const runClubSchema = new mongoose.Schema(
          * events = community on /events (not a run club)
          */
         listingHub: { type: String, enum: ['sports', 'events'], default: 'sports', index: true },
+        /** Events-page Community Events carousel (event-hub clubs only). Missing = shown. */
+        showOnEventsPage: { type: Boolean, default: true },
         runClubPriority: { type: Number, default: 999, min: 1, max: 999 },
         homeSection: { type: String, default: null },
         /** Home page hero / moving banner (preferred over legacy homeSection:'slide') */

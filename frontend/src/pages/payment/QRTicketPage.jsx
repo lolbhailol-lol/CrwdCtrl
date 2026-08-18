@@ -144,7 +144,7 @@ export default function QRTicketPage() {
 
   if (loading) {
     return (
-      <InlinePageLoader label="Loading ticket…" variant="booking" className="min-h-screen" />
+      <InlinePageLoader label="Loading ticket…" variant="booking" fullScreen />
     );
   }
 

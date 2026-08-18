@@ -686,7 +686,6 @@ exports.getDashboard = async (req, res) => {
             paymentBreakdown,
             tierBreakdown,
             recentRegs,
-            approvedForSegments,
             qrStatsRows,
         ] = await Promise.all([
             EventShowRegistration.countDocuments({ eventShow: oid, status: 'approved' }),
@@ -719,9 +718,6 @@ exports.getDashboard = async (req, res) => {
                 .populate('user', 'name email phone')
                 .sort({ createdAt: -1 })
                 .limit(8)
-                .lean(),
-            EventShowRegistration.find({ eventShow: oid, status: 'approved' })
-                .select('tierId tierName amountPaid paymentStatus responses additionalEntries')
                 .lean(),
             EventShowRegistration.aggregate([
                 {
@@ -901,59 +897,15 @@ exports.getDashboard = async (req, res) => {
         }
         const tierBreakdownRows = [...tierMap.values()].sort((a, b) => b.count - a.count);
 
-        const segments = {
-            driveOnly: 0,
-            driveAndTrackday: 0,
-            trackdayOnly: 0,
-            spectator: 0,
-            unknown: 0,
-            independenceDriveTotal: 0,
-            trackdayTotal: 0,
-        };
-        for (const reg of approvedForSegments) {
-            const p = formatParticipant(reg);
-            if (p.category === 'drive_only') segments.driveOnly += 1;
-            else if (p.category === 'drive_and_trackday') segments.driveAndTrackday += 1;
-            else if (p.category === 'trackday_only') segments.trackdayOnly += 1;
-            else if (p.category === 'spectator') segments.spectator += 1;
-            else segments.unknown += 1;
-            if (p.joinsIndependenceDrive) segments.independenceDriveTotal += 1;
-            if (p.hasTrackday) segments.trackdayTotal += 1;
-        }
-
         const qrAgg = qrStatsRows[0] || {};
-        const commissionPercent = 2.5;
-        const commissionBase = Number(qrPaidAgg.amount) || 0;
-        const commissionDue = Math.round((commissionBase * (commissionPercent / 100)) * 100) / 100;
         const qrStats = {
             totalQr: Number(qrAgg.totalQr) || 0,
             pendingReview: Number(qrAgg.pendingReview) || 0,
             paidApproved: Number(qrAgg.paidApproved) || 0,
             withProof: Number(qrAgg.withProof) || 0,
             enabled: (event?.registration?.mode || '') === 'organizer_qr',
-            paidAmount: commissionBase,
-            commissionPercent,
-            commissionDue,
-            commissionEntries: Number(qrPaidAgg.count) || 0,
-            duplicateRows: Number(qrPaidAgg.duplicateRows) || 0,
+            paidAmount: Number(qrPaidAgg.amount) || 0,
         };
-
-        const driveTiers = [];
-        const trackdayTiers = [];
-        for (const row of tierBreakdownRows) {
-            const entry = {
-                tierId: row.tierId || null,
-                tierName: row.tierName || 'No package',
-                count: Number(row.count) || 0,
-                paid: Number(row.paid) || 0,
-                revenue: Number(row.revenue) || 0,
-            };
-            if (isDriveOnlyTierName(entry.tierName) || /tier_drive_only/i.test(String(entry.tierId || ''))) {
-                driveTiers.push(entry);
-            } else {
-                trackdayTiers.push(entry);
-            }
-        }
 
         res.json({
             success: true,
@@ -969,13 +921,14 @@ exports.getDashboard = async (req, res) => {
                     : 0,
                 revenue,
                 todayRegistrations,
+                pendingPaymentReview: Math.max(
+                    pendingRegistrations,
+                    Number(qrAgg.pendingReview) || 0,
+                ),
                 payments,
-                segments,
                 qr: qrStats,
             },
             tiers: tierBreakdownRows,
-            driveTiers,
-            trackdayTiers,
             recent: recentRegs.map(formatParticipant),
         });
     } catch (error) {

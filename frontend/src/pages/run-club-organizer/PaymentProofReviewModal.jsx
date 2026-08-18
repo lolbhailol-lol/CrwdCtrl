@@ -151,6 +151,11 @@ export default function PaymentProofReviewModal({
                         <p className="text-2xl font-bold tabular-nums text-[#0ECCEE] mt-0.5">
                             ₹{expected.toLocaleString('en-IN')}
                         </p>
+                        {people > 1 ? (
+                            <p className="text-[11px] text-gray-400 mt-1">
+                                {people} people · match screenshot to this total
+                            </p>
+                        ) : null}
                         {participant.couponCode ? (
                             <p className="text-[11px] text-emerald-300 mt-1">
                                 Coupon {participant.couponCode}

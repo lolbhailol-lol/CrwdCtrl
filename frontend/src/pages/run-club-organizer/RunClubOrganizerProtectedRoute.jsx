@@ -5,6 +5,7 @@ import {
     getRunClubOrganizerToken,
     isRunClubOrganizerTokenExpired,
     getRunClubOrganizerSession,
+    isRunClubOrganizerManualLogout,
 } from '../../utils/runClubOrganizerSession';
 import {
     tryRunClubOrganizerAppSession,
@@ -28,6 +29,10 @@ async function bootOrganizerSession(forcedHub = '') {
         clearRunClubOrganizerSession();
     } else if (token) {
         clearRunClubOrganizerSession();
+    }
+
+    if (isRunClubOrganizerManualLogout()) {
+        return { status: 'guest', hub: forcedHub || '' };
     }
 
     const hubs = forcedHub

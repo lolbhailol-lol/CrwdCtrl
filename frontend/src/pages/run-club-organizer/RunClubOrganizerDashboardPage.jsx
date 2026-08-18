@@ -186,9 +186,11 @@ export default function RunClubOrganizerDashboardPage() {
     const total = stats.totalRegistrations ?? 0;
     const checkedIn = stats.checkedIn ?? 0;
     const pending = stats.pendingCheckIn ?? Math.max(0, total - checkedIn);
-    const pendingReview = isPaid ? Number(stats.pendingPaymentReview ?? 0) : 0;
-    const showPaymentReview = isPaid && (isOrganizerQr || pendingReview > 0);
+    const pendingReviewRaw = Number(stats.pendingPaymentReview ?? 0);
     const revenue = Number(stats.organizerRevenue ?? stats.revenue ?? 0);
+    const seatsFilled = Number(stats.seatsFilled ?? total);
+    const pendingReview = isOrganizerQr || pendingReviewRaw > 0 ? pendingReviewRaw : 0;
+    const showPaymentReview = isOrganizerQr || pendingReview > 0;
     const checkInPct = total > 0 ? Math.round((checkedIn / total) * 100) : 0;
     const ttlHours = Number(stats?.manualExpireTtlHours ?? stats?.pendingTtlHours ?? 72) || 72;
     const dateLabel = formatEventDate(eventDetail?.eventDate || event?.eventDate);
@@ -405,13 +407,14 @@ export default function RunClubOrganizerDashboardPage() {
                     tone="accent"
                     icon={Users}
                     to={`/run-club-organizer/events/${eventId}/participants`}
-                    hint="Guest list"
+                    hint={seatsFilled > total ? `${seatsFilled} guests` : 'Guest list'}
                 />
                 <StatTile
                     label="Collected"
                     value={`₹${revenue.toLocaleString('en-IN')}`}
                     tone="money"
                     icon={IndianRupee}
+                    hint={seatsFilled > total ? 'Group bookings included' : undefined}
                 />
                 <StatTile
                     label="Checked in"

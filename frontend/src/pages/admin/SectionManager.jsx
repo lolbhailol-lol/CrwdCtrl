@@ -1,6 +1,6 @@
 import { createElement, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { AlertCircle, Check, ExternalLink, GripVertical, LayoutGrid, Layers, Loader2, RefreshCw, Search, Flag, Mountain, Users, Dumbbell, Footprints, Theater } from 'lucide-react';
+import { AlertCircle, Check, ExternalLink, GripVertical, LayoutGrid, Layers, Loader2, RefreshCw, Search, Flag, Mountain, Users, Users2, Dumbbell, Footprints, Theater, Calendar } from 'lucide-react';
 import { buildHomeCarouselItems, normalizeHomeCarouselItem } from '../../utils/homeCarouselItems';
 import { getCardSizeLabel } from '../../utils/homeCardSize';
 import { InlinePageLoader } from '../../components/DetailPageLoader';
@@ -13,6 +13,8 @@ import {
     isOnHomeHero,
 } from '../../utils/pageSections';
 import { EVENTS_PAGE_CHECK_OPTS } from '../../constants/eventsPage';
+import { eventCommunityIdSet, isEventHubSportsEvent } from '../../utils/listingHubCopy';
+import { runClubPath, sportRunPath } from '../../utils/slugRoutes';
 import { adminFetch, adminFetchJSON } from '../../services/api/admin.api.js';
 import { notifyAdminDataUpdated } from '../../utils/notifyAdminDataUpdated';
 
@@ -45,11 +47,15 @@ const RUN_PAGE_OPTS = [
     { value: 'upcoming', label: '🏃 Upcoming Activities' },
     { value: 'hidden', label: '🚫 Hidden from Page' },
 ];
+const EVENT_HUB_PAGE_CHECK_OPTS = [
+    { value: 'community', label: 'Community Events' },
+];
 
 const FEST_CUSTOM_PAGES = ['fests', 'cultural-fest', 'tech-fest', 'sports-fest', 'events'];
 const TREK_CUSTOM_PAGES = ['treks', 'events'];
 const SPORTS_CUSTOM_PAGES = ['sports', 'events'];
 const EVENTS_CUSTOM_PAGES = ['events'];
+const EVENT_COMMUNITY_CUSTOM_PAGES = ['events'];
 
 function parseCustomPageValue(val) {
     if (!val || !val.includes(':')) return null;
@@ -333,6 +339,8 @@ const ASSIGN_TABS = [
     { id: 'communities', label: 'Communities', icon: Users },
     { id: 'runclubs', label: 'Run Clubs', icon: Footprints },
     { id: 'runs', label: 'Runs', icon: Dumbbell },
+    { id: 'eventcomms', label: 'Event Communities', icon: Users2 },
+    { id: 'communityevents', label: 'Community Events', icon: Calendar },
     { id: 'events', label: 'Events', icon: Theater },
 ];
 
@@ -369,8 +377,12 @@ function ModeSwitcher({ mode, onChange }) {
     );
 }
 
-function PreviewLink({ type, id }) {
-    const url = PREVIEW_URL[type]?.(id);
+function PreviewLink({ type, id, listingHub }) {
+    const url = type === 'runclub'
+        ? runClubPath({ _id: id, listingHub })
+        : type === 'sport'
+            ? sportRunPath({ _id: id, listingHub })
+            : PREVIEW_URL[type]?.(id);
     if (!url) return null;
     return (
         <a href={url} target="_blank" rel="noopener noreferrer" title="Preview on site"
@@ -966,7 +978,8 @@ export default function SectionManager() {
     const sportsPageCarousels = useMemo(() => {
         const norm = (s, pri) => ({ ...normalizeHomeCarouselItem('sport', s), _priority: pri });
         const upcoming = sports
-            .filter((s) => s.runClubId && s.showOnSportsPage !== false && (s.showInUpcoming !== false || s.featuredSection === 'upcoming' || s.featuredSection === 'both'))
+            .filter((s) => s.runClubId && s.showOnSportsPage !== false && (s.showInUpcoming !== false || s.featuredSection === 'upcoming' || s.featuredSection === 'both') && s.listingHub !== 'events' && s.runClubId?.listingHub !== 'events')
+            .filter((s) => !isEventHubSportsEvent(s, eventCommunityIdSet(runClubs)))
             .map((s) => norm(s, s.upcomingPriority ?? s.priority ?? 999))
             .sort((a, b) => a._priority - b._priority);
         const runClubCarousel = runClubs
@@ -976,19 +989,50 @@ export default function SectionManager() {
         return { upcoming, run_clubs: runClubCarousel };
     }, [sports, runClubs]);
 
+    const eventClubIds = useMemo(() => eventCommunityIdSet(runClubs), [runClubs]);
+    const eventCommunities = useMemo(
+        () => runClubs.filter((c) => c.listingHub === 'events'),
+        [runClubs],
+    );
+    const sportsRunClubs = useMemo(
+        () => runClubs.filter((c) => c.listingHub !== 'events'),
+        [runClubs],
+    );
+    const communitySportsEvents = useMemo(
+        () => sports.filter((s) => isEventHubSportsEvent(s, eventClubIds)),
+        [sports, eventClubIds],
+    );
+    const sportsRuns = useMemo(
+        () => sports.filter((s) => s.runClubId && !isEventHubSportsEvent(s, eventClubIds)),
+        [sports, eventClubIds],
+    );
+
     const eventsPageCarousels = useMemo(() => {
-        const norm = (s) => ({ ...normalizeHomeCarouselItem('events', s), _priority: s.pagePriority ?? 999 });
+        const normShow = (s) => ({ ...normalizeHomeCarouselItem('events', s), _priority: s.pagePriority ?? 999 });
         const inSection = (key) => eventShows
             .filter((s) => s.pageSection === key)
-            .map(norm)
+            .map(normShow)
             .sort((a, b) => a._priority - b._priority);
+        const communityClubs = eventCommunities
+            .filter((c) => c.showOnEventsPage !== false)
+            .map((c) => ({
+                ...normalizeHomeCarouselItem('runclub', c),
+                _priority: c.runClubPriority ?? c.priority ?? 999,
+            }));
+        const communityEventsRow = communitySportsEvents
+            .filter((s) => s.showOnEventsPage === true)
+            .map((s) => ({
+                ...normalizeHomeCarouselItem('sport', { ...s, listingHub: 'events' }),
+                _priority: s.priority ?? 999,
+            }));
         return {
             hero: inSection('hero'),
             spotlight: inSection('spotlight'),
             upcoming: inSection('upcoming'),
-            community: inSection('community'),
+            community: [...communityClubs, ...communityEventsRow, ...inSection('community')]
+                .sort((a, b) => a._priority - b._priority),
         };
-    }, [eventShows]);
+    }, [eventShows, eventCommunities, communitySportsEvents]);
 
     const applyLocalFestPageOrder = useCallback((status, ordered) => {
         ordered.forEach((item, index) => {
@@ -1022,7 +1066,14 @@ export default function SectionManager() {
 
     const applyLocalEventsPageOrder = useCallback((ordered) => {
         ordered.forEach((item, index) => {
-            setEventShows((prev) => prev.map((s) => (s._id === item._id ? { ...s, pagePriority: index + 1 } : s)));
+            const pri = index + 1;
+            if (item._type === 'runclub') {
+                setRunClubs((prev) => prev.map((c) => (c._id === item._id ? { ...c, runClubPriority: pri, priority: pri } : c)));
+            } else if (item._type === 'sport') {
+                setSports((prev) => prev.map((s) => (s._id === item._id ? { ...s, priority: pri } : s)));
+            } else {
+                setEventShows((prev) => prev.map((s) => (s._id === item._id ? { ...s, pagePriority: pri } : s)));
+            }
         });
     }, []);
 
@@ -1082,7 +1133,12 @@ export default function SectionManager() {
         const next = [...source];
         const [moved] = next.splice(fromIndex, 1);
         next.splice(toIndex, 0, moved);
-        const updates = next.map((item, i) => ({ type: 'events', id: item._id, fields: { pagePriority: i + 1 } }));
+        const updates = next.map((item, i) => {
+            const pri = i + 1;
+            if (item._type === 'runclub') return { type: 'runclub', id: item._id, fields: { runClubPriority: pri, priority: pri } };
+            if (item._type === 'sport') return { type: 'sport', id: item._id, fields: { priority: pri } };
+            return { type: 'events', id: item._id, fields: { pagePriority: pri } };
+        });
         applyLocalEventsPageOrder(next);
         batchReorder(updates);
     }, [eventsPageCarousels, reordering, applyLocalEventsPageOrder, batchReorder]);
@@ -1173,15 +1229,23 @@ export default function SectionManager() {
              .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''))),
         [comms, q]);
     const filteredRuns = useMemo(() =>
-        sports
-            .filter((s) => s.runClubId)
+        sportsRuns
             .filter((s) => !q || [s.title, s.city, s.organizer, s.displayType].some((v) => String(v || '').toLowerCase().includes(q)))
             .sort((a, b) => String(a.title || '').localeCompare(String(b.title || ''))),
-        [sports, q]);
+        [sportsRuns, q]);
     const filteredRunClubs = useMemo(() =>
-        runClubs.filter(c => !q || [c.name, c.basedIn, c.organizer].some(v => String(v || '').toLowerCase().includes(q)))
+        sportsRunClubs.filter(c => !q || [c.name, c.basedIn, c.organizer].some(v => String(v || '').toLowerCase().includes(q)))
                 .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''))),
-        [runClubs, q]);
+        [sportsRunClubs, q]);
+    const filteredEventComms = useMemo(() =>
+        eventCommunities.filter(c => !q || [c.name, c.basedIn, c.organizer].some(v => String(v || '').toLowerCase().includes(q)))
+            .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''))),
+        [eventCommunities, q]);
+    const filteredCommunityEvents = useMemo(() =>
+        communitySportsEvents
+            .filter((s) => !q || [s.title, s.city, s.organizer, s.displayType].some((v) => String(v || '').toLowerCase().includes(q)))
+            .sort((a, b) => String(a.title || '').localeCompare(String(b.title || ''))),
+        [communitySportsEvents, q]);
     const filteredEvents = useMemo(() =>
         eventShows.filter(s => !q || [s.title, s.city, s.organizer, s.eventType].some(v => String(v || '').toLowerCase().includes(q)))
             .sort((a, b) => String(a.title || '').localeCompare(String(b.title || ''))),
@@ -1203,8 +1267,10 @@ export default function SectionManager() {
         fests: fests.length,
         treks: treks.length,
         communities: comms.length,
-        runclubs: runClubs.length,
-        runs: sports.filter((s) => s.runClubId).length,
+        runclubs: sportsRunClubs.length,
+        runs: sportsRuns.length,
+        eventcomms: eventCommunities.length,
+        communityevents: communitySportsEvents.length,
         sports: sportsPageCarousels.upcoming.length + sportsPageCarousels.run_clubs.length,
         events: eventShows.length,
     };
@@ -1440,7 +1506,7 @@ export default function SectionManager() {
                             : tab === 'runs' || tab === 'runclubs' ? 'Sports page'
                             : tab === 'treks' ? 'Treks page'
                             : tab === 'communities' ? 'Treks page'
-                            : tab === 'events' ? 'Events page'
+                            : tab === 'events' || tab === 'eventcomms' || tab === 'communityevents' ? 'Events page'
                             : 'Own page'}
                     </span>
                     <span className="min-w-[11rem] text-center">Custom sections</span>
@@ -1633,7 +1699,7 @@ export default function SectionManager() {
                             : filteredRuns.map(s => (
                                 <div key={s._id} className="flex items-start gap-3 px-4 py-2.5 hover:bg-white/2 transition-colors flex-wrap">
                                     <Thumb src={s.images?.[0] || s.coverImage} icon={Footprints} />
-                                    <PreviewLink type="sport" id={s._id} />
+                                    <PreviewLink type="sport" id={s._id} listingHub={s.listingHub || (isEventHubSportsEvent(s, eventClubIds) ? 'events' : 'sports')} />
                                     <div className="flex-1 min-w-[8rem]">
                                         <p className="text-sm font-semibold text-white truncate">{s.title || 'Untitled'}</p>
                                         <p className="text-[11px] text-gray-600 truncate">
@@ -1676,7 +1742,7 @@ export default function SectionManager() {
                                 return (
                                     <div key={c._id} className="flex items-start gap-3 px-4 py-2.5 hover:bg-white/2 transition-colors flex-wrap">
                                         <Thumb src={c.coverImage} icon={Footprints} />
-                                        <PreviewLink type="runclub" id={c._id} />
+                                        <PreviewLink type="runclub" id={c._id} listingHub={c.listingHub} />
                                         <div className="flex-1 min-w-[8rem]">
                                             <p className="text-sm font-semibold text-white truncate">{c.name || 'Untitled'}</p>
                                             <p className="text-[11px] text-gray-600 truncate">{c.basedIn || c.organizer || '—'}</p>
@@ -1704,6 +1770,91 @@ export default function SectionManager() {
                                             saveKey={`runclub-${c._id}-custom`}
                                             saving={saving}
                                             emptyHint="Add sections in Page Sections"
+                                        />
+                                    </div>
+                                );
+                            })
+                        )}
+
+                        {/* ── EVENT COMMUNITIES ── */}
+                        {tab === 'eventcomms' && (filteredEventComms.length === 0
+                            ? <EmptyState label="No event communities found — create them in Admin → Event Communities" />
+                            : filteredEventComms.map((c) => (
+                                <div key={c._id} className="flex items-start gap-3 px-4 py-2.5 hover:bg-white/2 transition-colors flex-wrap">
+                                    <Thumb src={c.coverImage} icon={Users2} />
+                                    <PreviewLink type="runclub" id={c._id} listingHub="events" />
+                                    <div className="flex-1 min-w-[8rem]">
+                                        <p className="text-sm font-semibold text-white truncate">{c.name || 'Untitled'}</p>
+                                        <p className="text-[11px] text-gray-600 truncate">{c.basedIn || c.organizer || '—'}</p>
+                                    </div>
+                                    <AssignCheckGroup
+                                        label="Home"
+                                        options={homeCheckOpts}
+                                        selected={homeSelected(c)}
+                                        onToggle={(slug, checked) => saveEntityHomeMulti('runclub', c._id, c, slug, checked)}
+                                        saveKey={`runclub-${c._id}-home`}
+                                        saving={saving}
+                                    />
+                                    <AssignCheckGroup
+                                        label="Events page"
+                                        options={EVENT_HUB_PAGE_CHECK_OPTS}
+                                        selected={c.showOnEventsPage !== false ? ['community'] : []}
+                                        onToggle={(_slug, checked) => saveRunClub(c._id, { showOnEventsPage: checked })}
+                                        saveKey={`runclub-${c._id}-events-page`}
+                                        saving={saving}
+                                    />
+                                    <AssignCheckGroup
+                                        label="Custom"
+                                        options={eventsCustomPageOpts}
+                                        selected={getCustomPageAssignmentKeys(c, EVENT_COMMUNITY_CUSTOM_PAGES)}
+                                        onToggle={(key, checked) => saveEntityCustomToggle('runclub', c._id, c, EVENT_COMMUNITY_CUSTOM_PAGES, key, checked)}
+                                        saveKey={`runclub-${c._id}-custom`}
+                                        saving={saving}
+                                        emptyHint="Add sections in Page Sections → Events"
+                                    />
+                                </div>
+                            ))
+                        )}
+
+                        {/* ── COMMUNITY EVENTS ── */}
+                        {tab === 'communityevents' && (filteredCommunityEvents.length === 0
+                            ? <EmptyState label="No community events found — add events inside an event community" />
+                            : filteredCommunityEvents.map((s) => {
+                                const club = runClubs.find((c) => String(c._id) === String(s.runClubId?._id || s.runClubId));
+                                return (
+                                    <div key={s._id} className="flex items-start gap-3 px-4 py-2.5 hover:bg-white/2 transition-colors flex-wrap">
+                                        <Thumb src={s.images?.[0] || s.coverImage} icon={Calendar} />
+                                        <PreviewLink type="sport" id={s._id} listingHub="events" />
+                                        <div className="flex-1 min-w-[8rem]">
+                                            <p className="text-sm font-semibold text-white truncate">{s.title || 'Untitled'}</p>
+                                            <p className="text-[11px] text-gray-600 truncate">
+                                                {[club?.name, s.city, s.status].filter(Boolean).join(' · ') || '—'}
+                                            </p>
+                                        </div>
+                                        <AssignCheckGroup
+                                            label="Home"
+                                            options={homeCheckOpts}
+                                            selected={homeSelected(s)}
+                                            onToggle={(slug, checked) => saveEntityHomeMulti('sport', s._id, s, slug, checked)}
+                                            saveKey={`sports-${s._id}-home`}
+                                            saving={saving}
+                                        />
+                                        <AssignCheckGroup
+                                            label="Events page"
+                                            options={EVENT_HUB_PAGE_CHECK_OPTS}
+                                            selected={s.showOnEventsPage === true ? ['community'] : []}
+                                            onToggle={(_slug, checked) => saveSports(s._id, { showOnEventsPage: checked })}
+                                            saveKey={`sports-${s._id}-events-page`}
+                                            saving={saving}
+                                        />
+                                        <AssignCheckGroup
+                                            label="Custom"
+                                            options={eventsCustomPageOpts}
+                                            selected={getCustomPageAssignmentKeys(s, EVENT_COMMUNITY_CUSTOM_PAGES)}
+                                            onToggle={(key, checked) => saveEntityCustomToggle('sport', s._id, s, EVENT_COMMUNITY_CUSTOM_PAGES, key, checked)}
+                                            saveKey={`sports-${s._id}-custom`}
+                                            saving={saving}
+                                            emptyHint="Add sections in Page Sections → Events"
                                         />
                                     </div>
                                 );

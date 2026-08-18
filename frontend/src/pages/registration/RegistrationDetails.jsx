@@ -162,7 +162,7 @@ export default function RegistrationDetails() {
 
   if (loading) {
     return (
-      <InlinePageLoader label="Loading registration" variant="booking" className="min-h-screen" />
+      <InlinePageLoader label="Loading registration" variant="booking" fullScreen />
     );
   }
 

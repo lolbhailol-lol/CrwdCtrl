@@ -74,10 +74,12 @@ export default function ParticipantCard({
     const meetingPoint = participant.meetingPoint || participant.trekTime || '';
     const trekDate = participant.trekDate || participant.bookingDetails?.date || '';
     const peopleCount = Number(participant.people ?? participant.bookingDetails?.people ?? 1) || 1;
-    const bookingDetails = participant.bookingDetails || {
+    const bookingDetails = {
         date: trekDate,
         time: meetingPoint,
         people: peopleCount,
+        amountPaid: Number(participant.amountPaid || participant.organizerNet || participant.bookingDetails?.amountPaid || 0),
+        ...(participant.bookingDetails || {}),
     };
 
     const borderTone = checkedIn
@@ -175,6 +177,14 @@ export default function ParticipantCard({
                                 <Users size={12} />
                                 {peopleCount} {peopleCount === 1 ? 'person' : 'people'}
                             </span>
+                            {Number(participant.amountPaid || participant.organizerNet || 0) > 0 ? (
+                                <span className="inline-flex items-center gap-1 font-semibold text-emerald-400 tabular-nums">
+                                    ₹{Number(participant.amountPaid || participant.organizerNet).toLocaleString('en-IN')}
+                                    {peopleCount > 1
+                                        ? ` total`
+                                        : ''}
+                                </span>
+                            ) : null}
                             {pendingReview && participant.transactionId ? (
                                 <span className="inline-flex items-center gap-1 font-mono text-amber-300/90 max-w-full truncate">
                                     UTR · {participant.transactionId}
@@ -188,6 +198,13 @@ export default function ParticipantCard({
                         </div>
                     </div>
 
+                    {participant.paymentScreenshotUrl ? (
+                        <img
+                            src={participant.paymentScreenshotUrl}
+                            alt=""
+                            className="size-12 rounded-lg object-cover border border-gray-700 shrink-0 mt-0.5"
+                        />
+                    ) : null}
                     <ChevronDown
                         size={18}
                         className={`text-gray-500 shrink-0 mt-1 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
@@ -280,9 +297,23 @@ export default function ParticipantCard({
                             ) : null}
                         </div>
 
-                        {pendingReview ? (
-                            <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
-                                <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-300">Payment</p>
+                        {pendingReview || participant.paymentScreenshotUrl || Number(participant.amountPaid || participant.organizerNet || 0) > 0 ? (
+                            <div className={`rounded-xl border p-3 space-y-2 ${
+                                pendingReview
+                                    ? 'border-amber-500/30 bg-amber-500/5'
+                                    : 'border-white/10 bg-black/20'
+                            }`}>
+                                <p className={`text-[11px] font-semibold uppercase tracking-wider ${pendingReview ? 'text-amber-300' : 'text-gray-400'}`}>
+                                    Payment
+                                </p>
+                                {Number(participant.amountPaid || participant.organizerNet || 0) > 0 ? (
+                                    <p className="text-sm font-semibold tabular-nums text-emerald-300">
+                                        ₹{Number(participant.amountPaid || participant.organizerNet).toLocaleString('en-IN')}
+                                        {peopleCount > 1
+                                            ? ` · ${peopleCount} people`
+                                            : ''}
+                                    </p>
+                                ) : null}
                                 {participant.paymentScreenshotUrl ? (
                                     <a href={participant.paymentScreenshotUrl} target="_blank" rel="noopener noreferrer" className="block">
                                         <img
@@ -291,9 +322,9 @@ export default function ParticipantCard({
                                             className="max-h-44 w-full rounded-lg border border-gray-700 object-contain bg-black/40"
                                         />
                                     </a>
-                                ) : (
+                                ) : pendingReview ? (
                                     <p className="text-sm text-gray-500">No screenshot</p>
-                                )}
+                                ) : null}
                                 {participant.transactionId ? (
                                     <p className="text-xs text-gray-400">
                                         Txn: <span className="text-gray-200 font-mono">{participant.transactionId}</span>

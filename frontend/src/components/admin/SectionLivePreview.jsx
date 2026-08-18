@@ -7,7 +7,7 @@ import HomeCategoryBar from '../HomeCategoryBar';
 import HomeCarouselSection from '../HomeCarouselSection';
 import { TRENDING_CARD_GAP } from '../../hooks/useHomeCarousel';
 import { createFallbackImage } from '../../utils/fallbackImageGenerator';
-import { buildHomeCarouselItems } from '../../utils/homeCarouselItems';
+import { buildPageCarouselItems } from '../../utils/homeCarouselItems';
 import { getCardSizeProps, getCardSizeShortLabel } from '../../utils/homeCardSize';
 import { mapHomeCarouselDisplayItems } from '../../utils/mapHomeCarouselDisplayItems';
 import { TARGET_PAGE_OPTIONS } from '../../utils/pageSections';
@@ -230,11 +230,17 @@ function buildDemoItems(targetPage) {
     ));
 }
 
-function buildPreviewItems(targetPage, fests, treks, comms, sports) {
+function buildPreviewItems(targetPage, fests, treks, comms, sports, runClubs = [], eventShows = []) {
     let pool = [];
     if (targetPage === 'treks') pool = [...treks, ...comms];
     else if (targetPage === 'sports') pool = sports;
-    else if (['home', 'fests', 'cultural-fest', 'tech-fest', 'sports-fest', 'events'].includes(targetPage)) {
+    else if (targetPage === 'events') {
+        pool = [
+            ...eventShows,
+            ...(runClubs || []).filter((c) => c.listingHub === 'events'),
+            ...(sports || []).filter((s) => s.listingHub === 'events' || s.showOnEventsPage),
+        ];
+    } else if (['home', 'fests', 'cultural-fest', 'tech-fest', 'sports-fest'].includes(targetPage)) {
         pool = fests;
     } else {
         pool = [...fests, ...treks, ...comms];
@@ -260,13 +266,13 @@ function buildHeroEvents(fests) {
     }));
 }
 
-function buildLiveCarouselItems(block, targetPage, fests, treks, comms, sports) {
-    if (block.slug && targetPage === 'home') {
-        const raw = buildHomeCarouselItems(fests, treks, comms, block.slug, sports);
+function buildLiveCarouselItems(block, targetPage, fests, treks, comms, sports, runClubs = [], eventShows = []) {
+    if (block.slug) {
+        const raw = buildPageCarouselItems(fests, treks, comms, targetPage, block.slug, sports, runClubs, eventShows);
         const mapped = mapHomeCarouselDisplayItems(raw);
         if (mapped.length) return mapped;
     }
-    return buildPreviewItems(targetPage, fests, treks, comms, sports);
+    return buildPreviewItems(targetPage, fests, treks, comms, sports, runClubs, eventShows);
 }
 
 function ContextCarousel({
@@ -276,13 +282,15 @@ function ContextCarousel({
     treks,
     comms,
     sports,
+    runClubs = [],
+    eventShows = [],
     isDark,
     dimmed = false,
 }) {
     const props = getCardSizeProps(block.cardSize);
     const items = useMemo(
-        () => buildLiveCarouselItems(block, targetPage, fests, treks, comms, sports),
-        [block, targetPage, fests, treks, comms, sports],
+        () => buildLiveCarouselItems(block, targetPage, fests, treks, comms, sports, runClubs, eventShows),
+        [block, targetPage, fests, treks, comms, sports, runClubs, eventShows],
     );
 
     return (
@@ -425,11 +433,11 @@ function getPlacementHint(targetPage, existingCount) {
     return base;
 }
 
-function ExistingSectionPreview({ section, targetPage, fests, treks, comms, sports, isDark }) {
+function ExistingSectionPreview({ section, targetPage, fests, treks, comms, sports, runClubs = [], eventShows = [], isDark }) {
     const props = getCardSizeProps(section.cardSize);
     const items = useMemo(
-        () => buildPreviewItems(targetPage, fests, treks, comms, sports),
-        [targetPage, fests, treks, comms, sports],
+        () => buildPreviewItems(targetPage, fests, treks, comms, sports, runClubs, eventShows),
+        [targetPage, fests, treks, comms, sports, runClubs, eventShows],
     );
 
     return (
@@ -626,6 +634,8 @@ function WebsitePreviewContent({
     treks,
     comms,
     sports,
+    runClubs = [],
+    eventShows = [],
     existingSections = [],
     deviceWidth = 390,
     scrollRef,
@@ -636,8 +646,8 @@ function WebsitePreviewContent({
     const displayTitle = title.trim() || 'Section title';
 
     const items = useMemo(
-        () => buildPreviewItems(targetPage, fests, treks, comms, sports),
-        [targetPage, fests, treks, comms, sports],
+        () => buildPreviewItems(targetPage, fests, treks, comms, sports, runClubs, eventShows),
+        [targetPage, fests, treks, comms, sports, runClubs, eventShows],
     );
 
     const heroEvents = useMemo(() => {
@@ -717,6 +727,8 @@ function WebsitePreviewContent({
                         treks={treks}
                         comms={comms}
                         sports={sports}
+                        runClubs={runClubs}
+                        eventShows={eventShows}
                         isDark={isDark}
                         dimmed={!block.live}
                     />
@@ -731,6 +743,8 @@ function WebsitePreviewContent({
                         treks={treks}
                         comms={comms}
                         sports={sports}
+                        runClubs={runClubs}
+                        eventShows={eventShows}
                         isDark={isDark}
                         dimmed={!block.live}
                     />
@@ -745,6 +759,8 @@ function WebsitePreviewContent({
                         treks={treks}
                         comms={comms}
                         sports={sports}
+                        runClubs={runClubs}
+                        eventShows={eventShows}
                         isDark={isDark}
                     />
                 ))}
@@ -814,9 +830,15 @@ export default function SectionLivePreview(props) {
     const route = PAGE_CONTEXT[props.targetPage]?.route || page?.route || '/';
 
     const usingRealContent = useMemo(() => {
-        const pool = props.targetPage === 'treks' ? props.treks : props.targetPage === 'sports' ? props.sports : props.fests;
+        const pool = props.targetPage === 'treks'
+            ? props.treks
+            : props.targetPage === 'sports'
+                ? props.sports
+                : props.targetPage === 'events'
+                    ? [...(props.eventShows || []), ...(props.runClubs || []), ...(props.sports || [])]
+                    : props.fests;
         return pool?.filter((item) => item?.title || item?.festName || item?.trekName || item?.name).length >= 2;
-    }, [props.targetPage, props.fests, props.treks, props.sports]);
+    }, [props.targetPage, props.fests, props.treks, props.sports, props.runClubs, props.eventShows]);
 
     const navActiveId = resolvePreviewNavActive(props.targetPage);
     const existingOnPage = useMemo(

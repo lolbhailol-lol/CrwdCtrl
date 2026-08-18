@@ -51,6 +51,7 @@ function sanitizeRunClubBody(body = {}) {
     if (body.groupLink !== undefined) payload.groupLink = String(body.groupLink || '').trim();
     if (body.showOnSportsPage !== undefined) payload.showOnSportsPage = Boolean(body.showOnSportsPage);
     if (body.showInRunClubs !== undefined) payload.showInRunClubs = Boolean(body.showInRunClubs);
+    if (body.showOnEventsPage !== undefined) payload.showOnEventsPage = Boolean(body.showOnEventsPage);
     if (body.listingHub !== undefined) {
         payload.listingHub = body.listingHub === 'events' ? 'events' : 'sports';
         if (payload.listingHub === 'events') {

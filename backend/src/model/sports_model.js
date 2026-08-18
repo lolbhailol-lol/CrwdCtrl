@@ -112,6 +112,8 @@ const sportsEventSchema = new mongoose.Schema(
         runClubPriority: { type: Number, default: 999, min: 1, max: 999 },
         priority: { type: Number, default: 999, min: 1, max: 999 },
         showOnSportsPage: { type: Boolean, default: true },
+        /** Events-page Community Events carousel (event-hub activities). Opt-in. */
+        showOnEventsPage: { type: Boolean, default: false },
         homeSection: { type: String, default: null },
         homePriority: { type: Number, default: 999, min: 1, max: 999 },
         /** Home page hero / moving banner */

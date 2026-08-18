@@ -65,6 +65,7 @@ function AdminFormSection({ title, hint, children }) {
 
 export default function EventCommunityFormModal({ club, onClose, onSaved }) {
     const [form, setForm] = useState(EMPTY);
+    const [customCategory, setCustomCategory] = useState('');
     const [uploading, setUploading] = useState(false);
     const [uploadingGallery, setUploadingGallery] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -80,13 +81,25 @@ export default function EventCommunityFormModal({ club, onClose, onSaved }) {
 
     const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
+    const hasCategory = (cat) =>
+        form.runCategories.some((c) => String(c).toLowerCase() === String(cat).toLowerCase());
+
     const toggleCategory = (cat) => {
         set(
             'runCategories',
-            form.runCategories.includes(cat)
-                ? form.runCategories.filter((c) => c !== cat)
+            hasCategory(cat)
+                ? form.runCategories.filter((c) => String(c).toLowerCase() !== String(cat).toLowerCase())
                 : [...form.runCategories, cat],
         );
+    };
+
+    const addCustomCategory = () => {
+        const value = customCategory.trim();
+        if (!value) return;
+        if (!hasCategory(value)) {
+            set('runCategories', [...form.runCategories, value]);
+        }
+        setCustomCategory('');
     };
 
     const handleSubmit = async (e) => {
@@ -255,17 +268,25 @@ export default function EventCommunityFormModal({ club, onClose, onSaved }) {
 
                     <AdminFormSection
                         title="Upcoming event categories"
-                        hint="Filter chips on the community page — events must use a matching category to appear under each chip"
+                        hint="Filter chips on the community page — include Sports plus any others this community runs. Events must use a matching category to appear under each chip."
                     >
                         <div className="flex flex-wrap gap-2">
-                            {EVENT_COMMUNITY_CATEGORY_OPTIONS.map((cat) => (
+                            {[
+                                ...EVENT_COMMUNITY_CATEGORY_OPTIONS,
+                                ...form.runCategories.filter(
+                                    (c) =>
+                                        !EVENT_COMMUNITY_CATEGORY_OPTIONS.some(
+                                            (opt) => opt.toLowerCase() === String(c).toLowerCase(),
+                                        ),
+                                ),
+                            ].map((cat) => (
                                 <button
                                     key={cat}
                                     type="button"
                                     onClick={() => toggleCategory(cat)}
                                     className={`px-3 py-1.5 rounded-xl text-sm font-medium transition-all duration-150
                                         ${
-                                            form.runCategories.includes(cat)
+                                            hasCategory(cat)
                                                 ? 'bg-[#0ECCEE] text-black'
                                                 : 'bg-[#1D1E20] text-gray-300 border border-gray-600 hover:border-[#0ECCEE]'
                                         }`}
@@ -273,6 +294,28 @@ export default function EventCommunityFormModal({ club, onClose, onSaved }) {
                                     {cat}
                                 </button>
                             ))}
+                        </div>
+                        <div className="flex items-center gap-2 mt-3">
+                            <input
+                                type="text"
+                                value={customCategory}
+                                onChange={(e) => setCustomCategory(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        addCustomCategory();
+                                    }
+                                }}
+                                className={inp}
+                                placeholder="Add a custom category (e.g. Board games)"
+                            />
+                            <button
+                                type="button"
+                                onClick={addCustomCategory}
+                                className="shrink-0 px-4 py-2.5 rounded-lg bg-[#1D1E20] border border-gray-600 hover:border-[#0ECCEE] text-sm text-gray-200 font-medium transition-colors"
+                            >
+                                Add
+                            </button>
                         </div>
                     </AdminFormSection>
 

@@ -19,7 +19,7 @@ import { EVENT_TYPE_LABELS, formatEventShowDate } from '../../constants/eventsPa
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { eventShowPath } from '../../utils/slugRoutes';
-import { InlinePageLoader } from '../../components/DetailPageLoader';
+import DetailPageLoader from '../../components/DetailPageLoader';
 import { trackBookNowClick } from '../../services/analyticsService';
 import { getEventShowTiers, isEventShowTiersPricing, formatInr } from '../../utils/eventShowTiers';
 
@@ -272,16 +272,12 @@ export default function EventDetailsPage() {
   };
 
   if (loading) {
-    return (
-      <div className="crwdctrl-page crwdctrl-page--content min-h-screen">
-        <InlinePageLoader label="Loading event…" variant="event" />
-      </div>
-    );
+    return <DetailPageLoader label="Loading event…" variant="event" />;
   }
 
   if (error || !event) {
     return (
-      <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center px-6">
+      <div className="crwdctrl-page crwdctrl-page--flat min-h-screen flex items-center justify-center px-6">
         <div className="text-center max-w-sm">
           <h2 className={`text-xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>{error || 'Event not found'}</h2>
           <button

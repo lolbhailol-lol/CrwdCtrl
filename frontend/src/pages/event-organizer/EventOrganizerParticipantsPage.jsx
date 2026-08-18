@@ -225,11 +225,8 @@ export default function EventOrganizerParticipantsPage() {
             <div className="flex flex-wrap gap-2">
                 {[
                     { key: 'status', value: '', label: 'All' },
+                    { key: 'status', value: 'pending', label: 'To review' },
                     { key: 'status', value: 'approved', label: 'Approved' },
-                    { key: 'status', value: 'pending', label: 'Pending' },
-                    { key: 'category', value: 'independence_drive', label: 'Drive' },
-                    { key: 'category', value: 'trackday', label: 'Trackday' },
-                    { key: 'category', value: 'spectator', label: 'Spectators' },
                     { key: 'paymentStatus', value: 'paid', label: 'Paid' },
                     { key: 'paymentStatus', value: 'pending', label: 'Pay pending' },
                     { key: 'checkInStatus', value: 'checked_in', label: 'Checked in' },
@@ -284,7 +281,7 @@ export default function EventOrganizerParticipantsPage() {
                                             <p className="font-semibold truncate">{p.userName || 'Guest'}</p>
                                             {driverCount > 1 ? (
                                                 <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold border border-white/10 bg-white/5 text-gray-300">
-                                                    {driverCount} drivers
+                                                    {driverCount} people
                                                 </span>
                                             ) : null}
                                             {p.reRegistrationCount > 0 ? (
@@ -298,14 +295,12 @@ export default function EventOrganizerParticipantsPage() {
                                         </p>
                                         <p className="text-xs text-gray-400 mt-1 pl-5">
                                             {[
-                                                p.tierName || p.categoryLabel,
-                                                p.categoryLabel && p.tierName ? p.categoryLabel : null,
+                                                p.tierName,
                                                 money(p.amountPaid),
                                                 p.status,
                                                 p.checkedIn ? 'checked in' : null,
                                             ]
                                                 .filter(Boolean)
-                                                .filter((v, i, arr) => arr.indexOf(v) === i)
                                                 .join(' · ')}
                                         </p>
                                         <div className="pl-5 mt-2 flex flex-wrap items-center gap-1.5">
@@ -357,18 +352,8 @@ export default function EventOrganizerParticipantsPage() {
                                     <div className="mt-3 ml-5 rounded-lg border border-gray-800 bg-[#111213] p-3 space-y-3">
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
                                             <div className="flex justify-between gap-2">
-                                                <span className="text-gray-500">Type</span>
-                                                <span className="text-gray-200 text-right">{p.categoryLabel || '—'}</span>
-                                            </div>
-                                            <div className="flex justify-between gap-2">
                                                 <span className="text-gray-500">Package</span>
                                                 <span className="text-gray-200 text-right">{p.tierName || '—'}</span>
-                                            </div>
-                                            <div className="flex justify-between gap-2">
-                                                <span className="text-gray-500">Drive</span>
-                                                <span className="text-gray-200 text-right">
-                                                    {p.joinsIndependenceDrive ? 'Yes' : (p.joinDrive || 'No')}
-                                                </span>
                                             </div>
                                             {p.vehicleDetails ? (
                                                 <div className="flex justify-between gap-2">

@@ -32,6 +32,7 @@ export function usePageSectionHandlers(navigate, { toggleFavorite } = {}) {
                         name: item.name || item._title,
                         basedIn: item.basedIn || item._subtitle,
                         coverImage: item.coverImage || item._image,
+                        listingHub: item.listingHub,
                     },
                 },
             });

@@ -1064,7 +1064,7 @@ exports.getDashboard = async (req, res) => {
         const [totalRegistrations, checkedIn, paidRegs, todayRegistrations, pendingPaymentReview, holdingRegs, pendingRegs, failedOrExpired] = await Promise.all([
             CategoryRegistration.countDocuments(baseFilter),
             CategoryRegistration.countDocuments({ ...baseFilter, checkedIn: true }),
-            CategoryRegistration.find(baseFilter).select('amountPaid payment_gateway paymentScreenshotUrl').lean(),
+            CategoryRegistration.find(baseFilter).select('amountPaid payment_gateway paymentScreenshotUrl paymentScreenshotCipher').lean(),
             CategoryRegistration.countDocuments({ ...baseFilter, createdAt: { $gte: today, $lt: tomorrow } }),
             CategoryRegistration.countDocuments(pendingFilter),
             CategoryRegistration.find(holdingFilter).select('bookingPeople responses').lean(),
@@ -1080,7 +1080,9 @@ exports.getDashboard = async (req, res) => {
         const cashfreePaid = paidRegs.filter((r) => String(r.payment_gateway || '').toLowerCase() === 'cashfree');
         const qrPaid = paidRegs.filter((r) => {
             const gw = String(r.payment_gateway || '').toLowerCase();
-            return gw === 'organizer_qr' || Boolean(r.paymentScreenshotUrl);
+            return gw === 'organizer_qr'
+                || Boolean(r.paymentScreenshotUrl)
+                || Boolean(r.paymentScreenshotCipher);
         });
         const cashfreeCollected = cashfreePaid.reduce((sum, r) => sum + (Number(r.amountPaid) || 0), 0);
         const qrCollected = qrPaid.reduce((sum, r) => sum + (Number(r.amountPaid) || 0), 0);

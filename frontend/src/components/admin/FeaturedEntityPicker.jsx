@@ -71,23 +71,62 @@ export function buildFeaturedEntityOptions({
             })),
         });
     }
+    const eventClubIds = new Set(
+        (runClubs || [])
+            .filter((c) => c?.listingHub === 'events')
+            .map((c) => String(c._id || c.id)),
+    );
+    const isCommunityEvent = (s) => {
+        if (s?.listingHub === 'events' || s?.runClubId?.listingHub === 'events') return true;
+        const id = s?.runClubId && typeof s.runClubId === 'object'
+            ? String(s.runClubId._id || s.runClubId.id || '')
+            : String(s?.runClubId || '');
+        return Boolean(id && eventClubIds.has(id));
+    };
+
     if (allowedTypes.includes('sport') && sports.length) {
-        groups.push({
-            label: 'Sports runs',
-            options: sports.map((s) => ({
-                value: `sport:${s._id}`,
-                label: s.title || 'Untitled run',
-            })),
-        });
+        const sportsRuns = sports.filter((s) => !isCommunityEvent(s));
+        const communityEvents = sports.filter(isCommunityEvent);
+        if (sportsRuns.length) {
+            groups.push({
+                label: 'Sports runs',
+                options: sportsRuns.map((s) => ({
+                    value: `sport:${s._id}`,
+                    label: s.title || 'Untitled run',
+                })),
+            });
+        }
+        if (communityEvents.length) {
+            groups.push({
+                label: 'Community events',
+                options: communityEvents.map((s) => ({
+                    value: `sport:${s._id}`,
+                    label: s.title || 'Untitled event',
+                })),
+            });
+        }
     }
     if (allowedTypes.includes('runclub') && runClubs.length) {
-        groups.push({
-            label: 'Run clubs',
-            options: runClubs.map((c) => ({
-                value: `runclub:${c._id}`,
-                label: c.name || 'Untitled club',
-            })),
-        });
+        const sportsClubs = runClubs.filter((c) => c.listingHub !== 'events');
+        const eventCommunities = runClubs.filter((c) => c.listingHub === 'events');
+        if (sportsClubs.length) {
+            groups.push({
+                label: 'Run clubs',
+                options: sportsClubs.map((c) => ({
+                    value: `runclub:${c._id}`,
+                    label: c.name || 'Untitled club',
+                })),
+            });
+        }
+        if (eventCommunities.length) {
+            groups.push({
+                label: 'Event communities',
+                options: eventCommunities.map((c) => ({
+                    value: `runclub:${c._id}`,
+                    label: c.name || 'Untitled community',
+                })),
+            });
+        }
     }
 
     return groups;
@@ -136,11 +175,14 @@ export function resolveFeaturedEntityLabel(item, catalogs) {
     }
     if (item.entityType === 'sport') {
         const s = sports.find((x) => x._id === id);
-        return s?.title || 'Sport';
+        if (!s) return 'Sport';
+        const isCommunity = s.listingHub === 'events' || s.runClubId?.listingHub === 'events';
+        return s.title || (isCommunity ? 'Community event' : 'Sport');
     }
     if (item.entityType === 'runclub') {
         const c = runClubs.find((x) => x._id === id);
-        return c?.name || 'Run club';
+        if (!c) return 'Run club';
+        return c.name || (c.listingHub === 'events' ? 'Event community' : 'Run club');
     }
     return ENTITY_TYPE_LABELS[item.entityType] || 'Item';
 }

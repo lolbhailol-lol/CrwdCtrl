@@ -68,6 +68,7 @@ function getAssignTab(targetPage) {
     if (targetPage === 'home') return 'fests';
     if (targetPage === 'treks') return 'treks';
     if (targetPage === 'sports') return 'runs';
+    if (targetPage === 'events') return 'eventcomms';
     return 'fests';
 }
 

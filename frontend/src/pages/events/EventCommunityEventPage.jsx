@@ -89,6 +89,8 @@ const MAP_SIDE_ICONS = {
     clock: ClockIcon,
     star: GridIcon,
     food: CafeIcon,
+    calendar: ({ size }) => <TrekDetailIcon icon="calendar" size={size} />,
+    'map-pin': ({ size }) => <TrekDetailIcon icon="map-pin" size={size} />,
 };
 
 export default function EventCommunityEventPage() {

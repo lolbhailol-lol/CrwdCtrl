@@ -221,6 +221,7 @@ function sanitizeSportsPayload(body = {}) {
     if (body.runClubPriority !== undefined) payload.runClubPriority = clampPriority(body.runClubPriority);
     if (body.priority !== undefined) payload.priority = clampPriority(body.priority);
     if (body.showOnSportsPage !== undefined) payload.showOnSportsPage = Boolean(body.showOnSportsPage);
+    if (body.showOnEventsPage !== undefined) payload.showOnEventsPage = Boolean(body.showOnEventsPage);
     if (body.homeSection !== undefined) {
         payload.homeSection = body.homeSection && HOME_SECTIONS.has(body.homeSection)
             ? body.homeSection

@@ -514,7 +514,7 @@ export default function PaymentReturn() {
   }, [navigate]);
 
   return (
-    <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex flex-col items-center justify-center px-4">
+    <div className="crwdctrl-page crwdctrl-page--flat min-h-screen flex flex-col items-center justify-center px-4">
       {status === 'success' ? (
         <CheckCircle className="w-10 h-10 text-emerald-400 mb-4" />
       ) : (

@@ -8,7 +8,7 @@ import CrwdCtrlLogin from '../auth/login';
 import CrwdCtrlRegister from '../auth/register';
 import { openCashfreeCheckout, classifyCheckoutError } from '../../utils/useCashfree';
 import PaymentErrorModal from '../../components/PaymentErrorModal';
-import { InlinePageLoader } from '../../components/DetailPageLoader';
+import DetailPageLoader from '../../components/DetailPageLoader';
 import { RegistrationStatusVisual } from '../../components/RegistrationStatusVisual';
 import { getPendingPayment, clearPendingPayment, shouldResumePendingPayment } from '../../utils/deepLinks';
 import { verifyPaymentWithRetry, pollPaymentUntilVerified, goToBookings, classifyVerifyError, PAYMENT_BACKGROUND_MAX_WAIT_MS } from '../../utils/paymentNavigation';
@@ -1309,12 +1309,12 @@ export default function EventRegistrationPage() {
     }, [isPaymentStepPreview, suggestedCoupon]);
 
     if (loading && !done && !paying) {
-        return <InlinePageLoader variant="event" className="min-h-dvh" />;
+        return <DetailPageLoader label="Loading event…" variant="event" />;
     }
 
     if (paying && !done) {
         return (
-            <div className="crwdctrl-page crwdctrl-page--content min-h-dvh flex flex-col items-center justify-center px-4">
+            <div className="crwdctrl-page crwdctrl-page--flat min-h-dvh flex flex-col items-center justify-center px-4">
                 {paymentResumeError ? (
                     <div className="text-center max-w-md">
                         <p className={`text-sm mb-6 ${isDark ? 'text-red-300' : 'text-red-600'}`}>{paymentResumeError}</p>
@@ -1344,7 +1344,7 @@ export default function EventRegistrationPage() {
 
     if (!event && !done) {
         return (
-            <div className="crwdctrl-page crwdctrl-page--content min-h-dvh flex flex-col items-center justify-center gap-3 px-6">
+            <div className="crwdctrl-page crwdctrl-page--flat min-h-dvh flex flex-col items-center justify-center gap-3 px-6">
                 <p className={`text-sm text-center ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Event not found.</p>
                 <button type="button" onClick={() => navigate('/events')} className="text-[#0ECCEE] text-sm font-semibold">Browse events</button>
             </div>
@@ -1358,7 +1358,7 @@ export default function EventRegistrationPage() {
     const registrationModeOk = ['internal_form', 'organizer_qr'].includes(regMode) || hasInAppForm;
     if (regStatus === 'closed' || !registrationModeOk) {
         return (
-            <div className="crwdctrl-page crwdctrl-page--content min-h-dvh flex flex-col items-center justify-center gap-3 px-6">
+            <div className="crwdctrl-page crwdctrl-page--flat min-h-dvh flex flex-col items-center justify-center gap-3 px-6">
                 <p className={`text-sm text-center ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Registration is not open for this event.</p>
                 <button type="button" onClick={() => navigate(`/events/${eventId}`)} className="text-[#0ECCEE] text-sm font-semibold">Back to event</button>
             </div>
@@ -1367,7 +1367,7 @@ export default function EventRegistrationPage() {
 
     if (done) {
         return (
-            <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center px-4">
+            <div className="crwdctrl-page crwdctrl-page--flat min-h-screen flex items-center justify-center px-4">
                 <div className="text-center max-w-md mx-auto p-8 w-full">
                     <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-6" />
                     <h1 className={`text-3xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>

@@ -1099,7 +1099,7 @@ export default function RunEventBookingPage() {
         const isNotFound = loadError === 'not_found';
         const isRetryable = !isNotFound;
         return (
-            <div className="crwdctrl-page crwdctrl-page--content min-h-dvh flex flex-col items-center justify-center gap-3 px-6">
+            <div className="crwdctrl-page crwdctrl-page--flat min-h-dvh flex flex-col items-center justify-center gap-3 px-6">
                 <p className={`text-sm text-center font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                     {isRetryable ? "Couldn't load this run" : 'This run is no longer available'}
                 </p>
@@ -1129,7 +1129,7 @@ export default function RunEventBookingPage() {
         || (event?.seatsRemaining === 0 && Number(event?.maxParticipants) > 0);
     if ((registrationClosed || registrationFull) && !showSuccess && !showProcessing) {
         return (
-            <div className="crwdctrl-page crwdctrl-page--content min-h-dvh flex flex-col items-center justify-center gap-3 px-6">
+            <div className="crwdctrl-page crwdctrl-page--flat min-h-dvh flex flex-col items-center justify-center gap-3 px-6">
                 <span className="text-4xl">🏃</span>
                 <p className={`text-sm text-center font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
                     {registrationClosed ? 'Registration is closed for this run' : 'This run is full'}
@@ -1152,7 +1152,7 @@ export default function RunEventBookingPage() {
     if (showSuccess) {
         const isPendingQr = chargePerPerson > 0 && isOrganizerQr && payableAmount > 0 && !event?.registration?.qrAutoConfirm;
         return (
-            <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center px-4">
+            <div className="crwdctrl-page crwdctrl-page--flat min-h-screen flex items-center justify-center px-4">
                 <div className="text-center max-w-md mx-auto p-8 w-full">
                     {isPendingQr ? (
                         <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-amber-500/15">

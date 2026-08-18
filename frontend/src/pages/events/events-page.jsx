@@ -33,7 +33,7 @@ import Seo from '../../components/Seo';
 import FaqSection from '../../components/FaqSection';
 import { breadcrumbSchema, faqSchema, itemListSchema } from '../../utils/seo';
 import { EVENTS_FAQ } from '../../constants/faqs';
-import { eventShowPath, runClubPath } from '../../utils/slugRoutes';
+import { eventShowPath, eventCommunityEventPath, runClubPath } from '../../utils/slugRoutes';
 import { usePublicConfig } from '../../hooks/usePublicConfig';
 import AnnouncementBanner from '../../components/AnnouncementBanner';
 
@@ -42,7 +42,7 @@ const EVENTS_DESCRIPTION =
 
 import { fetchCatalogJSON } from '../../services/api/catalogCache';
 
-const EVENTS_CACHE_KEY = 'crwdctrl_events_page_v2';
+const EVENTS_CACHE_KEY = 'crwdctrl_events_page_v3';
 const readEventsCache = () => {
     try {
         const raw = sessionStorage.getItem(EVENTS_CACHE_KEY);
@@ -206,6 +206,7 @@ export default function EventsPage() {
     const [carouselSports, setCarouselSports] = useState(() => (Array.isArray(cached?.sports) ? cached.sports : []));
     const [carouselRunClubs, setCarouselRunClubs] = useState(() => (Array.isArray(cached?.clubs) ? cached.clubs : []));
     const [eventCommunities, setEventCommunities] = useState(() => (Array.isArray(cached?.eventCommunities) ? cached.eventCommunities : []));
+    const [communityEvents, setCommunityEvents] = useState(() => (Array.isArray(cached?.communityEvents) ? cached.communityEvents : []));
     const [loading, setLoading] = useState(!cached);
     const [upcomingPg, setUpcomingPg] = useState(0);
     const upcomingScrollRef = useRef(null);
@@ -233,13 +234,14 @@ export default function EventsPage() {
             }
 
             // Phase 2: carousel catalogs (shared in-memory cache, deduped across hub pages)
-            const [festsRes, treksRes, commRes, sportsRes, clubsRes, eventClubsRes] = await Promise.all([
+            const [festsRes, treksRes, commRes, sportsRes, clubsRes, eventClubsRes, communityEventsRes] = await Promise.all([
                 fetchCatalogJSON('/fests/all', { retries: 1 }).catch(() => null),
                 fetchCatalogJSON('/treks', { retries: 1 }).catch(() => null),
                 fetchCatalogJSON('/trek-communities', { retries: 1 }).catch(() => null),
                 fetchCatalogJSON('/sports', { retries: 1 }).catch(() => null),
                 fetchCatalogJSON('/run-clubs', { retries: 1 }).catch(() => null),
                 fetchCatalogJSON('/run-clubs?hub=events', { retries: 1 }).catch(() => null),
+                fetchCatalogJSON('/sports?hub=events', { retries: 1 }).catch(() => null),
             ]);
 
             let nextFests = [];
@@ -248,6 +250,7 @@ export default function EventsPage() {
             let nextSports = [];
             let nextClubs = [];
             let nextEventCommunities = [];
+            let nextCommunityEvents = [];
 
             if (festsRes?.data) {
                 nextFests = Array.isArray(festsRes.data?.fests) ? festsRes.data.fests : Array.isArray(festsRes.data) ? festsRes.data : [];
@@ -273,6 +276,11 @@ export default function EventsPage() {
                 nextEventCommunities = Array.isArray(eventClubsRes.data?.clubs) ? eventClubsRes.data.clubs : [];
                 setEventCommunities(nextEventCommunities);
             }
+            if (communityEventsRes?.data) {
+                nextCommunityEvents = (Array.isArray(communityEventsRes.data?.events) ? communityEventsRes.data.events : [])
+                    .map((ev) => ({ ...ev, listingHub: 'events' }));
+                setCommunityEvents(nextCommunityEvents);
+            }
 
             writeEventsCache({
                 shows: nextShows,
@@ -282,6 +290,7 @@ export default function EventsPage() {
                 sports: nextSports,
                 clubs: nextClubs,
                 eventCommunities: nextEventCommunities,
+                communityEvents: nextCommunityEvents,
             });
         } catch {
             // Phase 1 already handled its own errors and cleared the loading gate;
@@ -315,18 +324,49 @@ export default function EventsPage() {
     const upcomingShows = useMemo(() => sortByPriority(shows.filter((s) => s.pageSection === 'upcoming')), [shows, sortByPriority]);
     const communityShows = useMemo(() => sortByPriority(shows.filter((s) => s.pageSection === 'community')), [shows, sortByPriority]);
     const eventCommunityCards = useMemo(
-        () => eventCommunities.map((c) => ({
-            id: c._id,
-            listingHub: 'events',
-            title: c.name,
-            basedIn: c.tagline || c.basedIn || 'Community',
-            image: c.coverImage || c.coverImages?.portrait || null,
-            coverImages: c.coverImages,
-            slug: c.slug,
-            name: c.name,
-        })),
+        () => eventCommunities
+            .filter((c) => c.showOnEventsPage !== false)
+            .map((c) => ({
+                id: c._id,
+                listingHub: 'events',
+                title: c.name,
+                basedIn: c.tagline || c.basedIn || 'Community',
+                image: c.coverImage || c.coverImages?.portrait || null,
+                coverImages: c.coverImages,
+                slug: c.slug,
+                name: c.name,
+                pagePriority: c.runClubPriority ?? c.priority ?? 999,
+                _kind: 'community',
+            }))
+            .sort((a, b) => (a.pagePriority || 999) - (b.pagePriority || 999)),
         [eventCommunities],
     );
+    const communityEventCards = useMemo(
+        () => communityEvents
+            .filter((ev) => ev.showOnEventsPage === true)
+            .map((ev) => ({
+                id: ev._id,
+                listingHub: 'events',
+                title: ev.title,
+                basedIn: ev.city || ev.displayType || ev.venue || 'Event',
+                image: ev.coverImage || ev.images?.[0] || ev.coverImages?.portrait || null,
+                coverImages: ev.coverImages,
+                slug: ev.slug,
+                pagePriority: ev.priority ?? 999,
+                _kind: 'event',
+            }))
+            .sort((a, b) => (a.pagePriority || 999) - (b.pagePriority || 999)),
+        [communityEvents],
+    );
+    const communityRowCards = useMemo(() => {
+        const shows = communityShows.map((show) => ({
+            ...show,
+            pagePriority: show.pagePriority ?? 999,
+            _kind: 'show',
+        }));
+        return [...eventCommunityCards, ...communityEventCards, ...shows]
+            .sort((a, b) => (a.pagePriority || 999) - (b.pagePriority || 999));
+    }, [eventCommunityCards, communityEventCards, communityShows]);
 
     const heroBannerEvents = useMemo(
         () => heroShows.map((show) => ({
@@ -548,7 +588,7 @@ export default function EventsPage() {
                             <div className="carousel-scroll-gutter overflow-x-auto scrollbar-hide">
                                 <CompactPortraitCardsRowSkeleton count={3} className="" />
                             </div>
-                        ) : eventCommunityCards.length === 0 && communityShows.length === 0 ? (
+                        ) : communityRowCards.length === 0 ? (
                             <EmptyState label={publicConfig.emptyStates.events.community} />
                         ) : (
                             <div
@@ -556,25 +596,18 @@ export default function EventsPage() {
                                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
                             >
                                 <div className="flex gap-4 pb-2">
-                                    {eventCommunityCards.map((club) => (
-                                        <div key={club.id} className="shrink-0">
+                                    {communityRowCards.map((card) => (
+                                        <div key={`${card._kind}-${card.id}`} className="shrink-0">
                                             <CommunityEventCard
-                                                show={club}
+                                                show={card}
                                                 isDark={isDark}
-                                                isFavorite={isFavorite(club.id)}
-                                                onToggleFavorite={() => handleFav(club)}
-                                                onClick={() => navigate(runClubPath(club))}
-                                            />
-                                        </div>
-                                    ))}
-                                    {communityShows.map((show) => (
-                                        <div key={show.id} className="shrink-0">
-                                            <CommunityEventCard
-                                                show={show}
-                                                isDark={isDark}
-                                                isFavorite={isFavorite(show.id)}
-                                                onToggleFavorite={() => handleFav(show)}
-                                                onClick={() => handleShowClick(show)}
+                                                isFavorite={isFavorite(card.id)}
+                                                onToggleFavorite={() => handleFav(card)}
+                                                onClick={() => {
+                                                    if (card._kind === 'community') navigate(runClubPath(card));
+                                                    else if (card._kind === 'event') navigate(eventCommunityEventPath(card));
+                                                    else handleShowClick(card);
+                                                }}
                                             />
                                         </div>
                                     ))}
@@ -588,8 +621,8 @@ export default function EventsPage() {
                         fests={carouselFests}
                         treks={carouselTreks}
                         communities={carouselCommunities}
-                        sports={carouselSports}
-                        runClubs={carouselRunClubs}
+                        sports={[...carouselSports, ...communityEvents]}
+                        runClubs={[...carouselRunClubs, ...eventCommunities]}
                         eventShows={rawShows}
                         isDark={isDark}
                         loading={loading}

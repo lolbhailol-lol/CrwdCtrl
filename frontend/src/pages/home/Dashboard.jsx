@@ -664,10 +664,37 @@ const Dashboard = () => {
                     if (!cancelled) setHomeTreks(Array.isArray(res?.data?.treks) ? res.data.treks : []);
                 }).catch(() => {}),
                 fetchCatalogJSON('/sports').then(res => {
-                    if (!cancelled) setHomeSports(Array.isArray(res?.data?.events) ? res.data.events : []);
+                    const sports = Array.isArray(res?.data?.events) ? res.data.events : [];
+                    if (!cancelled) setHomeSports((prev) => {
+                        const map = new Map(prev.map((s) => [String(s._id || s.id), s]));
+                        sports.forEach((s) => map.set(String(s._id || s.id), s));
+                        return [...map.values()];
+                    });
+                }).catch(() => {}),
+                fetchCatalogJSON('/sports?hub=events').then(res => {
+                    const sports = (Array.isArray(res?.data?.events) ? res.data.events : [])
+                        .map((s) => ({ ...s, listingHub: 'events' }));
+                    if (!cancelled) setHomeSports((prev) => {
+                        const map = new Map(prev.map((s) => [String(s._id || s.id), s]));
+                        sports.forEach((s) => map.set(String(s._id || s.id), s));
+                        return [...map.values()];
+                    });
                 }).catch(() => {}),
                 fetchCatalogJSON('/run-clubs').then(res => {
-                    if (!cancelled) setHomeRunClubs(Array.isArray(res?.data?.clubs) ? res.data.clubs : []);
+                    const clubs = Array.isArray(res?.data?.clubs) ? res.data.clubs : [];
+                    if (!cancelled) setHomeRunClubs((prev) => {
+                        const map = new Map(prev.map((c) => [String(c._id || c.id), c]));
+                        clubs.forEach((c) => map.set(String(c._id || c.id), c));
+                        return [...map.values()];
+                    });
+                }).catch(() => {}),
+                fetchCatalogJSON('/run-clubs?hub=events').then(res => {
+                    const clubs = Array.isArray(res?.data?.clubs) ? res.data.clubs : [];
+                    if (!cancelled) setHomeRunClubs((prev) => {
+                        const map = new Map(prev.map((c) => [String(c._id || c.id), c]));
+                        clubs.forEach((c) => map.set(String(c._id || c.id), c));
+                        return [...map.values()];
+                    });
                 }).catch(() => {}),
                 fetchCatalogJSON('/events').then(res => {
                     if (!cancelled) setHomeEventShows(Array.isArray(res?.data?.shows) ? res.data.shows : []);
@@ -841,6 +868,9 @@ const Dashboard = () => {
                 dateTime: 'Join now',
                 homePriority: club.priority ?? 999,
                 _type: 'runclub',
+                listingHub: club.listingHub,
+                slug: club.slug,
+                name: club.name,
             }));
 
         const trekSlides = (homeTreks || [])
@@ -884,6 +914,8 @@ const Dashboard = () => {
                 dateTime: s.date || 'Run',
                 homePriority: s.homePriority ?? s.priority ?? 999,
                 _type: 'sport',
+                listingHub: s.listingHub,
+                slug: s.slug,
             }));
 
         return [
@@ -1160,6 +1192,7 @@ const Dashboard = () => {
                         name: item.name,
                         basedIn: item.basedIn,
                         coverImage: item.coverImage,
+                        listingHub: item.listingHub,
                     },
                 },
             });

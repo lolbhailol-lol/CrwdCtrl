@@ -14,7 +14,7 @@ export function CompletingPaymentStep({
   onRetryResume,
 }) {
   return (
-    <div className={`crwdctrl-page crwdctrl-page--content min-h-screen flex flex-col items-center justify-center px-4 ${isDark ? 'bg-[#0a0a0b]' : 'bg-gray-50'}`}>
+    <div className={`crwdctrl-page crwdctrl-page--flat min-h-screen flex flex-col items-center justify-center px-4 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
       {paymentResumeError ? (
         <div className="text-center max-w-md mx-auto p-6">
           <p className={`text-sm mb-2 ${isDark ? 'text-red-300' : 'text-red-600'}`}>
@@ -101,7 +101,7 @@ export default function PaymentStep({
   navigate,
 }) {
   return (
-    <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center px-4">
+    <div className="crwdctrl-page crwdctrl-page--flat min-h-screen flex items-center justify-center px-4">
       <RegistrationProcessingOverlay
         open={paymentLoading}
         isDark={isDark}

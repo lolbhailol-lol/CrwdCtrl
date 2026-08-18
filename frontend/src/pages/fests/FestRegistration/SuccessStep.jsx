@@ -45,7 +45,7 @@ export default function SuccessStep({
       subtitle={`You're booked for ${name || 'this event'}`}
       minMs={1000}
     >
-      <div className={`crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center px-4 ${isDark ? 'bg-[#0a0a0b]' : 'bg-gray-50'}`}>
+      <div className={`crwdctrl-page crwdctrl-page--flat min-h-screen flex items-center justify-center px-4 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
         <div className={`text-center max-w-md mx-auto p-8 rounded-3xl border ${isDark ? 'bg-[#121314] border-white/10' : 'bg-white border-gray-200 shadow-xl'}`}>
           <RegistrationStatusVisual
             mode="success"

@@ -150,9 +150,9 @@ export function RegistrationProcessingOverlay({
 
   return (
     <div
-      className={`fixed inset-0 z-[90] flex items-center justify-center px-4 ${
-        isDark ? 'bg-[#0a0a0b]/92' : 'bg-white/90'
-      } backdrop-blur-md`}
+      className={`fixed inset-0 z-90 flex items-center justify-center px-4 ${
+        isDark ? 'bg-[#161718]' : 'bg-white'
+      }`}
       role="status"
       aria-live="polite"
       aria-label={title || 'Processing registration'}
@@ -196,7 +196,7 @@ export function SuccessRevealGate({
 
   if (!ready) {
     return (
-      <div className={`crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center px-4 ${isDark ? 'bg-[#0a0a0b]' : 'bg-gray-50'}`}>
+      <div className={`crwdctrl-page crwdctrl-page--flat min-h-screen flex items-center justify-center px-4 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
         <div
           className={`w-full max-w-sm rounded-3xl border p-8 ${
             isDark ? 'bg-[#121314] border-white/10' : 'bg-white border-gray-200 shadow-xl'

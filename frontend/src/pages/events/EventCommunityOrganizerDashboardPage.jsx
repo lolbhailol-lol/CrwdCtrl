@@ -211,8 +211,11 @@ export default function EventCommunityOrganizerDashboardPage() {
     const total = stats.totalRegistrations ?? 0;
     const checkedIn = stats.checkedIn ?? 0;
     const pending = stats.pendingCheckIn ?? Math.max(0, total - checkedIn);
-    const pendingReview = isOrganizerQr && isPaid ? Number(stats.pendingPaymentReview ?? 0) : 0;
+    const pendingReviewRaw = Number(stats.pendingPaymentReview ?? 0);
+    const pendingReview = isOrganizerQr ? pendingReviewRaw : 0;
     const revenue = Number(stats.organizerRevenue ?? stats.revenue ?? 0);
+    const seatsFilled = Number(stats.seatsFilled ?? total);
+    const isPaidEvent = isPaid || revenue > 0 || pendingReview > 0;
     const checkInPct = total > 0 ? Math.round((checkedIn / total) * 100) : 0;
     const ttlHours = Number(stats?.manualExpireTtlHours ?? 72) || 72;
     const dateLabel = formatEventDate(eventDetail?.eventDate || event?.eventDate);
@@ -433,14 +436,20 @@ export default function EventCommunityOrganizerDashboardPage() {
                     tone="accent"
                     icon={Users}
                     to={organizerEventPath(eventId, true, 'participants')}
-                    hint="Guest list"
+                    hint={seatsFilled > total ? `${seatsFilled} guests` : 'Guest list'}
                 />
                 <StatTile
                     label="Collected"
-                    value={isPaid ? `₹${revenue.toLocaleString('en-IN')}` : 'Free'}
-                    tone={isPaid ? 'money' : 'default'}
+                    value={isPaidEvent ? `₹${revenue.toLocaleString('en-IN')}` : 'Free'}
+                    tone={isPaidEvent ? 'money' : 'default'}
                     icon={IndianRupee}
-                    hint={isPaid && !isOrganizerQr ? 'Via Cashfree' : isPaid ? 'UPI received' : undefined}
+                    hint={isPaidEvent && seatsFilled > total
+                        ? 'Group bookings included'
+                        : isPaid && !isOrganizerQr
+                            ? 'Via Cashfree'
+                            : isPaidEvent
+                                ? 'UPI received'
+                                : undefined}
                 />
                 <StatTile
                     label="Checked in"

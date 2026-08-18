@@ -75,6 +75,16 @@ export default function TrekRegistrationResponses({
     if (bookingDetails?.date) metaRows.push({ label: 'Date', value: bookingDetails.date });
     if (bookingDetails?.time) metaRows.push({ label: 'Meeting point', value: bookingDetails.time });
     if (bookingDetails?.people) metaRows.push({ label: 'People', value: String(bookingDetails.people) });
+    const paidAmount = Number(bookingDetails?.amountPaid || bookingDetails?.grossCollected || 0);
+    if (paidAmount > 0) {
+        const peopleCount = Math.max(1, Number(bookingDetails?.people) || 1);
+        metaRows.push({
+            label: 'Amount paid',
+            value: peopleCount > 1
+                ? `₹${paidAmount.toLocaleString('en-IN')} · ${peopleCount} people`
+                : `₹${paidAmount.toLocaleString('en-IN')}`,
+        });
+    }
     if (phone && phone !== '—') metaRows.push({ label: 'Phone', value: phone });
     if (userEmail && !hasEmailInFields) metaRows.push({ label: 'Email', value: userEmail });
     if (gender && gender !== '—' && !hasGenderInFields) metaRows.push({ label: 'Gender', value: gender });

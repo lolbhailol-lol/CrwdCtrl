@@ -293,6 +293,8 @@ export default function PageSectionsPage() {
                         treks={treks}
                         comms={comms}
                         sports={sports}
+                        runClubs={runClubs}
+                        eventShows={eventShows}
                     />
                 </div>
             </div>

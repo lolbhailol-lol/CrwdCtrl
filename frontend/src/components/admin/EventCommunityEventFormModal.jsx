@@ -6,7 +6,6 @@ import TrekDetailBoxesEditor from './TrekDetailBoxesEditor';
 import MultiContactListField from './MultiContactListField';
 import { normalizeCoverImages, primaryCoverUrl, EMPTY_COVER_IMAGES, excludeCoverUrlsFromGallery } from '../../utils/coverImages';
 import { normalizeImageUrl } from '../../utils/uploadUrls';
-import { EVENT_COMMUNITY_CATEGORY_OPTIONS } from '../../constants/eventCommunityCategories';
 import { adminFetch, adminFetchJSON } from '../../services/api/admin.api.js';
 import { normalizeRunDetailBoxes, sanitizeDetailBoxesPayload, EVENT_DETAIL_BOX_PRESETS } from '../../utils/trekDetailBoxes';
 import { createEmptyTier, sanitizeSportsTiers, sanitizeOptionalAddOn } from '../../utils/sportsTiers';
@@ -150,16 +149,15 @@ export default function EventCommunityEventFormModal({ event, runClubId, clubNam
             .then((data) => {
                 const cats = Array.isArray(data?.club?.runCategories) ? data.club.runCategories : [];
                 const cleaned = cats.filter((cat) => cat && !/\bruns?\b/i.test(String(cat)));
-                const merged = [...EVENT_COMMUNITY_CATEGORY_OPTIONS];
-                cleaned.forEach((cat) => {
-                    if (!merged.some((existing) => existing.toLowerCase() === String(cat).toLowerCase())) {
-                        merged.push(cat);
-                    }
-                });
+                const merged = cleaned.length ? [...cleaned] : ['Sports'];
+                const current = form.runCategory?.trim();
+                if (current && !merged.some((existing) => existing.toLowerCase() === current.toLowerCase())) {
+                    merged.push(current);
+                }
                 setParentRunCategories(merged);
             })
-            .catch(() => setParentRunCategories(EVENT_COMMUNITY_CATEGORY_OPTIONS));
-    }, [form.runClubId, runClubId]);
+            .catch(() => setParentRunCategories(['Sports']));
+    }, [form.runClubId, form.runCategory, runClubId]);
 
     const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 

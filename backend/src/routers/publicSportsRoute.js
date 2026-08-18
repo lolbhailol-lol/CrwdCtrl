@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const SportsEvent = require('../model/sports_model');
+const RunClub = require('../model/run_club_model');
 const { findByIdOrSlug, ensureUniqueSlug, toSlug, mergePreviousSlugs } = require('../utils/slug');
 const {
     expireStalePendingRegistrations,
@@ -36,12 +37,17 @@ router.get('/', async (req, res) => {
     try {
         const timeframe = String(req.query.timeframe || '').toLowerCase();
         const hasClub = Boolean(req.query.runClubId);
+        const hub = String(req.query.hub || '').toLowerCase();
         const startOfToday = new Date();
         startOfToday.setHours(0, 0, 0, 0);
 
         const and = [];
 
-        if (hasClub && timeframe === 'past') {
+        if (hub === 'events') {
+            const eventClubIds = await RunClub.find({ listingHub: 'events' }).distinct('_id');
+            and.push({ status: 'published' });
+            and.push({ runClubId: { $in: eventClubIds } });
+        } else if (hasClub && timeframe === 'past') {
             and.push({
                 $or: [
                     { status: 'completed' },
@@ -85,7 +91,11 @@ router.get('/', async (req, res) => {
 
         res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
         res.status(200).json({
-            events: events.map((e) => sanitizePublicSportsEvent(e)),
+            events: events.map((e) => {
+                const clean = sanitizePublicSportsEvent(e);
+                if (hub === 'events') clean.listingHub = 'events';
+                return clean;
+            }),
         });
     } catch (error) {
         console.error('publicSports getAll error:', error);

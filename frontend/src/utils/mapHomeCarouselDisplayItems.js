@@ -34,6 +34,8 @@ export function mapHomeCarouselDisplayItems(raw, transformedFests = []) {
                 image: getCoverImageUrl(item, 'cardWide') || item.images?.[0] || item._image,
                 registrationLink: item.registrationLink,
                 runClubId: item.runClubId,
+                listingHub: item.listingHub,
+                slug: item.slug,
                 _type: 'sport',
                 _priority: item._priority,
             };
@@ -49,6 +51,8 @@ export function mapHomeCarouselDisplayItems(raw, transformedFests = []) {
                 coverImage: item.coverImage || item._image,
                 image: getCoverImageUrl(item, 'cardPortrait') || item.coverImage || item._image,
                 coverImages: item.coverImages,
+                listingHub: item.listingHub,
+                slug: item.slug,
                 _type: 'runclub',
                 _priority: item._priority,
             };

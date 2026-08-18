@@ -82,10 +82,58 @@ function gameTimeOnly(value, sport) {
 }
 
 /** Sport + Game time + Café time beside the map on event community pages. */
+export function isBoardMeetupEvent(event) {
+    const blob = [
+        event?.title,
+        event?.displayType,
+        event?.runCategory,
+        event?.organizer,
+        event?.runClub?.name,
+        event?.runClub?.title,
+        event?.runClub?.tagline,
+    ].filter(Boolean).join(' ').toLowerCase();
+    return /board\s*game|boardgame|board\s*meetup|board\s*night|board\s*club/.test(blob);
+}
+
+function formatCommunityEventDate(value) {
+    if (!value) return '';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return String(value).trim();
+    return d.toLocaleDateString('en-IN', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+    });
+}
+
+function displayVenueName(event) {
+    const venue = String(event?.venue || '').trim();
+    if (/^https?:\/\//i.test(venue)) {
+        return String(event?.meetingPoint || event?.city || '').trim();
+    }
+    return venue || String(event?.meetingPoint || event?.city || '').trim();
+}
+
 export function eventMapSideFacts(event) {
     if (!event) return [];
     const boxes = normalizeRunDetailBoxes(event.detailBoxes, event);
     const findBox = (re) => boxes.find((box) => re.test(String(box.label || '').trim()));
+
+    if (isBoardMeetupEvent(event)) {
+        const date = String(findBox(/^(date)$/i)?.value || formatCommunityEventDate(event.eventDate) || '').trim();
+        const time = String(
+            findBox(/^(time|timing|event timing)$/i)?.value || event.reportingTime || '',
+        ).trim();
+        const venue = String(
+            findBox(/^(venue|location)$/i)?.value || displayVenueName(event) || '',
+        ).trim();
+        return [
+            date ? { key: 'date', label: 'Date', value: date, icon: 'calendar' } : null,
+            time ? { key: 'time', label: 'Time', value: time, icon: 'clock' } : null,
+            venue ? { key: 'venue', label: 'Venue', value: venue, icon: 'map-pin' } : null,
+        ].filter(Boolean);
+    }
+
     const fallbacks = {
         sport: String(event.displayType || event.runCategory || '').trim(),
         game: String(event.reportingTime || '').trim(),

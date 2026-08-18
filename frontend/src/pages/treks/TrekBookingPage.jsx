@@ -1069,14 +1069,14 @@ export default function TrekBookingPage() {
     const waitingOnAuth = !hasStoredSession && (authLoading || isAuthProcessing || isRedirectProcessing);
 
     if ((loadingTrek || waitingOnAuth) && !showSuccess && !showProcessing) {
-        return <InlinePageLoader variant="booking" className="min-h-dvh" />;
+        return <InlinePageLoader variant="booking" fullScreen />;
     }
 
     if (!trek && !showSuccess && !showProcessing) {
         const isNotFound = loadError === 'not_found';
         const isRetryable = !isNotFound;
         return (
-            <div className="crwdctrl-page crwdctrl-page--content min-h-dvh flex flex-col items-center justify-center gap-3 px-6">
+            <div className="crwdctrl-page crwdctrl-page--flat min-h-dvh flex flex-col items-center justify-center gap-3 px-6">
                 <p className={`text-sm text-center font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                     {isRetryable ? "Couldn't load this trek" : 'This trek is no longer available'}
                 </p>
@@ -1105,7 +1105,7 @@ export default function TrekBookingPage() {
         const ticketId = existingBookingId !== 'existing' ? existingBookingId : '';
         const isPending = existingBookingStatus === 'pending';
         return (
-            <div className="crwdctrl-page crwdctrl-page--content min-h-dvh flex items-center justify-center px-4">
+            <div className="crwdctrl-page crwdctrl-page--flat min-h-dvh flex items-center justify-center px-4">
                 <div className="text-center max-w-md mx-auto p-8 w-full">
                     <CheckCircle className={`w-14 h-14 mx-auto mb-5 ${isPending ? 'text-amber-400' : 'text-[#0ECCEE]'}`} />
                     <h1 className={`text-2xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -1183,7 +1183,7 @@ export default function TrekBookingPage() {
 
     if (showProcessing) {
         return (
-            <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex flex-col items-center justify-center px-4">
+            <div className="crwdctrl-page crwdctrl-page--flat min-h-screen flex flex-col items-center justify-center px-4">
                 <RegistrationStatusVisual
                     mode="processing"
                     isDark={isDark}
@@ -1197,7 +1197,7 @@ export default function TrekBookingPage() {
     // ── Post-payment registration error ──
     if (postPaymentError && step === 3 && payDone && !paying) {
         return (
-            <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center px-4">
+            <div className="crwdctrl-page crwdctrl-page--flat min-h-screen flex items-center justify-center px-4">
                 <div className="text-center max-w-md mx-auto p-8 w-full">
                     <p className={`text-sm mb-6 ${isDark ? 'text-red-300' : 'text-red-600'}`}>{postPaymentError}</p>
                     <div className="flex flex-col gap-3">
@@ -1226,7 +1226,7 @@ export default function TrekBookingPage() {
     // ── Success Screen ──
     if (showSuccess) {
         return (
-            <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center px-4">
+            <div className="crwdctrl-page crwdctrl-page--flat min-h-screen flex items-center justify-center px-4">
                 <div className="text-center max-w-md mx-auto p-8 w-full">
                     <CheckCircle className={`w-16 h-16 mx-auto mb-6 ${pendingReviewDone ? 'text-amber-400' : 'text-green-500'}`} />
                     <h1 className={`text-3xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>

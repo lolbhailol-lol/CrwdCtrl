@@ -1,3 +1,4 @@
+import { useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ArrowLeft,
@@ -16,7 +17,7 @@ function readShellDark() {
   return document.documentElement.classList.contains('dark');
 }
 
-function shellBgClass(isDark = readShellDark()) {
+export function shellBgClass(isDark = readShellDark()) {
   return isDark ? 'bg-[#161718]' : 'bg-white';
 }
 
@@ -78,11 +79,17 @@ export function InlinePageLoader({
   className = '',
   labelClassName = 'text-sm text-gray-400',
   minHeight = true,
+  fullScreen = false,
 }) {
+  const isDark = readShellDark();
   return (
     <div
       className={`flex flex-col items-center justify-center gap-4 ${
-        minHeight ? 'min-h-[50vh] py-16' : 'py-12'
+        fullScreen
+          ? `min-h-dvh w-full ${shellBgClass(isDark)}`
+          : minHeight
+            ? 'min-h-[50vh] py-16'
+            : 'py-12'
       } ${className}`.trim()}
       role="status"
       aria-live="polite"
@@ -146,9 +153,16 @@ export default function DetailPageLoader({
   label = 'Hang tight — loading details',
   variant = 'default',
 }) {
+  const isDark = readShellDark();
+
+  useLayoutEffect(() => {
+    document.body.classList.add('detail-page-loading');
+    return () => document.body.classList.remove('detail-page-loading');
+  }, []);
+
   const node = (
     <div
-      className="fixed inset-0 z-100050 flex items-center justify-center bg-[#0a0a0b]"
+      className={`fixed inset-0 z-100050 flex items-center justify-center ${shellBgClass(isDark)}`}
       style={{
         paddingTop: 'max(var(--safe-top), 0px)',
         paddingBottom: 'max(var(--safe-bottom), 0px)',
@@ -164,11 +178,11 @@ export default function DetailPageLoader({
         <DetailLoader3DIcon variant={variant} />
         <div className="absolute top-full left-1/2 mt-6 w-max max-w-[min(90vw,20rem)] -translate-x-1/2 px-6 text-center pointer-events-none">
           {label ? (
-            <p className="text-sm font-medium tracking-wide text-white/70">
+            <p className={`text-sm font-medium tracking-wide ${isDark ? 'text-white/70' : 'text-gray-600'}`}>
               {label}
             </p>
           ) : null}
-          <p className={`text-xs text-white/35 ${label ? 'mt-1.5' : ''}`}>Almost there</p>
+          <p className={`text-xs ${isDark ? 'text-white/35' : 'text-gray-400'} ${label ? 'mt-1.5' : ''}`}>Almost there</p>
         </div>
       </div>
     </div>
@@ -183,50 +197,40 @@ export default function DetailPageLoader({
  * detail screen — no spinner, no black loading card. Content fills in on top.
  */
 export function FestDetailOpeningShell({ onBack }) {
+  const isDark = readShellDark();
   return (
-    <div className="crwdctrl-page min-h-screen overflow-x-clip bg-black page-transition-enter">
-      <div className="md:hidden">
-        <div className="relative h-80 overflow-hidden bg-[#1A1B1D]">
-          <div className="absolute inset-x-0 top-0 flex items-center justify-between px-4 pt-[max(0.75rem,var(--safe-top))] pb-3 z-10">
-            <button
-              type="button"
-              onClick={onBack}
-              className="p-2 rounded-full bg-black/30 backdrop-blur-sm text-white"
-              aria-label="Go back"
-            >
-              <ArrowLeft size={20} />
-            </button>
-          </div>
-        </div>
-        <div className="relative -mt-10 rounded-t-[28px] z-10 min-h-[55vh] bg-[#161718]" />
+    <div className={`crwdctrl-page crwdctrl-page--flat min-h-screen overflow-x-clip page-transition-enter ${shellBgClass(isDark)}`}>
+      <div className="absolute inset-x-0 top-0 flex items-center justify-between px-4 pt-[max(0.75rem,var(--safe-top))] pb-3 z-10">
+        <button
+          type="button"
+          onClick={onBack}
+          className={`p-2 rounded-full backdrop-blur-sm ${isDark ? 'bg-white/10 text-white' : 'bg-black/10 text-gray-900'}`}
+          aria-label="Go back"
+        >
+          <ArrowLeft size={20} />
+        </button>
       </div>
-      <div className="hidden md:block min-h-screen bg-black" />
     </div>
   );
 }
 
 export function CompetitionDetailOpeningShell({ onBack }) {
+  const isDark = readShellDark();
   return (
-    <div className="crwdctrl-page flex flex-col min-h-screen bg-black page-transition-enter">
-      <div className="block md:hidden w-full">
-        <div className="relative w-full h-[396px] shrink-0 overflow-hidden bg-[#1A1B1D]">
-          <div
-            className="absolute top-0 left-0 right-0 flex items-center px-4 z-10"
-            style={{ paddingTop: 'calc(max(var(--safe-top), 0px) + 2.5rem)' }}
-          >
-            <button
-              type="button"
-              onClick={onBack}
-              className="size-11 rounded-full bg-black/40 flex items-center justify-center text-white"
-              aria-label="Go back"
-            >
-              <ArrowLeft size={22} strokeWidth={2.25} />
-            </button>
-          </div>
-        </div>
-        <div className="relative -mt-10 flex-1 rounded-t-3xl z-10 min-h-[45vh] bg-[#161718]" />
+    <div className={`crwdctrl-page crwdctrl-page--flat flex flex-col min-h-screen page-transition-enter ${shellBgClass(isDark)}`}>
+      <div
+        className="absolute top-0 left-0 right-0 flex items-center px-4 z-10"
+        style={{ paddingTop: 'calc(max(var(--safe-top), 0px) + 2.5rem)' }}
+      >
+        <button
+          type="button"
+          onClick={onBack}
+          className={`size-11 rounded-full flex items-center justify-center ${isDark ? 'bg-white/10 text-white' : 'bg-black/10 text-gray-900'}`}
+          aria-label="Go back"
+        >
+          <ArrowLeft size={22} strokeWidth={2.25} />
+        </button>
       </div>
-      <div className="hidden md:block min-h-screen bg-black" />
     </div>
   );
 }

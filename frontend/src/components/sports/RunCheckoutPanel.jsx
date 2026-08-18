@@ -49,15 +49,16 @@ export default function RunCheckoutPanel({
     const saved = Number(couponInfo?.discountAmount) || 0;
     const showQrSteps = !isCashfree && payableAmount > 0;
     const ticketPerPerson = Number(feePerPerson ?? chargePerPerson) || 0;
-    const addOnTotal = addOnFeePerPerson > 0 ? addOnFeePerPerson * people : 0;
-    const ticketTotal = ticketPerPerson * people;
+    const peopleCount = Math.max(1, Number(people) || 1);
+    const addOnTotal = addOnFeePerPerson > 0 ? addOnFeePerPerson * peopleCount : 0;
+    const ticketTotal = ticketPerPerson * peopleCount;
     const extraItems = Array.isArray(extraLineItems) ? extraLineItems.filter((row) => row?.label) : [];
     const approveCopy = approverLabel === 'community'
         ? 'Community'
         : approverLabel === 'organizer'
             ? 'Organizer'
             : 'Club';
-    const peopleWord = people === 1
+    const peopleWord = peopleCount === 1
         ? (peopleLabel === 'drivers' ? 'driver' : peopleLabel === 'people' ? 'person' : peopleLabel.replace(/s$/, ''))
         : peopleLabel;
 
@@ -85,8 +86,8 @@ export default function RunCheckoutPanel({
                     {amountHint
                         || (couponApplied && baseFee > payableAmount
                             ? `Was ₹${Number(couponInfo?.amountBeforeDiscount ?? baseFee).toLocaleString('en-IN')}`
-                            : people > 1
-                                ? `₹${chargePerPerson.toLocaleString('en-IN')} × ${people} ${peopleLabel}`
+                            : peopleCount > 1
+                                ? `₹${chargePerPerson.toLocaleString('en-IN')} × ${peopleCount} ${peopleLabel}`
                                 : `1 ${peopleWord}`)}
                     {isCashfree
                         ? ' · Secure checkout via Cashfree'
@@ -176,83 +177,66 @@ export default function RunCheckoutPanel({
             </div>
             ) : null}
 
-            {isCashfree ? (
-                payableAmount > 0 ? (
-                    <div className={`px-4 py-3 sm:px-5 border-t space-y-1.5 text-sm ${isDark ? 'border-gray-800 text-gray-300' : 'border-gray-100 text-gray-700'}`}>
-                        <div className="flex justify-between gap-4">
-                            <span>
-                                {feeLabel}
-                                {people > 1 ? (
-                                    <span className={`text-xs ml-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>× {people}</span>
-                                ) : null}
-                            </span>
-                            <span className="tabular-nums">₹{ticketTotal.toLocaleString('en-IN')}</span>
+            {isCashfree && payableAmount <= 0 ? (
+                <div className={`px-4 py-4 border-t text-sm ${isDark ? 'border-gray-800 text-gray-400' : 'border-gray-100 text-gray-600'}`}>
+                    Coupon covers the full fee — tap confirm below to book. No payment needed.
+                </div>
+            ) : (isCashfree || showQrSteps) && payableAmount > 0 ? (
+                <div className={`px-4 py-3 sm:px-5 border-t space-y-1.5 text-sm ${isDark ? 'border-gray-800 text-gray-300' : 'border-gray-100 text-gray-700'}`}>
+                    <div className="flex justify-between gap-4">
+                        <span>
+                            {feeLabel}
+                            {peopleCount > 1 ? (
+                                <span className={`text-xs ml-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>× {peopleCount} {peopleLabel}</span>
+                            ) : null}
+                        </span>
+                        <span className="tabular-nums">₹{ticketTotal.toLocaleString('en-IN')}</span>
+                    </div>
+                    {showZeroPlatformFee ? (
+                        <div className={`flex justify-between gap-4 text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                            <span>Platform fee</span>
+                            <span className="tabular-nums">₹0</span>
                         </div>
-                        {showZeroPlatformFee ? (
-                            <div className={`flex justify-between gap-4 text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                <span>Platform fee</span>
-                                <span className="tabular-nums">₹0</span>
-                            </div>
-                        ) : null}
-                        {addOnTotal > 0 ? (
-                            <div className="flex justify-between gap-4">
-                                <span className="truncate pr-2">
-                                    {optionalAddOnLabel || 'Add-on'}
-                                    <span className={`text-xs ml-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>× {people}</span>
-                                </span>
-                                <span className="tabular-nums shrink-0">₹{addOnTotal.toLocaleString('en-IN')}</span>
-                            </div>
-                        ) : null}
-                        {extraItems.map((row) => (
-                            <div
-                                key={row.label}
-                                className={`flex justify-between gap-4 ${
-                                    row.tone === 'muted'
-                                        ? (isDark ? 'text-gray-500' : 'text-gray-400')
-                                        : row.tone === 'discount'
-                                            ? (isDark ? 'text-green-400' : 'text-green-600')
-                                            : ''
-                                }`}
-                            >
-                                <span className="truncate pr-2">{row.label}</span>
-                                <span className="tabular-nums shrink-0">{row.value}</span>
-                            </div>
-                        ))}
-                        {couponApplied && saved > 0 ? (
-                            <div className={`flex justify-between gap-4 ${isDark ? 'text-green-400' : 'text-green-600'}`}>
-                                <span>Coupon discount</span>
-                                <span className="tabular-nums">−₹{saved.toLocaleString('en-IN')}</span>
-                            </div>
-                        ) : null}
-                        <div className={`flex justify-between gap-4 pt-2.5 mt-1 border-t font-bold text-base text-[#0ECCEE] ${isDark ? 'border-gray-800' : 'border-gray-200'}`}>
-                            <span>You pay</span>
-                            <span className="tabular-nums">₹{payableAmount.toLocaleString('en-IN')}</span>
-                        </div>
-                    </div>
-                ) : (
-                    <div className={`px-4 py-4 border-t text-sm ${isDark ? 'border-gray-800 text-gray-400' : 'border-gray-100 text-gray-600'}`}>
-                        Coupon covers the full fee — tap confirm below to book. No payment needed.
-                    </div>
-                )
-            ) : showQrSteps ? (
-                <>
-                    {extraItems.length > 0 ? (
-                    <div className={`px-4 py-3 sm:px-5 border-t space-y-1.5 text-sm ${isDark ? 'border-gray-800 text-gray-300' : 'border-gray-100 text-gray-700'}`}>
-                        {extraItems.map((row) => (
-                            <div
-                                key={row.label}
-                                className={`flex justify-between gap-4 ${
-                                    row.tone === 'muted'
-                                        ? (isDark ? 'text-gray-500' : 'text-gray-400')
-                                        : ''
-                                }`}
-                            >
-                                <span className="truncate pr-2">{row.label}</span>
-                                <span className="tabular-nums shrink-0">{row.value}</span>
-                            </div>
-                        ))}
-                    </div>
                     ) : null}
+                    {addOnTotal > 0 ? (
+                        <div className="flex justify-between gap-4">
+                            <span className="truncate pr-2">
+                                {optionalAddOnLabel || 'Add-on'}
+                                <span className={`text-xs ml-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>× {peopleCount}</span>
+                            </span>
+                            <span className="tabular-nums shrink-0">₹{addOnTotal.toLocaleString('en-IN')}</span>
+                        </div>
+                    ) : null}
+                    {extraItems.map((row) => (
+                        <div
+                            key={row.label}
+                            className={`flex justify-between gap-4 ${
+                                row.tone === 'muted'
+                                    ? (isDark ? 'text-gray-500' : 'text-gray-400')
+                                    : row.tone === 'discount'
+                                        ? (isDark ? 'text-green-400' : 'text-green-600')
+                                        : ''
+                            }`}
+                        >
+                            <span className="truncate pr-2">{row.label}</span>
+                            <span className="tabular-nums shrink-0">{row.value}</span>
+                        </div>
+                    ))}
+                    {couponApplied && saved > 0 ? (
+                        <div className={`flex justify-between gap-4 ${isDark ? 'text-green-400' : 'text-green-600'}`}>
+                            <span>Coupon discount</span>
+                            <span className="tabular-nums">−₹{saved.toLocaleString('en-IN')}</span>
+                        </div>
+                    ) : null}
+                    <div className={`flex justify-between gap-4 pt-2.5 mt-1 border-t font-bold text-base text-[#0ECCEE] ${isDark ? 'border-gray-800' : 'border-gray-200'}`}>
+                        <span>{isCashfree ? 'You pay' : 'Pay on UPI'}</span>
+                        <span className="tabular-nums">₹{payableAmount.toLocaleString('en-IN')}</span>
+                    </div>
+                </div>
+            ) : null}
+
+            {showQrSteps ? (
+                <>
                     <div className={`px-4 py-4 border-t flex gap-4 items-start ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
                         {paymentQR ? (
                             <div className="shrink-0 size-[140px] sm:size-[152px] rounded-xl bg-white p-2 shadow-sm">
@@ -374,11 +358,11 @@ export default function RunCheckoutPanel({
                         </div>
                     </div>
                 </>
-            ) : (
+            ) : !isCashfree ? (
                 <div className={`px-4 py-4 border-t text-sm ${isDark ? 'border-gray-800 text-gray-400' : 'border-gray-100 text-gray-600'}`}>
                     Coupon covers the full fee — tap confirm below. No UPI payment needed.
                 </div>
-            )}
+            ) : null}
         </div>
     );
 }
