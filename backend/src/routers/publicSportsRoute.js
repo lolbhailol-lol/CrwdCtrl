@@ -19,6 +19,7 @@ const {
     sportsActivityNoun,
     sportsNotFoundMessage,
 } = require('../utils/listingHubCopy');
+const { sanitizePublicSportsEvent } = require('../utils/publicEntitySanitize');
 
 function getOptionalUserId(req) {
     try {
