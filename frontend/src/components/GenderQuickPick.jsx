@@ -6,7 +6,7 @@ const OPTIONS = [
     { value: 'Male', label: 'Male', emoji: '👨' },
 ];
 
-export default function GenderQuickPick({ value, onChange, label = 'I am', error, compact = false }) {
+export default function GenderQuickPick({ value, onChange, label = 'I am', error, hint, compact = false }) {
     const { isDark } = useDarkMode();
 
     return (
@@ -39,6 +39,9 @@ export default function GenderQuickPick({ value, onChange, label = 'I am', error
                 })}
             </div>
             {error ? <p className="text-red-500 text-xs mt-1.5">{error}</p> : null}
+            {!error && hint ? (
+                <p className={`text-xs mt-2 leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{hint}</p>
+            ) : null}
         </div>
     );
 }

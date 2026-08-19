@@ -483,7 +483,7 @@ export default function EventCommunityEventPage() {
                                         mode: event.registration?.mode || 'internal_form',
                                         destination: 'internal_book_page',
                                     });
-                                    navigate(`${eventCommunityEventPath(event)}/book`, { state: { event, runClub: club } });
+                                    navigate(`${eventCommunityEventPath(event)}/book`, { state: { event, runClub: club, freshBooking: true } });
                                 }}
                                 className="flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-[#0ECCEE] text-black active:opacity-90 transition"
                             >
@@ -571,7 +571,7 @@ export default function EventCommunityEventPage() {
                                                         setExpandedTierId(null);
                                                         setSelectingTierId(null);
                                                         navigate(`${eventCommunityEventPath(event)}/book?tier=${encodeURIComponent(tier.id)}`, {
-                                                            state: { event, runClub: club, tierId: tier.id },
+                                                            state: { event, runClub: club, tierId: tier.id, freshBooking: true },
                                                         });
                                                     }, 320);
                                                 }}

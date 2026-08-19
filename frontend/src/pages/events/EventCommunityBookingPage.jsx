@@ -90,8 +90,27 @@ function isGenderChoiceField(field) {
         && labels.length <= 3;
 }
 
+function sameGenderPartyHint(gender) {
+    const value = String(gender || '').trim();
+    if (!value) return '';
+    if (/^f/i.test(value)) {
+        return 'You chose Female. You can register multiple people in this booking, but all of them must be women. You cannot add men to this registration.';
+    }
+    if (/^m/i.test(value)) {
+        return 'You chose Male. You can register multiple people in this booking, but all of them must be men. You cannot add women to this registration.';
+    }
+    return `This booking is for ${value} only. Extra people must be the same gender — mixed groups are not allowed.`;
+}
+
 function getInitialUi(eventId, search, locationState) {
     const defaults = { step: 1, payDone: false, paying: false, selDate: '', selTime: '', people: 1, extraFields: {}, tierId: '', addOnSelected: false };
+    const returnPath = `/events/community-event/${eventId}/book`;
+    const pending = getPendingPayment();
+    const resuming = shouldResumePendingPayment(pending, returnPath, search);
+
+    if (!resuming && eventId) {
+        try { sessionStorage.removeItem(runDraftKey(eventId)); } catch { /* ignore */ }
+    }
 
     let draft = {};
     const raw = sessionStorage.getItem(runDraftKey(eventId));
@@ -101,18 +120,20 @@ function getInitialUi(eventId, search, locationState) {
 
     const params = new URLSearchParams(search || '');
     const tierFromQuery = params.get('tier') || '';
-    const tierId = tierFromQuery || locationState?.tierId || draft.tierId || '';
+    const tierId = tierFromQuery || locationState?.tierId || (resuming ? draft.tierId : '') || '';
 
     return getInitialBookingUiState({
         entityId: eventId,
         search,
-        returnPath: `/events/community-event/${eventId}/book`,
+        returnPath,
         defaults: {
             ...defaults,
+            extraFields: resuming ? (draft.extraFields || {}) : {},
+            people: 1,
             tierId,
         },
         draftKeyFactory: runDraftKey,
-        restoreStepFromDraft: true,
+        restoreStepFromDraft: resuming,
     });
 }
 
@@ -417,7 +438,7 @@ export default function EventCommunityBookingPage() {
         const evId = id || event?._id || event?.id;
         if (!evId) return;
         const returnPath = `/events/community-event/${evId}/book`;
-        if (shouldResumePendingPayment(getPendingPayment(), returnPath, location.search)) return;
+        if (!shouldResumePendingPayment(getPendingPayment(), returnPath, location.search)) return;
 
         const raw = sessionStorage.getItem(runDraftKey(evId));
         if (!raw) return;
@@ -521,6 +542,7 @@ export default function EventCommunityBookingPage() {
                         value={val}
                         onChange={onChange}
                         label={String(field.fieldName || '').toLowerCase() === 'gender' ? 'You are' : (field.label || 'You are')}
+                        hint={sameGenderPartyHint(val)}
                     />
                 );
             }
@@ -1167,7 +1189,17 @@ export default function EventCommunityBookingPage() {
         }
     };
 
-    const back = () => (step === 1 ? navigate(-1) : setStep((s) => s - 1));
+    const back = () => {
+        if (step !== 1) {
+            setStep((s) => s - 1);
+            return;
+        }
+        const evId = id || event?._id || event?.id;
+        if (evId) {
+            try { sessionStorage.removeItem(runDraftKey(evId)); } catch { /* ignore */ }
+        }
+        navigate(-1);
+    };
 
     const hasStoredSession = !!localStorage.getItem('crwdctrl_token');
     const waitingOnAuth = hasStoredSession && (authLoading || isAuthProcessing || isRedirectProcessing);
