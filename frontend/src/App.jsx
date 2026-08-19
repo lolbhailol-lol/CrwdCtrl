@@ -22,6 +22,7 @@ import PWAInstallPrompt from './components/PWAInstallPrompt'
 import RouteTracker from './components/RouteTracker'
 import GoogleOneTap from './components/GoogleOneTap'
 import CapacitorInit from './components/CapacitorInit'
+import DeepLinkHistorySeed from './components/DeepLinkHistorySeed'
 import OfflineHuntBootGate from './features/campus-hunt/offline/OfflineHuntBootGate'
 import PageTransitionProvider, { PageTransitionContent, usePageTransition } from './components/layout/PageTransition'
 import { useGlobalSmoothScroll } from './hooks/useGlobalSmoothScroll'
@@ -447,6 +448,7 @@ function App() {
                 <MobileSearchProvider>
                 <PageTransitionProvider>
                   <CapacitorInit />
+                  <DeepLinkHistorySeed />
                   <OfflineHuntBootGate />
                   <RouteTracker />
                   <GoogleOneTap />

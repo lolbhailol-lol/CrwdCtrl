@@ -1,14 +1,14 @@
 import React from 'react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { ArrowLeft, Mail, Phone, Globe, User, MapPin, Clock, MessageCircle, Send } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useInAppBack } from '../../hooks/useInAppBack';
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, webPageSchema } from '../../utils/seo';
 import { openExternalUrl } from '../../utils/externalLink';
 
 export default function ContactUs() {
     const { isDark } = useDarkMode();
-    const navigate = useNavigate();
+    const goBack = useInAppBack();
 
     const contactData = {
         website: "https://www.crwdctrl.in",
@@ -59,7 +59,7 @@ export default function ContactUs() {
                 <div className="max-w-4xl mx-auto px-4 py-4">
                     <div className="flex items-center justify-center relative">
                         <button
-                            onClick={() => navigate(-1)}
+                            onClick={goBack}
                             className={`lg:hidden absolute left-0 p-2 rounded-lg ${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-100'} transition-colors`}
                         >
                             <ArrowLeft className="w-5 h-5" />

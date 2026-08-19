@@ -38,6 +38,7 @@ import {
 } from '../../utils/eventShowTiers';
 import { getSuggestedCouponCode, getSuggestedCouponLabel } from '../../utils/suggestedCoupon';
 import RunCheckoutPanel from '../../components/sports/RunCheckoutPanel';
+import { useInAppBack } from '../../hooks/useInAppBack';
 
 const API = API_BASE_URL;
 
@@ -128,6 +129,7 @@ function pickCustomer(values) {
 
 export default function EventRegistrationPage() {
     const navigate = useNavigate();
+    const goBack = useInAppBack();
     const location = useLocation();
     const { eventId } = useParams();
     const initialUi = getInitialEventRegistrationUi(eventId, location.search);
@@ -1290,7 +1292,7 @@ export default function EventRegistrationPage() {
         if (!validateStep(step)) return;
         if (step < allSteps.length - 1) setStep((s) => s + 1);
     };
-    const back = () => (step === 0 ? navigate(-1) : setStep((s) => s - 1));
+    const back = () => (step === 0 ? goBack() : setStep((s) => s - 1));
 
     const isPaymentStepPreview = !!allSteps[step]?.payment;
     const suggestedCoupon = getSuggestedCouponCode(event, {

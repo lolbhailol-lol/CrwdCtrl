@@ -12,10 +12,10 @@ import {
   isMindSparkFest,
 } from '../../../features/fests/mindspark';
 import { RegistrationProcessingOverlay } from '../../../components/RegistrationStatusVisual';
+import { useInAppBack } from '../../../hooks/useInAppBack';
 
 export default function FestRegistrationForm({
   isDark,
-  navigate,
   fest,
   competition,
   isCompetitionRegistration,
@@ -65,6 +65,7 @@ export default function FestRegistrationForm({
   uploadingFiles,
   handleFileUpload,
 }) {
+  const goBack = useInAppBack();
   const mindSparkComp =
     Boolean(isCompetitionRegistration)
     && (
@@ -135,7 +136,7 @@ export default function FestRegistrationForm({
         {/* Header */}
         <div className="flex items-start gap-3 sm:gap-4 mb-5 sm:mb-6 mt-1 sm:mt-0">
           <button
-            onClick={() => navigate(-1)}
+            onClick={goBack}
             className={`p-2 rounded-lg transition-colors shrink-0 mt-1 ${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-200'}`}
           >
             <ArrowLeft className={`w-5 h-5 sm:w-6 sm:h-6 ${isDark ? 'text-white' : 'text-gray-900'}`} />
@@ -421,7 +422,7 @@ export default function FestRegistrationForm({
               {/* Back Button */}
               <button
                 type="button"
-                onClick={isEffectiveMultiStep() && currentStep > 1 ? handleStepBack : () => navigate(-1)}
+                onClick={isEffectiveMultiStep() && currentStep > 1 ? handleStepBack : goBack}
                 className={`px-4 sm:px-6 py-3 rounded-xl border font-medium transition-colors text-sm sm:text-base ${isDark ? 'border-gray-700 text-white hover:bg-gray-800/60' : 'border-gray-300 text-gray-900 hover:bg-gray-100'}`}
                 disabled={submitting}
               >

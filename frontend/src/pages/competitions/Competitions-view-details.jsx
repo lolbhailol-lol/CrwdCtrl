@@ -26,6 +26,7 @@ import DetailPageLoader from '../../components/DetailPageLoader';
 import CompetitionCoverImage from '../../components/CompetitionCoverImage';
 import { signalDetailPageReady } from '../../utils/bootSplash';
 import { formatSlotsLabel, buildTeamSizeLabel } from '../../utils/teamSize';
+import { useInAppBack } from '../../hooks/useInAppBack';
 import {
     loadCompetitionDetailCache,
     saveCompetitionDetailCache,
@@ -507,6 +508,7 @@ function resolvePaintPackage(competitionId, location) {
 function EventPage() {
     const { competitionId } = useParams();
     const navigate = useNavigate();
+    const goBack = useInAppBack();
     const location = useLocation();
     const [activeRound, setActiveRound] = useState(0);
     const [showRegistrationSuccess] = useState(false);
@@ -1475,14 +1477,7 @@ function EventPage() {
                                     >
                                         <button
                                             type="button"
-                                            onClick={() => {
-                                                const fest = eventData?.fest;
-                                                if (fest?._id || fest?.id || eventData?.festId) {
-                                                    navigate(festPath(fest || { _id: eventData.festId }), { replace: true });
-                                                    return;
-                                                }
-                                                navigate('/fests', { replace: true });
-                                            }}
+                                            onClick={goBack}
                                             aria-label="Go back"
                                             className="size-11 rounded-full bg-black/40 flex items-center justify-center"
                                         >

@@ -11,6 +11,7 @@ import { getCoverImageUrl } from '../../utils/coverImages';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { normalizeImageList, normalizeImageUrl } from '../../utils/uploadUrls';
 import { shareContent, openExternalUrl } from '../../utils/externalLink';
+import { useInAppBack } from '../../hooks/useInAppBack';
 import { CompactPortraitCardsRowSkeleton } from '../../components/HomeEventCardSkeleton';
 import DetailPageLoader from '../../components/DetailPageLoader';
 import {
@@ -194,6 +195,7 @@ function TrekCard({ trek, isDark, isFav, onFav, onClick, eager = false }) {
 
 export default function CommunityDetailPage() {
     const navigate = useNavigate();
+    const goBack = useInAppBack();
     const location = useLocation();
     const { id } = useParams();
     const { isDark } = useDarkMode();
@@ -381,7 +383,7 @@ export default function CommunityDetailPage() {
                         Retry
                     </button>
                 ) : null}
-                <button type="button" onClick={() => (isNetwork ? navigate('/treks') : navigate(-1))} className="text-[#0ECCEE] text-sm font-semibold">
+                <button type="button" onClick={() => (isNetwork ? navigate('/treks') : goBack())} className="text-[#0ECCEE] text-sm font-semibold">
                     {isNetwork ? 'Browse treks' : '← Go back'}
                 </button>
             </div>
@@ -471,7 +473,7 @@ export default function CommunityDetailPage() {
                     {/* Back */}
                     <button
                         type="button"
-                        onClick={() => navigate(-1)}
+                        onClick={goBack}
                         aria-label="Go back"
                         className="size-11 rounded-full bg-black/40 flex items-center justify-center"
                     >

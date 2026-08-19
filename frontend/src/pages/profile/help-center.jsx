@@ -5,6 +5,7 @@ import ProfileSidebar from '../../components/layout/ProfileSidebar';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { ArrowLeft, Search, MessageCircle, Book, Settings, Phone, Shield, FileText } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useInAppBack } from '../../hooks/useInAppBack';
 import CrwdCtrlLogin from '../auth/login';
 import CrwdCtrlRegister from '../auth/register';
 import Seo from '../../components/Seo';
@@ -13,6 +14,7 @@ import { breadcrumbSchema, webPageSchema } from '../../utils/seo';
 const HelpCenter = () => {
     const { isDark } = useDarkMode();
     const navigate = useNavigate();
+    const goBack = useInAppBack();
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [showLogin, setShowLogin] = useState(false);
     const [showRegister, setShowRegister] = useState(false);
@@ -135,7 +137,7 @@ const HelpCenter = () => {
                 <div className="lg:hidden">
                     <div className="flex items-center justify-between p-4 border-gray-200 dark:border-gray-700">
                         <button
-                            onClick={() => navigate(-1)}
+                            onClick={goBack}
                             className={`flex items-center space-x-2  ${isDark ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'} transition`}
                         >
                             <ArrowLeft className="w-5 h-5" />
@@ -148,7 +150,7 @@ const HelpCenter = () => {
                 <main className="flex-1">
                     <div className="hidden lg:block max-w-7xl mx-auto px-4 sm:px-6 pt-4">
                         <button
-                            onClick={() => navigate(-1)}
+                            onClick={goBack}
                             className={`flex items-center space-x-2 ${isDark ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'} transition mb-4`}
                         >
                             <ArrowLeft className="w-5 h-5" />

@@ -48,6 +48,7 @@ import {
 } from '../../../features/fests/mindspark';
 import { getCompetitionFeeTiers } from '../../../utils/competitionFeeTiers';
 import { waitAtLeast, sleep } from '../../../components/RegistrationStatusVisual';
+import { useInAppBack } from '../../../hooks/useInAppBack';
 import { API_BASE_URL } from '../../../services/api/client';
 import { festRegisterPath } from '../../../utils/slugRoutes';
 import { loadRegistrationPrefetch, saveRegistrationPrefetch } from '../../../utils/festPublicTransform';
@@ -56,6 +57,7 @@ import { getInitialFestRegistrationUi, generateFieldId, compressImage, buildInit
 export default function useFestRegistration() {
   const { festId } = useParams();
   const navigate = useNavigate();
+  const goBack = useInAppBack();
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const paymentResumeRef = useRef(false);
@@ -172,7 +174,7 @@ export default function useFestRegistration() {
       setShowLogin(false);
       return;
     }
-    navigate(-1);
+    goBack();
   };
   const handleCloseRegister = () => setShowRegister(false);
   const handleSwitchToRegister = () => {

@@ -17,6 +17,7 @@ import {
 } from '../../constants/trekFilters';
 
 import { fetchCatalogJSON } from '../../services/api/catalogCache';
+import { useInAppBack } from '../../hooks/useInAppBack';
 
 const TREK_CATEGORIES = TREK_BROWSE_CATEGORIES;
 
@@ -134,6 +135,7 @@ function TrekFilterModal({ isOpen, isDark, draftFilters, onToggle, onClear, onAp
 
 export default function TrekCategoryPage() {
     const navigate        = useNavigate();
+    const goBack = useInAppBack();
     const { category }    = useParams();
     const { isDark }      = useDarkMode();
     const { toggleFavorite, isFavorite } = useFavorites();
@@ -221,7 +223,7 @@ export default function TrekCategoryPage() {
                 <div className="flex items-center gap-3 mt-2 mb-5">
                     <button
                         type="button"
-                        onClick={() => navigate(-1)}
+                        onClick={goBack}
                         className={`size-8 rounded-full flex items-center justify-center shrink-0 ${
                             isDark ? 'bg-white/10' : 'bg-white'
                         }`}

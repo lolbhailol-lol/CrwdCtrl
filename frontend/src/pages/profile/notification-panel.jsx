@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, Clock, Calendar, ArrowLeft } from 'lucide-react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
+import { useInAppBack } from '../../hooks/useInAppBack';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useNotifications } from '../../context/NotificationsContext';
 import Sidebar from '../../components/layout/Sidebar';
@@ -10,7 +11,7 @@ import CrwdCtrlLogin from '../auth/login';
 import CrwdCtrlRegister from '../auth/register';
 
 function NotificationsPanel() {
-    const navigate = useNavigate();
+    const goBack = useInAppBack();
     const { isDark } = useDarkMode();
     const { notifications, unreadCount, markAsRead, markAllAsRead, refreshNotifications } = useNotifications();
     const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -67,7 +68,7 @@ function NotificationsPanel() {
                                 <div className="flex items-center gap-3 min-w-0">
                                     <button
                                         type="button"
-                                        onClick={() => navigate(-1)}
+                                        onClick={goBack}
                                         aria-label="Go back"
                                         className={`shrink-0 p-1 rounded-lg transition-colors ${
                                             isDark ? 'text-white hover:bg-gray-800' : 'text-gray-900 hover:bg-gray-100'
@@ -169,7 +170,7 @@ function NotificationsPanel() {
                                 <div className="flex items-center gap-3 min-w-0">
                                     <button
                                         type="button"
-                                        onClick={() => navigate(-1)}
+                                        onClick={goBack}
                                         aria-label="Go back"
                                         className={`shrink-0 p-1 rounded-lg transition-colors ${
                                             isDark ? 'text-white hover:bg-gray-800' : 'text-gray-900 hover:bg-gray-100'

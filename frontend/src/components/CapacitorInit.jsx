@@ -12,6 +12,7 @@ import {
   discardStalePaymentRecovery,
 } from '../utils/deepLinks';
 import { resolveBrowseBackPath } from '../utils/categoryHubRoutes';
+import { canGoBackInApp } from '../utils/inAppBack';
 /**
  * Wires Capacitor back button, deep links, and payment return verification.
  */
@@ -46,16 +47,17 @@ export default function CapacitorInit() {
     initCapacitorApp({
       navigate,
       onBack: () => {
+        if (canGoBackInApp()) return false;
         const target = resolveBrowseBackPath(location.pathname);
-        if (target) {
-          navigate(target, { replace: true });
+        if (target && target !== location.pathname) {
+          navigate(target);
           return true;
         }
         return false;
       },
       onBackWhenRoot: () => {
         if (location.pathname !== '/') {
-          navigate('/');
+          navigate(resolveBrowseBackPath(location.pathname) || '/');
         }
       },
     }).then((fn) => {

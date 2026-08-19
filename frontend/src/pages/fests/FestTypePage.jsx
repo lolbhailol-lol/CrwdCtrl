@@ -20,6 +20,7 @@ import { usePageContentLoading } from '../../hooks/usePageContentLoading';
 import { festPath } from '../../utils/slugRoutes';
 import { buildFestDetailNavState } from '../../utils/detailPageCache';
 import { usePublicConfig } from '../../hooks/usePublicConfig';
+import { useInAppBack } from '../../hooks/useInAppBack';
 
 const FEST_TYPE_SEO = {
     cultural: {
@@ -102,6 +103,7 @@ export default function FestTypePage({
     targetPage,
 }) {
     const navigate = useNavigate();
+    const goBack = useInAppBack();
     const { isDark } = useDarkMode();
     const { toggleFavorite, isFavorite } = useFavorites();
     const publicConfig = usePublicConfig();
@@ -180,7 +182,7 @@ export default function FestTypePage({
                 <div className="flex items-center gap-3 mt-2">
                     <button
                         type="button"
-                        onClick={() => navigate('/fests', { replace: true })}
+                        onClick={goBack}
                         aria-label="Back to fests"
                         className={`touch-target size-9 rounded-xl flex items-center justify-center shrink-0 ${isDark ? 'bg-white/10' : 'bg-white shadow-sm'}`}
                     >

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useInAppBack } from '../../hooks/useInAppBack';
 import { ArrowLeft, Trash2, ListChecks, Clock, ShieldCheck, Mail, Loader2 } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
@@ -13,6 +14,7 @@ export default function DeleteAccount() {
   const { isAuthenticated, token, logout } = useAuth();
   const { confirm, toast } = useDialog();
   const navigate = useNavigate();
+  const goBack = useInAppBack();
   const [deleting, setDeleting] = useState(false);
 
   const card = isDark ? 'bg-[#111111] border-gray-800' : 'bg-white border-gray-200';
@@ -60,7 +62,7 @@ export default function DeleteAccount() {
           <div className="flex items-center justify-center relative">
             <button
               type="button"
-              onClick={() => navigate(-1)}
+              onClick={goBack}
               className={`lg:hidden absolute left-0 p-2 rounded-lg ${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-100'} transition-colors`}
             >
               <ArrowLeft className="w-5 h-5" />

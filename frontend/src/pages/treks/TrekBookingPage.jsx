@@ -7,6 +7,7 @@ import { useNotifications } from '../../context/NotificationsContext';
 import CrwdCtrlLogin from '../auth/login';
 import CrwdCtrlRegister from '../auth/register';
 import { buildVerifiedPaymentFields } from '../../utils/useCashfree';
+import { useInAppBack } from '../../hooks/useInAppBack';
 
 import PaymentErrorModal from '../../components/PaymentErrorModal';
 import { InlinePageLoader } from '../../components/DetailPageLoader';
@@ -102,6 +103,7 @@ function getInitialTrekBookingUi(trekId, search) {
 
 export default function TrekBookingPage() {
     const navigate  = useNavigate();
+    const goBack = useInAppBack();
     const location  = useLocation();
     const { id }    = useParams();
     const initialUi = getInitialTrekBookingUi(id, location.search);
@@ -1063,7 +1065,7 @@ export default function TrekBookingPage() {
         }
     };
 
-    const back = () => step === 1 ? navigate(-1) : setStep(s => s - 1);
+    const back = () => step === 1 ? goBack() : setStep(s => s - 1);
 
     const hasStoredSession = loggedIn || hasUsableAuthToken(authToken) || hasUsableAuthToken(null);
     const waitingOnAuth = !hasStoredSession && (authLoading || isAuthProcessing || isRedirectProcessing);

@@ -11,10 +11,12 @@ import {
 import { publicFetchJSONRetry as fetchJSON } from '../../services/api/client';
 import { competitionPath } from '../../utils/slugRoutes';
 import { saveCompetitionDetailCache } from '../../utils/detailPageCache';
+import { useInAppBack } from '../../hooks/useInAppBack';
 
 const CompetitionListPage = () => {
     const { isDark } = useDarkMode();
     const navigate = useNavigate();
+    const goBack = useInAppBack();
     const { eventId } = useParams();
     
     const [eventData, setEventData] = useState(null);
@@ -120,7 +122,7 @@ const CompetitionListPage = () => {
     const availableTabs = Object.keys(competitions || {});
 
     const handleBackClick = () => {
-        navigate(-1);
+        goBack();
     };
 
     const handleCompetitionClick = (competition) => {

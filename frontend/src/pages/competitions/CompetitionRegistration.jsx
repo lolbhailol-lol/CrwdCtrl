@@ -38,6 +38,7 @@ import { finalizeCompetitionAfterPayment } from '../../utils/competitionPaymentC
 // Configure API base URL - HARDCODED FOR PRODUCTION FIX
 import { fetchPaymentQuote } from '../../services/api/payment.api';
 import { API_BASE_URL } from '../../services/api/client';
+import { useInAppBack } from '../../hooks/useInAppBack';
 import { competitionRegistrationPath } from '../../utils/slugRoutes';
 
 function getInitialCompetitionRegistrationUi(pathname, search, navigationState = null) {
@@ -54,6 +55,7 @@ function getInitialCompetitionRegistrationUi(pathname, search, navigationState =
 export default function CompetitionRegistration() {
     const { competitionId } = useParams();
     const navigate = useNavigate();
+    const goBack = useInAppBack();
     const location = useLocation();
     const paymentResumeRef = useRef(false);
     const handleSubmitRef = useRef(null);
@@ -1530,7 +1532,7 @@ export default function CompetitionRegistration() {
                     <h1 className="text-xl font-bold text-white mb-3">Competition Not Found</h1>
                     <p className="text-gray-400 mb-4">{error}</p>
                     <button
-                        onClick={() => navigate(-1)}
+                        onClick={goBack}
                         className="px-4 py-2 bg-[#0ECCEE] text-black rounded-lg hover:bg-[#0ECCEE]/80"
                     >
                         Go Back
@@ -1556,7 +1558,7 @@ export default function CompetitionRegistration() {
             <div className="max-w-3xl mx-auto">
                 {/* Header */}
                 <div className="flex items-center gap-3 mb-6">
-                    <button onClick={() => navigate(-1)} className="text-gray-400 hover:text-white transition-colors">
+                    <button onClick={goBack} className="text-gray-400 hover:text-white transition-colors">
                         <ArrowLeft className="w-5 h-5" />
                     </button>
                     <div>
@@ -1714,7 +1716,7 @@ export default function CompetitionRegistration() {
                         <div className="flex gap-3 pt-2 pb-8 md:pb-4">
                             <button
                                 type="button"
-                                onClick={isMultiStepFormActive() && currentStep > 1 ? handleStepBack : () => navigate(-1)}
+                                onClick={isMultiStepFormActive() && currentStep > 1 ? handleStepBack : goBack}
                                 className="px-4 sm:px-6 py-3 rounded-xl border border-gray-700 text-white hover:bg-gray-800/60 transition-colors text-sm sm:text-base font-medium"
                                 disabled={submitting}
                             >

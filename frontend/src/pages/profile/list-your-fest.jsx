@@ -4,7 +4,8 @@ import Navbar from '../../components/layout/Navbar';
 import ProfileSidebar from '../../components/layout/ProfileSidebar';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { ArrowLeft, CheckCircle } from 'lucide-react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
+import { useInAppBack } from '../../hooks/useInAppBack';
 import CrwdCtrlLogin from '../auth/login';
 import CrwdCtrlRegister from '../auth/register';
 import Seo from '../../components/Seo';
@@ -15,7 +16,7 @@ const LIST_FEST_DESCRIPTION =
 
 function ListYourFest() {
     const { isDark } = useDarkMode();
-    const navigate = useNavigate();
+    const goBack = useInAppBack();
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [showLogin, setShowLogin] = useState(false);
     const [showRegister, setShowRegister] = useState(false);
@@ -202,7 +203,7 @@ function ListYourFest() {
                 <main className="flex-1">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-4">
                         <button
-                            onClick={() => navigate(-1)}
+                            onClick={goBack}
                             className={`flex items-center space-x-2 ${isDark ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'} transition mb-4`}
                         >
                             <ArrowLeft className="w-5 h-5" />

@@ -12,6 +12,7 @@ import { getCoverImageUrl, resolveCoverImage } from '../../utils/coverImages';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { normalizeImageList, normalizeImageUrl } from '../../utils/uploadUrls';
 import { shareContent, openExternalUrl } from '../../utils/externalLink';
+import { useInAppBack } from '../../hooks/useInAppBack';
 import DetailPageLoader, { DetailLoader3DIcon } from '../../components/DetailPageLoader';
 import { normalizeRunCategory } from '../../constants/runClubCategories';
 import {
@@ -205,6 +206,7 @@ function RunCard({ run, isDark, isFav, onFav, onClick }) {
 
 export default function RunClubDetailPage() {
     const navigate = useNavigate();
+    const goBack = useInAppBack();
     const location = useLocation();
     const { id } = useParams();
     const { isDark } = useDarkMode();
@@ -417,7 +419,7 @@ export default function RunClubDetailPage() {
                 ) : null}
                 <button
                     type="button"
-                    onClick={() => (isNetwork ? navigate(isEventHub ? '/events' : '/sports') : navigate(-1))}
+                    onClick={() => (isNetwork ? navigate(isEventHub ? '/events' : '/sports') : goBack())}
                     className="text-[#0ECCEE] text-sm font-semibold"
                 >
                     {isNetwork ? 'Browse events' : '← Go back'}
@@ -569,7 +571,7 @@ export default function RunClubDetailPage() {
                 >
                     <button
                         type="button"
-                        onClick={() => navigate(-1)}
+                        onClick={goBack}
                         aria-label="Go back"
                         className="size-11 rounded-full bg-black/40 flex items-center justify-center"
                     >

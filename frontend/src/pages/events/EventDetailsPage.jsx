@@ -16,6 +16,7 @@ import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator
 import { shareContent, openExternalUrl } from '../../utils/externalLink';
 import { publicFetchJSONRetry as fetchJSON } from '../../services/api/client';
 import { EVENT_TYPE_LABELS, formatEventShowDate } from '../../constants/eventsPage';
+import { useInAppBack } from '../../hooks/useInAppBack';
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { eventShowPath } from '../../utils/slugRoutes';
@@ -106,20 +107,10 @@ export default function EventDetailsPage() {
   const { isAuthenticated } = useAuth();
   const { eventId } = useParams();
   const navigate = useNavigate();
+  const handleBack = useInAppBack();
   const [showLogin, setShowLogin] = useState(false);
 
   const isLoggedIn = () => isAuthenticated || !!localStorage.getItem('crwdctrl_token');
-
-  const handleBack = () => {
-    // If the user navigated here within the app, go back normally.
-    // If they opened a shared link directly (no in-app history), send them
-    // to the dashboard/home page instead of leaving the site.
-    if (window.history.state && window.history.state.idx > 0) {
-      navigate(-1);
-    } else {
-      navigate('/');
-    }
-  };
 
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);

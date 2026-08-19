@@ -16,6 +16,7 @@ import CategorySearchRow from '../../components/CategorySearchRow';
 import MobileHeroSearchField from '../../components/MobileHeroSearchField';
 import HeroBanner from '../../components/HeroBanner';
 import AppLogo from '../../components/AppLogo';
+import { useInAppBack } from '../../hooks/useInAppBack';
 import CardShareButton from '../../components/CardShareButton';
 import { shareContent } from '../../utils/externalLink';
 import { FestCardsRowSkeleton } from '../../components/HomeEventCardSkeleton';
@@ -168,6 +169,7 @@ const FestSection = ({ title, fests, loading, isDark, isFavorite, toggleFavorite
 // ── Main Page ────────────────────────────────────────────────────────────────
 export default function FestsPage() {
     const navigate = useNavigate();
+    const goBack = useInAppBack();
     const { isDark } = useDarkMode();
     const { toggleFavorite, isFavorite } = useFavorites();
     const { unreadCount } = useNotifications();
@@ -274,7 +276,7 @@ export default function FestsPage() {
                         <div className="flex items-center gap-2 min-w-0">
                             <button
                                 type="button"
-                                onClick={() => navigate('/', { replace: true })}
+                                onClick={goBack}
                                 className={`p-2 rounded-xl bg-transparent transition-colors shrink-0 ${isDark ? 'text-white hover:bg-gray-800' : 'text-black hover:bg-black/5'}`}
                                 aria-label="Back to home"
                             >

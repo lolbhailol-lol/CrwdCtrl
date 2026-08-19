@@ -1,7 +1,8 @@
 import React from 'react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { ArrowLeft, Users, Target, Rocket, Globe, Heart, Star, Award, Zap, Shield } from 'lucide-react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import { useInAppBack } from '../../hooks/useInAppBack';
 import Seo from '../../components/Seo';
 import FaqSection from '../../components/FaqSection';
 import { breadcrumbSchema, faqSchema, webPageSchema } from '../../utils/seo';
@@ -12,7 +13,7 @@ const ABOUT_DESCRIPTION =
 
 export default function About() {
     const { isDark } = useDarkMode();
-    const navigate = useNavigate();
+    const goBack = useInAppBack();
 
     return (
         <div className="crwdctrl-page crwdctrl-page--content min-h-screen transition-colors duration-300">
@@ -34,7 +35,7 @@ export default function About() {
                 <div className="max-w-4xl mx-auto px-4 py-4">
                     <div className="flex items-center justify-center relative">
                         <button
-                            onClick={() => navigate(-1)}
+                            onClick={goBack}
                             className={`lg:hidden absolute left-0 p-2 rounded-lg ${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-100'} transition-colors`}
                         >
                             <ArrowLeft className="w-5 h-5" />

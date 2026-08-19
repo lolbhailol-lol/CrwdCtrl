@@ -6,6 +6,7 @@ import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
 import { ArrowLeft, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useInAppBack } from '../../hooks/useInAppBack';
 import { authAPI, handleApiError } from '../../services/api/auth.api';
 import CrwdCtrlLogin from '../auth/login';
 import CrwdCtrlRegister from '../auth/register';
@@ -16,6 +17,7 @@ function EditProfile() {
     const { isDark } = useDarkMode();
     const { user, token, updateUser, isAuthenticated, isLoading, isAuthProcessing } = useAuth();
     const navigate = useNavigate();
+    const goBack = useInAppBack();
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [showLogin, setShowLogin] = useState(false);
     const [showRegister, setShowRegister] = useState(false);
@@ -308,7 +310,7 @@ function EditProfile() {
 
                 // Navigate back after showing success message
                 setTimeout(() => {
-                    navigate(-1);
+                    goBack();
                 }, 2000);
             } else {
                 setError(response.message || 'Failed to update profile');
@@ -385,7 +387,7 @@ function EditProfile() {
                 <main className="flex-1">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-[calc(var(--safe-top)+1rem)]">
                         <button
-                            onClick={() => navigate(-1)}
+                            onClick={goBack}
                             className={`flex items-center space-x-2 ${isDark ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'} transition mb-4`}
                         >
                             <ArrowLeft className="w-5 h-5" />
@@ -662,7 +664,7 @@ function EditProfile() {
                             <div className="mt-8 flex gap-4 justify-end">
                                 <button
                                     type="button"
-                                    onClick={() => navigate(-1)}
+                                    onClick={goBack}
                                     disabled={isUpdating}
                                     className={`px-6 py-3 rounded-md text-sm font-medium transition-colors border ${isUpdating ? 'cursor-not-allowed opacity-50' : ''} ${isDark
                                         ? 'border-gray-600 text-gray-300 hover:bg-gray-700'
@@ -955,7 +957,7 @@ function EditProfile() {
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={() => navigate(-1)}
+                                    onClick={goBack}
                                     disabled={isUpdating}
                                     className={`w-full px-6 py-4 rounded-lg text-base font-medium transition-colors border ${isUpdating ? 'cursor-not-allowed opacity-50' : ''} ${isDark
                                         ? 'border-gray-600 text-gray-300 hover:bg-gray-700'

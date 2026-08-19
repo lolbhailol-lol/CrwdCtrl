@@ -19,7 +19,7 @@ export default function CampusHuntBackLink({
       navigate(to);
       return;
     }
-    if (typeof window !== 'undefined' && window.history.length > 1) {
+    if (typeof window !== 'undefined' && Number.isInteger(window.history.state?.idx) && window.history.state.idx > 0) {
       navigate(-1);
       return;
     }

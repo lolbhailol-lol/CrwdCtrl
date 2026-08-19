@@ -1,13 +1,13 @@
 import React from 'react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { ArrowLeft, CheckCircle2, Shield, Users, Globe, FileText, Scale, AlertCircle } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useInAppBack } from '../../hooks/useInAppBack';
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, webPageSchema } from '../../utils/seo';
 
 export default function TermsAndConditions() {
     const { isDark } = useDarkMode();
-    const navigate = useNavigate();
+    const goBack = useInAppBack();
 
     const termsData = {
         last_updated: "2025-11-01",
@@ -105,7 +105,7 @@ export default function TermsAndConditions() {
                 <div className="max-w-4xl mx-auto px-4 py-4">
                     <div className="flex items-center justify-center relative">
                         <button
-                            onClick={() => navigate(-1)}
+                            onClick={goBack}
                             className={`lg:hidden absolute left-0 p-2 rounded-lg ${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-100'} transition-colors`}
                         >
                             <ArrowLeft className="w-5 h-5" />

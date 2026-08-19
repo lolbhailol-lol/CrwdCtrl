@@ -17,6 +17,7 @@ import { eventDetailTabBoxes, eventMapSideFacts, resolveRunMapPin } from '../../
 import { resolveRunContacts, instagramHandle } from '../../utils/runContacts';
 import { getSportsTiers, isTiersPricing, minSportsFee, formatInr } from '../../utils/sportsTiers';
 import { groupTermsAndConditions } from '../../utils/termsAndConditions';
+import { useInAppBack } from '../../hooks/useInAppBack';
 
 import { publicFetchJSONRetry } from '../../services/api/client';
 import { DETAIL_FETCH_OPTS, classifyDetailLoadError } from '../../utils/detailPageLoad';
@@ -96,6 +97,7 @@ const MAP_SIDE_ICONS = {
 
 export default function EventCommunityEventPage() {
     const navigate = useNavigate();
+    const goBack = useInAppBack();
     const location = useLocation();
     const { id } = useParams();
     const { isDark } = useDarkMode();
@@ -233,7 +235,7 @@ export default function EventCommunityEventPage() {
                 ) : null}
                 <button
                     type="button"
-                    onClick={() => (isRetryable ? navigate('/events') : navigate(-1))}
+                    onClick={() => (isRetryable ? navigate('/events') : goBack())}
                     className="text-[#0ECCEE] text-sm font-semibold"
                 >
                     {isRetryable ? 'Browse events' : '← Go back'}
@@ -367,7 +369,7 @@ export default function EventCommunityEventPage() {
                     style={{ paddingTop: 'calc(max(var(--safe-top), 0px) + 2.5rem)' }}
                 >
                     <button
-                        onClick={() => navigate(-1)}
+                        onClick={goBack}
                         aria-label="Go back"
                         className="size-11 rounded-full bg-black/40 flex items-center justify-center"
                     >

@@ -7,6 +7,7 @@ import { useNotifications } from '../../context/NotificationsContext';
 import CrwdCtrlLogin from '../auth/login';
 import CrwdCtrlRegister from '../auth/register';
 import { buildVerifiedPaymentFields } from '../../utils/useCashfree';
+import { useInAppBack } from '../../hooks/useInAppBack';
 
 import PaymentErrorModal from '../../components/PaymentErrorModal';
 import RunCheckoutPanel from '../../components/sports/RunCheckoutPanel';
@@ -108,6 +109,7 @@ function getInitialUi(eventId, search, locationState) {
 
 export default function RunEventBookingPage() {
     const navigate = useNavigate();
+    const goBack = useInAppBack();
     const location = useLocation();
     const { id } = useParams();
     const initialUi = getInitialUi(id, location.search, location.state);
@@ -189,7 +191,7 @@ export default function RunEventBookingPage() {
             return;
         }
         if (formLocked) {
-            navigate(-1);
+            goBack();
             return;
         }
         closeLoginSheet();
@@ -1067,7 +1069,7 @@ export default function RunEventBookingPage() {
         }
     };
 
-    const back = () => (step === 1 ? navigate(-1) : setStep((s) => s - 1));
+    const back = () => (step === 1 ? goBack() : setStep((s) => s - 1));
 
     const hasStoredSession = !!localStorage.getItem('crwdctrl_token');
     const waitingOnAuth = hasStoredSession && (authLoading || isAuthProcessing || isRedirectProcessing);

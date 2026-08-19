@@ -6,6 +6,7 @@ import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { ScrollProgress, ScrollReveal } from '../../motion';
 import { shareContent, openExternalUrl } from '../../utils/externalLink';
+import { useInAppBack } from '../../hooks/useInAppBack';
 import Seo from '../../components/Seo';
 import LazyMap from '../../components/LazyMap';
 import DetailPageLoader from '../../components/DetailPageLoader';
@@ -232,6 +233,7 @@ function TrekInfoList({ items, isDark, dotClass = 'bg-[#0ECCEE]' }) {
 
 export default function TrekDetailPage() {
     const navigate  = useNavigate();
+    const goBack = useInAppBack();
     const location  = useLocation();
     const { id }    = useParams();
     const { isDark } = useDarkMode();
@@ -408,7 +410,7 @@ export default function TrekDetailPage() {
                 ) : null}
                 <button
                     type="button"
-                    onClick={() => (isRetryable ? navigate('/treks') : navigate(-1))}
+                    onClick={() => (isRetryable ? navigate('/treks') : goBack())}
                     className="text-[#0ECCEE] text-sm font-semibold"
                 >
                     {isNetwork ? 'Browse treks' : '← Go back'}
@@ -528,7 +530,7 @@ export default function TrekDetailPage() {
                     className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 z-10"
                     style={{ paddingTop: 'calc(max(var(--safe-top), 0px) + 2.5rem)' }}
                 >
-                    <button onClick={() => navigate(-1)}
+                    <button onClick={goBack}
                         aria-label="Go back"
                         className="size-11 rounded-full bg-black/40 flex items-center justify-center">
                         <ArrowLeft size={22} strokeWidth={2.25} className="text-white" />

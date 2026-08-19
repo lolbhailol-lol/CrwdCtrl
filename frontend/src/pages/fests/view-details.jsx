@@ -33,6 +33,7 @@ import DetailPageLoader from '../../components/DetailPageLoader';
 import CompetitionCoverImage from '../../components/CompetitionCoverImage';
 import FestPublicLiveStrip from '../../components/FestPublicLiveStrip';
 import { isMindSparkFest, formatMindSparkModuleLabel, MindSparkLiveBadge } from '../../features/fests/mindspark';
+import { useInAppBack } from '../../hooks/useInAppBack';
 
 function formatCompetitionTabLabel(tab) {
   if (!tab || tab === 'OTHER') return 'Other';
@@ -125,6 +126,7 @@ function EventDetailsPage() {
   const { toggleFavorite, isFavorite } = useFavorites();
   const { eventId } = useParams();
   const navigate = useNavigate();
+  const goBack = useInAppBack();
   const location = useLocation();
   const [activeTab, setActiveTab] = useState('GROUP');
   const [currentArtist, setCurrentArtist] = useState(0);
@@ -872,7 +874,7 @@ function EventDetailsPage() {
           <div className="absolute inset-x-0 top-0 flex items-center justify-between px-4 pt-[max(0.75rem,var(--safe-top))] pb-3 bg-linear-to-b from-black/35 to-transparent z-10">
             <button
               type="button"
-              onClick={() => navigate('/fests', { replace: true })}
+              onClick={goBack}
               className="p-2 rounded-full bg-black/30 backdrop-blur-sm text-white"
               aria-label="Back to fests"
             >

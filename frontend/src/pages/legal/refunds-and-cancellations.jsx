@@ -1,5 +1,6 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import { useInAppBack } from '../../hooks/useInAppBack';
 import { ArrowLeft, RefreshCw, XCircle, Clock, Mail } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import Seo from '../../components/Seo';
@@ -7,7 +8,7 @@ import { breadcrumbSchema, webPageSchema } from '../../utils/seo';
 
 export default function RefundsAndCancellations() {
   const { isDark } = useDarkMode();
-  const navigate = useNavigate();
+  const goBack = useInAppBack();
 
   const card = isDark ? 'bg-[#111111] border-gray-800' : 'bg-white border-gray-200';
 
@@ -32,7 +33,7 @@ export default function RefundsAndCancellations() {
           <div className="flex items-center justify-center relative">
             <button
               type="button"
-              onClick={() => navigate(-1)}
+              onClick={goBack}
               className={`lg:hidden absolute left-0 p-2 rounded-lg ${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-100'} transition-colors`}
             >
               <ArrowLeft className="w-5 h-5" />

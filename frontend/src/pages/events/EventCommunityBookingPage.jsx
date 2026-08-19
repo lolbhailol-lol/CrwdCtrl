@@ -7,6 +7,7 @@ import { useNotifications } from '../../context/NotificationsContext';
 import CrwdCtrlLogin from '../auth/login';
 import CrwdCtrlRegister from '../auth/register';
 import { buildVerifiedPaymentFields } from '../../utils/useCashfree';
+import { useInAppBack } from '../../hooks/useInAppBack';
 
 import PaymentErrorModal from '../../components/PaymentErrorModal';
 import GenderQuickPick from '../../components/GenderQuickPick';
@@ -145,6 +146,7 @@ function getInitialUi(eventId, search, locationState) {
 
 export default function EventCommunityBookingPage() {
     const navigate = useNavigate();
+    const goBack = useInAppBack();
     const location = useLocation();
     const { id } = useParams();
     const initialUi = getInitialUi(id, location.search, location.state);
@@ -227,7 +229,7 @@ export default function EventCommunityBookingPage() {
             return;
         }
         if (formLocked) {
-            navigate(-1);
+            goBack();
             return;
         }
         closeLoginSheet();
@@ -1227,7 +1229,7 @@ export default function EventCommunityBookingPage() {
         if (evId) {
             try { sessionStorage.removeItem(runDraftKey(evId)); } catch { /* ignore */ }
         }
-        navigate(-1);
+        goBack();
     };
 
     const hasStoredSession = !!localStorage.getItem('crwdctrl_token');

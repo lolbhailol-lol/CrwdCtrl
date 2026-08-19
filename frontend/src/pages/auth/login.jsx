@@ -12,6 +12,7 @@ import {
     resolvePostLoginRedirect,
     markLoginModalOpen,
 } from '../../utils/loginFlow';
+import { useInAppBack } from '../../hooks/useInAppBack';
 
 function GoogleIcon({ className = 'w-5 h-5 sm:w-6 sm:h-6' }) {
     return (
@@ -42,6 +43,7 @@ export default function CrwdCtrlLogin({
     const { login, isAuthenticated, user } = useAuth();
     const { isDark } = useDarkMode();
     const navigate = useNavigate();
+    const goBack = useInAppBack('/');
     const location = useLocation();
     const reduceMotion = useReducedMotion();
 
@@ -183,10 +185,8 @@ export default function CrwdCtrlLogin({
     const handleBack = () => {
         if (isModal && onClose) {
             onClose();
-        } else if (window.history.length > 1) {
-            navigate(-1);
         } else {
-            navigate('/');
+            goBack();
         }
     };
 

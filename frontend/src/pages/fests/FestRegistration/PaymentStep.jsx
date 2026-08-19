@@ -2,6 +2,7 @@ import { Loader } from 'lucide-react';
 import PaymentErrorModal from '../../../components/PaymentErrorModal';
 import { goToBookings } from '../../../utils/paymentNavigation';
 import { RegistrationStatusVisual, RegistrationProcessingOverlay } from '../../../components/RegistrationStatusVisual';
+import { useInAppBack } from '../../../hooks/useInAppBack';
 
 export function CompletingPaymentStep({
   isDark,
@@ -98,8 +99,8 @@ export default function PaymentStep({
   closePaymentModal,
   onRetryCheckout,
   onPay,
-  navigate,
 }) {
+  const goBack = useInAppBack();
   return (
     <div className="crwdctrl-page crwdctrl-page--flat min-h-screen flex items-center justify-center px-4">
       <RegistrationProcessingOverlay
@@ -222,7 +223,7 @@ export default function PaymentStep({
         </button>
 
         <button
-          onClick={() => navigate(-1)}
+          onClick={goBack}
           className={`w-full mt-3 py-2.5 rounded-xl text-sm ${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-800'} transition`}
         >
           Go Back
