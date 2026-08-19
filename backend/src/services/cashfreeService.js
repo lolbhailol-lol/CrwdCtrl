@@ -38,11 +38,20 @@ const buildReturnUrl = (orderId) =>
 
 const generateOrderId = () => `order_${crypto.randomBytes(12).toString('hex')}`;
 
-const normalizePhone = (phone) => {
-  const digits = String(phone || '').replace(/\D/g, '');
-  if (digits.length >= 10) return digits.slice(-10);
-  return '9999999999';
-};
+/** First real 10-digit phone from a list of raw values. Empty string if none. */
+function firstValidCustomerPhone(values = []) {
+  const list = Array.isArray(values) ? values : [values];
+  for (const value of list) {
+    const digits = String(value || '').replace(/\D/g, '');
+    if (digits.length >= 10) {
+      const phone = digits.slice(-10);
+      if (phone !== '9999999999') return phone;
+    }
+  }
+  return '';
+}
+
+const normalizePhone = (phone) => firstValidCustomerPhone([phone]) || '9999999999';
 
 /** Cashfree allows at most 15 order_tags keys — sanitize and cap. */
 function sanitizeCashfreeOrderTags(raw = {}, maxKeys = 15) {
@@ -337,6 +346,7 @@ module.exports = {
   inspectWebhookSignature,
   generateOrderId,
   normalizePhone,
+  firstValidCustomerPhone,
   sanitizeCashfreeOrderTags,
   getCashfreeClientMode,
   mapOrderStatus,

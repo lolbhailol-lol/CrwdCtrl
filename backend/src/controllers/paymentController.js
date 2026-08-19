@@ -26,6 +26,7 @@ const {
   createCashfreeOrder,
   verifyCashfreePayment,
   getCashfreeClientMode,
+  firstValidCustomerPhone,
 } = require('../services/cashfreeService');
 const { extractPaymentFields } = require('../utils/paymentVerification');
 const { sendVerifyResponse } = require('../utils/paymentVerifyResponse');
@@ -248,30 +249,39 @@ const getPricingForRequest = async (req) => {
   };
 };
 
+function phonesFromRegistrationDraft(draft) {
+  const formData = draft?.formData && typeof draft.formData === 'object' ? draft.formData : {};
+  const members = Array.isArray(formData.team_members) ? formData.team_members : [];
+  const first = members.find((member) => member && typeof member === 'object') || {};
+  return [
+    formData.phone,
+    formData.contact_no,
+    formData.contact,
+    formData.mobile,
+    first.phone,
+    first.contact,
+    first.mobile,
+  ];
+}
+
 const getCustomerDetails = async (req) => {
-  const { customerName, customerEmail, customerPhone } = req.body;
-  if (customerName || customerEmail || customerPhone) {
-    return {
-      customerId: req.user?.userId || `guest_${Date.now()}`,
-      customerName,
-      customerEmail,
-      customerPhone,
-    };
-  }
-
+  const { customerName, customerEmail, customerPhone, registrationDraft } = req.body || {};
+  let user = null;
   if (req.user?.userId) {
-    const user = await User.findById(req.user.userId).select('name email phoneNumber phone');
-    if (user) {
-      return {
-        customerId: user._id.toString(),
-        customerName: user.name,
-        customerEmail: user.email,
-        customerPhone: user.phoneNumber || user.phone,
-      };
-    }
+    user = await User.findById(req.user.userId).select('name email phoneNumber phone').lean();
   }
 
-  return { customerId: `guest_${Date.now()}` };
+  return {
+    customerId: user?._id?.toString() || req.user?.userId || `guest_${Date.now()}`,
+    customerName: customerName || user?.name,
+    customerEmail: customerEmail || user?.email,
+    customerPhone: firstValidCustomerPhone([
+      customerPhone,
+      user?.phoneNumber,
+      user?.phone,
+      ...phonesFromRegistrationDraft(registrationDraft),
+    ]),
+  };
 };
 
 exports.getPaymentQuote = async (req, res) => {

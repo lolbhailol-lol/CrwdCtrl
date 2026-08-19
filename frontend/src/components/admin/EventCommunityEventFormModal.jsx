@@ -10,6 +10,7 @@ import { adminFetch, adminFetchJSON } from '../../services/api/admin.api.js';
 import { normalizeRunDetailBoxes, sanitizeDetailBoxesPayload, EVENT_DETAIL_BOX_PRESETS } from '../../utils/trekDetailBoxes';
 import { createEmptyTier, sanitizeSportsTiers, sanitizeOptionalAddOn } from '../../utils/sportsTiers';
 import { contactsFromEvent, contactsToPayload } from '../../utils/runContacts';
+import { termsToTextarea, textareaToTerms } from '../../utils/termsAndConditions';
 import SelectFieldOptionsEditor from './SelectFieldOptionsEditor';
 
 const EMPTY = {
@@ -121,7 +122,7 @@ export default function EventCommunityEventFormModal({ event, runClubId, clubNam
                 optionalAddOn: sanitizeOptionalAddOn(event.optionalAddOn),
                 detailBoxes: normalizeRunDetailBoxes(event.detailBoxes, event),
                 infoSections: Array.isArray(event.infoSections) ? event.infoSections : [],
-                termsAndConditions: Array.isArray(event.termsAndConditions) ? event.termsAndConditions.join('\n') : '',
+                termsAndConditions: Array.isArray(event.termsAndConditions) ? termsToTextarea(event.termsAndConditions) : '',
                 ...(() => {
                     const c = contactsFromEvent(event);
                     return {
@@ -277,9 +278,7 @@ export default function EventCommunityEventFormModal({ event, runClubId, clubNam
                 infoSections: (form.infoSections || [])
                     .map((s) => ({ title: (s.title || '').trim(), details: (s.details || '').trim() }))
                     .filter((s) => s.title || s.details),
-                termsAndConditions: form.termsAndConditions
-                    ? form.termsAndConditions.split('\n').map((s) => s.trim()).filter(Boolean)
-                    : [],
+                termsAndConditions: textareaToTerms(form.termsAndConditions),
                 ...contactsToPayload(form.contactPhones, form.contactInstagrams),
                 status: form.status,
                 showOnSportsPage: false,
@@ -947,7 +946,7 @@ export default function EventCommunityEventFormModal({ event, runClubId, clubNam
                         <Field label="Duration / format" hint="Optional — shown on the public event page">
                             <input type="text" value={form.distance} onChange={(e) => set('distance', e.target.value)} className={inp} placeholder="e.g. 2 hours" />
                         </Field>
-                        <Field label="Terms & Conditions" hint="One point per line">
+                        <Field label="Terms & Conditions" hint="One main point per block. Heading on the first line, details below. Separate sections with a blank line.">
                             <textarea value={form.termsAndConditions} onChange={(e) => set('termsAndConditions', e.target.value)} rows={4} className={`${inp} resize-none`} placeholder="Cancellation policy..." />
                         </Field>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

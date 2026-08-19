@@ -51,7 +51,7 @@ import { waitAtLeast, sleep } from '../../../components/RegistrationStatusVisual
 import { API_BASE_URL } from '../../../services/api/client';
 import { festRegisterPath } from '../../../utils/slugRoutes';
 import { loadRegistrationPrefetch, saveRegistrationPrefetch } from '../../../utils/festPublicTransform';
-import { getInitialFestRegistrationUi, generateFieldId, compressImage, buildInitialFormData, mergeFormDataWithSchema } from './helpers';
+import { getInitialFestRegistrationUi, generateFieldId, compressImage, buildInitialFormData, mergeFormDataWithSchema, customerPhoneFromRegistration } from './helpers';
 
 export default function useFestRegistration() {
   const { festId } = useParams();
@@ -75,6 +75,7 @@ export default function useFestRegistration() {
     firebaseUser,
     isAuthProcessing,
     isRedirectProcessing,
+    user,
   } = useAuth();
   const { refreshNotifications } = useNotifications();
 
@@ -189,7 +190,7 @@ export default function useFestRegistration() {
   }, [isAuthenticated, showLogin, showRegister]);
 
   const buildOrderRegistrationDraft = () => ({
-    formData: getAllFormData(),
+    formData: { ...getAllFormData(), ...formData },
     stepData,
     currentStep,
     festId: festId || fest?._id,
@@ -1469,7 +1470,13 @@ export default function useFestRegistration() {
         const orderRes = await fetch(`${API_BASE_URL}/payment/order`, {
           method: 'POST',
           headers: getBearerAuthHeaders(authToken),
-          body: JSON.stringify({ ...orderNotes, couponCode: appliedCouponCode || undefined }),
+          body: JSON.stringify({
+            ...orderNotes,
+            couponCode: appliedCouponCode || undefined,
+            customerPhone: customerPhoneFromRegistration({ ...getAllFormData(), ...formData }, user) || undefined,
+            customerName: user?.name || undefined,
+            customerEmail: user?.email || undefined,
+          }),
         });
         if (orderRes.status === 401) {
           clearStoredAuthSession();
@@ -1866,6 +1873,9 @@ export default function useFestRegistration() {
           festId,
           couponCode: appliedCouponCode || undefined,
           registrationDraft: buildOrderRegistrationDraft(),
+          customerPhone: customerPhoneFromRegistration({ ...getAllFormData(), ...formData }, user) || undefined,
+          customerName: user?.name || undefined,
+          customerEmail: user?.email || undefined,
         }),
       });
       if (orderRes.status === 401) {

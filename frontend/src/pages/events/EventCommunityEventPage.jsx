@@ -16,13 +16,14 @@ import { eventCommunityEventPath, entityMatchesRouteParam } from '../../utils/sl
 import { eventDetailTabBoxes, eventMapSideFacts, resolveRunMapPin } from '../../utils/trekDetailBoxes';
 import { resolveRunContacts, instagramHandle } from '../../utils/runContacts';
 import { getSportsTiers, isTiersPricing, minSportsFee, formatInr } from '../../utils/sportsTiers';
+import { groupTermsAndConditions } from '../../utils/termsAndConditions';
 
 import { publicFetchJSONRetry } from '../../services/api/client';
 import { DETAIL_FETCH_OPTS, classifyDetailLoadError } from '../../utils/detailPageLoad';
 import { trackBookNowClick } from '../../services/analyticsService';
 import { organizerHubCopy } from '../../utils/listingHubCopy';
 
-const RUN_DETAIL_CACHE_PREFIX = 'crwdctrl_event_community_detail_v16_';
+const RUN_DETAIL_CACHE_PREFIX = 'crwdctrl_event_community_detail_v17_';
 const readRunDetailCache = (key) => {
     try {
         const raw = sessionStorage.getItem(`${RUN_DETAIL_CACHE_PREFIX}${key}`);
@@ -271,6 +272,7 @@ export default function EventCommunityEventPage() {
               'Cancellation policy varies by organiser — contact the community for details.',
               'The organiser reserves the right to modify or cancel due to weather or safety.',
           ];
+    const termSections = groupTermsAndConditions(terms);
 
     const handleShare = () => {
         shareContent({
@@ -836,7 +838,7 @@ export default function EventCommunityEventPage() {
                             <div className="text-left">
                                 <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Terms &amp; Conditions</p>
                                 <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                    {terms.length} points — tap to {termsOpen ? 'collapse' : 'read'}
+                                    {termSections.length} {termSections.length === 1 ? 'section' : 'sections'} — tap to {termsOpen ? 'collapse' : 'read'}
                                 </p>
                             </div>
                         </div>
@@ -847,17 +849,35 @@ export default function EventCommunityEventPage() {
                     </button>
                     {termsOpen && (
                         <div className={`mt-2 rounded-2xl border overflow-hidden ${isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
-                            {terms.map((term, i) => (
+                            {termSections.map((section, i) => (
                                 <div
                                     key={i}
-                                    className={`flex gap-3 px-4 py-3 ${i < terms.length - 1 ? `border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}` : ''}`}
+                                    className={`flex gap-3 px-4 py-3 ${i < termSections.length - 1 ? `border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}` : ''}`}
                                 >
                                     <span
                                         className={`text-xs font-bold mt-0.5 shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${isDark ? 'bg-[#1D1E20] text-[#0ECCEE]' : 'bg-amber-50 text-amber-600'}`}
                                     >
                                         {i + 1}
                                     </span>
-                                    <p className={`text-sm leading-relaxed whitespace-pre-line ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{term}</p>
+                                    <div className="min-w-0">
+                                        {section.title ? (
+                                            <p className={`text-sm font-semibold leading-snug ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                {section.title}
+                                            </p>
+                                        ) : null}
+                                        {section.bullets.length > 0 ? (
+                                            <ul className={`${section.title ? 'mt-1.5' : ''} space-y-1 list-disc pl-4`}>
+                                                {section.bullets.map((bullet, bi) => (
+                                                    <li
+                                                        key={bi}
+                                                        className={`text-sm leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-600'}`}
+                                                    >
+                                                        {bullet}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        ) : null}
+                                    </div>
                                 </div>
                             ))}
                         </div>

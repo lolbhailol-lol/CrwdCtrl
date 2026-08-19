@@ -152,3 +152,30 @@ export function compressImage(file) {
     img.src = URL.createObjectURL(file);
   });
 }
+
+export function firstValidCustomerPhone(...values) {
+  for (const value of values) {
+    const digits = String(value || '').replace(/\D/g, '');
+    if (digits.length >= 10) {
+      const phone = digits.slice(-10);
+      if (phone !== '9999999999') return phone;
+    }
+  }
+  return '';
+}
+
+export function customerPhoneFromRegistration(formData = {}, user = null) {
+  const members = Array.isArray(formData.team_members) ? formData.team_members : [];
+  const first = members.find((member) => member && typeof member === 'object') || {};
+  return firstValidCustomerPhone(
+    user?.phoneNumber,
+    user?.phone,
+    formData.phone,
+    formData.contact_no,
+    formData.contact,
+    formData.mobile,
+    first.phone,
+    first.contact,
+    first.mobile,
+  );
+}

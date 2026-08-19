@@ -6,7 +6,7 @@ const {
   draftToResponses,
 } = require('../src/utils/festCompetitionDraft');
 const { shouldReuseMappedStatus } = require('../src/utils/paymentOrderIdempotency');
-const { mapOrderStatus } = require('../src/services/cashfreeService');
+const { mapOrderStatus, firstValidCustomerPhone, normalizePhone } = require('../src/services/cashfreeService');
 const { buildPaymentOrderNote } = require('../src/utils/paymentOrderNote');
 
 test('mapOrderStatus treats user-dropped checkout as cancelled', () => {
@@ -124,4 +124,14 @@ test('Cashfree order note uses the competition name instead of a generic label',
     }),
     'MindSpark registration',
   );
+});
+
+test('Cashfree customer phone uses the first real 10-digit number and dummies only as last resort', () => {
+  assert.equal(firstValidCustomerPhone(['', '9876543210']), '9876543210');
+  assert.equal(firstValidCustomerPhone(['+91 98765 43210']), '9876543210');
+  assert.equal(firstValidCustomerPhone(['9999999999', '9876543210']), '9876543210');
+  assert.equal(firstValidCustomerPhone(['123', null, undefined]), '');
+  assert.equal(normalizePhone(''), '9999999999');
+  assert.equal(normalizePhone('9876543210'), '9876543210');
+  assert.equal(normalizePhone('9999999999'), '9999999999');
 });

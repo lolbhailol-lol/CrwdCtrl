@@ -11,6 +11,7 @@ import { adminFetch, adminFetchJSON } from '../../services/api/admin.api.js';
 import { normalizeRunDetailBoxes, sanitizeDetailBoxesPayload, RUN_DETAIL_BOX_PRESETS } from '../../utils/trekDetailBoxes';
 import { createEmptyTier, sanitizeSportsTiers, sanitizeOptionalAddOn } from '../../utils/sportsTiers';
 import { contactsFromEvent, contactsToPayload } from '../../utils/runContacts';
+import { termsToTextarea, textareaToTerms } from '../../utils/termsAndConditions';
 import SelectFieldOptionsEditor from './SelectFieldOptionsEditor';
 
 const EMPTY = {
@@ -122,7 +123,7 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                 optionalAddOn: sanitizeOptionalAddOn(event.optionalAddOn),
                 detailBoxes: normalizeRunDetailBoxes(event.detailBoxes, event),
                 infoSections: Array.isArray(event.infoSections) ? event.infoSections : [],
-                termsAndConditions: Array.isArray(event.termsAndConditions) ? event.termsAndConditions.join('\n') : '',
+                termsAndConditions: Array.isArray(event.termsAndConditions) ? termsToTextarea(event.termsAndConditions) : '',
                 ...(() => {
                     const c = contactsFromEvent(event);
                     return {
@@ -265,9 +266,7 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                 infoSections: (form.infoSections || [])
                     .map((s) => ({ title: (s.title || '').trim(), details: (s.details || '').trim() }))
                     .filter((s) => s.title || s.details),
-                termsAndConditions: form.termsAndConditions
-                    ? form.termsAndConditions.split('\n').map((s) => s.trim()).filter(Boolean)
-                    : [],
+                termsAndConditions: textareaToTerms(form.termsAndConditions),
                 ...contactsToPayload(form.contactPhones, form.contactInstagrams),
                 status: form.status,
                 ...(event ? {} : {
