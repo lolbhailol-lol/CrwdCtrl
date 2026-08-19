@@ -6,6 +6,7 @@ const {
     participantsToCsv,
     participantsToXlsx,
 } = require('./trekOrganizerFormat');
+const { settlementForRegistration } = require('./cashfreeGatewayFee');
 
 /** Keys persisted on responses for ops — not guest form answers. */
 const INTERNAL_FORM_KEYS = new Set([
@@ -100,6 +101,11 @@ function formatParticipantRow(reg, event = null) {
     const addOnLabel = String(reg.addOnLabel || form.addOnLabel || '').trim();
     const addOnFee = Math.max(0, Number(reg.addOnFee) || Number(form.addOnFee) || 0);
     const addOnTotal = addOnSelected ? addOnFee * people : 0;
+    const settled = settlementForRegistration({
+        amountPaid: grossCollected,
+        payment_gateway: reg.payment_gateway,
+        payment_order_id: reg.payment_order_id,
+    });
 
     return {
         bookingId: String(reg._id),
@@ -147,9 +153,10 @@ function formatParticipantRow(reg, event = null) {
             || '',
         qrCodeData: booking.qrCodeData,
         trekName: event?.title || '',
-        grossCollected,
-        organizerNet: grossCollected,
-        platformFee: 0,
+        grossCollected: settled.amountPaid,
+        organizerNet: settled.netToOrganizer,
+        platformFee: settled.gatewayFee,
+        gatewayFee: settled.gatewayFee,
         paymentScreenshotUrl: reg.paymentScreenshotUrl || '',
         transactionId: reg.transactionId || '',
         paymentReviewNote: reg.paymentReviewNote || '',
@@ -226,11 +233,70 @@ function buildSheetColumns(formSchema = []) {
         { key: 'couponDiscount', label: 'Discount (₹)', group: 'status', minWidth: 104 },
         { key: 'listAmount', label: 'List (₹)', group: 'status', minWidth: 88 },
         { key: 'paymentStatus', label: 'Payment', group: 'status', minWidth: 88 },
-        { key: 'organizerNet', label: 'Revenue (₹)', group: 'status', minWidth: 104 },
+        { key: 'grossCollected', label: 'Paid (₹)', group: 'status', minWidth: 88 },
+        { key: 'gatewayFee', label: 'Gateway 1.6% (₹)', group: 'status', minWidth: 118 },
+        { key: 'organizerNet', label: 'Your share (₹)', group: 'status', minWidth: 104 },
         { key: 'checkInStatus', label: 'Check-in', group: 'status', minWidth: 100 },
         { key: 'checkedInAt', label: 'Check-in At', group: 'status', minWidth: 138 },
         { key: 'bookingDate', label: 'Registered', group: 'status', minWidth: 138 },
     ];
+}
+
+const ORGANIZER_LOCKED_FORM_KEYS = new Set([
+    'gender',
+    'sex',
+    'full_name',
+    'fullname',
+    'name',
+    'email',
+    'e_mail',
+    'e_mail_id',
+    'contact_no',
+    'phone',
+    'mobile',
+    'contact',
+    'emergency_contact',
+    'emergency_phone',
+    'guardian_contact',
+]);
+
+function editableOrganizerFormFields(formSchema = []) {
+    return mergeFormSchemaForDisplay(formSchema)
+        .filter((f) => f?.fieldName && !isInternalFormKey(f.fieldName))
+        .filter((f) => !ORGANIZER_LOCKED_FORM_KEYS.has(String(f.fieldName).toLowerCase()))
+        .map((f) => ({
+            fieldName: f.fieldName,
+            label: f.label || humanizeFieldName(f.fieldName),
+            type: f.type || 'text',
+            options: Array.isArray(f.options) ? f.options.map((o) => String(o)).filter(Boolean) : [],
+        }));
+}
+
+function applyOrganizerFormAnswers(formSchema = [], currentResponses = {}, answers = {}) {
+    const src = currentResponses && typeof currentResponses === 'object' ? { ...currentResponses } : {};
+    const incoming = answers && typeof answers === 'object' && !Array.isArray(answers) ? answers : {};
+    const allowed = new Map(
+        editableOrganizerFormFields(formSchema).map((f) => [String(f.fieldName), f]),
+    );
+    const applied = {};
+    for (const [rawKey, rawValue] of Object.entries(incoming)) {
+        const field = allowed.get(String(rawKey));
+        if (!field) continue;
+        const value = String(rawValue ?? '').trim();
+        if (!value) continue;
+        if (value.length > 200) {
+            throw Object.assign(new Error(`${field.label} is too long`), { status: 400 });
+        }
+        if (field.options.length && !field.options.includes(value)) {
+            throw Object.assign(new Error(`Pick a valid option for ${field.label}`), { status: 400 });
+        }
+        src[field.fieldName] = value;
+        applied[field.fieldName] = value;
+    }
+    if (!Object.keys(applied).length) {
+        throw Object.assign(new Error('No form answers to save'), { status: 400 });
+    }
+    return src;
 }
 
 function formatParticipantSheetRow(reg, event = null) {
@@ -254,7 +320,10 @@ function formatParticipantSheetRow(reg, event = null) {
     return {
         ...row,
         formData,
-        registrationFields: filterRegistrationFields(buildRegistrationFields(formSchema, formData)),
+        registrationFields: filterRegistrationFields(
+            buildRegistrationFields(formSchema, formData, { includeEmpty: true }),
+        ),
+        editableFormFields: editableOrganizerFormFields(event?.registration?.formSchema || []),
     };
 }
 
@@ -276,11 +345,18 @@ function buildParticipantTimeline(reg, event = null) {
                 detail: gross > 0 ? `₹${gross.toLocaleString('en-IN')} awaiting review` : 'Awaiting review',
             });
         } else if (gross > 0 && (reg.paymentStatus === 'paid' || booking.status === 'confirmed')) {
+            const settled = settlementForRegistration({
+                amountPaid: gross,
+                payment_gateway: reg.payment_gateway,
+                payment_order_id: reg.payment_order_id,
+            });
             items.push({
                 label: 'Payment received',
                 at: reg.paymentReviewedAt || booking.createdAt,
                 status: 'done',
-                detail: `₹${gross.toLocaleString('en-IN')}`,
+                detail: settled.gatewayFee > 0
+                    ? `Paid ₹${settled.amountPaid.toLocaleString('en-IN')} · your share ₹${settled.netToOrganizer.toLocaleString('en-IN')} after 1.6%`
+                    : `₹${gross.toLocaleString('en-IN')}`,
             });
         } else if (gross > 0) {
             items.push({
@@ -332,12 +408,16 @@ function formatParticipantDetail(reg, event = null) {
     return {
         ...row,
         formData,
-        registrationFields: filterRegistrationFields(buildRegistrationFields(formSchema, formData)),
+        registrationFields: filterRegistrationFields(
+            buildRegistrationFields(formSchema, formData, { includeEmpty: true }),
+        ),
+        editableFormFields: editableOrganizerFormFields(event?.registration?.formSchema || []),
         bookingDetails: {
             ...bd,
             grossCollected: row.grossCollected,
             organizerNet: row.organizerNet,
-            platformFee: 0,
+            platformFee: row.gatewayFee || 0,
+            gatewayFee: row.gatewayFee || 0,
             paymentId: bd.paymentId || bd.payment_order_id || '',
         },
         timeline: buildParticipantTimeline(reg, event),
@@ -352,6 +432,8 @@ module.exports = {
     formatParticipantSheetRow,
     buildSheetColumns,
     mergeFormSchemaForDisplay,
+    editableOrganizerFormFields,
+    applyOrganizerFormAnswers,
     INTERNAL_FORM_KEYS,
     participantsToCsv,
     participantsToXlsx,

@@ -22,7 +22,7 @@ function isFileValue(raw) {
     return raw && typeof raw === 'object' && raw.uploaded;
 }
 
-function buildRegistrationFields(formSchema = [], formData = {}) {
+function buildRegistrationFields(formSchema = [], formData = {}, { includeEmpty = false } = {}) {
     const form = formData && typeof formData === 'object' ? formData : {};
     const usedKeys = new Set();
     const fields = [];
@@ -32,7 +32,20 @@ function buildRegistrationFields(formSchema = [], formData = {}) {
         if (!fieldName) continue;
         usedKeys.add(fieldName);
         const raw = form[fieldName];
-        if (raw === null || raw === undefined || raw === '') continue;
+        if (raw === null || raw === undefined || raw === '') {
+            if (!includeEmpty) continue;
+            fields.push({
+                label: field.label || humanizeFieldName(fieldName),
+                fieldName,
+                type: field.type || 'text',
+                value: '',
+                rawValue: '',
+                isFile: false,
+                fileUrl: null,
+                missing: true,
+            });
+            continue;
+        }
         fields.push({
             label: field.label || humanizeFieldName(fieldName),
             fieldName,

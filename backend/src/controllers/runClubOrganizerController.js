@@ -16,6 +16,8 @@ const {
     buildSheetColumns,
     participantsToCsv,
     participantsToXlsx,
+    applyOrganizerFormAnswers,
+    responsesToObject,
 } = require('../utils/runClubOrganizerFormat');
 const {
     normalizeUsername,
@@ -33,15 +35,19 @@ const {
 const {
     decryptRegistrationPii,
     decryptManyRegistrations,
+    persistMergedRegistrationResponses,
     searchTokensForQuery,
 } = require('../utils/runClubPiiCrypto');
+const { summarizeCashfreeSettlement, isCashfreePayment } = require('../utils/cashfreeGatewayFee');
 const RunClubManagerProfileInvite = require('../model/run_club_manager_profile_invite_model');
 const {
     sanitizeGenderQuotas,
     sanitizeGenderPhase,
     getSportsGenderRegistrationSnapshot,
     aggregateSportsGenderQuotaStats,
+    countSportsGenderFromRegs,
     validateSportsGenderRegistration,
+    normalizeGender,
 } = require('../utils/trekGenderRegistration');
 
 const notFoundMsg = (req) => (req.listingHub === 'events' ? 'Event not found' : 'Run not found');
@@ -1098,7 +1104,7 @@ exports.getDashboard = async (req, res) => {
         await expireStalePendingRegistrations(eventId);
 
         const event = await SportsEvent.findById(eventId)
-            .select('title city eventDate status maxParticipants registration.status registration.mode registration.genderQuotas registration.genderPhase registrationFee distance reportingTime')
+            .select('title city eventDate status maxParticipants registration.status registration.mode registration.genderQuotas registration.genderPhase registrationFee distance reportingTime runClubId')
             .lean();
         if (!event) return res.status(404).json({ success: false, message: notFoundMsg(req) });
 
@@ -1113,10 +1119,10 @@ exports.getDashboard = async (req, res) => {
         const [totalRegistrations, checkedIn, paidRegs, todayRegistrations, pendingPaymentReview, holdingRegs, pendingRegs, failedOrExpired] = await Promise.all([
             CategoryRegistration.countDocuments(baseFilter),
             CategoryRegistration.countDocuments({ ...baseFilter, checkedIn: true }),
-            CategoryRegistration.find(baseFilter).select('amountPaid payment_gateway paymentScreenshotUrl paymentScreenshotCipher').lean(),
+            CategoryRegistration.find(baseFilter).select('amountPaid payment_gateway payment_order_id paymentScreenshotUrl paymentScreenshotCipher').lean(),
             CategoryRegistration.countDocuments({ ...baseFilter, createdAt: { $gte: today, $lt: tomorrow } }),
             CategoryRegistration.countDocuments(pendingFilter),
-            CategoryRegistration.find(holdingFilter).select('bookingPeople responses').lean(),
+            CategoryRegistration.find(holdingFilter).select('status bookingPeople responses participantGender piiEncrypted responsesCipher runClubId').lean(),
             CategoryRegistration.find(pendingFilter).select('amountPaid').lean(),
             CategoryRegistration.countDocuments({
                 category: 'sports',
@@ -1125,8 +1131,9 @@ exports.getDashboard = async (req, res) => {
             }),
         ]);
 
-        const organizerRevenue = paidRegs.reduce((sum, r) => sum + (Number(r.amountPaid) || 0), 0);
-        const cashfreePaid = paidRegs.filter((r) => String(r.payment_gateway || '').toLowerCase() === 'cashfree');
+        const settlement = summarizeCashfreeSettlement(paidRegs);
+        const organizerRevenue = settlement.revenue;
+        const cashfreePaid = paidRegs.filter((r) => isCashfreePayment(r));
         const qrPaid = paidRegs.filter((r) => {
             const gw = String(r.payment_gateway || '').toLowerCase();
             return gw === 'organizer_qr'
@@ -1140,7 +1147,20 @@ exports.getDashboard = async (req, res) => {
         const pendingAmountAtRisk = pendingRegs.reduce((sum, r) => sum + (Number(r.amountPaid) || 0), 0);
         const seatsRemaining = capacity > 0 ? Math.max(0, capacity - seatsFilled) : null;
         const genderRegistration = await getSportsGenderRegistrationSnapshot(event);
-        const genderStats = await aggregateSportsGenderQuotaStats(eventId);
+        const genderStatsFromBookings = countSportsGenderFromRegs(
+            decryptManyRegistrations(
+                holdingRegs.filter((r) => r.status === 'confirmed'),
+                event.runClubId,
+            ),
+        );
+        const genderStatsAgg = await aggregateSportsGenderQuotaStats(event._id || eventId, { statuses: ['confirmed'] });
+        const genderStats = (
+            genderStatsFromBookings.female.filled
+            + genderStatsFromBookings.male.filled
+            + genderStatsFromBookings.others.filled
+        ) > 0
+            ? genderStatsFromBookings
+            : genderStatsAgg;
 
         res.json({
             success: true,
@@ -1174,8 +1194,9 @@ exports.getDashboard = async (req, res) => {
                 autoExpireEnabled: false,
                 revenue: organizerRevenue,
                 organizerRevenue,
-                platformFees: 0,
-                grossCollected: organizerRevenue,
+                platformFees: settlement.gatewayFees,
+                gatewayFees: settlement.gatewayFees,
+                grossCollected: settlement.grossCollected,
                 cashfreeCollected,
                 qrCollected,
                 failedOrExpired,
@@ -1183,6 +1204,8 @@ exports.getDashboard = async (req, res) => {
                 femaleCount: genderStats.female?.filled || 0,
                 maleCount: genderStats.male?.filled || 0,
                 othersCount: genderStats.others?.filled || 0,
+                femaleBookings: genderStats.female?.bookings || 0,
+                maleBookings: genderStats.male?.bookings || 0,
             },
         });
     } catch (error) {
@@ -1201,6 +1224,7 @@ exports.listParticipants = async (req, res) => {
         const search = String(req.query.search || '').trim();
         const paymentStatus = req.query.paymentStatus;
         const checkInStatus = req.query.checkInStatus;
+        const genderFilter = normalizeGender(req.query.gender);
         const sortBy = req.query.sortBy || 'createdAt';
         let sortDir = req.query.sortDir === 'asc' ? 1 : -1;
 
@@ -1225,6 +1249,18 @@ exports.listParticipants = async (req, res) => {
         }
         if (checkInStatus === 'checked_in') filter.checkedIn = true;
         if (checkInStatus === 'pending') filter.checkedIn = { $ne: true };
+        if (genderFilter) {
+            filter.$and = [
+                ...(filter.$and || []),
+                {
+                    $or: [
+                        { participantGender: genderFilter },
+                        { 'responses.gender': genderFilter },
+                        { 'responses.sex': genderFilter },
+                    ],
+                },
+            ];
+        }
 
         if (search) {
             const regex = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
@@ -1314,6 +1350,54 @@ exports.getParticipant = async (req, res) => {
         res.json({ success: true, participant: formatParticipantDetail(decrypted, event) });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Failed to load participant' });
+    }
+};
+
+exports.updateParticipantFormAnswers = async (req, res) => {
+    try {
+        const { bookingId } = req.params;
+        if (!mongoose.Types.ObjectId.isValid(bookingId)) {
+            return res.status(400).json({ success: false, message: 'Invalid booking ID' });
+        }
+
+        const registration = await CategoryRegistration.findOne({
+            _id: bookingId,
+            category: 'sports',
+            eventId: req.eventId,
+        });
+        if (!registration) {
+            return res.status(404).json({ success: false, message: 'Participant not found' });
+        }
+
+        const event = await SportsEvent.findById(req.eventId)
+            .select('title city registration.formSchema registrationFee eventDate reportingTime runClubId')
+            .lean();
+        const clubId = resolveEventRunClubId(event, req.organizer);
+        const decrypted = decryptRegistrationPii(registration, clubId);
+        const current = responsesToObject(decrypted);
+
+        let merged;
+        try {
+            merged = applyOrganizerFormAnswers(
+                event?.registration?.formSchema,
+                current,
+                req.body?.answers || req.body || {},
+            );
+        } catch (err) {
+            return res.status(err.status || 400).json({ success: false, message: err.message });
+        }
+
+        persistMergedRegistrationResponses(registration, merged, clubId);
+        await registration.save();
+
+        const next = decryptRegistrationPii(registration.toObject(), clubId);
+        res.json({
+            success: true,
+            participant: formatParticipantDetail(next, event),
+        });
+    } catch (error) {
+        console.error('[runClubOrganizer.updateParticipantFormAnswers]', error);
+        res.status(500).json({ success: false, message: 'Failed to save form answers' });
     }
 };
 

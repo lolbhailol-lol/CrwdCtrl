@@ -26,7 +26,7 @@ function FieldValue({ field }) {
             </span>
         );
     }
-    const text = field.value == null || field.value === '' ? '—' : String(field.value);
+    const text = field.value == null || field.value === '' ? (field.missing ? 'Not captured' : '—') : String(field.value);
     return <span className="text-gray-100 wrap-break-word whitespace-pre-wrap leading-relaxed">{text}</span>;
 }
 

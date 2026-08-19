@@ -194,6 +194,17 @@ exports.registerForEvent = async (req, res) => {
                 responses.addOnLabel = addOnMeta.label;
                 responses.addOnFee = addOnMeta.fee;
             }
+            const incomingForm = {
+                ...(req.body.formData && typeof req.body.formData === 'object' ? req.body.formData : {}),
+                ...(req.body.responses && typeof req.body.responses === 'object' ? req.body.responses : {}),
+            };
+            for (const field of event.registration?.formSchema || []) {
+                const name = String(field?.fieldName || '').trim();
+                if (!name) continue;
+                const value = incomingForm[name];
+                if (value === undefined || value === null || String(value).trim() === '') continue;
+                if (!String(responses[name] || '').trim()) responses[name] = value;
+            }
         }
 
         const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

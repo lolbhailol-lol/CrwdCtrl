@@ -17,6 +17,7 @@ import { InlinePageLoader } from '../../components/DetailPageLoader';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { organizerCompetitionFeeLabel } from '../../utils/competitionFeeTiers';
+import { isMindSparkFest, resolveMindSparkModule } from '../../features/fests/mindspark';
 
 function ModalHost({ children }) {
     if (typeof document === 'undefined') return null;

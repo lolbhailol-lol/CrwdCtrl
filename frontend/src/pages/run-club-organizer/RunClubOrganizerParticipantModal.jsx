@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { X, Clock, CheckCircle, AlertCircle } from 'lucide-react';
-import { fetchRunClubOrganizerParticipant, resendRunClubOrganizerConfirmation } from '../../services/api/runClubOrganizer.api';
+import { fetchRunClubOrganizerParticipant, resendRunClubOrganizerConfirmation, updateRunClubOrganizerParticipantFormAnswers } from '../../services/api/runClubOrganizer.api';
 import { useDialog } from '../../context/DialogContext';
 import TrekRegistrationResponses from '../trek-organizer/TrekRegistrationResponses';
+import MissingFormAnswersEditor from './MissingFormAnswersEditor';
 import { DetailLoader3DIcon } from '../../components/DetailPageLoader';
 
 function Badge({ children, tone = 'neutral' }) {
@@ -29,6 +30,7 @@ export default function RunClubOrganizerParticipantModal({ eventId, bookingId, o
     const [participant, setParticipant] = useState(null);
     const [loading, setLoading] = useState(true);
     const [resending, setResending] = useState(false);
+    const [savingAnswers, setSavingAnswers] = useState(false);
 
     useEffect(() => {
         if (!eventId || !bookingId) return;
@@ -45,6 +47,24 @@ export default function RunClubOrganizerParticipantModal({ eventId, bookingId, o
             }
         })();
     }, [eventId, bookingId, onClose, toast]);
+
+    const handleSaveAnswers = async (payload) => {
+        if (!payload || !Object.keys(payload).length) {
+            toast('Pick drink and skill first');
+            return;
+        }
+        setSavingAnswers(true);
+        try {
+            const data = await updateRunClubOrganizerParticipantFormAnswers(eventId, bookingId, payload);
+            setParticipant(data.participant);
+            toast('Form answers saved');
+            onUpdated?.();
+        } catch (e) {
+            toast(e.message || 'Failed to save answers');
+        } finally {
+            setSavingAnswers(false);
+        }
+    };
 
     const handleResend = async () => {
         const ok = await confirm('Resend booking confirmation to this participant?');
@@ -144,6 +164,11 @@ export default function RunClubOrganizerParticipantModal({ eventId, bookingId, o
                                 phone={participant.phone}
                                 gender={participant.participantGender}
                             />
+                            <MissingFormAnswersEditor
+                                participant={participant}
+                                onSave={handleSaveAnswers}
+                                busy={savingAnswers}
+                            />
                         </div>
 
                         <div className="grid grid-cols-2 gap-3 text-sm">
@@ -157,8 +182,17 @@ export default function RunClubOrganizerParticipantModal({ eventId, bookingId, o
                             </div>
                             {(participant.organizerNet ?? 0) > 0 ? (
                                 <div>
-                                    <p className="text-[11px] text-gray-500 uppercase">Amount paid</p>
-                                    <p className="text-emerald-400 font-medium">₹{Number(participant.organizerNet).toLocaleString('en-IN')}</p>
+                                    <p className="text-[11px] text-gray-500 uppercase">Your share</p>
+                                    <p className="text-emerald-400 font-medium">
+                                        ₹{Number(participant.organizerNet).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                                    </p>
+                                    {Number(participant.gatewayFee || participant.bookingDetails?.gatewayFee || 0) > 0 ? (
+                                        <p className="text-[11px] text-gray-500 mt-0.5">
+                                            Paid ₹{Number(participant.grossCollected || participant.amountPaid || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                                            {' · '}
+                                            1.6% Cashfree ₹{Number(participant.gatewayFee || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                                        </p>
+                                    ) : null}
                                     {participant.couponCode ? (
                                         <p className="text-[11px] text-gray-500 mt-0.5">
                                             {participant.couponCode}

@@ -198,7 +198,7 @@ export default function EventCommunityOrganizerDashboardPage() {
 
     if (!data?.event) return null;
 
-    const { event, stats: rawStats } = data;
+    const { event, stats: rawStats, genderRegistration } = data;
     const stats = rawStats && typeof rawStats === 'object' ? rawStats : {};
     const registration = eventDetail?.registration || {};
     const status = eventDetail?.status || event?.status;
@@ -209,11 +209,22 @@ export default function EventCommunityOrganizerDashboardPage() {
     const regStatus = registration.status || event?.registrationStatus || 'open';
     const isOpen = regStatus === 'open';
     const total = stats.totalRegistrations ?? 0;
+    const femaleCount = Number(stats.femaleCount)
+        || Number(genderRegistration?.quotas?.female?.filled)
+        || 0;
+    const maleCount = Number(stats.maleCount)
+        || Number(genderRegistration?.quotas?.male?.filled)
+        || 0;
+    const femaleCap = Number(genderRegistration?.quotas?.female?.cap || 0);
+    const maleCap = Number(genderRegistration?.quotas?.male?.cap || 0);
+    const guestsPath = organizerEventPath(eventId, true, 'participants');
     const checkedIn = stats.checkedIn ?? 0;
     const pending = stats.pendingCheckIn ?? Math.max(0, total - checkedIn);
     const pendingReviewRaw = Number(stats.pendingPaymentReview ?? 0);
     const pendingReview = isOrganizerQr ? pendingReviewRaw : 0;
     const revenue = Number(stats.organizerRevenue ?? stats.revenue ?? 0);
+    const grossCollected = Number(stats.grossCollected ?? revenue);
+    const gatewayFees = Number(stats.gatewayFees ?? stats.platformFees ?? 0);
     const seatsFilled = Number(stats.seatsFilled ?? total);
     const isPaidEvent = isPaid || revenue > 0 || pendingReview > 0;
     const checkInPct = total > 0 ? Math.round((checkedIn / total) * 100) : 0;
@@ -431,25 +442,43 @@ export default function EventCommunityOrganizerDashboardPage() {
             {/* Stats — same 4 tiles always */}
             <div className="grid grid-cols-2 gap-3">
                 <StatTile
-                    label="Confirmed"
+                    label="Total bookings"
                     value={total}
                     tone="accent"
                     icon={Users}
-                    to={organizerEventPath(eventId, true, 'participants')}
-                    hint={seatsFilled > total ? `${seatsFilled} guests` : 'Guest list'}
+                    to={guestsPath}
+                    hint={seatsFilled > total ? `${seatsFilled} guests` : 'All confirmed'}
                 />
                 <StatTile
-                    label="Collected"
-                    value={isPaidEvent ? `₹${revenue.toLocaleString('en-IN')}` : 'Free'}
+                    label={gatewayFees > 0 ? 'After 1.6% gateway' : 'Collected'}
+                    value={isPaidEvent ? `₹${revenue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'Free'}
                     tone={isPaidEvent ? 'money' : 'default'}
                     icon={IndianRupee}
-                    hint={isPaidEvent && seatsFilled > total
-                        ? 'Group bookings included'
-                        : isPaid && !isOrganizerQr
-                            ? 'Via Cashfree'
-                            : isPaidEvent
-                                ? 'UPI received'
-                                : undefined}
+                    hint={gatewayFees > 0
+                        ? `Students paid ₹${grossCollected.toLocaleString('en-IN', { maximumFractionDigits: 2 })} · 1.6% ₹${gatewayFees.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
+                        : isPaidEvent && seatsFilled > total
+                            ? 'Group bookings included'
+                            : isPaid && !isOrganizerQr
+                                ? 'Via Cashfree'
+                                : isPaidEvent
+                                    ? 'UPI received'
+                                    : undefined}
+                />
+                <StatTile
+                    label="Women"
+                    value={femaleCount}
+                    tone="ok"
+                    icon={Users}
+                    to={`${guestsPath}?gender=female`}
+                    hint={femaleCap > 0 ? `${Math.max(0, femaleCap - femaleCount)} of ${femaleCap} left` : 'Confirmed'}
+                />
+                <StatTile
+                    label="Men"
+                    value={maleCount}
+                    tone="default"
+                    icon={Users}
+                    to={`${guestsPath}?gender=male`}
+                    hint={maleCap > 0 ? `${Math.max(0, maleCap - maleCount)} of ${maleCap} left` : 'Confirmed'}
                 />
                 <StatTile
                     label="Checked in"
@@ -465,6 +494,11 @@ export default function EventCommunityOrganizerDashboardPage() {
                     icon={Calendar}
                 />
             </div>
+            {gatewayFees > 0 ? (
+                <p className="text-[11px] text-gray-500 -mt-1">
+                    1.6% Cashfree gateway is deducted on each online payment. This is not a CrwdCtrl commission. UPI/QR stays in full.
+                </p>
+            ) : null}
 
             {/* Share link */}
             {publicUrl && String(status).toLowerCase() === 'published' ? (

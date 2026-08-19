@@ -314,6 +314,13 @@ export async function fetchRunClubOrganizerParticipant(eventId, bookingId) {
     return runClubOrganizerFetch(`/run-club-organizer/events/${eventId}/participants/${bookingId}`);
 }
 
+export async function updateRunClubOrganizerParticipantFormAnswers(eventId, bookingId, answers) {
+    return runClubOrganizerFetch(`/run-club-organizer/events/${eventId}/participants/${bookingId}/form-answers`, {
+        method: 'PATCH',
+        body: JSON.stringify({ answers }),
+    });
+}
+
 export async function lookupRunClubOrganizerParticipant(eventId, q) {
     return runClubOrganizerFetch(`/run-club-organizer/events/${eventId}/participants/lookup?q=${encodeURIComponent(q)}`);
 }

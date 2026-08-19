@@ -11,12 +11,14 @@ import {
     resendRunClubOrganizerConfirmation,
     deleteRunClubOrganizerParticipant,
     reviewRunClubOrganizerPayment,
+    updateRunClubOrganizerParticipantFormAnswers,
     notifyRunClubOrganizerParticipant,
 } from '../../services/api/runClubOrganizer.api';
 import { DetailLoader3DIcon } from '../../components/DetailPageLoader';
 import { useDialog } from '../../context/DialogContext';
 import ParticipantCard from '../trek-organizer/ParticipantCard';
 import PaymentProofReviewModal from './PaymentProofReviewModal';
+import MissingFormAnswersEditor from './MissingFormAnswersEditor';
 import { getRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
 import { isEventsListingHub, organizerHubCopy } from '../../utils/listingHubCopy';
 
@@ -110,7 +112,7 @@ function NotifyParticipantModal({ open, participant, onClose, onSend, copy }) {
 
 export default function RunClubOrganizerParticipantsPage() {
     const { eventId } = useParams();
-    const [searchParams] = useSearchParams();
+    const [searchParams, setSearchParams] = useSearchParams();
     const { confirm, toast } = useDialog();
     const copy = organizerHubCopy(isEventsListingHub(getRunClubOrganizerSession()?.runClub));
     const [rows, setRows] = useState([]);
@@ -125,21 +127,30 @@ export default function RunClubOrganizerParticipantsPage() {
     const [searchInput, setSearchInput] = useState('');
     const [search, setSearch] = useState('');
     const initialPayment = searchParams.get('paymentStatus') || '';
+    const initialGender = String(searchParams.get('gender') || '').toLowerCase();
     const [paymentFilter, setPaymentFilter] = useState(
         ['paid', 'free', 'pending_review', 'rejected'].includes(initialPayment) ? initialPayment : '',
     );
-    const [checkInFilter, setCheckInFilter] = useState('');
+    const [checkInFilter, setCheckInFilter] = useState(
+        ['checked_in', 'pending'].includes(searchParams.get('checkInStatus') || '')
+            ? searchParams.get('checkInStatus')
+            : '',
+    );
+    const [genderFilter, setGenderFilter] = useState(
+        ['female', 'male'].includes(initialGender) ? initialGender : '',
+    );
     const [page, setPage] = useState(1);
     const [reviewTarget, setReviewTarget] = useState(null);
     const [reviewQueue, setReviewQueue] = useState([]);
     const [notifyTarget, setNotifyTarget] = useState(null);
+    const [savingFormId, setSavingFormId] = useState('');
 
     const isPaidEvent = Number(eventFee) > 0;
     const isOrganizerQr = registrationMode === 'organizer_qr';
     const pendingCount = isPaidEvent ? Number(stats?.pendingPaymentReview ?? 0) : 0;
     const showPaymentReview = isPaidEvent && (isOrganizerQr || pendingCount > 0);
 
-    const hasFilters = search || paymentFilter || checkInFilter;
+    const hasFilters = search || paymentFilter || checkInFilter || genderFilter;
 
     const pendingQueue = useMemo(() => {
         if (reviewQueue.length > 0) return reviewQueue;
@@ -183,6 +194,7 @@ export default function RunClubOrganizerParticipantsPage() {
             if (search) params.search = search;
             if (paymentFilter) params.paymentStatus = paymentFilter;
             if (checkInFilter) params.checkInStatus = checkInFilter;
+            if (genderFilter) params.gender = genderFilter;
 
             const [listData, dashData] = await Promise.all([
                 fetchRunClubOrganizerParticipants(eventId, params),
@@ -192,7 +204,18 @@ export default function RunClubOrganizerParticipantsPage() {
             setRows(listData.participants || []);
             setEventTitle(listData.eventTitle || listData.trekName || '');
             setPagination(listData.pagination || { page: 1, limit: 25, total: 0, totalPages: 1 });
-            if (dashData?.stats) setStats(dashData.stats);
+            if (dashData?.stats) {
+                const quotas = dashData.genderRegistration?.quotas;
+                setStats({
+                    ...dashData.stats,
+                    femaleCount: Number(dashData.stats.femaleCount)
+                        || Number(quotas?.female?.filled)
+                        || 0,
+                    maleCount: Number(dashData.stats.maleCount)
+                        || Number(quotas?.male?.filled)
+                        || 0,
+                });
+            }
             if (dashData?.event?.registrationFee != null) {
                 setEventFee(Number(dashData.event.registrationFee) || 0);
             }
@@ -206,11 +229,17 @@ export default function RunClubOrganizerParticipantsPage() {
         } finally {
             setLoading(false);
         }
-    }, [eventId, page, search, paymentFilter, checkInFilter, toast]);
+    }, [eventId, page, search, paymentFilter, checkInFilter, genderFilter, toast]);
 
     useEffect(() => {
         load();
     }, [load]);
+
+    useEffect(() => {
+        const next = String(searchParams.get('gender') || '').toLowerCase();
+        const normalized = ['female', 'male'].includes(next) ? next : '';
+        setGenderFilter((prev) => (prev === normalized ? prev : normalized));
+    }, [searchParams]);
 
     useEffect(() => {
         if (!isPaidEvent && paymentFilter) {
@@ -293,6 +322,21 @@ export default function RunClubOrganizerParticipantsPage() {
         }
     };
 
+    const handleSaveFormAnswers = async (bookingId, answers) => {
+        setSavingFormId(bookingId);
+        try {
+            const data = await updateRunClubOrganizerParticipantFormAnswers(eventId, bookingId, answers);
+            setRows((prev) => prev.map((row) => (
+                row.bookingId === bookingId ? data.participant : row
+            )));
+            toast('Form answers saved');
+        } catch (e) {
+            toast(e.message || 'Failed to save answers');
+        } finally {
+            setSavingFormId('');
+        }
+    };
+
     const handleResend = async (bookingId) => {
         const ok = await confirm('Resend confirmation to this participant?');
         if (!ok) return;
@@ -362,6 +406,8 @@ export default function RunClubOrganizerParticipantsPage() {
         setSearch('');
         setPaymentFilter('');
         setCheckInFilter('');
+        setGenderFilter('');
+        setSearchParams({});
         setPage(1);
     };
 
@@ -435,10 +481,18 @@ export default function RunClubOrganizerParticipantsPage() {
             ) : null}
 
             {stats ? (
-                <div className={`grid gap-2 ${isPaidEvent ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'}`}>
+                <div className={`grid gap-2 ${isPaidEvent ? 'grid-cols-2 sm:grid-cols-5' : 'grid-cols-2 sm:grid-cols-5'}`}>
                     <div className="rounded-xl border border-gray-800 bg-[#161718] px-3 py-3">
                         <p className="text-[10px] uppercase text-gray-500 flex items-center gap-1"><Users size={11} /> Confirmed</p>
                         <p className="text-xl font-bold mt-0.5">{stats.totalRegistrations}</p>
+                    </div>
+                    <div className="rounded-xl border border-gray-800 bg-[#161718] px-3 py-3">
+                        <p className="text-[10px] uppercase text-gray-500">Women</p>
+                        <p className="text-xl font-bold mt-0.5">{stats.femaleCount ?? 0}</p>
+                    </div>
+                    <div className="rounded-xl border border-gray-800 bg-[#161718] px-3 py-3">
+                        <p className="text-[10px] uppercase text-gray-500">Men</p>
+                        <p className="text-xl font-bold mt-0.5">{stats.maleCount ?? 0}</p>
                     </div>
                     {showPaymentReview ? (
                         <div className="rounded-xl border border-gray-800 bg-[#161718] px-3 py-3">
@@ -480,7 +534,35 @@ export default function RunClubOrganizerParticipantsPage() {
                     ) : null}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                    <FilterChip active={!paymentFilter && !checkInFilter} onClick={() => { setPaymentFilter(''); setCheckInFilter(''); setPage(1); }}>All</FilterChip>
+                    <FilterChip active={!paymentFilter && !checkInFilter && !genderFilter} onClick={() => { setPaymentFilter(''); setCheckInFilter(''); setGenderFilter(''); setSearchParams({}); setPage(1); }}>All</FilterChip>
+                    <FilterChip
+                        active={genderFilter === 'female'}
+                        onClick={() => {
+                            const next = genderFilter === 'female' ? '' : 'female';
+                            setGenderFilter(next);
+                            setPage(1);
+                            const params = new URLSearchParams(searchParams);
+                            if (next) params.set('gender', next);
+                            else params.delete('gender');
+                            setSearchParams(params);
+                        }}
+                    >
+                        Women{stats?.femaleCount != null ? ` · ${stats.femaleCount}` : ''}
+                    </FilterChip>
+                    <FilterChip
+                        active={genderFilter === 'male'}
+                        onClick={() => {
+                            const next = genderFilter === 'male' ? '' : 'male';
+                            setGenderFilter(next);
+                            setPage(1);
+                            const params = new URLSearchParams(searchParams);
+                            if (next) params.set('gender', next);
+                            else params.delete('gender');
+                            setSearchParams(params);
+                        }}
+                    >
+                        Men{stats?.maleCount != null ? ` · ${stats.maleCount}` : ''}
+                    </FilterChip>
                     {isPaidEvent ? (
                         <>
                             {showPaymentReview ? (
@@ -527,6 +609,13 @@ export default function RunClubOrganizerParticipantsPage() {
                                     : undefined
                             }
                             onCopied={(msg) => toast(msg)}
+                            extraExpandedContent={(
+                                <MissingFormAnswersEditor
+                                    participant={row}
+                                    busy={savingFormId === row.bookingId}
+                                    onSave={(answers) => handleSaveFormAnswers(row.bookingId, answers)}
+                                />
+                            )}
                         />
                     ))}
                 </div>

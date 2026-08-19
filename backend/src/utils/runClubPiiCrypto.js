@@ -1,6 +1,21 @@
 const crypto = require('crypto');
 
 const OPERATIONAL_RESPONSE_KEYS = new Set(['people', 'date', 'time', 'gender', 'sex']);
+const PII_RESPONSE_KEYS = new Set([
+    'full_name',
+    'fullname',
+    'name',
+    'email',
+    'e_mail',
+    'e_mail_id',
+    'contact_no',
+    'phone',
+    'mobile',
+    'contact',
+    'emergency_contact',
+    'emergency_phone',
+    'guardian_contact',
+]);
 
 /** Ordered key sources — primary first, JWT fallback for rows encrypted before RUN_CLUB_PII_MASTER_KEY existed. */
 function listMasterKeyMaterial() {
@@ -132,6 +147,12 @@ function responsesToPlainObject(responses) {
 function pickOperationalResponses(responses) {
     const src = responsesToPlainObject(responses);
     const out = {};
+    for (const [key, value] of Object.entries(src)) {
+        if (value === undefined || value === null || value === '') continue;
+        if (typeof value === 'object') continue;
+        if (PII_RESPONSE_KEYS.has(String(key).toLowerCase())) continue;
+        out[key] = value;
+    }
     for (const key of OPERATIONAL_RESPONSE_KEYS) {
         if (src[key] !== undefined && src[key] !== null && src[key] !== '') {
             out[key] = src[key];
@@ -204,7 +225,9 @@ function searchTokensForQuery(query) {
 
 /**
  * Encrypt sensitive registration fields for a run club.
- * Keeps operational keys (people/date/time) in plaintext responses.
+ * Name / email / phone stay in ciphertext. Form answers (gender, café, skill)
+ * stay on plaintext `responses` so the organizer dashboard can read them
+ * even if decrypt fails.
  */
 function encryptRegistrationPii({ responses, paymentScreenshotUrl, transactionId, runClubId }) {
     const dek = getClubDek(runClubId);
@@ -227,43 +250,111 @@ function encryptRegistrationPii({ responses, paymentScreenshotUrl, transactionId
  * Decrypt into a plain registration-shaped object (does not mutate DB doc).
  * Legacy plaintext rows pass through unchanged.
  */
-function decryptRegistrationPii(reg, runClubIdOverride = null) {
-    if (!reg) return reg;
+function decryptRegistrationPiiWithStatus(reg, runClubIdOverride = null) {
+    if (!reg) {
+        return {
+            plain: reg,
+            responsesOk: true,
+            screenshotOk: true,
+            transactionOk: true,
+        };
+    }
     const runClubId = runClubIdOverride || reg.runClubId;
     if (!reg.piiEncrypted || !runClubId) {
-        return typeof reg.toObject === 'function' ? reg.toObject() : { ...reg };
+        const plain = typeof reg.toObject === 'function' ? reg.toObject() : { ...reg };
+        return {
+            plain,
+            responsesOk: true,
+            screenshotOk: true,
+            transactionOk: true,
+        };
     }
 
     const plain = typeof reg.toObject === 'function' ? reg.toObject() : { ...reg };
     let responsesOk = !plain.responsesCipher;
+    let screenshotOk = !plain.paymentScreenshotCipher;
+    let transactionOk = !plain.transactionIdCipher;
 
     if (plain.responsesCipher) {
         const decoded = decryptFieldWithKeyFallback(runClubId, plain.responsesCipher, { json: true });
         if (decoded && typeof decoded === 'object') {
             const ops = pickOperationalResponses(plain.responses);
-            plain.responses = { ...ops, ...decoded };
+            plain.responses = { ...decoded, ...ops };
             responsesOk = true;
         }
     }
     if (plain.paymentScreenshotCipher) {
         const url = decryptFieldWithKeyFallback(runClubId, plain.paymentScreenshotCipher);
-        if (url) plain.paymentScreenshotUrl = url;
+        if (url) {
+            plain.paymentScreenshotUrl = url;
+            screenshotOk = true;
+        }
     }
     if (plain.transactionIdCipher) {
         const tx = decryptFieldWithKeyFallback(runClubId, plain.transactionIdCipher);
-        if (tx) plain.transactionId = tx;
+        if (tx) {
+            plain.transactionId = tx;
+            transactionOk = true;
+        }
     }
 
     if (plain.responsesCipher && !responsesOk && listMasterKeyMaterial().length >= 2) {
         console.error('[runClubPiiCrypto.decrypt] Unsupported state or unable to authenticate data');
     }
 
-    // Never leak ciphertext to clients that receive decrypted views
     delete plain.responsesCipher;
     delete plain.paymentScreenshotCipher;
     delete plain.transactionIdCipher;
     delete plain.piiSearchTokens;
-    return plain;
+    return {
+        plain,
+        responsesOk,
+        screenshotOk,
+        transactionOk,
+    };
+}
+
+function decryptRegistrationPii(reg, runClubIdOverride = null) {
+    return decryptRegistrationPiiWithStatus(reg, runClubIdOverride).plain;
+}
+
+/**
+ * Merge organizer form answers onto a registration without replacing ciphertext
+ * when PII cannot be decrypted.
+ */
+function persistMergedRegistrationResponses(registration, mergedResponses, runClubId) {
+    const merged = responsesToPlainObject(mergedResponses);
+    const encryptedEnabled = Boolean(runClubId) && isPiiEncryptionEnabled();
+    const status = decryptRegistrationPiiWithStatus(registration, runClubId);
+
+    if (!encryptedEnabled || !registration.piiEncrypted) {
+        registration.responses = merged;
+        return { mode: 'plaintext', ...status };
+    }
+
+    if (!status.responsesOk && registration.responsesCipher) {
+        registration.responses = pickOperationalResponses(merged);
+        return { mode: 'plaintext-ops-only', ...status };
+    }
+
+    const encrypted = encryptRegistrationPii({
+        responses: merged,
+        paymentScreenshotUrl: status.screenshotOk ? (status.plain.paymentScreenshotUrl || '') : '',
+        transactionId: status.transactionOk ? (status.plain.transactionId || '') : '',
+        runClubId,
+    });
+
+    if (!status.screenshotOk && registration.paymentScreenshotCipher) {
+        encrypted.paymentScreenshotCipher = registration.paymentScreenshotCipher;
+        encrypted.paymentScreenshotUrl = '';
+    }
+    if (!status.transactionOk && registration.transactionIdCipher) {
+        encrypted.transactionIdCipher = registration.transactionIdCipher;
+        encrypted.transactionId = '';
+    }
+
+    registration.set(encrypted);
+    return { mode: 'reencrypt', ...status };
 }
 
 function decryptManyRegistrations(regs, runClubId) {
@@ -303,7 +394,9 @@ module.exports = {
     OPERATIONAL_RESPONSE_KEYS,
     canonicalRunClubId,
     encryptRegistrationPii,
+    persistMergedRegistrationResponses,
     decryptRegistrationPii,
+    decryptRegistrationPiiWithStatus,
     decryptManyRegistrations,
     redactRegistrationPii,
     searchTokensForQuery,

@@ -102,6 +102,19 @@ function sameGenderPartyHint(gender) {
     return `This booking is for ${value} only. Extra people must be the same gender — mixed groups are not allowed.`;
 }
 
+function collectBookingFormAnswers(schema, extraFields = {}) {
+    const src = extraFields && typeof extraFields === 'object' ? extraFields : {};
+    const out = { ...src };
+    for (const field of Array.isArray(schema) ? schema : []) {
+        const name = String(field?.fieldName || '').trim();
+        if (!name) continue;
+        const value = src[name];
+        if (value === undefined || value === null || String(value).trim() === '') continue;
+        out[name] = value;
+    }
+    return out;
+}
+
 function getInitialUi(eventId, search, locationState) {
     const defaults = { step: 1, payDone: false, paying: false, selDate: '', selTime: '', people: 1, extraFields: {}, tierId: '', addOnSelected: false };
     const returnPath = `/events/community-event/${eventId}/book`;
@@ -619,12 +632,16 @@ export default function EventCommunityBookingPage() {
         const headers = isAuthed()
             ? getBearerAuthHeaders(authToken)
             : { 'Content-Type': 'application/json' };
+        const answers = collectBookingFormAnswers(
+            event?.registration?.formSchema,
+            { ...extraFields, ...(formData && typeof formData === 'object' ? formData : {}) },
+        );
         const res = await fetch(`${API}/category-registrations/sports/${evId}/register`, {
             method: 'POST',
             headers,
             body: JSON.stringify({
-                formData,
-                responses: formData,
+                formData: answers,
+                responses: answers,
                 bookingDetails: {
                     date: booking.date ?? selDate,
                     time: booking.time ?? selTime,
@@ -1081,7 +1098,7 @@ export default function EventCommunityBookingPage() {
                         tierId: selectedTierId || undefined,
                         addOnSelected: Boolean(addOnSelected && optionalAddOn),
                         gender: extraFields.gender || extraFields.sex || '',
-                        formData: extraFields,
+                        formData: collectBookingFormAnswers(event?.registration?.formSchema, extraFields),
                     }),
                 });
                 const order = await res.json();

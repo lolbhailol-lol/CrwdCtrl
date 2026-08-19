@@ -184,10 +184,21 @@ export default function RunClubOrganizerDashboardPage() {
     const regStatus = eventDetail?.registration?.status || event?.registrationStatus || 'open';
     const isOpen = regStatus === 'open';
     const total = stats.totalRegistrations ?? 0;
+    const femaleCount = Number(stats.femaleCount)
+        || Number(genderRegistration?.quotas?.female?.filled)
+        || 0;
+    const maleCount = Number(stats.maleCount)
+        || Number(genderRegistration?.quotas?.male?.filled)
+        || 0;
+    const femaleCap = Number(genderRegistration?.quotas?.female?.cap || 0);
+    const maleCap = Number(genderRegistration?.quotas?.male?.cap || 0);
+    const guestsPath = `/run-club-organizer/events/${eventId}/participants`;
     const checkedIn = stats.checkedIn ?? 0;
     const pending = stats.pendingCheckIn ?? Math.max(0, total - checkedIn);
     const pendingReviewRaw = Number(stats.pendingPaymentReview ?? 0);
     const revenue = Number(stats.organizerRevenue ?? stats.revenue ?? 0);
+    const grossCollected = Number(stats.grossCollected ?? revenue);
+    const gatewayFees = Number(stats.gatewayFees ?? stats.platformFees ?? 0);
     const seatsFilled = Number(stats.seatsFilled ?? total);
     const pendingReview = isOrganizerQr || pendingReviewRaw > 0 ? pendingReviewRaw : 0;
     const showPaymentReview = isOrganizerQr || pendingReview > 0;
@@ -424,19 +435,37 @@ export default function RunClubOrganizerDashboardPage() {
 
             <div className="grid grid-cols-2 gap-3">
                 <StatTile
-                    label="Confirmed"
+                    label="Total bookings"
                     value={total}
                     tone="accent"
                     icon={Users}
-                    to={`/run-club-organizer/events/${eventId}/participants`}
+                    to={guestsPath}
                     hint={seatsFilled > total ? `${seatsFilled} guests` : 'Guest list'}
                 />
                 <StatTile
-                    label="Collected"
-                    value={`₹${revenue.toLocaleString('en-IN')}`}
+                    label={gatewayFees > 0 ? 'After 1.6% gateway' : 'Collected'}
+                    value={`₹${revenue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`}
                     tone="money"
                     icon={IndianRupee}
-                    hint={seatsFilled > total ? 'Group bookings included' : undefined}
+                    hint={gatewayFees > 0
+                        ? `Students paid ₹${grossCollected.toLocaleString('en-IN', { maximumFractionDigits: 2 })} · 1.6% ₹${gatewayFees.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
+                        : seatsFilled > total ? 'Group bookings included' : undefined}
+                />
+                <StatTile
+                    label="Women"
+                    value={femaleCount}
+                    tone="ok"
+                    icon={Users}
+                    to={`${guestsPath}?gender=female`}
+                    hint={femaleCap > 0 ? `${Math.max(0, femaleCap - femaleCount)} of ${femaleCap} left` : 'Confirmed'}
+                />
+                <StatTile
+                    label="Men"
+                    value={maleCount}
+                    tone="default"
+                    icon={Users}
+                    to={`${guestsPath}?gender=male`}
+                    hint={maleCap > 0 ? `${Math.max(0, maleCap - maleCount)} of ${maleCap} left` : 'Confirmed'}
                 />
                 <StatTile
                     label="Checked in"
@@ -478,6 +507,11 @@ export default function RunClubOrganizerDashboardPage() {
                     />
                 ) : null}
             </div>
+            {gatewayFees > 0 ? (
+                <p className="text-[11px] text-gray-500 -mt-1">
+                    1.6% Cashfree gateway is deducted on each online payment. This is not a CrwdCtrl commission. UPI/QR stays in full.
+                </p>
+            ) : null}
 
             <SectionCard className="p-4 sm:p-5 space-y-3.5">
                 <div className="flex items-center justify-between gap-2">

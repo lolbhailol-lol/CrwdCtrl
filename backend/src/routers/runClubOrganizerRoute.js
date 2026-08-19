@@ -55,6 +55,7 @@ router.get('/events/:eventId/dashboard', authenticateRunClubOrganizer, requireEv
 router.get('/events/:eventId/participants/export', authenticateRunClubOrganizer, requireEventAccess, ctrl.exportParticipants);
 router.get('/events/:eventId/participants/lookup', authenticateRunClubOrganizer, requireEventAccess, ctrl.lookupParticipant);
 router.get('/events/:eventId/participants/:bookingId', authenticateRunClubOrganizer, requireEventAccess, ctrl.getParticipant);
+router.patch('/events/:eventId/participants/:bookingId/form-answers', authenticateRunClubOrganizer, requireEventAccess, ctrl.updateParticipantFormAnswers);
 router.delete('/events/:eventId/participants/:bookingId', authenticateRunClubOrganizer, requireEventAccess, ctrl.deleteParticipant);
 router.get('/events/:eventId/participants', authenticateRunClubOrganizer, requireEventAccess, ctrl.listParticipants);
 router.post(

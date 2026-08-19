@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const {
   sanitizeGenderQuotas,
   buildQuotaSummary,
+  countSportsGenderFromRegs,
 } = require('../src/utils/trekGenderRegistration');
 
 test('TouchGrass-style quotas: 10 women of 28 total', () => {
@@ -32,4 +33,15 @@ test('TouchGrass-style quotas: 10 women of 28 total', () => {
   });
   assert.equal(fullWomen.female.full, true);
   assert.equal(fullWomen.male.full, false);
+});
+
+test('counts women and men from participantGender or form responses', () => {
+  const stats = countSportsGenderFromRegs([
+    { participantGender: 'Female', bookingPeople: 1 },
+    { responses: { gender: 'male' }, bookingPeople: 1 },
+    { responses: new Map([['gender', 'Women']]), bookingPeople: 1 },
+  ]);
+  assert.equal(stats.female.filled, 2);
+  assert.equal(stats.male.filled, 1);
+  assert.equal(stats.female.bookings, 2);
 });

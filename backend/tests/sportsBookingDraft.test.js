@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { sanitizeSportsFormDraft, mergeSportsFormResponses } = require('../src/utils/sportsBookingDraft');
-const { canonicalRunClubId } = require('../src/utils/runClubPiiCrypto');
+const { canonicalRunClubId, pickOperationalResponses } = require('../src/utils/runClubPiiCrypto');
 
 test('sports form draft keeps gender drink and level', () => {
   const draft = sanitizeSportsFormDraft({
@@ -33,4 +33,21 @@ test('canonical run club id is a 24-char hex', () => {
     canonicalRunClubId({ _id: '6a8341b5be222d0e6b2a9dc4' }),
     '6a8341b5be222d0e6b2a9dc4',
   );
+});
+
+test('plaintext responses keep cafe and badminton answers', () => {
+  const kept = pickOperationalResponses({
+    full_name: 'Ada',
+    email: 'ada@example.com',
+    contact_no: '9999999999',
+    gender: 'Female',
+    post_game_fuel_at_cafe_bok: 'Lemon Iced tea',
+    badminton_level: 'Beginner – Learning the game',
+    people: 1,
+  });
+  assert.equal(kept.full_name, undefined);
+  assert.equal(kept.email, undefined);
+  assert.equal(kept.gender, 'Female');
+  assert.equal(kept.post_game_fuel_at_cafe_bok, 'Lemon Iced tea');
+  assert.equal(kept.badminton_level, 'Beginner – Learning the game');
 });

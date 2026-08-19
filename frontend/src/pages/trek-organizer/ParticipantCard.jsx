@@ -29,6 +29,17 @@ function initials(name = '') {
     return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
 }
 
+function paidAmounts(participant = {}) {
+    const gross = Number(participant.grossCollected ?? participant.amountPaid ?? 0);
+    const net = Number(participant.organizerNet ?? gross);
+    const fee = Number(participant.gatewayFee ?? participant.platformFee ?? 0);
+    return { gross, net, fee };
+}
+
+function rupee(n) {
+    return `₹${Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+}
+
 function formatShortDate(d) {
     if (!d) return '';
     return new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -57,6 +68,7 @@ export default function ParticipantCard({
     onRejectPayment,
     onReviewPayment,
     onOpenCrm,
+    extraExpandedContent = null,
 }) {
     const [open, setOpen] = useState(false);
     const isOpen = forceOpen || open;
@@ -74,6 +86,7 @@ export default function ParticipantCard({
     const meetingPoint = participant.meetingPoint || participant.trekTime || '';
     const trekDate = participant.trekDate || participant.bookingDetails?.date || '';
     const peopleCount = Number(participant.people ?? participant.bookingDetails?.people ?? 1) || 1;
+    const { gross: paidGross, net: paidNet, fee: paidFee } = paidAmounts(participant);
     const answerHighlights = (fields || [])
         .filter((f) => {
             const key = String(f.fieldName || '').toLowerCase();
@@ -193,12 +206,13 @@ export default function ParticipantCard({
                                 <Users size={12} />
                                 {peopleCount} {peopleCount === 1 ? 'person' : 'people'}
                             </span>
-                            {Number(participant.amountPaid || participant.organizerNet || 0) > 0 ? (
+                            {paidNet > 0 ? (
                                 <span className="inline-flex items-center gap-1 font-semibold text-emerald-400 tabular-nums">
-                                    ₹{Number(participant.amountPaid || participant.organizerNet).toLocaleString('en-IN')}
+                                    {rupee(paidNet)}
                                     {peopleCount > 1 ? ' total' : ''}
-                                    {Number(participant.listAmount) > Number(participant.amountPaid || participant.organizerNet || 0)
-                                        ? ` · list ₹${Number(participant.listAmount).toLocaleString('en-IN')}`
+                                    {paidFee > 0 ? ` after 1.6%` : ''}
+                                    {Number(participant.listAmount) > paidGross
+                                        ? ` · list ${rupee(participant.listAmount)}`
                                         : ''}
                                 </span>
                             ) : null}
@@ -323,7 +337,7 @@ export default function ParticipantCard({
                             ) : null}
                         </div>
 
-                        {pendingReview || participant.paymentScreenshotUrl || Number(participant.amountPaid || participant.organizerNet || 0) > 0 ? (
+                        {pendingReview || participant.paymentScreenshotUrl || paidNet > 0 ? (
                             <div className={`rounded-xl border p-3 space-y-2 ${
                                 pendingReview
                                     ? 'border-amber-500/30 bg-amber-500/5'
@@ -332,12 +346,17 @@ export default function ParticipantCard({
                                 <p className={`text-[11px] font-semibold uppercase tracking-wider ${pendingReview ? 'text-amber-300' : 'text-gray-400'}`}>
                                     Payment
                                 </p>
-                                {Number(participant.amountPaid || participant.organizerNet || 0) > 0 ? (
+                                {paidNet > 0 ? (
                                     <p className="text-sm font-semibold tabular-nums text-emerald-300">
-                                        ₹{Number(participant.amountPaid || participant.organizerNet).toLocaleString('en-IN')}
+                                        {rupee(paidNet)}
                                         {peopleCount > 1
                                             ? ` · ${peopleCount} people`
                                             : ''}
+                                    </p>
+                                ) : null}
+                                {paidFee > 0 ? (
+                                    <p className="text-[11px] text-gray-500">
+                                        Paid {rupee(paidGross)} · 1.6% Cashfree {rupee(paidFee)}
                                     </p>
                                 ) : null}
                                 {participant.couponCode ? (
@@ -424,6 +443,7 @@ export default function ParticipantCard({
                                 skipNamePhone
                                 compact
                             />
+                            {extraExpandedContent}
                         </div>
 
                         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 pt-1">

@@ -46,6 +46,7 @@ backend/uploads/payment-screenshots/*
 tmp/
 temp/
 _tmp_*/
+_tmp_*.js
 drive-download*.zip
 
 # Local generated reports / Generation Explores exports — never push

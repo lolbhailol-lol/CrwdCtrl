@@ -1,6 +1,54 @@
+const mongoose = require('mongoose');
 const TrekBooking = require('../model/trek_booking_model');
 const CategoryRegistration = require('../model/category_registration_model');
 const { pickFormField } = require('./trekOrganizerFormat');
+
+function toObjectId(id) {
+    if (!id) return id;
+    if (id instanceof mongoose.Types.ObjectId) return id;
+    if (mongoose.Types.ObjectId.isValid(String(id))) {
+        return new mongoose.Types.ObjectId(String(id));
+    }
+    return id;
+}
+
+function responsesPlain(responses) {
+    if (!responses) return {};
+    if (responses instanceof Map) return Object.fromEntries(responses);
+    if (typeof responses.toObject === 'function') return responses.toObject();
+    return typeof responses === 'object' ? { ...responses } : {};
+}
+
+function emptyGenderStats() {
+    return {
+        female: { filled: 0, bookings: 0 },
+        male: { filled: 0, bookings: 0 },
+        others: { filled: 0, bookings: 0 },
+    };
+}
+
+function countSportsGenderFromRegs(regs = []) {
+    const stats = emptyGenderStats();
+    for (const reg of regs) {
+        const form = responsesPlain(reg?.responses);
+        const gender = normalizeGender(
+            reg?.participantGender
+            || form.gender
+            || form.sex
+            || form.Gender
+            || form.participant_gender,
+        );
+        if (!gender) continue;
+        const key = genderToQuotaKey(gender);
+        const people = Math.max(
+            1,
+            Number(reg?.bookingPeople) || Number(form.people) || 1,
+        );
+        stats[key].filled += people;
+        stats[key].bookings += 1;
+    }
+    return stats;
+}
 
 const GENDER_VALUES = ['Female', 'Male', 'Others'];
 const GENDER_PHASES = ['closed', 'women_only', 'men_only', 'all'];
@@ -238,36 +286,77 @@ async function validateTrekGenderRegistration({ trek, userId, formData, people =
     return { ok: true, participantGender };
 }
 
-async function aggregateSportsGenderQuotaStats(eventId, { excludeId = null } = {}) {
+function sportsGenderMatchStatuses(statuses) {
+    if (Array.isArray(statuses) && statuses.length) return statuses;
+    return ['confirmed', 'pending'];
+}
+
+async function aggregateSportsGenderQuotaStats(eventId, { excludeId = null, statuses } = {}) {
     const match = {
         category: 'sports',
-        eventId,
-        status: { $in: ['confirmed', 'pending'] },
-        participantGender: { $in: GENDER_VALUES },
+        eventId: toObjectId(eventId),
+        status: { $in: sportsGenderMatchStatuses(statuses) },
     };
-    if (excludeId) match._id = { $ne: excludeId };
+    if (excludeId) match._id = { $ne: toObjectId(excludeId) };
 
     const rows = await CategoryRegistration.aggregate([
         { $match: match },
         {
+            $addFields: {
+                resolvedGender: {
+                    $switch: {
+                        branches: [
+                            { case: { $in: ['$participantGender', GENDER_VALUES] }, then: '$participantGender' },
+                            { case: { $in: ['$responses.gender', GENDER_VALUES] }, then: '$responses.gender' },
+                            { case: { $in: ['$responses.sex', GENDER_VALUES] }, then: '$responses.sex' },
+                            {
+                                case: {
+                                    $in: [
+                                        { $toLower: { $toString: { $ifNull: ['$responses.gender', ''] } } },
+                                        ['female', 'f', 'woman', 'women'],
+                                    ],
+                                },
+                                then: 'Female',
+                            },
+                            {
+                                case: {
+                                    $in: [
+                                        { $toLower: { $toString: { $ifNull: ['$responses.gender', ''] } } },
+                                        ['male', 'm', 'man', 'men'],
+                                    ],
+                                },
+                                then: 'Male',
+                            },
+                        ],
+                        default: null,
+                    },
+                },
+            },
+        },
+        { $match: { resolvedGender: { $in: GENDER_VALUES } } },
+        {
             $group: {
-                _id: '$participantGender',
-                seats: { $sum: { $ifNull: ['$bookingPeople', 1] } },
+                _id: '$resolvedGender',
+                seats: { $sum: { $max: [{ $ifNull: ['$bookingPeople', 1] }, 1] } },
                 count: { $sum: 1 },
             },
         },
     ]);
 
-    const stats = {
-        female: { filled: 0, bookings: 0 },
-        male: { filled: 0, bookings: 0 },
-        others: { filled: 0, bookings: 0 },
-    };
+    const stats = emptyGenderStats();
 
     for (const row of rows) {
         const key = genderToQuotaKey(row._id);
         stats[key].filled = row.seats || 0;
         stats[key].bookings = row.count || 0;
+    }
+
+    const filledTotal = stats.female.filled + stats.male.filled + stats.others.filled;
+    if (filledTotal === 0) {
+        const leanRegs = await CategoryRegistration.find(match)
+            .select('participantGender responses bookingPeople')
+            .lean();
+        return countSportsGenderFromRegs(leanRegs);
     }
 
     return stats;
@@ -401,6 +490,7 @@ module.exports = {
     validateTrekGenderRegistration,
     assertUserCanBookTrek,
     aggregateSportsGenderQuotaStats,
+    countSportsGenderFromRegs,
     getSportsGenderRegistrationSnapshot,
     validateSportsGenderRegistration,
 };
