@@ -7,6 +7,7 @@ const { buildPriceBreakdown, parseTicketPrice } = require('../../utils/platformF
 const { resolveTrekPlatformFeePercent } = require('../../utils/trekRegistrationFee');
 const { competitionRequiresPayment, resolvePaidOrderTotal } = require('../../utils/competitionFeeTiers');
 const { logger } = require('../../utils/logger');
+const { cashfreeSettlementFields } = require('../../utils/cashfreeGatewayFee');
 const {
   parseResponsesBody,
   maybeEnrichExistingResponses,
@@ -283,6 +284,8 @@ const submitCustomCompetitionRegistration = async (req, res) => {
     const autoConfirm = isMindSparkFestId(festIdForReg)
       || paymentStatus === 'paid'
       || paymentStatus === 'free';
+    const paidAmount = paymentStatus === 'paid' ? competitionTotalAmount : 0;
+    const payment_gateway = paymentStatus === 'paid' ? 'cashfree' : null;
     const registration = new Registration({
       fest: competition.fest._id,
       user: userId,
@@ -291,9 +294,14 @@ const submitCustomCompetitionRegistration = async (req, res) => {
       status: autoConfirm ? 'approved' : 'pending',
       payment_order_id: paymentOrderId,
       payment_id: paymentId,
-      payment_gateway: paymentStatus === 'paid' ? 'cashfree' : null,
+      payment_gateway,
       paymentStatus,
-      amountPaid: paymentStatus === 'paid' ? competitionTotalAmount : 0,
+      amountPaid: paidAmount,
+      ...cashfreeSettlementFields({
+        amountPaid: paidAmount,
+        payment_gateway,
+        payment_order_id: paymentOrderId,
+      }),
       submittedAt: new Date()
     });
 
@@ -755,6 +763,8 @@ const submitCompetitionRegistration = async (req, res) => {
     const autoConfirm = isMindSparkFestId(festIdForReg)
       || paymentStatusRoute === 'paid'
       || paymentStatusRoute === 'free';
+    const paidAmountRoute = paymentStatusRoute === 'paid' ? competitionTotalAmount : 0;
+    const paymentGatewayRoute = paymentStatusRoute === 'paid' ? 'cashfree' : null;
     const registration = new Registration({
       fest: competition.fest._id,
       user: userId,
@@ -763,9 +773,14 @@ const submitCompetitionRegistration = async (req, res) => {
       competitionId: competitionId,
       payment_order_id: paymentOrderId,
       payment_id: paymentId,
-      payment_gateway: paymentStatusRoute === 'paid' ? 'cashfree' : null,
+      payment_gateway: paymentGatewayRoute,
       paymentStatus: paymentStatusRoute,
-      amountPaid: paymentStatusRoute === 'paid' ? competitionTotalAmount : 0,
+      amountPaid: paidAmountRoute,
+      ...cashfreeSettlementFields({
+        amountPaid: paidAmountRoute,
+        payment_gateway: paymentGatewayRoute,
+        payment_order_id: paymentOrderId,
+      }),
     });
 
     logger.debug('💾 Saving registration with competitionId:', competitionId);

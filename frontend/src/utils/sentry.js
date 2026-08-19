@@ -1,5 +1,5 @@
 import * as Sentry from '@sentry/react';
-import { isChunkLoadError } from './chunkError.js';
+import { isChunkLoadError, isGtagMeasurementIdError } from './chunkError.js';
 
 let initialized = false;
 
@@ -24,6 +24,7 @@ function shouldDropSentryEvent(event, hint) {
   if (/firebaseinstallations\.googleapis\.com/i.test(message)) return true;
   if (/Failed to fetch.*firebase|Load failed.*firebase/i.test(message)) return true;
   if (/Pending promise was never set/i.test(message)) return true;
+  if (isGtagMeasurementIdError(message) || isGtagMeasurementIdError(error)) return true;
 
   // Capacitor / WebView bridge teardown (Instagram, Android WebView)
   if (/webkit\.messageHandlers/i.test(message)) return true;
@@ -79,6 +80,7 @@ export function initSentry() {
       /SecurityError.*insecure/i,
       /Error invoking postMessage/i,
       /^Error:\s*oa$/i,
+      /reading ['"]M_ID['"]/i,
     ],
     beforeSend(event, hint) {
       if (event.request?.headers?.Authorization) {

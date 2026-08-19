@@ -306,7 +306,9 @@ export default function EventCommunityBookingPage() {
     // Runs use a single event date + optional reporting time (no multi-date slots)
     const runDateLabel = useMemo(() => formatRunDate(event?.eventDate), [event?.eventDate]);
     const runTimeLabel = String(event?.reportingTime || '').trim();
-    const maxPeople = reg.maxPeoplePerBooking || event?.maxParticipants || 10;
+    const maxPeople = Number.isFinite(Number(reg.maxPeoplePerBooking)) && Number(reg.maxPeoplePerBooking) > 0
+        ? Number(reg.maxPeoplePerBooking)
+        : (event?.maxParticipants || 10);
     const genderRegistration = event?.genderRegistration || null;
     const bookingGender = extraFields.gender || extraFields.sex || '';
     const genderAccess = useMemo(
@@ -326,7 +328,13 @@ export default function EventCommunityBookingPage() {
         return Math.max(0, (quota.remaining ?? (quota.cap - quota.filled)) || 0);
     }, [genderRegistration, bookingGender]);
     const onePersonFreeLimit = isFreeFlow && loggedIn;
-    const maxSelectablePeople = onePersonFreeLimit
+    const isTouchGrassEvent = /touch[-]?grass/i.test(
+        [event?.slug, ...(event?.previousSlugs || []), id].filter(Boolean).join(' '),
+    );
+    const singlePersonBooking = onePersonFreeLimit
+        || Number(reg.maxPeoplePerBooking) === 1
+        || isTouchGrassEvent;
+    const maxSelectablePeople = singlePersonBooking
         ? 1
         : Math.min(maxPeople, genderRemaining == null ? maxPeople : Math.max(1, genderRemaining));
 
@@ -463,9 +471,9 @@ export default function EventCommunityBookingPage() {
 
     // Free run policy: one seat per logged-in account.
     useEffect(() => {
-        if (!onePersonFreeLimit) return;
+        if (!singlePersonBooking) return;
         if (people !== 1) setPeople(1);
-    }, [onePersonFreeLimit, people]);
+    }, [singlePersonBooking, people]);
 
     couponCodeRef.current = couponCode;
 
@@ -541,8 +549,14 @@ export default function EventCommunityBookingPage() {
                     <GenderQuickPick
                         value={val}
                         onChange={onChange}
-                        label={String(field.fieldName || '').toLowerCase() === 'gender' ? 'You are' : (field.label || 'You are')}
-                        hint={sameGenderPartyHint(val)}
+                        label="Gender"
+                        hint={
+                            singlePersonBooking
+                                ? (genderRegistration?.enabled && genderRemaining != null
+                                    ? `${genderRemaining} ${String(val).toLowerCase().startsWith('f') ? 'women' : 'men'} seat${genderRemaining === 1 ? '' : 's'} left`
+                                    : '')
+                                : sameGenderPartyHint(val)
+                        }
                     />
                 );
             }
@@ -616,7 +630,7 @@ export default function EventCommunityBookingPage() {
                 bookingDetails: {
                     date: booking.date ?? selDate,
                     time: booking.time ?? selTime,
-                    people: booking.people ?? people,
+                    people: booking.people ?? (singlePersonBooking ? 1 : people),
                     amountPaid: amountPaid ?? 0,
                     paymentId: payId || '',
                     payment_order_id: paymentOrderId || '',
@@ -836,7 +850,7 @@ export default function EventCommunityBookingPage() {
                     booking: {
                         date: draft.selDate || selDate,
                         time: draft.selTime || selTime,
-                        people: draft.people || people,
+                        people: singlePersonBooking ? 1 : (draft.people || people),
                         tierId: draft.tierId || selectedTierId,
                         addOnSelected: typeof draft.addOnSelected === 'boolean' ? draft.addOnSelected : addOnSelected,
                     },
@@ -854,7 +868,7 @@ export default function EventCommunityBookingPage() {
 
     const next = async () => {
         setError('');
-        if (onePersonFreeLimit && people !== 1) setPeople(1);
+        if (singlePersonBooking && people !== 1) setPeople(1);
         if (requireLogin && !isAuthed()) {
             openLogin();
             setError('Please log in to book this event.');
@@ -1061,7 +1075,7 @@ export default function EventCommunityBookingPage() {
                     body: JSON.stringify({
                         eventId: event._id || event.id || id,
                         eventName,
-                        people,
+                        people: singlePersonBooking ? 1 : people,
                         customerName: extraFields.full_name || extraFields.name || '',
                         customerEmail,
                         customerPhone: extraFields.contact_no || extraFields.phone || extraFields.contact || extraFields.mobile || '',
@@ -1323,7 +1337,7 @@ export default function EventCommunityBookingPage() {
                             { label: 'Status', value: isPendingQr ? 'Pending community approval' : 'Confirmed' },
                             { label: 'Date', value: selDate || '—' },
                             ...(selTime ? [{ label: 'Time', value: selTime }] : []),
-                            { label: 'People', value: `${people} ${people > 1 ? 'people' : 'person'}` },
+                            ...(singlePersonBooking ? [] : [{ label: 'People', value: `${people} ${people > 1 ? 'people' : 'person'}` }]),
                             ...(selectedTier ? [{ label: 'Tier', value: selectedTier.name }] : []),
                             ...(optionalAddOn && addOnSelected
                                 ? [{ label: optionalAddOn.label, value: formatInr(optionalAddOn.fee * people) }]
@@ -1613,6 +1627,7 @@ export default function EventCommunityBookingPage() {
                                     </div>
                                 ) : null}
 
+                                {singlePersonBooking ? null : (
                                 <div className={`pt-1 ${(selectedTier || optionalAddOn || page1CouponFields.length) ? `border-t ${isDark ? 'border-gray-800' : 'border-gray-100'} pt-3` : ''}`}>
                                     <p className={`text-[11px] mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>People</p>
                                     {genderRegistration?.enabled && bookingGender && genderRemaining != null ? (
@@ -1624,7 +1639,7 @@ export default function EventCommunityBookingPage() {
                                         <button
                                             type="button"
                                             onClick={() => { setPeople((p) => Math.max(1, p - 1)); }}
-                                            disabled={onePersonFreeLimit || people <= 1}
+                                            disabled={people <= 1}
                                             className={`w-8 h-8 rounded-l-lg flex items-center justify-center border transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-700 hover:border-[#0ECCEE]' : 'bg-white border-gray-300 hover:border-[#0ECCEE]'}`}
                                         >
                                             <ChevronLeft size={14} className={isDark ? 'text-gray-300' : 'text-gray-700'} />
@@ -1635,7 +1650,7 @@ export default function EventCommunityBookingPage() {
                                         <button
                                             type="button"
                                             onClick={() => { setPeople((p) => Math.min(maxSelectablePeople, p + 1)); }}
-                                            disabled={onePersonFreeLimit || people >= maxSelectablePeople}
+                                            disabled={people >= maxSelectablePeople}
                                             className={`w-8 h-8 rounded-r-lg flex items-center justify-center border transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-700 hover:border-[#0ECCEE]' : 'bg-white border-gray-300 hover:border-[#0ECCEE]'}`}
                                         >
                                             <ChevronRight size={14} className={isDark ? 'text-gray-300' : 'text-gray-700'} />
@@ -1647,6 +1662,7 @@ export default function EventCommunityBookingPage() {
                                         </p>
                                     ) : null}
                                 </div>
+                                )}
 
                                 {chargePerPerson > 0 ? (
                                     <div className={`rounded-xl px-3.5 py-3 ${(page1CouponFields.length || selectedTier || optionalAddOn) ? `border-t ${isDark ? 'border-gray-800' : 'border-gray-100'} pt-3 mt-1` : ''} ${isDark ? 'bg-[#0ECCEE]/8 border border-[#0ECCEE]/20' : 'bg-cyan-50 border border-cyan-100'}`}>

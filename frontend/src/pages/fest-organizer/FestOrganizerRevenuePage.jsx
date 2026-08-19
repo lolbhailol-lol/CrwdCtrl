@@ -106,16 +106,32 @@ export default function FestOrganizerRevenuePage() {
 
             <section className="rounded-2xl border border-emerald-400/25 bg-linear-to-br from-emerald-500/20 to-[#161718] p-5">
                 <p className="text-xs uppercase tracking-wider text-emerald-200/70">
-                    {mindSparkMode ? 'Collected' : 'Collected'}
+                    {mindSparkMode ? 'After 1.6% gateway' : 'Collected'}
                 </p>
                 <p className="text-3xl font-bold tabular-nums text-white mt-2">
-                    ₹{Number(stats.revenue || 0).toLocaleString('en-IN')}
+                    ₹{Number(stats.revenue || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                 </p>
-                <p className="text-[11px] text-gray-400 mt-2">
-                    {mindSparkMode
-                        ? `${payments.paid || 0} paid · ${payments.pending || 0} unpaid · ${totalEntries} registrations`
-                        : `${payments.paid || 0} paid · ${payments.pending || 0} unpaid · ${totalEntries} entries`}
-                </p>
+                {mindSparkMode ? (
+                    <p className="text-[11px] text-gray-400 mt-2">
+                        Students paid ₹{Number(stats.grossCollected ?? stats.revenue ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                        {' · '}
+                        1.6% Cashfree gateway ₹{Number(stats.gatewayFees || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                    </p>
+                ) : (
+                    <p className="text-[11px] text-gray-400 mt-2">
+                        {`${payments.paid || 0} paid · ${payments.pending || 0} unpaid · ${totalEntries} entries`}
+                    </p>
+                )}
+                {mindSparkMode ? (
+                    <>
+                        <p className="text-[11px] text-gray-500 mt-1">
+                            {`${payments.paid || 0} paid · ${payments.pending || 0} unpaid · ${totalEntries} registrations`}
+                        </p>
+                        <p className="mt-3 text-[11px] leading-relaxed text-emerald-100/80 rounded-xl border border-emerald-400/20 bg-black/20 px-3 py-2.5">
+                            1.6% payment gateway fee is deducted on each Cashfree entry. This is not a CrwdCtrl commission.
+                        </p>
+                    </>
+                ) : null}
             </section>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
@@ -230,6 +246,8 @@ export default function FestOrganizerRevenuePage() {
                     <div className="space-y-2">
                         {ranked.map((c, idx) => {
                             const rev = Number(c.revenue) || 0;
+                            const gross = Number(c.grossCollected);
+                            const showGross = mindSparkMode && Number.isFinite(gross) && gross !== rev;
                             const entries = Number(c.approved) || Number(c.total) || 0;
                             const unpaidCount = mindSparkMode
                                 ? null
@@ -250,10 +268,13 @@ export default function FestOrganizerRevenuePage() {
                                             {mindSparkMode
                                                 ? `${entries} registered`
                                                 : `${entries} entries${unpaidCount ? ` · ${unpaidCount} review` : ''}`}
+                                            {showGross
+                                                ? ` · ₹${gross.toLocaleString('en-IN', { maximumFractionDigits: 2 })} collected`
+                                                : ''}
                                         </p>
                                     </div>
                                     <p className="text-sm font-semibold tabular-nums text-emerald-300 shrink-0">
-                                        ₹{rev.toLocaleString('en-IN')}
+                                        ₹{rev.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                                     </p>
                                 </button>
                             );

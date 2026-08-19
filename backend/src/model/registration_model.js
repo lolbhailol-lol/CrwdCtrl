@@ -102,6 +102,16 @@ const registrationSchema = new mongoose.Schema({
     type: Number,
     default: 0, // in INR
   },
+  /** Estimated Cashfree cut (1.6% of amountPaid). Not overwritten onto amountPaid. */
+  gatewayFee: {
+    type: Number,
+    default: 0,
+  },
+  /** amountPaid minus estimated Cashfree gateway fee (manual paid keeps amountPaid). */
+  netToOrganizer: {
+    type: Number,
+    default: 0,
+  },
 
   submittedAt: {
     type: Date,

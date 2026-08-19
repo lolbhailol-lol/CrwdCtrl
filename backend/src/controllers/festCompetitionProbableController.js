@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const FestCompetitionProbable = require('../model/fest_competition_probable_model');
 const Registration = require('../model/registration_model');
 const User = require('../model/usermodel');
+const { cashfreeSettlementFields } = require('../utils/cashfreeGatewayFee');
 
 function normalizePhone(raw) {
     return String(raw || '').trim().replace(/\s+/g, '').slice(0, 20);
@@ -245,6 +246,10 @@ exports.convertProbable = async (req, res) => {
             paymentStatus,
             amountPaid: Math.max(0, amountPaid),
             payment_gateway: 'manual_organizer',
+            ...cashfreeSettlementFields({
+                amountPaid: Math.max(0, amountPaid),
+                payment_gateway: 'manual_organizer',
+            }),
             submittedAt: new Date(),
         });
 

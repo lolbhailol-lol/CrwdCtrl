@@ -17,6 +17,7 @@ const {
   draftToResponses,
 } = require('../utils/festCompetitionDraft');
 const { saveRegistrationIdempotent } = require('../utils/registrationIdempotency');
+const { cashfreeSettlementFields } = require('../utils/cashfreeGatewayFee');
 
 async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides = {}) {
   const orderId = paymentOrderInput?.orderId || paymentOrderInput;
@@ -104,6 +105,11 @@ async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides 
       payment_gateway: 'cashfree',
       paymentStatus: 'paid',
       amountPaid: competitionTotalAmount,
+      ...cashfreeSettlementFields({
+        amountPaid: competitionTotalAmount,
+        payment_gateway: 'cashfree',
+        payment_order_id,
+      }),
       submittedAt: new Date(),
     });
 
@@ -215,6 +221,11 @@ async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides 
     payment_gateway: 'cashfree',
     paymentStatus: 'paid',
     amountPaid: festTotalAmount,
+    ...cashfreeSettlementFields({
+      amountPaid: festTotalAmount,
+      payment_gateway: 'cashfree',
+      payment_order_id,
+    }),
     submittedAt: new Date(),
   });
 

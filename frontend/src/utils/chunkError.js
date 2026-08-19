@@ -1,5 +1,11 @@
 export const CHUNK_RELOAD_SESSION_KEY = 'crwdctrl_chunk_reload';
 
+/** gtag.js / Firebase Analytics: config missing, then every fetch throws `undefined.M_ID`. */
+export function isGtagMeasurementIdError(error) {
+    const message = String(error?.message || error || '');
+    return /reading ['"]M_ID['"]/i.test(message);
+}
+
 export function isChunkLoadError(error) {
     if (!error) return false;
     const message = String(error.message || error);
@@ -102,6 +108,10 @@ export function initGlobalErrorHandlers() {
     if (typeof window === 'undefined') return;
 
     window.addEventListener('unhandledrejection', (event) => {
+        if (isGtagMeasurementIdError(event.reason)) {
+            event.preventDefault();
+            return;
+        }
         if (!isChunkLoadError(event.reason)) return;
         event.preventDefault();
         reloadOnceForChunkError();

@@ -10,6 +10,7 @@ const { competitionRequiresPayment, resolvePaidOrderTotal } = require('../../uti
 const { logger } = require('../../utils/logger');
 const { findByIdOrSlug } = require('../../utils/slug');
 const { saveRegistrationIdempotent } = require('../../utils/registrationIdempotency');
+const { cashfreeSettlementFields } = require('../../utils/cashfreeGatewayFee');
 const {
   parseResponsesBody,
   mergeRegistrationResponses,
@@ -95,6 +96,11 @@ const payAndRegisterFest = async (req, res) => {
       payment_gateway: 'cashfree',
       paymentStatus: 'paid',
       amountPaid: festTotalAmount,
+      ...cashfreeSettlementFields({
+        amountPaid: festTotalAmount,
+        payment_gateway: 'cashfree',
+        payment_order_id,
+      }),
       submittedAt: new Date(),
     });
 
@@ -247,6 +253,11 @@ const payAndRegister = async (req, res) => {
       payment_gateway: 'cashfree',
       paymentStatus: 'paid',
       amountPaid: competitionTotalAmount,
+      ...cashfreeSettlementFields({
+        amountPaid: competitionTotalAmount,
+        payment_gateway: 'cashfree',
+        payment_order_id,
+      }),
       submittedAt: new Date(),
     });
 

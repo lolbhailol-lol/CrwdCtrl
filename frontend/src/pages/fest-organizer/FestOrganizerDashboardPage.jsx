@@ -262,9 +262,11 @@ export default function FestOrganizerDashboardPage() {
                 >
                     <IndianRupee size={16} className="text-emerald-300 mb-2" />
                     <p className="text-2xl font-bold tabular-nums text-white">
-                        ₹{Number(stats.revenue || 0).toLocaleString('en-IN')}
+                        ₹{Number(stats.revenue || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                     </p>
-                    <p className="text-xs text-gray-400 mt-1">Revenue</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                        {hideProShow ? 'After 1.6% gateway' : 'Revenue'}
+                    </p>
                     <p className="text-[11px] text-gray-500 mt-1">
                         {hideProShow
                             ? (unpaidCount > 0

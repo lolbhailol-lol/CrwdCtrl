@@ -19,6 +19,8 @@ const {
     resolveCompetitionTicketPrice,
 } = require('../utils/competitionFeeTiers');
 const { parseTicketPrice } = require('../utils/platformFee');
+const { cashfreeSettlementFields, summarizeCashfreeSettlement } = require('../utils/cashfreeGatewayFee');
+const { isMindSparkFestId } = require('../utils/personFields');
 
 const TOKEN_TTL = '7d';
 
@@ -273,7 +275,6 @@ function registrationIsTeamEntry(p = {}) {
 
 /** MindSpark: payment gateway confirms entry — no organizer approve queue */
 async function clearMindSparkReviewQueue(festId, competitionId = null) {
-    const { isMindSparkFestId } = require('../utils/personFields');
     if (!isMindSparkFestId(festId)) return 0;
     const filter = {
         fest: festId,
@@ -715,7 +716,7 @@ exports.getDashboard = async (req, res) => {
             Registration.countDocuments({ ...notProShow, status: 'pending' }),
             Registration.countDocuments({ ...notProShow, status: 'rejected' }),
             Registration.countDocuments({ ...baseApproved, checkedIn: true }),
-            Registration.find(baseApproved).select('amountPaid paymentStatus').lean(),
+            Registration.find(baseApproved).select('amountPaid paymentStatus payment_gateway payment_order_id competitionId').lean(),
             Registration.countDocuments({
                 ...notProShow,
                 createdAt: { $gte: today, $lt: tomorrow },
@@ -804,7 +805,9 @@ exports.getDashboard = async (req, res) => {
                 .lean(),
         ]);
 
-        const revenue = paidRegs.reduce((sum, r) => sum + (Number(r.amountPaid) || 0), 0);
+        let revenue = paidRegs.reduce((sum, r) => sum + (Number(r.amountPaid) || 0), 0);
+        let grossCollected = revenue;
+        let gatewayFees = 0;
         const statsById = new Map(
             byCompetition.map((row) => [row._id ? String(row._id) : 'none', row]),
         );
@@ -894,6 +897,24 @@ exports.getDashboard = async (req, res) => {
             });
         }
 
+        if (isMindSparkFestId(festId)) {
+            const overall = summarizeCashfreeSettlement(paidRegs);
+            grossCollected = overall.grossCollected;
+            gatewayFees = overall.gatewayFees;
+            revenue = overall.revenue;
+            const knownCompetitionIds = new Set(competitions.map((c) => String(c._id)));
+            for (const c of competitionStats) {
+                const matching = paidRegs.filter((r) => {
+                    const cid = r.competitionId ? String(r.competitionId) : '';
+                    if (c.id) return cid === String(c.id);
+                    return !cid || !knownCompetitionIds.has(cid);
+                });
+                const sum = summarizeCashfreeSettlement(matching);
+                c.grossCollected = sum.grossCollected;
+                c.revenue = sum.revenue;
+            }
+        }
+
         competitionStats.sort((a, b) => (b.total - a.total) || a.name.localeCompare(b.name));
 
         const payments = { free: 0, pending: 0, paid: 0, failed: 0, unknown: 0, paidAmount: 0 };
@@ -959,6 +980,8 @@ exports.getDashboard = async (req, res) => {
                     ? Math.round((checkedIn / totalRegistrations) * 100)
                     : 0,
                 revenue,
+                grossCollected,
+                gatewayFees,
                 todayRegistrations,
                 competitionCount: competitions.length,
                 payments,
@@ -1629,7 +1652,7 @@ exports.getCompetitionOps = async (req, res) => {
                 .sort({ createdAt: -1 })
                 .lean(),
             Registration.countDocuments({ ...base, status: 'rejected' }),
-            Registration.find({ ...base, status: 'approved' }).select('amountPaid checkedIn').lean(),
+            Registration.find({ ...base, status: 'approved' }).select('amountPaid checkedIn payment_gateway payment_order_id').lean(),
             Registration.aggregate([
                 {
                     $match: {
@@ -1656,7 +1679,15 @@ exports.getCompetitionOps = async (req, res) => {
 
         const approved = paidApproved.length;
         const checkedIn = paidApproved.filter((r) => r.checkedIn).length;
-        const revenue = paidApproved.reduce((s, r) => s + (Number(r.amountPaid) || 0), 0);
+        let revenue = paidApproved.reduce((s, r) => s + (Number(r.amountPaid) || 0), 0);
+        let grossCollected = revenue;
+        let gatewayFees = 0;
+        if (isMindSparkFestId(festId)) {
+            const sum = summarizeCashfreeSettlement(paidApproved);
+            revenue = sum.revenue;
+            grossCollected = sum.grossCollected;
+            gatewayFees = sum.gatewayFees;
+        }
         const pendingCount = pending.length;
         const slotsAllotted = Math.max(0, Number(competition.slotsAllotted) || 0);
         const slotsFilled = approved;
@@ -1702,6 +1733,8 @@ exports.getCompetitionOps = async (req, res) => {
                 pendingCheckIn: Math.max(0, approved - checkedIn),
                 checkInRate: approved > 0 ? Math.round((checkedIn / approved) * 100) : 0,
                 revenue,
+                grossCollected,
+                gatewayFees,
                 teamCount: teams.length,
                 soloCount: solo.length,
                 slotsAllotted,
@@ -2560,6 +2593,10 @@ exports.createManualParticipant = async (req, res) => {
             paymentStatus,
             amountPaid,
             payment_gateway: 'manual_organizer',
+            ...cashfreeSettlementFields({
+                amountPaid,
+                payment_gateway: 'manual_organizer',
+            }),
             whatsappGroupJoined,
             whatsappGroupJoinedAt: whatsappGroupJoined ? new Date() : null,
             submittedAt: new Date(),
