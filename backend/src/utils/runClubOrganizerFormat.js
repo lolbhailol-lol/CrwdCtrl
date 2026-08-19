@@ -114,9 +114,10 @@ function formatParticipantRow(reg, event = null) {
             booking.userId?.phoneNumber ||
             '—',
         participantGender:
-            pickFormField(form, ['gender', 'sex', 'Gender']) ||
-            booking.userId?.gender ||
-            '—',
+            reg.participantGender
+            || pickFormField(form, ['gender', 'sex', 'Gender'])
+            || booking.userId?.gender
+            || '—',
         emergencyContact:
             pickFormField(form, ['emergency_contact', 'emergency', 'emergency_phone', 'guardian_contact']) ||
             '—',
@@ -245,6 +246,9 @@ function formatParticipantSheetRow(reg, event = null) {
         ...(row.userEmail ? { email: base.email || row.userEmail } : {}),
         ...(row.phone && row.phone !== '—'
             ? { contact_no: base.contact_no || row.phone }
+            : {}),
+        ...(row.participantGender && row.participantGender !== '—'
+            ? { gender: base.gender || row.participantGender }
             : {}),
     };
     return {

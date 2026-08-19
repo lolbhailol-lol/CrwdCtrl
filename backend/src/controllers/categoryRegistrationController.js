@@ -300,6 +300,7 @@ exports.registerForEvent = async (req, res) => {
                 return res.status(genderCheck.status || 400).json({ message: genderCheck.message });
             }
             participantGender = genderCheck.participantGender || '';
+            if (participantGender) responses.gender = participantGender;
         }
 
         // Paid runs: re-verify the Cashfree payment server-side before confirming.

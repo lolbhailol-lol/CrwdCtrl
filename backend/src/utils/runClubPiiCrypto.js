@@ -1,6 +1,6 @@
 const crypto = require('crypto');
 
-const OPERATIONAL_RESPONSE_KEYS = new Set(['people', 'date', 'time']);
+const OPERATIONAL_RESPONSE_KEYS = new Set(['people', 'date', 'time', 'gender', 'sex']);
 
 /** Ordered key sources — primary first, JWT fallback for rows encrypted before RUN_CLUB_PII_MASTER_KEY existed. */
 function listMasterKeyMaterial() {
