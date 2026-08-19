@@ -12,7 +12,12 @@ export default function SuccessStep({
   competitionId: competitionIdProp,
   festId: festIdProp,
 }) {
-  const plugin = getFestPluginFromAny(fest, competition?.fest, competition, festIdProp);
+  const plugin = getFestPluginFromAny(
+    fest,
+    competition?.fest,
+    competition?.festId || competition?.fest_id,
+    festIdProp,
+  );
   const SuccessScreen = plugin.competitionSuccessScreen;
 
   if (isCompetitionRegistration && SuccessScreen) {

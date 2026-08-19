@@ -881,8 +881,19 @@ export default function RunEventBookingPage() {
             });
             if (missing.length > 0) { setError(`Please fill: ${missing.map((f) => f.label).join(', ')}`); return; }
 
-            const customerEmail = mergedFields.email || mergedFields.e_mail_id || mergedFields.e_mail || '';
-            if (!customerEmail.trim()) { setError('Email is required to complete your booking.'); return; }
+            const customerEmail = String(
+                mergedFields.email || mergedFields.e_mail_id || mergedFields.e_mail || '',
+            ).trim();
+            if (!customerEmail) { setError('Email is required to complete your booking.'); return; }
+            const customerPhone = String(mergedFields.contact_no || mergedFields.phone || mergedFields.mobile || '')
+                .replace(/\D/g, '')
+                .slice(-10);
+            const needsCashfreePhone = payableAmount > 0 && !isOrganizerQr;
+            if (needsCashfreePhone && (customerPhone.length !== 10 || customerPhone === '9999999999')) {
+                setError('Enter a 10-digit mobile number');
+                return;
+            }
+            setExtraFields(mergedFields);
 
             if (payableAmount <= 0) {
                 try {
@@ -923,6 +934,7 @@ export default function RunEventBookingPage() {
                 try {
                     await submitRunRegistration({
                         amountPaid: payableAmount,
+                        formData: mergedFields,
                         booking: {
                             paymentScreenshotUrl: payableAmount > 0 ? paymentScreenshotUrl : '',
                             transactionId: payableAmount > 0 ? transactionId : '',
@@ -949,18 +961,21 @@ export default function RunEventBookingPage() {
                         eventId: event._id || event.id || id,
                         eventName,
                         people,
-                        customerName: extraFields.full_name || extraFields.name || '',
+                        customerName: mergedFields.full_name || mergedFields.name || extraFields.full_name || extraFields.name || '',
                         customerEmail,
-                        customerPhone: extraFields.contact_no || extraFields.phone || extraFields.contact || extraFields.mobile || '',
+                        customerPhone,
                         couponCode: couponCode.trim() || undefined,
                         tierId: selectedTierId || undefined,
                         addOnSelected: Boolean(addOnSelected && optionalAddOn),
+                        gender: mergedFields.gender || mergedFields.sex || extraFields.gender || extraFields.sex || '',
+                        formData: mergedFields,
                     }),
                 });
                 const order = await res.json();
                 if (order?.skipPayment || Number(order?.totalAmount) === 0) {
                     await submitRunRegistration({
                         amountPaid: 0,
+                        formData: mergedFields,
                         booking: {
                             couponCode: couponCode.trim() || undefined,
                             tierId: selectedTierId,

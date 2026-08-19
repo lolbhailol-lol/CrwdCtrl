@@ -265,6 +265,22 @@ function phonesFromRegistrationDraft(draft) {
   ];
 }
 
+function phonesFromSportsOrderBody(body = {}) {
+  const formData = body.formData && typeof body.formData === 'object' ? body.formData : {};
+  const extraFields = body.extraFields && typeof body.extraFields === 'object' ? body.extraFields : {};
+  return [
+    body.customerPhone,
+    formData.contact_no,
+    formData.phone,
+    formData.contact,
+    formData.mobile,
+    extraFields.contact_no,
+    extraFields.phone,
+    extraFields.contact,
+    extraFields.mobile,
+  ];
+}
+
 const getCustomerDetails = async (req) => {
   const { customerName, customerEmail, customerPhone, registrationDraft } = req.body || {};
   let user = null;
@@ -955,6 +971,7 @@ exports.createSportsOrder = async (req, res) => {
       addOnSelected = false,
       gender,
       formData,
+      extraFields,
     } = req.body;
 
     if (!eventId) {
@@ -1089,11 +1106,14 @@ exports.createSportsOrder = async (req, res) => {
     }
     const resolvedName = event.title || eventName || (noun === 'event' ? 'Event booking' : 'Run Booking');
 
+    let profilePhone = '';
+    if (req.user?.userId) {
+      const profile = await User.findById(req.user.userId).select('phoneNumber phone').lean();
+      profilePhone = profile?.phoneNumber || profile?.phone || '';
+    }
     const resolvedPhone = firstValidCustomerPhone([
-      customerPhone,
-      formData && typeof formData === 'object' ? formData.contact_no : '',
-      formData && typeof formData === 'object' ? formData.phone : '',
-      formData && typeof formData === 'object' ? formData.mobile : '',
+      ...phonesFromSportsOrderBody(req.body),
+      profilePhone,
     ]);
     if (!resolvedPhone) {
       return res.status(400).json({
@@ -1102,12 +1122,18 @@ exports.createSportsOrder = async (req, res) => {
       });
     }
 
-    const formDraft = sanitizeSportsFormDraft(formData, {
-      gender,
-      customerName,
-      customerEmail: email,
-      customerPhone: resolvedPhone,
-    });
+    const formDraft = sanitizeSportsFormDraft(
+      {
+        ...(extraFields && typeof extraFields === 'object' ? extraFields : {}),
+        ...(formData && typeof formData === 'object' ? formData : {}),
+      },
+      {
+        gender,
+        customerName,
+        customerEmail: email,
+        customerPhone: resolvedPhone,
+      },
+    );
 
     const existingPending = await findReusablePendingOrder({
       userId: req.user?.userId || null,

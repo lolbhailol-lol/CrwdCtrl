@@ -19,7 +19,10 @@ export function isMindSparkFest(festOrId, festMeta = null) {
     return name.includes('mindspark') || slug.includes('mindspark');
   }
 
-  if (String(festOrId || '') === MINDSPARK_FEST_ID) return true;
+  const token = String(festOrId || '').trim();
+  if (token === MINDSPARK_FEST_ID) return true;
+  // Cashfree return hits /fest/mindspark/register (or mindspark-2026) before fest JSON loads.
+  if (token.toLowerCase().includes('mindspark')) return true;
 
   const meta = festMeta && typeof festMeta === 'object' ? festMeta : null;
   if (!meta) return false;
