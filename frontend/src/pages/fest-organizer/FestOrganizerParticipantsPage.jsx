@@ -14,7 +14,7 @@ import {
 import { useDialog } from '../../context/DialogContext';
 import FestOrganizerParticipantModal from './FestOrganizerParticipantModal';
 import { OrganizerRosterPreview } from './OrganizerTeamRoster';
-import { isMindSparkFest } from '../../features/fests/mindspark';
+import { getFestPlugin } from '../../features/fests/plugins';
 import { InlinePageLoader } from '../../components/DetailPageLoader';
 
 function waLink(phone) {
@@ -108,7 +108,7 @@ export default function FestOrganizerParticipantsPage() {
     const competitionId = searchParams.get('competitionId') || '';
     const checkInStatus = searchParams.get('checkInStatus') || '';
     const paymentStatus = searchParams.get('paymentStatus') || '';
-    const noReview = isMindSparkFest(festId);
+    const noReview = getFestPlugin(festId).skipRegistrationReview;
 
     useEffect(() => {
         if (!noReview) return;

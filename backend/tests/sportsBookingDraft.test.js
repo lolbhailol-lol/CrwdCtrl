@@ -15,7 +15,16 @@ test('sports form draft keeps gender drink and level', () => {
   assert.equal(draft.gender, 'Female');
   assert.equal(draft.post_game_fuel_at_cafe_bok, 'Lemon Iced tea');
   assert.equal(draft.badminton_level, 'Beginner – Learning the game');
-  assert.equal(draft.contact_no, '9999999999');
+  assert.equal(draft.contact_no, undefined);
+});
+
+test('sports form draft keeps a real customer phone', () => {
+  const draft = sanitizeSportsFormDraft({
+    gender: 'Female',
+    full_name: 'Ada',
+    email: 'ada@example.com',
+  }, { customerPhone: '9370974074' });
+  assert.equal(draft.contact_no, '9370974074');
 });
 
 test('client form answers win over stored payment draft', () => {

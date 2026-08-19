@@ -3,11 +3,7 @@
  * Keeps view-details, competition-list, and admin-driven fields in sync.
  */
 
-import {
-  isMindSparkFest,
-  resolveMindSparkModule,
-  sortMindSparkModuleGroups,
-} from '../features/fests/mindspark';
+import { getFestPlugin } from '../features/fests/plugins';
 
 import {
   sanitizeCompetitionFeeTiers,
@@ -125,7 +121,7 @@ export function transformCompetitionItem(comp, festData) {
     contact: comp.contact,
     competitionType: comp.competitionType,
     category: comp.category,
-    module: isMindSparkFest(festData) ? resolveMindSparkModule(comp) : '',
+    module: getFestPlugin(festData).competitionModuleLabel(comp) || '',
     registrationFee: fee.known ? fee.label : (comp.registrationFee || 'Free'),
     feeAmount: fee.amount ?? 0,
     feeTiers: fee.tiers || [],
@@ -149,16 +145,14 @@ export function transformCompetitionItem(comp, festData) {
 export function groupCompetitionsByType(competitions, festData) {
   if (!Array.isArray(competitions) || competitions.length === 0) return {};
 
-  const mindSpark = isMindSparkFest(festData);
+  const plugin = getFestPlugin(festData);
   const grouped = {};
   competitions.forEach((comp) => {
-    const category = mindSpark
-      ? resolveMindSparkModule(comp)
-      : (comp.competitionType?.toUpperCase() || 'OTHER');
+    const category = plugin.competitionGroupKey(comp);
     if (!grouped[category]) grouped[category] = [];
     grouped[category].push(transformCompetitionItem(comp, festData));
   });
-  return mindSpark ? sortMindSparkModuleGroups(grouped) : grouped;
+  return plugin.sortCompetitionGroups(grouped);
 }
 
 /** True when transformed fest data already has competition cards to paint. */

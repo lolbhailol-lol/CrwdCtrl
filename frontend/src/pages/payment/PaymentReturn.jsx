@@ -31,7 +31,9 @@ import { finalizeCompetitionAfterPayment } from '../../utils/competitionPaymentC
 import { saveFestRegistrationSuccess } from '../../utils/registrationDraft';
 import { API_BASE_URL } from '../../services/api/client';
 import { resolveAuthToken, getBearerAuthHeaders } from '../../utils/authToken';
-import { MINDSPARK_FEST_ID } from '../../features/fests/mindspark';
+import { mindsparkPlugin } from '../../features/fests/plugins';
+
+const RECOVERY_FEST_ID = mindsparkPlugin.recoveryFestId;
 
 function parseFestRegisterReturn(returnPath) {
   if (!returnPath) return null;
@@ -52,7 +54,7 @@ function parseFestRegisterReturn(returnPath) {
 }
 
 function buildFestRegisterTarget({ festId, competitionId }) {
-  const festKey = String(festId || MINDSPARK_FEST_ID || '').trim() || MINDSPARK_FEST_ID;
+  const festKey = String(festId || RECOVERY_FEST_ID || '').trim() || RECOVERY_FEST_ID;
   const path = `/fest/${festKey}/register`;
   const qs = competitionId
     ? `?competition=${encodeURIComponent(String(competitionId))}`
@@ -68,14 +70,14 @@ function resolveFestSuccessIds(festRouteId, recoveryFestId) {
   const mongo =
     (OBJECT_ID_RE.test(fromRecovery) && fromRecovery)
     || (OBJECT_ID_RE.test(route) && route)
-    || ((route.toLowerCase().includes('mindspark') || fromRecovery === MINDSPARK_FEST_ID)
-      ? MINDSPARK_FEST_ID
+    || ((route.toLowerCase().includes('mindspark') || fromRecovery === RECOVERY_FEST_ID)
+      ? RECOVERY_FEST_ID
       : '')
     || '';
   return {
     festId: route || fromRecovery || mongo,
     festMongoId: mongo || null,
-    festAliases: [route, fromRecovery, mongo, MINDSPARK_FEST_ID, 'mindspark'].filter(Boolean),
+    festAliases: [route, fromRecovery, mongo, RECOVERY_FEST_ID, 'mindspark'].filter(Boolean),
   };
 }
 
@@ -427,7 +429,7 @@ export default function PaymentReturn() {
               recovery.festId
               || orderCtx?.festId
               || (entityType === 'fest' ? recovery.entityId : '')
-              || (competitionId ? MINDSPARK_FEST_ID : '')
+              || (competitionId ? RECOVERY_FEST_ID : '')
               || '';
 
             if (competitionId || (festRouteId && entityType !== 'event_show')) {

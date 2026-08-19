@@ -1008,15 +1008,21 @@ export default function EventCommunityBookingPage() {
                 ...profileToRunFormData(user),
                 ...extraFields,
             };
+            const customerEmail = String(
+                mergedFields.email || mergedFields.e_mail_id || mergedFields.e_mail || '',
+            ).trim();
+            const skipPhoneRequirement = Boolean(
+                isFreeRun
+                && isAuthed()
+                && String(mergedFields.full_name || mergedFields.name || '').trim()
+                && customerEmail,
+            );
             const missing = regSchema.filter((f) => {
                 if (!f.required) return false;
                 if (
-                    isFreeRun
-                    && isAuthed()
+                    skipPhoneRequirement
                     && isDefaultContactField(f)
                     && responseAliasGroup(f.fieldName) === 'phone'
-                    && (mergedFields.full_name || mergedFields.name)
-                    && (mergedFields.email)
                 ) {
                     return false;
                 }
@@ -1025,8 +1031,20 @@ export default function EventCommunityBookingPage() {
             });
             if (missing.length > 0) { setError(`Please fill: ${missing.map((f) => f.label).join(', ')}`); return; }
 
-            const customerEmail = mergedFields.email || mergedFields.e_mail_id || mergedFields.e_mail || '';
-            if (!customerEmail.trim()) { setError('Email is required to complete your booking.'); return; }
+            if (!customerEmail) { setError('Email is required to complete your booking.'); return; }
+            const customerPhone = String(mergedFields.contact_no || mergedFields.phone || mergedFields.mobile || '')
+                .replace(/\D/g, '')
+                .slice(-10);
+            const needsCashfreePhone = payableAmount > 0 && !isOrganizerQr;
+            if (
+                needsCashfreePhone
+                && !skipPhoneRequirement
+                && (customerPhone.length !== 10 || customerPhone === '9999999999')
+            ) {
+                setError('Enter a 10-digit mobile number');
+                return;
+            }
+            setExtraFields(mergedFields);
 
             if (payableAmount <= 0) {
                 try {
@@ -1067,6 +1085,7 @@ export default function EventCommunityBookingPage() {
                 try {
                     await submitRunRegistration({
                         amountPaid: payableAmount,
+                        formData: mergedFields,
                         booking: {
                             paymentScreenshotUrl: payableAmount > 0 ? paymentScreenshotUrl : '',
                             transactionId: payableAmount > 0 ? transactionId : '',
@@ -1093,20 +1112,21 @@ export default function EventCommunityBookingPage() {
                         eventId: event._id || event.id || id,
                         eventName,
                         people: singlePersonBooking ? 1 : people,
-                        customerName: extraFields.full_name || extraFields.name || '',
+                        customerName: mergedFields.full_name || mergedFields.name || extraFields.full_name || extraFields.name || '',
                         customerEmail,
-                        customerPhone: extraFields.contact_no || extraFields.phone || extraFields.contact || extraFields.mobile || '',
+                        customerPhone,
                         couponCode: couponCode.trim() || undefined,
                         tierId: selectedTierId || undefined,
                         addOnSelected: Boolean(addOnSelected && optionalAddOn),
-                        gender: extraFields.gender || extraFields.sex || '',
-                        formData: collectBookingFormAnswers(event?.registration?.formSchema, extraFields),
+                        gender: mergedFields.gender || mergedFields.sex || extraFields.gender || extraFields.sex || '',
+                        formData: collectBookingFormAnswers(event?.registration?.formSchema, mergedFields),
                     }),
                 });
                 const order = await res.json();
                 if (order?.skipPayment || Number(order?.totalAmount) === 0) {
                     await submitRunRegistration({
                         amountPaid: 0,
+                        formData: mergedFields,
                         booking: {
                             couponCode: couponCode.trim() || undefined,
                             tierId: selectedTierId,
@@ -1137,7 +1157,15 @@ export default function EventCommunityBookingPage() {
                     return;
                 }
 
-                saveDraft({ step: detailsStep, extraFields, selDate, selTime, people, tierId: selectedTierId, addOnSelected });
+                saveDraft({
+                    step: detailsStep,
+                    extraFields: mergedFields,
+                    selDate,
+                    selTime,
+                    people,
+                    tierId: selectedTierId,
+                    addOnSelected,
+                });
 
                 const checkoutFlow = await runCashfreeCheckoutAndVerify({
                     order,
@@ -1195,6 +1223,7 @@ export default function EventCommunityBookingPage() {
                         paymentOrderId: verified.payment_order_id || order.orderId,
                         paymentId: verified.payment_id,
                         amountPaid: order.totalAmount ?? total,
+                        formData: mergedFields,
                     });
                     setPaymentFlowToSuccess({ setPayDone, setPaying, setError });
                 } else {

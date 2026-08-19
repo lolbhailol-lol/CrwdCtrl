@@ -17,7 +17,7 @@ import { InlinePageLoader } from '../../components/DetailPageLoader';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { organizerCompetitionFeeLabel } from '../../utils/competitionFeeTiers';
-import { isMindSparkFest, resolveMindSparkModule } from '../../features/fests/mindspark';
+import { getFestPlugin } from '../../features/fests/plugins';
 
 function ModalHost({ children }) {
     if (typeof document === 'undefined') return null;
@@ -269,10 +269,8 @@ export default function FestOrganizerListingEditPage() {
                                     <p className="text-sm font-semibold text-white truncate">{c.name}</p>
                                     <p className="text-[11px] text-gray-500 mt-0.5 truncate">
                                         {organizerCompetitionFeeLabel(c)}
-                                        {c.category || isMindSparkFest(festId, fest)
-                                            ? ` · ${isMindSparkFest(festId, fest)
-                                                ? resolveMindSparkModule(c)
-                                                : c.category}`
+                                        {c.category || getFestPlugin(festId, fest).competitionModuleLabel(c)
+                                            ? ` · ${getFestPlugin(festId, fest).competitionModuleLabel(c) || c.category}`
                                             : ''}
                                     </p>
                                 </div>

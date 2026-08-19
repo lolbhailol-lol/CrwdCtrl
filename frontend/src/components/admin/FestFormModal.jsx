@@ -4,7 +4,7 @@ import { adminFetch, adminFetchJSON, getAdminToken } from '../../services/api/ad
 import GalleryImagesUploadField from './GalleryImagesUploadField';
 import { normalizeImageList } from '../../utils/uploadUrls';
 import { excludeCoverUrlsFromGallery } from '../../utils/coverImages';
-import { isMindSparkFest, ResourceLinksEditor, MindSparkWhatsAppLinksAdmin } from '../../features/fests/mindspark';
+import { getFestPlugin } from '../../features/fests/plugins';
 
 // Individual Form Field Component to prevent state sharing
 const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpdateOption, onRemoveOption }) => {
@@ -697,7 +697,10 @@ const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onA
 export default function FestFormModal({ fest, onClose, onSaved, api }) {
   // STEP STATE: simple multi-step wizard instead of one very long form
   const [step, setStep] = useState(1);
-  const mindSpark = isMindSparkFest(fest);
+  const plugin = getFestPlugin(fest);
+  const mindSpark = plugin.id === 'mindspark';
+  const ResourceLinksEditor = plugin.ResourceLinksEditor;
+  const WhatsAppAdmin = plugin.WhatsAppAdmin;
 
   // Form state aligned to new FEST DATA STRUCTURE
   const [form, setForm] = useState({
@@ -2262,15 +2265,17 @@ export default function FestFormModal({ fest, onClose, onSaved, api }) {
                           One master sheet / drive link for all MindSpark comps. Separate from the auto-append Google Sheets URL above.
                         </p>
                       </div>
-                      <ResourceLinksEditor
-                        links={form.resourceLinks}
-                        onChange={(resourceLinks) => setForm({ ...form, resourceLinks })}
-                        title="Links for all competitions"
-                        hint="Rulebook, schedule, Discord, etc. — shown on every competition success screen"
-                      />
+                      {ResourceLinksEditor ? (
+                        <ResourceLinksEditor
+                          links={form.resourceLinks}
+                          onChange={(resourceLinks) => setForm({ ...form, resourceLinks })}
+                          title="Links for all competitions"
+                          hint="Rulebook, schedule, Discord, etc. — shown on every competition success screen"
+                        />
+                      ) : null}
                     </div>
 
-                    <MindSparkWhatsAppLinksAdmin festId={fest?._id || fest?.id} api={api} />
+                    {WhatsAppAdmin ? <WhatsAppAdmin festId={fest?._id || fest?.id} api={api} /> : null}
                   </div>
                 ) : (
                   <>

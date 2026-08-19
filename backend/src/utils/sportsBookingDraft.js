@@ -1,3 +1,11 @@
+function normalizeGuestPhone(value) {
+    const digits = String(value || '').replace(/\D/g, '');
+    if (digits.length < 10) return '';
+    const phone = digits.slice(-10);
+    if (phone === '9999999999') return '';
+    return phone;
+}
+
 function sanitizeSportsFormDraft(formData = {}, extras = {}) {
     const out = {};
     const src = formData && typeof formData === 'object' && !Array.isArray(formData)
@@ -26,10 +34,13 @@ function sanitizeSportsFormDraft(formData = {}, extras = {}) {
     const email = String(extras.customerEmail || out.email || '').trim().toLowerCase();
     if (email) out.email = email;
 
-    const phone = String(extras.customerPhone || out.contact_no || out.phone || '').trim();
+    const phone = normalizeGuestPhone(extras.customerPhone || out.contact_no || out.phone);
     if (phone) {
-        if (!out.contact_no) out.contact_no = phone;
+        out.contact_no = phone;
         if (!out.phone) out.phone = phone;
+    } else {
+        delete out.contact_no;
+        delete out.phone;
     }
 
     return out;
@@ -43,6 +54,7 @@ function mergeSportsFormResponses(primary = {}, fallback = {}) {
 }
 
 module.exports = {
+    normalizeGuestPhone,
     sanitizeSportsFormDraft,
     mergeSportsFormResponses,
 };

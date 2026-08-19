@@ -13,7 +13,7 @@ import {
 } from '../../services/api/festOrganizer.api';
 import { InlinePageLoader } from '../../components/DetailPageLoader';
 import { useDialog } from '../../context/DialogContext';
-import { isMindSparkFest, MindSparkWhatsAppLinksAdmin } from '../../features/fests/mindspark';
+import { getFestPlugin } from '../../features/fests/plugins';
 
 const AUDIENCES = [
     { id: 'approved', label: 'Approved', hint: 'Confirmed entries', mindSparkLabel: 'Registered', mindSparkHint: 'Paid / confirmed' },
@@ -109,7 +109,9 @@ export default function FestOrganizerNotificationsPage() {
     const { festId } = useParams();
     const [searchParams, setSearchParams] = useSearchParams();
     const { toast, confirm } = useDialog();
-    const mindSpark = isMindSparkFest(festId);
+    const plugin = getFestPlugin(festId);
+    const mindSpark = plugin.id === 'mindspark';
+    const WhatsAppAdmin = plugin.WhatsAppAdmin;
     const adminApi = useMemo(
         () => (mindSpark ? buildFestOrganizerAdminApi(festId) : null),
         [mindSpark, festId],
@@ -684,7 +686,7 @@ export default function FestOrganizerNotificationsPage() {
                 </div>
             )}
 
-            {mindSpark && adminApi ? (
+            {WhatsAppAdmin && adminApi ? (
                 <section className="rounded-2xl border border-emerald-400/20 bg-[#161718] p-4 space-y-2">
                     <div>
                         <p className="text-sm font-semibold text-white flex items-center gap-2">
@@ -694,7 +696,7 @@ export default function FestOrganizerNotificationsPage() {
                             Shown after paid registration — keep invite links current
                         </p>
                     </div>
-                    <MindSparkWhatsAppLinksAdmin festId={festId} api={adminApi} />
+                    <WhatsAppAdmin festId={festId} api={adminApi} />
                 </section>
             ) : null}
         </div>

@@ -1,5 +1,5 @@
 import { goToBookings } from '../../../utils/paymentNavigation';
-import { isMindSparkFest, MindSparkSuccessStep, MINDSPARK_FEST_ID } from '../../../features/fests/mindspark';
+import { getFestPluginFromAny } from '../../../features/fests/plugins';
 import { RegistrationStatusVisual, SuccessRevealGate } from '../../../components/RegistrationStatusVisual';
 
 export default function SuccessStep({
@@ -12,20 +12,12 @@ export default function SuccessStep({
   competitionId: competitionIdProp,
   festId: festIdProp,
 }) {
-  const mindSpark =
-    isCompetitionRegistration
-    && (
-      isMindSparkFest(fest)
-      || isMindSparkFest(competition)
-      || isMindSparkFest(competition?.fest)
-      || isMindSparkFest(festIdProp)
-      || String(festIdProp || '').toLowerCase().includes('mindspark')
-      || String(fest?._id || fest?.id || '') === MINDSPARK_FEST_ID
-    );
+  const plugin = getFestPluginFromAny(fest, competition?.fest, competition, festIdProp);
+  const SuccessScreen = plugin.competitionSuccessScreen;
 
-  if (mindSpark) {
+  if (isCompetitionRegistration && SuccessScreen) {
     return (
-      <MindSparkSuccessStep
+      <SuccessScreen
         isDark={isDark}
         competition={competition}
         fest={fest}

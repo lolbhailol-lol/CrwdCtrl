@@ -1,6 +1,10 @@
 /** Shared defaults for competition.registration.personFields (MindSpark roster forms) */
 
-const MINDSPARK_FEST_ID = '6a7f1010ed26d983b34e55c2';
+const {
+    getFestPlugin,
+    MINDSPARK_FEST_ID,
+    isMindSparkFestId,
+} = require('../modules/fest/plugins');
 
 const DEFAULT_PERSON_FIELDS = [
     { id: 'pf_name', key: 'name', label: 'Full name', type: 'text', placeholder: 'Full name', required: true },
@@ -8,10 +12,6 @@ const DEFAULT_PERSON_FIELDS = [
     { id: 'pf_phone', key: 'phone', label: 'Phone number', type: 'tel', placeholder: '10-digit mobile', required: true },
     { id: 'pf_college', key: 'college', label: 'College name', type: 'text', placeholder: 'College / institution', required: true },
 ];
-
-function isMindSparkFestId(festId) {
-    return String(festId || '') === MINDSPARK_FEST_ID;
-}
 
 function slugKey(label, fallback = 'field') {
     const base = String(label || '')
@@ -80,7 +80,7 @@ function normalizePersonFields(list) {
  */
 function withNormalizedPersonFields(registration = {}, opts = {}) {
     const next = { ...(registration || {}) };
-    const force = opts.force === true || isMindSparkFestId(opts.festId);
+    const force = opts.force === true || getFestPlugin(opts.festId).forcePersonFields;
     const hasFields = Array.isArray(next.personFields) && next.personFields.length > 0;
     if (force || hasFields) {
         next.personFields = normalizePersonFields(next.personFields);

@@ -1,3 +1,5 @@
+import { mindsparkPlugin } from '../features/fests/plugins';
+
 const DRAFT_MAX_AGE_MS = 30 * 60 * 1000;
 
 export function festRegDraftKey(festId, competitionId) {
@@ -132,8 +134,9 @@ export function scrollFieldIntoView(e) {
 const FEST_REG_SUCCESS_KEY = 'crwdctrl_fest_reg_success';
 const FEST_REG_SUCCESS_MAX_AGE_MS = 30 * 60 * 1000;
 const OBJECT_ID_RE = /^[a-f\d]{24}$/i;
-/** Keep in sync with features/fests/mindspark — used only for id↔slug aliasing. */
-const MINDSPARK_FEST_ID = '6a7f1010ed26d983b34e55c2';
+
+/** Named-fest recovery alias (MindSpark slug ↔ ObjectId). */
+const RECOVERY_FEST_ID = mindsparkPlugin.recoveryFestId;
 
 function isMongoObjectId(value) {
   return OBJECT_ID_RE.test(String(value || '').trim());
@@ -152,10 +155,10 @@ function buildFestSuccessAliases({ festId, festMongoId, festAliases } = {}) {
 
   const all = [...aliases];
   const touchesMindSpark = all.some(
-    (a) => a === MINDSPARK_FEST_ID || a.toLowerCase().includes('mindspark'),
+    (a) => a === RECOVERY_FEST_ID || a.toLowerCase().includes('mindspark'),
   );
   if (touchesMindSpark) {
-    add(MINDSPARK_FEST_ID);
+    add(RECOVERY_FEST_ID);
     add('mindspark');
   }
   // If only one ObjectId was provided, keep it under both fields via aliases set

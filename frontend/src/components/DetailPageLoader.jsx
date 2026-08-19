@@ -8,9 +8,10 @@ import {
   Footprints,
   Mountain,
   Ticket,
-  Trophy,
 } from 'lucide-react';
 import { isHomeHubPath } from '../utils/homeShellReady';
+import markLogo from '../assets/crwdctrl-mark.png';
+import { LOGO_SOURCE_PX } from '../constants/logo';
 
 function readShellDark() {
   if (typeof document === 'undefined') return false;
@@ -22,7 +23,6 @@ export function shellBgClass(isDark = readShellDark()) {
 }
 
 const LOADER_VARIANT_ICONS = {
-  competition: Trophy,
   trek: Mountain,
   event: Calendar,
   booking: Ticket,
@@ -31,12 +31,44 @@ const LOADER_VARIANT_ICONS = {
   fest: Flag,
 };
 
-/** Reusable floating 3D card — default CrwdCtrl mark or contextual icon */
+const LOGO_VARIANTS = new Set(['default', 'brand', 'competition']);
+
+const LOGO_EXTRUDE_LAYERS = [0, 1, 2, 3, 4, 5, 6];
+
+function CrwdCtrl3DMark() {
+  return (
+    <>
+      <div className="detail-loader-orb" />
+      <div className="detail-loader-ring" />
+      <div className="detail-loader-extrude">
+        <div className="detail-loader-glass" />
+        {LOGO_EXTRUDE_LAYERS.map((layer) => (
+          <img
+            key={layer}
+            src={markLogo}
+            alt=""
+            width={LOGO_SOURCE_PX}
+            height={LOGO_SOURCE_PX}
+            className={`detail-loader-logo-layer${layer === 0 ? ' detail-loader-logo-layer--front' : ''}`}
+            style={{ '--layer': layer }}
+            draggable={false}
+            decoding="async"
+          />
+        ))}
+      </div>
+    </>
+  );
+}
+
+/** Reusable floating 3D card — CrwdCtrl logo or contextual icon */
 export function DetailLoader3DIcon({
   variant = 'default',
   size = 'md',
   className = '',
 }) {
+  const useLogo = LOGO_VARIANTS.has(variant);
+  const VariantIcon = !useLogo ? LOADER_VARIANT_ICONS[variant] : null;
+
   const stageClass =
     size === 'splash'
       ? 'detail-loader-stage detail-loader-stage--splash'
@@ -48,25 +80,23 @@ export function DetailLoader3DIcon({
           ? 'detail-loader-stage detail-loader-stage--mini'
           : 'detail-loader-stage';
 
-  const VariantIcon = LOADER_VARIANT_ICONS[variant];
-
   return (
-    <div className={`${stageClass} shrink-0 ${className}`.trim()} aria-hidden>
-      <div className="detail-loader-orb" />
-      <div className="detail-loader-card">
-        <div className="detail-loader-card-face detail-loader-card-front">
-          {variant === 'brand' ? (
-            <span className="detail-loader-mark detail-loader-mark--brand">ctrl</span>
-          ) : VariantIcon ? (
-            <VariantIcon className="detail-loader-icon" strokeWidth={2.25} />
-          ) : (
-            <span className="detail-loader-mark">C</span>
-          )}
-          <span className="detail-loader-shine" />
-        </div>
-        <div className="detail-loader-card-face detail-loader-card-side" />
-        <div className="detail-loader-card-face detail-loader-card-bottom" />
-      </div>
+    <div className={`${stageClass}${useLogo ? ' detail-loader-stage--mark' : ''} shrink-0 ${className}`.trim()} aria-hidden>
+      {useLogo || !VariantIcon ? (
+        <CrwdCtrl3DMark />
+      ) : (
+        <>
+          <div className="detail-loader-orb" />
+          <div className="detail-loader-card">
+            <div className="detail-loader-card-face detail-loader-card-front">
+              <VariantIcon className="detail-loader-icon" strokeWidth={2.25} />
+              <span className="detail-loader-shine" />
+            </div>
+            <div className="detail-loader-card-face detail-loader-card-side" />
+            <div className="detail-loader-card-face detail-loader-card-bottom" />
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -116,7 +146,7 @@ export function HomeHubLoadingScreen() {
       aria-live="polite"
       aria-label="Loading"
     >
-      <DetailLoader3DIcon variant="brand" size="splash" />
+      <DetailLoader3DIcon variant="brand" size="md" />
     </div>
   );
 
@@ -136,7 +166,7 @@ export function RouteLoadingFallback({ className = '' }) {
       aria-busy="true"
       aria-label="Loading page"
     >
-      <DetailLoader3DIcon variant="brand" size="hero" />
+      <DetailLoader3DIcon variant="brand" size="md" />
     </div>
   );
 

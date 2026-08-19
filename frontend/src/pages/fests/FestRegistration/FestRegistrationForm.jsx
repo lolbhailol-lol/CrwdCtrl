@@ -9,8 +9,8 @@ import {
   TeamDetailsStep,
   FeeTierStep,
   RosterPersonStep,
-  isMindSparkFest,
 } from '../../../features/fests/mindspark';
+import { getFestPluginFromAny } from '../../../features/fests/plugins';
 import { RegistrationProcessingOverlay } from '../../../components/RegistrationStatusVisual';
 import { useInAppBack } from '../../../hooks/useInAppBack';
 
@@ -66,15 +66,9 @@ export default function FestRegistrationForm({
   handleFileUpload,
 }) {
   const goBack = useInAppBack();
-  const mindSparkComp =
+  const hideFestCommonForm =
     Boolean(isCompetitionRegistration)
-    && (
-      isMindSparkFest(fest)
-      || isMindSparkFest(competition)
-      || isMindSparkFest(competition?.fest)
-    );
-  /** Never paint fest common formSchema for MindSpark competition registration */
-  const hideFestCommonForm = mindSparkComp;
+    && getFestPluginFromAny(fest, competition?.fest, competition).skipFestCommonFormOnCompetition;
   const onParticipantStep = typeof isOnParticipantStep === 'function' && isOnParticipantStep();
   const onTeamDetailsStep = typeof isOnTeamDetailsStep === 'function' && isOnTeamDetailsStep();
   const onFeeTierStep = typeof isOnFeeTierStep === 'function' && isOnFeeTierStep();

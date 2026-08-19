@@ -9,7 +9,7 @@ import {
     fetchFestOrganizerNotifyContacts,
 } from '../../services/api/festOrganizer.api';
 import { InlinePageLoader } from '../../components/DetailPageLoader';
-import { isMindSparkFest } from '../../features/fests/mindspark';
+import { getFestPlugin } from '../../features/fests/plugins';
 
 function waLink(phone, text) {
     const digits = String(phone || '').replace(/\D/g, '');
@@ -31,7 +31,7 @@ export default function FestOrganizerRevenuePage() {
     const [unpaid, setUnpaid] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const mindSpark = isMindSparkFest(festId);
+    const mindSpark = getFestPlugin(festId).id === 'mindspark';
 
     const load = async () => {
         setLoading(true);
@@ -56,7 +56,7 @@ export default function FestOrganizerRevenuePage() {
 
     const { stats, competitions = [], fest } = data || {};
     const payments = stats?.payments || {};
-    const mindSparkMode = mindSpark || isMindSparkFest(festId, fest);
+    const mindSparkMode = getFestPlugin(festId, fest).id === 'mindspark';
 
     const ranked = useMemo(() => {
         return [...competitions]

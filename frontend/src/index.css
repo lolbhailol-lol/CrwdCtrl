@@ -1288,8 +1288,138 @@ html:not(.dark) .crwdctrl-footer {
     height: 6.25rem;
 }
 
-.detail-loader-stage--splash .detail-loader-mark--brand {
-    font-size: 1.65rem;
+.detail-loader-stage--mark {
+    overflow: visible;
+    width: 7.85rem;
+    height: 7.85rem;
+    perspective: 960px;
+}
+
+.detail-loader-stage--mark .detail-loader-card {
+    width: 5rem;
+    height: 5rem;
+}
+
+.detail-loader-stage--mark.detail-loader-stage--hero {
+    width: 8.5rem;
+    height: 8.5rem;
+}
+
+.detail-loader-stage--mark.detail-loader-stage--hero .detail-loader-extrude {
+    width: 5.35rem;
+    height: 5.35rem;
+}
+
+.detail-loader-stage--mark.detail-loader-stage--splash {
+    width: 8.75rem;
+    height: 8.75rem;
+}
+
+.detail-loader-stage--mark.detail-loader-stage--splash .detail-loader-extrude {
+    width: 5.5rem;
+    height: 5.5rem;
+}
+
+.detail-loader-stage--mark.detail-loader-stage--compact {
+    width: 5rem;
+    height: 5rem;
+}
+
+.detail-loader-stage--mark.detail-loader-stage--compact .detail-loader-extrude {
+    width: 3.15rem;
+    height: 3.15rem;
+}
+
+.detail-loader-stage--mark.detail-loader-stage--mini {
+    width: 3.85rem;
+    height: 3.85rem;
+}
+
+.detail-loader-stage--mark.detail-loader-stage--mini .detail-loader-extrude {
+    width: 2.4rem;
+    height: 2.4rem;
+}
+
+.detail-loader-ring {
+    position: absolute;
+    inset: 14%;
+    border-radius: 9999px;
+    border: 1.5px solid rgba(14, 204, 238, 0.12);
+    border-top-color: rgba(14, 204, 238, 0.9);
+    border-right-color: rgba(124, 92, 255, 0.35);
+    transform: rotateX(68deg);
+    animation: detailLoaderOrbit 2.6s linear infinite;
+    pointer-events: none;
+}
+
+.detail-loader-extrude {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 5rem;
+    height: 5rem;
+    transform-style: preserve-3d;
+    animation: detailLoaderYaw 4.4s ease-in-out infinite;
+}
+
+.detail-loader-glass {
+    position: absolute;
+    inset: 6%;
+    border-radius: 1.05rem;
+    background: linear-gradient(145deg, rgba(28, 30, 34, 0.92) 0%, rgba(10, 11, 14, 0.96) 100%);
+    border: 1px solid rgba(14, 204, 238, 0.32);
+    box-shadow:
+        0 16px 36px rgba(0, 0, 0, 0.4),
+        0 0 22px rgba(14, 204, 238, 0.12);
+    transform: translateZ(-10px);
+}
+
+.detail-loader-logo-layer {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    pointer-events: none;
+    mix-blend-mode: screen;
+    transform: translateZ(calc(var(--layer, 0) * -1.4px)) scale(1.08);
+}
+
+.detail-loader-logo-layer--front {
+    mix-blend-mode: screen;
+    filter: drop-shadow(0 0 10px rgba(14, 204, 238, 0.4));
+    transform: translateZ(2px) scale(1.08);
+}
+
+html:not(.dark) .detail-loader-glass {
+    background: linear-gradient(145deg, #ffffff 0%, #f4f6f8 100%);
+    border: 1px solid rgba(14, 204, 238, 0.38);
+    box-shadow:
+        0 16px 36px rgba(14, 204, 238, 0.12),
+        0 8px 20px rgba(0, 0, 0, 0.08);
+}
+
+html:not(.dark) .detail-loader-logo-layer,
+html:not(.dark) .detail-loader-logo-layer--front {
+    mix-blend-mode: multiply;
+    filter: invert(1) hue-rotate(180deg);
+}
+
+html:not(.dark) .detail-loader-logo-layer--front {
+    filter: invert(1) hue-rotate(180deg) drop-shadow(0 0 10px rgba(14, 204, 238, 0.28));
+}
+
+html:not(.dark) .detail-loader-orb {
+    background: radial-gradient(circle at 35% 30%, rgba(14, 204, 238, 0.22), transparent 65%);
+}
+
+.detail-loader-logo {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: center;
+    display: block;
+    pointer-events: none;
 }
 
 .detail-loader-mark--brand {
@@ -1358,6 +1488,22 @@ html:not(.dark) .crwdctrl-footer {
     }
 }
 
+@keyframes detailLoaderYaw {
+    0%,
+    100% {
+        transform: rotateX(16deg) rotateY(-32deg) translateY(0);
+    }
+    50% {
+        transform: rotateX(10deg) rotateY(32deg) translateY(-7px);
+    }
+}
+
+@keyframes detailLoaderOrbit {
+    to {
+        transform: rotateX(68deg) rotateZ(360deg);
+    }
+}
+
 @keyframes detailLoaderPulse {
     0%,
     100% {
@@ -1385,12 +1531,22 @@ html:not(.dark) .crwdctrl-footer {
 @media (prefers-reduced-motion: reduce) {
     .detail-loader-card,
     .detail-loader-orb,
-    .detail-loader-shine {
+    .detail-loader-shine,
+    .detail-loader-ring,
+    .detail-loader-extrude {
         animation: none;
     }
 
     .detail-loader-card {
         transform: rotateX(12deg) rotateY(-16deg);
+    }
+
+    .detail-loader-extrude {
+        transform: rotateX(12deg) rotateY(-18deg);
+    }
+
+    .detail-loader-ring {
+        transform: rotateX(68deg);
     }
 }
 
@@ -1803,63 +1959,6 @@ html.dark #boot-splash,
     justify-content: center;
     position: relative;
     z-index: 1;
-}
-.boot-logo-assemble {
-    --boot-slice-count: 5;
-    --boot-logo-size: clamp(9.5rem, 54vw, 13rem);
-    display: flex;
-    width: var(--boot-logo-size);
-    height: var(--boot-logo-size);
-    animation: bootLogoSettle 0.28s cubic-bezier(0.22, 1, 0.36, 1) 0.36s both;
-}
-.boot-splash-inner--large .boot-logo-assemble {
-    --boot-logo-size: clamp(9.5rem, 54vw, 13rem);
-}
-.boot-logo-slice {
-    flex: 1 1 0;
-    min-width: 0;
-    height: 100%;
-    overflow: hidden;
-    opacity: 0;
-    animation: bootSliceMerge 0.5s cubic-bezier(0.22, 1, 0.36, 1) var(--boot-slice-delay, 0s) forwards;
-}
-.boot-logo-slice img {
-    display: block;
-    width: calc(var(--boot-slice-count) * 100%);
-    height: 100%;
-    max-width: none;
-    object-fit: contain;
-    image-rendering: -webkit-optimize-contrast;
-    pointer-events: none;
-    -webkit-user-select: none;
-    user-select: none;
-    margin-left: calc(var(--boot-slice-index) * -100%);
-}
-@keyframes bootSliceMerge {
-    from {
-        opacity: 0;
-        transform: translate3d(var(--boot-slice-x, 0), var(--boot-slice-y, 8%), 0);
-    }
-    to {
-        opacity: 1;
-        transform: translate3d(0, 0, 0);
-    }
-}
-@keyframes bootLogoSettle {
-    from { transform: scale(1.02); opacity: 0.96; }
-    to { transform: scale(1); opacity: 1; }
-}
-@media (prefers-reduced-motion: reduce) {
-    .boot-logo-assemble {
-        animation: none;
-        transform: none;
-        opacity: 1;
-    }
-    .boot-logo-slice {
-        animation: none;
-        opacity: 1;
-        transform: none;
-    }
 }
 
 /* Loading splash — compact logo, sharp on Retina */

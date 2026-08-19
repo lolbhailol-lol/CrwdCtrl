@@ -1089,11 +1089,24 @@ exports.createSportsOrder = async (req, res) => {
     }
     const resolvedName = event.title || eventName || (noun === 'event' ? 'Event booking' : 'Run Booking');
 
+    const resolvedPhone = firstValidCustomerPhone([
+      customerPhone,
+      formData && typeof formData === 'object' ? formData.contact_no : '',
+      formData && typeof formData === 'object' ? formData.phone : '',
+      formData && typeof formData === 'object' ? formData.mobile : '',
+    ]);
+    if (!resolvedPhone) {
+      return res.status(400).json({
+        success: false,
+        message: 'A 10-digit mobile number is required.',
+      });
+    }
+
     const formDraft = sanitizeSportsFormDraft(formData, {
       gender,
       customerName,
       customerEmail: email,
-      customerPhone,
+      customerPhone: resolvedPhone,
     });
 
     const existingPending = await findReusablePendingOrder({
@@ -1113,6 +1126,7 @@ exports.createSportsOrder = async (req, res) => {
         formData: formDraft,
         gender: formDraft.gender || gender || '',
       };
+      if (resolvedPhone) existingPending.customerPhone = resolvedPhone;
       await existingPending.save().catch(() => {});
       return res.json({
         success: true,
@@ -1149,7 +1163,7 @@ exports.createSportsOrder = async (req, res) => {
         customerId: `sports_guest_${resolvedEventId}`,
         customerName: customerName || 'Run Guest',
         customerEmail: email,
-        customerPhone,
+        customerPhone: resolvedPhone,
       },
       orderNote: resolvedName,
       orderTags: cashfreeOrderTags,
@@ -1185,6 +1199,7 @@ exports.createSportsOrder = async (req, res) => {
         gender: formDraft.gender || gender || '',
       },
       customerEmail: email,
+      customerPhone: resolvedPhone,
     });
 
     res.json({
@@ -1266,9 +1281,19 @@ exports.verifySportsPayment = async (req, res) => {
     if (result.verified) {
       if (!paymentOrder) paymentOrder = await PaymentOrder.findOne({ orderId }).lean();
       if (paymentOrder && paymentOrder.entityType === 'sports') {
+        const phone = firstValidCustomerPhone([
+          result.customerPhone,
+          paymentOrder.customerPhone,
+          paymentOrder.orderTags?.formData?.contact_no,
+          paymentOrder.orderTags?.formData?.phone,
+        ]);
         await PaymentOrder.updateOne(
           { orderId },
-          { status: 'PAID', paymentId: result.paymentId },
+          {
+            status: 'PAID',
+            paymentId: result.paymentId,
+            ...(phone ? { customerPhone: phone } : {}),
+          },
         );
         paymentProof = signPaymentProof({
           orderId: result.orderId,

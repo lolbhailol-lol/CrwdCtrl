@@ -2,9 +2,8 @@ import { useDarkMode } from '../context/DarkModeContext';
 import { DetailLoader3DIcon } from './DetailPageLoader';
 
 /** Full-screen route transition — 3D icon only (no skeleton blocks / footer flash). */
-export default function PageTransitionSkeleton({ pathname }) {
+export default function PageTransitionSkeleton() {
     const { isDark } = useDarkMode();
-    const isHome = pathname === '/' || pathname === '/dashboard';
 
     return (
         <div
@@ -14,7 +13,7 @@ export default function PageTransitionSkeleton({ pathname }) {
             aria-hidden
             role="presentation"
         >
-            <DetailLoader3DIcon variant="brand" size={isHome ? 'splash' : 'hero'} />
+            <DetailLoader3DIcon variant="brand" size="md" />
         </div>
     );
 }

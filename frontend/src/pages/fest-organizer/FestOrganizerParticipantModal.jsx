@@ -12,7 +12,7 @@ import { useDialog } from '../../context/DialogContext';
 import { filterExtraFestFormResponses } from '../../utils/festFormResponseKeys';
 import OrganizerTeamRoster from './OrganizerTeamRoster';
 import WhatsAppGroupToggle from './WhatsAppGroupToggle';
-import { isMindSparkFest } from '../../features/fests/mindspark';
+import { getFestPlugin } from '../../features/fests/plugins';
 
 function humanizeKey(key = '') {
     return String(key)
@@ -72,7 +72,7 @@ export default function FestOrganizerParticipantModal({ festId, registrationId, 
     const [participant, setParticipant] = useState(null);
     const [loading, setLoading] = useState(true);
     const [busy, setBusy] = useState('');
-    const noReview = isMindSparkFest(festId);
+    const noReview = getFestPlugin(festId).skipRegistrationReview;
 
     useEffect(() => {
         if (!festId || !registrationId) return;

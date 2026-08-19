@@ -32,16 +32,8 @@ import { signalDetailPageReady } from '../../utils/bootSplash';
 import DetailPageLoader from '../../components/DetailPageLoader';
 import CompetitionCoverImage from '../../components/CompetitionCoverImage';
 import FestPublicLiveStrip from '../../components/FestPublicLiveStrip';
-import { isMindSparkFest, formatMindSparkModuleLabel, MindSparkLiveBadge } from '../../features/fests/mindspark';
+import { getFestPlugin } from '../../features/fests/plugins';
 import { useInAppBack } from '../../hooks/useInAppBack';
-
-function formatCompetitionTabLabel(tab) {
-  if (!tab || tab === 'OTHER') return 'Other';
-  if (tab === tab.toUpperCase() || tab.includes(' ') || tab.includes('-')) {
-    return formatMindSparkModuleLabel(tab);
-  }
-  return tab.charAt(0) + tab.slice(1).toLowerCase();
-}
 
 function formatCompFee(compOrFee) {
   if (compOrFee && typeof compOrFee === 'object') {
@@ -396,6 +388,8 @@ function EventDetailsPage() {
   }
 
   const pageEvent = eventData;
+  const festPlugin = getFestPlugin(pageEvent?.id || eventId, pageEvent);
+  const LiveBadge = festPlugin.LiveBadge;
 
   const prefetchCompetition = (competition) => {
     const payload = buildCompetitionNavPayload(competition, pageEvent);
@@ -566,7 +560,7 @@ function EventDetailsPage() {
                 </div>
                 ) : null}
 
-                {isMindSparkFest(pageEvent.id || eventId, pageEvent) ? (
+                {festPlugin.showLiveStrip ? (
                   <FestPublicLiveStrip festId={pageEvent.id || eventId} isDark={isDark} />
                 ) : null}
 
@@ -594,7 +588,7 @@ function EventDetailsPage() {
                               : 'text-gray-600 hover:text-gray-900'
                           }`}
                         >
-                          {formatCompetitionTabLabel(tab)}
+                          {festPlugin.formatTabLabel(tab)}
                         </button>
                       ))}
                     </div>
@@ -653,9 +647,7 @@ function EventDetailsPage() {
                 <div className={`sticky top-24 ${isDark ? 'bg-[#111213]' : 'bg-gray-100'} rounded-2xl p-4 sm:p-6 mb-10 pt-6 sm:pt-8 pb-8 sm:pb-10 transition-colors duration-300`}>
                   <div className="flex items-start justify-between mb-4 sm:mb-6 gap-3">
                     <h1 className={`text-lg sm:text-2xl font-bold min-w-0 ${isDark ? 'text-white' : 'text-gray-900'}`}>{pageEvent.title}{collegeLabel ? <><br />{collegeLabel}</> : null}</h1>
-                    {isMindSparkFest(pageEvent.id || eventId, pageEvent) ? (
-                      <MindSparkLiveBadge />
-                    ) : null}
+                    {LiveBadge ? <LiveBadge /> : null}
                   </div>
 
                   <div className="space-y-3 sm:space-y-4 mb-4 sm:mb-6">
@@ -918,9 +910,7 @@ function EventDetailsPage() {
               ) : null}
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              {isMindSparkFest(pageEvent.id || eventId, pageEvent) ? (
-                <MindSparkLiveBadge />
-              ) : null}
+              {LiveBadge ? <LiveBadge /> : null}
               {primaryPhone && (
                 <a
                   href={`tel:${primaryPhone.replace(/[\s-]/g, '')}`}
@@ -1017,7 +1007,7 @@ function EventDetailsPage() {
         )}
 
         {/* Competitions */}
-        {isMindSparkFest(pageEvent.id || eventId, pageEvent) ? (
+        {festPlugin.showLiveStrip ? (
           <div className="px-4 mb-6">
             <FestPublicLiveStrip festId={pageEvent.id || eventId} isDark={isDark} />
           </div>
@@ -1043,7 +1033,7 @@ function EventDetailsPage() {
                       : 'text-gray-600'
                   }`}
                 >
-                  {formatCompetitionTabLabel(tab)}
+                  {festPlugin.formatTabLabel(tab)}
                 </button>
               ))}
             </div>

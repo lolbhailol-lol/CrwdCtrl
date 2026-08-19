@@ -200,6 +200,14 @@ async function verifyCashfreePayment({ orderId, paymentId }) {
 
   const paymentsRaw = await fetchPaymentsForOrder(orderId);
   const payments = Array.isArray(paymentsRaw) ? paymentsRaw : [];
+  const customerPhone = firstValidCustomerPhone([
+    order?.customer_details?.customer_phone,
+    order?.customer_details?.customerPhone,
+    ...payments.flatMap((p) => [
+      p.customer_phone,
+      p.customer_details?.customer_phone,
+    ]),
+  ]);
 
   if (paymentId) {
     const match = payments.find(
@@ -215,6 +223,7 @@ async function verifyCashfreePayment({ orderId, paymentId }) {
         orderId,
         paymentId: String(paymentId),
         orderStatus,
+        customerPhone,
       };
     }
     return {
@@ -226,6 +235,7 @@ async function verifyCashfreePayment({ orderId, paymentId }) {
       orderId,
       paymentId: match.cf_payment_id,
       orderStatus,
+      customerPhone,
     };
   }
 
@@ -241,6 +251,7 @@ async function verifyCashfreePayment({ orderId, paymentId }) {
       orderId,
       paymentId: paymentId || null,
       orderStatus,
+      customerPhone,
     };
   }
 
@@ -253,6 +264,7 @@ async function verifyCashfreePayment({ orderId, paymentId }) {
     orderId,
     paymentId: successPayment.cf_payment_id,
     orderStatus,
+    customerPhone,
   };
 }
 

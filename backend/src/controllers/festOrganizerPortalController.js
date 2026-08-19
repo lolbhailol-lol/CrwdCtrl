@@ -20,7 +20,7 @@ const {
 } = require('../utils/competitionFeeTiers');
 const { parseTicketPrice } = require('../utils/platformFee');
 const { cashfreeSettlementFields, summarizeCashfreeSettlement } = require('../utils/cashfreeGatewayFee');
-const { isMindSparkFestId } = require('../utils/personFields');
+const { getFestPlugin } = require('../modules/fest/plugins');
 
 const TOKEN_TTL = '7d';
 
@@ -275,7 +275,7 @@ function registrationIsTeamEntry(p = {}) {
 
 /** MindSpark: payment gateway confirms entry — no organizer approve queue */
 async function clearMindSparkReviewQueue(festId, competitionId = null) {
-    if (!isMindSparkFestId(festId)) return 0;
+    if (!getFestPlugin(festId).skipReviewQueue) return 0;
     const filter = {
         fest: festId,
         status: 'pending',
@@ -897,7 +897,7 @@ exports.getDashboard = async (req, res) => {
             });
         }
 
-        if (isMindSparkFestId(festId)) {
+        if (getFestPlugin(festId).useCashfreeSettlement) {
             const overall = summarizeCashfreeSettlement(paidRegs);
             grossCollected = overall.grossCollected;
             gatewayFees = overall.gatewayFees;
@@ -1682,7 +1682,7 @@ exports.getCompetitionOps = async (req, res) => {
         let revenue = paidApproved.reduce((s, r) => s + (Number(r.amountPaid) || 0), 0);
         let grossCollected = revenue;
         let gatewayFees = 0;
-        if (isMindSparkFestId(festId)) {
+        if (getFestPlugin(festId).useCashfreeSettlement) {
             const sum = summarizeCashfreeSettlement(paidApproved);
             revenue = sum.revenue;
             grossCollected = sum.grossCollected;

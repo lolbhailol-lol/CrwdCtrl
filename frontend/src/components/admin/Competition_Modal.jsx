@@ -14,11 +14,10 @@ import { adminFetch, adminFetchJSON } from '../../services/api/admin.api.js';
 import { useDialog } from '../../context/DialogContext';
 import {
   RosterFieldsEditor,
-  ResourceLinksEditor,
   DEFAULT_PERSON_FIELDS,
   normalizePersonFields,
-  isMindSparkFest,
 } from '../../features/fests/mindspark';
+import { getFestPlugin } from '../../features/fests/plugins';
 
 // Individual Form Field Component
 const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpdateOption, onRemoveOption }) => {
@@ -463,7 +462,9 @@ export default function CompetitionModal({
 
 // Competition Form Component with Multi-Step Wizard
 function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
-  const mindSpark = isMindSparkFest(fest);
+  const plugin = getFestPlugin(fest);
+  const mindSpark = plugin.hasRosterPersonStep;
+  const ResourceLinksEditor = plugin.ResourceLinksEditor;
   const [currentStep, setCurrentStep] = useState(1);
   const [form, setForm] = useState({
     name: '',
@@ -1904,6 +1905,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
                         Public link for this competition. Fest-level overall sheet is set on the fest registration tab.
                       </p>
                     </div>
+                    {ResourceLinksEditor ? (
                     <ResourceLinksEditor
                       links={form.registration?.resourceLinks}
                       onChange={(resourceLinks) => setForm({
@@ -1913,6 +1915,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
                       title="Extra links for this competition"
                       hint="Optional — rulebook, Discord, brief, etc."
                     />
+                    ) : null}
                   </div>
                 ) : null}
 

@@ -41,6 +41,7 @@ const paymentOrderSchema = new mongoose.Schema(
     paymentSessionId: { type: String, default: null },
     orderTags: { type: mongoose.Schema.Types.Mixed, default: {} },
     customerEmail: { type: String, trim: true, lowercase: true },
+    customerPhone: { type: String, trim: true, default: '' },
   },
   { timestamps: true }
 );

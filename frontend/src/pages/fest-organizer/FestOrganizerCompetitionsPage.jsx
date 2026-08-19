@@ -8,18 +8,15 @@ import {
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { useDialog } from '../../context/DialogContext';
-import { isMindSparkFest, resolveMindSparkModule, sortMindSparkModules, formatMindSparkModuleLabel } from '../../features/fests/mindspark';
+import { getFestPlugin } from '../../features/fests/plugins';
 import { organizerCompetitionFeeLabel } from '../../utils/competitionFeeTiers';
 import FestOrganizerCompetitionQrModal from './FestOrganizerCompetitionQrModal';
 import { downloadCompetitionQrPng } from '../../utils/competitionPublicQr';
 import { InlinePageLoader } from '../../components/DetailPageLoader';
 
-function formatCategoryLabel(tab) {
+function formatCategoryLabel(tab, plugin) {
     if (!tab || tab === 'OTHER') return 'Other';
-    if (tab === tab.toUpperCase() || tab.includes(' ') || tab.includes('-')) {
-        return formatMindSparkModuleLabel(tab);
-    }
-    return tab.charAt(0) + tab.slice(1).toLowerCase();
+    return plugin.formatTabLabel(tab);
 }
 
 function MiniBox({ label, value, tone = 'default' }) {
@@ -98,18 +95,18 @@ export default function FestOrganizerCompetitionsPage() {
         }
     };
 
-    const noReview = isMindSparkFest(festId, fest);
+    const plugin = getFestPlugin(festId, fest);
+    const noReview = plugin.skipRegistrationReview;
 
     const categories = useMemo(() => {
         const set = new Set();
         rows.forEach((c) => {
             if (!c.id) return;
-            if (noReview) set.add(resolveMindSparkModule(c));
-            else set.add(c.category || 'OTHER');
+            set.add(plugin.competitionGroupKey(c));
         });
-        const list = noReview ? sortMindSparkModules([...set]) : Array.from(set).sort();
+        const list = plugin.sortModules([...set]);
         return ['ALL', ...list];
-    }, [rows, noReview]);
+    }, [rows, plugin]);
 
     const needsReview = useMemo(
         () => rows.reduce((sum, c) => sum + (c.id ? Number(c.pending) || 0 : 0), 0),
@@ -122,11 +119,7 @@ export default function FestOrganizerCompetitionsPage() {
         const q = query.trim().toLowerCase();
         let list = rows.filter((c) => c.id);
         if (activeTab !== 'ALL') {
-            list = list.filter((c) => (
-                noReview
-                    ? resolveMindSparkModule(c) === activeTab
-                    : (c.category || 'OTHER') === activeTab
-            ));
+            list = list.filter((c) => plugin.competitionGroupKey(c) === activeTab);
         }
         if (q) {
             list = list.filter((c) => {
@@ -154,7 +147,7 @@ export default function FestOrganizerCompetitionsPage() {
             if (pd !== 0) return pd;
             return (Number(b.total) || 0) - (Number(a.total) || 0);
         });
-    }, [rows, activeTab, query, noReview]);
+    }, [rows, activeTab, query, noReview, plugin]);
 
     useEffect(() => {
         if (activeTab !== 'ALL' && !categories.includes(activeTab)) {
@@ -280,7 +273,7 @@ export default function FestOrganizerCompetitionsPage() {
                                         : 'bg-white/5 text-gray-400 hover:text-white border border-white/10'
                                 }`}
                             >
-                                {tab === 'ALL' ? 'All' : formatCategoryLabel(tab)}
+                                {tab === 'ALL' ? 'All' : formatCategoryLabel(tab, plugin)}
                             </button>
                         );
                     })}
@@ -331,7 +324,9 @@ export default function FestOrganizerCompetitionsPage() {
                                                     <span className={organizerCompetitionFeeLabel(c) === 'Free' ? 'text-emerald-400' : 'text-[#0ECCEE]'}>
                                                         {organizerCompetitionFeeLabel(c)}
                                                     </span>
-                                                    {c.category || noReview ? ` · ${formatCategoryLabel(noReview ? resolveMindSparkModule(c) : c.category)}` : ''}
+                                                    {c.category || plugin.competitionModuleLabel(c)
+                                                        ? ` · ${formatCategoryLabel(plugin.competitionModuleLabel(c) || c.category, plugin)}`
+                                                        : ''}
                                                 </p>
                                             </div>
                                             <ChevronRight size={18} className="shrink-0 text-gray-600 group-hover:text-[#0ECCEE] mt-0.5" />

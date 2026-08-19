@@ -5,7 +5,7 @@ import {
     Trophy, IndianRupee, Info, ClipboardList, Mic2, Radio, Pencil, Tag,
 } from 'lucide-react';
 import { clearFestOrganizerSession, getFestOrganizerSession } from '../../utils/festOrganizerSession';
-import { isMindSparkFest } from '../../features/fests/mindspark';
+import { getFestPlugin } from '../../features/fests/plugins';
 
 const navForFest = (festId, { hideStallLeads = false, hideProShow = false } = {}) => [
     { label: 'Overview', path: `/fest-organizer/fests/${festId}`, icon: LayoutDashboard, end: true, short: 'Home', group: 'ops' },
@@ -94,8 +94,9 @@ export default function FestOrganizerLayout() {
     const activeFest = festId
         ? session?.fests?.find((f) => String(f._id) === String(festId))
         : null;
-    const hideStallLeads = festId ? isMindSparkFest(festId, activeFest) : false;
-    const hideProShow = hideStallLeads;
+    const plugin = getFestPlugin(festId, activeFest);
+    const hideStallLeads = Boolean(festId && plugin.hideStallLeads);
+    const hideProShow = Boolean(festId && plugin.hideProShow);
     const nav = festId ? navForFest(festId, { hideStallLeads, hideProShow }) : [];
     const overviewItem = nav.find((n) => n.label === 'Overview');
     const opsNav = nav.filter((n) => n.group === 'ops' && n.label !== 'Overview');

@@ -22,7 +22,7 @@ import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator
 import FestOrganizerManualAddModal from './FestOrganizerManualAddModal';
 import OrganizerTeamRoster, { OrganizerRosterPreview } from './OrganizerTeamRoster';
 import WhatsAppGroupToggle from './WhatsAppGroupToggle';
-import { isMindSparkFest, resolveMindSparkModule } from '../../features/fests/mindspark';
+import { getFestPlugin } from '../../features/fests/plugins';
 import CompetitionFeeTiersEditor from '../../components/admin/CompetitionFeeTiersEditor';
 import {
     getCompetitionFeeTiers,
@@ -624,7 +624,8 @@ export default function FestOrganizerCompetitionWorkspacePage() {
     const teams = data?.teams || [];
     const solo = data?.solo || [];
     const festMeta = data?.fest || null;
-    const noReview = isMindSparkFest(festId, festMeta);
+    const plugin = getFestPlugin(festId, festMeta);
+    const noReview = plugin.skipRegistrationReview;
     const listFilters = useMemo(
         () => (noReview
             ? LIST_FILTERS.filter((f) => f.id !== 'pending' && f.id !== 'unpaid')
@@ -1169,10 +1170,8 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                             <p className="text-xs text-gray-300 mt-1">
                                 {data?.fest?.festName || ''}
                                 {` · ${organizerCompetitionFeeLabel(competition)}`}
-                                {competition?.category || isMindSparkFest(festId, data?.fest)
-                                    ? ` · ${isMindSparkFest(festId, data?.fest)
-                                        ? resolveMindSparkModule(competition)
-                                        : competition.category}`
+                                {competition?.category || plugin.competitionModuleLabel(competition)
+                                    ? ` · ${plugin.competitionModuleLabel(competition) || competition.category}`
                                     : ''}
                             </p>
                         </div>

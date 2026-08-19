@@ -8,6 +8,7 @@ const { resolveTrekPlatformFeePercent } = require('../../utils/trekRegistrationF
 const { competitionRequiresPayment, resolvePaidOrderTotal } = require('../../utils/competitionFeeTiers');
 const { logger } = require('../../utils/logger');
 const { cashfreeSettlementFields } = require('../../utils/cashfreeGatewayFee');
+const { getFestPlugin } = require('../../modules/fest/plugins');
 const {
   parseResponsesBody,
   maybeEnrichExistingResponses,
@@ -280,8 +281,7 @@ const submitCustomCompetitionRegistration = async (req, res) => {
 
     // Create registration record
     const festIdForReg = competition.fest?._id || competition.fest;
-    const { isMindSparkFestId } = require('../../utils/personFields');
-    const autoConfirm = isMindSparkFestId(festIdForReg)
+    const autoConfirm = getFestPlugin(festIdForReg).autoConfirmOnRegister
       || paymentStatus === 'paid'
       || paymentStatus === 'free';
     const paidAmount = paymentStatus === 'paid' ? competitionTotalAmount : 0;
@@ -759,8 +759,7 @@ const submitCompetitionRegistration = async (req, res) => {
 
     // Create registration with competition reference
     const festIdForReg = competition.fest?._id || competition.fest;
-    const { isMindSparkFestId } = require('../../utils/personFields');
-    const autoConfirm = isMindSparkFestId(festIdForReg)
+    const autoConfirm = getFestPlugin(festIdForReg).autoConfirmOnRegister
       || paymentStatusRoute === 'paid'
       || paymentStatusRoute === 'free';
     const paidAmountRoute = paymentStatusRoute === 'paid' ? competitionTotalAmount : 0;

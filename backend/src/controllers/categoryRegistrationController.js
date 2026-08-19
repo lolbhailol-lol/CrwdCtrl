@@ -18,6 +18,7 @@ const {
 const { resolveSportsTicketTotal } = require('../utils/sportsPricing');
 const { validateSportsGenderRegistration } = require('../utils/trekGenderRegistration');
 const { mergeSportsFormResponses } = require('../utils/sportsBookingDraft');
+const { firstValidCustomerPhone } = require('../services/cashfreeService');
 const {
     expireStalePendingRegistrations,
     isAllowedPaymentScreenshotUrl,
@@ -112,7 +113,7 @@ exports.registerForEvent = async (req, res) => {
         ).trim();
         if (category === 'sports' && incomingPaymentOrderId) {
             const storedOrder = await PaymentOrder.findOne({ orderId: incomingPaymentOrderId })
-                .select('orderTags')
+                .select('orderTags customerPhone')
                 .lean();
             const storedForm = storedOrder?.orderTags?.formData;
             if (storedForm && typeof storedForm === 'object') {
@@ -120,6 +121,19 @@ exports.registerForEvent = async (req, res) => {
             }
             if (!String(responses.gender || responses.sex || '').trim() && storedOrder?.orderTags?.gender) {
                 responses.gender = storedOrder.orderTags.gender;
+            }
+            const phone = firstValidCustomerPhone([
+                responses.contact_no,
+                responses.phone,
+                responses.mobile,
+                responses.contact,
+                storedOrder?.customerPhone,
+                storedForm?.contact_no,
+                storedForm?.phone,
+            ]);
+            if (phone) {
+                responses.contact_no = phone;
+                responses.phone = phone;
             }
         }
 
@@ -580,6 +594,25 @@ exports.registerForEvent = async (req, res) => {
         } else {
             registration = new CategoryRegistration(regPayload);
             await registration.save();
+        }
+
+        const savedPhone = firstValidCustomerPhone([
+            responses.contact_no,
+            responses.phone,
+            responses.mobile,
+        ]);
+        if (userId && savedPhone) {
+            await User.updateOne(
+                {
+                    _id: userId,
+                    $or: [
+                        { phoneNumber: { $exists: false } },
+                        { phoneNumber: null },
+                        { phoneNumber: '' },
+                    ],
+                },
+                { $set: { phoneNumber: savedPhone } },
+            ).catch(() => {});
         }
 
         // Capacity race guard for confirmed seats only (pending soft-held separately)

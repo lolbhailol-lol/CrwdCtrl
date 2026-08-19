@@ -8,10 +8,7 @@ import {
     updateFestOrganizerCoupon,
 } from '../../services/api/festOrganizer.api';
 import { useDialog } from '../../context/DialogContext';
-import {
-    resolveMindSparkModule,
-    sortMindSparkModules,
-} from '../../features/fests/mindspark';
+import { getFestPlugin } from '../../features/fests/plugins';
 import { InlinePageLoader } from '../../components/DetailPageLoader';
 
 const EMPTY = {
@@ -108,18 +105,19 @@ export default function FestOrganizerCouponsPage() {
         load();
     }, [festId]);
 
+    const plugin = getFestPlugin(festId);
     const modules = useMemo(() => {
         const grouped = {};
         competitions.forEach((c) => {
-            const mod = resolveMindSparkModule(c);
+            const mod = plugin.competitionGroupKey(c);
             if (!grouped[mod]) grouped[mod] = [];
             grouped[mod].push(c);
         });
-        return sortMindSparkModules(Object.keys(grouped)).map((mod) => ({
+        return plugin.sortModules(Object.keys(grouped)).map((mod) => ({
             module: mod,
             comps: grouped[mod],
         }));
-    }, [competitions]);
+    }, [competitions, plugin]);
 
     const openCreate = () => {
         setEditingId('');

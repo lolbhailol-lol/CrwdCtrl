@@ -44,8 +44,8 @@ import {
   needsTeamDetailsStep,
   validateTeamName,
   validateTeamDetails,
-  isMindSparkFest,
 } from '../../../features/fests/mindspark';
+import { getFestPluginFromAny } from '../../../features/fests/plugins';
 import { getCompetitionFeeTiers } from '../../../utils/competitionFeeTiers';
 import { waitAtLeast, sleep } from '../../../components/RegistrationStatusVisual';
 import { useInAppBack } from '../../../hooks/useInAppBack';
@@ -141,10 +141,16 @@ export default function useFestRegistration() {
   }, [firebaseUser, authToken]);
 
   const isCompetitionRegistration = !!competitionId;
+  const festPlugin = getFestPluginFromAny(
+    fest,
+    competition?.fest,
+    competition?.festId || competition?.fest_id,
+    festId,
+  );
   const draftKey = festRegDraftKey(festId, competitionId);
   const registrationDisplayName = isCompetitionRegistration ? competition?.name : fest?.festName;
 
-  useRegistrationSuccessPopup(success && !isMindSparkFest(fest) && !isMindSparkFest(competition), {
+  useRegistrationSuccessPopup(success && !festPlugin.suppressDefaultSuccessPopup, {
     name: registrationDisplayName,
     link: registrationId ? `/qr-ticket/${registrationId}` : '/booking',
     paid: Boolean(paymentFields),
@@ -685,15 +691,7 @@ export default function useFestRegistration() {
   };
 
   const isMindSparkCompetitionReg = () =>
-    Boolean(
-      isCompetitionRegistration
-      && competition
-      && (
-        isMindSparkFest(fest)
-        || isMindSparkFest(competition?.fest)
-        || isMindSparkFest(competition?.festId || competition?.fest_id)
-      ),
-    );
+    Boolean(isCompetitionRegistration && competition && festPlugin.hasRosterPersonStep);
 
   /** MindSpark comps always use roster person form (solo = 1 person step; teams = size + people) */
   const hasParticipantStep = () => isMindSparkCompetitionReg();
@@ -1613,7 +1611,7 @@ export default function useFestRegistration() {
       });
 
       // Add text responses as JSON
-      if (isCompetitionRegistration && isMindSparkFest(fest) && hasParticipantStep()) {
+      if (isCompetitionRegistration && festPlugin.hasRosterPersonStep && hasParticipantStep()) {
         const chosen = getPeopleCount();
         const personFields = getPersonFields(competition);
         const members = (Array.isArray(formData.team_members) ? formData.team_members : [])

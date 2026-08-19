@@ -14,7 +14,7 @@ import {
     deleteFestOrganizerLiveUpdate,
 } from '../../services/api/festOrganizer.api';
 import { useDialog } from '../../context/DialogContext';
-import { isMindSparkFest } from '../../features/fests/mindspark';
+import { getFestPlugin } from '../../features/fests/plugins';
 import { InlinePageLoader } from '../../components/DetailPageLoader';
 
 const emptyForm = {
@@ -69,7 +69,7 @@ function typeTone(type, urgent) {
 export default function FestOrganizerLiveUpdatesPage() {
     const { festId } = useParams();
     const { toast, confirm } = useDialog();
-    const mindSpark = isMindSparkFest(festId);
+    const mindSpark = getFestPlugin(festId).id === 'mindspark';
     const [lastPublishConnect, setLastPublishConnect] = useState(null);
 
     const [meta, setMeta] = useState({ types: [], templates: [], competitions: [] });

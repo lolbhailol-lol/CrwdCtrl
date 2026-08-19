@@ -8,7 +8,7 @@ import {
 import { fetchFestOrganizerDashboard } from '../../services/api/festOrganizer.api';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
-import { isMindSparkFest } from '../../features/fests/mindspark';
+import { getFestPlugin } from '../../features/fests/plugins';
 import FestOrganizerCompetitionQrModal from './FestOrganizerCompetitionQrModal';
 import { InlinePageLoader } from '../../components/DetailPageLoader';
 
@@ -93,7 +93,7 @@ export default function FestOrganizerDashboardPage() {
 
     const { fest, stats, recent = [] } = data;
     const payments = stats.payments || {};
-    const hideProShow = isMindSparkFest(festId, fest);
+    const hideProShow = getFestPlugin(festId, fest).hideProShow;
     const unpaidCount = Number(payments.pending || 0);
     const publicUrl = fest.slug
         ? `${window.location.origin}/view-details/${fest.slug}`
