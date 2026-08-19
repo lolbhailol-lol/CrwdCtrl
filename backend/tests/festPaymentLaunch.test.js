@@ -7,6 +7,7 @@ const {
 } = require('../src/utils/festCompetitionDraft');
 const { shouldReuseMappedStatus } = require('../src/utils/paymentOrderIdempotency');
 const { mapOrderStatus } = require('../src/services/cashfreeService');
+const { buildPaymentOrderNote } = require('../src/utils/paymentOrderNote');
 
 test('mapOrderStatus treats user-dropped checkout as cancelled', () => {
   assert.equal(mapOrderStatus('USER_DROPPED'), 'cancelled');
@@ -95,4 +96,32 @@ test('competitions without feeTiers keep a single ticket price', () => {
   assert.equal(priced.ticketPrice, 199);
   assert.equal(priced.tier, null);
   assert.deepEqual(sanitizeCompetitionFeeTiers(null), []);
+});
+
+test('Cashfree order note uses the competition name instead of a generic label', () => {
+  assert.equal(
+    buildPaymentOrderNote({ entityType: 'competition' }),
+    'competition registration',
+  );
+  assert.equal(
+    buildPaymentOrderNote({
+      entityType: 'competition',
+      notes: { competitionName: 'GAME OF INNOVATION' },
+    }),
+    'GAME OF INNOVATION registration',
+  );
+  assert.equal(
+    buildPaymentOrderNote({
+      entityType: 'competition',
+      notes: { competitionName: 'GAME OF INNOVATION', tierName: 'UG students' },
+    }),
+    'GAME OF INNOVATION - UG students',
+  );
+  assert.equal(
+    buildPaymentOrderNote({
+      entityType: 'fest',
+      notes: { festName: 'MindSpark' },
+    }),
+    'MindSpark registration',
+  );
 });

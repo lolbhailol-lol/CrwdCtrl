@@ -13,6 +13,7 @@ const { buildPriceBreakdown, buildTrekPriceBreakdown, buildEventPriceBreakdown, 
 const { resolveTrekPlatformFeePercent } = require('../utils/trekRegistrationFee');
 const { validateTrekGenderRegistration, validateSportsGenderRegistration } = require('../utils/trekGenderRegistration');
 const { resolveCompetitionTicketPrice } = require('../utils/competitionFeeTiers');
+const { buildPaymentOrderNote } = require('../utils/paymentOrderNote');
 
 async function sumTrekConfirmedSeats(trekId) {
   const rows = await TrekBooking.aggregate([
@@ -129,6 +130,7 @@ const resolvePricedEntity = async ({
         packagePrice,
         selectedAddOnIds: addOns.selected.map((addOn) => addOn.id),
         selectedAddOns: addOns.selected,
+        eventShowName: eventShow.title || eventShow.displayName || '',
         ...(tier ? { tierId: tier.id, tierName: tier.name } : {}),
       },
     };
@@ -167,6 +169,7 @@ const resolvePricedEntity = async ({
       notes: {
         competitionId: competition._id.toString(),
         festId: competition.fest?._id?.toString?.() || '',
+        competitionName: competition.name || '',
         ...(tier ? { tierId: tier.id, tierName: tier.label } : {}),
       },
     };
@@ -179,7 +182,7 @@ const resolvePricedEntity = async ({
       entityType: 'fest',
       ticketPrice: fest.feeAmount,
       platformFeePercent: resolveTrekPlatformFeePercent(fest.platformFeePercent, 3),
-      notes: { festId: fest._id.toString() },
+      notes: { festId: fest._id.toString(), festName: fest.festName || '' },
     };
   }
 
@@ -468,6 +471,8 @@ exports.createOrder = async (req, res) => {
     };
     allowTag('entityType', pricing.entityType);
     allowTag('eventShowId', pricing.notes?.eventShowId);
+    allowTag('competitionName', pricing.notes?.competitionName);
+    allowTag('festName', pricing.notes?.festName);
     allowTag('tierId', pricing.notes?.tierId);
     allowTag('tierName', pricing.notes?.tierName);
     allowTag('ticketPrice', pricing.ticketPrice);
@@ -479,7 +484,7 @@ exports.createOrder = async (req, res) => {
       orderAmount: pricing.totalAmount,
       currency,
       customerDetails,
-      orderNote: `${pricing.entityType} registration`,
+      orderNote: buildPaymentOrderNote(pricing),
       orderTags,
     });
 
