@@ -11,7 +11,7 @@ const SportsEvent = require('../model/sports_model');
 const PaymentOrder = require('../model/payment_order_model');
 const { buildPriceBreakdown, buildTrekPriceBreakdown, buildEventPriceBreakdown, parseTicketPrice } = require('../utils/platformFee');
 const { resolveTrekPlatformFeePercent } = require('../utils/trekRegistrationFee');
-const { validateTrekGenderRegistration } = require('../utils/trekGenderRegistration');
+const { validateTrekGenderRegistration, validateSportsGenderRegistration } = require('../utils/trekGenderRegistration');
 const { resolveCompetitionTicketPrice } = require('../utils/competitionFeeTiers');
 
 async function sumTrekConfirmedSeats(trekId) {
@@ -937,6 +937,8 @@ exports.createSportsOrder = async (req, res) => {
       couponCode,
       tierId,
       addOnSelected = false,
+      gender,
+      formData,
     } = req.body;
 
     if (!eventId) {
@@ -1028,6 +1030,18 @@ exports.createSportsOrder = async (req, res) => {
           message: `Only ${capacity - seatsHeld} seat(s) left`,
         });
       }
+    }
+
+    const genderCheck = await validateSportsGenderRegistration({
+      event,
+      formData: { ...(formData && typeof formData === 'object' ? formData : {}), gender },
+      people: peopleCount,
+    });
+    if (!genderCheck.ok) {
+      return res.status(genderCheck.status || 400).json({
+        success: false,
+        message: genderCheck.message,
+      });
     }
 
     // Security: ignore client-supplied amount — server is source of truth

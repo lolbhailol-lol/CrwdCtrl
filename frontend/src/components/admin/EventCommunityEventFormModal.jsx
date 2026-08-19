@@ -36,7 +36,7 @@ const EMPTY = {
     images: [],
     sponsors: '',
     registrationLink: '',
-    registration: { status: 'open', mode: 'internal_form', requireLogin: true, googleSheetsUrl: '', organizerEmail: '', formInstructions: '', availableDates: [], timeSlots: [], locationOptions: [], maxPeoplePerBooking: 10, formSchema: [], paymentQR: '', paymentQRMessage: '', paymentUpiId: '', qrAutoConfirm: false },
+    registration: { status: 'open', mode: 'internal_form', requireLogin: true, googleSheetsUrl: '', organizerEmail: '', formInstructions: '', availableDates: [], timeSlots: [], locationOptions: [], maxPeoplePerBooking: 10, formSchema: [], paymentQR: '', paymentQRMessage: '', paymentUpiId: '', qrAutoConfirm: false, genderQuotas: { enabled: false, femaleSeats: 0, maleSeats: 0, othersSeats: 0 }, genderPhase: 'all' },
     description: '',
     status: 'published',
     runClubId: null,
@@ -254,6 +254,13 @@ export default function EventCommunityEventFormModal({ event, runClubId, clubNam
                     paymentQRMessage: form.registration?.paymentQRMessage || '',
                     paymentUpiId: form.registration?.paymentUpiId || '',
                     qrAutoConfirm: Boolean(form.registration?.qrAutoConfirm),
+                    genderQuotas: {
+                        enabled: Boolean(form.registration?.genderQuotas?.enabled),
+                        femaleSeats: Math.max(0, Number(form.registration?.genderQuotas?.femaleSeats) || 0),
+                        maleSeats: Math.max(0, Number(form.registration?.genderQuotas?.maleSeats) || 0),
+                        othersSeats: Math.max(0, Number(form.registration?.genderQuotas?.othersSeats) || 0),
+                    },
+                    genderPhase: form.registration?.genderPhase || 'all',
                     formSchema: Array.isArray(form.registration?.formSchema) ? form.registration.formSchema : [],
                 },
                 description: form.description?.trim() || '',
@@ -415,6 +422,7 @@ export default function EventCommunityEventFormModal({ event, runClubId, clubNam
                         </Field>
 
                         {(form.pricingMode || 'single') === 'single' ? (
+                            <div className="space-y-4">
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <Field label="Registration Fee (₹)">
                                     <input type="number" min="0" value={form.registrationFee} onChange={(e) => set('registrationFee', e.target.value)} className={inp} />
@@ -422,6 +430,50 @@ export default function EventCommunityEventFormModal({ event, runClubId, clubNam
                                 <Field label="Max Participants" hint="0 = unlimited">
                                     <input type="number" min="0" value={form.maxParticipants} onChange={(e) => set('maxParticipants', e.target.value)} className={inp} />
                                 </Field>
+                            </div>
+                            <div className="rounded-xl border border-gray-700/80 p-4 space-y-3">
+                                <p className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Gender seats</p>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={Boolean(form.registration?.genderQuotas?.enabled)}
+                                        onChange={(e) => set('registration', {
+                                            ...form.registration,
+                                            genderQuotas: {
+                                                ...(form.registration?.genderQuotas || {}),
+                                                enabled: e.target.checked,
+                                            },
+                                        })}
+                                        className="w-4 h-4 accent-[#0ECCEE]"
+                                    />
+                                    <span className="text-sm text-gray-300">Split seats by gender</span>
+                                </label>
+                                {form.registration?.genderQuotas?.enabled ? (
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {[
+                                            { key: 'femaleSeats', label: 'Women seats' },
+                                            { key: 'maleSeats', label: 'Men seats' },
+                                        ].map(({ key, label }) => (
+                                            <div key={key}>
+                                                <label className="block text-[10px] text-gray-500 mb-1">{label}</label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    value={form.registration?.genderQuotas?.[key] ?? 0}
+                                                    onChange={(e) => set('registration', {
+                                                        ...form.registration,
+                                                        genderQuotas: {
+                                                            ...(form.registration?.genderQuotas || {}),
+                                                            [key]: Math.max(0, Number(e.target.value) || 0),
+                                                        },
+                                                    })}
+                                                    className={inp}
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : null}
+                            </div>
                             </div>
                         ) : (
                             <div className="space-y-3">

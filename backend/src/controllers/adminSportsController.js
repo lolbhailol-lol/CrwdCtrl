@@ -11,6 +11,7 @@ const {
 const { ensureUniqueSlug, toSlug, mergePreviousSlugs } = require('../utils/slug');
 const { contactsFromBody } = require('../utils/runContacts');
 const { sanitizeFormSchema } = require('../utils/formSchemaSanitize');
+const { sanitizeGenderQuotas, sanitizeGenderPhase } = require('../utils/trekGenderRegistration');
 
 const SPORT_TYPES = new Set(['run_club', 'football', 'cricket', 'badminton', 'marathon', 'gymkhana', 'other']);
 const STATUSES = new Set(['draft', 'published', 'completed', 'cancelled']);
@@ -203,6 +204,8 @@ function sanitizeSportsPayload(body = {}) {
             paymentUpiId: String(r.paymentUpiId || '').trim(),
             qrAutoConfirm: Boolean(r.qrAutoConfirm),
             requireLogin: r.requireLogin !== false,
+            genderQuotas: sanitizeGenderQuotas(r.genderQuotas || {}),
+            genderPhase: sanitizeGenderPhase(r.genderPhase || 'all'),
             formSchema: Array.isArray(r.formSchema)
                 ? sanitizeFormSchema(r.formSchema)
                 : [],

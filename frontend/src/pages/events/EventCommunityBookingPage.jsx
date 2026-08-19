@@ -29,6 +29,7 @@ import { API_BASE_URL, publicFetchJSONRetry } from '../../services/api/client';
 import { isInAppBrowser } from '../../config/apiBase';
 import { useBookingSuccessPopup } from '../../hooks/useSuccessPopup';
 import { eventCommunityEventPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
+import { evaluateUserRegistrationAccess } from '../../utils/trekGenderRegistration';
 import { mergeRunFormFields, profileToRunFormData, isDefaultContactField, responseAliasGroup } from '../../utils/formFieldDedupe';
 import { resolveAuthToken, getBearerAuthHeaders, hasUsableAuthToken, isAuthFailureMessage } from '../../utils/authToken';
 import {
@@ -64,7 +65,7 @@ import {
     standaloneQuestionFields,
 } from '../../utils/formOptionCoupons';
 
-const runDetailCache = createDetailCache('crwdctrl_event_community_detail_v2_');
+const runDetailCache = createDetailCache('crwdctrl_event_community_detail_v4_');
 
 const API = API_BASE_URL;
 const copy = organizerHubCopy(true);
@@ -285,8 +286,28 @@ export default function EventCommunityBookingPage() {
     const runDateLabel = useMemo(() => formatRunDate(event?.eventDate), [event?.eventDate]);
     const runTimeLabel = String(event?.reportingTime || '').trim();
     const maxPeople = reg.maxPeoplePerBooking || event?.maxParticipants || 10;
+    const genderRegistration = event?.genderRegistration || null;
+    const bookingGender = extraFields.gender || extraFields.sex || '';
+    const genderAccess = useMemo(
+        () => evaluateUserRegistrationAccess({
+            genderRegistration,
+            userGender: bookingGender,
+            people,
+        }),
+        [genderRegistration, bookingGender, people],
+    );
+    const genderRemaining = useMemo(() => {
+        if (!genderRegistration?.enabled || !bookingGender) return null;
+        const g = String(bookingGender).toLowerCase();
+        const bucket = g.startsWith('f') ? 'female' : g.startsWith('m') ? 'male' : 'others';
+        const quota = genderRegistration.quotas?.[bucket];
+        if (!quota?.cap) return null;
+        return Math.max(0, (quota.remaining ?? (quota.cap - quota.filled)) || 0);
+    }, [genderRegistration, bookingGender]);
     const onePersonFreeLimit = isFreeFlow && loggedIn;
-    const maxSelectablePeople = onePersonFreeLimit ? 1 : maxPeople;
+    const maxSelectablePeople = onePersonFreeLimit
+        ? 1
+        : Math.min(maxPeople, genderRemaining == null ? maxPeople : Math.max(1, genderRemaining));
 
     const regSchema = useMemo(() => mergeRunFormFields(reg.formSchema || []), [reg.formSchema]);
     const page1CouponFields = useMemo(() => bookingPage1Fields(reg.formSchema || []), [reg.formSchema]);
@@ -875,6 +896,10 @@ export default function EventCommunityBookingPage() {
                 setError(`Please select: ${missingPage1.map((f) => f.label).join(', ')}`);
                 return;
             }
+            if (genderRegistration?.enabled && genderAccess.canRegister === false) {
+                setError(genderAccess.message || 'No seats left for this gender.');
+                return;
+            }
             setStep(2);
             return;
         }
@@ -1021,6 +1046,8 @@ export default function EventCommunityBookingPage() {
                         couponCode: couponCode.trim() || undefined,
                         tierId: selectedTierId || undefined,
                         addOnSelected: Boolean(addOnSelected && optionalAddOn),
+                        gender: extraFields.gender || extraFields.sex || '',
+                        formData: extraFields,
                     }),
                 });
                 const order = await res.json();
@@ -1556,6 +1583,11 @@ export default function EventCommunityBookingPage() {
 
                                 <div className={`pt-1 ${(selectedTier || optionalAddOn || page1CouponFields.length) ? `border-t ${isDark ? 'border-gray-800' : 'border-gray-100'} pt-3` : ''}`}>
                                     <p className={`text-[11px] mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>People</p>
+                                    {genderRegistration?.enabled && bookingGender && genderRemaining != null ? (
+                                        <p className={`text-[11px] mb-1.5 ${genderRemaining <= 0 ? 'text-red-400' : isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                            {genderRemaining} {String(bookingGender).toLowerCase().startsWith('f') ? 'women' : 'men'} seat{genderRemaining === 1 ? '' : 's'} left
+                                        </p>
+                                    ) : null}
                                     <div className="flex items-center">
                                         <button
                                             type="button"

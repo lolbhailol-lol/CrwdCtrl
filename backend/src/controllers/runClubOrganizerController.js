@@ -36,7 +36,13 @@ const {
     searchTokensForQuery,
 } = require('../utils/runClubPiiCrypto');
 const RunClubManagerProfileInvite = require('../model/run_club_manager_profile_invite_model');
-const { sanitizeFormSchema } = require('../utils/formSchemaSanitize');
+const {
+    sanitizeGenderQuotas,
+    sanitizeGenderPhase,
+    getSportsGenderRegistrationSnapshot,
+    aggregateSportsGenderQuotaStats,
+    validateSportsGenderRegistration,
+} = require('../utils/trekGenderRegistration');
 
 const notFoundMsg = (req) => (req.listingHub === 'events' ? 'Event not found' : 'Run not found');
 
@@ -147,13 +153,31 @@ function sanitizeOrganizerEventBody(body = {}, { partial = false, existing = nul
             paymentUpiId: r.paymentUpiId !== undefined
                 ? String(r.paymentUpiId || '').trim()
                 : (existingReg.paymentUpiId || ''),
+            qrAutoConfirm: r.qrAutoConfirm !== undefined
+                ? Boolean(r.qrAutoConfirm)
+                : Boolean(existingReg.qrAutoConfirm),
+            requireLogin: r.requireLogin !== undefined
+                ? r.requireLogin !== false
+                : (existingReg.requireLogin !== false),
+            genderQuotas: sanitizeGenderQuotas(
+                r.genderQuotas !== undefined
+                    ? r.genderQuotas
+                    : (existingReg.genderQuotas || {}),
+            ),
+            genderPhase: sanitizeGenderPhase(
+                r.genderPhase !== undefined
+                    ? r.genderPhase
+                    : (existingReg.genderPhase || 'all'),
+            ),
             formSchema: r.formSchema !== undefined
                 ? sanitizeFormSchema(r.formSchema)
                 : (Array.isArray(existingReg.formSchema) ? existingReg.formSchema : []),
         };
     }
 
-    payload.sportType = 'run_club';
+    const category = String(payload.runCategory || existing?.runCategory || '').toLowerCase();
+    payload.sportType = existing?.sportType
+        || (category === 'badminton' ? 'badminton' : 'run_club');
 
     return payload;
 }
@@ -730,7 +754,9 @@ exports.updateEvent = async (req, res) => {
             return res.status(400).json({ success: false, message: pricingError });
         }
 
-        body.sportType = 'run_club';
+        if (!body.sportType) {
+            body.sportType = existing.sportType || 'run_club';
+        }
         body.runClubId = req.organizer.runClubId;
         const parentClub = await RunClub.findById(req.organizer.runClubId).select('listingHub').lean();
         const onEventsHub = parentClub?.listingHub === 'events';
@@ -942,7 +968,7 @@ exports.reviewPayment = async (req, res) => {
         }
 
         const event = await SportsEvent.findById(req.eventId)
-            .select('title maxParticipants slug runClubId')
+            .select('title maxParticipants slug runClubId registration.genderQuotas registration.genderPhase')
             .lean();
         const eventTitle = event?.title || 'your run';
         const reviewer = req.organizer?.username || req.organizer?.name || 'organizer';
@@ -976,6 +1002,29 @@ exports.reviewPayment = async (req, res) => {
                         message: 'Cannot approve — run is at capacity. Reject this registration or free a seat first.',
                     });
                 }
+            }
+
+            const decrypted = decryptRegistrationPii(
+                registration.toObject ? registration.toObject() : registration,
+                runClubId,
+            );
+            const genderCheck = await validateSportsGenderRegistration({
+                event,
+                formData: {
+                    ...(decrypted.responses || {}),
+                    gender: registration.participantGender || decrypted.responses?.gender,
+                },
+                people: peopleFromRegistration(registration),
+                excludeId: registration._id,
+            });
+            if (!genderCheck.ok) {
+                return res.status(genderCheck.status || 400).json({
+                    success: false,
+                    message: genderCheck.message || 'Cannot approve — gender seats are full.',
+                });
+            }
+            if (genderCheck.participantGender && !registration.participantGender) {
+                registration.participantGender = genderCheck.participantGender;
             }
             registration.status = 'confirmed';
             registration.paymentStatus = due > 0 ? 'paid' : 'free';
@@ -1049,7 +1098,7 @@ exports.getDashboard = async (req, res) => {
         await expireStalePendingRegistrations(eventId);
 
         const event = await SportsEvent.findById(eventId)
-            .select('title city eventDate status maxParticipants registration.status registration.mode registrationFee distance reportingTime')
+            .select('title city eventDate status maxParticipants registration.status registration.mode registration.genderQuotas registration.genderPhase registrationFee distance reportingTime')
             .lean();
         if (!event) return res.status(404).json({ success: false, message: notFoundMsg(req) });
 
@@ -1090,6 +1139,8 @@ exports.getDashboard = async (req, res) => {
         const seatsFilled = holdingRegs.reduce((sum, r) => sum + peopleFromRegistration(r), 0);
         const pendingAmountAtRisk = pendingRegs.reduce((sum, r) => sum + (Number(r.amountPaid) || 0), 0);
         const seatsRemaining = capacity > 0 ? Math.max(0, capacity - seatsFilled) : null;
+        const genderRegistration = await getSportsGenderRegistrationSnapshot(event);
+        const genderStats = await aggregateSportsGenderQuotaStats(eventId);
 
         res.json({
             success: true,
@@ -1104,7 +1155,10 @@ exports.getDashboard = async (req, res) => {
                 registrationFee: Number(event.registrationFee) || 0,
                 registrationStatus: event.registration?.status || 'open',
                 registrationMode: event.registration?.mode || 'internal_form',
+                genderQuotas: event.registration?.genderQuotas || {},
+                genderPhase: event.registration?.genderPhase || 'all',
             },
+            genderRegistration,
             stats: {
                 totalRegistrations,
                 seatsFilled,
@@ -1126,6 +1180,9 @@ exports.getDashboard = async (req, res) => {
                 qrCollected,
                 failedOrExpired,
                 todayRegistrations,
+                femaleCount: genderStats.female?.filled || 0,
+                maleCount: genderStats.male?.filled || 0,
+                othersCount: genderStats.others?.filled || 0,
             },
         });
     } catch (error) {

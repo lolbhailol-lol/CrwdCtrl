@@ -22,7 +22,7 @@ import { DETAIL_FETCH_OPTS, classifyDetailLoadError } from '../../utils/detailPa
 import { trackBookNowClick } from '../../services/analyticsService';
 import { organizerHubCopy } from '../../utils/listingHubCopy';
 
-const RUN_DETAIL_CACHE_PREFIX = 'crwdctrl_event_community_detail_v14_';
+const RUN_DETAIL_CACHE_PREFIX = 'crwdctrl_event_community_detail_v16_';
 const readRunDetailCache = (key) => {
     try {
         const raw = sessionStorage.getItem(`${RUN_DETAIL_CACHE_PREFIX}${key}`);
@@ -431,6 +431,36 @@ export default function EventCommunityEventPage() {
                                 );
                             }
                             return <p className="mt-0.5 text-2xl font-bold leading-none text-green-500">Free</p>;
+                        })()}
+                        {(() => {
+                            const gq = event.registration?.genderQuotas;
+                            const snap = event.genderRegistration;
+                            if (gq?.enabled || snap?.enabled) {
+                                const femaleCap = Number(snap?.quotas?.female?.cap ?? gq.femaleSeats) || 0;
+                                const maleCap = Number(snap?.quotas?.male?.cap ?? gq.maleSeats) || 0;
+                                const femaleLeft = snap?.quotas?.female
+                                    ? (snap.quotas.female.remaining ?? Math.max(0, femaleCap - snap.quotas.female.filled))
+                                    : femaleCap;
+                                const maleLeft = snap?.quotas?.male
+                                    ? (snap.quotas.male.remaining ?? Math.max(0, maleCap - snap.quotas.male.filled))
+                                    : maleCap;
+                                return (
+                                    <p className={`mt-1.5 text-[10px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                        {femaleLeft} women left · {maleLeft} men left
+                                        {Number(event.maxParticipants) > 0
+                                            ? ` · ${event.maxParticipants} total`
+                                            : ''}
+                                    </p>
+                                );
+                            }
+                            if (Number(event.maxParticipants) > 0 && event.seatsRemaining != null) {
+                                return (
+                                    <p className={`mt-1.5 text-[10px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                        {event.seatsRemaining} seat{event.seatsRemaining === 1 ? '' : 's'} left
+                                    </p>
+                                );
+                            }
+                            return null;
                         })()}
                     </div>
                     {(() => {

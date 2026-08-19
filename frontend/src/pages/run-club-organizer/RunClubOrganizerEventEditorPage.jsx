@@ -61,6 +61,8 @@ const emptyForm = () => ({
         timeSlots: [],
         maxPeoplePerBooking: 10,
         formSchema: [],
+        genderQuotas: { enabled: false, femaleSeats: 0, maleSeats: 0, othersSeats: 0 },
+        genderPhase: 'all',
     },
 });
 
@@ -107,6 +109,13 @@ function eventToForm(event) {
             formSchema: Array.isArray(event.registration?.formSchema)
                 ? event.registration.formSchema
                 : [],
+            genderQuotas: {
+                enabled: Boolean(event.registration?.genderQuotas?.enabled),
+                femaleSeats: Number(event.registration?.genderQuotas?.femaleSeats) || 0,
+                maleSeats: Number(event.registration?.genderQuotas?.maleSeats) || 0,
+                othersSeats: Number(event.registration?.genderQuotas?.othersSeats) || 0,
+            },
+            genderPhase: event.registration?.genderPhase || 'all',
         },
     };
 }
@@ -436,6 +445,75 @@ export default function RunClubOrganizerEventEditorPage() {
                             className="w-full rounded-xl bg-[#0f1011] border border-gray-700 px-3 py-2.5 text-sm focus:outline-none focus:border-[#0ECCEE]"
                         />
                     </label>
+                </div>
+                <div className="rounded-xl border border-gray-800 bg-[#0f1011] p-3 space-y-3">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={Boolean(form.registration?.genderQuotas?.enabled)}
+                            onChange={(e) => {
+                                const enabled = e.target.checked;
+                                const total = Math.max(0, Number(form.maxParticipants) || 0);
+                                const female = Number(form.registration?.genderQuotas?.femaleSeats) || 0;
+                                setRegistration('genderQuotas', {
+                                    ...(form.registration?.genderQuotas || {}),
+                                    enabled,
+                                    femaleSeats: female,
+                                    maleSeats: enabled && total > 0
+                                        ? Math.max(0, total - female)
+                                        : (form.registration?.genderQuotas?.maleSeats || 0),
+                                    othersSeats: 0,
+                                });
+                            }}
+                            className="w-4 h-4 accent-[#0ECCEE]"
+                        />
+                        <span className="text-sm text-gray-300">Split seats by gender</span>
+                    </label>
+                    {form.registration?.genderQuotas?.enabled ? (
+                        <>
+                            <div className="grid grid-cols-2 gap-3">
+                                <label className="block space-y-1">
+                                    <span className="text-[10px] uppercase tracking-wide text-gray-500">Women seats</span>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={form.registration?.genderQuotas?.femaleSeats ?? 0}
+                                        onChange={(e) => {
+                                            const female = Math.max(0, Number(e.target.value) || 0);
+                                            const total = Math.max(0, Number(form.maxParticipants) || 0);
+                                            setRegistration('genderQuotas', {
+                                                ...(form.registration?.genderQuotas || {}),
+                                                femaleSeats: female,
+                                                maleSeats: total > 0 ? Math.max(0, total - female) : Number(form.registration?.genderQuotas?.maleSeats) || 0,
+                                            });
+                                        }}
+                                        className="w-full rounded-xl bg-[#161718] border border-gray-700 px-3 py-2.5 text-sm focus:outline-none focus:border-[#0ECCEE]"
+                                    />
+                                </label>
+                                <label className="block space-y-1">
+                                    <span className="text-[10px] uppercase tracking-wide text-gray-500">Men seats</span>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={form.registration?.genderQuotas?.maleSeats ?? 0}
+                                        onChange={(e) => setRegistration('genderQuotas', {
+                                            ...(form.registration?.genderQuotas || {}),
+                                            maleSeats: Math.max(0, Number(e.target.value) || 0),
+                                        })}
+                                        className="w-full rounded-xl bg-[#161718] border border-gray-700 px-3 py-2.5 text-sm focus:outline-none focus:border-[#0ECCEE]"
+                                    />
+                                </label>
+                            </div>
+                            <p className="text-[11px] text-gray-500">
+                                {(Number(form.registration?.genderQuotas?.femaleSeats) || 0)
+                                    + (Number(form.registration?.genderQuotas?.maleSeats) || 0)}{' '}
+                                gendered seats
+                                {Number(form.maxParticipants) > 0
+                                    ? ` · total capacity ${form.maxParticipants}`
+                                    : ''}
+                            </p>
+                        </>
+                    ) : null}
                 </div>
                 {categories.length > 0 ? (
                     <label className="block space-y-1.5">

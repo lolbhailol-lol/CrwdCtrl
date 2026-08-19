@@ -12,7 +12,7 @@ const {
 const { getJwtSecret } = require('../config/jwtSecret');
 const { registrationLimiter } = require('../middleware/rateLimiter');
 const uploadCtrl = require('../controllers/uploadController');
-const { sanitizePublicSportsEvent } = require('../utils/publicEntitySanitize');
+const { getSportsGenderRegistrationSnapshot } = require('../utils/trekGenderRegistration');
 const {
     listingHubForRunClubId,
     hubSourceFromListing,
@@ -167,17 +167,20 @@ router.get('/:idOrSlug', async (req, res) => {
 
         // Seats: expire stale pending QR holds, then compute remaining
         await expireStalePendingRegistrations(event._id);
+        const genderRegistration = await getSportsGenderRegistrationSnapshot(event);
         const capacity = Math.max(0, Number(event.maxParticipants) || 0);
         if (capacity > 0) {
             const seatsFilled = await sumConfirmedSeats(event._id);
             event.seatsFilled = seatsFilled;
             event.seatsRemaining = Math.max(0, capacity - seatsFilled);
-            event.isFull = seatsFilled >= capacity;
+            event.isFull = seatsFilled >= capacity
+                || Boolean(genderRegistration?.enabled && genderRegistration.allGenderSeatsFull);
         } else {
             event.seatsFilled = null;
             event.seatsRemaining = null;
-            event.isFull = false;
+            event.isFull = Boolean(genderRegistration?.enabled && genderRegistration.allGenderSeatsFull);
         }
+        event.genderRegistration = genderRegistration;
 
         res.json({ event: sanitizePublicSportsEvent(event) });
     } catch (error) {

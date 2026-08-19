@@ -69,6 +69,12 @@ const categoryRegistrationSchema = new mongoose.Schema(
         bookingDate: { type: String, default: '' },
         bookingTime: { type: String, default: '' },
         bookingPeople: { type: Number, default: 1 },
+        /** Operational gender for seat quotas (Female | Male | Others) */
+        participantGender: {
+            type: String,
+            enum: ['Female', 'Male', 'Others', ''],
+            default: '',
+        },
         /** Selected registration tier (when event.pricingMode === 'tiers') */
         tierId: { type: String, default: '', trim: true },
         tierName: { type: String, default: '', trim: true },

@@ -16,6 +16,7 @@ const {
     sportsActivityNoun,
 } = require('../utils/listingHubCopy');
 const { resolveSportsTicketTotal } = require('../utils/sportsPricing');
+const { validateSportsGenderRegistration } = require('../utils/trekGenderRegistration');
 const {
     expireStalePendingRegistrations,
     isAllowedPaymentScreenshotUrl,
@@ -287,6 +288,20 @@ exports.registerForEvent = async (req, res) => {
             }
         }
 
+        let participantGender = '';
+        if (category === 'sports') {
+            const genderCheck = await validateSportsGenderRegistration({
+                event,
+                formData: responses,
+                people,
+                excludeId: excludeRegId,
+            });
+            if (!genderCheck.ok) {
+                return res.status(genderCheck.status || 400).json({ message: genderCheck.message });
+            }
+            participantGender = genderCheck.participantGender || '';
+        }
+
         // Paid runs: re-verify the Cashfree payment server-side before confirming.
         // Organizer QR mode skips Cashfree — screenshot proof is reviewed by organizer.
         let paymentStatus = 'free';
@@ -498,6 +513,7 @@ exports.registerForEvent = async (req, res) => {
             bookingDate,
             bookingTime,
             bookingPeople: people,
+            participantGender,
             tierId: selectedTier?.id || '',
             tierName: selectedTier?.name || '',
             tierFee: selectedTier ? registrationFee : (category === 'sports' ? registrationFee : 0),

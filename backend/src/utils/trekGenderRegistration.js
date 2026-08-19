@@ -1,4 +1,5 @@
 const TrekBooking = require('../model/trek_booking_model');
+const CategoryRegistration = require('../model/category_registration_model');
 const { pickFormField } = require('./trekOrganizerFormat');
 
 const GENDER_VALUES = ['Female', 'Male', 'Others'];
@@ -237,6 +238,148 @@ async function validateTrekGenderRegistration({ trek, userId, formData, people =
     return { ok: true, participantGender };
 }
 
+async function aggregateSportsGenderQuotaStats(eventId, { excludeId = null } = {}) {
+    const match = {
+        category: 'sports',
+        eventId,
+        status: { $in: ['confirmed', 'pending'] },
+        participantGender: { $in: GENDER_VALUES },
+    };
+    if (excludeId) match._id = { $ne: excludeId };
+
+    const rows = await CategoryRegistration.aggregate([
+        { $match: match },
+        {
+            $group: {
+                _id: '$participantGender',
+                seats: { $sum: { $ifNull: ['$bookingPeople', 1] } },
+                count: { $sum: 1 },
+            },
+        },
+    ]);
+
+    const stats = {
+        female: { filled: 0, bookings: 0 },
+        male: { filled: 0, bookings: 0 },
+        others: { filled: 0, bookings: 0 },
+    };
+
+    for (const row of rows) {
+        const key = genderToQuotaKey(row._id);
+        stats[key].filled = row.seats || 0;
+        stats[key].bookings = row.count || 0;
+    }
+
+    return stats;
+}
+
+async function getSportsGenderRegistrationSnapshot(event, participantGender = null, { excludeId = null } = {}) {
+    const quotas = sanitizeGenderQuotas(event?.registration?.genderQuotas || {});
+    const enabled = quotas.enabled;
+    const phase = getEffectiveGenderPhase(event);
+
+    if (!enabled) {
+        return {
+            enabled: false,
+            phase: 'all',
+            phaseLabel: PHASE_LABELS.all,
+            quotas: null,
+            canRegister: true,
+            participantGender,
+            blockReason: null,
+        };
+    }
+
+    const filledStats = await aggregateSportsGenderQuotaStats(event._id, { excludeId });
+    const quotaSummary = buildQuotaSummary(quotas, filledStats);
+    let canRegister = true;
+    let blockReason = null;
+
+    if (participantGender) {
+        if (!canGenderRegisterInPhase(participantGender, phase)) {
+            canRegister = false;
+            blockReason = phaseBlockMessage(phase).replace('trek', 'event');
+        } else {
+            const bucket = genderToQuotaKey(participantGender);
+            const cap = Number(quotas[`${bucket}Seats`]) || 0;
+            const filled = filledStats[bucket]?.filled || 0;
+            if (cap > 0 && filled >= cap) {
+                canRegister = false;
+                blockReason = `No ${quotaSummary[bucket].label.toLowerCase()} seats left (${filled}/${cap} filled).`;
+            }
+        }
+    }
+
+    const allCappedFull = ['female', 'male', 'others'].every((key) => {
+        const cap = Number(quotas[`${key}Seats`]) || 0;
+        if (cap <= 0) return true;
+        return quotaSummary[key].full;
+    });
+
+    return {
+        enabled: true,
+        phase,
+        phaseLabel: PHASE_LABELS[phase] || PHASE_LABELS.all,
+        quotas: quotaSummary,
+        canRegister: participantGender ? canRegister : null,
+        participantGender,
+        blockReason,
+        allGenderSeatsFull: allCappedFull,
+    };
+}
+
+async function validateSportsGenderRegistration({
+    event,
+    formData,
+    people = 1,
+    excludeId = null,
+}) {
+    const fromForm = pickFormField(formData || {}, ['gender', 'sex', 'Gender', 'participant_gender']);
+    const participantGender = normalizeGender(fromForm);
+
+    if (!isGenderQuotasEnabled(event)) {
+        return { ok: true, participantGender: participantGender || '' };
+    }
+
+    if (!participantGender) {
+        return {
+            ok: false,
+            status: 400,
+            message: 'Please select Female or Male on the booking form.',
+        };
+    }
+
+    const phase = getEffectiveGenderPhase(event);
+    if (!canGenderRegisterInPhase(participantGender, phase)) {
+        return {
+            ok: false,
+            status: 403,
+            message: phaseBlockMessage(phase).replace('this trek', 'this event').replace('trek', 'event'),
+        };
+    }
+
+    const peopleCount = Math.max(1, Number(people) || 1);
+    const quotas = sanitizeGenderQuotas(event.registration.genderQuotas);
+    const filledStats = await aggregateSportsGenderQuotaStats(event._id, { excludeId });
+    const bucket = genderToQuotaKey(participantGender);
+    const cap = Number(quotas[`${bucket}Seats`]) || 0;
+    const filled = filledStats[bucket]?.filled || 0;
+
+    if (cap > 0 && filled + peopleCount > cap) {
+        const label = bucket === 'female' ? 'women' : bucket === 'male' ? 'men' : 'others';
+        const left = Math.max(0, cap - filled);
+        return {
+            ok: false,
+            status: 409,
+            message: left > 0
+                ? `Only ${left} ${label} seat${left === 1 ? '' : 's'} left.`
+                : `No ${label} seats left (${filled}/${cap} filled).`,
+        };
+    }
+
+    return { ok: true, participantGender };
+}
+
 module.exports = {
     GENDER_VALUES,
     GENDER_PHASES,
@@ -257,4 +400,7 @@ module.exports = {
     getGenderRegistrationSnapshot,
     validateTrekGenderRegistration,
     assertUserCanBookTrek,
+    aggregateSportsGenderQuotaStats,
+    getSportsGenderRegistrationSnapshot,
+    validateSportsGenderRegistration,
 };

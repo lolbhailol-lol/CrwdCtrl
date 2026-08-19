@@ -174,7 +174,7 @@ export default function RunClubOrganizerDashboardPage() {
 
     if (!data) return null;
 
-    const { event, stats: rawStats } = data;
+    const { event, stats: rawStats, genderRegistration } = data;
     const stats = rawStats && typeof rawStats === 'object' ? rawStats : {};
     const status = eventDetail?.status || event?.status;
     const fee = Number(eventDetail?.registrationFee ?? event?.registrationFee ?? 0);
@@ -282,6 +282,28 @@ export default function RunClubOrganizerDashboardPage() {
                                         ) : (
                                             <p className="text-[11px] text-gray-500">Capacity · unlimited</p>
                                         )}
+                                        {genderRegistration?.enabled && genderRegistration.quotas ? (
+                                            <div className="grid grid-cols-2 gap-2 pt-1.5">
+                                                {['female', 'male'].map((key) => {
+                                                    const q = genderRegistration.quotas[key];
+                                                    if (!q?.cap) return null;
+                                                    const pct = Math.min(100, Math.round((q.filled / q.cap) * 100));
+                                                    return (
+                                                        <div key={key}>
+                                                            <p className="text-[10px] text-gray-500">
+                                                                {q.label} · {q.filled}/{q.cap}
+                                                            </p>
+                                                            <div className="mt-1 h-1.5 rounded-full bg-white/5 overflow-hidden">
+                                                                <div
+                                                                    className={`h-full rounded-full ${pct >= 100 ? 'bg-red-400' : 'bg-[#0ECCEE]'}`}
+                                                                    style={{ width: `${pct}%` }}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        ) : null}
                                         {routeMap ? (
                                             <a
                                                 href={routeMap}

@@ -168,6 +168,19 @@ const sportsEventSchema = new mongoose.Schema(
              * Default true = login required (existing behaviour).
              */
             requireLogin: { type: Boolean, default: true },
+            /** Gender-based seat caps (e.g. 10 women of 28 total). */
+            genderQuotas: {
+                enabled: { type: Boolean, default: false },
+                femaleSeats: { type: Number, default: 0, min: 0 },
+                maleSeats: { type: Number, default: 0, min: 0 },
+                othersSeats: { type: Number, default: 0, min: 0 },
+            },
+            /** closed | women_only | men_only | all — used when genderQuotas.enabled */
+            genderPhase: {
+                type: String,
+                enum: ['closed', 'women_only', 'men_only', 'all'],
+                default: 'all',
+            },
             formSchema: [{
                 id:          String,
                 label:       String,
