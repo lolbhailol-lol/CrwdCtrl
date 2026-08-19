@@ -45,6 +45,7 @@ const {
   resolveSportsPerPersonFee,
   resolveEventAddOns,
 } = require('../utils/sportsPricing');
+const { sanitizeSportsFormDraft } = require('../utils/sportsBookingDraft');
 const {
   extractEntityId,
   findReusablePendingOrder,
@@ -1088,7 +1089,15 @@ exports.createSportsOrder = async (req, res) => {
     }
     const resolvedName = event.title || eventName || (noun === 'event' ? 'Event booking' : 'Run Booking');
 
+    const formDraft = sanitizeSportsFormDraft(formData, {
+      gender,
+      customerName,
+      customerEmail: email,
+      customerPhone,
+    });
+
     const existingPending = await findReusablePendingOrder({
+      userId: req.user?.userId || null,
       customerEmail: email,
       entityType: 'sports',
       entityId: event._id,
@@ -1097,6 +1106,14 @@ exports.createSportsOrder = async (req, res) => {
       couponCode: coupon.couponCode,
     });
     if (existingPending?.paymentSessionId) {
+      existingPending.orderTags = {
+        ...(existingPending.orderTags && typeof existingPending.orderTags === 'object'
+          ? existingPending.orderTags
+          : {}),
+        formData: formDraft,
+        gender: formDraft.gender || gender || '',
+      };
+      await existingPending.save().catch(() => {});
       return res.json({
         success: true,
         ...buildOrderResponse(existingPending),
@@ -1164,6 +1181,8 @@ exports.createSportsOrder = async (req, res) => {
         addOnSelected: ticket.addOnSelected ? '1' : '0',
         addOnLabel: ticket.addOnSelected ? (ticket.addOn?.label || '') : '',
         addOnFee: String(ticket.addOnFeePerPerson || 0),
+        formData: formDraft,
+        gender: formDraft.gender || gender || '',
       },
       customerEmail: email,
     });

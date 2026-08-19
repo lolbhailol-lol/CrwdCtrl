@@ -107,20 +107,15 @@ function getInitialUi(eventId, search, locationState) {
     const returnPath = `/events/community-event/${eventId}/book`;
     const pending = getPendingPayment();
     const resuming = shouldResumePendingPayment(pending, returnPath, search);
+    const fresh = Boolean(locationState?.freshBooking) && !resuming;
 
-    if (!resuming && eventId) {
+    if (fresh && eventId) {
         try { sessionStorage.removeItem(runDraftKey(eventId)); } catch { /* ignore */ }
-    }
-
-    let draft = {};
-    const raw = sessionStorage.getItem(runDraftKey(eventId));
-    if (raw) {
-        try { draft = JSON.parse(raw); } catch { draft = {}; }
     }
 
     const params = new URLSearchParams(search || '');
     const tierFromQuery = params.get('tier') || '';
-    const tierId = tierFromQuery || locationState?.tierId || (resuming ? draft.tierId : '') || '';
+    const tierId = tierFromQuery || locationState?.tierId || '';
 
     return getInitialBookingUiState({
         entityId: eventId,
@@ -128,12 +123,10 @@ function getInitialUi(eventId, search, locationState) {
         returnPath,
         defaults: {
             ...defaults,
-            extraFields: resuming ? (draft.extraFields || {}) : {},
-            people: 1,
-            tierId,
+            tierId: tierId || defaults.tierId,
         },
         draftKeyFactory: runDraftKey,
-        restoreStepFromDraft: resuming,
+        restoreStepFromDraft: !fresh,
     });
 }
 
@@ -507,6 +500,11 @@ export default function EventCommunityBookingPage() {
             extraFields, selDate, selTime, people, step, tierId: selectedTierId, addOnSelected, ...overrides,
         }));
     }, [id, event, extraFields, selDate, selTime, people, step, selectedTierId, addOnSelected]);
+
+    useEffect(() => {
+        if (!event || payDone || paying) return;
+        saveDraft();
+    }, [saveDraft, event, payDone, paying]);
 
     const baseFee = chargePerPerson * people;
     const total = baseFee;

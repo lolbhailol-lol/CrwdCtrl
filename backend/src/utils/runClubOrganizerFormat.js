@@ -323,6 +323,9 @@ function formatParticipantDetail(reg, event = null) {
         ...(row.phone && row.phone !== '—'
             ? { contact_no: baseForm.contact_no || row.phone }
             : {}),
+        ...(row.participantGender && row.participantGender !== '—'
+            ? { gender: baseForm.gender || row.participantGender }
+            : {}),
     };
     const bd = normalizeRegistrationForFormat(reg).bookingDetails;
 

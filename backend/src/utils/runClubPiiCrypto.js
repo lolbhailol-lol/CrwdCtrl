@@ -27,9 +27,41 @@ function getMasterKey() {
     return deriveMasterKey(listMasterKeyMaterial()[0]);
 }
 
+function canonicalRunClubId(runClubId) {
+    if (!runClubId) return '';
+    if (typeof runClubId.toHexString === 'function') {
+        return String(runClubId.toHexString()).toLowerCase();
+    }
+    if (typeof runClubId === 'object' && runClubId._id && runClubId._id !== runClubId) {
+        return canonicalRunClubId(runClubId._id);
+    }
+    const hex = String(runClubId).match(/[a-f0-9]{24}/i);
+    if (hex) return hex[0].toLowerCase();
+    const asString = String(runClubId);
+    if (asString === '[object Object]') return '';
+    return asString;
+}
+
+function runClubIdDecryptVariants(runClubId) {
+    const ids = new Set();
+    const add = (value) => {
+        const s = String(value || '').trim();
+        if (s) ids.add(s);
+    };
+    add(canonicalRunClubId(runClubId));
+    add(runClubId);
+    if (runClubId && typeof runClubId === 'object') {
+        add(runClubId._id);
+        add(runClubId.id);
+        if (typeof runClubId.toString === 'function') add(runClubId.toString());
+    }
+    return [...ids];
+}
+
 function getClubDekFromMaster(masterKey, runClubId) {
-    if (!runClubId) throw new Error('runClubId is required for PII encryption');
-    return crypto.createHmac('sha256', masterKey).update(`club:${String(runClubId)}`).digest();
+    const id = canonicalRunClubId(runClubId) || String(runClubId || '');
+    if (!id) throw new Error('runClubId is required for PII encryption');
+    return crypto.createHmac('sha256', masterKey).update(`club:${id}`).digest();
 }
 
 function getClubDek(runClubId) {
@@ -76,13 +108,15 @@ function tryDecryptPayload(dek, packed, { json = false } = {}) {
 /** Try each configured master key until AES-GCM auth succeeds (handles pre/post master-key migration). */
 function decryptFieldWithKeyFallback(runClubId, packed, { json = false } = {}) {
     if (!packed) return json ? null : '';
-    for (const raw of listMasterKeyMaterial()) {
-        const dek = getClubDekFromMaster(deriveMasterKey(raw), runClubId);
-        const out = tryDecryptPayload(dek, packed, { json });
-        if (json) {
-            if (out && typeof out === 'object') return out;
-        } else if (out) {
-            return out;
+    for (const id of runClubIdDecryptVariants(runClubId)) {
+        for (const raw of listMasterKeyMaterial()) {
+            const dek = getClubDekFromMaster(deriveMasterKey(raw), id);
+            const out = tryDecryptPayload(dek, packed, { json });
+            if (json) {
+                if (out && typeof out === 'object') return out;
+            } else if (out) {
+                return out;
+            }
         }
     }
     return json ? null : '';
@@ -177,7 +211,6 @@ function encryptRegistrationPii({ responses, paymentScreenshotUrl, transactionId
     const fullResponses = responsesToPlainObject(responses);
     return {
         piiEncrypted: true,
-        runClubId,
         responses: pickOperationalResponses(fullResponses),
         responsesCipher: encryptPayload(dek, fullResponses),
         paymentScreenshotUrl: '',
@@ -207,7 +240,8 @@ function decryptRegistrationPii(reg, runClubIdOverride = null) {
     if (plain.responsesCipher) {
         const decoded = decryptFieldWithKeyFallback(runClubId, plain.responsesCipher, { json: true });
         if (decoded && typeof decoded === 'object') {
-            plain.responses = decoded;
+            const ops = pickOperationalResponses(plain.responses);
+            plain.responses = { ...ops, ...decoded };
             responsesOk = true;
         }
     }
@@ -267,6 +301,7 @@ function isPiiEncryptionEnabled() {
 
 module.exports = {
     OPERATIONAL_RESPONSE_KEYS,
+    canonicalRunClubId,
     encryptRegistrationPii,
     decryptRegistrationPii,
     decryptManyRegistrations,

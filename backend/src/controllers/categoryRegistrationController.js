@@ -17,6 +17,7 @@ const {
 } = require('../utils/listingHubCopy');
 const { resolveSportsTicketTotal } = require('../utils/sportsPricing');
 const { validateSportsGenderRegistration } = require('../utils/trekGenderRegistration');
+const { mergeSportsFormResponses } = require('../utils/sportsBookingDraft');
 const {
     expireStalePendingRegistrations,
     isAllowedPaymentScreenshotUrl,
@@ -34,6 +35,7 @@ const {
 } = require('../utils/runClubPiiCrypto');
 const { notifyRunClubParticipant } = require('../utils/runClubParticipantOutreach');
 const User = require('../model/usermodel');
+const PaymentOrder = require('../model/payment_order_model');
 
 const MODEL_MAP = {
     sports: SportsEvent,
@@ -105,6 +107,21 @@ exports.registerForEvent = async (req, res) => {
 
         const responses = { ...(req.body.responses || req.body.formData || {}) };
         const bookingDetails = req.body.bookingDetails || {};
+        const incomingPaymentOrderId = String(
+            bookingDetails.payment_order_id || bookingDetails.paymentOrderId || req.body.payment_order_id || '',
+        ).trim();
+        if (category === 'sports' && incomingPaymentOrderId) {
+            const storedOrder = await PaymentOrder.findOne({ orderId: incomingPaymentOrderId })
+                .select('orderTags')
+                .lean();
+            const storedForm = storedOrder?.orderTags?.formData;
+            if (storedForm && typeof storedForm === 'object') {
+                Object.assign(responses, mergeSportsFormResponses(responses, storedForm));
+            }
+            if (!String(responses.gender || responses.sex || '').trim() && storedOrder?.orderTags?.gender) {
+                responses.gender = storedOrder.orderTags.gender;
+            }
+        }
 
         // Logged-in free/quick book: fill missing contact fields from Google/profile
         // so organizer guest list always shows name / email / phone.
