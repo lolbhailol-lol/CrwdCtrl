@@ -5,23 +5,30 @@ import { useInAppBack } from '../../hooks/useInAppBack';
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, webPageSchema } from '../../utils/seo';
 import { openExternalUrl } from '../../utils/externalLink';
+import {
+    LEGAL_EMAIL,
+    LEGAL_NAME,
+    LEGAL_OPERATOR_LINE,
+    LEGAL_PHONE_DISPLAY,
+    LEGAL_PHONE_TEL,
+    SUPPORT_EMAIL,
+    WEBSITE_URL,
+    LEGAL_JURISDICTION,
+} from '../../constants/legalEntity';
 
 export default function ContactUs() {
     const { isDark } = useDarkMode();
     const goBack = useInAppBack();
 
     const contactData = {
-        website: "https://www.crwdctrl.in",
-        email: "crwdctrl.in@gmail.com",
+        website: WEBSITE_URL,
+        email: LEGAL_EMAIL,
+        supportEmail: SUPPORT_EMAIL,
         phone_numbers: [
             {
-                name: "Karan Jadhav",
-                number: "+91 72762 76424"
+                name: LEGAL_NAME,
+                number: LEGAL_PHONE_DISPLAY,
             },
-            {
-                name: "Sanshikha Aryan",
-                number: "+91 7006225981"
-            }
         ]
     };
 
@@ -91,6 +98,29 @@ export default function ContactUs() {
                     </div>
                 </div>
 
+                <div className={`${isDark ? 'bg-[#111111] border-gray-800' : 'bg-white border-gray-200'} border rounded-lg p-6 mb-8`}>
+                    <h2 className="text-lg font-semibold mb-2">Legal / Business Information</h2>
+                    <p className={`text-sm mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                        {LEGAL_OPERATOR_LINE}
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                        <p><strong>Legal name:</strong> {LEGAL_NAME}</p>
+                        <p>
+                            <strong>Email:</strong>{' '}
+                            <a href={`mailto:${LEGAL_EMAIL}`} className="text-blue-500 underline">{LEGAL_EMAIL}</a>
+                        </p>
+                        <p>
+                            <strong>Phone:</strong>{' '}
+                            <a href={`tel:${LEGAL_PHONE_TEL}`} className="text-blue-500 underline">{LEGAL_PHONE_DISPLAY}</a>
+                        </p>
+                        <p>
+                            <strong>Website:</strong>{' '}
+                            <a href={WEBSITE_URL} className="text-blue-500 underline">{WEBSITE_URL}</a>
+                        </p>
+                        <p><strong>Location:</strong> {LEGAL_JURISDICTION}</p>
+                    </div>
+                </div>
+
                 {/* Contact Methods */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
                     {/* Website */}
@@ -124,6 +154,9 @@ export default function ContactUs() {
                         </p>
                         <p className="text-blue-500 hover:text-blue-600 transition-colors font-medium">
                             {contactData.email}
+                        </p>
+                        <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                            Support: {contactData.supportEmail}
                         </p>
                     </div>
 

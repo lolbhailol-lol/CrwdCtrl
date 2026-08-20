@@ -4,15 +4,16 @@ import { ArrowLeft, CheckCircle2, Shield, Users, Globe, FileText, Scale, AlertCi
 import { useInAppBack } from '../../hooks/useInAppBack';
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, webPageSchema } from '../../utils/seo';
+import { LEGAL_EMAIL, LEGAL_NAME, LEGAL_OPERATOR_LINE, LEGAL_PHONE_DISPLAY, LEGAL_PHONE_TEL } from '../../constants/legalEntity';
 
 export default function TermsAndConditions() {
     const { isDark } = useDarkMode();
     const goBack = useInAppBack();
 
     const termsData = {
-        last_updated: "2025-11-01",
+        last_updated: "2026-08-20",
         introduction: {
-            description: "These Terms govern the access and use of the Crwdctrl website, platform and services.",
+            description: `${LEGAL_OPERATOR_LINE} These Terms govern the access and use of the CrwdCtrl website, platform and services.`,
             agreement_required: true,
             review_recommendation: true,
             conflict_resolution: "If any conflict arises between these Terms and other platform terms, these Terms will prevail."
@@ -372,8 +373,17 @@ export default function TermsAndConditions() {
                     <h3 className={`font-semibold mb-2 ${isDark ? 'text-blue-300' : 'text-blue-800'}`}>
                         Questions About These Terms?
                     </h3>
+                    <p className={`text-sm mb-3 ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>
+                        If you have any questions about these Terms and Conditions, contact {LEGAL_NAME}.
+                    </p>
                     <p className={`text-sm ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>
-                        If you have any questions about these Terms and Conditions, please contact us through our platform or reach out to our support team.
+                        Legal name: {LEGAL_NAME}
+                    </p>
+                    <p className={`text-sm ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>
+                        Email: <a href={`mailto:${LEGAL_EMAIL}`} className="underline">{LEGAL_EMAIL}</a>
+                    </p>
+                    <p className={`text-sm ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>
+                        Phone: <a href={`tel:${LEGAL_PHONE_TEL}`} className="underline">{LEGAL_PHONE_DISPLAY}</a>
                     </p>
                 </div>
             </div>

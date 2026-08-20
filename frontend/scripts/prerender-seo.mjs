@@ -242,6 +242,13 @@ const ROUTES = [
     jsonLd: pageJsonLd('CrwdCtrl Refunds & Cancellations', '', '/refunds-and-cancellations'),
   },
   {
+    path: '/shipping-policy',
+    title: 'Shipping Policy',
+    description:
+      'CrwdCtrl shipping and delivery policy. Tickets and confirmations are delivered digitally. No physical products are shipped.',
+    jsonLd: pageJsonLd('CrwdCtrl Shipping Policy', '', '/shipping-policy'),
+  },
+  {
     path: '/delete-account',
     title: 'Delete Your Account',
     description:

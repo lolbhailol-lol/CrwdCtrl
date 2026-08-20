@@ -7,6 +7,14 @@ import Seo from '../../components/Seo';
 import FaqSection from '../../components/FaqSection';
 import { breadcrumbSchema, faqSchema, webPageSchema } from '../../utils/seo';
 import { ABOUT_FAQ } from '../../constants/faqs';
+import {
+    LEGAL_EMAIL,
+    LEGAL_NAME,
+    LEGAL_OPERATOR_LINE,
+    LEGAL_PHONE_DISPLAY,
+    LEGAL_PHONE_TEL,
+    LEGAL_POLICY_LINKS,
+} from '../../constants/legalEntity';
 
 const ABOUT_DESCRIPTION =
     "CrwdCtrl is India's platform for discovering, exploring and registering for college fests, competitions, treks, running clubs and events — all in one place.";
@@ -120,9 +128,17 @@ export default function About() {
                     <p className={`${isDark ? 'text-gray-300' : 'text-gray-700'} mb-4`}>
                         CrwdCtrl is built by a team of college students who understand the excitement and chaos of fest season. We created this platform because we wanted a simpler way to find and participate in events.
                     </p>
-                    <p className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    <p className={`${isDark ? 'text-gray-300' : 'text-gray-700'} mb-4`}>
                         Based in India, we're passionate about making the college experience more connected and accessible for everyone.
                     </p>
+                    <div className={`${isDark ? 'bg-gray-800/50' : 'bg-gray-50'} rounded-lg p-4 text-sm`}>
+                        <p className={`${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                            {LEGAL_OPERATOR_LINE}
+                        </p>
+                        <p className={`mt-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                            Legal name: {LEGAL_NAME}
+                        </p>
+                    </div>
                 </div>
 
                 {/* Quick Links */}
@@ -131,15 +147,9 @@ export default function About() {
                         Quick Links
                     </h3>
                     <div className="flex flex-wrap gap-3">
-                        {[
-                            { label: 'Contact Us', to: '/contact-us' },
-                            { label: 'Terms & Conditions', to: '/terms-and-conditions' },
-                            { label: 'Refunds & Cancellations', to: '/refunds-and-cancellations' },
-                            { label: 'Products & Services', to: '/products-and-services' },
-                            { label: 'Privacy Policy', to: '/privacy-policy' },
-                        ].map((link, index) => (
+                        {LEGAL_POLICY_LINKS.map((link) => (
                             <Link
-                                key={index}
+                                key={link.to}
                                 to={link.to}
                                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${isDark
                                     ? 'bg-blue-900/30 text-blue-300 hover:bg-blue-800/50'
@@ -150,12 +160,18 @@ export default function About() {
                             </Link>
                         ))}
                     </div>
-                    <div className="mt-4">
+                    <div className="mt-4 space-y-1">
+                        <p className={`text-sm ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>
+                            Legal name: {LEGAL_NAME}
+                        </p>
                         <p className={`text-sm ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>
                             Website: <a href="https://www.crwdctrl.in" className="underline">www.crwdctrl.in</a>
                         </p>
                         <p className={`text-sm ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>
-                            Email: <a href="mailto:crwdctrl.in@gmail.com" className="underline">crwdctrl.in@gmail.com</a>
+                            Email: <a href={`mailto:${LEGAL_EMAIL}`} className="underline">{LEGAL_EMAIL}</a>
+                        </p>
+                        <p className={`text-sm ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>
+                            Phone: <a href={`tel:${LEGAL_PHONE_TEL}`} className="underline">{LEGAL_PHONE_DISPLAY}</a>
                         </p>
                     </div>
                 </div>

@@ -23,6 +23,7 @@ import {
   PrivacyPolicy,
   ContactUs,
   RefundsAndCancellations,
+  ShippingPolicy,
   DeleteAccount,
   ProductsAndServices,
   About,
@@ -107,6 +108,7 @@ export const publicRoutes = (
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       <Route path="/contact-us" element={<ContactUs />} />
       <Route path="/refunds-and-cancellations" element={<RefundsAndCancellations />} />
+      <Route path="/shipping-policy" element={<ShippingPolicy />} />
       <Route path="/delete-account" element={<DeleteAccount />} />
       <Route path="/products-and-services" element={<ProductsAndServices />} />
       <Route path="/about" element={<About />} />

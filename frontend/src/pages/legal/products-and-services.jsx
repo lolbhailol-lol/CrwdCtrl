@@ -5,6 +5,7 @@ import { ArrowLeft, IndianRupee, Calendar, Trophy, Mountain, Theater, Users } fr
 import { useDarkMode } from '../../context/DarkModeContext';
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, webPageSchema } from '../../utils/seo';
+import { LEGAL_EMAIL, LEGAL_NAME, LEGAL_OPERATOR_LINE, LEGAL_PHONE_DISPLAY, LEGAL_PHONE_TEL } from '../../constants/legalEntity';
 
 const SERVICES = [
   {
@@ -101,7 +102,7 @@ export default function ProductsAndServices() {
             <h2 className="text-lg font-semibold">Currency</h2>
           </div>
           <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-            CrwdCtrl operates in India. Every price, fee, and payment on our website and mobile app is
+            CrwdCtrl operates in India. {LEGAL_OPERATOR_LINE} Every price, fee, and payment on our website and mobile app is
             displayed and processed in <strong>Indian Rupees (INR / ₹)</strong> only. The exact amount
             for your registration is always shown on the checkout screen before you pay.
           </p>
@@ -165,6 +166,11 @@ export default function ProductsAndServices() {
 
         <div className={`${isDark ? 'bg-blue-900/20 border-blue-800' : 'bg-blue-50 border-blue-200'} border rounded-lg p-6`}>
           <h3 className="font-semibold mb-3">Browse live events &amp; prices</h3>
+          <p className={`text-sm mb-3 ${isDark ? 'text-blue-200' : 'text-blue-800'}`}>
+            Legal name: {LEGAL_NAME} ·{' '}
+            <a href={`mailto:${LEGAL_EMAIL}`} className="underline">{LEGAL_EMAIL}</a> ·{' '}
+            <a href={`tel:${LEGAL_PHONE_TEL}`} className="underline">{LEGAL_PHONE_DISPLAY}</a>
+          </p>
           <div className="flex flex-wrap gap-3">
             <Link
               to="/fests"

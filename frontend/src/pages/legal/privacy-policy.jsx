@@ -1,6 +1,7 @@
 import React from 'react';
 import { useDarkMode } from '../../context/DarkModeContext';
-import { ArrowLeft, Shield, Eye, Database, Share2, Lock, Users, FileText, Globe, Mail, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Shield, Eye, Database, Share2, Lock, Users, FileText, Globe, Mail, Phone, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { LEGAL_EMAIL, LEGAL_NAME, LEGAL_OPERATOR_LINE, LEGAL_PHONE_DISPLAY, LEGAL_PHONE_TEL, WEBSITE_URL } from '../../constants/legalEntity';
 import { useInAppBack } from '../../hooks/useInAppBack';
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, webPageSchema } from '../../utils/seo';
@@ -10,9 +11,9 @@ export default function PrivacyPolicy() {
     const goBack = useInAppBack();
 
     const privacyData = {
-        last_updated: "2026-02-19",
+        last_updated: "2026-08-20",
         introduction: {
-            purpose: "Explains how Crwdctrl collects, uses, stores, and protects user data.",
+            purpose: `${LEGAL_OPERATOR_LINE} This policy explains how CrwdCtrl collects, uses, stores, and protects user data.`,
             scope: [
                 "Websites",
                 "Applications",
@@ -121,8 +122,11 @@ export default function PrivacyPolicy() {
             third_party_links: "Our platform may contain links to other websites. We are not responsible for the privacy practices of third-party sites."
         },
         contact: {
-            website: "https://www.crwdctrl.in",
-            email: "crwdctrl.in@gmail.com"
+            legal_name: LEGAL_NAME,
+            website: WEBSITE_URL,
+            email: LEGAL_EMAIL,
+            phone: LEGAL_PHONE_DISPLAY,
+            phone_tel: LEGAL_PHONE_TEL,
         }
     };
 
@@ -530,6 +534,9 @@ export default function PrivacyPolicy() {
                         </div>
 
                         <div className="space-y-2">
+                            <p className={`text-sm ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>
+                                Legal name: {privacyData.contact.legal_name}
+                            </p>
                             <div className="flex items-center gap-2">
                                 <Globe className="w-4 h-4 text-blue-500" />
                                 <a
@@ -548,6 +555,15 @@ export default function PrivacyPolicy() {
                                     className={`text-sm underline ${isDark ? 'text-blue-300 hover:text-blue-200' : 'text-blue-700 hover:text-blue-800'}`}
                                 >
                                     {privacyData.contact.email}
+                                </a>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Phone className="w-4 h-4 text-blue-500" />
+                                <a
+                                    href={`tel:${privacyData.contact.phone_tel}`}
+                                    className={`text-sm underline ${isDark ? 'text-blue-300 hover:text-blue-200' : 'text-blue-700 hover:text-blue-800'}`}
+                                >
+                                    {privacyData.contact.phone}
                                 </a>
                             </div>
                         </div>

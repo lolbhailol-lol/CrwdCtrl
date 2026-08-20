@@ -5,6 +5,7 @@ import { ArrowLeft, RefreshCw, XCircle, Clock, Mail } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, webPageSchema } from '../../utils/seo';
+import { LEGAL_EMAIL, LEGAL_NAME, LEGAL_OPERATOR_LINE, LEGAL_PHONE_DISPLAY, LEGAL_PHONE_TEL } from '../../constants/legalEntity';
 
 export default function RefundsAndCancellations() {
   const { isDark } = useDarkMode();
@@ -41,7 +42,7 @@ export default function RefundsAndCancellations() {
             <div className="text-center">
               <h1 className="text-xl font-bold">Refunds &amp; Cancellations</h1>
               <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                Last updated: 9 June 2026
+                Last updated: 20 August 2026
               </p>
             </div>
           </div>
@@ -51,7 +52,7 @@ export default function RefundsAndCancellations() {
       <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
         <div className={`${card} border rounded-lg p-6`}>
           <p className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-            CrwdCtrl (operated at{' '}
+            {LEGAL_OPERATOR_LINE} CrwdCtrl (operated at{' '}
             <a href="https://www.crwdctrl.in" className="text-blue-500 underline">
               www.crwdctrl.in
             </a>
@@ -124,9 +125,18 @@ export default function RefundsAndCancellations() {
             coordinate with the organizer and respond within 2–3 business days.
           </p>
           <p className={`text-sm ${isDark ? 'text-blue-300' : 'text-blue-800'}`}>
+            Legal name: {LEGAL_NAME}
+          </p>
+          <p className={`text-sm mt-1 ${isDark ? 'text-blue-300' : 'text-blue-800'}`}>
             Email:{' '}
-            <a href="mailto:crwdctrl.in@gmail.com" className="underline font-medium">
-              crwdctrl.in@gmail.com
+            <a href={`mailto:${LEGAL_EMAIL}`} className="underline font-medium">
+              {LEGAL_EMAIL}
+            </a>
+          </p>
+          <p className={`text-sm mt-1 ${isDark ? 'text-blue-300' : 'text-blue-800'}`}>
+            Phone:{' '}
+            <a href={`tel:${LEGAL_PHONE_TEL}`} className="underline font-medium">
+              {LEGAL_PHONE_DISPLAY}
             </a>
           </p>
           <p className={`text-sm mt-2 ${isDark ? 'text-blue-300' : 'text-blue-800'}`}>

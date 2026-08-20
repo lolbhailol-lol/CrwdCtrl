@@ -67,6 +67,10 @@ export const DEFAULT_EXPLORE_LINKS = [
   { label: 'List your fest or event', href: '/list-your-fest' },
   { label: 'About CrwdCtrl', href: '/about' },
   { label: 'Contact us', href: '/contact-us' },
+  { label: 'Privacy Policy', href: '/privacy-policy' },
+  { label: 'Terms & Conditions', href: '/terms-and-conditions' },
+  { label: 'Refunds & Cancellations', href: '/refunds-and-cancellations' },
+  { label: 'Shipping Policy', href: '/shipping-policy' },
 ];
 
 /** Descriptive section per core offering — used on the home fallback (SEO/AEO). */

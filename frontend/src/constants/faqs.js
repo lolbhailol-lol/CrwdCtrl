@@ -63,7 +63,7 @@ export const ABOUT_FAQ = [
   {
     question: 'How do I contact CrwdCtrl?',
     answer:
-      'You can reach the CrwdCtrl team by email at crwdctrl.in@gmail.com, through the Contact Us page, or on Instagram at @crwdctrl.in.',
+      'You can reach KARAN BAPURAO JADHAV at crwdctrl.work@gmail.com or +91 7006225981, through the Contact Us page, or on Instagram at @crwdctrl.in.',
   },
 ];
 

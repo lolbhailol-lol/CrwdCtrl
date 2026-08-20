@@ -88,6 +88,7 @@ const HelpCenter = () => {
                 { text: "Privacy Policy", path: "/privacy-policy" },
                 { text: "Terms and Conditions", path: "/terms-and-conditions" },
                 { text: "Refunds & Cancellations", path: "/refunds-and-cancellations" },
+                { text: "Shipping Policy", path: "/shipping-policy" },
                 { text: "Products & Services (INR pricing)", path: "/products-and-services" },
                 { text: "Delete Account", path: "/delete-account" },
                 { text: "About Us", path: "/about" }
