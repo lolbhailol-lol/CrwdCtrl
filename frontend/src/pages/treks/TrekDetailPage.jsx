@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { ArrowLeft, Share2, Heart, ChevronRight, Backpack } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
@@ -560,85 +561,88 @@ export default function TrekDetailPage() {
                 )}
             </div>
 
-            {/* ── Sticky price + CTA bar (events-style floating pill) ── */}
-        <div
-            className="fixed bottom-0 left-0 right-0 z-40 px-2"
-            style={{ paddingBottom: 'max(var(--safe-bottom), 6px)' }}
-        >
-            <div className={`mx-auto w-full max-w-md md:max-w-2xl flex items-center justify-between gap-4 rounded-[30px] px-5 py-3.5 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'}`}>
+            {/* ── Sticky price + CTA bar (portal above bottom nav, same as events) ── */}
+            {typeof document !== 'undefined' && createPortal(
+                <div
+                    className="fixed inset-x-0 bottom-0 z-100040 px-2 pointer-events-none"
+                    style={{ paddingBottom: 'max(var(--safe-bottom), 6px)' }}
+                >
+                    <div className={`pointer-events-auto mx-auto w-full max-w-md md:max-w-2xl flex items-center justify-between gap-4 rounded-[30px] px-5 py-3.5 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'}`}>
 
-                {/* Price block — don't treat missing fee as Free (seed flash) */}
-                <div className="min-w-0 shrink-0">
-                    <p className={`text-xs font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Registration Fee</p>
-                    {trek.registrationFee == null ? (
-                        <p className={`mt-0.5 text-2xl font-bold leading-none ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>—</p>
-                    ) : Number(trek.registrationFee) > 0 ? (
-                        <p className={`mt-0.5 text-2xl font-bold leading-none truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                            ₹{Number(trek.registrationFee).toLocaleString('en-IN')}
-                        </p>
-                    ) : (
-                        <p className="mt-0.5 text-2xl font-bold leading-none text-green-500">Free</p>
-                    )}
-                </div>
+                        {/* Price block — don't treat missing fee as Free (seed flash) */}
+                        <div className="min-w-0 shrink-0">
+                            <p className={`text-xs font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Registration Fee</p>
+                            {trek.registrationFee == null ? (
+                                <p className={`mt-0.5 text-2xl font-bold leading-none ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>—</p>
+                            ) : Number(trek.registrationFee) > 0 ? (
+                                <p className={`mt-0.5 text-2xl font-bold leading-none truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                    ₹{Number(trek.registrationFee).toLocaleString('en-IN')}
+                                </p>
+                            ) : (
+                                <p className="mt-0.5 text-2xl font-bold leading-none text-green-500">Free</p>
+                            )}
+                        </div>
 
-                {/* CTA button — respects registration status, gender phase, then internal form / external link */}
-                {(() => {
-                    const regStatus = trek.registration?.status || 'open';
-                    const extLink = trek.registration?.mode === 'external_link'
-                        ? trek.registrationLink
-                        : null;
-                    if (regStatus === 'closed') {
-                        return (
-                            <button
-                                disabled
-                                className="flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-gray-600 text-gray-300 cursor-not-allowed"
-                            >
-                                Registration Closed
-                            </button>
-                        );
-                    }
-                    if (regStatus === 'not_open_yet') {
-                        return (
-                            <button
-                                disabled
-                                className="flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-gray-600 text-gray-300 cursor-not-allowed"
-                            >
-                                Registration Not Open Yet
-                            </button>
-                        );
-                    }
-                    return (
-                        <button
-                            onClick={() => {
-                                if (extLink) {
-                                    trackBookNowClick({
-                                        entityType: 'trek',
-                                        entityId: trek._id || trek.id || trek.slug || '',
-                                        mode: 'external_link',
-                                        destination: 'external',
-                                    });
-                                    window.open(extLink, '_blank', 'noopener,noreferrer');
-                                    return;
-                                }
-                                trackBookNowClick({
-                                    entityType: 'trek',
-                                    entityId: trek._id || trek.id || trek.slug || '',
-                                    mode: trek.registration?.mode || 'internal_form',
-                                    destination: 'internal_book_page',
-                                });
-                                navigate(`${trekPath(trek)}/book`, { state: { trek, genderRegistration, freshBooking: true } });
-                            }}
-                            className="flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-[#0ECCEE] text-black active:opacity-90 transition"
-                        >
-                            Book Now
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="m9 18 6-6-6-6"/>
-                            </svg>
-                        </button>
-                    );
-                })()}
-            </div>
-        </div>
+                        {/* CTA button — respects registration status, then internal form / external link */}
+                        {(() => {
+                            const regStatus = trek.registration?.status || 'open';
+                            const extLink = trek.registration?.mode === 'external_link'
+                                ? trek.registrationLink
+                                : null;
+                            if (regStatus === 'closed') {
+                                return (
+                                    <button
+                                        disabled
+                                        className="flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-gray-600 text-gray-300 cursor-not-allowed"
+                                    >
+                                        Registration Closed
+                                    </button>
+                                );
+                            }
+                            if (regStatus === 'not_open_yet') {
+                                return (
+                                    <button
+                                        disabled
+                                        className="flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-gray-600 text-gray-300 cursor-not-allowed"
+                                    >
+                                        Registration Not Open Yet
+                                    </button>
+                                );
+                            }
+                            return (
+                                <button
+                                    onClick={() => {
+                                        if (extLink) {
+                                            trackBookNowClick({
+                                                entityType: 'trek',
+                                                entityId: trek._id || trek.id || trek.slug || '',
+                                                mode: 'external_link',
+                                                destination: 'external',
+                                            });
+                                            window.open(extLink, '_blank', 'noopener,noreferrer');
+                                            return;
+                                        }
+                                        trackBookNowClick({
+                                            entityType: 'trek',
+                                            entityId: trek._id || trek.id || trek.slug || '',
+                                            mode: trek.registration?.mode || 'internal_form',
+                                            destination: 'internal_book_page',
+                                        });
+                                        navigate(`${trekPath(trek)}/book`, { state: { trek, genderRegistration, freshBooking: true } });
+                                    }}
+                                    className="flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-[#0ECCEE] text-black active:opacity-90 transition"
+                                >
+                                    Book Now
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="m9 18 6-6-6-6"/>
+                                    </svg>
+                                </button>
+                            );
+                        })()}
+                    </div>
+                </div>,
+                document.body,
+            )}
 
         <div className={`relative -mt-10 flex-1 rounded-t-3xl z-10 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
 
