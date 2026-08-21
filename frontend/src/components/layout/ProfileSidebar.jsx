@@ -306,7 +306,7 @@ export default function ProfileSidebar({
 
         if (label === 'Club manager') {
             try {
-                const booted = await tryRunClubOrganizerAppSession(token, 'sports');
+                const booted = await tryRunClubOrganizerAppSession(token, 'sports', { force: true });
                 goToPath(booted?.token ? RUN_CLUB_ORGANIZER_BASE : organizerLoginPath(false));
             } catch (err) {
                 goToPath(err?.code === 'no_organizer_account'
@@ -325,7 +325,7 @@ export default function ProfileSidebar({
                 return;
             }
             try {
-                const booted = await tryRunClubOrganizerAppSession(token, 'events');
+                const booted = await tryRunClubOrganizerAppSession(token, 'events', { force: true });
                 goToPath(booted?.token ? EVENT_COMMUNITY_ORGANIZER_BASE : organizerLoginPath(true));
             } catch (err) {
                 goToPath(err?.code === 'no_organizer_account'
@@ -337,7 +337,7 @@ export default function ProfileSidebar({
 
         if (label === 'Trek community') {
             try {
-                const booted = await tryTrekOrganizerAppSession(token);
+                const booted = await tryTrekOrganizerAppSession(token, { force: true });
                 goToPath(booted?.token ? '/trek-organizer' : '/trek-organizer/login');
             } catch (err) {
                 goToPath(err?.code === 'no_organizer_account'

@@ -1,12 +1,17 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Search, Loader, UserCheck } from 'lucide-react';
+import { Search, Loader, UserCheck, RefreshCw } from 'lucide-react';
 import CheckinScannerPage from '../../components/admin/CheckinScannerPage';
 import { getApiBaseUrl } from '../../config/apiBase';
 import { getTrekOrganizerToken } from '../../utils/trekOrganizerSession';
-import { lookupTrekOrganizerParticipant, trekOrganizerCheckin } from '../../services/api/trekOrganizer.api';
+import {
+    lookupTrekOrganizerParticipant,
+    trekOrganizerCheckin,
+    fetchTrekOrganizerCheckinStats,
+} from '../../services/api/trekOrganizer.api';
 import { useDialog } from '../../context/DialogContext';
 import TrekOrganizerParticipantModal from './TrekOrganizerParticipantModal';
+import { ProgressBar, SectionCard } from './OrganizerUi';
 
 export default function TrekOrganizerScanPage() {
     const { trekId } = useParams();
@@ -17,6 +22,26 @@ export default function TrekOrganizerScanPage() {
     const [lookupResults, setLookupResults] = useState([]);
     const [detailId, setDetailId] = useState(null);
     const [checkinLoading, setCheckinLoading] = useState(null);
+    const [stats, setStats] = useState(null);
+    const [statsLoading, setStatsLoading] = useState(true);
+
+    const loadStats = useCallback(async () => {
+        if (!trekId) return;
+        try {
+            const res = await fetchTrekOrganizerCheckinStats(trekId);
+            setStats(res);
+        } catch {
+            /* keep previous strip if poll fails */
+        } finally {
+            setStatsLoading(false);
+        }
+    }, [trekId]);
+
+    useEffect(() => {
+        loadStats();
+        const poll = setInterval(loadStats, 30000);
+        return () => clearInterval(poll);
+    }, [loadStats]);
 
     const runLookup = async (e) => {
         e?.preventDefault();
@@ -58,6 +83,7 @@ export default function TrekOrganizerScanPage() {
                             : p,
                     ),
                 );
+                loadStats();
             } else {
                 toast(res.message || res.error || 'Check-in failed');
             }
@@ -68,12 +94,56 @@ export default function TrekOrganizerScanPage() {
         }
     };
 
+    const totalRegistered = Number(stats?.totalRegistered ?? 0);
+    const totalCheckedIn = Number(stats?.totalCheckedIn ?? 0);
+    const checkinRate = Number(stats?.checkinRate ?? (totalRegistered > 0 ? Math.round((totalCheckedIn / totalRegistered) * 100) : 0));
+
     return (
-        <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold">Scan QR</h1>
-                <p className="text-sm text-gray-500">Scan ticket QR or search manually by booking ID, phone, or name.</p>
+        <div className="space-y-6 max-w-3xl mx-auto">
+            <div className="flex items-start justify-between gap-3">
+                <div>
+                    <h1 className="text-2xl font-bold tracking-tight">Scan QR</h1>
+                    <p className="text-sm text-gray-500 mt-0.5">Scan ticket QR or search manually by booking ID, phone, or name.</p>
+                </div>
+                <button
+                    type="button"
+                    onClick={() => { setStatsLoading(true); loadStats(); }}
+                    className="p-2.5 min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 text-gray-400 hover:text-white hover:border-[#0ECCEE]/40"
+                    aria-label="Refresh check-in stats"
+                >
+                    <RefreshCw size={16} className={statsLoading ? 'animate-spin' : ''} />
+                </button>
             </div>
+
+            <SectionCard className="p-4 sm:p-5 space-y-3.5">
+                <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                        <div className="size-10 rounded-xl bg-emerald-500/15 text-emerald-300 flex items-center justify-center">
+                            <UserCheck size={18} />
+                        </div>
+                        <div>
+                            <p className="text-sm font-semibold text-white">Gate check-in</p>
+                            <p className="text-[11px] text-gray-500">
+                                {statsLoading && !stats
+                                    ? 'Loading live stats…'
+                                    : `${totalCheckedIn} of ${totalRegistered} checked in`}
+                            </p>
+                        </div>
+                    </div>
+                    <p className="text-2xl font-semibold tabular-nums text-emerald-300">{checkinRate}%</p>
+                </div>
+                <ProgressBar pct={checkinRate} tone="emerald" />
+                <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded-xl border border-white/10 bg-black/25 px-3 py-2.5">
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500">Registered</p>
+                        <p className="text-lg font-semibold tabular-nums text-white mt-0.5">{totalRegistered}</p>
+                    </div>
+                    <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-2.5">
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500">Checked in</p>
+                        <p className="text-lg font-semibold tabular-nums text-emerald-300 mt-0.5">{totalCheckedIn}</p>
+                    </div>
+                </div>
+            </SectionCard>
 
             <CheckinScannerPage
                 embedded
@@ -90,7 +160,7 @@ export default function TrekOrganizerScanPage() {
                 subtitle="Point camera at ticket QR from My Bookings"
             />
 
-            <div className="rounded-xl border border-gray-800 bg-[#161718] p-4 space-y-3">
+            <div className="rounded-2xl border border-white/10 bg-[#161718] p-4 space-y-3">
                 <h2 className="text-sm font-semibold flex items-center gap-2">
                     <Search size={16} className="text-[#0ECCEE]" />
                     Manual lookup
@@ -100,7 +170,7 @@ export default function TrekOrganizerScanPage() {
                         value={manualQuery}
                         onChange={(e) => setManualQuery(e.target.value)}
                         placeholder="Booking ID, phone, or name"
-                        className="flex-1 px-3 py-2.5 rounded-xl bg-[#111213] border border-gray-800 text-sm focus:outline-none focus:border-[#0ECCEE]/50"
+                        className="flex-1 px-3 py-2.5 rounded-xl bg-[#111213] border border-white/10 text-sm focus:outline-none focus:border-[#0ECCEE]/50"
                     />
                     <button type="submit" disabled={lookupLoading} className="px-4 py-2.5 rounded-xl bg-[#0ECCEE] text-black text-sm font-bold disabled:opacity-60">
                         {lookupLoading ? <Loader className="animate-spin" size={16} /> : 'Search'}
@@ -110,14 +180,14 @@ export default function TrekOrganizerScanPage() {
                 {lookupResults.length > 0 ? (
                     <div className="space-y-2">
                         {lookupResults.map((p) => (
-                            <div key={p.bookingId} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg border border-gray-800 bg-[#111213]">
+                            <div key={p.bookingId} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-xl border border-white/10 bg-[#111213]">
                                 <div>
                                     <p className="font-medium">{p.participantName}</p>
                                     <p className="text-xs text-gray-500">{p.phone} · {p.bookingId.slice(-8)}{(p.people ?? 1) > 1 ? ` · ${p.people} people` : ''}</p>
                                     <p className="text-xs mt-0.5">{p.checkInStatus}</p>
                                 </div>
                                 <div className="flex gap-2">
-                                    <button type="button" onClick={() => setDetailId(p.bookingId)} className="px-3 py-1.5 rounded-lg border border-gray-700 text-xs">Details</button>
+                                    <button type="button" onClick={() => setDetailId(p.bookingId)} className="px-3 py-1.5 rounded-lg border border-white/10 text-xs">Details</button>
                                     <button
                                         type="button"
                                         disabled={checkinLoading === p.bookingId || p.checkInStatus === 'Checked In'}

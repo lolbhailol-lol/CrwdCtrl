@@ -49,6 +49,7 @@ export default function EventCommunityOrganizerLayout() {
     const BrandIcon = CalendarDays;
 
     const logout = () => {
+        setSidebarOpen(false);
         markRunClubOrganizerLoggedOut();
         navigate(`${EVENT_COMMUNITY_ORGANIZER_BASE}/login`, { replace: true });
     };
@@ -61,8 +62,8 @@ export default function EventCommunityOrganizerLayout() {
 
     return (
         <div className="min-h-dvh bg-[#0f1011] text-white flex">
-            <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#161718] border-r border-gray-800 transform transition-transform lg:translate-x-0 pt-[var(--safe-top)] pb-[var(--safe-bottom)] ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-                <div className="px-5 py-5 border-b border-gray-800">
+            <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#161718] border-r border-gray-800 transform transition-transform lg:translate-x-0 pt-[var(--safe-top)] pb-[var(--safe-bottom)] flex flex-col ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                <div className="px-5 py-5 border-b border-gray-800 shrink-0">
                     <div className="flex items-center gap-2">
                         <BrandIcon className="text-[#0ECCEE]" size={22} />
                         <div>
@@ -73,7 +74,7 @@ export default function EventCommunityOrganizerLayout() {
                         </div>
                     </div>
                 </div>
-                <nav className="p-3 space-y-1">
+                <nav className="flex-1 min-h-0 overflow-y-auto p-3 space-y-1">
                     <OrgNavButton
                         to={organizerHomePath(true)}
                         end
@@ -104,7 +105,7 @@ export default function EventCommunityOrganizerLayout() {
                         </OrgNavButton>
                     ))}
                 </nav>
-                <div className="absolute bottom-0 left-0 right-0 p-3 pb-[max(0.75rem,var(--safe-bottom))] border-t border-gray-800 space-y-1">
+                <div className="shrink-0 p-3 border-t border-gray-800 space-y-1 bg-[#161718]">
                     <button
                         type="button"
                         onClick={() => {
@@ -115,7 +116,7 @@ export default function EventCommunityOrganizerLayout() {
                     >
                         <ExternalLink size={16} /> Back to CrwdCtrl
                     </button>
-                    <button type="button" onClick={logout} className="flex items-center gap-2 w-full px-3 py-2.5 rounded-lg text-sm text-gray-400 hover:text-red-400 hover:bg-red-500/10">
+                    <button type="button" onClick={logout} className="flex items-center gap-2 w-full px-3 py-3 min-h-11 rounded-lg text-sm font-medium text-gray-300 border border-gray-800 hover:text-red-400 hover:border-red-500/30 hover:bg-red-500/10">
                         <LogOut size={16} /> Log out
                     </button>
                 </div>

@@ -5,6 +5,8 @@ import {
     setRunClubOrganizerSession,
     getRunClubOrganizerSession,
     isRunClubOrganizerTokenExpired,
+    isRunClubOrganizerManualLogout,
+    clearRunClubOrganizerManualLogout,
 } from '../../utils/runClubOrganizerSession';
 import { resolveAuthToken, getBearerAuthHeaders } from '../../utils/authToken';
 import { isEventsListingHub } from '../../utils/listingHubCopy';
@@ -146,7 +148,9 @@ export function applyRunClubOrganizerAuthPayload(data) {
 }
 
 /** Use main CrwdCtrl login to open club manager without a second password. */
-export async function tryRunClubOrganizerAppSession(authToken = null, hub = '') {
+export async function tryRunClubOrganizerAppSession(authToken = null, hub = '', { force = false } = {}) {
+    if (!force && isRunClubOrganizerManualLogout()) return null;
+
     const existing = getRunClubOrganizerToken();
     if (existing && !isRunClubOrganizerTokenExpired(existing)) {
         const session = getRunClubOrganizerSession();
@@ -158,6 +162,8 @@ export async function tryRunClubOrganizerAppSession(authToken = null, hub = '') 
 
     const token = resolveAuthToken(authToken);
     if (!token) return null;
+
+    if (force) clearRunClubOrganizerManualLogout();
 
     const hubQuery = hub ? `?hub=${encodeURIComponent(hub)}` : '';
     const res = await fetch(`${API}/run-club-organizer/auth/app-session${hubQuery}`, {

@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
     Search, Loader, Users, Phone, Copy, MessageCircle, X,
     ArrowUpDown, CheckSquare, Square, Sparkles, Mountain,
-    ChevronLeft, ChevronRight, Download, ExternalLink,
+    ChevronLeft, ChevronRight, Download, ExternalLink, IndianRupee,
 } from 'lucide-react';
 import {
     exportTrekOrganizerCustomers,
@@ -12,12 +12,14 @@ import {
 import { useDialog } from '../../context/DialogContext';
 import { getTrekOrganizerSession } from '../../utils/trekOrganizerSession';
 import { isValidWhatsAppPhone } from '../../utils/whatsappDeepLink';
+import { getCoverImageUrl } from '../../utils/coverImages';
 import TrekOrganizerWhatsAppModal from './TrekOrganizerWhatsAppModal';
 import { InlinePageLoader } from '../../components/DetailPageLoader';
 
 const COMMUNITY_SORT = [
     { value: 'trekCount:desc', label: 'Most treks' },
     { value: 'trekCount:asc', label: 'Fewest treks' },
+    { value: 'totalSpent:desc', label: 'Highest spend' },
     { value: 'name:asc', label: 'Name A–Z' },
     { value: 'name:desc', label: 'Name Z–A' },
     { value: 'lastBookedAt:desc', label: 'Recent booking' },
@@ -27,9 +29,19 @@ const COMMUNITY_SORT = [
 const TREK_SORT = [
     { value: 'scopedBookedAt:desc', label: 'Booked recently' },
     { value: 'scopedBookedAt:asc', label: 'Booked earliest' },
+    { value: 'totalSpent:desc', label: 'Highest spend' },
     { value: 'trekCount:desc', label: 'Most treks overall' },
     { value: 'name:asc', label: 'Name A–Z' },
     { value: 'name:desc', label: 'Name Z–A' },
+];
+
+const AVATAR_TONES = [
+    'from-[#0ECCEE]/35 to-[#053780]/50 text-[#9BE8F7] border-[#0ECCEE]/30',
+    'from-emerald-500/30 to-emerald-900/40 text-emerald-200 border-emerald-500/30',
+    'from-amber-500/30 to-amber-900/40 text-amber-200 border-amber-500/30',
+    'from-sky-500/30 to-sky-900/40 text-sky-200 border-sky-500/30',
+    'from-rose-500/25 to-rose-900/40 text-rose-200 border-rose-500/25',
+    'from-teal-500/30 to-teal-900/40 text-teal-200 border-teal-500/30',
 ];
 
 function initials(name = '') {
@@ -39,16 +51,54 @@ function initials(name = '') {
     return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
 }
 
+function avatarTone(name = '') {
+    let hash = 0;
+    const s = String(name);
+    for (let i = 0; i < s.length; i += 1) hash = (hash + s.charCodeAt(i) * (i + 1)) % AVATAR_TONES.length;
+    return AVATAR_TONES[hash] || AVATAR_TONES[0];
+}
+
 function formatShortDate(d) {
     if (!d) return '—';
     return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-function StatPill({ label, value }) {
+function formatInr(n) {
+    return `₹${Number(n || 0).toLocaleString('en-IN')}`;
+}
+
+function trekThumb(entity) {
+    return getCoverImageUrl(
+        {
+            coverImage: entity?.coverImage,
+            coverImages: entity?.coverImages,
+            image: Array.isArray(entity?.images) ? entity.images[0] : null,
+        },
+        'square',
+    );
+}
+
+function StatPill({ label, value, tone = 'default' }) {
+    const tones = {
+        default: 'border-white/10 from-[#1a1b1d] to-[#141516]',
+        cyan: 'border-[#0ECCEE]/25 from-[#0ECCEE]/15 to-[#0ECCEE]/5',
+        amber: 'border-amber-500/25 from-amber-500/15 to-amber-500/5',
+        rose: 'border-rose-500/25 from-rose-500/15 to-rose-500/5',
+        money: 'border-emerald-500/25 from-emerald-500/15 to-emerald-500/5',
+    };
     return (
-        <div className="rounded-2xl border border-white/10 bg-linear-to-br from-[#1a1b1d] to-[#141516] px-3 py-3">
+        <div className={`rounded-2xl border bg-linear-to-br px-3 py-3 ${tones[tone] || tones.default}`}>
             <p className="text-[10px] uppercase tracking-widest text-gray-500">{label}</p>
             <p className="text-xl font-semibold mt-1 tabular-nums text-white">{value}</p>
+        </div>
+    );
+}
+
+function CustomerAvatar({ name, size = 'md' }) {
+    const dim = size === 'lg' ? 'size-12 text-base' : 'size-11 text-sm';
+    return (
+        <div className={`${dim} rounded-2xl bg-linear-to-br border flex items-center justify-center font-bold shrink-0 ${avatarTone(name)}`}>
+            {initials(name)}
         </div>
     );
 }
@@ -63,10 +113,13 @@ function CustomerDetailSheet({ customer, isTrekScope, trekTitle, onClose, onWhat
             <button type="button" className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" onClick={onClose} aria-label="Close" />
             <div className="relative w-full sm:max-w-lg max-h-[90dvh] overflow-y-auto rounded-t-3xl sm:rounded-3xl border border-white/10 bg-[#121314] shadow-2xl">
                 <div className="sticky top-0 flex items-start justify-between gap-3 px-4 py-3.5 border-b border-white/10 bg-[#121314]/95 backdrop-blur z-10">
-                    <div className="min-w-0">
-                        <p className="text-[10px] uppercase tracking-widest text-[#0ECCEE] font-semibold">Customer</p>
-                        <h2 className="font-semibold text-white text-lg truncate">{customer.name}</h2>
-                        <p className="text-sm text-gray-400 mt-0.5">{customer.phone || '—'}</p>
+                    <div className="flex items-start gap-3 min-w-0">
+                        <CustomerAvatar name={customer.name} size="lg" />
+                        <div className="min-w-0">
+                            <p className="text-[10px] uppercase tracking-widest text-[#0ECCEE] font-semibold">Customer</p>
+                            <h2 className="font-semibold text-white text-lg truncate">{customer.name}</h2>
+                            <p className="text-sm text-gray-400 mt-0.5">{customer.phone || '—'}</p>
+                        </div>
                     </div>
                     <button
                         type="button"
@@ -83,9 +136,19 @@ function CustomerDetailSheet({ customer, isTrekScope, trekTitle, onClose, onWhat
                             <Mountain size={11} />
                             {customer.trekCount} trek{customer.trekCount === 1 ? '' : 's'} overall
                         </span>
+                        {Number(customer.totalSpent) > 0 ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border border-emerald-500/25 bg-emerald-500/10 text-emerald-300">
+                                <IndianRupee size={11} />
+                                {formatInr(customer.totalSpent)} LTV
+                            </span>
+                        ) : null}
                         {customer.trekCount >= 2 ? (
                             <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold border border-amber-500/25 bg-amber-500/10 text-amber-300">
                                 Repeat guest
+                            </span>
+                        ) : customer.trekCount === 1 ? (
+                            <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold border border-sky-500/25 bg-sky-500/10 text-sky-300">
+                                One-time · win back
                             </span>
                         ) : null}
                         {!canWa ? (
@@ -133,44 +196,63 @@ function CustomerDetailSheet({ customer, isTrekScope, trekTitle, onClose, onWhat
                             <p className="text-sm text-gray-500">No trek history</p>
                         ) : (
                             <ul className="space-y-2">
-                                {history.map((h) => (
+                                {history.map((h) => {
+                                    const thumb = trekThumb(h);
+                                    return (
                                     <li
                                         key={`${h.bookingId}-${h.trekId}`}
-                                        className="rounded-2xl border border-white/10 bg-white/5 px-3.5 py-3"
+                                        className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3"
                                     >
-                                        <div className="flex items-start justify-between gap-2">
-                                            <div className="min-w-0">
-                                                <p className="font-medium text-sm text-white truncate">{h.trekName}</p>
-                                                <p className="text-xs text-gray-500 mt-0.5">
-                                                    {h.trekDate || formatShortDate(h.bookedAt)}
-                                                    {h.trekDate ? ` · booked ${formatShortDate(h.bookedAt)}` : ''}
-                                                </p>
+                                        <div className="flex items-start gap-3">
+                                            <div className="size-12 rounded-xl overflow-hidden border border-white/10 bg-[#0c0d0e] shrink-0">
+                                                {thumb ? (
+                                                    <img src={thumb} alt="" className="size-full object-cover" />
+                                                ) : (
+                                                    <div className="size-full flex items-center justify-center text-[#0ECCEE]/50">
+                                                        <Mountain size={18} />
+                                                    </div>
+                                                )}
                                             </div>
-                                            <div className="flex flex-col items-end gap-1 shrink-0">
-                                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border border-white/10 text-gray-300">
-                                                    {h.paymentStatus}
-                                                </span>
-                                                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
-                                                    h.checkedIn
-                                                        ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
-                                                        : 'border-amber-500/25 bg-amber-500/10 text-amber-300'
-                                                }`}
-                                                >
-                                                    {h.checkedIn ? 'Checked in' : 'Not checked in'}
-                                                </span>
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div className="min-w-0">
+                                                        <p className="font-medium text-sm text-white truncate">{h.trekName}</p>
+                                                        <p className="text-xs text-gray-500 mt-0.5">
+                                                            {h.trekDate || formatShortDate(h.bookedAt)}
+                                                            {h.trekDate ? ` · booked ${formatShortDate(h.bookedAt)}` : ''}
+                                                        </p>
+                                                        {Number(h.amountPaid) > 0 ? (
+                                                            <p className="text-[11px] text-emerald-300/90 mt-1 tabular-nums">{formatInr(h.amountPaid)}</p>
+                                                        ) : null}
+                                                    </div>
+                                                    <div className="flex flex-col items-end gap-1 shrink-0">
+                                                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border border-white/10 text-gray-300">
+                                                            {h.paymentStatus}
+                                                        </span>
+                                                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                                                            h.checkedIn
+                                                                ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
+                                                                : 'border-amber-500/25 bg-amber-500/10 text-amber-300'
+                                                        }`}
+                                                        >
+                                                            {h.checkedIn ? 'Checked in' : 'Not checked in'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                {isTrekScope && h.trekName === trekTitle && h.bookingId && onOpenBooking ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => onOpenBooking(h.bookingId)}
+                                                        className="mt-2 text-[11px] text-[#0ECCEE] hover:underline"
+                                                    >
+                                                        Open this booking
+                                                    </button>
+                                                ) : null}
                                             </div>
                                         </div>
-                                        {isTrekScope && h.trekName === trekTitle && h.bookingId && onOpenBooking ? (
-                                            <button
-                                                type="button"
-                                                onClick={() => onOpenBooking(h.bookingId)}
-                                                className="mt-2 text-[11px] text-[#0ECCEE] hover:underline"
-                                            >
-                                                Open this booking
-                                            </button>
-                                        ) : null}
                                     </li>
-                                ))}
+                                    );
+                                })}
                             </ul>
                         )}
                     </div>
@@ -205,7 +287,7 @@ export default function TrekOrganizerCustomersPage() {
     const [searchInput, setSearchInput] = useState('');
     const [search, setSearch] = useState('');
     const [sortValue, setSortValue] = useState(isTrekScope ? 'scopedBookedAt:desc' : 'trekCount:desc');
-    const [guestFilter, setGuestFilter] = useState('all'); // all | repeat | missingPhone
+    const [guestFilter, setGuestFilter] = useState('all'); // all | repeat | oneTime | missingPhone | thisMonth | highSpend
     const [page, setPage] = useState(1);
     const [selectedMap, setSelectedMap] = useState(() => new Map());
     const [waRecipients, setWaRecipients] = useState(null);
@@ -214,7 +296,10 @@ export default function TrekOrganizerCustomersPage() {
     const [sortBy, sortDir] = sortValue.split(':');
     const sortOptions = isTrekScope ? TREK_SORT : COMMUNITY_SORT;
     const repeatOnly = guestFilter === 'repeat';
+    const oneTimeOnly = guestFilter === 'oneTime';
     const missingPhone = guestFilter === 'missingPhone';
+    const thisMonthOnly = guestFilter === 'thisMonth';
+    const highSpendOnly = guestFilter === 'highSpend';
 
     useEffect(() => {
         setSortValue(isTrekScope ? 'scopedBookedAt:desc' : 'trekCount:desc');
@@ -244,13 +329,16 @@ export default function TrekOrganizerCustomersPage() {
                 sortBy,
                 sortDir,
                 repeatOnly: repeatOnly ? '1' : '',
+                oneTimeOnly: oneTimeOnly ? '1' : '',
                 missingPhone: missingPhone ? '1' : '',
+                thisMonthOnly: thisMonthOnly ? '1' : '',
+                highSpendOnly: highSpendOnly ? '1' : '',
                 trekId: scopedTrekId || undefined,
             });
             setRows(data.customers || []);
             setPagination(data.pagination || { page: 1, limit: 50, total: 0, totalPages: 1 });
             setStats(data.stats || {
-                totalCustomers: 0, repeatCustomers: 0, totalBookings: 0, missingPhone: 0,
+                totalCustomers: 0, repeatCustomers: 0, oneTimeCustomers: 0, totalBookings: 0, missingPhone: 0, thisMonthCustomers: 0, highSpendCustomers: 0, totalSpend: 0,
             });
             setScopeMeta({
                 scope: data.scope || (scopedTrekId ? 'trek' : 'community'),
@@ -274,7 +362,7 @@ export default function TrekOrganizerCustomersPage() {
         } finally {
             setLoading(false);
         }
-    }, [page, search, sortBy, sortDir, repeatOnly, missingPhone, scopedTrekId, focusCustomerId, toast]);
+    }, [page, search, sortBy, sortDir, repeatOnly, oneTimeOnly, missingPhone, thisMonthOnly, highSpendOnly, scopedTrekId, focusCustomerId, toast]);
 
     useEffect(() => {
         load();
@@ -322,7 +410,10 @@ export default function TrekOrganizerCustomersPage() {
                 sortBy,
                 sortDir,
                 repeatOnly: repeatOnly ? '1' : '',
+                oneTimeOnly: oneTimeOnly ? '1' : '',
                 missingPhone: missingPhone ? '1' : '',
+                thisMonthOnly: thisMonthOnly ? '1' : '',
+                highSpendOnly: highSpendOnly ? '1' : '',
                 trekId: scopedTrekId || undefined,
                 forSelect: '1',
             });
@@ -389,7 +480,10 @@ export default function TrekOrganizerCustomersPage() {
                 sortBy,
                 sortDir,
                 repeatOnly: repeatOnly ? '1' : '',
+                oneTimeOnly: oneTimeOnly ? '1' : '',
                 missingPhone: missingPhone ? '1' : '',
+                thisMonthOnly: thisMonthOnly ? '1' : '',
+                highSpendOnly: highSpendOnly ? '1' : '',
                 trekId: scopedTrekId || undefined,
             });
             const url = URL.createObjectURL(blob);
@@ -502,11 +596,13 @@ export default function TrekOrganizerCustomersPage() {
                         ) : null}
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                        <StatPill label={isTrekScope ? 'On this trek' : 'Customers'} value={stats.totalCustomers} />
-                        <StatPill label="Repeat (2+)" value={stats.repeatCustomers} />
-                        <StatPill label="No phone" value={stats.missingPhone ?? 0} />
-                        <StatPill label="Bookings" value={stats.totalBookings} />
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                        <StatPill label={isTrekScope ? 'On this trek' : 'Customers'} value={stats.totalCustomers} tone="cyan" />
+                        <StatPill label="Repeat (2+)" value={stats.repeatCustomers} tone="amber" />
+                        <StatPill label="One-time" value={stats.oneTimeCustomers ?? 0} />
+                        <StatPill label="No phone" value={stats.missingPhone ?? 0} tone="rose" />
+                        <StatPill label="This month" value={stats.thisMonthCustomers ?? 0} />
+                        <StatPill label="Total spend" value={formatInr(stats.totalSpend ?? 0)} tone="money" />
                     </div>
                 </div>
             </div>
@@ -550,26 +646,36 @@ export default function TrekOrganizerCustomersPage() {
 
                 <div className="flex flex-wrap items-center gap-2">
                     {[
-                        { id: 'all', label: 'All guests' },
-                        { id: 'repeat', label: 'Repeat only (2+)' },
-                        { id: 'missingPhone', label: 'Missing phone' },
-                    ].map((f) => (
-                        <button
-                            key={f.id}
-                            type="button"
-                            onClick={() => {
-                                setGuestFilter(f.id);
-                                setPage(1);
-                            }}
-                            className={`px-3 py-2 min-h-9 rounded-full text-xs font-medium border ${
-                                guestFilter === f.id
-                                    ? 'bg-[#0ECCEE] text-black border-[#0ECCEE]'
-                                    : 'border-white/10 text-gray-400 bg-white/5'
-                            }`}
-                        >
-                            {f.label}
-                        </button>
-                    ))}
+                        { id: 'all', label: 'All guests', tone: 'cyan' },
+                        { id: 'repeat', label: 'Repeat (2+)', tone: 'amber' },
+                        { id: 'oneTime', label: 'One-time · win back', tone: 'sky' },
+                        { id: 'thisMonth', label: 'This month', tone: 'emerald' },
+                        { id: 'highSpend', label: 'High spend', tone: 'money' },
+                        { id: 'missingPhone', label: 'Missing phone', tone: 'rose' },
+                    ].map((f) => {
+                        const active = guestFilter === f.id;
+                        const toneMap = {
+                            cyan: active ? 'bg-[#0ECCEE] text-black border-[#0ECCEE]' : 'border-[#0ECCEE]/25 bg-[#0ECCEE]/10 text-[#0ECCEE]',
+                            amber: active ? 'bg-amber-400 text-black border-amber-400' : 'border-amber-500/25 bg-amber-500/10 text-amber-300',
+                            sky: active ? 'bg-sky-400 text-black border-sky-400' : 'border-sky-500/25 bg-sky-500/10 text-sky-300',
+                            emerald: active ? 'bg-emerald-400 text-black border-emerald-400' : 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300',
+                            money: active ? 'bg-emerald-300 text-black border-emerald-300' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200',
+                            rose: active ? 'bg-rose-400 text-black border-rose-400' : 'border-rose-500/25 bg-rose-500/10 text-rose-300',
+                        };
+                        return (
+                            <button
+                                key={f.id}
+                                type="button"
+                                onClick={() => {
+                                    setGuestFilter(f.id);
+                                    setPage(1);
+                                }}
+                                className={`px-3 py-2 min-h-9 rounded-xl text-xs font-semibold border transition-colors ${toneMap[f.tone]}`}
+                            >
+                                {f.label}
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
 
@@ -676,9 +782,9 @@ export default function TrekOrganizerCustomersPage() {
                                     <button
                                         type="button"
                                         onClick={() => setDetailCustomer(customer)}
-                                        className="size-11 rounded-2xl bg-linear-to-br from-[#0ECCEE]/20 to-[#053780]/30 text-[#0ECCEE] flex items-center justify-center text-sm font-bold shrink-0"
+                                        className="shrink-0"
                                     >
-                                        {initials(customer.name)}
+                                        <CustomerAvatar name={customer.name} />
                                     </button>
                                     <div className="min-w-0 flex-1">
                                         <button
@@ -690,11 +796,21 @@ export default function TrekOrganizerCustomersPage() {
                                                 <h3 className="font-semibold text-[15px] truncate">{customer.name}</h3>
                                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border border-[#0ECCEE]/25 bg-[#0ECCEE]/10 text-[#0ECCEE]">
                                                     <Mountain size={10} />
-                                                    {customer.trekCount} trek{customer.trekCount === 1 ? '' : 's'} overall
+                                                    {customer.trekCount} trek{customer.trekCount === 1 ? '' : 's'}
                                                 </span>
+                                                {Number(customer.totalSpent) > 0 ? (
+                                                    <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold border border-emerald-500/25 bg-emerald-500/10 text-emerald-300 tabular-nums">
+                                                        <IndianRupee size={10} />
+                                                        {formatInr(customer.totalSpent)}
+                                                    </span>
+                                                ) : null}
                                                 {customer.trekCount >= 2 ? (
                                                     <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold border border-amber-500/25 bg-amber-500/10 text-amber-300">
                                                         Repeat
+                                                    </span>
+                                                ) : customer.trekCount === 1 ? (
+                                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold border border-sky-500/25 bg-sky-500/10 text-sky-300">
+                                                        One-time
                                                     </span>
                                                 ) : null}
                                                 {!canWa ? (
@@ -718,6 +834,33 @@ export default function TrekOrganizerCustomersPage() {
                                                     : ''}
                                                 {' · tap for history'}
                                             </p>
+                                            {Array.isArray(customer.trekHistory) && customer.trekHistory.length > 0 ? (
+                                                <div className="flex gap-1.5 mt-2.5 overflow-hidden">
+                                                    {customer.trekHistory.slice(0, 5).map((h) => {
+                                                        const thumb = trekThumb(h);
+                                                        return (
+                                                            <div
+                                                                key={`${h.bookingId}-chip`}
+                                                                className="size-8 rounded-lg overflow-hidden border border-white/10 bg-black/40 shrink-0"
+                                                                title={h.trekName}
+                                                            >
+                                                                {thumb ? (
+                                                                    <img src={thumb} alt="" className="size-full object-cover" />
+                                                                ) : (
+                                                                    <div className="size-full flex items-center justify-center text-[#0ECCEE]/40">
+                                                                        <Mountain size={12} />
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                    {customer.trekHistory.length > 5 ? (
+                                                        <span className="size-8 rounded-lg border border-white/10 bg-white/5 text-[10px] text-gray-400 flex items-center justify-center shrink-0">
+                                                            +{customer.trekHistory.length - 5}
+                                                        </span>
+                                                    ) : null}
+                                                </div>
+                                            ) : null}
                                         </button>
                                         <div className="flex flex-wrap gap-2 mt-3">
                                             {customer.phone && customer.phone !== '—' ? (

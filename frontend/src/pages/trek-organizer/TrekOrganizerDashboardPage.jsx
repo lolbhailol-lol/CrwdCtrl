@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
     Users, UserCheck, Clock, IndianRupee, Bell, QrCode,
     Copy, ExternalLink, RefreshCw, MapPin, Venus, Mars,
-    Link2, Share2, Sparkles, ContactRound,
+    ContactRound, CalendarPlus,
 } from 'lucide-react';
 import {
     fetchTrekOrganizerDashboard,
@@ -13,90 +13,16 @@ import { trekPath } from '../../utils/slugRoutes';
 import { formatOrganizerTrekDate } from '../../utils/trekDateDisplay';
 import TrekOrganizerRegistrationPanel from './TrekOrganizerRegistrationPanel';
 import { InlinePageLoader } from '../../components/DetailPageLoader';
+import { ActionRail, CapacityBar, ProgressBar, SectionCard, StatTile } from './OrganizerUi';
+import { getCoverImageUrl } from '../../utils/coverImages';
 
-function StatTile({ label, value, tone = 'default', icon: Icon, onClick, to, hint }) {
-    const navigate = useNavigate();
-    const tones = {
-        default: {
-            card: 'border-white/10 bg-linear-to-br from-[#1a1b1d] to-[#141516]',
-            icon: 'bg-white/5 text-gray-300',
-            value: 'text-white',
-        },
-        accent: {
-            card: 'border-[#0ECCEE]/25 bg-linear-to-br from-[#0ECCEE]/15 to-[#0ECCEE]/5',
-            icon: 'bg-[#0ECCEE]/15 text-[#0ECCEE]',
-            value: 'text-white',
-        },
-        women: {
-            card: 'border-pink-500/20 bg-linear-to-br from-pink-500/15 to-pink-500/5',
-            icon: 'bg-pink-500/15 text-pink-300',
-            value: 'text-pink-100',
-        },
-        men: {
-            card: 'border-sky-500/20 bg-linear-to-br from-sky-500/15 to-sky-500/5',
-            icon: 'bg-sky-500/15 text-sky-300',
-            value: 'text-sky-100',
-        },
-        ok: {
-            card: 'border-emerald-500/20 bg-linear-to-br from-emerald-500/15 to-emerald-500/5',
-            icon: 'bg-emerald-500/15 text-emerald-300',
-            value: 'text-emerald-100',
-        },
-        warn: {
-            card: 'border-amber-500/20 bg-linear-to-br from-amber-500/15 to-amber-500/5',
-            icon: 'bg-amber-500/15 text-amber-300',
-            value: 'text-amber-100',
-        },
-        money: {
-            card: 'border-emerald-500/20 bg-linear-to-br from-emerald-500/10 to-[#141516]',
-            icon: 'bg-emerald-500/15 text-emerald-300',
-            value: 'text-emerald-300',
-        },
-    };
-    const t = tones[tone] || tones.default;
-    const interactive = Boolean(onClick || to);
-    const className = `group relative overflow-hidden rounded-2xl border p-4 min-h-[100px] text-left transition-all duration-200 ${t.card} ${
-        interactive
-            ? 'hover:border-[#0ECCEE]/45 active:scale-[0.985] cursor-pointer'
-            : ''
-    }`;
-    const inner = (
-        <>
-            <div className="relative flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                    <p className="text-[11px] uppercase tracking-[0.08em] text-gray-500 font-medium">{label}</p>
-                    <p className={`text-[1.65rem] leading-none font-semibold mt-2.5 tabular-nums tracking-tight ${t.value}`}>
-                        {value}
-                    </p>
-                    {hint ? <p className="text-[11px] text-gray-500 mt-2">{hint}</p> : null}
-                </div>
-                {Icon ? (
-                    <div className={`size-9 rounded-xl flex items-center justify-center shrink-0 ${t.icon}`}>
-                        <Icon size={16} strokeWidth={2.25} />
-                    </div>
-                ) : null}
-            </div>
-        </>
-    );
-    if (to) {
-        return (
-            <button type="button" onClick={() => navigate(to)} className={className}>
-                {inner}
-            </button>
-        );
+function formatUpdatedAt(ts) {
+    if (!ts) return '';
+    try {
+        return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch {
+        return '';
     }
-    if (onClick) {
-        return <button type="button" onClick={onClick} className={className}>{inner}</button>;
-    }
-    return <div className={className}>{inner}</div>;
-}
-
-function SectionCard({ children, className = '' }) {
-    return (
-        <div className={`rounded-2xl border border-white/10 bg-[#161718]/95 backdrop-blur-sm ${className}`}>
-            {children}
-        </div>
-    );
 }
 
 export default function TrekOrganizerDashboardPage() {
@@ -109,6 +35,7 @@ export default function TrekOrganizerDashboardPage() {
     const [copyNotice, setCopyNotice] = useState('');
     const [actionBusy, setActionBusy] = useState(false);
     const [actionNotice, setActionNotice] = useState('');
+    const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
 
     const load = useCallback(async ({ silent = false } = {}) => {
         if (!trekId) return;
@@ -120,6 +47,8 @@ export default function TrekOrganizerDashboardPage() {
         try {
             const res = await fetchTrekOrganizerDashboard(trekId);
             setData(res);
+            setLastUpdatedAt(Date.now());
+            if (!silent) setError('');
         } catch (e) {
             if (!silent) setError(e.message || 'Failed to load dashboard');
         } finally {
@@ -154,14 +83,11 @@ export default function TrekOrganizerDashboardPage() {
     if (error) {
         return (
             <div className="text-center py-16 space-y-4 max-w-md mx-auto">
-                <div className="mx-auto size-12 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
-                    <RefreshCw size={18} className="text-red-400" />
-                </div>
                 <p className="text-red-300 text-sm">{error}</p>
                 <button
                     type="button"
                     onClick={() => load()}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-white/10 bg-white/5 text-sm text-[#0ECCEE] hover:border-[#0ECCEE]/40"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-white/10 bg-white/5 text-sm text-[#0ECCEE]"
                 >
                     <RefreshCw size={14} /> Retry
                 </button>
@@ -169,32 +95,51 @@ export default function TrekOrganizerDashboardPage() {
         );
     }
 
-    if (!data) return null;
+    if (!data?.trek) return null;
 
-    const { trek, stats, genderRegistration } = data;
-    const total = stats.totalRegistrations ?? 0;
-    const male = stats.maleCount ?? 0;
-    const female = stats.femaleCount ?? 0;
-    const genderSeats = male + female + (stats.othersCount ?? 0);
-    const others = stats.othersCount ?? 0;
-    const checkedIn = stats.checkedIn ?? 0;
-    const pending = stats.pendingCheckIn ?? Math.max(0, total - checkedIn);
-    const revenue = Number(stats.organizerRevenue ?? stats.revenue ?? 0);
+    const trek = data.trek;
+    const stats = data.stats || {};
+    const genderRegistration = data.genderRegistration;
+
+    const total = Number(stats.totalRegistrations) || 0;
+    const male = Number(stats.maleCount) || 0;
+    const female = Number(stats.femaleCount) || 0;
+    const checkedIn = Number(stats.checkedIn) || 0;
+    const pending = Number(stats.pendingCheckIn ?? Math.max(0, total - checkedIn)) || 0;
+    const revenue = Number(stats.organizerRevenue ?? stats.revenue) || 0;
+    const fees = Number(stats.platformFees) || 0;
+    const today = Number(stats.todayRegistrations) || 0;
+    const seatsFilled = Number(stats.seatsFilled ?? total) || 0;
+    const capacity = Number(trek.capacity ?? stats.capacity) || 0;
+    const seatsRemaining = stats.seatsRemaining != null
+        ? Number(stats.seatsRemaining)
+        : (capacity > 0 ? Math.max(0, capacity - seatsFilled) : null);
     const checkInPct = total > 0 ? Math.round((checkedIn / total) * 100) : 0;
-    const isOrganizerQr = (trek?.registrationMode || 'internal_form') === 'organizer_qr';
-    const womenPct = genderSeats > 0 ? Math.round((female / genderSeats) * 100) : 0;
-    const menPct = genderSeats > 0 ? Math.round((male / genderSeats) * 100) : 0;
-    const regStatus = trek.registrationStatus || 'open';
-    const isOpen = regStatus === 'open';
-    const dateLabel = formatOrganizerTrekDate(trek);
-    const mapMeeting = String(trek.meetingLocation || '').trim();
-    const bookingMeetingOptions = Array.isArray(trek.locationOptions) ? trek.locationOptions.filter(Boolean) : [];
-    const pendingReviewCount = Number(stats.pendingReview ?? 0);
+    const isOrganizerQr = (trek.registrationMode || 'internal_form') === 'organizer_qr';
+    const pendingReviewCount = Number(stats.pendingReview) || 0;
+    const isOpen = (trek.registrationStatus || 'open') === 'open';
+
+    const batches = Array.isArray(trek.trekBatches) ? trek.trekBatches.filter((b) => b?.date) : [];
+    const availableDates = Array.isArray(trek.availableDates) ? trek.availableDates.filter(Boolean) : [];
+    const departureCount = Math.max(batches.length, availableDates.length);
+    const dateLine = departureCount > 1
+        ? `${departureCount} dates`
+        : (trek.dateLabel || formatOrganizerTrekDate(trek) || '');
+
+    const coverSrc = getCoverImageUrl(
+        {
+            coverImage: trek.coverImage,
+            coverImages: trek.coverImages,
+            image: Array.isArray(trek.images) ? trek.images[0] : null,
+        },
+        'hero',
+    );
 
     const copyLink = async () => {
+        if (!publicUrl) return;
         try {
             await navigator.clipboard.writeText(publicUrl);
-            setCopyNotice('Link copied');
+            setCopyNotice('Copied');
             setTimeout(() => setCopyNotice(''), 2000);
         } catch {
             setCopyNotice('Copy failed');
@@ -210,152 +155,167 @@ export default function TrekOrganizerDashboardPage() {
             const res = await updateTrekOrganizerRegistration(trekId, { registrationStatus: next });
             setData((prev) => ({
                 ...prev,
-                trek: { ...prev.trek, ...res.trek },
+                trek: { ...prev.trek, ...(res.trek || {}) },
                 genderRegistration: res.genderRegistration ?? prev.genderRegistration,
             }));
-            setActionNotice(next === 'open' ? 'Registration opened' : 'Registration closed');
+            setActionNotice(next === 'open' ? 'Booking opened' : 'Booking closed');
+            setTimeout(() => setActionNotice(''), 2500);
         } catch (e) {
-            setActionNotice(e.message || 'Could not update registration');
+            setActionNotice(e.message || 'Could not update booking');
         } finally {
             setActionBusy(false);
         }
     };
 
     return (
-        <div className="space-y-5 max-w-3xl mx-auto">
+        <div className="space-y-4 max-w-4xl xl:max-w-5xl mx-auto w-full">
             {/* Hero */}
-            <SectionCard className="overflow-hidden relative">
-                <div className="absolute inset-0 bg-linear-to-br from-[#0ECCEE]/15 via-transparent to-[#053780]/20 pointer-events-none" />
-                <div className="relative p-5 sm:p-6">
-                    <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 space-y-3">
-                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[#0ECCEE]/20 bg-[#0ECCEE]/10 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#0ECCEE]">
-                                <Sparkles size={11} /> Trek dashboard
-                            </div>
-                            <div>
-                                <h1 className="text-2xl sm:text-[1.75rem] font-semibold tracking-tight leading-tight text-white">
-                                    {trek.trekName}
-                                </h1>
-                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-sm text-gray-400">
-                                    {trek.city ? (
-                                        <span className="inline-flex items-center gap-1.5">
-                                            <MapPin size={13} className="text-[#0ECCEE]" /> {trek.city}
-                                        </span>
-                                    ) : null}
-                                    {dateLabel ? <span>{dateLabel}</span> : null}
-                                </div>
-                                {(mapMeeting || bookingMeetingOptions.length > 0) ? (
-                                    <div className="mt-3 rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 space-y-1.5">
-                                        {mapMeeting ? (
-                                            <p className="text-xs text-gray-300 inline-flex items-start gap-1.5">
-                                                <MapPin size={12} className="text-[#0ECCEE] mt-0.5 shrink-0" />
-                                                <span>
-                                                    <span className="text-gray-500">Map pin · </span>
-                                                    {mapMeeting}
-                                                </span>
-                                            </p>
-                                        ) : null}
-                                        {bookingMeetingOptions.length > 0 ? (
-                                            <p className="text-[11px] text-gray-500">
-                                                Booking meeting points · {bookingMeetingOptions.length} option{bookingMeetingOptions.length === 1 ? '' : 's'}
-                                                {' · '}
-                                                {bookingMeetingOptions.slice(0, 3).join(' · ')}
-                                                {bookingMeetingOptions.length > 3 ? '…' : ''}
-                                            </p>
-                                        ) : null}
-                                    </div>
-                                ) : null}
-                            </div>
-                            <div className="flex flex-wrap gap-1.5">
-                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-semibold capitalize border ${
-                                    String(trek.status).toLowerCase() === 'published'
-                                        ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25'
-                                        : 'bg-amber-500/10 text-amber-300 border-amber-500/25'
-                                }`}>
-                                    {trek.status || 'draft'}
+            <SectionCard className="overflow-hidden">
+                <div className="relative h-36 sm:h-40">
+                    {coverSrc ? (
+                        <img src={coverSrc} alt="" className="absolute inset-0 size-full object-cover" />
+                    ) : (
+                        <div className="absolute inset-0 bg-linear-to-br from-[#053780] via-[#0ECCEE]/25 to-[#0c0d0e]" />
+                    )}
+                    <div className="absolute inset-0 bg-linear-to-t from-[#0c0d0e] via-[#0c0d0e]/65 to-black/15" />
+                    <button
+                        type="button"
+                        onClick={() => load({ silent: true })}
+                        disabled={refreshing}
+                        className="absolute top-2.5 right-2.5 p-2 min-h-10 min-w-10 inline-flex items-center justify-center rounded-xl border border-white/15 bg-black/45 text-gray-200 disabled:opacity-50"
+                        aria-label="Refresh"
+                    >
+                        <RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />
+                    </button>
+                    <div className="absolute inset-x-0 bottom-0 p-4 space-y-1.5">
+                        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-white leading-tight">
+                            {trek.trekName}
+                        </h1>
+                        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-gray-300">
+                            {trek.city ? (
+                                <span className="inline-flex items-center gap-1">
+                                    <MapPin size={12} className="text-[#0ECCEE]" /> {trek.city}
                                 </span>
-                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border ${
-                                    isOpen
-                                        ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25'
-                                        : 'bg-red-500/10 text-red-300 border-red-500/25'
-                                }`}>
-                                    Booking {isOpen ? 'open' : 'closed'}
-                                </span>
-                            </div>
+                            ) : null}
+                            {dateLine ? <span>{dateLine}</span> : null}
+                            {lastUpdatedAt ? (
+                                <span className="text-gray-500 tabular-nums">· {formatUpdatedAt(lastUpdatedAt)}</span>
+                            ) : null}
                         </div>
-                        <button
-                            type="button"
-                            onClick={() => load({ silent: true })}
-                            disabled={refreshing}
-                            className="shrink-0 p-2.5 min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 text-gray-400 hover:text-white hover:border-[#0ECCEE]/40 disabled:opacity-50"
-                            aria-label="Refresh"
-                        >
-                            <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
-                        </button>
+                        <div className="flex flex-wrap gap-1.5 pt-0.5">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold capitalize border ${
+                                String(trek.status || '').toLowerCase() === 'published'
+                                    ? 'bg-emerald-500/20 text-emerald-200 border-emerald-400/30'
+                                    : 'bg-amber-500/20 text-amber-200 border-amber-400/30'
+                            }`}>
+                                {trek.status || 'draft'}
+                            </span>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                                isOpen
+                                    ? 'bg-emerald-500/20 text-emerald-200 border-emerald-400/30'
+                                    : 'bg-red-500/20 text-red-200 border-red-400/30'
+                            }`}>
+                                {isOpen ? 'Booking open' : 'Booking closed'}
+                            </span>
+                            {today > 0 ? (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold border border-[#0ECCEE]/35 bg-[#0ECCEE]/15 text-[#0ECCEE]">
+                                    +{today} today
+                                </span>
+                            ) : null}
+                        </div>
                     </div>
                 </div>
             </SectionCard>
 
             {actionNotice ? (
-                <div className="rounded-xl border border-[#0ECCEE]/20 bg-[#0ECCEE]/10 px-3.5 py-2.5 text-xs text-[#9BE8F7]">
+                <div className="rounded-xl border border-[#0ECCEE]/20 bg-[#0ECCEE]/10 px-3 py-2 text-xs text-[#9BE8F7]">
                     {actionNotice}
                 </div>
             ) : null}
 
-            {/* Share */}
+            {/* Actions first — what organizers use most */}
+            <ActionRail
+                actions={[
+                    {
+                        label: 'Guests',
+                        icon: Users,
+                        onClick: () => navigate(`/trek-organizer/treks/${trekId}/participants`),
+                    },
+                    {
+                        label: 'CRM',
+                        icon: ContactRound,
+                        onClick: () => navigate(`/trek-organizer/treks/${trekId}/customers`),
+                    },
+                    {
+                        label: 'Scan',
+                        icon: QrCode,
+                        onClick: () => navigate(`/trek-organizer/treks/${trekId}/scan`),
+                    },
+                    {
+                        label: 'Notify',
+                        icon: Bell,
+                        onClick: () => navigate(`/trek-organizer/treks/${trekId}/notifications`),
+                    },
+                ]}
+            />
+
+            {/* Share — compact */}
             {publicUrl ? (
-                <SectionCard className="p-4 sm:p-5 space-y-3.5">
-                    <div className="flex items-start gap-3">
-                        <div className="size-10 rounded-xl bg-[#0ECCEE]/12 text-[#0ECCEE] flex items-center justify-center shrink-0">
-                            <Share2 size={16} />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                            <p className="text-sm font-semibold text-white">Share with trekkers</p>
-                            <p className="text-xs text-gray-500 mt-0.5">Copy the public trek page or open it in a new tab.</p>
-                            <div className="mt-2.5 flex items-center gap-2 rounded-xl border border-white/10 bg-black/30 px-3 py-2.5">
-                                <Link2 size={13} className="text-gray-500 shrink-0" />
-                                <p className="text-[12px] text-gray-300 truncate font-mono">{publicUrl}</p>
-                            </div>
-                            {copyNotice ? <p className="text-[11px] text-emerald-400 mt-1.5">{copyNotice}</p> : null}
-                        </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2.5">
-                        <button
-                            type="button"
-                            onClick={copyLink}
-                            className="inline-flex items-center justify-center gap-1.5 px-3 py-3 min-h-[48px] rounded-xl border border-white/10 bg-white/5 text-sm font-medium hover:border-[#0ECCEE]/45 hover:bg-[#0ECCEE]/10 transition-colors"
-                        >
-                            <Copy size={15} /> Copy link
-                        </button>
-                        <a
-                            href={publicPath}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center justify-center gap-1.5 px-3 py-3 min-h-[48px] rounded-xl bg-[#0ECCEE] text-black text-sm font-semibold hover:brightness-110 transition"
-                        >
-                            <ExternalLink size={15} /> Open page
-                        </a>
-                    </div>
-                </SectionCard>
+                <div className="flex gap-2">
+                    <button
+                        type="button"
+                        onClick={copyLink}
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2.5 min-h-11 rounded-xl border border-white/10 bg-white/5 text-sm font-medium hover:border-[#0ECCEE]/40"
+                    >
+                        <Copy size={14} /> {copyNotice || 'Copy link'}
+                    </button>
+                    <a
+                        href={publicPath}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2.5 min-h-11 rounded-xl bg-[#0ECCEE] text-black text-sm font-semibold"
+                    >
+                        <ExternalLink size={14} /> Open page
+                    </a>
+                </div>
             ) : null}
 
-            {/* Core stats */}
-            <div className="grid grid-cols-2 gap-3">
+            {/* Numbers */}
+            <div className="grid grid-cols-2 gap-2.5">
                 <StatTile
-                    label="Total booked"
+                    compact
+                    label="Booked"
                     value={total}
                     tone="accent"
                     icon={Users}
                     to={`/trek-organizer/treks/${trekId}/participants`}
-                    hint="Guests · date · meeting point"
                 />
                 <StatTile
+                    compact
+                    label="Today"
+                    value={today}
+                    tone="accent"
+                    icon={CalendarPlus}
+                />
+                <StatTile
+                    compact
                     label="Collected"
                     value={`₹${revenue.toLocaleString('en-IN')}`}
                     tone="money"
                     icon={IndianRupee}
+                    hint={fees > 0 ? `Fees ₹${fees.toLocaleString('en-IN')}` : undefined}
                 />
                 <StatTile
+                    compact
+                    label="Checked in"
+                    value={`${checkedIn}`}
+                    tone="ok"
+                    icon={UserCheck}
+                    to={`/trek-organizer/treks/${trekId}/scan`}
+                    hint={total > 0 ? `${checkInPct}%` : undefined}
+                />
+                <StatTile
+                    compact
                     label="Women"
                     value={female}
                     tone="women"
@@ -363,31 +323,26 @@ export default function TrekOrganizerDashboardPage() {
                     to={`/trek-organizer/treks/${trekId}/participants?gender=Female`}
                 />
                 <StatTile
+                    compact
                     label="Men"
                     value={male}
                     tone="men"
                     icon={Mars}
                     to={`/trek-organizer/treks/${trekId}/participants?gender=Male`}
                 />
-                <StatTile
-                    label="Checked in"
-                    value={checkedIn}
-                    tone="ok"
-                    icon={UserCheck}
-                    to={`/trek-organizer/treks/${trekId}/scan`}
-                />
-                {isOrganizerQr || pendingReviewCount > 0 ? (
+                {(isOrganizerQr || pendingReviewCount > 0) ? (
                     <StatTile
-                        label="Needs review"
+                        compact
+                        label="Review"
                         value={pendingReviewCount}
                         tone="warn"
                         icon={Clock}
                         to={`/trek-organizer/treks/${trekId}/participants?paymentStatus=pending_review`}
-                        hint="Open payment queue"
                     />
                 ) : null}
                 <StatTile
-                    label="Pending check-in"
+                    compact
+                    label="Pending"
                     value={pending}
                     tone="warn"
                     icon={Clock}
@@ -395,83 +350,40 @@ export default function TrekOrganizerDashboardPage() {
                 />
             </div>
 
-            {/* Check-in progress */}
-            <SectionCard className="p-4 sm:p-5 space-y-3.5">
-                <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2.5">
-                        <div className="size-9 rounded-xl bg-emerald-500/15 text-emerald-300 flex items-center justify-center">
-                            <UserCheck size={16} />
-                        </div>
-                        <div>
-                            <p className="text-sm font-semibold">Check-in progress</p>
-                            <p className="text-[11px] text-gray-500">Live gate status for this trek</p>
-                        </div>
+            {/* Capacity + check-in together */}
+            <SectionCard className="p-4 space-y-4">
+                <CapacityBar filled={seatsFilled} capacity={capacity} remaining={seatsRemaining} />
+                <div className="border-t border-white/10 pt-4 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-white">Check-in</p>
+                        <p className="text-sm tabular-nums text-emerald-300">{checkedIn}/{total}</p>
                     </div>
-                    <p className="text-lg font-semibold tabular-nums text-emerald-300">{checkInPct}%</p>
+                    <ProgressBar pct={checkInPct} tone="emerald" />
                 </div>
-                <div className="h-2.5 rounded-full bg-black/40 overflow-hidden border border-white/5">
-                    <div
-                        className="h-full rounded-full bg-linear-to-r from-emerald-500 to-emerald-300 transition-all duration-500"
-                        style={{ width: `${checkInPct}%` }}
-                    />
-                </div>
-                <p className="text-xs text-gray-500">
-                    {checkedIn} of {total} checked in
-                    {pending > 0 ? ` · ${pending} still waiting` : total > 0 ? ' · all done' : ''}
-                </p>
-                {total > 0 ? (
-                    <div className="pt-1">
-                        <div className="flex h-2 rounded-full overflow-hidden bg-black/40">
-                            {female > 0 ? (
-                                <div className="bg-pink-400/85" style={{ width: `${womenPct}%` }} title={`Women ${female}`} />
-                            ) : null}
-                            {male > 0 ? (
-                                <div className="bg-sky-400/85" style={{ width: `${menPct}%` }} title={`Men ${male}`} />
-                            ) : null}
-                            {others > 0 ? (
-                                <div className="bg-gray-500" style={{ width: `${100 - womenPct - menPct}%` }} title={`Others ${others}`} />
-                            ) : null}
-                        </div>
-                        <div className="flex flex-wrap gap-3 mt-2.5 text-[11px] text-gray-500">
-                            <span className="inline-flex items-center gap-1.5">
-                                <span className="size-2 rounded-full bg-pink-400" /> Women {female}
-                            </span>
-                            <span className="inline-flex items-center gap-1.5">
-                                <span className="size-2 rounded-full bg-sky-400" /> Men {male}
-                            </span>
-                            {others > 0 ? (
-                                <span className="inline-flex items-center gap-1.5">
-                                    <span className="size-2 rounded-full bg-gray-500" /> Others {others}
-                                </span>
-                            ) : null}
-                        </div>
-                    </div>
-                ) : null}
             </SectionCard>
 
-            {/* Registration controls */}
-            <SectionCard className="p-4 sm:p-5 space-y-4">
-                <div className="flex items-start justify-between gap-3">
-                    <div>
-                        <p className="text-sm font-semibold">Registration</p>
+            {/* Booking on/off */}
+            <SectionCard className="p-4 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                        <p className="text-sm font-semibold">Booking</p>
                         <p className="text-xs text-gray-500 mt-0.5">
-                            {isOpen ? 'People can book this trek right now.' : 'Booking is paused for new registrations.'}
+                            {isOpen ? 'Guests can register' : 'Registration paused'}
                         </p>
                     </div>
                     <button
                         type="button"
                         disabled={actionBusy}
                         onClick={toggleRegistration}
-                        className={`shrink-0 px-4 py-2.5 min-h-[44px] rounded-xl text-xs font-bold border disabled:opacity-50 transition-colors ${
+                        className={`shrink-0 px-3.5 py-2.5 min-h-11 rounded-xl text-xs font-bold border disabled:opacity-50 ${
                             isOpen
-                                ? 'border-red-500/35 text-red-300 bg-red-500/5 hover:bg-red-500/10'
-                                : 'border-emerald-500/35 text-emerald-300 bg-emerald-500/5 hover:bg-emerald-500/10'
+                                ? 'border-red-500/35 text-red-300 bg-red-500/5'
+                                : 'border-emerald-500/35 text-emerald-300 bg-emerald-500/5'
                         }`}
                     >
-                        {actionBusy ? '…' : isOpen ? 'Close booking' : 'Open booking'}
+                        {actionBusy ? '…' : isOpen ? 'Close' : 'Open'}
                     </button>
                 </div>
-
                 <TrekOrganizerRegistrationPanel
                     trekId={trekId}
                     trek={trek}
@@ -480,70 +392,23 @@ export default function TrekOrganizerDashboardPage() {
                     onUpdated={(res) => setData((prev) => ({
                         ...prev,
                         ...res,
-                        trek: { ...prev.trek, ...res.trek },
-                        genderRegistration: res.genderRegistration,
+                        trek: { ...prev.trek, ...(res.trek || {}) },
+                        genderRegistration: res.genderRegistration ?? prev.genderRegistration,
                     }))}
                 />
             </SectionCard>
-
-            {/* Quick actions */}
-            <div>
-                <p className="text-[11px] uppercase tracking-[0.1em] text-gray-500 mb-2.5 px-0.5 font-medium">Quick actions</p>
-                <div className="grid grid-cols-2 gap-3">
-                    {[
-                        {
-                            label: 'Participants',
-                            hint: 'Guests · date · meeting point',
-                            icon: Users,
-                            onClick: () => navigate(`/trek-organizer/treks/${trekId}/participants`),
-                        },
-                        {
-                            label: 'Customers',
-                            hint: 'This trek + WhatsApp',
-                            icon: ContactRound,
-                            onClick: () => navigate(`/trek-organizer/treks/${trekId}/customers`),
-                        },
-                        {
-                            label: 'Scan QR',
-                            hint: 'Check-in at gate',
-                            icon: QrCode,
-                            onClick: () => navigate(`/trek-organizer/treks/${trekId}/scan`),
-                        },
-                        {
-                            label: 'Notify',
-                            hint: 'Remind or announce',
-                            icon: Bell,
-                            onClick: () => navigate(`/trek-organizer/treks/${trekId}/notifications`),
-                        },
-                    ].map((action) => (
-                        <button
-                            key={action.label}
-                            type="button"
-                            onClick={action.onClick}
-                            disabled={action.disabled}
-                            className="rounded-2xl border border-white/10 bg-linear-to-br from-[#1a1b1d] to-[#141516] p-4 min-h-[96px] text-left hover:border-[#0ECCEE]/40 active:scale-[0.985] transition-all disabled:opacity-60"
-                        >
-                            <div className="size-9 rounded-xl bg-[#0ECCEE]/12 text-[#0ECCEE] flex items-center justify-center mb-3">
-                                <action.icon size={18} className={action.spin ? 'animate-spin' : ''} />
-                            </div>
-                            <p className="text-sm font-semibold">{action.label}</p>
-                            <p className="text-[11px] text-gray-500 mt-0.5">{action.hint}</p>
-                        </button>
-                    ))}
-                </div>
-            </div>
 
             {pending > 0 ? (
                 <button
                     type="button"
                     onClick={() => navigate(`/trek-organizer/treks/${trekId}/scan`)}
-                    className="flex w-full items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-linear-to-r from-amber-500/15 to-amber-500/5 px-4 py-3.5 min-h-[52px] hover:border-amber-400/50 transition-colors"
+                    className="flex w-full items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 min-h-12"
                 >
                     <span className="inline-flex items-center gap-2 text-sm text-amber-100 font-medium">
-                        <Clock size={16} />
-                        {pending} still need check-in
+                        <Clock size={15} />
+                        {pending} need check-in
                     </span>
-                    <span className="text-xs text-amber-300 font-semibold shrink-0">Open scanner →</span>
+                    <span className="text-xs text-amber-300 font-semibold">Scan →</span>
                 </button>
             ) : null}
         </div>

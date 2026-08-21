@@ -4,6 +4,8 @@ import {
     clearTrekOrganizerSession,
     setTrekOrganizerSession,
     getTrekOrganizerSession,
+    isTrekOrganizerManualLogout,
+    clearTrekOrganizerManualLogout,
 } from '../../utils/trekOrganizerSession';
 import { resolveAuthToken, getBearerAuthHeaders } from '../../utils/authToken';
 
@@ -84,12 +86,16 @@ export async function fetchTrekCommunityProfileEligible(authToken = null) {
 }
 
 /** Use main CrwdCtrl login to open trek portal without a second password. */
-export async function tryTrekOrganizerAppSession(authToken = null) {
+export async function tryTrekOrganizerAppSession(authToken = null, { force = false } = {}) {
+    if (!force && isTrekOrganizerManualLogout()) return null;
+
     const existing = getTrekOrganizerToken();
     if (existing) return getTrekOrganizerSession();
 
     const token = resolveAuthToken(authToken);
     if (!token) return null;
+
+    if (force) clearTrekOrganizerManualLogout();
 
     const res = await fetch(`${API}/trek-organizer/auth/app-session`, {
         method: 'POST',

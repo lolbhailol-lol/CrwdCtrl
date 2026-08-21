@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Outlet, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Users, QrCode, LogOut, Mountain, Bell, Menu, Home, ContactRound } from 'lucide-react';
-import { clearTrekOrganizerSession, getTrekOrganizerSession } from '../../utils/trekOrganizerSession';
+import { markTrekOrganizerLoggedOut, getTrekOrganizerSession } from '../../utils/trekOrganizerSession';
+import { navActiveClass, navIdleClass } from './organizerTheme';
 
 const navForTrek = (trekId) => [
     { label: 'Dashboard', path: `/trek-organizer/treks/${trekId}`, icon: LayoutDashboard, end: true, short: 'Dash' },
@@ -50,7 +51,8 @@ export default function TrekOrganizerLayout() {
     const [sidebarOpen, setSidebarOpen] = useState(false);
 
     const logout = () => {
-        clearTrekOrganizerSession();
+        setSidebarOpen(false);
+        markTrekOrganizerLoggedOut();
         navigate('/trek-organizer/login', { replace: true });
     };
 
@@ -59,31 +61,56 @@ export default function TrekOrganizerLayout() {
         ? session?.treks?.find((t) => String(t._id) === String(trekId))
         : null;
     const onCustomers = pathname.includes('/customers');
+    const onDashboard = Boolean(trekId) && pathIsActive(pathname, `/trek-organizer/treks/${trekId}`, true);
 
     return (
         <div className="min-h-dvh bg-[#0c0d0e] text-white flex">
-            <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-[#121314]/95 backdrop-blur border-r border-white/10 transform transition-transform lg:translate-x-0 pt-[var(--safe-top)] pb-[var(--safe-bottom)] ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-                <div className="px-5 py-5 border-b border-white/10">
-                    <div className="flex items-center gap-3">
-                        <div className="size-10 rounded-2xl bg-linear-to-br from-[#0ECCEE]/25 to-[#053780]/40 border border-[#0ECCEE]/20 flex items-center justify-center">
+            <aside
+                className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#121314]/95 backdrop-blur border-r border-white/10 transform transition-transform lg:translate-x-0 pt-[var(--safe-top)] pb-[var(--safe-bottom)] flex flex-col ${
+                    sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+                }`}
+            >
+                <div className="relative px-5 py-5 border-b border-white/10 overflow-hidden shrink-0">
+                    <div className="absolute inset-0 bg-linear-to-br from-[#0ECCEE]/12 via-transparent to-[#053780]/25 pointer-events-none" />
+                    <div className="relative flex items-center gap-3">
+                        <div className="size-11 rounded-2xl bg-linear-to-br from-[#0ECCEE]/30 to-[#053780]/50 border border-[#0ECCEE]/30 flex items-center justify-center shadow-[0_0_24px_rgba(14,204,238,0.12)]">
                             <Mountain className="text-[#0ECCEE]" size={18} />
                         </div>
                         <div className="min-w-0">
-                            <p className="font-semibold text-sm tracking-tight">Community Organizer</p>
-                            <p className="text-[11px] text-gray-500 truncate">
-                                {session?.community?.name || session?.organizer?.name || 'Portal'}
+                            <p className="font-semibold text-sm tracking-tight">Ops Console</p>
+                            <p className="text-[11px] text-gray-400 truncate">
+                                {session?.community?.name || session?.organizer?.name || 'Trek Organizer'}
                             </p>
                         </div>
                     </div>
+                    {activeTrek ? (
+                        <div className="relative mt-3 rounded-xl border border-[#0ECCEE]/20 bg-[#0ECCEE]/8 px-3 py-2">
+                            <div className="flex items-center gap-2">
+                                {onDashboard ? (
+                                    <span className="relative flex size-2 shrink-0">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#0ECCEE] opacity-60" />
+                                        <span className="relative inline-flex rounded-full size-2 bg-[#0ECCEE]" />
+                                    </span>
+                                ) : (
+                                    <span className="size-2 rounded-full bg-[#0ECCEE]/60 shrink-0" />
+                                )}
+                                <p className="text-[11px] font-medium text-[#9BE8F7] truncate">{activeTrek.trekName}</p>
+                            </div>
+                        </div>
+                    ) : null}
                 </div>
-                <nav className="p-3 space-y-1">
+
+                <nav className="flex-1 min-h-0 overflow-y-auto p-3 space-y-1">
+                    <p className="px-3 pt-1 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-600">
+                        Community
+                    </p>
                     <OrgNavButton
                         to="/trek-organizer"
                         end
                         onNavigate={() => setSidebarOpen(false)}
                         className={({ isActive }) =>
                             `flex w-full items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors text-left ${
-                                isActive ? 'bg-[#0ECCEE]/15 text-[#0ECCEE] border border-[#0ECCEE]/20' : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
+                                isActive ? navActiveClass : navIdleClass
                             }`
                         }
                     >
@@ -98,7 +125,7 @@ export default function TrekOrganizerLayout() {
                             onNavigate={() => setSidebarOpen(false)}
                             className={({ isActive }) =>
                                 `flex w-full items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors text-left ${
-                                    isActive ? 'bg-[#0ECCEE]/15 text-[#0ECCEE] border border-[#0ECCEE]/20' : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
+                                    isActive ? navActiveClass : navIdleClass
                                 }`
                             }
                         >
@@ -106,25 +133,38 @@ export default function TrekOrganizerLayout() {
                             {item.label}
                         </OrgNavButton>
                     ))}
-                    {nav.map((item) => (
-                        <OrgNavButton
-                            key={item.path}
-                            to={item.path}
-                            end={item.end}
-                            onNavigate={() => setSidebarOpen(false)}
-                            className={({ isActive }) =>
-                                `flex w-full items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors text-left ${
-                                    isActive ? 'bg-[#0ECCEE]/15 text-[#0ECCEE] border border-[#0ECCEE]/20' : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
-                                }`
-                            }
-                        >
-                            <item.icon size={16} />
-                            {item.label}
-                        </OrgNavButton>
-                    ))}
+
+                    {nav.length > 0 ? (
+                        <>
+                            <p className="px-3 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-600">
+                                This trek
+                            </p>
+                            {nav.map((item) => (
+                                <OrgNavButton
+                                    key={item.path}
+                                    to={item.path}
+                                    end={item.end}
+                                    onNavigate={() => setSidebarOpen(false)}
+                                    className={({ isActive }) =>
+                                        `flex w-full items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors text-left ${
+                                            isActive ? navActiveClass : navIdleClass
+                                        }`
+                                    }
+                                >
+                                    <item.icon size={16} />
+                                    {item.label}
+                                </OrgNavButton>
+                            ))}
+                        </>
+                    ) : null}
                 </nav>
-                <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-white/10">
-                    <button type="button" onClick={logout} className="flex items-center gap-2 w-full px-3 py-2.5 rounded-xl text-sm text-gray-400 hover:text-red-400 hover:bg-red-500/10">
+
+                <div className="shrink-0 p-3 border-t border-white/10 bg-[#121314]">
+                    <button
+                        type="button"
+                        onClick={logout}
+                        className="flex items-center gap-2 w-full px-3 py-3 min-h-11 rounded-xl text-sm font-medium text-gray-300 border border-white/10 hover:text-red-400 hover:border-red-500/30 hover:bg-red-500/10"
+                    >
                         <LogOut size={16} /> Log out
                     </button>
                 </div>
@@ -146,62 +186,82 @@ export default function TrekOrganizerLayout() {
                             {activeTrek?.trekName
                                 || (onCustomers ? 'Customers' : null)
                                 || session?.community?.name
-                                || 'Community Organizer'}
+                                || 'Ops Console'}
                         </p>
                         <p className="text-[11px] text-gray-500 truncate hidden sm:block">
-                            {activeTrek ? 'Trek dashboard' : onCustomers ? 'Community guests' : 'Community home'}
+                            {activeTrek
+                                ? (onDashboard ? 'Live trek dashboard' : 'Trek tools')
+                                : onCustomers
+                                    ? 'Community guests'
+                                    : 'Track all treks'}
                         </p>
                     </div>
-                    {trekId ? (
+                    <div className="flex items-center gap-1 shrink-0">
+                        {trekId ? (
+                            <button
+                                type="button"
+                                onClick={() => navigate('/trek-organizer')}
+                                className="text-xs text-[#0ECCEE] min-h-11 px-2 font-medium"
+                            >
+                                All treks
+                            </button>
+                        ) : !onCustomers ? (
+                            <button
+                                type="button"
+                                onClick={() => navigate('/trek-organizer/customers')}
+                                className="text-xs text-[#0ECCEE] min-h-11 px-2 font-medium"
+                            >
+                                Customers
+                            </button>
+                        ) : null}
                         <button
                             type="button"
-                            onClick={() => navigate('/trek-organizer')}
-                            className="text-xs text-[#0ECCEE] shrink-0 min-h-[44px] px-2 font-medium"
+                            onClick={logout}
+                            className="inline-flex items-center justify-center gap-1.5 min-h-11 min-w-11 px-2.5 rounded-xl text-gray-400 border border-white/10 hover:text-red-400 hover:border-red-500/30 hover:bg-red-500/10"
+                            aria-label="Log out"
+                            title="Log out"
                         >
-                            All treks
+                            <LogOut size={16} />
+                            <span className="text-xs font-medium hidden sm:inline">Log out</span>
                         </button>
-                    ) : !onCustomers ? (
-                        <button
-                            type="button"
-                            onClick={() => navigate('/trek-organizer/customers')}
-                            className="text-xs text-[#0ECCEE] shrink-0 min-h-[44px] px-2 font-medium"
-                        >
-                            Customers
-                        </button>
-                    ) : null}
+                    </div>
                 </header>
-                <main className={`flex-1 p-4 sm:p-6 max-w-7xl mx-auto w-full ${trekId ? 'pb-[calc(5.5rem+var(--safe-bottom))] lg:pb-6' : ''}`}>
+                <main className={`flex-1 w-full min-w-0 p-4 sm:p-5 lg:p-6 xl:p-8 ${trekId ? 'pb-[calc(5.5rem+var(--safe-bottom))] lg:pb-6' : ''}`}>
                     <Outlet />
                 </main>
             </div>
 
-            {trekId ? (
+            {trekId && !sidebarOpen ? (
                 <nav
                     className="lg:hidden fixed bottom-0 inset-x-0 z-40 border-t border-white/10 bg-[#121314]/95 backdrop-blur pb-[var(--safe-bottom)]"
                     aria-label="Trek tools"
                 >
                     <div className="grid grid-cols-5">
-                        {nav.map((item) => (
-                            <OrgNavButton
-                                key={item.path}
-                                to={item.path}
-                                end={item.end}
-                                className={({ isActive }) =>
-                                    `flex flex-col items-center justify-center gap-0.5 py-2.5 min-h-[56px] text-[10px] font-medium ${
+                        {nav.map((item) => {
+                            const isActive = pathIsActive(pathname, item.path, item.end);
+                            return (
+                                <OrgNavButton
+                                    key={item.path}
+                                    to={item.path}
+                                    end={item.end}
+                                    className={`relative flex flex-col items-center justify-center gap-0.5 py-2.5 min-h-[56px] text-[10px] font-medium transition-colors ${
                                         isActive ? 'text-[#0ECCEE]' : 'text-gray-500'
-                                    }`
-                                }
-                            >
-                                <item.icon size={18} />
-                                {item.short}
-                            </OrgNavButton>
-                        ))}
+                                    }`}
+                                >
+                                    <item.icon size={18} strokeWidth={isActive ? 2.5 : 2} />
+                                    <span>{item.short}</span>
+                                    {isActive ? (
+                                        <span className="absolute bottom-1 left-1/2 -translate-x-1/2 h-0.5 w-6 rounded-full bg-[#0ECCEE]" />
+                                    ) : null}
+                                </OrgNavButton>
+                            );
+                        })}
                     </div>
                 </nav>
             ) : null}
 
             {sidebarOpen ? (
-                <button type="button" className="fixed inset-0 z-30 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close menu" />
+                <button type="button" className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close menu" />
             ) : null}
         </div>
     );

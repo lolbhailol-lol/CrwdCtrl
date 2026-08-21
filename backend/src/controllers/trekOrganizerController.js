@@ -397,7 +397,7 @@ exports.getDashboard = async (req, res) => {
     try {
         const trekId = req.trekId;
         const trek = await Trek.findById(trekId).select(
-            'trekName city trekDate dateLabel status maxParticipants trekBatches registrationFee platformFeePercent registration meetingLocation'
+            'trekName city trekDate dateLabel status maxParticipants trekBatches registrationFee platformFeePercent registration meetingLocation coverImage coverImages images'
         ).lean();
         if (!trek) return res.status(404).json({ success: false, message: 'Trek not found' });
 
@@ -454,6 +454,9 @@ exports.getDashboard = async (req, res) => {
                 trekBatches: Array.isArray(trek.trekBatches) ? trek.trekBatches : [],
                 status: trek.status,
                 capacity,
+                coverImage: trek.coverImage || null,
+                coverImages: trek.coverImages || null,
+                images: Array.isArray(trek.images) ? trek.images : [],
                 registrationFee: Number(trek.registrationFee) || 0,
                 registrationStatus: trek.registration?.status || 'open',
                 registrationMode: trek.registration?.mode || 'internal_form',
@@ -1336,6 +1339,7 @@ function preferCustomerName(current, next) {
 function mergeCustomerRows(into, from) {
     for (const trekId of from.trekIds) into.trekIds.add(trekId);
     into.bookingCount += from.bookingCount;
+    into.totalSpent = (Number(into.totalSpent) || 0) + (Number(from.totalSpent) || 0);
     into.name = preferCustomerName(into.name, from.name);
     if ((!into.phone || into.phone === '—') && from.phone) {
         into.phone = from.phone;
@@ -1410,6 +1414,7 @@ function buildCustomerRows(bookings, { trekNameById, trekMetaById, scopedTrek })
         const trekIdStr = String(booking.trekId);
         const bookedAt = booking.createdAt ? new Date(booking.createdAt) : null;
         const trekMeta = trekMetaById.get(trekIdStr) || {};
+        const amountPaid = Number(booking.bookingDetails?.amountPaid) || 0;
         const historyEntry = {
             trekId: trekIdStr,
             trekName: trekNameById.get(trekIdStr) || 'Trek',
@@ -1419,6 +1424,10 @@ function buildCustomerRows(bookings, { trekNameById, trekMetaById, scopedTrek })
             paymentStatus: formatCustomerPaymentLabel(booking),
             checkedIn: Boolean(booking.checkedIn),
             bookingId: String(booking._id),
+            amountPaid,
+            coverImage: trekMeta.coverImage || null,
+            coverImages: trekMeta.coverImages || null,
+            images: trekMeta.images || [],
         };
 
         let row = byKey.get(key);
@@ -1431,6 +1440,7 @@ function buildCustomerRows(bookings, { trekNameById, trekMetaById, scopedTrek })
                 email: String(booking.userEmail || booking.userId?.email || '').trim(),
                 trekIds: new Set(),
                 bookingCount: 0,
+                totalSpent: 0,
                 lastBookedAt: null,
                 lastTrekName: '',
                 firstBookedAt: null,
@@ -1442,6 +1452,7 @@ function buildCustomerRows(bookings, { trekNameById, trekMetaById, scopedTrek })
         }
 
         row.bookingCount += 1;
+        row.totalSpent += amountPaid;
         row.trekIds.add(trekIdStr);
         row.history.push(historyEntry);
 
@@ -1491,6 +1502,7 @@ function buildCustomerRows(bookings, { trekNameById, trekMetaById, scopedTrek })
             email: row.email || '',
             trekCount: row.trekIds.size,
             bookingCount: row.bookingCount,
+            totalSpent: Math.round(row.totalSpent || 0),
             lastBookedAt: row.lastBookedAt,
             lastTrekName: row.lastTrekName,
             firstBookedAt: row.firstBookedAt,
@@ -1511,6 +1523,9 @@ function parseCustomerListQuery(req) {
         sortDir: req.query.sortDir === 'asc' ? 1 : -1,
         repeatOnly: req.query.repeatOnly === '1' || req.query.repeatOnly === 'true',
         missingPhone: req.query.missingPhone === '1' || req.query.missingPhone === 'true',
+        oneTimeOnly: req.query.oneTimeOnly === '1' || req.query.oneTimeOnly === 'true',
+        thisMonthOnly: req.query.thisMonthOnly === '1' || req.query.thisMonthOnly === 'true',
+        highSpendOnly: req.query.highSpendOnly === '1' || req.query.highSpendOnly === 'true',
         filterTrekId: String(req.query.trekId || '').trim(),
         forSelect: req.query.forSelect === '1' || req.query.forSelect === 'true',
     };
@@ -1527,6 +1542,9 @@ async function loadOrganizerCustomerContext(organizer, filterTrekId) {
                 dateLabel: formatTrekMetaDate(t),
                 meetingLocation: String(t.meetingLocation || '').trim(),
                 trekName: t.trekName || 'Trek',
+                coverImage: t.coverImage || null,
+                coverImages: t.coverImages || null,
+                images: Array.isArray(t.images) ? t.images : [],
             },
         ]),
     );
@@ -1556,16 +1574,35 @@ async function loadOrganizerCustomerContext(organizer, filterTrekId) {
     return { treks, trekIds, trekNameById, trekMetaById, scopedTrek };
 }
 
-function filterAndSortCustomers(customers, { search, repeatOnly, missingPhone, sortBy, sortDir, scopedTrek }) {
+function startOfMonth() {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(1);
+    return d;
+}
+
+function filterAndSortCustomers(customers, {
+    search, repeatOnly, missingPhone, oneTimeOnly, thisMonthOnly, highSpendOnly, sortBy, sortDir, scopedTrek,
+}) {
     let list = customers;
     if (scopedTrek) {
         list = list.filter((c) => c.onThisTrek);
     }
 
+    const monthStart = startOfMonth();
+    const paidAmounts = list.map((c) => Number(c.totalSpent) || 0).filter((n) => n > 0).sort((a, b) => a - b);
+    const highSpendFloor = paidAmounts.length
+        ? paidAmounts[Math.floor(paidAmounts.length * 0.7)] || paidAmounts[paidAmounts.length - 1]
+        : 1500;
+
     const stats = {
         totalCustomers: list.length,
         repeatCustomers: list.filter((c) => c.trekCount >= 2).length,
+        oneTimeCustomers: list.filter((c) => c.trekCount === 1).length,
         missingPhone: list.filter((c) => !c.hasPhone).length,
+        thisMonthCustomers: list.filter((c) => c.lastBookedAt && new Date(c.lastBookedAt) >= monthStart).length,
+        highSpendCustomers: list.filter((c) => (Number(c.totalSpent) || 0) >= highSpendFloor && (Number(c.totalSpent) || 0) > 0).length,
+        totalSpend: list.reduce((sum, c) => sum + (Number(c.totalSpent) || 0), 0),
     };
 
     if (search) {
@@ -1582,8 +1619,17 @@ function filterAndSortCustomers(customers, { search, repeatOnly, missingPhone, s
     if (repeatOnly) {
         list = list.filter((c) => c.trekCount >= 2);
     }
+    if (oneTimeOnly) {
+        list = list.filter((c) => c.trekCount === 1);
+    }
     if (missingPhone) {
         list = list.filter((c) => !c.hasPhone);
+    }
+    if (thisMonthOnly) {
+        list = list.filter((c) => c.lastBookedAt && new Date(c.lastBookedAt) >= monthStart);
+    }
+    if (highSpendOnly) {
+        list = list.filter((c) => (Number(c.totalSpent) || 0) >= highSpendFloor && (Number(c.totalSpent) || 0) > 0);
     }
 
     list.sort((a, b) => {
@@ -1601,6 +1647,9 @@ function filterAndSortCustomers(customers, { search, repeatOnly, missingPhone, s
         } else if (sortBy === 'scopedBookedAt') {
             av = a.scopedBookedAt ? new Date(a.scopedBookedAt).getTime() : 0;
             bv = b.scopedBookedAt ? new Date(b.scopedBookedAt).getTime() : 0;
+        } else if (sortBy === 'totalSpent') {
+            av = Number(a.totalSpent) || 0;
+            bv = Number(b.totalSpent) || 0;
         } else {
             av = a.trekCount;
             bv = b.trekCount;
@@ -1622,7 +1671,7 @@ async function queryOrganizerCustomers(organizer, query) {
             scopedTrek: null,
             bookings: [],
             customers: [],
-            stats: { totalCustomers: 0, repeatCustomers: 0, missingPhone: 0, totalBookings: 0 },
+            stats: { totalCustomers: 0, repeatCustomers: 0, oneTimeCustomers: 0, missingPhone: 0, thisMonthCustomers: 0, highSpendCustomers: 0, totalSpend: 0, totalBookings: 0 },
             list: [],
         };
     }

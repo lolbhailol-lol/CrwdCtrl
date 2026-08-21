@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Bell, Megaphone, Loader } from 'lucide-react';
+import { Bell, Megaphone, Loader, CheckCircle2, Mail, Smartphone, AppWindow } from 'lucide-react';
 import { broadcastTrekOrganizerAnnouncement, sendTrekOrganizerReminder } from '../../services/api/trekOrganizer.api';
 import { useDialog } from '../../context/DialogContext';
+import { SectionCard } from './OrganizerUi';
 
 const BROADCAST_PRESETS = [
     { title: 'Reporting time updated', message: 'The reporting time for the trek has been updated. Please check the trek page for the latest schedule.' },
@@ -22,6 +23,36 @@ function formatDeliveryToast(res) {
     return parts.length ? `${res.message} · ${parts.join(', ')}` : res.message || 'Sent';
 }
 
+function DeliverySummary({ delivery, message }) {
+    if (!delivery && !message) return null;
+    const cards = [
+        { key: 'inApp', label: 'In-app', value: delivery?.inApp ?? 0, icon: AppWindow, tone: 'text-[#0ECCEE] bg-[#0ECCEE]/12 border-[#0ECCEE]/20' },
+        { key: 'push', label: 'Push', value: delivery?.push ?? 0, icon: Smartphone, tone: 'text-emerald-300 bg-emerald-500/10 border-emerald-500/20' },
+        { key: 'email', label: 'Email', value: delivery?.email ?? 0, icon: Mail, tone: 'text-sky-300 bg-sky-500/10 border-sky-500/20' },
+        { key: 'skipped', label: 'Skipped', value: delivery?.skipped ?? 0, icon: CheckCircle2, tone: 'text-amber-300 bg-amber-500/10 border-amber-500/20' },
+    ];
+    return (
+        <SectionCard className="p-4 space-y-3 border-[#0ECCEE]/25 bg-[#0ECCEE]/5">
+            <div className="flex items-center gap-2">
+                <CheckCircle2 size={16} className="text-emerald-400" />
+                <p className="text-sm font-semibold text-white">{message || 'Delivery complete'}</p>
+            </div>
+            {delivery ? (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {cards.map((c) => (
+                        <div key={c.key} className={`rounded-xl border px-3 py-2.5 ${c.tone}`}>
+                            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide opacity-80">
+                                <c.icon size={11} /> {c.label}
+                            </div>
+                            <p className="text-lg font-semibold tabular-nums mt-1">{c.value}</p>
+                        </div>
+                    ))}
+                </div>
+            ) : null}
+        </SectionCard>
+    );
+}
+
 export default function TrekOrganizerNotificationsPage() {
     const { trekId } = useParams();
     const { confirm, toast } = useDialog();
@@ -32,9 +63,11 @@ export default function TrekOrganizerNotificationsPage() {
     const [broadcastMessage, setBroadcastMessage] = useState('');
     const [sendingReminder, setSendingReminder] = useState(false);
     const [sendingBroadcast, setSendingBroadcast] = useState(false);
+    const [lastDelivery, setLastDelivery] = useState(null);
 
     const sendReminder = async (e) => {
         e.preventDefault();
+        if (sendingReminder || sendingBroadcast) return;
         const ok = await confirm('Send reminder to all confirmed participants?');
         if (!ok) return;
         setSendingReminder(true);
@@ -43,6 +76,7 @@ export default function TrekOrganizerNotificationsPage() {
             if (reminderTitle.trim()) body.title = reminderTitle.trim();
             if (reminderMessage.trim()) body.message = reminderMessage.trim();
             const res = await sendTrekOrganizerReminder(trekId, body);
+            setLastDelivery({ delivery: res.delivery, message: res.message || 'Reminder sent' });
             toast(formatDeliveryToast(res));
         } catch (err) {
             toast(err.message || 'Failed to send reminder');
@@ -53,6 +87,7 @@ export default function TrekOrganizerNotificationsPage() {
 
     const sendBroadcast = async (e) => {
         e.preventDefault();
+        if (sendingReminder || sendingBroadcast) return;
         if (!broadcastTitle.trim() || !broadcastMessage.trim()) {
             toast('Title and message are required');
             return;
@@ -65,6 +100,7 @@ export default function TrekOrganizerNotificationsPage() {
                 title: broadcastTitle.trim(),
                 message: broadcastMessage.trim(),
             });
+            setLastDelivery({ delivery: res.delivery, message: res.message || 'Announcement sent' });
             toast(formatDeliveryToast(res));
         } catch (err) {
             toast(err.message || 'Failed to send announcement');
@@ -73,19 +109,27 @@ export default function TrekOrganizerNotificationsPage() {
         }
     };
 
+    const busy = sendingReminder || sendingBroadcast;
+
     return (
         <div className="space-y-5 max-w-2xl mx-auto">
             <div>
-                <h1 className="text-2xl font-bold">Notify trekkers</h1>
-                <p className="text-sm text-gray-500">Reach everyone with in-app, push, and email.</p>
+                <h1 className="text-2xl font-bold tracking-tight">Notify trekkers</h1>
+                <p className="text-sm text-gray-500 mt-0.5">Reach everyone with in-app, push, and email.</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-[#161718] border border-gray-800">
+            {lastDelivery ? (
+                <DeliverySummary delivery={lastDelivery.delivery} message={lastDelivery.message} />
+            ) : null}
+
+            <div className="grid grid-cols-2 gap-1 p-1 rounded-2xl bg-[#161718] border border-white/10">
                 <button
                     type="button"
                     onClick={() => setTab('reminder')}
-                    className={`py-3 min-h-[48px] rounded-lg text-sm font-semibold ${
-                        tab === 'reminder' ? 'bg-[#0ECCEE] text-black' : 'text-gray-400'
+                    className={`py-3 min-h-[48px] rounded-xl text-sm font-semibold transition-all ${
+                        tab === 'reminder'
+                            ? 'bg-[#0ECCEE] text-black shadow-[0_0_20px_rgba(14,204,238,0.2)]'
+                            : 'text-gray-400 hover:text-white'
                     }`}
                 >
                     Reminder
@@ -93,8 +137,10 @@ export default function TrekOrganizerNotificationsPage() {
                 <button
                     type="button"
                     onClick={() => setTab('announce')}
-                    className={`py-3 min-h-[48px] rounded-lg text-sm font-semibold ${
-                        tab === 'announce' ? 'bg-[#0ECCEE] text-black' : 'text-gray-400'
+                    className={`py-3 min-h-[48px] rounded-xl text-sm font-semibold transition-all ${
+                        tab === 'announce'
+                            ? 'bg-[#0ECCEE] text-black shadow-[0_0_20px_rgba(14,204,238,0.2)]'
+                            : 'text-gray-400 hover:text-white'
                     }`}
                 >
                     Announce
@@ -102,50 +148,66 @@ export default function TrekOrganizerNotificationsPage() {
             </div>
 
             {tab === 'reminder' ? (
-                <form onSubmit={sendReminder} className="rounded-2xl border border-gray-800 bg-[#161718] p-4 sm:p-5 space-y-4">
+                <form onSubmit={sendReminder} className="rounded-2xl border border-white/10 bg-[#161718] p-4 sm:p-5 space-y-4">
                     <div className="flex items-center gap-2">
-                        <Bell size={18} className="text-[#0ECCEE]" />
-                        <h2 className="font-semibold">Send reminder</h2>
+                        <div className="size-9 rounded-xl bg-[#0ECCEE]/12 text-[#0ECCEE] flex items-center justify-center">
+                            <Bell size={16} />
+                        </div>
+                        <div>
+                            <h2 className="font-semibold">Send reminder</h2>
+                            <p className="text-xs text-gray-500">Leave blank to use the default trek reminder.</p>
+                        </div>
                     </div>
-                    <p className="text-xs text-gray-500">Leave blank to use the default trek reminder.</p>
                     <input
                         value={reminderTitle}
                         onChange={(e) => setReminderTitle(e.target.value)}
                         placeholder="Title (optional)"
-                        className="w-full px-3 py-3 min-h-[48px] rounded-xl bg-[#111213] border border-gray-800 text-base focus:outline-none focus:border-[#0ECCEE]/50"
+                        disabled={busy}
+                        className="w-full px-3 py-3 min-h-[48px] rounded-xl bg-[#111213] border border-white/10 text-base focus:outline-none focus:border-[#0ECCEE]/50 disabled:opacity-60"
                     />
                     <textarea
                         value={reminderMessage}
                         onChange={(e) => setReminderMessage(e.target.value)}
                         rows={3}
                         placeholder="Message (optional)"
-                        className="w-full px-3 py-3 rounded-xl bg-[#111213] border border-gray-800 text-base focus:outline-none focus:border-[#0ECCEE]/50 resize-none"
+                        disabled={busy}
+                        className="w-full px-3 py-3 rounded-xl bg-[#111213] border border-white/10 text-base focus:outline-none focus:border-[#0ECCEE]/50 resize-none disabled:opacity-60"
                     />
                     <button
                         type="submit"
-                        disabled={sendingReminder}
+                        disabled={busy}
                         className="w-full inline-flex items-center justify-center gap-2 px-4 py-3.5 min-h-[52px] rounded-xl bg-[#0ECCEE] text-black text-sm font-bold disabled:opacity-60"
                     >
                         {sendingReminder ? <Loader className="animate-spin" size={16} /> : <Bell size={16} />}
-                        Send reminder to all
+                        {sendingReminder ? 'Sending…' : 'Send reminder to all'}
                     </button>
                 </form>
             ) : (
-                <form onSubmit={sendBroadcast} className="rounded-2xl border border-gray-800 bg-[#161718] p-4 sm:p-5 space-y-4">
+                <form onSubmit={sendBroadcast} className="rounded-2xl border border-white/10 bg-[#161718] p-4 sm:p-5 space-y-4">
                     <div className="flex items-center gap-2">
-                        <Megaphone size={18} className="text-amber-400" />
-                        <h2 className="font-semibold">Broadcast announcement</h2>
+                        <div className="size-9 rounded-xl bg-amber-500/15 text-amber-300 flex items-center justify-center">
+                            <Megaphone size={16} />
+                        </div>
+                        <div>
+                            <h2 className="font-semibold">Broadcast announcement</h2>
+                            <p className="text-xs text-gray-500">Pick a preset or write your own.</p>
+                        </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
                         {BROADCAST_PRESETS.map((preset) => (
                             <button
                                 key={preset.title}
                                 type="button"
+                                disabled={busy}
                                 onClick={() => {
                                     setBroadcastTitle(preset.title);
                                     setBroadcastMessage(preset.message);
                                 }}
-                                className="px-3 py-2 min-h-[36px] rounded-lg border border-gray-700 text-[11px] text-gray-400 hover:border-[#0ECCEE]/40"
+                                className={`px-3 py-2 min-h-[36px] rounded-lg border text-[11px] transition-colors disabled:opacity-50 ${
+                                    broadcastTitle === preset.title
+                                        ? 'border-[#0ECCEE]/50 bg-[#0ECCEE]/10 text-[#0ECCEE]'
+                                        : 'border-white/10 text-gray-400 hover:border-[#0ECCEE]/40'
+                                }`}
                             >
                                 {preset.title}
                             </button>
@@ -156,7 +218,8 @@ export default function TrekOrganizerNotificationsPage() {
                         onChange={(e) => setBroadcastTitle(e.target.value)}
                         placeholder="Announcement title"
                         required
-                        className="w-full px-3 py-3 min-h-[48px] rounded-xl bg-[#111213] border border-gray-800 text-base focus:outline-none focus:border-[#0ECCEE]/50"
+                        disabled={busy}
+                        className="w-full px-3 py-3 min-h-[48px] rounded-xl bg-[#111213] border border-white/10 text-base focus:outline-none focus:border-[#0ECCEE]/50 disabled:opacity-60"
                     />
                     <textarea
                         value={broadcastMessage}
@@ -164,15 +227,16 @@ export default function TrekOrganizerNotificationsPage() {
                         rows={4}
                         placeholder="Announcement message"
                         required
-                        className="w-full px-3 py-3 rounded-xl bg-[#111213] border border-gray-800 text-base focus:outline-none focus:border-[#0ECCEE]/50 resize-none"
+                        disabled={busy}
+                        className="w-full px-3 py-3 rounded-xl bg-[#111213] border border-white/10 text-base focus:outline-none focus:border-[#0ECCEE]/50 resize-none disabled:opacity-60"
                     />
                     <button
                         type="submit"
-                        disabled={sendingBroadcast}
-                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-3.5 min-h-[52px] rounded-xl border border-amber-500/40 text-amber-400 text-sm font-bold hover:bg-amber-500/10 disabled:opacity-60"
+                        disabled={busy}
+                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-3.5 min-h-[52px] rounded-xl border border-amber-500/40 text-amber-300 text-sm font-bold hover:bg-amber-500/10 disabled:opacity-60"
                     >
                         {sendingBroadcast ? <Loader className="animate-spin" size={16} /> : <Megaphone size={16} />}
-                        Broadcast to all
+                        {sendingBroadcast ? 'Broadcasting…' : 'Broadcast to all'}
                     </button>
                 </form>
             )}

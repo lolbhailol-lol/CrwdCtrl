@@ -2,7 +2,10 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Mountain, Loader, ArrowLeft } from 'lucide-react';
 import { trekOrganizerLogin, tryTrekOrganizerAppSession } from '../../services/api/trekOrganizer.api';
-import { setTrekOrganizerSession } from '../../utils/trekOrganizerSession';
+import {
+    isTrekOrganizerManualLogout,
+    setTrekOrganizerSession,
+} from '../../utils/trekOrganizerSession';
 import { showAppPopup } from '../../utils/appPopup';
 import { useAuth } from '../../context/AuthContext';
 import DetailPageLoader from '../../components/DetailPageLoader';
@@ -25,7 +28,8 @@ export default function TrekOrganizerLoginPage() {
     useEffect(() => {
         let cancelled = false;
         (async () => {
-            if (!isAuthenticated) {
+            // After explicit Log out, stay on the form even if CrwdCtrl Firebase session is still active.
+            if (!isAuthenticated || isTrekOrganizerManualLogout()) {
                 if (!cancelled) setBooting(false);
                 return;
             }
