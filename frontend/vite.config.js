@@ -95,7 +95,7 @@ export default defineConfig(({ mode }) => ({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff2,webmanifest}'],
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         // Bump when changing runtime cache strategy so installed devices drop old SW caches
-        cacheId: 'crwdctrl-v6',
+        cacheId: 'crwdctrl-v7',
         // Ensure new builds activate quickly and old caches are removed.
         cleanupOutdatedCaches: true,
         clientsClaim: true,
@@ -106,6 +106,14 @@ export default defineConfig(({ mode }) => ({
         navigateFallbackDenylist: [
           /^\/firebase-messaging-sw\.js$/,
           /^\/api\//,
+          /^\/favicon\.ico$/,
+          /^\/favicon\.png$/,
+          /^\/favicon-48x48\.png$/,
+          /^\/icon-\d+x\d+\.png$/,
+          /^\/logo-crwdctrl\.png$/,
+          /^\/robots\.txt$/,
+          /^\/sitemap\.xml$/,
+          /^\/manifest\.webmanifest$/,
         ],
         runtimeCaching: [
           // Do NOT NetworkFirst HTML navigations. That handler wins over
@@ -115,8 +123,8 @@ export default defineConfig(({ mode }) => ({
           // is cold/unreachable; that surfaces as SW errors on iPhone/laptop and can
           // block normal fetch retries. Let API requests bypass the SW entirely.
           {
-            // Cache images (CacheFirst)
-            urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/i,
+            // Cache images + favicon.ico (CacheFirst)
+            urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp|ico)$/i,
             handler: 'CacheFirst',
             options: {
               cacheName: 'image-cache',
