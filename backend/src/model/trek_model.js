@@ -1,7 +1,10 @@
 const mongoose = require('mongoose');
 const coverImagesSchema = require('./coverImagesSchema');
 const { sanitizeTrekFilters } = require('../constants/trekFilterOptions');
-const { normalizeAvailableDates, parseTrekDateForIndex } = require('../utils/trekDateNormalize');
+const {
+    normalizeAvailableDates,
+    pickNextUpcomingBatchDate,
+} = require('../utils/trekDateNormalize');
 const { sanitizeTrekBatches } = require('../utils/sanitizeTrekBatches');
 const { ensureUniqueSlug, toSlug, mergePreviousSlugs } = require('../utils/slug');
 
@@ -211,11 +214,8 @@ trekSchema.index({ city: 1 });
 trekSchema.pre('save', async function normalizeTrekDocument() {
     if (this.trekBatches?.length) {
         this.trekBatches = sanitizeTrekBatches(this.trekBatches);
-        const firstDated = this.trekBatches.find((b) => b.date);
-        if (firstDated?.date) {
-            const parsed = parseTrekDateForIndex(firstDated.date);
-            if (parsed) this.trekDate = parsed;
-        }
+        const nextDate = pickNextUpcomingBatchDate(this.trekBatches);
+        if (nextDate) this.trekDate = nextDate;
     }
 
     if (this.registration?.availableDates?.length) {

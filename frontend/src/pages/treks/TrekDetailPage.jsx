@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { ArrowLeft, Share2, Heart, ChevronRight, Backpack } from 'lucide-react';
+import { ArrowLeft, Share2, Heart, ChevronRight, ChevronDown, Backpack } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
@@ -12,7 +12,7 @@ import Seo from '../../components/Seo';
 import LazyMap from '../../components/LazyMap';
 import DetailPageLoader from '../../components/DetailPageLoader';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
-import { formatTrekDisplayDate, formatBatchDate, normalizeTrekBatches } from '../../utils/trekDateDisplay';
+import { formatBatchDate, normalizeTrekBatches } from '../../utils/trekDateDisplay';
 import { ScheduleMainMarker, ScheduleSubMarker } from '../../components/SchedulePointMarkers';
 import { normalizeItineraryDay, SCHEDULE_SUB_INDENT_PX } from '../../utils/trekItinerary';
 import { normalizeDetailBoxes, resolveTrekMapPin } from '../../utils/trekDetailBoxes';
@@ -667,7 +667,6 @@ export default function TrekDetailPage() {
                             { Icon: ClockIcon,  label: 'Trek Duration',   value: trek.trekDuration || trek.duration || '—' },
                             { Icon: ChartIcon,  label: 'Difficulty',      value: (trek.difficultyLevel || trek.difficulty || '—'), extra: 'capitalize' },
                             { Icon: GridIcon,   label: 'Trek Category',      value: trek.trekCategory || '—', extra: 'capitalize' },
-                            ...(formatTrekDisplayDate(trek) ? [{ Icon: CalendarIcon, label: 'Trek Date', value: formatTrekDisplayDate(trek) }] : []),
                         ].map((row) => (
                             <div key={row.label} className="flex items-center gap-2.5">
                                 <row.Icon size={22} />
@@ -842,65 +841,102 @@ export default function TrekDetailPage() {
 
                                             {batches.length > 0 ? (
                                                 batches.length > 1 ? (
-                                                    <div className="min-w-0">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setDeparturesOpen((o) => !o)}
-                                                            aria-expanded={departuresOpen}
-                                                            aria-label={departuresOpen ? 'Collapse departures' : 'Expand departures'}
-                                                            className={`w-full text-left ${cardCls} h-[84px] overflow-hidden transition-colors duration-200 ${
-                                                                departuresOpen
-                                                                    ? isDark
-                                                                        ? 'border-[#0ECCEE]/30 bg-[#1D1E20]/60'
-                                                                        : 'border-[#0ECCEE]/25 bg-[#0ECCEE]/3'
-                                                                    : isDark
-                                                                        ? 'hover:bg-[#1D1E20]'
-                                                                        : 'hover:bg-gray-50/90'
-                                                            }`}
-                                                        >
-                                                            <div className="flex items-start justify-between gap-2">
-                                                                <div className={departuresIconWrapCls}>
-                                                                    <CalendarIcon size={16} />
+                                                    <>
+                                                        <div className="min-w-0">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setDeparturesOpen((o) => !o)}
+                                                                aria-expanded={departuresOpen}
+                                                                aria-controls="trek-departures-panel"
+                                                                aria-label={departuresOpen ? 'Collapse departures' : 'Expand departures'}
+                                                                className={`w-full text-left ${cardCls} h-[84px] overflow-hidden transition-all duration-300 ease-out ${
+                                                                    departuresOpen
+                                                                        ? isDark
+                                                                            ? 'border-[#0ECCEE]/40 bg-[#0ECCEE]/10'
+                                                                            : 'border-[#0ECCEE]/35 bg-[#0ECCEE]/5'
+                                                                        : isDark
+                                                                            ? 'hover:bg-[#1D1E20] active:scale-[0.99]'
+                                                                            : 'hover:bg-gray-50/90 active:scale-[0.99]'
+                                                                }`}
+                                                            >
+                                                                <div className="flex items-start justify-between gap-2">
+                                                                    <div className={departuresIconWrapCls}>
+                                                                        <CalendarIcon size={16} />
+                                                                    </div>
+                                                                    <ChevronDown
+                                                                        size={16}
+                                                                        className={`shrink-0 mt-0.5 transition-transform duration-300 ease-out ${
+                                                                            departuresOpen
+                                                                                ? 'rotate-180 text-[#0ECCEE]'
+                                                                                : isDark
+                                                                                    ? 'text-gray-500'
+                                                                                    : 'text-gray-400'
+                                                                        }`}
+                                                                    />
                                                                 </div>
-                                                                <ChevronRight
-                                                                    size={16}
-                                                                    className={`shrink-0 mt-0.5 transition-transform duration-200 ${departuresOpen ? 'rotate-90 text-[#0ECCEE]' : isDark ? 'text-gray-500' : 'text-gray-400'}`}
-                                                                />
-                                                            </div>
-                                                            <p className={`text-[11px] font-medium mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Departures</p>
-                                                            <p className={`text-sm font-semibold mt-0 leading-tight line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                                {departuresOpen
-                                                                    ? `${batches.length} dates`
-                                                                    : formatBatchDate(batches[0].date) || '—'}
-                                                            </p>
-                                                            {!departuresOpen ? (
-                                                                <p className={`text-[10px] mt-1 ${isDark ? 'text-[#0ECCEE]/80' : 'text-[#0ECCEE]'}`}>
-                                                                    +{batches.length - 1} more
+                                                                <p className={`text-[11px] font-medium mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Departures</p>
+                                                                <p className={`text-sm font-semibold mt-0 leading-tight line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                                    {departuresOpen
+                                                                        ? `${batches.length} weekend dates`
+                                                                        : formatBatchDate(batches[0].date) || '—'}
                                                                 </p>
-                                                            ) : null}
-                                                        </button>
+                                                                <p className={`text-[10px] mt-1 font-medium ${
+                                                                    departuresOpen
+                                                                        ? (isDark ? 'text-gray-500' : 'text-gray-400')
+                                                                        : (isDark ? 'text-[#0ECCEE]/90' : 'text-[#0ECCEE]')
+                                                                }`}>
+                                                                    {departuresOpen ? 'Tap to close' : `Tap for +${batches.length - 1} more`}
+                                                                </p>
+                                                            </button>
+                                                        </div>
 
-                                                        {departuresOpen ? (
-                                                            <div className={`mt-1 w-full rounded-xl border px-2.5 py-2 ${isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
-                                                                {batches.map((batch, i) => {
-                                                                    const meta = batchMeta(batch);
-                                                                    return (
-                                                                        <p
-                                                                            key={`${batch.date}-${i}`}
-                                                                            className={`text-[11px] leading-4 py-1 ${i < batches.length - 1 ? `border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}` : ''} ${isDark ? 'text-gray-300' : 'text-gray-700'}`}
-                                                                        >
-                                                                            <span className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                                                {formatBatchDate(batch.date) || '—'}
-                                                                            </span>
-                                                                            {meta ? (
-                                                                                <span className={isDark ? 'text-gray-500' : 'text-gray-500'}> · {meta}</span>
-                                                                            ) : null}
-                                                                        </p>
-                                                                    );
-                                                                })}
+                                                        <div
+                                                            id="trek-departures-panel"
+                                                            className="col-span-2 grid transition-[grid-template-rows,margin] duration-300 ease-out"
+                                                            style={{
+                                                                gridTemplateRows: departuresOpen ? '1fr' : '0fr',
+                                                                marginBottom: departuresOpen ? 0 : '-0.5rem',
+                                                            }}
+                                                            aria-hidden={!departuresOpen}
+                                                        >
+                                                            <div className="min-h-0 overflow-hidden">
+                                                                <div
+                                                                    className={`mt-0.5 rounded-2xl border px-3 py-2.5 transition-opacity duration-300 ease-out ${
+                                                                        departuresOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                                                                    } ${isDark ? 'bg-[#111213] border-[#0ECCEE]/20' : 'bg-white border-[#0ECCEE]/15 shadow-sm'}`}
+                                                                >
+                                                                    <p className={`text-[10px] font-semibold uppercase tracking-wide mb-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                                                        All departure dates
+                                                                    </p>
+                                                                    <ul className="max-h-[220px] overflow-y-auto overscroll-contain space-y-1.5 [scrollbar-width:thin]">
+                                                                        {batches.map((batch, i) => {
+                                                                            const meta = batchMeta(batch);
+                                                                            return (
+                                                                                <li
+                                                                                    key={`${batch.date}-${i}`}
+                                                                                    className={`flex items-start gap-2.5 rounded-xl px-2.5 py-2 ${
+                                                                                        isDark ? 'bg-[#1D1E20]/80' : 'bg-gray-50/90'
+                                                                                    }`}
+                                                                                >
+                                                                                    <span className="mt-1 size-1.5 shrink-0 rounded-full bg-[#0ECCEE]" aria-hidden />
+                                                                                    <div className="min-w-0 flex-1">
+                                                                                        <p className={`text-[12px] font-semibold leading-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                                                            {formatBatchDate(batch.date) || '—'}
+                                                                                        </p>
+                                                                                        {meta ? (
+                                                                                            <p className={`text-[10px] mt-0.5 leading-tight ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                                                                                                {meta}
+                                                                                            </p>
+                                                                                        ) : null}
+                                                                                    </div>
+                                                                                </li>
+                                                                            );
+                                                                        })}
+                                                                    </ul>
+                                                                </div>
                                                             </div>
-                                                        ) : null}
-                                                    </div>
+                                                        </div>
+                                                    </>
                                                 ) : (
                                                     <div className={`${cardCls} h-[84px] overflow-hidden`}>
                                                         <div className={departuresIconWrapCls}>

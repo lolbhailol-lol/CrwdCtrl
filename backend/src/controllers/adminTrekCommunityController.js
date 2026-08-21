@@ -24,6 +24,10 @@ function normalizeCommunityPayload(body) {
     if (body.groupLink !== undefined) {
         payload.groupLink = String(body.groupLink || '').trim();
     }
+    if (body.paymentGateway !== undefined) {
+        const gw = String(body.paymentGateway || '').trim().toLowerCase();
+        payload.paymentGateway = gw === 'razorpay' ? 'razorpay' : 'cashfree';
+    }
     if (body.coverImages !== undefined) {
         payload.coverImages = sanitizeCoverImages(body.coverImages);
         payload.coverImage = primaryCoverUrl(payload.coverImages, body.coverImage);

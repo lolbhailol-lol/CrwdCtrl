@@ -7,6 +7,7 @@ import { useNotifications } from '../../context/NotificationsContext';
 import CrwdCtrlLogin from '../auth/login';
 import CrwdCtrlRegister from '../auth/register';
 import { buildVerifiedPaymentFields } from '../../utils/useCashfree';
+import { runRazorpayCheckoutAndVerify, sanitizeRazorpayContact } from '../../utils/useRazorpay';
 import { useInAppBack } from '../../hooks/useInAppBack';
 
 import PaymentErrorModal from '../../components/PaymentErrorModal';
@@ -204,6 +205,8 @@ export default function TrekBookingPage() {
     const fee       = Number(trek?.registrationFee) || 0;
     const regMode = trek?.registration?.mode || 'internal_form';
     const isOrganizerQr = regMode === 'organizer_qr';
+    const communityGateway = trek?.communityId?.paymentGateway === 'razorpay' ? 'razorpay' : 'cashfree';
+    const usesRazorpay = !isOrganizerQr && communityGateway === 'razorpay';
     const paymentQR = trek?.registration?.paymentQR || '';
     const paymentUpiId = trek?.registration?.paymentUpiId || '';
     const paymentQRMessage = trek?.registration?.paymentQRMessage || '';
@@ -225,7 +228,9 @@ export default function TrekBookingPage() {
         bookingId,
         ticketType: 'trek',
     });
-    const platformPct = resolveTrekPlatformFeePercent(trek?.platformFeePercent, 3);
+    const platformPct = usesRazorpay
+        ? 0
+        : resolveTrekPlatformFeePercent(trek?.platformFeePercent, 3);
     const reg       = trek?.registration || {};
     // Soft UI ceiling only — trek maxParticipants is the real capacity limit on the server.
     // 0 in admin = unlimited; legacy "10" default is also treated as unlimited.
@@ -474,9 +479,9 @@ export default function TrekBookingPage() {
     }, [extraFields, bookingGender]);
 
     const baseFee = fee * people;
-    // Organizer QR: user pays trek fee via UPI (no CrwdCtrl platform fee)
+    // Organizer QR / Razorpay: user pays trek fee only (no CrwdCtrl platform fee)
     const { platformFee = 0, totalAmount: total = 0 } = fee > 0
-        ? (isOrganizerQr
+        ? (isOrganizerQr || usesRazorpay
             ? { platformFee: 0, totalAmount: baseFee }
             : buildTrekPriceBreakdown(baseFee, platformPct))
         : { platformFee: 0, totalAmount: 0 };
@@ -597,6 +602,7 @@ export default function TrekBookingPage() {
         amountPaid,
         formData = buildFormData(),
         booking = {},
+        razorpaySignature = '',
     }) => {
         // Prefer Mongo id so register works even if route param is a name slug
         const trekId = trek?._id || trek?.id || id;
@@ -623,7 +629,11 @@ export default function TrekBookingPage() {
                     payment_order_id: paymentOrderId || '',
                     paymentScreenshotUrl: booking.paymentScreenshotUrl || '',
                     transactionId: booking.transactionId || '',
+                    ...(razorpaySignature
+                        ? { razorpay_signature: razorpaySignature, signature: razorpaySignature }
+                        : {}),
                 },
+                ...(razorpaySignature ? { razorpay_signature: razorpaySignature } : {}),
             }),
         });
         const regData = await regRes.json().catch(() => ({}));
@@ -982,7 +992,14 @@ export default function TrekBookingPage() {
                     setPaying(false);
                     return;
                 }
-                if (!order.paymentSessionId) {
+                if (!order.orderId) {
+                    setError('Payment order missing from server. Restart backend and try again.');
+                    setPaying(false);
+                    return;
+                }
+
+                const orderGateway = order.gateway === 'razorpay' ? 'razorpay' : 'cashfree';
+                if (orderGateway === 'cashfree' && !order.paymentSessionId) {
                     setError('Payment session missing from server. Restart backend and try again.');
                     setPaying(false);
                     return;
@@ -990,17 +1007,93 @@ export default function TrekBookingPage() {
 
                 saveDraft({ step: 2, extraFields: buildFormData(), selDate, selTime, people, bookingGender });
 
-                const checkoutFlow = await runCashfreeCheckoutAndVerify({
-                    order,
-                    returnPath: `/trek/${id || trek?._id || trek?.id}/book`,
-                    entityType: 'trek',
-                    cashfreeMode: order.cashfreeMode,
-                    verifyOrder: ({ orderId }) => verifyPaymentWithRetry(API, orderId, {
+                const formSnapshot = buildFormData();
+                const customerPhoneRaw =
+                    formSnapshot.contact_no ||
+                    formSnapshot.phone ||
+                    formSnapshot.contact ||
+                    formSnapshot.mobile ||
+                    formSnapshot.whatsapp ||
+                    formSnapshot.mobile_number ||
+                    formSnapshot.phone_number ||
+                    extraFields.contact_no ||
+                    extraFields.phone ||
+                    extraFields.contact ||
+                    extraFields.mobile ||
+                    user?.phoneNumber ||
+                    user?.phone ||
+                    '';
+                const customerPhone = sanitizeRazorpayContact(customerPhoneRaw);
+
+                let checkoutFlow;
+                // Server found a Razorpay order that is already paid (verify/booking failed
+                // earlier). Skip Checkout — reopen would fail on a completed order.
+                if (orderGateway === 'razorpay' && order.alreadyPaid) {
+                    const verification = await verifyPaymentWithRetry(API, order.orderId, {
                         kind: 'trek',
                         token: resolveAuthToken(authToken),
                         customerEmail,
-                    }),
-                });
+                        paymentId: order.paymentId || undefined,
+                    });
+                    const verifiedPayload = verification?.data || verification;
+                    checkoutFlow = verification?.ok && verifiedPayload?.verified
+                        ? {
+                            status: 'verified',
+                            verified: {
+                                payment_order_id:
+                                  verifiedPayload.payment_order_id || order.orderId,
+                                payment_id:
+                                  verifiedPayload.payment_id || order.paymentId || '',
+                            },
+                            checkoutPaymentId:
+                              verifiedPayload.payment_id || order.paymentId || '',
+                            signature: '',
+                        }
+                        : {
+                            status: 'verify_failed',
+                            message:
+                              verifiedPayload?.message
+                              || verification?.classified?.message
+                              || 'Could not confirm prior payment',
+                            verification: verifiedPayload || verification,
+                        };
+                } else if (orderGateway === 'razorpay') {
+                    if (!customerPhone) {
+                        setError('Enter a valid 10-digit mobile number on the form, then tap Pay again.');
+                        setPaying(false);
+                        return;
+                    }
+                    checkoutFlow = await runRazorpayCheckoutAndVerify({
+                        order,
+                        displayName: trekName,
+                        merchantName: trek?.communityId?.name || 'TrekkVede',
+                        prefill: {
+                            name: formSnapshot.full_name || formSnapshot.name || formSnapshot.fullname || user?.name || '',
+                            email: customerEmail,
+                            contact: customerPhone,
+                        },
+                        verifyOrder: ({ orderId, paymentId, signature }) =>
+                            verifyPaymentWithRetry(API, orderId, {
+                                kind: 'trek',
+                                token: resolveAuthToken(authToken),
+                                customerEmail,
+                                paymentId,
+                                signature,
+                            }),
+                    });
+                } else {
+                    checkoutFlow = await runCashfreeCheckoutAndVerify({
+                        order,
+                        returnPath: `/trek/${id || trek?._id || trek?.id}/book`,
+                        entityType: 'trek',
+                        cashfreeMode: order.cashfreeMode,
+                        verifyOrder: ({ orderId }) => verifyPaymentWithRetry(API, orderId, {
+                            kind: 'trek',
+                            token: resolveAuthToken(authToken),
+                            customerEmail,
+                        }),
+                    });
+                }
 
                 if (checkoutFlow.status === 'redirect_deferred') {
                     setStep(3);
@@ -1032,18 +1125,54 @@ export default function TrekBookingPage() {
                     return;
                 }
 
+                if (checkoutFlow.status === 'verify_failed') {
+                    const { message: verifyMsg } = classifyVerifyError(
+                      checkoutFlow.verification || { message: checkoutFlow.message },
+                    );
+                    setPaymentFlowToStepTwo({
+                        setStep,
+                        setPayDone,
+                        setPaying,
+                        setError,
+                        message: '',
+                    });
+                    retryCheckoutRef.current = () => next();
+                    setPaymentModal({
+                        open: true,
+                        message:
+                          verifyMsg
+                          || checkoutFlow.message
+                          || 'Payment verification failed. If money was deducted, check My Bookings — do not pay again.',
+                        orderId: order.orderId,
+                    });
+                    return;
+                }
+
                 setStep(3);
                 setPaying(true);
 
                 if (checkoutFlow.status === 'verified') {
-                    const { verified, checkoutPaymentId } = checkoutFlow;
+                    const { verified, checkoutPaymentId, signature } = checkoutFlow;
                     setPaymentId(verified.payment_id || checkoutPaymentId);
-                    await submitTrekRegistration({
-                        paymentOrderId: verified.payment_order_id || order.orderId,
-                        paymentId: verified.payment_id || checkoutPaymentId,
-                        amountPaid: order.totalAmount ?? total,
-                    });
-                    setPaymentFlowToSuccess({ setPayDone, setPaying, setError });
+                    try {
+                        await submitTrekRegistration({
+                            paymentOrderId: verified.payment_order_id || order.orderId,
+                            paymentId: verified.payment_id || checkoutPaymentId,
+                            amountPaid: order.totalAmount ?? total,
+                            razorpaySignature: signature || verified.razorpay_signature || '',
+                        });
+                        setPaymentFlowToSuccess({ setPayDone, setPaying, setError });
+                    } catch (regErr) {
+                        // Money already captured — never send user back to pay again
+                        setStep(3);
+                        setPayDone(true);
+                        setPaying(false);
+                        setError('');
+                        setPostPaymentError(
+                            regErr?.message
+                            || 'Payment received but booking could not be completed. Check My Bookings — do not pay again.',
+                        );
+                    }
                 } else {
                     setPaymentFlowToStepTwo({
                         setStep,
@@ -1688,7 +1817,9 @@ export default function TrekBookingPage() {
                             <p className={`text-xs mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                                 {platformFee > 0
                                     ? 'Includes all charges · Secure payment via Cashfree'
-                                    : 'Secure payment via Cashfree · No platform fee'}
+                                    : usesRazorpay
+                                        ? 'Secure payment via Razorpay'
+                                        : 'Secure payment via Cashfree · No platform fee'}
                             </p>
                         </div>
                     )}

@@ -52,6 +52,14 @@ export function classifyVerifyError(result = {}) {
     };
   }
 
+  if (code === 'INVALID_SIGNATURE') {
+    return {
+      kind: 'failed',
+      message:
+        'Payment confirmation failed a security check. If money was deducted, check My Bookings — do not pay again.',
+    };
+  }
+
   if (
     code === 'NETWORK_ERROR'
     || /network|timeout|timed out|offline|internet|connection|failed to fetch/i.test(message)
@@ -64,7 +72,9 @@ export function classifyVerifyError(result = {}) {
 
   return {
     kind: 'failed',
-    message: message || 'Payment could not be verified.',
+    message:
+      message
+      || 'Payment could not be verified. If money was deducted, check My Bookings before trying again.',
   };
 }
 
@@ -83,7 +93,7 @@ export function classifyCheckoutError(error) {
   }
 
   if (
-    /network|timeout|timed out|offline|internet|connection|failed to fetch|econn|unreachable/i.test(
+    /network|timeout|timed out|offline|internet|connection|failed to fetch|econn|unreachable|could not load razorpay/i.test(
       msg,
     )
   ) {
@@ -91,6 +101,35 @@ export function classifyCheckoutError(error) {
       kind: 'network',
       message:
         'We couldn’t reach the payment gateway. Check your internet connection and try again.',
+    };
+  }
+
+  if (
+    /razorpay key|credentials|not configured|authentication failed|invalid key|key_id/i.test(msg)
+  ) {
+    return {
+      kind: 'failed',
+      message:
+        'Payment gateway is not set up correctly. Please contact the organizer and try again later.',
+    };
+  }
+
+  if (/incomplete|confirmation details|check my bookings/i.test(msg)) {
+    return {
+      kind: 'failed',
+      message: raw,
+    };
+  }
+
+  // Prefer Razorpay's own short description when it is user-readable
+  if (
+    raw
+    && raw.length < 160
+    && !/error:|exception|undefined|null|\[object/i.test(raw)
+  ) {
+    return {
+      kind: 'failed',
+      message: raw,
     };
   }
 

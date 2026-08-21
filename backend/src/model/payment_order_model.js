@@ -37,6 +37,12 @@ const paymentOrderSchema = new mongoose.Schema(
       enum: ['PENDING', 'PAID', 'FAILED', 'EXPIRED'],
       default: 'PENDING',
     },
+    /** cashfree (platform) | razorpay (organizer merchant, e.g. TrekVede) */
+    gateway: {
+      type: String,
+      enum: ['cashfree', 'razorpay'],
+      default: 'cashfree',
+    },
     paymentId: { type: String, default: null },
     paymentSessionId: { type: String, default: null },
     orderTags: { type: mongoose.Schema.Types.Mixed, default: {} },

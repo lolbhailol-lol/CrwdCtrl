@@ -163,6 +163,14 @@ function formatParticipantRow(booking, trek = null) {
         paymentReviewNote: booking.paymentReviewNote || '',
         paymentReviewedAt: booking.paymentReviewedAt || null,
         paymentGateway: booking.payment_gateway || '',
+        paymentGatewayLabel:
+            booking.payment_gateway === 'razorpay'
+                ? 'Razorpay'
+                : booking.payment_gateway === 'cashfree'
+                    ? 'Cashfree'
+                    : booking.payment_gateway === 'organizer_qr'
+                        ? 'UPI / QR'
+                        : (booking.payment_gateway || ''),
         expectedAmount: grossCollected,
         listAmount: Number(trek?.registrationFee) > 0
             ? Number(trek.registrationFee) * people

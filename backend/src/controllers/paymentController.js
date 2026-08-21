@@ -28,6 +28,12 @@ const {
   getCashfreeClientMode,
   firstValidCustomerPhone,
 } = require('../services/cashfreeService');
+const {
+  createRazorpayOrder,
+  verifyRazorpayPayment,
+  getRazorpayKeyId,
+} = require('../services/razorpayService');
+const TrekCommunity = require('../model/trek_community_model');
 const { extractPaymentFields } = require('../utils/paymentVerification');
 const { sendVerifyResponse } = require('../utils/paymentVerifyResponse');
 const { signPaymentProof } = require('../utils/paymentProof');
@@ -56,6 +62,47 @@ const { captureFlowEvent } = require('../config/sentry');
 
 const CASHFREE_CONFIG_MSG =
   'Payment gateway credentials are invalid or missing. Set CASHFREE_CLIENT_ID and CASHFREE_CLIENT_SECRET in backend/.env';
+
+const RAZORPAY_CONFIG_MSG =
+  'Razorpay credentials are invalid or missing. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in backend/.env';
+
+async function resolveTrekCommunityGateway(trek) {
+  const communityRef = trek?.communityId;
+  if (!communityRef) return 'cashfree';
+  const communityId = communityRef._id || communityRef;
+  const community = await TrekCommunity.findById(communityId).select('paymentGateway').lean();
+  return community?.paymentGateway === 'razorpay' ? 'razorpay' : 'cashfree';
+}
+
+const respondRazorpayError = (res, err, fallbackMessage) => {
+  const rzError = err.response?.data;
+  console.error(fallbackMessage + ':', rzError || err.message);
+  if (err.code === 'RAZORPAY_CREDENTIALS_MISSING') {
+    return res.status(503).json({ message: RAZORPAY_CONFIG_MSG });
+  }
+  if (err.code === 'RAZORPAY_INVALID_AMOUNT') {
+    return res.status(400).json({ message: err.message || fallbackMessage });
+  }
+  const status = Number(err.response?.status);
+  if (status === 401 || status === 403) {
+    return res.status(503).json({ message: RAZORPAY_CONFIG_MSG });
+  }
+  const rzMessage =
+    rzError?.error?.description
+    || rzError?.error?.reason
+    || rzError?.description
+    || fallbackMessage;
+  // Surface gateway validation errors as 400 with Razorpay's message
+  if (status >= 400 && status < 500) {
+    return res.status(400).json({
+      message: typeof rzMessage === 'string' ? rzMessage : fallbackMessage,
+      razorpay: rzError || undefined,
+    });
+  }
+  return res.status(500).json({
+    message: typeof rzMessage === 'string' ? rzMessage : fallbackMessage,
+  });
+};
 
 const respondCashfreeError = (res, err, fallbackMessage) => {
   const cfError = err.response?.data;
@@ -347,8 +394,13 @@ exports.validateCoupon = async (req, res) => {
         lean: true,
       });
       if (!trek) return res.status(404).json({ message: 'Trek not found' });
+      const gateway = await resolveTrekCommunityGateway(trek);
       const baseTicketTotal = (Number(trek.registrationFee) || 0) * Math.max(1, Number(people) || 1);
-      const { totalAmount } = buildTrekPriceBreakdown(baseTicketTotal, resolveTrekPlatformFeePercent(trek.platformFeePercent, 3));
+    // Organizer Razorpay: no CrwdCtrl platform fee (money settles to organizer)
+      const feePct = gateway === 'razorpay'
+        ? 0
+        : resolveTrekPlatformFeePercent(trek.platformFeePercent, 3);
+      const { totalAmount } = buildTrekPriceBreakdown(baseTicketTotal, feePct);
       const coupon = await validateAndPriceCoupon({
         couponCode,
         entityType: 'trek',
@@ -841,9 +893,14 @@ exports.createTrekOrder = async (req, res) => {
       return res.status(400).json({ success: false, message: 'This trek does not require payment' });
     }
 
+    const gateway = await resolveTrekCommunityGateway(trek);
+
     // Security: ignore client-supplied baseAmount/amount — server is source of truth
     const baseTicketTotal = ticketPricePerPerson * peopleCount;
-    const platformFeePercent = resolveTrekPlatformFeePercent(trek.platformFeePercent, 3);
+    // Organizer Razorpay settles to community merchant — no platform fee on the charge
+    const platformFeePercent = gateway === 'razorpay'
+      ? 0
+      : resolveTrekPlatformFeePercent(trek.platformFeePercent, 3);
     const { platformFee, totalAmount: grossTotalAmount } = buildTrekPriceBreakdown(baseTicketTotal, platformFeePercent);
     const coupon = await validateAndPriceCoupon({
       couponCode,
@@ -862,16 +919,93 @@ exports.createTrekOrder = async (req, res) => {
       totalAmount,
       people: peopleCount,
       couponCode: coupon.couponCode,
+      gateway,
     });
-    if (existingPending?.paymentSessionId) {
+    if (existingPending?.orderId && (
+      existingPending.gateway === 'razorpay'
+        ? true
+        : Boolean(existingPending.paymentSessionId)
+    )) {
+      const reusedGateway = existingPending.gateway === 'razorpay' ? 'razorpay' : 'cashfree';
+      const alreadyPaid = Boolean(
+        existingPending._alreadyPaidAtGateway
+        || existingPending.status === 'PAID',
+      );
       return res.json({
         success: true,
+        gateway: reusedGateway,
+        alreadyPaid,
+        paymentId: existingPending.paymentId || null,
+        ...(reusedGateway === 'razorpay'
+          ? {
+              keyId: getRazorpayKeyId(),
+              amountPaise: Math.round(Number(existingPending.totalAmount) * 100),
+            }
+          : { cashfreeMode: getCashfreeClientMode() }),
         ...buildOrderResponse(existingPending),
-        cashfreeMode: getCashfreeClientMode(),
       });
     }
 
     const canonicalTrekId = String(trek._id);
+    const orderTags = {
+      trekId: canonicalTrekId,
+      people: String(peopleCount),
+      totalAmount: String(totalAmount),
+      gateway,
+    };
+
+    if (gateway === 'razorpay') {
+      const order = await createRazorpayOrder({
+        orderAmount: totalAmount,
+        currency,
+        receipt: `trek_${canonicalTrekId}`.slice(0, 40),
+        notes: {
+          entityType: 'trek',
+          trekId: canonicalTrekId,
+          people: String(peopleCount),
+          coupon: coupon.couponCode || '',
+        },
+      });
+
+      await PaymentOrder.create({
+        orderId: order.order_id,
+        paymentSessionId: null,
+        gateway: 'razorpay',
+        entityType: 'trek',
+        entityId: trek._id,
+        userId: req.user?.userId || null,
+        ticketPrice: ticketPricePerPerson,
+        platformFee,
+        couponCode: coupon.couponCode || '',
+        couponDiscount: coupon.discountAmount || 0,
+        amountBeforeDiscount: coupon.amountBeforeDiscount,
+        amountAfterDiscount: coupon.amountAfterDiscount,
+        totalAmount,
+        people: peopleCount,
+        currency,
+        status: 'PENDING',
+        orderTags,
+        customerEmail: email,
+        customerPhone: firstValidCustomerPhone([customerPhone]) || '',
+      });
+
+      return res.json({
+        gateway: 'razorpay',
+        orderId: order.order_id,
+        keyId: getRazorpayKeyId(),
+        paymentSessionId: null,
+        amount: totalAmount,
+        amountPaise: order.amount,
+        currency: order.currency || currency,
+        ticketPrice: ticketPricePerPerson,
+        platformFee,
+        couponCode: coupon.couponCode || '',
+        couponDiscount: coupon.discountAmount || 0,
+        amountBeforeDiscount: coupon.amountBeforeDiscount,
+        amountAfterDiscount: coupon.amountAfterDiscount,
+        totalAmount,
+      });
+    }
 
     const order = await createCashfreeOrder({
       orderAmount: totalAmount,
@@ -902,6 +1036,7 @@ exports.createTrekOrder = async (req, res) => {
     await PaymentOrder.create({
       orderId: order.order_id,
       paymentSessionId: order.payment_session_id,
+      gateway: 'cashfree',
       entityType: 'trek',
       entityId: trek._id,
       userId: req.user?.userId || null,
@@ -915,15 +1050,12 @@ exports.createTrekOrder = async (req, res) => {
       people: peopleCount,
       currency,
       status: 'PENDING',
-      orderTags: {
-        trekId: canonicalTrekId,
-        people: String(peopleCount),
-        totalAmount: String(totalAmount),
-      },
+      orderTags,
       customerEmail: email,
     });
 
     res.json({
+      gateway: 'cashfree',
       orderId: order.order_id,
       paymentSessionId: order.payment_session_id,
       cashfreeMode: getCashfreeClientMode(),
@@ -938,6 +1070,14 @@ exports.createTrekOrder = async (req, res) => {
       totalAmount,
     });
   } catch (err) {
+    const isRazorpay =
+      err.code === 'RAZORPAY_CREDENTIALS_MISSING'
+      || err.code === 'RAZORPAY_INVALID_AMOUNT'
+      || /razorpay/i.test(String(err.response?.config?.url || ''))
+      || /razorpay/i.test(String(err.message || ''));
+    if (isRazorpay) {
+      return respondRazorpayError(res, err, 'Failed to create trek payment order');
+    }
     respondCashfreeError(res, err, 'Failed to create trek payment order');
   }
 };
@@ -1349,7 +1489,7 @@ exports.verifySportsPayment = async (req, res) => {
 // POST /api/payment/trek-verify
 exports.verifyTrekPayment = async (req, res) => {
   try {
-    const { orderId, paymentId } = extractPaymentFields(req.body);
+    const { orderId, paymentId, signature } = extractPaymentFields(req.body);
     if (!orderId) {
       return res.status(400).json({
         verified: false,
@@ -1394,7 +1534,22 @@ exports.verifyTrekPayment = async (req, res) => {
       );
     }
 
-    const result = await verifyCashfreePayment({ orderId, paymentId });
+    // Trust PaymentOrder.gateway when present. Never infer Razorpay from a loose
+    // `signature` alone — Cashfree order ids also look like order_… and stray
+    // signature keys must not divert a Cashfree verify into Razorpay HMAC checks.
+    let gateway = paymentOrder?.gateway === 'razorpay' ? 'razorpay' : 'cashfree';
+    if (!paymentOrder) {
+      const body = req.body || {};
+      const hasRazorpayTriple = Boolean(
+        body.razorpay_signature
+        && body.razorpay_order_id
+        && (body.razorpay_payment_id || body.payment_id || body.paymentId),
+      );
+      gateway = hasRazorpayTriple ? 'razorpay' : 'cashfree';
+    }
+    const result = gateway === 'razorpay'
+      ? await verifyRazorpayPayment({ orderId, paymentId, signature })
+      : await verifyCashfreePayment({ orderId, paymentId });
     let paymentProof = null;
 
     if (result.verified) {
@@ -1419,6 +1574,7 @@ exports.verifyTrekPayment = async (req, res) => {
       paymentProof,
     });
   } catch (err) {
+    console.error('trek-verify error:', err.response?.data || err.message);
     res.status(500).json({
       verified: false,
       status: 'failed',

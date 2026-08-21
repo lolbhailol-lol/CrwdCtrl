@@ -15,7 +15,7 @@
  * - If order is a guest order (no userId) and no JWT: require customerEmail
  *   in the request body to match the stored order.customerEmail.
  * - If no PaymentOrder is found for the orderId, allow the caller through —
- *   the controller will return not_found from Cashfree without side effects.
+ *   the controller will return not_found from the gateway without side effects.
  */
 function authorizePaymentVerify({ paymentOrder, req }) {
   if (!paymentOrder) {

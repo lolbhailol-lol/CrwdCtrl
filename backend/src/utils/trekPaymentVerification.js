@@ -1,6 +1,7 @@
 const TrekBooking = require('../model/trek_booking_model');
 const PaymentOrder = require('../model/payment_order_model');
 const { verifyCashfreePayment, fetchOrder } = require('../services/cashfreeService');
+const { verifyRazorpayPayment } = require('../services/razorpayService');
 const { toSlug } = require('./slug');
 
 function trekIdsMatch(tagTrekId, trek) {
@@ -16,20 +17,33 @@ function trekIdsMatch(tagTrekId, trek) {
 
 /**
  * Server-side payment verification for trek bookings.
- * Security: never trust client amountPaid — re-verify with Cashfree and validate order.
+ * Security: never trust client amountPaid — re-verify with Cashfree or Razorpay.
  */
-async function verifyTrekBookingPayment({ trek, people, paymentOrderId, paymentId }) {
+async function verifyTrekBookingPayment({ trek, people, paymentOrderId, paymentId, signature = null }) {
   if (!paymentOrderId) {
     return { ok: false, status: 400, message: 'payment_order_id is required for paid treks' };
   }
 
-  // Idempotency: one Cashfree order → one booking
+  // Idempotency: one gateway order → one booking
   const existingBooking = await TrekBooking.findOne({ payment_order_id: paymentOrderId }).lean();
   if (existingBooking) {
     return { ok: false, status: 409, message: 'This payment has already been used for a booking' };
   }
 
-  const paymentResult = await verifyCashfreePayment({ orderId: paymentOrderId, paymentId });
+  const paymentOrder = await PaymentOrder.findOne({ orderId: paymentOrderId }).lean();
+  const gateway = paymentOrder?.gateway === 'razorpay' ? 'razorpay' : 'cashfree';
+
+  let paymentResult;
+  if (gateway === 'razorpay') {
+    paymentResult = await verifyRazorpayPayment({
+      orderId: paymentOrderId,
+      paymentId,
+      signature,
+    });
+  } else {
+    paymentResult = await verifyCashfreePayment({ orderId: paymentOrderId, paymentId });
+  }
+
   if (!paymentResult.verified) {
     return {
       ok: false,
@@ -39,7 +53,6 @@ async function verifyTrekBookingPayment({ trek, people, paymentOrderId, paymentI
   }
 
   const expectedPeople = Math.max(1, Number(people) || 1);
-  const paymentOrder = await PaymentOrder.findOne({ orderId: paymentOrderId }).lean();
 
   if (paymentOrder) {
     if (paymentOrder.entityType && paymentOrder.entityType !== 'trek') {
@@ -54,15 +67,18 @@ async function verifyTrekBookingPayment({ trek, people, paymentOrderId, paymentI
   }
 
   let orderTags = {};
-  try {
-    const cashfreeOrder = await fetchOrder(paymentOrderId);
-    orderTags = cashfreeOrder.order_tags || {};
-  } catch (err) {
-    console.error('[trekPaymentVerification] fetchOrder error:', err.message);
-    // PaymentOrder already validated above — allow when DB row exists
-    if (!paymentOrder) {
-      return { ok: false, status: 400, message: 'Unable to validate payment order details' };
+  if (gateway === 'cashfree') {
+    try {
+      const cashfreeOrder = await fetchOrder(paymentOrderId);
+      orderTags = cashfreeOrder.order_tags || {};
+    } catch (err) {
+      console.error('[trekPaymentVerification] fetchOrder error:', err.message);
+      if (!paymentOrder) {
+        return { ok: false, status: 400, message: 'Unable to validate payment order details' };
+      }
     }
+  } else if (paymentOrder?.orderTags) {
+    orderTags = paymentOrder.orderTags;
   }
 
   if (orderTags.trekId && !trekIdsMatch(orderTags.trekId, trek)) {
@@ -72,7 +88,6 @@ async function verifyTrekBookingPayment({ trek, people, paymentOrderId, paymentI
     return { ok: false, status: 400, message: 'Payment people count does not match booking' };
   }
 
-  // Prefer stored paid amount (includes coupons) over recomputed gross price
   const amountPaid = paymentOrder?.totalAmount != null
     ? Number(paymentOrder.totalAmount)
     : (orderTags.totalAmount != null ? Number(orderTags.totalAmount) : null);
@@ -91,6 +106,7 @@ async function verifyTrekBookingPayment({ trek, people, paymentOrderId, paymentI
     ok: true,
     paymentId: paymentResult.paymentId,
     amountPaid,
+    gateway,
   };
 }
 

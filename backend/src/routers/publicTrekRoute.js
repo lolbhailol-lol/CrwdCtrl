@@ -191,7 +191,7 @@ router.get('/:idOrSlug', async (req, res) => {
         });
         if (!trekMatch) return res.status(404).json({ message: 'Trek not found' });
         const trek = await Trek.findOne({ _id: trekMatch._id, status: { $in: ['published', 'completed'] } })
-            .populate('communityId', 'name basedIn contactPhone contactInstagram')
+            .populate('communityId', 'name basedIn contactPhone contactInstagram paymentGateway')
             .lean();
         if (!trek) return res.status(404).json({ message: 'Trek not found' });
 
@@ -467,6 +467,10 @@ router.post('/:id/register', registrationLimiter, optionalAuthenticateToken, asy
                 people,
                 paymentOrderId,
                 paymentId: verifiedPaymentId,
+                signature: bookingDetails.razorpay_signature
+                    || bookingDetails.signature
+                    || req.body?.razorpay_signature
+                    || null,
             });
 
             if (!paymentCheck.ok) {
@@ -476,7 +480,7 @@ router.post('/:id/register', registrationLimiter, optionalAuthenticateToken, asy
             amountPaid = paymentCheck.amountPaid;
             verifiedPaymentId = paymentCheck.paymentId;
             paymentOrderId = paymentOrderId || bookingDetails.payment_order_id;
-            paymentGateway = 'cashfree';
+            paymentGateway = paymentCheck.gateway === 'razorpay' ? 'razorpay' : 'cashfree';
             paymentStatus = 'paid';
             bookingStatus = 'confirmed';
         }

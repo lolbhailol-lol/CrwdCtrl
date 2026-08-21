@@ -4,13 +4,19 @@ function extractPaymentFields(body = {}) {
   return {
     orderId:
       body.payment_order_id
+      || body.razorpay_order_id
       || body.order_id
       || body.orderId
       || body.orderID,
     paymentId:
       body.payment_id
+      || body.razorpay_payment_id
       || body.cf_payment_id
       || body.paymentId,
+    signature:
+      body.razorpay_signature
+      || body.signature
+      || null,
   };
 }
 

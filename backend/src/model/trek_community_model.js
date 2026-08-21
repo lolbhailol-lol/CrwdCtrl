@@ -29,6 +29,11 @@ const trekCommunitySchema = new mongoose.Schema(
         /** Repeatable point-of-contact list (name + role + phone) */
         contacts:          { type: [communityContactSchema], default: [] },
         status:            { type: String, enum: ['published', 'draft'], default: 'published' },
+        /**
+         * Online checkout for this community's treks.
+         * razorpay = organizer Razorpay merchant keys (env RAZORPAY_*); cashfree = platform Cashfree.
+         */
+        paymentGateway:    { type: String, enum: ['cashfree', 'razorpay'], default: 'cashfree' },
         homeSection:       { type: String, default: null },
         /** Home page hero / moving banner */
         showOnHomeSlide:   { type: Boolean, default: false },

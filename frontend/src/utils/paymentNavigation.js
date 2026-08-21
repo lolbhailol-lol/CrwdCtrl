@@ -88,7 +88,7 @@ export function clearCashfreeReturnAndPending(navigate, location) {
 export async function verifyPaymentWithRetry(
   apiBase,
   orderId,
-  { token = null, kind = 'fest', paymentId = null, search = '', customerEmail = '' } = {},
+  { token = null, kind = 'fest', paymentId = null, search = '', customerEmail = '', signature = null } = {},
 ) {
   const endpoint =
     kind === 'trek' ? `${apiBase}/payment/trek-verify`
@@ -101,6 +101,11 @@ export async function verifyPaymentWithRetry(
   const resolvedPaymentId = paymentId || getCashfreeReturnPaymentId(search);
   const body = { payment_order_id: orderId };
   if (resolvedPaymentId) body.payment_id = resolvedPaymentId;
+  if (signature) {
+    body.razorpay_signature = signature;
+    body.razorpay_order_id = orderId;
+    body.razorpay_payment_id = resolvedPaymentId;
+  }
   // Guest-friendly verify: server binds trek/sports orders to userId when present,
   // else it falls back to the customerEmail captured at order creation.
   const email = String(customerEmail || '').trim();

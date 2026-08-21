@@ -17,7 +17,7 @@ const trekBookingSchema = new mongoose.Schema(
         formData:  { type: mongoose.Schema.Types.Mixed, default: {} },
         // Top-level for idempotency queries (security: one order → one booking)
         payment_order_id: { type: String },
-        /** cashfree | organizer_qr | null (free) */
+        /** cashfree | razorpay | organizer_qr | null (free) */
         payment_gateway: { type: String, default: null },
         paymentScreenshotUrl: { type: String, default: '' },
         transactionId: { type: String, default: '' },

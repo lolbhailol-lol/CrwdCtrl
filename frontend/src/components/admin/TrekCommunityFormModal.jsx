@@ -23,6 +23,7 @@ const EMPTY = {
     groupLink: '',
     contacts: [],
     status: 'published',
+    paymentGateway: 'cashfree',
 };
 
 const normalizeContacts = (list) =>
@@ -51,6 +52,7 @@ function pickCommunityFormFields(source = {}) {
         groupLink: source.groupLink || '',
         contacts: normalizeContacts(source.contacts),
         status: source.status || 'published',
+        paymentGateway: source.paymentGateway === 'razorpay' ? 'razorpay' : 'cashfree',
     };
 }
 
@@ -354,6 +356,35 @@ export default function TrekCommunityFormModal({ community, onClose, onSaved }) 
                     <p className="text-[11px] text-gray-600 px-1">
                         Visibility, carousel order &amp; home page placement → <span className="text-gray-500">Home &amp; Sections → Communities</span>
                     </p>
+
+                    <AdminFormSection
+                        title="Online payments"
+                        hint="Cashfree = CrwdCtrl platform gateway. Razorpay = this community’s organizer merchant keys (RAZORPAY_* on the backend)."
+                    >
+                        <div className="flex flex-col gap-3 sm:flex-row sm:gap-6">
+                            {[
+                                { value: 'cashfree', label: 'Cashfree (platform)' },
+                                { value: 'razorpay', label: 'Razorpay (organizer)' },
+                            ].map((opt) => (
+                                <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="comm_payment_gateway"
+                                        value={opt.value}
+                                        checked={form.paymentGateway === opt.value}
+                                        onChange={() => set('paymentGateway', opt.value)}
+                                        className="accent-[#0ECCEE]"
+                                    />
+                                    <span className="text-sm text-gray-300">{opt.label}</span>
+                                </label>
+                            ))}
+                        </div>
+                        {form.paymentGateway === 'razorpay' ? (
+                            <p className="text-xs text-amber-500/90 rounded-lg border border-amber-700/40 bg-amber-900/20 px-3 py-2">
+                                All paid treks in this community will checkout via Razorpay. Set <code className="text-amber-200">RAZORPAY_KEY_ID</code> and <code className="text-amber-200">RAZORPAY_KEY_SECRET</code> on the backend (Railway / .env).
+                            </p>
+                        ) : null}
+                    </AdminFormSection>
 
                     <div>
                         <label className="block text-sm font-medium text-gray-300 mb-2">Status</label>
