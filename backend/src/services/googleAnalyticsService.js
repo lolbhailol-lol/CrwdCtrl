@@ -77,7 +77,12 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
  * @param {string} [opts.startDate] - explicit start date 'YYYY-MM-DD' (overrides days)
  * @param {string} [opts.endDate] - explicit end date 'YYYY-MM-DD' (defaults to today)
  */
-const getAnalyticsSummary = async ({ days = 28, startDate: customStart, endDate: customEnd } = {}) => {
+const getAnalyticsSummary = async ({
+  days = 28,
+  startDate: customStart,
+  endDate: customEnd,
+  skipPathMigration = false,
+} = {}) => {
   const propertyId = getPropertyId();
   const property = `properties/${propertyId}`;
 
@@ -88,8 +93,9 @@ const getAnalyticsSummary = async ({ days = 28, startDate: customStart, endDate:
   const dateRanges = [{ startDate, endDate }];
   const client = getAnalyticsClient();
 
-  // Rewrite stored internal analytics + normalize GA page paths using slug names.
-  ensurePageViewPathsMigrated().catch(() => {});
+  if (!skipPathMigration) {
+    ensurePageViewPathsMigrated().catch(() => {});
+  }
 
   const run = (requestBody) =>
     client.properties.runReport({ property, requestBody });
@@ -174,9 +180,10 @@ const getAnalyticsSummary = async ({ days = 28, startDate: customStart, endDate:
     devices[d.device] = d.value;
   });
 
-  const slugLookup = await buildSlugPathLookup();
-  const topPages = mergePageViewStats(mapRows(topPagesRes, { keyName: 'page' }), slugLookup)
-    .slice(0, 8);
+  const slugLookup = skipPathMigration ? null : await buildSlugPathLookup();
+  const topPages = skipPathMigration
+    ? mapRows(topPagesRes, { keyName: 'page' }).slice(0, 10)
+    : mergePageViewStats(mapRows(topPagesRes, { keyName: 'page' }), slugLookup).slice(0, 10);
 
   return {
     configured: true,

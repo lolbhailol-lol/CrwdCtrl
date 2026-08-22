@@ -7,6 +7,7 @@ const { adminAuthLimiter } = require('../middleware/rateLimiter');
 const adminFestCtrl = require('../controllers/adminFestController');
 const adminAuthCtrl = require('../controllers/adminAuthController');
 const adminUserCtrl = require('../controllers/adminUserController');
+const adminUserActivityCtrl = require('../controllers/adminUserActivityController');
 const adminSectionCtrl = require('../controllers/adminSectionController');
 const homepageSectionCtrl = require('../controllers/homepageSectionController');
 const uploadCtrl = require('../controllers/uploadController');
@@ -93,6 +94,16 @@ router.get('/stats', adminAuth, async (req, res) => {
 
 // ===== USER LOGIN DETAILS =====
 router.get('/users', adminAuth, adminUserCtrl.listUsers);
+
+// ===== USER ACTIVITY (logins, page views, engagement) =====
+router.get('/user-activity/overview', adminAuth, adminUserActivityCtrl.getOverview);
+router.get('/user-activity/daily', adminAuth, adminUserActivityCtrl.getDailyBreakdown);
+router.get('/user-activity/logins', adminAuth, adminUserActivityCtrl.listLogins);
+router.get('/user-activity/feed', adminAuth, adminUserActivityCtrl.listActivityFeed);
+router.get('/user-activity/user', adminAuth, adminUserActivityCtrl.getUserDetail);
+router.get('/user-activity/all-users', adminAuth, adminUserActivityCtrl.listAllUsers);
+router.get('/user-activity/full-history', adminAuth, adminUserActivityCtrl.getFullHistory);
+router.post('/user-activity/backfill', adminAuth, adminUserActivityCtrl.runBackfill);
 
 // ===== FEST PRIORITY MANAGEMENT (must come BEFORE generic :id routes) =====
 router.put('/fests/:id/priority', adminAuth, adminFestCtrl.updateFestPriority);

@@ -23,11 +23,13 @@ const generateToken = (userId, extraClaims = {}) => {
 // Use Express-trusted IP (respects trust proxy setting)
 const getClientIp = (req) => req.ip || req.socket?.remoteAddress || '';
 
+const { recordUserLoginLog } = require('../services/userActivityService');
+
 const LOGIN_NOTIFY_COOLDOWN_MS = 5 * 60 * 1000;
 const lastLoginNotifyAt = new Map();
 
 // Persist login metadata without blocking the auth response
-const recordLogin = (userId, req, method) => {
+const recordLogin = (userId, req, method, userHint = null) => {
     User.updateOne(
         { _id: userId },
         {
@@ -42,6 +44,36 @@ const recordLogin = (userId, req, method) => {
     ).catch((error) => {
         console.error('❌ Failed to record login metadata:', error.message);
     });
+
+    const email = userHint?.email || '';
+    const name = userHint?.name || '';
+    if (email || name) {
+        recordUserLoginLog({
+            userId,
+            email,
+            name,
+            method,
+            req,
+            sessionId: req.body?.sessionId || null,
+        });
+        return;
+    }
+
+    User.findById(userId).select('email name').lean()
+        .then((user) => {
+            if (!user) return;
+            return recordUserLoginLog({
+                userId,
+                email: user.email,
+                name: user.name,
+                method,
+                req,
+                sessionId: req.body?.sessionId || null,
+            });
+        })
+        .catch((error) => {
+            console.error('❌ Failed to record login log:', error.message);
+        });
 };
 
 const notifyLoginSuccess = async (user) => {
@@ -216,7 +248,7 @@ const register = async (req, res) => {
         // Generate JWT token
         const token = generateToken(user._id);
 
-        recordLogin(user._id, req, verifiedFirebaseUid ? 'firebase' : 'password');
+        recordLogin(user._id, req, verifiedFirebaseUid ? 'firebase' : 'password', user);
 
         // Remove password from response
         const userResponse = user.toObject();
@@ -337,7 +369,7 @@ const login = async (req, res) => {
         // Generate JWT token
         const token = generateToken(user._id);
 
-        recordLogin(user._id, req, firebaseUid ? 'firebase' : 'password');
+        recordLogin(user._id, req, firebaseUid ? 'firebase' : 'password', user);
 
         // Remove password from response
         const userResponse = user.toObject();
@@ -523,7 +555,7 @@ const socialAuth = async (req, res) => {
             // User already exists with this social auth, just generate token and login
             const token = generateToken(existingUser._id);
 
-            recordLogin(existingUser._id, req, provider.toLowerCase());
+            recordLogin(existingUser._id, req, provider.toLowerCase(), existingUser);
 
             // Remove password from response
             const userResponse = existingUser.toObject();
@@ -590,7 +622,7 @@ const socialAuth = async (req, res) => {
                 // Generate JWT token
                 const token = generateToken(existingUser._id);
 
-                recordLogin(existingUser._id, req, provider.toLowerCase());
+                recordLogin(existingUser._id, req, provider.toLowerCase(), existingUser);
 
                 // Remove password from response
                 const userResponse = existingUser.toObject();
@@ -649,7 +681,7 @@ const socialAuth = async (req, res) => {
         // Generate JWT token
         const token = generateToken(user._id);
 
-        recordLogin(user._id, req, provider.toLowerCase());
+        recordLogin(user._id, req, provider.toLowerCase(), user);
 
         // Remove password from response
         const userResponse = user.toObject();

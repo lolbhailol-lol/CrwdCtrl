@@ -1,7 +1,8 @@
 // Analytics tracking service for CrwdCtrl
-// Uses navigator.sendBeacon for non-blocking tracking, falls back to fetch
+// Uses fetch keepalive (with auth when logged in) or sendBeacon for anonymous hits.
 
 import { resolveUrl } from './api/client.js';
+import { resolveAuthToken, getBearerAuthHeaders } from '../utils/authToken.js';
 
 // Generate/retrieve session ID
 const getSessionId = () => {
@@ -12,6 +13,8 @@ const getSessionId = () => {
   }
   return sessionId;
 };
+
+export { getSessionId };
 
 // Detect device type
 const getDevice = () => {
@@ -36,32 +39,31 @@ const sendEvent = (eventType, metadata = {}) => {
     });
 
     const url = resolveUrl('/analytics/track');
+    const token = resolveAuthToken();
+    const headers = token
+      ? getBearerAuthHeaders(token)
+      : { 'Content-Type': 'application/json' };
 
-    // Prefer sendBeacon (non-blocking, survives page unload)
-    if (navigator.sendBeacon) {
-      const blob = new Blob([payload], { type: 'application/json' });
-      const sent = navigator.sendBeacon(url, blob);
-      if (sent) return;
+    // Prefer authenticated fetch so logged-in users tie to email in admin activity.
+    if (token || !navigator.sendBeacon) {
+      fetch(url, {
+        method: 'POST',
+        headers,
+        body: payload,
+        keepalive: true,
+        credentials: 'include',
+      }).catch(() => { /* silent fail */ });
+      return;
     }
 
-    // Fallback: fire-and-forget fetch
-    fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: payload,
-      keepalive: true,
-      credentials: 'include',
-    }).catch(() => { /* silent fail */ });
+    const blob = new Blob([payload], { type: 'application/json' });
+    navigator.sendBeacon(url, blob);
   } catch (_) {
     // Analytics should never break the app
   }
 };
 
-// ===== Public API =====
-
 // Mirror page views to Google Analytics 4 (gtag.js) when configured.
-// gtag is loaded in index.html with send_page_view=false, so SPA route
-// changes are reported here — including the initial load.
 const sendGaPageView = (page) => {
   try {
     if (typeof window !== 'undefined' && typeof window.gtag === 'function') {
@@ -76,33 +78,48 @@ const sendGaPageView = (page) => {
   }
 };
 
-export const trackPageView = (page) => {
-  sendEvent('page_view', { page });
+export const trackPageView = (page, { previousPage } = {}) => {
+  sendEvent('page_view', {
+    page,
+    previousPage: previousPage || null,
+    durationSeconds: 0,
+  });
   sendGaPageView(page);
 };
 
+/** Send time-on-page when leaving (tab close, background, or SPA navigation). */
+export const trackPageEngagement = (page, durationSeconds, previousPage = null) => {
+  if (!page || durationSeconds <= 0) return;
+  sendEvent('page_view', {
+    page,
+    previousPage,
+    durationSeconds: Math.max(0, Math.round(durationSeconds)),
+    engagement: true,
+  });
+};
+
 export const trackFestView = (festId) => {
-  sendEvent('fest_view', { festId });
+  sendEvent('fest_view', { festId, page: window.location.pathname || '' });
 };
 
 export const trackCompetitionView = (competitionId) => {
-  sendEvent('competition_view', { competitionId });
+  sendEvent('competition_view', { competitionId, page: window.location.pathname || '' });
 };
 
 export const trackRegistration = (festId, competitionId = null) => {
-  sendEvent('registration', { festId, competitionId });
+  sendEvent('registration', { festId, competitionId, page: window.location.pathname || '' });
 };
 
 export const trackSearch = (query) => {
-  sendEvent('search', { query });
+  sendEvent('search', { query, page: window.location.pathname || '' });
 };
 
 export const trackLogin = () => {
-  sendEvent('login', {});
+  sendEvent('login', { page: window.location.pathname || '' });
 };
 
 export const trackSignup = () => {
-  sendEvent('signup', {});
+  sendEvent('signup', { page: window.location.pathname || '' });
 };
 
 export const trackBookNowClick = ({

@@ -65,6 +65,7 @@ export const AdminFestsPage = lazyWithRetry(() => import('../../pages/admin/Fest
 export const CompetitionsPage = lazyWithRetry(() => import('../../pages/admin/CompetitionsPage'));
 export const RegistrationsPage = lazyWithRetry(() => import('../../pages/admin/RegistrationsPage'));
 export const UserLoginsPage = lazyWithRetry(() => import('../../pages/admin/UserLoginsPage'));
+export const UserActivityPage = lazyWithRetry(() => import('../../pages/admin/UserActivityPage'));
 export const AnalyticsDashboardPage = lazyWithRetry(() => import('../../pages/admin/AnalyticsDashboardPage'));
 export const ScannerAccessPage = lazyWithRetry(() => import('../../pages/admin/ScannerAccessPage'));
 export const SportsPage = lazyWithRetry(() => import('../../pages/admin/SportsPage'));

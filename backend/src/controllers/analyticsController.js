@@ -1,5 +1,6 @@
 const Analytics = require('../model/analytics_model');
 const User = require('../model/usermodel');
+const { recordUserActivity } = require('../services/userActivityService');
 const Registration = require('../model/registration_model');
 const FestOrganizer = require('../model/fest_organizer_model');
 const TrekBooking = require('../model/trek_booking_model');
@@ -68,6 +69,18 @@ const trackEvent = async (req, res) => {
       sessionId: sessionId || null,
       metadata,
     });
+
+    recordUserActivity({
+      userId,
+      email: metadata?.email || null,
+      sessionId: sessionId || null,
+      eventType,
+      page: metadata?.page || '',
+      previousPage: metadata?.previousPage || '',
+      durationSeconds: metadata?.durationSeconds,
+      metadata,
+      req,
+    }).catch(() => {});
 
     res.status(201).json({ success: true });
   } catch (error) {

@@ -14,6 +14,7 @@ const QUICK_LINKS = [
   { label: 'App Copy', path: '/admin/app-copy', description: 'Section titles, announcement banner, empty-state text' },
   { label: 'Registrations', path: '/admin/registrations', description: 'Fest, trek, run, and event sign-ups' },
   { label: 'User Logins', path: '/admin/user-logins', description: 'User accounts and login activity' },
+  { label: 'User Activity', path: '/admin/user-activity', description: 'Page views, engagement time, and daily stats by email' },
   { label: 'Scanner Access', path: '/admin/scanner-access', description: 'Volunteer scanner codes for events' },
   { label: 'Analytics', path: '/admin/analytics', description: 'Revenue, commissions, and sign-ups' },
 ];
