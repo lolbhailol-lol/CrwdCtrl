@@ -60,6 +60,13 @@ async function startServer() {
       }
 
       try {
+        const { initTrekWeekendRollCron } = require('./services/trekWeekendRollService');
+        initTrekWeekendRollCron();
+      } catch (rollErr) {
+        logger.warn('TrekkVede weekend roll failed to start', { error: rollErr.message });
+      }
+
+      try {
         const { initKeepAlive } = require('./services/keepAliveService');
         initKeepAlive();
       } catch (keepAliveErr) {

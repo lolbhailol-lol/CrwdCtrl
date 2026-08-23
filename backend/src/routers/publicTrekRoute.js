@@ -24,6 +24,7 @@ const { signTrekBookingAccess } = require('../utils/bookingAccess');
 const { registrationLimiter } = require('../middleware/rateLimiter');
 const uploadCtrl = require('../controllers/uploadController');
 const { sanitizePublicTrek } = require('../utils/publicEntitySanitize');
+const { isTrekVedeCommunityId } = require('../services/trekWeekendRollService');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -132,22 +133,37 @@ router.get('/', async (req, res) => {
 
         const and = [];
 
+        if (req.query.communityId && !mongoose.Types.ObjectId.isValid(req.query.communityId)) {
+            return res.status(400).json({ message: 'Invalid community ID' });
+        }
+
+        const isTrekVede = hasCommunity
+            ? await isTrekVedeCommunityId(req.query.communityId)
+            : false;
+
         if (hasCommunity && timeframe === 'past') {
-            and.push({
-                $or: [
-                    { status: 'completed' },
-                    { status: 'published', trekDate: { $lt: startOfToday } },
-                ],
-            });
+            if (isTrekVede) {
+                // Recurring weekend treks stay in Upcoming — only manually completed treks are Past
+                and.push({ status: 'completed' });
+            } else {
+                and.push({
+                    $or: [
+                        { status: 'completed' },
+                        { status: 'published', trekDate: { $lt: startOfToday } },
+                    ],
+                });
+            }
         } else if (hasCommunity && timeframe === 'upcoming') {
             and.push({ status: 'published' });
-            and.push({
-                $or: [
-                    { trekDate: null },
-                    { trekDate: { $exists: false } },
-                    { trekDate: { $gte: startOfToday } },
-                ],
-            });
+            if (!isTrekVede) {
+                and.push({
+                    $or: [
+                        { trekDate: null },
+                        { trekDate: { $exists: false } },
+                        { trekDate: { $gte: startOfToday } },
+                    ],
+                });
+            }
         } else {
             and.push({ status: 'published' });
         }
@@ -155,9 +171,6 @@ router.get('/', async (req, res) => {
         if (req.query.difficulty) and.push({ difficultyLevel: req.query.difficulty });
         if (req.query.city) and.push({ city: { $regex: req.query.city, $options: 'i' } });
         if (req.query.communityId) {
-            if (!mongoose.Types.ObjectId.isValid(req.query.communityId)) {
-                return res.status(400).json({ message: 'Invalid community ID' });
-            }
             and.push({ communityId: req.query.communityId });
         }
         if (req.query.category || req.query.trekCategory) {

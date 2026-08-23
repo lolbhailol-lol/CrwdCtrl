@@ -4,6 +4,8 @@
  * WhatsApp groupLink is only exposed after confirmed registration via notify/booking paths.
  */
 
+const { filterPastIsoDates } = require('./trekWeekendDates');
+
 function clonePlain(doc) {
   if (doc == null) return doc;
   if (typeof doc.toObject === 'function') return doc.toObject();
@@ -60,7 +62,25 @@ function sanitizePublicEntity(entity, opts = {}) {
 }
 
 function sanitizePublicTrek(trek, opts = {}) {
-  return sanitizePublicEntity(trek, { stripGroupLink: true, ...opts });
+  const copy = sanitizePublicEntity(trek, { stripGroupLink: true, ...opts });
+  if (!copy || typeof copy !== 'object') return copy;
+
+  if (Array.isArray(copy.trekBatches) && copy.trekBatches.length) {
+    copy.trekBatches = copy.trekBatches.filter((batch) => {
+      const date = batch?.date;
+      if (!date) return true;
+      return filterPastIsoDates([date]).length > 0;
+    });
+  }
+
+  if (copy.registration?.availableDates?.length) {
+    copy.registration = {
+      ...copy.registration,
+      availableDates: filterPastIsoDates(copy.registration.availableDates),
+    };
+  }
+
+  return copy;
 }
 
 function sanitizePublicSportsEvent(event, opts = {}) {
