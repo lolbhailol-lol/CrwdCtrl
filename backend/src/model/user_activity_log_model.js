@@ -40,7 +40,7 @@ const userActivityLogSchema = new mongoose.Schema(
         device: { type: String, enum: ['mobile', 'tablet', 'desktop', 'unknown'], default: 'unknown' },
         /** live = tracked in real time; backfill = imported from legacy Analytics */
         source: { type: String, enum: ['live', 'backfill'], default: 'live' },
-        sourceAnalyticsId: { type: mongoose.Schema.Types.ObjectId, default: null, sparse: true },
+        sourceAnalyticsId: { type: mongoose.Schema.Types.ObjectId, default: null },
     },
     { timestamps: true },
 );
