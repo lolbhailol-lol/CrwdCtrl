@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 
 // Unified registration model for Sports, Trek, and Events (cultural shows).
 // Fest registrations continue using the existing Registration model unchanged.
@@ -140,6 +141,14 @@ categoryRegistrationSchema.index({ status: 1 });
 categoryRegistrationSchema.index({ category: 1, eventId: 1, status: 1, paymentStatus: 1, createdAt: 1 });
 categoryRegistrationSchema.index({ runClubId: 1, piiEncrypted: 1 });
 categoryRegistrationSchema.index({ eventId: 1, piiSearchTokens: 1 });
+
+categoryRegistrationSchema.pre('save', function assignQrCodeData(next) {
+    const active = this.status === 'confirmed' || this.status === 'pending';
+    if (active && !this.qrCodeData) {
+        this.qrCodeData = crypto.randomBytes(16).toString('hex');
+    }
+    next();
+});
 
 const CategoryRegistration =
     mongoose.models.CategoryRegistration ||
