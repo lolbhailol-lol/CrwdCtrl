@@ -10,9 +10,11 @@ export default function FestRegistration() {
   const {
     isDark,
     navigate,
+    goBack,
     fest,
     competition,
     isCompetitionRegistration,
+    isSoldOut,
     success,
     completingPayment,
     paymentResumeError,
@@ -146,6 +148,26 @@ export default function FestRegistration() {
             className="px-6 py-2 bg-[#0ECCEE] text-black rounded-lg font-semibold hover:bg-[#0ECCEE]/80 transition-colors"
           >
             Back to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (isSoldOut) {
+    return (
+      <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center px-4">
+        <div className="text-center max-w-md mx-auto">
+          <h1 className={`text-2xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Sold out</h1>
+          <p className={`mb-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+            {competition?.name || 'This competition'} has no slots remaining.
+          </p>
+          <button
+            type="button"
+            onClick={() => goBack()}
+            className="px-6 py-2 bg-[#0ECCEE] text-black rounded-lg font-semibold hover:bg-[#0ECCEE]/80 transition-colors"
+          >
+            Back
           </button>
         </div>
       </div>

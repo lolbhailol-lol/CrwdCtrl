@@ -9,6 +9,7 @@ const { competitionRequiresPayment, resolvePaidOrderTotal } = require('../../uti
 const { logger } = require('../../utils/logger');
 const { cashfreeSettlementFields } = require('../../utils/cashfreeGatewayFee');
 const { getFestPlugin } = require('../../modules/fest/plugins');
+const { assertCompetitionHasOpenSlot } = require('../../utils/competitionSlots');
 const {
   parseResponsesBody,
   maybeEnrichExistingResponses,
@@ -211,6 +212,11 @@ const submitCustomCompetitionRegistration = async (req, res) => {
           },
         });
       }
+    }
+
+    // Paid in-flight checkouts still fulfill. New unpaid entries stop at capacity.
+    if (paymentStatus !== 'paid') {
+      await assertCompetitionHasOpenSlot(competition);
     }
 
     // Validate required fields — skip file requirements when payment is verified.
@@ -488,6 +494,9 @@ const submitCustomCompetitionRegistration = async (req, res) => {
     });
 
   } catch (error) {
+    if (error.status) {
+      return res.status(error.status).json({ error: error.message, code: error.code });
+    }
     logger.error('❌ Competition registration error:', error);
     logger.error('❌ Error stack:', error.stack);
     res.status(500).json({
@@ -732,6 +741,10 @@ const submitCompetitionRegistration = async (req, res) => {
       }
     }
 
+    if (paymentStatusRoute !== 'paid') {
+      await assertCompetitionHasOpenSlot(competition);
+    }
+
     // Validate required fields — skip file requirements when payment is verified
     // (file inputs are lost after Cashfree redirect; payment must still succeed).
     const requiredFields = formSchema.filter(field => field.required);
@@ -938,6 +951,9 @@ const submitCompetitionRegistration = async (req, res) => {
     }); // <- Close the setImmediate callback
 
   } catch (error) {
+    if (error.status) {
+      return res.status(error.status).json({ error: error.message, code: error.code });
+    }
     logger.error('❌ Competition registration error:', error);
     res.status(500).json({ error: 'Registration failed' });
   }

@@ -65,8 +65,20 @@ export function formatSlotsLabel(slotsAllotted, slotsLeft, { showSlotsPublic = t
     if (allotted <= 0) return 'Unlimited entries';
     if (slotsLeft != null && Number.isFinite(Number(slotsLeft))) {
         const left = Math.max(0, Math.floor(Number(slotsLeft)));
+        if (left === 0) return 'Sold out';
         return left === 1 ? '1 slot remains' : `${left} slots remain`;
     }
     return allotted === 1 ? '1 slot' : `${allotted} slots`;
+}
+
+/** True when organizer set a cap and remaining seats are 0. */
+export function isCompetitionSoldOut(comp = {}) {
+    const allotted = Math.max(0, Number(comp.slotsAllotted) || 0);
+    if (allotted <= 0) return false;
+    if (comp.slotsLeft != null && Number.isFinite(Number(comp.slotsLeft))) {
+        return Math.floor(Number(comp.slotsLeft)) <= 0;
+    }
+    const filled = Math.max(0, Number(comp.slotsFilled) || 0);
+    return filled >= allotted;
 }
 

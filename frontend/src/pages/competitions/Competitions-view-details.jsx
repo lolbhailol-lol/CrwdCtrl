@@ -25,7 +25,7 @@ import PrizePoolPodium from '../../components/PrizePoolPodium';
 import DetailPageLoader from '../../components/DetailPageLoader';
 import CompetitionCoverImage from '../../components/CompetitionCoverImage';
 import { signalDetailPageReady } from '../../utils/bootSplash';
-import { formatSlotsLabel, buildTeamSizeLabel } from '../../utils/teamSize';
+import { formatSlotsLabel, buildTeamSizeLabel, isCompetitionSoldOut } from '../../utils/teamSize';
 import { useInAppBack } from '../../hooks/useInAppBack';
 import {
     loadCompetitionDetailCache,
@@ -1102,6 +1102,10 @@ function EventPage() {
             isDisabled: true,
         });
 
+        if (isCompetitionSoldOut(eventData)) {
+            return closedResult('Sold out');
+        }
+
         // Fest-linked competitions follow the parent fest registration mode.
         // Competition-level "not_started" must NOT block these — otherwise admins
         // open the fest as Internal Form but every competition still looks closed.
@@ -1182,8 +1186,12 @@ function EventPage() {
                 return;
             }
             showAlert({
-                title: statusInfo.buttonText === 'Registration Closed' ? 'Registration closed' : 'Registration not open yet',
-                message: statusInfo.buttonText === 'Registration Closed'
+                title: statusInfo.buttonText === 'Sold out'
+                    ? 'Sold out'
+                    : statusInfo.buttonText === 'Registration Closed' ? 'Registration closed' : 'Registration not open yet',
+                message: statusInfo.buttonText === 'Sold out'
+                    ? 'All slots for this competition are filled.'
+                    : statusInfo.buttonText === 'Registration Closed'
                     ? 'Registration for this competition is closed.'
                     : 'Registration has not opened yet for this competition.',
             });

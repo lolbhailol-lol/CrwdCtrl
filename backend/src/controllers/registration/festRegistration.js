@@ -7,6 +7,7 @@ const { logger } = require('../../utils/logger');
 const { scheduleRegistrationNotification } = require('./helpers');
 const { findByIdOrSlug } = require('../../utils/slug');
 const { resolveFestCompetitionId, extractCompetitionChoice } = require('../../utils/festCompetitionAssignment');
+const { assertCompetitionHasOpenSlot } = require('../../utils/competitionSlots');
 
 // Submit registration for a fest
 // Submit registration for a fest with file uploads
@@ -244,10 +245,12 @@ const submitRegistration = async (req, res) => {
       });
       if (resolvedCompetitionId) {
         logger.debug('🎯 Resolved competitionId from fest form:', String(resolvedCompetitionId));
+        await assertCompetitionHasOpenSlot(resolvedCompetitionId);
       } else {
         logger.warn('⚠️ Could not resolve competition from fest registration responses');
       }
     } catch (resolveErr) {
+      if (resolveErr.status) throw resolveErr;
       logger.warn('⚠️ Competition resolve failed:', resolveErr?.message || resolveErr);
     }
 
@@ -466,7 +469,10 @@ const submitRegistration = async (req, res) => {
       }
     }); // <- Close the setImmediate callback
 
-} catch (error) {  // <- Closes the outer try that opened at line 613
+  } catch (error) {  // <- Closes the outer try that opened at line 613
+    if (error.status) {
+      return res.status(error.status).json({ error: error.message, code: error.code });
+    }
     logger.error('❌ Error submitting registration:', error?.message || error);
     logger.error('❌ Error stack:', error?.stack);
     if (error?.name === 'CastError') {
