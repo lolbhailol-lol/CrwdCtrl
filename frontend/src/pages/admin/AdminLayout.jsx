@@ -25,6 +25,7 @@ import {
   MapPinned,
   Type,
   Activity,
+  IndianRupee,
 } from 'lucide-react';
 import { isCampusHuntAdminEnabled } from '../../features/campus-hunt/config';
 
@@ -74,6 +75,7 @@ export default function AdminLayout() {
     { icon: Users, label: 'User Logins', path: '/admin/user-logins' },
     { icon: Activity, label: 'User Activity', path: '/admin/user-activity' },
     { icon: QrCode, label: 'Scanner Access', path: '/admin/scanner-access', exact: true },
+    { icon: IndianRupee, label: 'Payments', path: '/admin/payments' },
     { icon: BarChart3, label: 'Analytics', path: '/admin/analytics' },
   ];
 
@@ -147,7 +149,7 @@ export default function AdminLayout() {
       </aside>
 
       {/* Main Content */}
-      <div className={`flex-1 transition-all duration-300 ml-0 ${sidebarOpen ? 'lg:ml-64' : 'lg:ml-20'}`}>
+      <div className={`flex-1 min-w-0 transition-all duration-300 ml-0 ${sidebarOpen ? 'lg:ml-64' : 'lg:ml-20'}`}>
         {/* Top Navbar */}
         <header className="bg-[#111213] border-b border-gray-800 px-4 sm:px-6 py-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
@@ -181,7 +183,7 @@ export default function AdminLayout() {
         </header>
 
         {/* Page Content */}
-        <main className="p-3 sm:p-6">
+        <main className="p-3 sm:p-6 min-w-0 overflow-x-hidden">
           <Outlet />
         </main>
       </div>

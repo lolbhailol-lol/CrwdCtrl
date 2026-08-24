@@ -57,6 +57,9 @@ eventShowRegistrationSchema.index({ eventShow: 1, user: 1 });
 // Sparse index so QR check-in stops scanning the collection.
 // Legacy rows may share qrCodeData: null so we do not make it unique.
 eventShowRegistrationSchema.index({ qrCodeData: 1 }, { sparse: true });
+eventShowRegistrationSchema.index({ payment_order_id: 1 }, { sparse: true });
+eventShowRegistrationSchema.index({ payment_id: 1 }, { sparse: true });
+eventShowRegistrationSchema.index({ 'additionalEntries.payment_order_id': 1 }, { sparse: true });
 
 const EventShowRegistration =
   mongoose.models.EventShowRegistration ||

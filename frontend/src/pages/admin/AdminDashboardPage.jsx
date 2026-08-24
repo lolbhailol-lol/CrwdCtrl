@@ -16,6 +16,7 @@ const QUICK_LINKS = [
   { label: 'User Logins', path: '/admin/user-logins', description: 'User accounts and login activity' },
   { label: 'User Activity', path: '/admin/user-activity', description: 'Page views, engagement time, and daily stats by email' },
   { label: 'Scanner Access', path: '/admin/scanner-access', description: 'Volunteer scanner codes for events' },
+  { label: 'Payments', path: '/admin/payments', description: 'Cashfree collections, 1.6% fee, settlements, and payouts' },
   { label: 'Analytics', path: '/admin/analytics', description: 'Revenue, commissions, and sign-ups' },
 ];
 

@@ -8,6 +8,7 @@ import {
   UserLoginsPage,
   UserActivityPage,
   AnalyticsDashboardPage,
+  PaymentsSettlementPage,
   ScannerAccessPage,
   SportsPage,
   TreksPage,
@@ -43,6 +44,7 @@ export const adminRoutes = (
       <Route path="user-logins" element={<UserLoginsPage />} />
       <Route path="user-activity" element={<UserActivityPage />} />
       <Route path="analytics" element={<AnalyticsDashboardPage />} />
+      <Route path="payments" element={<PaymentsSettlementPage />} />
       <Route path="scanner-access" element={<ScannerAccessPage />} />
       <Route path="sports" element={<SportsPage />} />
       <Route path="treks" element={<TreksPage />} />

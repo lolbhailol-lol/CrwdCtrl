@@ -141,6 +141,8 @@ categoryRegistrationSchema.index({ status: 1 });
 categoryRegistrationSchema.index({ category: 1, eventId: 1, status: 1, paymentStatus: 1, createdAt: 1 });
 categoryRegistrationSchema.index({ runClubId: 1, piiEncrypted: 1 });
 categoryRegistrationSchema.index({ eventId: 1, piiSearchTokens: 1 });
+categoryRegistrationSchema.index({ payment_order_id: 1 }, { sparse: true });
+categoryRegistrationSchema.index({ payment_id: 1 }, { sparse: true });
 
 categoryRegistrationSchema.pre('save', function assignQrCodeData(next) {
     const active = this.status === 'confirmed' || this.status === 'pending';

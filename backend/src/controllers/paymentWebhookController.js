@@ -84,6 +84,20 @@ exports.handleCashfreeWebhook = async (req, res) => {
     }
 
     const eventType = payload.type || payload.event || '';
+
+    // Settlement / refund webhooks: persist finance snapshots only.
+    // Do not change PaymentOrder amounts or the PAID fulfillment path.
+    try {
+      const { applyWebhookFinanceEvent } = require('../services/cashfreeSettlementSync');
+      const finance = await applyWebhookFinanceEvent(payload);
+      if (finance.handled) {
+        return res.status(200).send('OK');
+      }
+    } catch (financeErr) {
+      console.error('[paymentWebhook] finance event failed:', financeErr?.message || financeErr);
+      // Fall through to existing payment handling so checkout/fulfillment is not blocked.
+    }
+
     const orderData = payload.data?.order || payload.order || {};
     const paymentData = payload.data?.payment || payload.payment || {};
 

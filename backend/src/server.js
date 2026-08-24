@@ -67,6 +67,13 @@ async function startServer() {
       }
 
       try {
+        const { initSettlementSyncCron } = require('./services/cashfreeSettlementSync');
+        initSettlementSyncCron();
+      } catch (syncErr) {
+        logger.warn('Cashfree settlement sync cron failed to start', { error: syncErr.message });
+      }
+
+      try {
         const { initKeepAlive } = require('./services/keepAliveService');
         initKeepAlive();
       } catch (keepAliveErr) {

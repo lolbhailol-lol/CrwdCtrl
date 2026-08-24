@@ -149,3 +149,24 @@ export async function adminFetchJSON(path, options = {}) {
   }
   return data;
 }
+
+/** Download a binary/text attachment (CSV export, etc.). */
+export async function adminFetchDownload(path, options = {}) {
+  const response = await adminFetch(path, options);
+  if (!response.ok) {
+    let message = `Download failed (HTTP ${response.status})`;
+    try {
+      if (isJsonResponse(response)) {
+        const data = await response.json();
+        message = data?.message || data?.error || message;
+      }
+    } catch {
+      /* ignore */
+    }
+    throw new Error(message);
+  }
+  const blob = await response.blob();
+  const disposition = response.headers.get('Content-Disposition') || '';
+  const match = /filename="?([^"]+)"?/i.exec(disposition);
+  return { blob, filename: match?.[1] || 'download.csv' };
+}

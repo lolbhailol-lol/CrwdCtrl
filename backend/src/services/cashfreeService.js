@@ -117,6 +117,28 @@ async function fetchPaymentsForOrder(orderId) {
   return response.data;
 }
 
+async function fetchOrderSettlements(orderId) {
+  assertCredentials();
+  try {
+    const response = await axios.get(
+      `${getBaseUrl()}/orders/${encodeURIComponent(orderId)}/settlements`,
+      { headers: getHeaders() },
+    );
+    return { ok: true, status: response.status, data: response.data };
+  } catch (err) {
+    const status = err.response?.status || 0;
+    if (status === 404) {
+      return { ok: true, status: 404, data: null, missing: true };
+    }
+    return {
+      ok: false,
+      status,
+      data: err.response?.data || null,
+      error: err.message || 'Cashfree settlement fetch failed',
+    };
+  }
+}
+
 function mapOrderStatus(orderStatus) {
   const s = String(orderStatus || '').toUpperCase();
   if (s === 'PAID') return 'paid';
@@ -353,6 +375,7 @@ module.exports = {
   createCashfreeOrder,
   fetchOrder,
   fetchPaymentsForOrder,
+  fetchOrderSettlements,
   verifyCashfreePayment,
   verifyWebhookSignature,
   inspectWebhookSignature,
