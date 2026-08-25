@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { trackPageEngagement, trackPageView } from '../services/analyticsService';
-import { isLegacyIdSlugPath } from '../utils/slugRoutes';
+import { shouldDelayAnalyticsPageView } from '../utils/slugRoutes';
 
 const MAX_PAGE_SECONDS = 86400;
 
@@ -61,7 +61,7 @@ export default function RouteTracker() {
       trackPageView(location.pathname, { previousPage: previous || null });
     };
 
-    if (isLegacyIdSlugPath(location.pathname)) {
+    if (shouldDelayAnalyticsPageView(location.pathname, location.search)) {
       const timer = setTimeout(() => {
         if (prevPath.current === location.pathname) return;
         if (window.location.pathname !== location.pathname) return;
@@ -71,7 +71,7 @@ export default function RouteTracker() {
     }
 
     commitPageView();
-  }, [location.pathname]);
+  }, [location.pathname, location.search]);
 
   return null;
 }

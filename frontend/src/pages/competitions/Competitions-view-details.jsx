@@ -1215,10 +1215,11 @@ function EventPage() {
             } else if (mode === 'INTERNAL_FORM') {
                 const festRef = eventData?.fest || { _id: eventData?.festId };
                 const compId = eventData?.id || eventData?._id || '';
-                const base = festRegisterPath(festRef);
-                const path = compId
-                  ? `${base}${base.includes('?') ? '&' : '?'}competition=${encodeURIComponent(compId)}`
-                  : base;
+                const path = festRegisterPath(festRef, {
+                    _id: compId,
+                    name: eventData?.title || eventData?.name,
+                    slug: eventData?.slug,
+                });
                 const prefetch = buildRegistrationPrefetch({
                     fest: {
                         _id: eventData?.festId || eventData?.fest?._id,

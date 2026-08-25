@@ -112,6 +112,7 @@ export const publicRoutes = (
       <Route path="/delete-account" element={<DeleteAccount />} />
       <Route path="/products-and-services" element={<ProductsAndServices />} />
       <Route path="/about" element={<About />} />
+      <Route path="/fest/:festId/register/:competitionSlug" element={<FestRegistration />} />
       <Route path="/fest/:festId/register" element={<FestRegistration />} />
       <Route path="/competition-registration/:competitionId" element={<CompetitionRegistration />} />
       <Route path="/registration-details/:registrationId" element={<RegistrationDetails />} />

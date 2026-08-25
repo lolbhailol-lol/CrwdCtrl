@@ -1,5 +1,5 @@
-import { storage } from './storage';
-import { AUTH_CONFIG } from '../config/env';
+import { storage } from './storage.js';
+import { AUTH_CONFIG } from '../config/env.js';
 
 const USER_KEY = 'crwdctrl_user';
 
@@ -25,7 +25,8 @@ export function decodeJwtPayload(token) {
     const segment = token.split('.')[1];
     if (!segment) return null;
     const normalized = segment.replace(/-/g, '+').replace(/_/g, '/');
-    return JSON.parse(atob(normalized));
+    const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), '=');
+    return JSON.parse(atob(padded));
   } catch {
     return null;
   }
@@ -66,6 +67,13 @@ function collectUserJwtCandidates(contextToken = null) {
   const candidates = [];
 
   if (isBackendUserJwt(contextToken)) candidates.push(contextToken);
+
+  try {
+    const durable = localStorage.getItem(AUTH_CONFIG.TOKEN_KEY);
+    if (isBackendUserJwt(durable)) candidates.push(durable);
+  } catch {
+    /* private mode */
+  }
 
   try {
     const stored = storage.getItem(AUTH_CONFIG.TOKEN_KEY);

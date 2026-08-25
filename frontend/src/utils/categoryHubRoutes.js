@@ -40,12 +40,13 @@ export function resolveBrowseBackPath(pathname = '') {
     return null;
   }
 
-  if (path.endsWith('/book') || path.endsWith('/register')) {
-    const parent = dropLastSegment(path);
-    if (parent.startsWith('/fest/')) {
-      const festId = parent.split('/')[2];
-      return festId ? `/view-details/${festId}` : '/fests';
+  if (path.endsWith('/book') || path.endsWith('/register') || /^\/fest\/[^/]+\/register\//.test(path)) {
+    const festRegister = path.match(/^\/fest\/([^/]+)\/register(?:\/([^/]+))?$/);
+    if (festRegister) {
+      if (festRegister[2]) return `/competitions-view-details/${festRegister[2]}`;
+      return festRegister[1] ? `/view-details/${festRegister[1]}` : '/fests';
     }
+    const parent = dropLastSegment(path);
     return parent !== '/' ? parent : '/';
   }
 

@@ -456,7 +456,7 @@ export default function FestRegistrationForm({
             <CrwdCtrlLogin
               googleOnly
               title="Sign in to register"
-              subtitle="Your form is ready below — one tap with Google to start filling it"
+              subtitle="Sign in once — you stay signed in on this phone"
               onClose={handleCloseLogin}
             />
           </div>

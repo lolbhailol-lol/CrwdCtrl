@@ -32,34 +32,27 @@ import { saveFestRegistrationSuccess } from '../../utils/registrationDraft';
 import { API_BASE_URL } from '../../services/api/client';
 import { resolveAuthToken, getBearerAuthHeaders } from '../../utils/authToken';
 import { mindsparkPlugin } from '../../features/fests/plugins';
+import { festRegisterPath, parseFestRegisterPath } from '../../utils/slugRoutes';
 
 const RECOVERY_FEST_ID = mindsparkPlugin.recoveryFestId;
 
 function parseFestRegisterReturn(returnPath) {
-  if (!returnPath) return null;
-  try {
-    const [path, query = ''] = String(returnPath).split('?');
-    const festMatch = path.match(/^\/fest\/([^/]+)\/register\/?$/);
-    if (!festMatch) return null;
-    const params = new URLSearchParams(query);
-    return {
-      festRouteId: festMatch[1],
-      competitionId: params.get('competition') || '',
-      path,
-      query,
-    };
-  } catch {
-    return null;
-  }
+  const parsed = parseFestRegisterPath(returnPath);
+  if (!parsed) return null;
+  return {
+    festRouteId: parsed.festId,
+    competitionId: parsed.competitionSlug || '',
+    path: parsed.path,
+    query: parsed.query,
+  };
 }
 
 function buildFestRegisterTarget({ festId, competitionId }) {
   const festKey = String(festId || RECOVERY_FEST_ID || '').trim() || RECOVERY_FEST_ID;
-  const path = `/fest/${festKey}/register`;
-  const qs = competitionId
-    ? `?competition=${encodeURIComponent(String(competitionId))}`
-    : '';
-  return `${path}${qs}`;
+  return festRegisterPath(
+    { _id: festKey, festName: festKey },
+    competitionId || null,
+  );
 }
 
 const OBJECT_ID_RE = /^[a-f\d]{24}$/i;

@@ -14,6 +14,7 @@ export default function FestRegistration() {
     fest,
     competition,
     isCompetitionRegistration,
+    hideFestOnlyForm,
     isSoldOut,
     success,
     completingPayment,
@@ -87,6 +88,15 @@ export default function FestRegistration() {
     );
   }
 
+  if (hideFestOnlyForm) {
+    return (
+      <DetailPageLoader
+        variant="default"
+        label="Opening MindSpark"
+      />
+    );
+  }
+
   // Show Cashfree payment UI when fest has a feeAmount (only for fest-only registrations, not competition registrations)
   if (fest && !isCompetitionRegistration && fest.feeAmount > 0 && !success) {
     return (
@@ -127,7 +137,7 @@ export default function FestRegistration() {
               <CrwdCtrlLogin
                 googleOnly
                 title="Sign in to register"
-                subtitle="Your form is loading — one tap with Google to start"
+                subtitle="Sign in once — you stay signed in on this phone"
                 onClose={handleCloseLogin}
               />
             </div>
@@ -318,7 +328,7 @@ export default function FestRegistration() {
       paymentModal={paymentModal}
       closePaymentModal={closePaymentModal}
       retryCheckoutRef={retryCheckoutRef}
-      showLogin={showLogin || (!hasAuth && !!fest)}
+      showLogin={Boolean((showLogin || (!hasAuth && !!fest)) && !hasAuth)}
       showRegister={showRegister}
       handleCloseLogin={handleCloseLogin}
       handleCloseRegister={handleCloseRegister}

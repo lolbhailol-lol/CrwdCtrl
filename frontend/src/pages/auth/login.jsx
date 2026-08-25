@@ -30,7 +30,7 @@ export default function CrwdCtrlLogin({
     onSwitchToRegister,
     googleOnly = false,
     title = 'Continue with Google',
-    subtitle = 'Sign in once — then you’re ready to book',
+    subtitle = 'Sign in once — you stay signed in on this phone',
     initialEmail = '',
     loginWithEmail,
     passwordOnly = false,

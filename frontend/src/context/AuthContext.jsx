@@ -22,7 +22,8 @@ function detectOAuthReturn() {
 
 export const AuthProvider = ({ children }) => {
     const isOAuthReturn = detectOAuthReturn();
-    const savedSession = isOAuthReturn ? null : restoreSessionFromStorage();
+    // Keep the last signed-in session even while Google redirect finishes.
+    const savedSession = restoreSessionFromStorage();
 
     const [user, setUser] = useState(() => savedSession?.user ?? null);
     const [token, setToken] = useState(() => savedSession?.token ?? null);

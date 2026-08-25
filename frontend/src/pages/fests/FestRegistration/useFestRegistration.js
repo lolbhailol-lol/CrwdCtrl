@@ -44,18 +44,19 @@ import {
   needsTeamDetailsStep,
   validateTeamName,
   validateTeamDetails,
+  isMindSparkFest,
 } from '../../../features/fests/mindspark';
 import { getFestPluginFromAny } from '../../../features/fests/plugins';
 import { getCompetitionFeeTiers } from '../../../utils/competitionFeeTiers';
 import { waitAtLeast, sleep } from '../../../components/RegistrationStatusVisual';
 import { useInAppBack } from '../../../hooks/useInAppBack';
 import { API_BASE_URL } from '../../../services/api/client';
-import { festRegisterPath } from '../../../utils/slugRoutes';
+import { festRegisterPath, festPath, isObjectId } from '../../../utils/slugRoutes';
 import { loadRegistrationPrefetch, saveRegistrationPrefetch } from '../../../utils/festPublicTransform';
 import { getInitialFestRegistrationUi, generateFieldId, compressImage, buildInitialFormData, mergeFormDataWithSchema, customerPhoneFromRegistration } from './helpers';
 
 export default function useFestRegistration() {
-  const { festId } = useParams();
+  const { festId, competitionSlug } = useParams();
   const navigate = useNavigate();
   const goBack = useInAppBack();
   const location = useLocation();
@@ -63,7 +64,10 @@ export default function useFestRegistration() {
   const paymentResumeRef = useRef(false);
   const competitionPaymentResumeRef = useRef(false);
   const handleSubmitRef = useRef(null);
-  const competitionId = searchParams.get('competition') || location.state?.competitionId || null;
+  const competitionId = competitionSlug
+    || searchParams.get('competition')
+    || location.state?.competitionId
+    || null;
   const storedPrefetch = festId ? loadRegistrationPrefetch(festId, competitionId) : null;
   const registrationPrefetch = location.state?.prefetch ?? storedPrefetch ?? null;
   const initialUi = getInitialFestRegistrationUi(location.pathname, location.search, location.state, {
@@ -85,6 +89,7 @@ export default function useFestRegistration() {
   
   const [fest, setFest] = useState(() => registrationPrefetch?.fest ?? null);
   const [competition, setCompetition] = useState(() => registrationPrefetch?.competition ?? null);
+  const resolvedCompetitionId = competition?._id || competition?.id || (isObjectId(competitionId) ? competitionId : null);
   const [priceBreakdown, setPriceBreakdown] = useState(null);
   const [formData, setFormData] = useState(() =>
     registrationPrefetch?.fest?.registration
@@ -141,6 +146,12 @@ export default function useFestRegistration() {
   }, [firebaseUser, authToken]);
 
   const isCompetitionRegistration = !!competitionId;
+  const hideFestOnlyForm = Boolean(
+    !isCompetitionRegistration
+    && !completingPayment
+    && !success
+    && isMindSparkFest(fest || festId)
+  );
   const festPlugin = getFestPluginFromAny(
     fest,
     competition?.fest,
@@ -406,7 +417,7 @@ export default function useFestRegistration() {
       : 'Completing registration...');
 
     const { regId } = await finalizeCompetitionAfterPayment({
-      competitionId,
+      competitionId: resolvedCompetitionId || competitionId,
       verifiedFields,
       token: submitToken,
       draft,
@@ -425,7 +436,7 @@ export default function useFestRegistration() {
     saveFestRegistrationSuccess({
       festId: festId || fest?._id,
       festMongoId: fest?._id || fest?.id || null,
-      competitionId: competitionId || competition?._id || null,
+      competitionId: resolvedCompetitionId || competitionId || competition?._id || null,
       registrationId: regId,
     });
     clearRegistrationDraft(draftKey);
@@ -519,7 +530,12 @@ export default function useFestRegistration() {
       && shouldResumePendingPayment(pendingPayment, currentPath, location.search);
     if (resumingPayment) return;
 
-    const usableToken = resolveAuthToken(authToken);
+    if (hideFestOnlyForm) {
+      setShowLogin(false);
+      return;
+    }
+
+    const usableToken = resolveAuthToken(authToken) || resolveAuthToken();
     if (usableToken) {
       setShowLogin(false);
       setError((prev) => (prev === 'Please log in to register for events' ? '' : prev));
@@ -536,19 +552,31 @@ export default function useFestRegistration() {
     isRedirectProcessing,
     location.pathname,
     location.search,
+    hideFestOnlyForm,
   ]);
 
   useEffect(() => {
     if (!fest) return;
-    const canonical = festRegisterPath(fest);
-    if (window.location.pathname !== canonical) {
-      // Keep payment-return / success navigation state across ObjectId ? slug rewrite
-      navigate(`${canonical}${location.search || ''}`, {
-        replace: true,
-        state: location.state,
-      });
-    }
-  }, [fest, navigate, location.search, location.state]);
+    if (competitionId && !competition && !error) return;
+    const canonical = festRegisterPath(fest, competition || competitionId);
+    const params = new URLSearchParams(location.search || '');
+    params.delete('competition');
+    const qs = params.toString();
+    const next = qs ? `${canonical}?${qs}` : canonical;
+    const current = `${window.location.pathname}${window.location.search || ''}`;
+    if (current === next) return;
+    navigate(next, {
+      replace: true,
+      state: location.state,
+    });
+  }, [fest, competition, competitionId, error, navigate, location.search, location.state]);
+
+  useEffect(() => {
+    if (!hideFestOnlyForm) return;
+    const target = fest ? festPath(fest) : `/view-details/${festId || 'mindspark-2026'}`;
+    if (window.location.pathname === target) return;
+    navigate(target, { replace: true });
+  }, [hideFestOnlyForm, fest, festId, navigate]);
 
   useEffect(() => {
     if (loading || !fest) return;
@@ -570,7 +598,7 @@ export default function useFestRegistration() {
         return;
       }
       pricingPayload = {
-        competitionId: competition?._id || competitionId,
+        competitionId: competition?._id || resolvedCompetitionId || competitionId,
         couponCode: appliedCouponCode || undefined,
         tierId: formData.feeTierId || undefined,
       };
@@ -1467,7 +1495,7 @@ export default function useFestRegistration() {
 
         const orderNotes = isCompetitionRegistration
           ? {
-            competitionId,
+            competitionId: resolvedCompetitionId || competitionId,
             tierId: formData.feeTierId || undefined,
             registrationDraft: buildOrderRegistrationDraft(),
           }
@@ -1649,8 +1677,9 @@ export default function useFestRegistration() {
         }
       }
       submissionFormData.append('responses', JSON.stringify(textResponses));
-      if (competitionId) {
-        submissionFormData.append('competitionId', String(competitionId));
+      const submitCompetitionId = resolvedCompetitionId || competitionId;
+      if (submitCompetitionId) {
+        submissionFormData.append('competitionId', String(submitCompetitionId));
       }
 
       // Attach Cashfree payment fields if payment was made
@@ -1673,7 +1702,7 @@ export default function useFestRegistration() {
 
       // ? PERFORMANCE: Determine endpoint and make request
       const endpoint = isCompetitionRegistration 
-        ? `${API_BASE_URL}/registrations/competitions/${competitionId}/register`
+        ? `${API_BASE_URL}/registrations/competitions/${resolvedCompetitionId || competitionId}/register`
         : `${API_BASE_URL}/registrations/fests/${festId}/register`;
 
                   
@@ -1781,7 +1810,7 @@ export default function useFestRegistration() {
         festId: festId || fest?._id,
         festMongoId: fest?._id || fest?.id || null,
         competitionId: isCompetitionRegistration
-          ? (competitionId || competition?._id || null)
+          ? (resolvedCompetitionId || competitionId || competition?._id || null)
           : null,
         registrationId: regId,
       });
@@ -2006,8 +2035,8 @@ export default function useFestRegistration() {
   };
 
 
-  const hasAuth = hasUsableAuthToken(authToken);
-  const hasStoredSession = hasUsableAuthToken(authToken);
+  const hasAuth = Boolean(isAuthenticated || hasUsableAuthToken(authToken) || hasUsableAuthToken());
+  const hasStoredSession = hasAuth;
   const waitingOnAuth = !hasStoredSession && (
     authLoading || isAuthProcessing || isRedirectProcessing || (!!firebaseUser && !authSyncExpired)
   );
@@ -2019,7 +2048,7 @@ export default function useFestRegistration() {
     navigate,
     goBack,
     location,
-    competitionId,
+    competitionId: resolvedCompetitionId || competitionId,
     isAuthenticated,
     authLoading,
     authToken,
@@ -2070,7 +2099,8 @@ export default function useFestRegistration() {
     paymentResumeWasPaid,
     retryPaymentResume,
     isCompetitionRegistration,
-    isSoldOut: Boolean(isCompetitionRegistration && isCompetitionSoldOut(competition)),
+    hideFestOnlyForm,
+    isSoldOut: Boolean(isCompetitionRegistration && isCompetitionSoldOut(competition || {})),
     draftKey,
     registrationDisplayName,
     hasAuth,

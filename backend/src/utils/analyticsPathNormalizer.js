@@ -31,7 +31,7 @@ async function buildSlugPathLookup() {
         SportsEvent.find().select('title').lean(),
         TrekCommunity.find().select('name').lean(),
         EventShow.find().select('title displayName').lean(),
-        Competition.find().select('name').lean(),
+        Competition.find().select('name fest').lean(),
     ]);
 
     const map = new Map();
@@ -43,9 +43,11 @@ async function buildSlugPathLookup() {
         addMapping(map, `/trek/${id}/book`, `/trek/${slug}/book`);
     }
 
+    const festSlugById = new Map();
     for (const fest of fests) {
         const id = String(fest._id);
         const slug = slugOrId(fest.festName, id);
+        festSlugById.set(id, slug);
         addMapping(map, `/view-details/${id}`, `/view-details/${slug}`);
         addMapping(map, `/fest/${id}/register`, `/fest/${slug}/register`);
     }
@@ -81,6 +83,12 @@ async function buildSlugPathLookup() {
         const slug = slugOrId(competition.name, id);
         addMapping(map, `/competitions-view-details/${id}`, `/competitions-view-details/${slug}`);
         addMapping(map, `/competition-registration/${id}`, `/competition-registration/${slug}`);
+        const parentFestId = competition.fest ? String(competition.fest) : '';
+        if (parentFestId) {
+            const festSlug = festSlugById.get(parentFestId) || parentFestId;
+            addMapping(map, `/fest/${parentFestId}/register/${id}`, `/fest/${festSlug}/register/${slug}`);
+            addMapping(map, `/fest/${festSlug}/register/${id}`, `/fest/${festSlug}/register/${slug}`);
+        }
     }
 
     return map;

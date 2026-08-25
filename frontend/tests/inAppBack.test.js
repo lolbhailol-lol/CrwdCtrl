@@ -8,6 +8,7 @@ test('booking and register URLs go to the parent page', () => {
   assert.equal(resolveBrowseBackPath('/trek/himalayan-trail/book'), '/trek/himalayan-trail');
   assert.equal(resolveBrowseBackPath('/events/abc/register'), '/events/abc');
   assert.equal(resolveBrowseBackPath('/fest/fest123/register'), '/view-details/fest123');
+  assert.equal(resolveBrowseBackPath('/fest/mindspark-2026/register/hackathon'), '/competitions-view-details/hackathon');
   assert.equal(resolveBrowseBackPath('/competition-list/fest123'), '/view-details/fest123');
 });
 

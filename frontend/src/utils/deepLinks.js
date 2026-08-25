@@ -213,8 +213,8 @@ export function pathsMatchPendingReturn(pendingPath, currentPath) {
   const currentBase = currentPath.split('?')[0].replace(/\/$/, '') || '/';
   if (pendingBase === currentBase) return true;
 
-  // Fest register: ObjectId ↔ slug after canonical redirect must still resume payment
-  const festReg = /^\/fest\/[^/]+\/register$/;
+  // Fest register: ObjectId ↔ slug and ?competition= ↔ /register/:slug must still resume payment
+  const festReg = /^\/fest\/[^/]+\/register(?:\/[^/]+)?$/;
   if (festReg.test(pendingBase) && festReg.test(currentBase)) return true;
 
   // Legacy competition registration routes (id ↔ slug)

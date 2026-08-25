@@ -22,7 +22,7 @@ const LEGACY_SLUG_ROUTE_PATTERNS = [
     /^\/events\/community-event\/([^/]+)(?:\/book)?$/,
     /^\/events\/([^/]+)(?:\/register)?$/,
     /^\/view-details\/([^/]+)$/,
-    /^\/fest\/([^/]+)\/register$/,
+    /^\/fest\/([^/]+)\/register(?:\/([^/]+))?$/,
     /^\/competitions-view-details\/([^/]+)$/,
     /^\/competition-registration\/([^/]+)$/,
 ];
@@ -31,8 +31,18 @@ export function isLegacyIdSlugPath(pathname = '') {
     const path = String(pathname || '').split('?')[0];
     return LEGACY_SLUG_ROUTE_PATTERNS.some((pattern) => {
         const match = path.match(pattern);
-        return match ? isObjectId(match[1]) : false;
+        if (!match) return false;
+        return match.slice(1).some((part) => part && isObjectId(part));
     });
+}
+
+/** Wait for ObjectId → slug (or ?competition= → /register/:slug) before sending GA page_path. */
+export function shouldDelayAnalyticsPageView(pathname = '', search = '') {
+    const path = String(pathname || '').split('?')[0];
+    if (isLegacyIdSlugPath(path)) return true;
+    const query = String(search || '').replace(/^\?/, '');
+    const params = new URLSearchParams(query);
+    return /^\/fest\/[^/]+\/register$/.test(path) && Boolean(params.get('competition'));
 }
 
 function pickId(entity = {}) {
@@ -65,10 +75,43 @@ export function festPath(fest = {}) {
     return `/view-details/${slug || id}`;
 }
 
-export function festRegisterPath(fest = {}) {
+function competitionPathToken(competition) {
+    if (competition == null || competition === '') return '';
+    if (typeof competition === 'string' || typeof competition === 'number') {
+        const token = String(competition).trim();
+        if (!token) return '';
+        return isObjectId(token) ? token : (toSlug(token) || token);
+    }
+    const id = pickId(competition);
+    const slug = toSlug(competition.slug || competition.name || competition.title || '');
+    return slug || id || '';
+}
+
+export function festRegisterPath(fest = {}, competition = null) {
     const id = pickId(fest);
     const slug = toSlug(fest.festName || fest.title || '');
-    return `/fest/${slug || id}/register`;
+    const base = `/fest/${slug || id}/register`;
+    const token = competitionPathToken(competition);
+    return token ? `${base}/${token}` : base;
+}
+
+/** Parse /fest/:festId/register and /fest/:festId/register/:competition (plus legacy ?competition=). */
+export function parseFestRegisterPath(href = '') {
+    const raw = String(href || '');
+    try {
+        const [path, query = ''] = raw.split('?');
+        const match = path.match(/^\/fest\/([^/]+)\/register(?:\/([^/]+))?\/?$/);
+        if (!match) return null;
+        const params = new URLSearchParams(query);
+        return {
+            festId: match[1],
+            competitionSlug: match[2] || params.get('competition') || '',
+            path,
+            query,
+        };
+    } catch {
+        return null;
+    }
 }
 
 export function trekPath(trek = {}) {

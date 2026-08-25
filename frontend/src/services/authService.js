@@ -13,6 +13,7 @@ import { storage } from '../utils/storage';
 import { signInWithGoogle, signInWithFacebook, registerWithEmail, auth } from '../firebase';
 import { processSocialAuthUser } from '../utils/socialAuth';
 import { withFirebaseIdToken } from '../utils/firebaseIdToken';
+import { persistAuthSession } from '../utils/authStorage.js';
 import { AUTH_CONFIG, API_CONFIG } from '../config/env.js';
 import { isNativeApp } from '../utils/capacitorPlatform';
 import { setNativeAuthInProgress } from '../utils/nativeAuth';
@@ -110,8 +111,7 @@ class AuthService {
             const userData = response.data.user;
             const token = response.data.token;
 
-            storage.setJSON(USER_KEY, userData);
-            storage.setItem(TOKEN_KEY, token);
+            persistAuthSession(userData, token);
 
             console.log('✅ [AUTH] User login successful');
             return {
@@ -181,8 +181,7 @@ class AuthService {
             const userData = backendResponse.data.user;
             const token = backendResponse.data.token;
 
-            storage.setJSON(USER_KEY, userData);
-            storage.setItem(TOKEN_KEY, token);
+            persistAuthSession(userData, token);
 
             console.log('✅ [AUTH] Google login successful');
             return {
@@ -285,8 +284,7 @@ class AuthService {
             const userData = backendResponse.data.user;
             const token = backendResponse.data.token;
 
-            storage.setJSON(USER_KEY, userData);
-            storage.setItem(TOKEN_KEY, token);
+            persistAuthSession(userData, token);
 
             console.log('✅ [AUTH] Facebook login successful');
             return {
@@ -352,8 +350,7 @@ class AuthService {
             const registeredUser = backendResponse.data.user;
             const token = backendResponse.data.token;
 
-            storage.setJSON(USER_KEY, registeredUser);
-            storage.setItem(TOKEN_KEY, token);
+            persistAuthSession(registeredUser, token);
 
             console.log('✅ [AUTH] Registration successful');
             return {
@@ -476,8 +473,7 @@ class AuthService {
             const userData = backendResponse.data.user;
             const token = backendResponse.data.token;
 
-            storage.setJSON(USER_KEY, userData);
-            storage.setItem(TOKEN_KEY, token);
+            persistAuthSession(userData, token);
 
             console.log('✅ [AUTH] Social registration successful');
             return {

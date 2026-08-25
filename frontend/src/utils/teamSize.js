@@ -73,6 +73,7 @@ export function formatSlotsLabel(slotsAllotted, slotsLeft, { showSlotsPublic = t
 
 /** True when organizer set a cap and remaining seats are 0. */
 export function isCompetitionSoldOut(comp = {}) {
+    if (!comp || typeof comp !== 'object') return false;
     const allotted = Math.max(0, Number(comp.slotsAllotted) || 0);
     if (allotted <= 0) return false;
     if (comp.slotsLeft != null && Number.isFinite(Number(comp.slotsLeft))) {
