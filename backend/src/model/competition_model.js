@@ -75,6 +75,13 @@ const competitionSchema = new mongoose.Schema(
     default: 'OTHER',
   },
 
+  /** MindSpark module heading (CODIFICA, HACKATHON, …). Empty = infer from name. */
+  module: {
+    type: String,
+    trim: true,
+    default: '',
+  },
+
   description: {
     type: String,
     required: true,

@@ -4,6 +4,10 @@ const assert = require('node:assert/strict');
 const {
   resolveAllottedSlots,
   slotState,
+  isCompetitionRegistrationClosed,
+  assertCompetitionAcceptsRegistration,
+  REGISTRATION_CLOSED_MESSAGE,
+  COMPETITION_NOT_FOUND_MESSAGE,
 } = require('../src/utils/competitionSlots');
 
 test('allotted slots prefer slotsAllotted over nested maxRegistrations', () => {
@@ -31,4 +35,35 @@ test('zero allotted is unlimited and never full', () => {
   assert.equal(open.limited, false);
   assert.equal(open.full, false);
   assert.equal(open.left, null);
+});
+
+test('registration_closed is independent of remaining slots', () => {
+  assert.equal(isCompetitionRegistrationClosed({
+    slotsAllotted: 50,
+    registration: { status: 'registration_closed' },
+  }), true);
+  assert.equal(isCompetitionRegistrationClosed({
+    registration: { status: 'not_started' },
+  }), false);
+  assert.equal(REGISTRATION_CLOSED_MESSAGE.includes('closed'), true);
+});
+
+test('missing competition does not bypass registration checks', async () => {
+  await assert.rejects(
+    () => assertCompetitionAcceptsRegistration(null),
+    (err) => err.status === 404 && err.code === 'COMPETITION_NOT_FOUND'
+      && err.message === COMPETITION_NOT_FOUND_MESSAGE,
+  );
+  await assert.rejects(
+    () => assertCompetitionAcceptsRegistration(''),
+    (err) => err.code === 'COMPETITION_NOT_FOUND',
+  );
+  await assert.rejects(
+    () => assertCompetitionAcceptsRegistration({
+      _id: '000000000000000000000001',
+      registration: { status: 'registration_closed' },
+      slotsAllotted: 50,
+    }),
+    (err) => err.status === 409 && err.code === 'REGISTRATION_CLOSED',
+  );
 });

@@ -9,7 +9,7 @@ const { competitionRequiresPayment, resolvePaidOrderTotal } = require('../../uti
 const { logger } = require('../../utils/logger');
 const { cashfreeSettlementFields } = require('../../utils/cashfreeGatewayFee');
 const { getFestPlugin } = require('../../modules/fest/plugins');
-const { assertCompetitionHasOpenSlot } = require('../../utils/competitionSlots');
+const { assertCompetitionAcceptsRegistration } = require('../../utils/competitionSlots');
 const {
   parseResponsesBody,
   maybeEnrichExistingResponses,
@@ -216,7 +216,7 @@ const submitCustomCompetitionRegistration = async (req, res) => {
 
     // Paid in-flight checkouts still fulfill. New unpaid entries stop at capacity.
     if (paymentStatus !== 'paid') {
-      await assertCompetitionHasOpenSlot(competition);
+      await assertCompetitionAcceptsRegistration(competition);
     }
 
     // Validate required fields — skip file requirements when payment is verified.
@@ -742,7 +742,7 @@ const submitCompetitionRegistration = async (req, res) => {
     }
 
     if (paymentStatusRoute !== 'paid') {
-      await assertCompetitionHasOpenSlot(competition);
+      await assertCompetitionAcceptsRegistration(competition);
     }
 
     // Validate required fields — skip file requirements when payment is verified

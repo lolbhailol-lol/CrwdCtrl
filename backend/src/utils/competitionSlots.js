@@ -2,6 +2,8 @@ const Registration = require('../model/registration_model');
 const Competition = require('../model/competition_model');
 
 const SLOTS_FULL_MESSAGE = 'This competition is full. No slots remaining.';
+const REGISTRATION_CLOSED_MESSAGE = 'Registration is closed for this competition.';
+const COMPETITION_NOT_FOUND_MESSAGE = 'Competition not found.';
 
 function resolveAllottedSlots(competition = {}) {
   const slots = Math.max(0, Math.floor(Number(competition.slotsAllotted) || 0));
@@ -49,7 +51,7 @@ async function loadCompetitionForSlots(competitionOrId) {
   }
   if (!competitionOrId) return null;
   return Competition.findById(competitionOrId)
-    .select('slotsAllotted registration.maxRegistrations registration.settings.maxRegistrations name')
+    .select('slotsAllotted registration.maxRegistrations registration.settings.maxRegistrations registration.status name')
     .lean();
 }
 
@@ -82,12 +84,49 @@ async function assertCompetitionHasOpenSlot(competitionOrId) {
   return state;
 }
 
+function isCompetitionRegistrationClosed(competition = {}) {
+  const status = String(competition?.registration?.status || '').trim().toLowerCase();
+  return status === 'registration_closed' || status === 'closed';
+}
+
+function registrationClosedError() {
+  const err = new Error(REGISTRATION_CLOSED_MESSAGE);
+  err.status = 409;
+  err.code = 'REGISTRATION_CLOSED';
+  return err;
+}
+
+function competitionNotFoundError() {
+  const err = new Error(COMPETITION_NOT_FOUND_MESSAGE);
+  err.status = 404;
+  err.code = 'COMPETITION_NOT_FOUND';
+  return err;
+}
+
+/**
+ * New unpaid entries / checkout orders. Paid in-flight fulfillment should skip this.
+ */
+async function assertCompetitionAcceptsRegistration(competitionOrId) {
+  const competition = await loadCompetitionForSlots(competitionOrId);
+  if (!competition) {
+    throw competitionNotFoundError();
+  }
+  if (isCompetitionRegistrationClosed(competition)) {
+    throw registrationClosedError();
+  }
+  return assertCompetitionHasOpenSlot(competition);
+}
+
 module.exports = {
   SLOTS_FULL_MESSAGE,
+  REGISTRATION_CLOSED_MESSAGE,
+  COMPETITION_NOT_FOUND_MESSAGE,
   resolveAllottedSlots,
   slotState,
   occupiedSlotFilter,
   countOccupiedCompetitionSlots,
   getCompetitionSlotState,
   assertCompetitionHasOpenSlot,
+  isCompetitionRegistrationClosed,
+  assertCompetitionAcceptsRegistration,
 };

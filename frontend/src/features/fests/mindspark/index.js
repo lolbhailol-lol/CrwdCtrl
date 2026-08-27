@@ -9,6 +9,7 @@ export {
 
 export {
   MINDSPARK_MODULE_ORDER,
+  normalizeMindSparkModule,
   resolveMindSparkModule,
   sortMindSparkModules,
   sortMindSparkModuleGroups,

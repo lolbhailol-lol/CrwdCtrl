@@ -83,3 +83,12 @@ export function isCompetitionSoldOut(comp = {}) {
     return filled >= allotted;
 }
 
+/** Organizer closed this event (independent of slot cap). */
+export function isCompetitionRegistrationClosed(comp = {}) {
+    if (!comp || typeof comp !== 'object') return false;
+    const status = String(comp.registration?.status || comp.registrationStatus || '').trim().toLowerCase();
+    if (status === 'registration_closed' || status === 'closed') return true;
+    if (comp.registrationsOpen === false) return true;
+    return false;
+}
+

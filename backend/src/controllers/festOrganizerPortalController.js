@@ -723,7 +723,7 @@ exports.getDashboard = async (req, res) => {
             }),
             Registration.countDocuments({ ...notProShow, status: { $in: ['pending', 'approved'] } }),
             Competition.find({ fest: festId })
-                .select('name competitionType category coverImage subtitle feeAmount registrationFee feeTiers slotsAllotted showSlotsPublic registration.whatsappGroupLink')
+                .select('name competitionType category module coverImage subtitle feeAmount registrationFee feeTiers slotsAllotted showSlotsPublic registration.whatsappGroupLink registration.status')
                 .sort({ name: 1 })
                 .lean(),
             Registration.aggregate([
@@ -829,6 +829,9 @@ exports.getDashboard = async (req, res) => {
                 name: c.name || 'Competition',
                 competitionType: c.competitionType || '',
                 category: c.category || 'OTHER',
+                module: String(c.module || '').trim(),
+                registrationStatus: c.registration?.status || '',
+                registrationsOpen: String(c.registration?.status || '').toLowerCase() !== 'registration_closed',
                 subtitle: c.subtitle || '',
                 coverImage: c.coverImage || '',
                 feeAmount,
@@ -1628,7 +1631,7 @@ exports.getCompetitionOps = async (req, res) => {
         const [fest, competition] = await Promise.all([
             FestOrganizer.findById(festId).select('festName slug').lean(),
             Competition.findOne({ _id: competitionId, fest: festId })
-                .select('name subtitle competitionType category feeAmount registrationFee feeTiers registration description coverImage slotsAllotted showSlotsPublic teamSizeMin teamSizeMax teamSizeLabel')
+                .select('name subtitle competitionType category module feeAmount registrationFee feeTiers registration description coverImage slotsAllotted showSlotsPublic teamSizeMin teamSizeMax teamSizeLabel')
                 .lean(),
         ]);
         if (!fest) return res.status(404).json({ success: false, message: 'Fest not found' });
@@ -1709,6 +1712,7 @@ exports.getCompetitionOps = async (req, res) => {
                 subtitle: competition.subtitle || '',
                 competitionType: competition.competitionType || '',
                 category: competition.category || '',
+                module: String(competition.module || '').trim(),
                 coverImage: competition.coverImage || '',
                 feeAmount: Number(competition.feeAmount ?? competition.registrationFee) || 0,
                 registrationFee: competition.registrationFee || '',
@@ -1722,6 +1726,7 @@ exports.getCompetitionOps = async (req, res) => {
                 teamSizeMax,
                 teamSizeLabel: competition.teamSizeLabel || '',
                 registrationStatus: competition.registration?.status || '',
+                registrationsOpen: String(competition.registration?.status || '').toLowerCase() !== 'registration_closed',
                 description: competition.description || '',
             },
             stats: {
@@ -1832,6 +1837,13 @@ exports.updateCompetitionSlots = async (req, res) => {
             competition.teamSizeLabel = next.teamSizeLabel;
         }
 
+        if (body.registrationsOpen !== undefined || body.registrationClosed !== undefined) {
+            const closed = body.registrationClosed !== undefined
+                ? isTruthyFlag(body.registrationClosed)
+                : !isTruthyFlag(body.registrationsOpen);
+            applyCompetitionRegistrationsOpen(competition, !closed);
+        }
+
         await competition.save();
         tryClearPublicCaches();
 
@@ -1850,6 +1862,8 @@ exports.updateCompetitionSlots = async (req, res) => {
                 teamSizeMin: Math.max(1, Number(competition.teamSizeMin) || 1),
                 teamSizeMax: Math.max(1, Number(competition.teamSizeMax) || 1),
                 teamSizeLabel: competition.teamSizeLabel || '',
+                registrationStatus: competition.registration?.status || '',
+                registrationsOpen: String(competition.registration?.status || '').toLowerCase() !== 'registration_closed',
             },
         });
     } catch (error) {
@@ -1861,6 +1875,27 @@ exports.updateCompetitionSlots = async (req, res) => {
 function getCompetitionBaseFee(registrationFee, feeAmount) {
     const numericFeeAmount = parseTicketPrice(feeAmount);
     return numericFeeAmount || parseTicketPrice(registrationFee);
+}
+
+function isTruthyFlag(value) {
+    return !(value === false || value === 'false' || value === 0 || value === '0' || value === '');
+}
+
+function sanitizeCompetitionModule(value) {
+    return String(value || '').trim().toUpperCase();
+}
+
+function applyCompetitionRegistrationsOpen(competition, open) {
+    if (!competition.registration || typeof competition.registration !== 'object') {
+        competition.registration = {};
+    }
+    if (open) {
+        const type = String(competition.registrationType || 'fest');
+        competition.registration.status = type === 'custom' ? 'internal_form' : 'not_started';
+    } else {
+        competition.registration.status = 'registration_closed';
+    }
+    competition.markModified('registration');
 }
 
 function sanitizeRulesList(value) {
@@ -1906,6 +1941,7 @@ function serializeCompetitionDetails(competition) {
         description: competition.description || '',
         competitionType: competition.competitionType || '',
         category: competition.category || '',
+        module: String(competition.module || '').trim(),
         prizePool: competition.prizePool || '',
         registrationFee: competition.registrationFee || '',
         feeAmount: Number(competition.feeAmount) || 0,
@@ -1950,6 +1986,7 @@ function applyCompetitionPayload(competition, body = {}) {
         competition.competitionType = String(body.competitionType || '').trim() || 'other';
     }
     if (body.category !== undefined) competition.category = String(body.category || '').trim() || 'OTHER';
+    if (body.module !== undefined) competition.module = sanitizeCompetitionModule(body.module);
     if (body.prizePool !== undefined) competition.prizePool = String(body.prizePool || '').trim();
     if (body.registrationFee !== undefined) {
         competition.registrationFee = String(body.registrationFee || '').trim();
@@ -2163,6 +2200,7 @@ exports.createCompetition = async (req, res) => {
             subtitle: String(body.subtitle || '').trim(),
             competitionType: body.competitionType || 'other',
             category: body.category || 'OTHER',
+            module: sanitizeCompetitionModule(body.module),
             description: String(body.description || '').trim(),
             prizePool: String(body.prizePool || '').trim(),
             dateTime: String(body.dateTime || 'To Be Announced').trim(),

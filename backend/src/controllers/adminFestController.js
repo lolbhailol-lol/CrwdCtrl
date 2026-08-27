@@ -419,6 +419,7 @@ exports.createCompetition = async (req, res) => {
       subtitle,
       competitionType: competitionType || 'other',
       category: category || 'OTHER',
+      module: String(req.body.module || '').trim().toUpperCase(),
       description,
       prizePool,
       dateTime: dateTime || 'To Be Announced', // Use dateTime field from model

@@ -16,6 +16,8 @@ import {
   RosterFieldsEditor,
   DEFAULT_PERSON_FIELDS,
   normalizePersonFields,
+  MINDSPARK_MODULE_ORDER,
+  resolveMindSparkModule,
 } from '../../features/fests/mindspark';
 import { getFestPlugin } from '../../features/fests/plugins';
 
@@ -472,6 +474,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
     description: '',
     competitionType: 'other',
     category: 'OTHER',
+    module: '',
     prizePool: '',
     registrationFee: '',
     feeAmount: 0,
@@ -583,6 +586,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
           description: source.description || '',
           competitionType: source.competitionType || 'other',
           category: source.category || 'OTHER',
+          module: source.module || (mindSpark ? resolveMindSparkModule(source) : ''),
           prizePool: source.prizePool ? source.prizePool.toString() : '',
           registrationFee: source.registrationFee || '',
           feeAmount: parseTicketPrice(source.feeAmount) || parseTicketPrice(source.registrationFee),
@@ -1275,6 +1279,12 @@ function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
         return;
       }
 
+      if (mindSpark && !form.module) {
+        setError('Please select a module (CODIFICA, HACKATHON, …)');
+        setLoading(false);
+        return;
+      }
+
       // MindSpark: person fields required for solo and teams (fest or custom registration)
       if (mindSpark) {
         const personFields = normalizePersonFields(form.registration?.personFields);
@@ -1360,7 +1370,8 @@ function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
         subtitle: form.subtitle,
         description: form.description,
         competitionType: form.competitionType,
-        category: form.category,
+        category: mindSpark ? (form.category || 'TECHNICAL') : form.category,
+        module: form.module || '',
         prizePool: form.prizePool,
         registrationFee: feeTiers.length
           ? formatCompetitionFeeTiersLabel(feeTiers)
@@ -1615,30 +1626,49 @@ function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Category</label>
-                  <select
-                    className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
-                    value={form.category || 'OTHER'}
-                    onChange={(e) => setForm({ ...form, category: e.target.value })}
-                  >
-                    <option value="DANCE">DANCE</option>
-                    <option value="MUSIC">MUSIC</option>
-                    <option value="THEATRE">THEATRE</option>
-                    <option value="ART">ART</option>
-                    <option value="SPORTS">SPORTS</option>
-                    <option value="ACADEMIC">ACADEMIC</option>
-                    <option value="GAMING">GAMING</option>
-                    <option value="QUIZ">QUIZ</option>
-                    <option value="CULTURAL">CULTURAL</option>
-                    <option value="TECHNICAL">TECHNICAL</option>
-                    <option value="PHOTOGRAPHY">PHOTOGRAPHY</option>
-                    <option value="GIRLS">GIRLS</option>
-                    <option value="BOYS">BOYS</option>
-                    <option value="MIXED">MIXED</option>
-                    <option value="OTHER">OTHER</option>
-                  </select>
-                </div>
+                {mindSpark ? (
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Module *</label>
+                    <select
+                      className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                      value={form.module && form.module !== 'OTHER' ? form.module : ''}
+                      onChange={(e) => setForm({ ...form, module: e.target.value })}
+                    >
+                      <option value="">Select module</option>
+                      {MINDSPARK_MODULE_ORDER.map((mod) => (
+                        <option key={mod} value={mod}>{mod}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Public page heading this event sits under
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Category</label>
+                    <select
+                      className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                      value={form.category || 'OTHER'}
+                      onChange={(e) => setForm({ ...form, category: e.target.value })}
+                    >
+                      <option value="DANCE">DANCE</option>
+                      <option value="MUSIC">MUSIC</option>
+                      <option value="THEATRE">THEATRE</option>
+                      <option value="ART">ART</option>
+                      <option value="SPORTS">SPORTS</option>
+                      <option value="ACADEMIC">ACADEMIC</option>
+                      <option value="GAMING">GAMING</option>
+                      <option value="QUIZ">QUIZ</option>
+                      <option value="CULTURAL">CULTURAL</option>
+                      <option value="TECHNICAL">TECHNICAL</option>
+                      <option value="PHOTOGRAPHY">PHOTOGRAPHY</option>
+                      <option value="GIRLS">GIRLS</option>
+                      <option value="BOYS">BOYS</option>
+                      <option value="MIXED">MIXED</option>
+                      <option value="OTHER">OTHER</option>
+                    </select>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium mb-2">Competition Type *</label>
@@ -1924,6 +1954,49 @@ function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
                   <h5 className="text-md font-semibold mb-4 border-b border-gray-700 pb-2">Registration Configuration</h5>
                   
                   {/* Registration Type Selection */}
+                  {mindSpark ? (
+                    <div className="mb-6">
+                      <label className="block text-sm font-medium mb-3">Registrations</label>
+                      <div className="flex flex-wrap gap-4">
+                        <label className="inline-flex items-center gap-2 text-sm">
+                          <input
+                            type="radio"
+                            name="mindSparkRegistrationsOpen"
+                            checked={form.registration?.status !== 'registration_closed'}
+                            onChange={() => setForm({
+                              ...form,
+                              registration: {
+                                ...form.registration,
+                                status: form.registrationType === 'custom' ? 'internal_form' : 'not_started',
+                              },
+                            })}
+                            className="w-4 h-4 text-[#0ECCEE] bg-[#1D1E20] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
+                          />
+                          Open
+                        </label>
+                        <label className="inline-flex items-center gap-2 text-sm">
+                          <input
+                            type="radio"
+                            name="mindSparkRegistrationsOpen"
+                            checked={form.registration?.status === 'registration_closed'}
+                            onChange={() => setForm({
+                              ...form,
+                              registration: {
+                                ...form.registration,
+                                status: 'registration_closed',
+                              },
+                            })}
+                            className="w-4 h-4 text-[#0ECCEE] bg-[#1D1E20] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
+                          />
+                          Closed
+                        </label>
+                      </div>
+                      <p className="text-xs text-gray-400 mt-2">
+                        Close this event the same way as Fox Hunt — slots stay as they are
+                      </p>
+                    </div>
+                  ) : null}
+
                   <div className="mb-6">
                     <label className="block text-sm font-medium mb-3">Registration Type *</label>
                     <div className="space-y-3">

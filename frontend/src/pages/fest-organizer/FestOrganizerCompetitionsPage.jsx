@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { RefreshCw, Search, ChevronRight, Trophy, UserPlus, QrCode, MessageCircle, Download } from 'lucide-react';
+import { RefreshCw, Search, ChevronRight, Trophy, UserPlus, QrCode, MessageCircle, Download, Loader } from 'lucide-react';
 import {
     fetchFestOrganizerDashboard,
     updateFestOrganizerCompetitionSlots,
@@ -88,6 +88,51 @@ export default function FestOrganizerCompetitionsPage() {
         } catch (e) {
             setRows((prev) => prev.map((row) => (
                 String(row.id) === id ? { ...row, showSlotsPublic: !next } : row
+            )));
+            toast(e.message || 'Failed');
+        } finally {
+            setSlotsBusyId('');
+        }
+    };
+
+    const toggleRegistrationsOpen = async (competition, next) => {
+        const id = String(competition.id);
+        setSlotsBusyId(`reg-${id}`);
+        setRows((prev) => prev.map((row) => (
+            String(row.id) === id
+                ? {
+                    ...row,
+                    registrationsOpen: next,
+                    registrationStatus: next ? 'not_started' : 'registration_closed',
+                }
+                : row
+        )));
+        try {
+            const res = await updateFestOrganizerCompetitionSlots(festId, id, {
+                registrationsOpen: next,
+            });
+            const saved = res?.competition;
+            if (saved) {
+                setRows((prev) => prev.map((row) => (
+                    String(row.id) === id
+                        ? {
+                            ...row,
+                            registrationsOpen: saved.registrationsOpen !== false,
+                            registrationStatus: saved.registrationStatus || (saved.registrationsOpen === false ? 'registration_closed' : 'not_started'),
+                        }
+                        : row
+                )));
+            }
+            toast(next ? 'Registrations open' : 'Registrations closed');
+        } catch (e) {
+            setRows((prev) => prev.map((row) => (
+                String(row.id) === id
+                    ? {
+                        ...row,
+                        registrationsOpen: !next,
+                        registrationStatus: next ? 'registration_closed' : 'not_started',
+                    }
+                    : row
             )));
             toast(e.message || 'Failed');
         } finally {
@@ -354,6 +399,40 @@ export default function FestOrganizerCompetitionsPage() {
                                 </div>
                             </button>
                             <div className="mt-3 pt-3 border-t border-white/8 space-y-2">
+                                <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#121314] px-3 py-2.5">
+                                    <div className="min-w-0">
+                                        <p className="text-xs font-medium text-white">
+                                            {c.registrationsOpen === false ? 'Registrations closed' : 'Registrations open'}
+                                        </p>
+                                        <p className="text-[10px] text-gray-500 mt-0.5 truncate">
+                                            {c.registrationsOpen === false
+                                                ? 'Students cannot register — reopen anytime'
+                                                : 'Close this event without changing slots'}
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        role="switch"
+                                        aria-checked={c.registrationsOpen !== false}
+                                        disabled={slotsBusyId === `reg-${id}`}
+                                        onClick={() => toggleRegistrationsOpen(c, c.registrationsOpen === false)}
+                                        className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border transition disabled:opacity-50 ${
+                                            c.registrationsOpen !== false
+                                                ? 'bg-emerald-500 border-emerald-400/50'
+                                                : 'bg-amber-500 border-amber-400/50'
+                                        }`}
+                                    >
+                                        {slotsBusyId === `reg-${id}` ? (
+                                            <Loader className="absolute inset-0 m-auto animate-spin text-white" size={12} />
+                                        ) : (
+                                            <span
+                                                className={`absolute top-0.5 size-5 rounded-full bg-white transition ${
+                                                    c.registrationsOpen !== false ? 'left-5' : 'left-0.5'
+                                                }`}
+                                            />
+                                        )}
+                                    </button>
+                                </div>
                                 {noReview ? (
                                     <>
                                         <button

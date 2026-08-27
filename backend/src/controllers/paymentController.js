@@ -14,7 +14,7 @@ const { resolveTrekPlatformFeePercent } = require('../utils/trekRegistrationFee'
 const { validateTrekGenderRegistration, validateSportsGenderRegistration } = require('../utils/trekGenderRegistration');
 const { resolveCompetitionTicketPrice } = require('../utils/competitionFeeTiers');
 const { buildPaymentOrderNote } = require('../utils/paymentOrderNote');
-const { assertCompetitionHasOpenSlot } = require('../utils/competitionSlots');
+const { assertCompetitionAcceptsRegistration } = require('../utils/competitionSlots');
 
 async function sumTrekConfirmedSeats(trekId) {
   const rows = await TrekBooking.aggregate([
@@ -207,11 +207,11 @@ const resolvePricedEntity = async ({
 
   if (resolvedCompetitionId) {
     const competition = await Competition.findById(resolvedCompetitionId)
-      .select('name feeAmount registrationFee feeTiers fest slotsAllotted registration.maxRegistrations registration.settings.maxRegistrations')
+      .select('name feeAmount registrationFee feeTiers fest slotsAllotted registration.maxRegistrations registration.settings.maxRegistrations registration.status')
       .populate('fest', 'platformFeePercent')
       .lean();
     if (!competition) return null;
-    await assertCompetitionHasOpenSlot(competition);
+    await assertCompetitionAcceptsRegistration(competition);
     const { ticketPrice, tier } = resolveCompetitionTicketPrice(competition, resolvedTierId);
     return {
       entityType: 'competition',

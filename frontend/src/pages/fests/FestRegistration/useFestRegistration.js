@@ -35,7 +35,7 @@ import {
 } from '../../../utils/authToken';
 import { parseTicketPrice } from '../../../utils/platformFee';
 import { fetchPaymentQuote as fetchPaymentQuoteApi } from '../../../services/api/payment.api';
-import { getRosterBounds, needsParticipantCountStep, isCompetitionSoldOut } from '../../../utils/teamSize';
+import { getRosterBounds, needsParticipantCountStep, isCompetitionSoldOut, isCompetitionRegistrationClosed } from '../../../utils/teamSize';
 import {
   teamMemberMissingLabel,
   normalizeTeamMember,
@@ -1297,6 +1297,11 @@ export default function useFestRegistration() {
       setError('This competition is full. No slots remaining.');
       return;
     }
+
+    if (!paidResume && isCompetitionRegistration && isCompetitionRegistrationClosed(competition)) {
+      setError('Registration is closed for this competition.');
+      return;
+    }
     
     // Validate only current step's required fields for multi-step forms
     if (!paidResume && isMultiStepForm()) {
@@ -2101,6 +2106,7 @@ export default function useFestRegistration() {
     isCompetitionRegistration,
     hideFestOnlyForm,
     isSoldOut: Boolean(isCompetitionRegistration && isCompetitionSoldOut(competition || {})),
+    isRegistrationClosed: Boolean(isCompetitionRegistration && isCompetitionRegistrationClosed(competition || {})),
     draftKey,
     registrationDisplayName,
     hasAuth,

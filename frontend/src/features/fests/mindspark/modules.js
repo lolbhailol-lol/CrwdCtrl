@@ -116,19 +116,24 @@ function lookupModule(value = '') {
   return EVENT_TO_MODULE[compact] || '';
 }
 
+/** Official module name, or empty if unknown. */
+export function normalizeMindSparkModule(value = '') {
+  return lookupModule(value);
+}
+
 /**
  * Resolve which MindSpark module a competition belongs to.
- * Prefers event name, then subtitle (rulebook folder), then stored type.
+ * Prefers stored module (organizer pick), then event name, then subtitle.
  */
 export function resolveMindSparkModule(competition = {}) {
+  const fromStored = lookupModule(competition.module || competition.moduleName || '');
+  if (fromStored) return fromStored;
+
   const fromName = lookupModule(competition.name || competition.title || '');
   if (fromName) return fromName;
 
   const fromSubtitle = lookupModule(competition.subtitle || '');
   if (fromSubtitle && MODULE_SET.has(fromSubtitle)) return fromSubtitle;
-
-  const fromStored = lookupModule(competition.module || competition.moduleName || '');
-  if (fromStored) return fromStored;
 
   return 'OTHER';
 }

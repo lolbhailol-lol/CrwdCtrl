@@ -25,7 +25,7 @@ import PrizePoolPodium from '../../components/PrizePoolPodium';
 import DetailPageLoader from '../../components/DetailPageLoader';
 import CompetitionCoverImage from '../../components/CompetitionCoverImage';
 import { signalDetailPageReady } from '../../utils/bootSplash';
-import { formatSlotsLabel, buildTeamSizeLabel, isCompetitionSoldOut } from '../../utils/teamSize';
+import { formatSlotsLabel, buildTeamSizeLabel, isCompetitionSoldOut, isCompetitionRegistrationClosed } from '../../utils/teamSize';
 import { useInAppBack } from '../../hooks/useInAppBack';
 import {
     loadCompetitionDetailCache,
@@ -1104,6 +1104,10 @@ function EventPage() {
 
         if (isCompetitionSoldOut(eventData)) {
             return closedResult('Sold out');
+        }
+
+        if (isCompetitionRegistrationClosed(eventData)) {
+            return closedResult('Registration Closed');
         }
 
         // Fest-linked competitions follow the parent fest registration mode.

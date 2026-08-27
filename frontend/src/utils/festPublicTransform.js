@@ -121,7 +121,7 @@ export function transformCompetitionItem(comp, festData) {
     contact: comp.contact,
     competitionType: comp.competitionType,
     category: comp.category,
-    module: getFestPlugin(festData).competitionModuleLabel(comp) || '',
+    module: String(comp.module || '').trim() || getFestPlugin(festData).competitionModuleLabel(comp) || '',
     registrationFee: fee.known ? fee.label : (comp.registrationFee || 'Free'),
     feeAmount: fee.amount ?? 0,
     feeTiers: fee.tiers || [],
