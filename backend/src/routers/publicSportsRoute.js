@@ -4,7 +4,7 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const SportsEvent = require('../model/sports_model');
 const RunClub = require('../model/run_club_model');
-const { findByIdOrSlug, ensureUniqueSlug, toSlug, mergePreviousSlugs } = require('../utils/slug');
+const { findByIdOrSlug, ensureUniqueSlug, toSlug, mergePreviousSlugs, isObjectId } = require('../utils/slug');
 const {
     expireStalePendingRegistrations,
     sumConfirmedSeats,
@@ -74,10 +74,23 @@ router.get('/', async (req, res) => {
         if (req.query.sportType) and.push({ sportType: req.query.sportType });
         if (req.query.city) and.push({ city: { $regex: req.query.city, $options: 'i' } });
         if (req.query.runClubId) {
-            if (!mongoose.Types.ObjectId.isValid(req.query.runClubId)) {
+            const clubRef = String(req.query.runClubId || '').trim();
+            let clubId = null;
+            if (isObjectId(clubRef)) {
+                clubId = clubRef;
+            } else {
+                const club = await findByIdOrSlug(RunClub, clubRef, {
+                    baseFilter: { status: 'published' },
+                    pickName: (row) => row.name,
+                    lean: true,
+                    select: '_id',
+                });
+                clubId = club?._id ? String(club._id) : null;
+            }
+            if (!clubId) {
                 return res.status(400).json({ message: 'Invalid run club ID' });
             }
-            and.push({ runClubId: req.query.runClubId });
+            and.push({ runClubId: clubId });
         }
 
         const filter = and.length === 1 ? and[0] : { $and: and };
