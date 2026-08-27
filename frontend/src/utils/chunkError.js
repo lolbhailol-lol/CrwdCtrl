@@ -1,4 +1,6 @@
 export const CHUNK_RELOAD_SESSION_KEY = 'crwdctrl_chunk_reload';
+const STALE_RECOVER_AT_KEY = 'crwdctrl_stale_recover_at';
+export const STALE_RECOVER_COOLDOWN_MS = 60_000;
 
 /** gtag.js / Firebase Analytics: config missing, then every fetch throws `undefined.M_ID`. */
 export function isGtagMeasurementIdError(error) {
@@ -34,10 +36,21 @@ export function isChunkLoadError(error) {
 }
 
 /** Hard recovery after deploy — drop stale service worker caches and reload fresh HTML */
+export function shouldAttemptStaleRecover(now = Date.now(), lastAt = 0, cooldownMs = STALE_RECOVER_COOLDOWN_MS) {
+    return !lastAt || (now - lastAt) >= cooldownMs;
+}
+
 export async function recoverFromStaleDeploy() {
     if (typeof navigator !== 'undefined' && !navigator.onLine) return;
     if (typeof window !== 'undefined' && String(window.location?.pathname || '').startsWith('/campus-hunt/offline')) {
         return;
+    }
+    try {
+        const lastAt = Number(sessionStorage.getItem(STALE_RECOVER_AT_KEY) || 0);
+        if (!shouldAttemptStaleRecover(Date.now(), lastAt)) return;
+        sessionStorage.setItem(STALE_RECOVER_AT_KEY, String(Date.now()));
+    } catch {
+        /* private mode */
     }
     try {
         if ('caches' in window) {
@@ -52,15 +65,8 @@ export async function recoverFromStaleDeploy() {
         /* ignore cleanup errors */
     }
 
-    try {
-        sessionStorage.removeItem(CHUNK_RELOAD_SESSION_KEY);
-        sessionStorage.removeItem('crwdctrl_sw_reload');
-        sessionStorage.removeItem('crwdctrl_boot_recover');
-    } catch {
-        /* ignore */
-    }
-
     const url = new URL(window.location.href);
+    if (url.searchParams.has('_crwd')) return;
     url.searchParams.set('_crwd', String(Date.now()));
     window.location.replace(url.toString());
 }
@@ -90,6 +96,7 @@ export function clearChunkReloadFlag() {
         sessionStorage.removeItem(CHUNK_RELOAD_SESSION_KEY);
         sessionStorage.removeItem('crwdctrl_sw_reload');
         sessionStorage.removeItem('crwdctrl_boot_recover');
+        sessionStorage.removeItem(STALE_RECOVER_AT_KEY);
     } catch {
         // ignore storage errors
     }

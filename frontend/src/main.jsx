@@ -59,6 +59,19 @@ if (import.meta.env.PROD && !isNativeApp()) {
         }).catch(() => {});
       },
     });
+    navigator.serviceWorker?.getRegistrations?.().then((registrations) => {
+      registrations.forEach((registration) => {
+        const scriptUrl = String(
+          registration.active?.scriptURL
+          || registration.waiting?.scriptURL
+          || registration.installing?.scriptURL
+          || '',
+        );
+        if (scriptUrl.includes('firebase-messaging-sw.js')) {
+          registration.unregister().catch(() => {});
+        }
+      });
+    }).catch(() => {});
   });
 }
 

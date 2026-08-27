@@ -26,10 +26,18 @@ const NAV_ITEMS = [
     { id: 'events', label: 'Events', path: '/events' },
 ];
 
+const FEST_SECTION_PATH = /^\/(fests|view-details|competitions-view-details|competition\/|fest\/)/;
+
+function isNavItemActive(item, pathname) {
+    return pathname === item.path
+        || (item.path !== '/' && pathname.startsWith(`${item.path}/`))
+        || (item.id === 'fests' && FEST_SECTION_PATH.test(pathname));
+}
+
 const NavItem = ({ item, isActive, isDark, layout = 'stacked', onClick, className = '' }) => {
     const isStacked = layout === 'stacked';
     const iconClass = layout === 'icon-only'
-        ? 'w-20 h-20'
+        ? 'w-11 h-11'
         : isStacked
             ? 'w-8 h-8'
             : 'w-6 h-6';
@@ -548,13 +556,13 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
     };
 
     return (
-        <header className={`fixed top-0 left-20 right-0 z-50 mx-2 lg:mx-4 pt-4 px-4 lg:px-6 py-4 rounded-b-2xl backdrop-blur-md transition-all duration-300 ${isDark
-            ? 'bg-[#161718] '
-            : 'bg-[#EDEDF2]'
+        <header className={`fixed top-0 left-20 right-0 z-50 px-5 py-2 border-b backdrop-blur-md transition-all duration-300 ${isDark
+            ? 'bg-[#161718]/95 border-white/8'
+            : 'bg-[#EDEDF2]/95 border-gray-200'
             }`} style={{ fontFamily: 'Poppins, -apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>
             <div className="flex items-center justify-between">
                 {/* Left Section: Location and Navigation */}
-                <div className="flex items-center space-x-2 lg:space-x-6">
+                <div className="flex items-center space-x-2 lg:space-x-4">
                     {/* Location Selector */}
                     <div className="relative" ref={locationRef}>
                         <button
@@ -680,19 +688,24 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
                     </button>
 
                     {/* Desktop Navigation Links */}
-                    <nav className="hidden lg:flex items-center gap-8">
+                    <nav className="hidden lg:flex items-center gap-0.5">
                         {NAV_ITEMS.map((item) => {
-                            const isActive = location.pathname === item.path;
+                            const isActive = isNavItemActive(item, location.pathname);
                             return (
-                                <NavItem
+                                <button
                                     key={item.id}
-                                    item={item}
-                                    isActive={isActive}
-                                    isDark={isDark}
-                                    layout="icon-only"
+                                    type="button"
                                     onClick={() => handleNavigation(item.path)}
-                                    className=""
-                                />
+                                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                                        isActive
+                                            ? 'text-[#007BFF] bg-[#007BFF]/10'
+                                            : isDark
+                                                ? 'text-gray-300 hover:text-white hover:bg-white/5'
+                                                : 'text-gray-600 hover:text-gray-900 hover:bg-black/5'
+                                    }`}
+                                >
+                                    {item.label}
+                                </button>
                             );
                         })}
                     </nav>
@@ -1070,7 +1083,7 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
                 <div className={`lg:hidden mt-4 py-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
                     <nav className="flex flex-col space-y-2">
                         {NAV_ITEMS.map((item) => {
-                            const isActive = location.pathname === item.path;
+                            const isActive = isNavItemActive(item, location.pathname);
                             return (
                                 <NavItem
                                     key={item.id}

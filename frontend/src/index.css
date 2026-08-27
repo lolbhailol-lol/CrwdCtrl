@@ -776,7 +776,7 @@
 /* 1024px+ — laptops: hide mobile chrome */
 @media (min-width: 64rem) {
     :root {
-        --hero-banner-h: clamp(13rem, 22vw, 18rem);
+        --hero-banner-h: clamp(10.5rem, 14vw, 13rem);
     }
 
     #crwdctrl-bottom-nav,
@@ -2079,6 +2079,12 @@ h2.text-xl {
     padding-top: 0;
 }
 
+@media (min-width: 768px) {
+    .fests-page .card-carousel-fest {
+        width: 100%;
+    }
+}
+
 @media (min-width: 1024px) {
     .desktop-navbar-clearance {
         padding-top: var(--desktop-navbar-h);
@@ -2122,21 +2128,26 @@ h2.text-xl {
 
 @media (min-width: 1024px) {
     .home-section-heading {
-        font-size: var(--text-3xl);
-        margin-bottom: var(--section-heading-gap-lg) !important;
+        font-size: var(--text-2xl);
+        margin-bottom: 1.125rem !important;
+    }
+
+    .fests-page .category-icon-lg {
+        width: 4.25rem;
+        height: 3.75rem;
     }
 
     .home-section-block,
     .crwdctrl-page section.mb-6,
     .crwdctrl-page section.mb-8 {
-        margin-bottom: var(--section-block-gap-lg) !important;
+        margin-bottom: 2rem !important;
     }
 
     .hero-banner-shell {
         padding-left: var(--desktop-chrome-inset-left);
         padding-right: var(--desktop-chrome-inset-right);
-        padding-top: var(--hero-banner-pad-y-lg);
-        margin-bottom: var(--hero-banner-mb-lg);
+        padding-top: 0.75rem;
+        margin-bottom: 1.5rem;
         max-width: none;
     }
 }

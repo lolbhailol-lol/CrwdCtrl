@@ -133,7 +133,10 @@ export default function FestTypePage({
                     all.filter((fest) => fest.festType === festType && fest.status !== 'lastyearhit'),
                 );
             } catch {
-                if (!cancelled) setFests([]);
+                if (!cancelled) {
+                    const existing = readFestsCacheByType(festType);
+                    if (existing?.length) setFests(existing);
+                }
             } finally {
                 if (!cancelled) setLoading(false);
             }

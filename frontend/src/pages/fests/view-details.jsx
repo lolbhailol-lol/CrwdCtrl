@@ -34,6 +34,7 @@ import CompetitionCoverImage from '../../components/CompetitionCoverImage';
 import FestPublicLiveStrip from '../../components/FestPublicLiveStrip';
 import { getFestPlugin } from '../../features/fests/plugins';
 import { useInAppBack } from '../../hooks/useInAppBack';
+import { COMPETITION_DEMO_LOAD_MS } from '../../constants/skeletonLoading';
 
 function formatCompFee(compOrFee) {
   if (compOrFee && typeof compOrFee === 'object') {
@@ -58,7 +59,7 @@ function getPrimaryInstagram(contacts = []) {
   return null;
 }
 
-function CompetitionScrollCard({ comp, isDark, isFavorite, onToggleFavorite, onClick, onPointerDown }) {
+function CompetitionScrollCard({ comp, isDark, isFavorite, onToggleFavorite, onClick, onPointerDown, fill = false, busy = false }) {
   const compName = typeof comp.name === 'string' ? comp.name : 'Competition';
   const feeLabel = formatCompFee(comp);
   const feeIsFree = feeLabel === 'Free';
@@ -68,11 +69,13 @@ function CompetitionScrollCard({ comp, isDark, isFavorite, onToggleFavorite, onC
       type="button"
       onClick={onClick}
       onPointerDown={onPointerDown}
-      className={`card-surface w-46 shrink-0 text-left rounded-2xl overflow-hidden transition active:scale-[0.98] flex flex-col ${
-        isDark ? 'bg-black!' : 'bg-white'
-      }`}
+      disabled={busy}
+      aria-busy={busy}
+      className={`card-surface text-left rounded-2xl overflow-hidden transition hover:-translate-y-0.5 active:scale-[0.98] flex flex-col ${
+        fill ? 'w-full' : 'w-46 shrink-0'
+      } ${busy ? 'cursor-wait opacity-70' : ''} ${isDark ? 'bg-black!' : 'bg-white'}`}
     >
-      <div className="relative h-48 w-full shrink-0">
+      <div className={`relative ${fill ? 'h-52 xl:h-56' : 'h-48'} w-full shrink-0`}>
         <CompetitionCoverImage
           src={comp.image}
           alt={compName}
@@ -126,6 +129,7 @@ function EventDetailsPage() {
   const [showRegister, setShowRegister] = useState(false);
   const [showFullOverview, setShowFullOverview] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(null);
+  const [openingCompetition, setOpeningCompetition] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const [eventData, setEventData] = useState(() => resolveSeededFest(eventId, location));
   const [currentHeroImage, setCurrentHeroImage] = useState(() => {
@@ -137,6 +141,9 @@ function EventDetailsPage() {
   const [bodyReady, setBodyReady] = useState(() => Boolean(resolveSeededFest(eventId, location)));
   const eventsRef = useRef(null);
   const fetchGenRef = useRef(0);
+  const openCompetitionTimerRef = useRef(null);
+
+  useEffect(() => () => window.clearTimeout(openCompetitionTimerRef.current), []);
 
   // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
 
@@ -390,6 +397,7 @@ function EventDetailsPage() {
   const pageEvent = eventData;
   const festPlugin = getFestPlugin(pageEvent?.id || eventId, pageEvent);
   const LiveBadge = festPlugin.LiveBadge;
+  const mindSparkDesktop = festPlugin.id === 'mindspark';
 
   const prefetchCompetition = (competition) => {
     const payload = buildCompetitionNavPayload(competition, pageEvent);
@@ -398,13 +406,19 @@ function EventDetailsPage() {
   };
 
   const handleCompetitionRegister = (competition) => {
+    if (openingCompetition) return;
     prefetchCompetition(competition);
-    navigate(competitionPath(competition), {
-      state: {
-        competition: buildCompetitionNavPayload(competition, pageEvent),
-        eventData: pageEvent,
-      },
-    });
+    setOpeningCompetition(true);
+    const path = competitionPath(competition);
+    const state = {
+      competition: buildCompetitionNavPayload(competition, pageEvent),
+      eventData: pageEvent,
+      skipDemoLoad: true,
+    };
+    window.clearTimeout(openCompetitionTimerRef.current);
+    openCompetitionTimerRef.current = window.setTimeout(() => {
+      navigate(path, { state });
+    }, COMPETITION_DEMO_LOAD_MS);
   };
 
   const handleShare = async () => {
@@ -479,6 +493,9 @@ function EventDetailsPage() {
         bodyReady ? 'opacity-100' : 'opacity-90'
       } ${isDark ? 'bg-black' : 'bg-white'}`}
     >
+      {openingCompetition ? (
+        <DetailPageLoader variant="competition" label="Loading competition" />
+      ) : null}
       <Seo
         title={pageEvent.title}
         description={festDescription}
@@ -507,23 +524,60 @@ function EventDetailsPage() {
       <div className="hidden md:block">
         <div className={`transition-all duration-300`}>
           {/* Content */}
-          <div className="max-w-7xl mx-auto px-4 lg:px-6 py-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
+          <div className={`mx-auto px-4 lg:px-8 ${mindSparkDesktop ? 'max-w-[92rem] py-3' : 'max-w-7xl py-5'}`}>
+            {!mindSparkDesktop ? (
+            <button
+              type="button"
+              onClick={goBack}
+              className={`mb-4 inline-flex items-center gap-2 text-sm font-medium transition ${
+                isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              <ArrowLeft size={16} />
+              Back
+            </button>
+            ) : null}
+            <div className={mindSparkDesktop
+              ? 'grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_18rem] lg:grid-cols-[minmax(0,1fr)_22rem] gap-6 lg:gap-8 items-start'
+              : 'grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8'
+            }>
               {/* Left Column - Event Details */}
-              <div className="md:col-span-2 space-y-4 sm:space-y-6">
+              <div className={mindSparkDesktop ? 'order-2 md:order-1 space-y-4 min-w-0' : 'md:col-span-2 space-y-4 sm:space-y-6'}>
                 {/* Hero Image */}
                 <div className="relative rounded-2xl overflow-hidden bg-[#1A1B1D]">
                   {heroImage ? (
                   <img
                     src={getImageUrl(heroImage, { preset: 'hero' })}
                     alt={pageEvent.title}
-                    className="w-full h-64 sm:h-80 xl:h-96 object-cover"
+                    className={`w-full object-cover ${mindSparkDesktop ? 'h-56 lg:h-[18rem] xl:h-[20rem]' : 'h-64 sm:h-80 xl:h-96'}`}
                   />
                   ) : (
-                    <div className="w-full h-64 sm:h-80 xl:h-96" />
+                    <div className={`w-full ${mindSparkDesktop ? 'h-56 lg:h-[18rem] xl:h-[20rem]' : 'h-64 sm:h-80 xl:h-96'}`} />
                   )}
-                  <div className="absolute top-3 sm:top-4 right-3 sm:right-4 flex flex-col space-y-2">
-                    {pageEvent.galleryImages?.map((img, idx) => (
+                  {mindSparkDesktop ? (
+                    <>
+                      <div className="pointer-events-none absolute inset-0 bg-linear-to-t from-black/75 via-black/15 to-black/25" />
+                      <button
+                        type="button"
+                        onClick={goBack}
+                        className="absolute top-4 left-4 z-10 inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-black/70 backdrop-blur-sm text-white text-sm font-medium hover:bg-black/80 transition"
+                      >
+                        <ArrowLeft size={15} />
+                        Back
+                      </button>
+                      <div className="absolute bottom-4 left-4 right-4 z-10">
+                        <h1 className="text-2xl xl:text-3xl font-bold leading-tight text-white drop-shadow-sm">
+                          {pageEvent.title}
+                        </h1>
+                        <p className="mt-1 text-sm xl:text-base text-white/80">
+                          {[collegeLabel, dateLabel, venueLabel].filter(Boolean).join(' · ')}
+                        </p>
+                      </div>
+                    </>
+                  ) : null}
+                  {!mindSparkDesktop && (
+                  <div className="absolute top-3 sm:top-4 right-3 sm:right-4 flex flex-col space-y-2 max-h-64 overflow-y-auto">
+                    {pageEvent.galleryImages?.slice(0, 6).map((img, idx) => (
                       <button
                         key={idx}
                         onClick={() => handleGalleryImageClick(img)}
@@ -540,15 +594,44 @@ function EventDetailsPage() {
                       </button>
                     ))}
                   </div>
+                  )}
                 </div>
+                {mindSparkDesktop && galleryPreview.length > 0 ? (
+                  <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-1 px-1">
+                    {galleryPreview.map((img, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          handleGalleryImageClick(img);
+                          openLightbox(idx);
+                        }}
+                        className={`w-16 h-16 xl:w-[4.5rem] xl:h-[4.5rem] shrink-0 rounded-xl overflow-hidden transition ${
+                          currentHeroImage === img ? 'ring-2 ring-[#0ECCEE] ring-offset-2 ring-offset-black' : 'opacity-80 hover:opacity-100'
+                        }`}
+                      >
+                        <img
+                          src={getImageUrl(img, { preset: 'thumb' })}
+                          alt={`Gallery ${idx + 1}`}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            handleImageErrorWithFallback(e, 100, 100, '#2A2B2E', 'Gallery');
+                          }}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
 
                 {/* Fest Overview */}
                 {overviewText ? (
                 <div className={`${isDark ? 'bg-[#111213]' : 'bg-gray-100'} rounded-2xl p-4 sm:p-6 transition-colors duration-300`}>
                   <h2 className={`text-xl sm:text-2xl font-bold mb-3 sm:mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>About Us</h2>
                   <p className={`${isDark ? 'text-gray-300' : 'text-gray-700'} leading-relaxed text-sm sm:text-base`}>
-                    {showFullOverview || overviewText.length <= 200 ? overviewText : `${overviewText.substring(0, 200)}...`}
-                    {overviewText.length > 200 && (
+                    {showFullOverview || overviewText.length <= (mindSparkDesktop ? 520 : 200)
+                      ? overviewText
+                      : `${overviewText.substring(0, mindSparkDesktop ? 520 : 200)}...`}
+                    {overviewText.length > (mindSparkDesktop ? 520 : 200) && (
                       <button
                         onClick={toggleReadMore}
                         className="text-blue-500 ml-1 font-semibold hover:text-blue-600 transition-colors"
@@ -566,25 +649,27 @@ function EventDetailsPage() {
 
                 {/* Competitions */}
                 {availableTabs.length > 0 && (
-                  <div ref={eventsRef} className={`${isDark ? 'bg-[#111213]' : 'bg-gray-100'} rounded-2xl p-4 sm:p-6 transition-colors duration-300`}>
+                  <div ref={eventsRef} className={`${isDark ? 'bg-[#111213]' : 'bg-gray-100'} rounded-2xl p-4 sm:p-6 transition-colors duration-300 scroll-mt-[calc(var(--desktop-navbar-h)+0.75rem)]`}>
                     <h2 className={`text-xl sm:text-2xl font-bold mb-4 sm:mb-6 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                       {pageEvent.competitionsHeading || "Competitions"}
                     </h2>
 
                     {/* Category pills */}
-                    <div className="flex flex-wrap gap-2 mb-6">
+                    <div className={`flex flex-wrap gap-2 mb-6 ${mindSparkDesktop ? 'gap-2.5' : ''}`}>
                       {availableTabs.map(tab => (
                         <button
                           key={tab}
                           type="button"
                           onClick={() => setActiveTab(tab)}
-                          className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${
+                          className={`rounded-full text-sm font-medium transition ${
+                            mindSparkDesktop ? 'px-3.5 py-2' : 'px-4 py-1.5'
+                          } ${
                             visibleTab === tab
                               ? isDark
                                 ? 'border border-[#0ECCEE] text-[#0ECCEE] bg-[#0ECCEE]/10'
                                 : 'border border-sky-400 text-sky-600 bg-white'
                               : isDark
-                              ? 'text-gray-400 hover:text-gray-200'
+                              ? 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
                               : 'text-gray-600 hover:text-gray-900'
                           }`}
                         >
@@ -593,13 +678,14 @@ function EventDetailsPage() {
                       ))}
                     </div>
 
-                    {/* Competition Cards — horizontal scroll */}
-                    <div className="overflow-x-auto scrollbar-hide -mx-1 px-1">
-                      <div className="flex gap-4 pb-1">
+                    {/* Competition Cards — grid on MindSpark laptop, scroll on other fests */}
+                    <div className={mindSparkDesktop ? '' : 'overflow-x-auto scrollbar-hide -mx-1 px-1'}>
+                      <div className={mindSparkDesktop ? 'grid grid-cols-2 xl:grid-cols-3 gap-4' : 'flex gap-4 pb-1'}>
                         {pageEvent.competitions[visibleTab]?.map((comp, idx) => (
                           <CompetitionScrollCard
                             key={comp.id || idx}
                             comp={comp}
+                            fill={mindSparkDesktop}
                             isDark={isDark}
                             isFavorite={isFavorite(comp.id)}
                             onToggleFavorite={() => toggleFavorite(comp.id, {
@@ -610,6 +696,7 @@ function EventDetailsPage() {
                             })}
                             onClick={() => handleCompetitionRegister(comp)}
                             onPointerDown={() => prefetchCompetition(comp)}
+                            busy={openingCompetition}
                           />
                         ))}
                       </div>
@@ -643,14 +730,18 @@ function EventDetailsPage() {
               </div>
 
               {/* Right Column - Registration Card & Artists */}
-              <div className="lg:col-span-1 space-y-4 sm:space-y-5">
-                <div className={`sticky top-24 ${isDark ? 'bg-[#111213]' : 'bg-gray-100'} rounded-2xl p-4 sm:p-6 mb-10 pt-6 sm:pt-8 pb-8 sm:pb-10 transition-colors duration-300`}>
-                  <div className="flex items-start justify-between mb-4 sm:mb-6 gap-3">
-                    <h1 className={`text-lg sm:text-2xl font-bold min-w-0 ${isDark ? 'text-white' : 'text-gray-900'}`}>{pageEvent.title}{collegeLabel ? <><br />{collegeLabel}</> : null}</h1>
+              <div className={mindSparkDesktop ? 'order-1 md:order-2 space-y-5' : 'lg:col-span-1 space-y-4 sm:space-y-5'}>
+                <div className={`sticky top-4 lg:top-[calc(var(--desktop-navbar-h)+0.75rem)] ${isDark ? 'bg-[#111213]' : 'bg-gray-100'} rounded-2xl p-4 sm:p-5 mb-6 transition-colors duration-300`}>
+                  <div className={`flex items-start justify-between gap-3 ${mindSparkDesktop ? 'mb-3' : 'mb-4 sm:mb-6'}`}>
+                    {mindSparkDesktop ? (
+                      <p className={`text-base font-semibold min-w-0 ${isDark ? 'text-white' : 'text-gray-900'}`}>{pageEvent.title}{collegeLabel ? ` · ${collegeLabel}` : ''}</p>
+                    ) : (
+                      <h1 className={`text-lg sm:text-2xl font-bold min-w-0 ${isDark ? 'text-white' : 'text-gray-900'}`}>{pageEvent.title}{collegeLabel ? <><br />{collegeLabel}</> : null}</h1>
+                    )}
                     {LiveBadge ? <LiveBadge /> : null}
                   </div>
 
-                  <div className="space-y-3 sm:space-y-4 mb-4 sm:mb-6">
+                  <div className={mindSparkDesktop ? 'space-y-2 mb-3' : 'space-y-3 sm:space-y-4 mb-4 sm:mb-6'}>
                     {dateLabel ? (
                     <div className="flex items-center space-x-3">
                       <img src={calendarIcon} alt="Calendar" className={`w-[18px] h-[18px] ${isDark ? 'invert brightness-200' : ''}`}/>
@@ -663,14 +754,12 @@ function EventDetailsPage() {
                       <span className={`text-sm sm:text-base ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{venueLabel}</span>
                     </div>
                     ) : null}
+                    {pageEvent.theme && !isFestPlaceholderCopy(pageEvent.theme) ? (
                     <div className="flex items-center space-x-3">
                       <div className={`w-4 h-4 sm:w-5 sm:h-5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>🎭</div>
                       <span className={`text-sm sm:text-base ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{pageEvent.theme}</span>
                     </div>
-                  </div>
-
-                  <div className="mb-4">
-
+                    ) : null}
                   </div>
 
                   <div className="flex space-x-2">
@@ -680,16 +769,39 @@ function EventDetailsPage() {
                     >
                       <img src={shareIcon} alt="Share" className={`w-4 h-4 sm:w-5 sm:h-5 ${isDark ? 'filter brightness-150 invert' : ''}`} />
                     </button>
+                    {mindSparkDesktop ? (
+                      <button
+                        type="button"
+                        onClick={handleFestFavorite}
+                        className={`p-2.5 sm:p-3 ${isDark ? 'bg-[#1D1E20] hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} rounded-xl transition`}
+                        aria-label={isFavorite(pageEvent.id) ? 'Remove from favourites' : 'Add to favourites'}
+                      >
+                        <Heart
+                          size={18}
+                          className={isFavorite(pageEvent.id) ? 'fill-red-500 text-red-500' : isDark ? 'text-white' : 'text-gray-800'}
+                        />
+                      </button>
+                    ) : null}
                   </div>
+                  {mindSparkDesktop ? (
+                    <button
+                      type="button"
+                      onClick={() => eventsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                      className="mt-3 w-full h-11 rounded-xl bg-[#0ECCEE] text-black font-semibold hover:bg-[#0ECCEE]/90 transition"
+                    >
+                      Browse events
+                    </button>
+                  ) : null}
                 </div>
 
                 {/* Artists Section */}
+                {pageEvent.artists && pageEvent.artists.length > 0 && !festPlugin.hideProShow && (
+                  <>
                 <div >
                   <h2 className={`text-lg sm:text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                     {pageEvent.artistsHeading || "Artists You'll Love"}
                   </h2>
                 </div>
-                {pageEvent.artists && pageEvent.artists.length > 0 && (
                     <div className={`${isDark ? 'bg-[#111213] rounded-2xl' : 'bg-[#EDEDF2] rounded-2xl'} w-full overflow-hidden`}>
 
                       {/* Artist Card — image flush into sheet (no border ring gap) */}
@@ -772,6 +884,7 @@ function EventDetailsPage() {
                       </div>
                     )}
                   </div>
+                  </>
                 )}
 
                 {/* Contact Details */}
@@ -1053,6 +1166,7 @@ function EventDetailsPage() {
                     })}
                     onClick={() => handleCompetitionRegister(comp)}
                     onPointerDown={() => prefetchCompetition(comp)}
+                    busy={openingCompetition}
                   />
                 ))}
               </div>

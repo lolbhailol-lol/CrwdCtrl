@@ -1,10 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Phone, Instagram, Check, Moon, Sun, Mail, ArrowLeft, Ticket, Zap, Share2, Users } from 'lucide-react';
+import { Phone, Instagram, Check, Mail, ArrowLeft, Ticket, Share2, Users } from 'lucide-react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import Sidebar from '../../components/layout/Sidebar';
-import Navbar from '../../components/layout/Navbar';
-import ProfileSidebar from '../../components/layout/ProfileSidebar';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useDialog } from '../../context/DialogContext';
 import { useAuth } from '../../context/AuthContext';
@@ -25,6 +22,7 @@ import PrizePoolPodium from '../../components/PrizePoolPodium';
 import DetailPageLoader from '../../components/DetailPageLoader';
 import CompetitionCoverImage from '../../components/CompetitionCoverImage';
 import { signalDetailPageReady } from '../../utils/bootSplash';
+import { COMPETITION_DEMO_LOAD_MS } from '../../constants/skeletonLoading';
 import { formatSlotsLabel, buildTeamSizeLabel, isCompetitionSoldOut, isCompetitionRegistrationClosed } from '../../utils/teamSize';
 import { useInAppBack } from '../../hooks/useInAppBack';
 import {
@@ -526,10 +524,13 @@ function EventPage() {
     const [pageReady, setPageReady] = useState(() =>
         Boolean(resolvePaintPackage(competitionId, location)),
     );
+    const [holdLoader, setHoldLoader] = useState(() => !location.state?.skipDemoLoad);
+    const [openingRegister, setOpeningRegister] = useState(false);
     const { isDark } = useDarkMode();
     const { alert: showAlert, toast } = useDialog();
     const { isAuthenticated } = useAuth();
     const fetchGenRef = useRef(0);
+    const openRegisterTimerRef = useRef(null);
 
     // Switching comps reuses this page — swap to a complete package or hold on loader
     useLayoutEffect(() => {
@@ -537,6 +538,8 @@ function EventPage() {
         fetchGenRef.current += 1;
         setCompetitionData(pack);
         setPageReady(Boolean(pack));
+        setHoldLoader(!location.state?.skipDemoLoad);
+        setOpeningRegister(false);
         setFetchDone(false);
         setError(null);
         setActiveRound(0);
@@ -545,6 +548,17 @@ function EventPage() {
         setShowShareMenu(false);
         return undefined;
     }, [competitionId]);
+
+    useEffect(() => {
+        if (location.state?.skipDemoLoad) {
+            setHoldLoader(false);
+            return undefined;
+        }
+        const timer = window.setTimeout(() => setHoldLoader(false), COMPETITION_DEMO_LOAD_MS);
+        return () => window.clearTimeout(timer);
+    }, [competitionId, location.state?.skipDemoLoad]);
+
+    useEffect(() => () => window.clearTimeout(openRegisterTimerRef.current), []);
 
     // Fetch competition data from backend API
     useEffect(() => {
@@ -709,13 +723,18 @@ function EventPage() {
     }, [isAuthenticated, showLogin, showRegister]);
 
     useEffect(() => {
-        if (pageReady || (fetchDone && error)) {
+        if ((pageReady || (fetchDone && error)) && !holdLoader) {
             signalDetailPageReady();
         }
-    }, [pageReady, fetchDone, error]);
+    }, [pageReady, fetchDone, error, holdLoader]);
 
-    if (!pageReady && !error) {
-        return <DetailPageLoader variant="competition" label="Loading competition" />;
+    if (openingRegister || ((!pageReady || holdLoader) && !error)) {
+        return (
+            <DetailPageLoader
+                variant="competition"
+                label={openingRegister ? 'Opening registration' : 'Loading competition'}
+            />
+        );
     }
 
     if (error && !competitionData) {
@@ -812,7 +831,7 @@ function EventPage() {
 
     const RoundRulesContent = ({ round, roundIndex, variant = 'mobile' }) => {
         const { offline, online, general } = getRoundModeSections(round);
-        const boxClass = `${isDark ? (variant === 'mobile' ? 'bg-dark-700' : 'bg-[#111213]') : 'bg-gray-50'} rounded-lg p-4`;
+        const boxClass = `${isDark ? (variant === 'mobile' ? 'bg-[#1D1E20]' : 'bg-[#111213]') : 'bg-gray-50'} rounded-lg p-4`;
         const labelClass = `text-sm font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`;
 
         const renderRulesBox = (rules, modeLabel, keySuffix) => (
@@ -1179,6 +1198,20 @@ function EventPage() {
 
     const registrationInfo = getRegistrationStatus();
 
+    const goToRegistration = (path, state = {}) => {
+        if (openingRegister) return;
+        setOpeningRegister(true);
+        window.clearTimeout(openRegisterTimerRef.current);
+        openRegisterTimerRef.current = window.setTimeout(() => {
+            navigate(path, {
+                state: {
+                    ...state,
+                    skipDemoLoad: true,
+                },
+            });
+        }, COMPETITION_DEMO_LOAD_MS);
+    };
+
     const handleRegister = async () => {
         const statusInfo = getRegistrationStatus();
         if (statusInfo.isDisabled) {
@@ -1251,13 +1284,11 @@ function EventPage() {
                 if (festRefId && prefetch) {
                     saveRegistrationPrefetch(festRefId, compId, prefetch);
                 }
-                navigate(path, {
-                    state: {
-                        freshRegistration: true,
-                        festId: eventData?.festId || eventData?.fest?._id,
-                        competitionId: compId,
-                        prefetch,
-                    },
+                goToRegistration(path, {
+                    freshRegistration: true,
+                    festId: eventData?.festId || eventData?.fest?._id,
+                    competitionId: compId,
+                    prefetch,
                 });
             } else if (mode === 'NOT_STARTED') {
                 showAlert({ title: 'Registration not open yet', message: 'Registration has not opened yet for this competition.' });
@@ -1275,8 +1306,8 @@ function EventPage() {
                 if (link) openExternalUrl(link);
                 else showAlert({ title: 'Registration unavailable', message: 'External registration link not available. Please contact the organizers.' });
             } else if (registrationStatus === 'internal_form') {
-                navigate(competitionRegistrationPath(eventData || { id: competitionId }), {
-                    state: { freshRegistration: true },
+                goToRegistration(competitionRegistrationPath(eventData || { id: competitionId }), {
+                    freshRegistration: true,
                 });
             } else if (registrationStatus === 'not_started') {
                 showAlert({ title: 'Registration not open yet', message: 'Registration has not opened yet for this competition.' });
@@ -1434,7 +1465,7 @@ function EventPage() {
     };
 
     return (
-        <div className={`crwdctrl-page flex flex-col min-h-screen pb-28 ${isDark ? 'bg-black' : 'bg-white'}`}>
+        <div className={`crwdctrl-page flex flex-col min-h-screen pb-28 md:pb-8 ${isDark ? 'bg-black' : 'bg-white'}`}>
             <Seo
                 title={eventData.title}
                 description={competitionDescription}
@@ -1584,8 +1615,8 @@ function EventPage() {
                                                     key={idx}
                                                     onClick={() => setActiveRound(idx)}
                                                     className={`py-3 px-3 rounded-lg font-medium transition text-sm ${activeRound === idx
-                                                        ? `border-2 border-[#00C2CB] ${isDark ? 'bg-dark-700 text-white' : 'bg-blue-50 text-black'}`
-                                                        : `${isDark ? 'bg-dark-700 text-gray-300' : 'bg-gray-100 text-black'}`
+                                                        ? `border-2 border-[#00C2CB] ${isDark ? 'bg-[#1D1E20] text-white' : 'bg-blue-50 text-black'}`
+                                                        : `${isDark ? 'bg-[#1D1E20] text-gray-300' : 'bg-gray-100 text-black'}`
                                                         }`}
                                                 >
                                                     {getRoundTabLabel(round, idx, roundsList.length)}
@@ -1627,15 +1658,23 @@ function EventPage() {
                             </div>
                         </div>
 
-                        {/* Desktop/Laptop Layout - Visible at 768px and above */}
-                        <div
-                            className="hidden md:flex md:flex-row gap-8 p-6"
-                        >
+                        {/* Desktop/Laptop Layout */}
+                        <div className="hidden md:block max-w-7xl mx-auto px-6 lg:px-8 pt-3 pb-6">
+                            <div className="grid grid-cols-1 md:grid-cols-12 gap-6 lg:gap-8 items-start">
                             {/* Left Column - Image and Rules */}
-                            <div className="w-1/2 shrink-0 space-y-6">
+                            <div className="md:col-span-5 space-y-6 min-w-0">
                                 {/* Event Image Card — 3D trophy when cover missing or loading */}
-                                <div className={`rounded-3xl overflow-hidden shadow-sm ${isDark ? 'bg-[#111213]' : 'bg-white'} p-2`}>
-                                    <div className="rounded-2xl overflow-hidden bg-[#1A1B1D] h-80">
+                                <div className={`relative rounded-3xl overflow-hidden shadow-sm ${isDark ? 'bg-[#111213]' : 'bg-white'} p-2`}>
+                                    <button
+                                        type="button"
+                                        onClick={goBack}
+                                        aria-label="Go back"
+                                        className="absolute top-5 left-5 z-10 inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-black/70 backdrop-blur-sm text-white text-sm font-medium hover:bg-black/80 transition"
+                                    >
+                                        <ArrowLeft size={15} />
+                                        Back
+                                    </button>
+                                    <div className="rounded-2xl overflow-hidden bg-[#1A1B1D] h-72 lg:h-[20rem] xl:h-[22rem]">
                                     <CompetitionCoverImage
                                         key={`${competitionId}-${eventData.image || 'placeholder'}`}
                                         src={showHeroImage ? eventData.image : null}
@@ -1681,9 +1720,9 @@ function EventPage() {
                             </div>
 
                             {/* Right Column - Event Details */}
-                            <div className="w-1/2 shrink-0 space-y-6">
+                            <div className="md:col-span-7 min-w-0 space-y-5">
                                 {/* Event Header Card */}
-                                <div className={`${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'} rounded-2xl p-6 relative`}>
+                                <div className={`${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'} rounded-2xl p-5 lg:p-6 relative md:sticky md:top-[calc(var(--desktop-navbar-h)+0.75rem)] z-10`}>
                                     {showRegistrationSuccess && (
                                         <div className="absolute top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 animate-fade-in z-10">
                                             <Check className="w-4 h-4" />
@@ -1691,30 +1730,13 @@ function EventPage() {
                                         </div>
                                     )}
 
-                                    <h1 className={`text-3xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>{eventData.title}</h1>
+                                    <h1 className={`text-2xl font-bold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>{eventData.title}</h1>
                                     {eventData.subtitle ? (
                                     <p className={`mb-3 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{eventData.subtitle}</p>
                                     ) : null}
 
-                                    {renderAboutBlock({
-                                        className: aboutText ? 'mb-4' : '',
-                                        headingClass: `text-lg font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`,
-                                        bodyClass: `text-sm leading-relaxed text-left ${isDark ? 'text-gray-300' : 'text-gray-600'}`,
-                                    })}
-
-                                    {eventData.feeKnown ? (
-                                        <div className="mb-4">
-                                            <RegistrationFeeLines
-                                                tiers={eventData.feeTiers}
-                                                feeLabel={eventData.feeLabel}
-                                                feeIsFree={eventData.feeIsFree}
-                                                isDark={isDark}
-                                            />
-                                        </div>
-                                    ) : null}
-
                                     {(eventData.date || (eventData.venue && eventData.venue !== 'TBD')) && (
-                                    <div className="space-y-2 mb-4">
+                                    <div className="space-y-2 mb-3">
                                         {eventData.date ? (
                                         <div className="flex items-center gap-2 text-blue-600">
                                             <img src={CalendarIcon} alt="Calendar" className={`w-4 h-4 ${isDark ? 'filter invert' : ''}`} />
@@ -1730,8 +1752,7 @@ function EventPage() {
                                     </div>
                                     )}
 
-                                    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,24rem)_auto] gap-x-3 gap-y-1.5 mb-4 items-center">
-                                        <div aria-hidden />
+                                    <div className="mb-3">
                                         <RegisterMetaChips
                                             isDark={isDark}
                                             slotsLabel={formatSlotsLabel(
@@ -1741,17 +1762,29 @@ function EventPage() {
                                             )}
                                             teamLabel={buildTeamSizeLabel(eventData.teamSizeMin, eventData.teamSizeMax)}
                                         />
-                                        <div className="w-11" aria-hidden />
+                                    </div>
 
+                                    {eventData.feeKnown && Array.isArray(eventData.feeTiers) && eventData.feeTiers.filter((t) => t && (t.label || t.amount >= 0)).length > 1 ? (
+                                        <div className="mb-3">
+                                            <RegistrationFeeLines
+                                                tiers={eventData.feeTiers}
+                                                feeLabel={eventData.feeLabel}
+                                                feeIsFree={eventData.feeIsFree}
+                                                isDark={isDark}
+                                            />
+                                        </div>
+                                    ) : null}
+
+                                    <div className="flex flex-col sm:flex-row sm:items-end gap-3 mb-2">
                                         {eventData.feeKnown ? (
-                                            <div className="min-w-0 flex flex-col justify-center h-14">
+                                            <div className="min-w-0 flex-1">
                                                 {!eventData.feeIsFree && compactRegisterMinAmount(eventData.feeTiers) != null ? (
                                                     <p className={`text-sm font-semibold leading-none ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>From</p>
                                                 ) : null}
                                                 {eventData.feeIsFree ? (
-                                                    <p className="mt-1 text-xl font-bold tabular-nums leading-none text-green-500">Free</p>
+                                                    <p className="mt-1 text-2xl font-bold tabular-nums leading-none text-green-500">Free</p>
                                                 ) : (
-                                                    <p className={`mt-1 text-xl font-bold tabular-nums leading-none truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                    <p className={`mt-1 text-2xl font-bold tabular-nums leading-none truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                                         {compactRegisterMinAmount(eventData.feeTiers) != null
                                                             ? `₹${compactRegisterMinAmount(eventData.feeTiers).toLocaleString('en-IN')}`
                                                             : eventData.feeLabel}
@@ -1759,17 +1792,17 @@ function EventPage() {
                                                 )}
                                             </div>
                                         ) : (
-                                            <div />
+                                            <div className="flex-1" />
                                         )}
 
                                         <button
                                             type="button"
                                             onClick={handleRegister}
                                             disabled={registrationInfo.isDisabled}
-                                            className={`w-full flex items-center justify-center gap-2 h-14 px-5 rounded-2xl text-base font-semibold shadow-md transition ${
+                                            className={`w-full sm:w-auto sm:min-w-[14rem] flex items-center justify-center gap-2 h-12 px-6 rounded-2xl text-base font-semibold shadow-md transition ${
                                                 registrationInfo.isDisabled
                                                     ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
-                                                    : 'bg-[#0ECCEE] text-black active:opacity-90'
+                                                    : 'bg-[#0ECCEE] text-black hover:bg-[#0ECCEE]/90 active:opacity-90'
                                             }`}
                                             title={registrationInfo.isDisabled ? registrationInfo.buttonText : ''}
                                         >
@@ -1783,18 +1816,18 @@ function EventPage() {
                                             </>
                                         </button>
 
-                                        <div className="relative shrink-0">
+                                        <div className="relative shrink-0 self-end">
                                             <button
                                                 type="button"
                                                 onClick={() => setShowShareMenu(!showShareMenu)}
-                                                className={`h-14 w-11 rounded-full flex items-center justify-center transition ${
-                                                    isDark ? 'bg-dark-700 hover:bg-dark-600' : 'bg-gray-100 hover:bg-gray-200'
+                                                className={`h-12 w-11 rounded-full flex items-center justify-center transition ${
+                                                    isDark ? 'bg-[#1D1E20] hover:bg-white/10' : 'bg-gray-100 hover:bg-gray-200'
                                                 }`}
                                             >
                                                 <img src={ShareIcon} alt="Share" className="w-5 h-5" />
                                             </button>
                                             {showShareMenu && (
-                                                <div className={`absolute right-0 bottom-full mb-2 w-48 rounded-lg shadow-lg z-20 ${isDark ? 'bg-dark-700' : 'bg-white'} border ${isDark ? 'border-dark-600' : 'border-gray-200'}`}>
+                                                <div className={`absolute right-0 bottom-full mb-2 w-48 rounded-lg shadow-lg z-20 ${isDark ? 'bg-[#1D1E20] border-white/10' : 'bg-white border-gray-200'} border`}>
                                                     <div className="py-2">
                                                         <button type="button" onClick={() => handleShare('whatsapp')} className={`w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 hover:bg-blue-500 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
                                                             Share on WhatsApp
@@ -1830,6 +1863,15 @@ function EventPage() {
                                     )}
                                 </div>
 
+                                {aboutText ? (
+                                <div className={`${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'} rounded-2xl p-5 lg:p-6`}>
+                                    {renderAboutBlock({
+                                        headingClass: `text-lg font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`,
+                                        bodyClass: `text-sm leading-relaxed text-left ${isDark ? 'text-gray-300' : 'text-gray-600'}`,
+                                    })}
+                                </div>
+                                ) : null}
+
                                 {/* Competition Rounds — hidden when no real round content */}
                                 {showCompetitionRounds && (
                                 <div className={`${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'} rounded-2xl p-6`}>
@@ -1843,8 +1885,8 @@ function EventPage() {
                                                     key={idx}
                                                     onClick={() => setActiveRound(idx)}
                                                     className={`flex-1 py-2 px-4 rounded-2xl font-medium transition ${activeRound === idx
-                                                        ? `border-2 border-[#00C2CB] ${isDark ? 'bg-dark-700 text-white' : 'bg-[#EDEDF2] text-black'}`
-                                                        : `shadow-md ${isDark ? 'bg-dark-700 text-gray-300' : 'bg-[#EDEDF2] text-black'}`
+                                                        ? `border-2 border-[#00C2CB] ${isDark ? 'bg-[#1D1E20] text-white' : 'bg-[#EDEDF2] text-black'}`
+                                                        : `shadow-md ${isDark ? 'bg-[#1D1E20] text-gray-300' : 'bg-[#EDEDF2] text-black'}`
                                                         }`}
                                                 >
                                                     {getRoundTabLabel(round, idx, roundsList.length)}
@@ -1858,6 +1900,7 @@ function EventPage() {
                                     </div>
                                 </div>
                                 )}
+                            </div>
                             </div>
                         </div>
                 </main>

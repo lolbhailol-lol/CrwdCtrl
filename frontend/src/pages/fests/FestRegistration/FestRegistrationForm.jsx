@@ -69,6 +69,7 @@ export default function FestRegistrationForm({
   const hideFestCommonForm =
     Boolean(isCompetitionRegistration)
     && getFestPluginFromAny(fest, competition?.fest, competition).skipFestCommonFormOnCompetition;
+  const mindSparkLayout = getFestPluginFromAny(fest, competition?.fest, competition).id === 'mindspark';
   const onParticipantStep = typeof isOnParticipantStep === 'function' && isOnParticipantStep();
   const onTeamDetailsStep = typeof isOnTeamDetailsStep === 'function' && isOnTeamDetailsStep();
   const onFeeTierStep = typeof isOnFeeTierStep === 'function' && isOnFeeTierStep();
@@ -88,7 +89,7 @@ export default function FestRegistrationForm({
   );
 
   return (
-    <div className="crwdctrl-page crwdctrl-page--content min-h-screen pt-[calc(var(--safe-top)+1.25rem)] sm:pt-[calc(var(--safe-top)+1.5rem)] pb-40 sm:pb-32 md:pb-20">
+    <div className="crwdctrl-page crwdctrl-page--content min-h-screen pt-[calc(var(--safe-top)+1.25rem)] sm:pt-[calc(var(--safe-top)+1.5rem)] md:pt-3 lg:pt-2 pb-24 md:pb-8">
       {paymentModalEl}
       <RegistrationProcessingOverlay
         open={Boolean(submitting)}
@@ -119,7 +120,7 @@ export default function FestRegistrationForm({
         }
         progressMessage={submissionProgress || 'Processing your registration…'}
       />
-      <div className={`max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 transition-opacity duration-300 ${formLocked ? 'opacity-90' : ''}`}>
+      <div className={`mx-auto px-4 sm:px-6 lg:px-8 transition-opacity duration-300 ${mindSparkLayout ? 'max-w-5xl' : 'max-w-4xl'} ${formLocked ? 'opacity-90' : ''}`}>
         {formLocked && (
           <div className={`mb-4 rounded-xl border px-4 py-3 text-sm ${isDark ? 'bg-[#0ECCEE]/10 border-[#0ECCEE]/30 text-[#0ECCEE]' : 'bg-cyan-50 border-cyan-200 text-cyan-800'}`}>
             {authSyncing
@@ -128,7 +129,7 @@ export default function FestRegistrationForm({
           </div>
         )}
         {/* Header */}
-        <div className="flex items-start gap-3 sm:gap-4 mb-5 sm:mb-6 mt-1 sm:mt-0">
+        <div className="flex items-start gap-3 sm:gap-4 mb-5 sm:mb-6 mt-1 sm:mt-0 md:mb-4">
           <button
             onClick={goBack}
             className={`p-2 rounded-lg transition-colors shrink-0 mt-1 ${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-200'}`}
@@ -140,8 +141,8 @@ export default function FestRegistrationForm({
               Register for {isCompetitionRegistration ? competition?.name : fest.festName}
             </h1>
             <p className={`text-sm mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-              {isCompetitionRegistration 
-                ? `${competition?.name} - ${fest.festName} (${fest.collegeName})`
+              {isCompetitionRegistration
+                ? [fest.festName, fest.collegeName].filter(Boolean).join(' · ')
                 : fest.collegeName
               }
             </p>
@@ -162,7 +163,7 @@ export default function FestRegistrationForm({
 
 
         {/* Registration Form */}
-        <div className={`rounded-2xl p-4 sm:p-6 border transition-all duration-300 ${
+        <div className={`rounded-2xl p-4 sm:p-6 md:p-8 border transition-all duration-300 ${
           isDark ? 'bg-[#1D1E20] border-gray-700/40' : 'bg-white border-gray-200 shadow-sm'
         } ${formLocked ? 'pointer-events-none select-none blur-[2px] saturate-75' : ''}`}>
           <form
@@ -412,7 +413,7 @@ export default function FestRegistrationForm({
             )}
 
             {/* ✅ NEW: Multi-Step Form Buttons */}
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-4 sm:pt-6 pb-44 md:pb-32">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-4 sm:pt-6 pb-8 md:pb-2">
               {/* Back Button */}
               <button
                 type="button"
@@ -456,7 +457,7 @@ export default function FestRegistrationForm({
             <CrwdCtrlLogin
               googleOnly
               title="Sign in to register"
-              subtitle="Sign in once — you stay signed in on this phone"
+              subtitle="Sign in once — you stay signed in on this device"
               onClose={handleCloseLogin}
             />
           </div>

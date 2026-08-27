@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react';
 import CrwdCtrlLogin from '../../auth/login';
 import DetailPageLoader from '../../../components/DetailPageLoader';
+import { COMPETITION_DEMO_LOAD_MS } from '../../../constants/skeletonLoading';
 import useFestRegistration from './useFestRegistration';
 import FestRegistrationForm from './FestRegistrationForm';
 import PaymentStep, { CompletingPaymentStep } from './PaymentStep';
@@ -54,7 +56,19 @@ export default function FestRegistration() {
     handleCashfreeFestRegister,
     competitionId,
     festId,
+    location,
   } = r;
+
+  const skipDemoLoad = Boolean(location?.state?.skipDemoLoad);
+  const [holdLoader, setHoldLoader] = useState(() => !skipDemoLoad);
+  useEffect(() => {
+    if (skipDemoLoad) {
+      setHoldLoader(false);
+      return undefined;
+    }
+    const timer = window.setTimeout(() => setHoldLoader(false), COMPETITION_DEMO_LOAD_MS);
+    return () => window.clearTimeout(timer);
+  }, [festId, competitionId, skipDemoLoad]);
 
   if (completingPayment && !success) {
     return (
@@ -125,7 +139,7 @@ export default function FestRegistration() {
     );
   }
 
-  if ((!fest && loading) || (isCompetitionRegistration && loading && !competition)) {
+  if ((!fest && loading) || (isCompetitionRegistration && loading && !competition) || (holdLoader && !success && !completingPayment)) {
     return (
       <>
         <DetailPageLoader
@@ -138,7 +152,7 @@ export default function FestRegistration() {
               <CrwdCtrlLogin
                 googleOnly
                 title="Sign in to register"
-                subtitle="Sign in once — you stay signed in on this phone"
+                subtitle="Sign in once — you stay signed in on this device"
                 onClose={handleCloseLogin}
               />
             </div>

@@ -30,7 +30,7 @@ export default function CrwdCtrlLogin({
     onSwitchToRegister,
     googleOnly = false,
     title = 'Continue with Google',
-    subtitle = 'Sign in once — you stay signed in on this phone',
+    subtitle = 'Sign in once — you stay signed in on this device',
     initialEmail = '',
     loginWithEmail,
     passwordOnly = false,
@@ -338,7 +338,7 @@ export default function CrwdCtrlLogin({
                 <AnimatePresence>
                     <motion.div
                         key="google-login-overlay"
-                        className="fixed inset-0 z-[100050] flex items-end justify-center"
+                        className="fixed inset-0 z-[100050] flex items-end md:items-center justify-center"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
@@ -361,12 +361,12 @@ export default function CrwdCtrlLogin({
                             animate={{ y: 0, opacity: 1 }}
                             exit={reduceMotion ? { opacity: 0 } : { y: '100%', opacity: 0.96 }}
                             transition={{ type: 'spring', stiffness: 380, damping: 34, mass: 0.85 }}
-                            className={`relative w-full max-w-md mx-0 sm:mx-4 rounded-t-[28px] sm:rounded-[28px] border shadow-2xl px-5 pt-3 pb-[max(1.5rem,calc(var(--safe-bottom)+0.75rem))] ${
+                            className={`relative w-full md:w-[28rem] max-w-md mx-0 md:mx-4 rounded-t-[28px] md:rounded-[28px] border shadow-2xl px-5 pt-3 pb-[max(1.5rem,calc(var(--safe-bottom)+0.75rem))] md:pb-8 ${
                                 isDark ? 'bg-[#111213] border-white/10 text-white' : 'bg-white border-gray-100 text-gray-900'
                             }`}
                             onClick={(e) => e.stopPropagation()}
                         >
-                            <div className="flex justify-center pt-1 pb-3">
+                            <div className="flex justify-center pt-1 pb-3 md:hidden">
                                 <span className={`h-1 w-10 rounded-full ${isDark ? 'bg-white/20' : 'bg-gray-300'}`} />
                             </div>
 
@@ -455,7 +455,7 @@ export default function CrwdCtrlLogin({
             {/* Login Modal Container */}
             <div className={`${isModal ? 'fixed inset-0 flex items-center justify-center p-4 z-50 overflow-y-auto' : 'min-h-screen flex items-center justify-center p-4'}`}>
                 <div
-                    className={`relative rounded-2xl shadow-2xl w-full max-w-xs sm:max-w-sm p-4 sm:p-6 transition-colors duration-300 my-8
+                    className={`relative rounded-2xl shadow-2xl w-full max-w-sm md:max-w-md p-5 sm:p-6 transition-colors duration-300 my-8
         ${isDark ? 'bg-[#111213] text-white' : 'bg-white text-gray-900'}`}
                     onClick={(e) => e.stopPropagation()}
                 >

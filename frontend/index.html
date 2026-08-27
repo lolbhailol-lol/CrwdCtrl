@@ -451,7 +451,7 @@
       <p>Open the fest you are interested in, review the details and competitions, then tap Register and complete the form. You receive a confirmation and a QR ticket where applicable.</p>
     </section>
   </div><!--/seo-fallback--></div>
-  <div id="boot-fallback" hidden aria-live="polite">
+  <div id="boot-fallback" hidden aria-hidden="true" aria-live="polite">
     <p>CrwdCtrl is loading…</p>
     <button type="button" id="boot-fallback-reload">Reload app</button>
   </div>
@@ -472,10 +472,14 @@
         fallback.style.background = dark ? '#161718' : '#ffffff';
         fallback.style.color = dark ? '#ffffff' : '#111111';
         fallback.hidden = false;
+        fallback.setAttribute('aria-hidden', 'false');
       }
 
       function hideFallback() {
-        if (fallback) fallback.hidden = true;
+        if (fallback) {
+          fallback.hidden = true;
+          fallback.setAttribute('aria-hidden', 'true');
+        }
       }
 
       if (reloadBtn) {

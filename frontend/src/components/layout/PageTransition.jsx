@@ -41,6 +41,7 @@ function shouldSkipPageTransition(pathname) {
         || pathname.startsWith('/view-details')
         || pathname.startsWith('/competitions-view-details')
         || pathname.startsWith('/competition/')
+        || /^\/fest\/[^/]+\/register/.test(pathname)
     );
 }
 

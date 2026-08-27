@@ -219,7 +219,7 @@ export function isTeamMemberComplete(raw, personFields = DEFAULT_PERSON_FIELDS) 
 }
 
 const inputClass = (isDark) =>
-  `w-full px-3 py-2.5 rounded-xl border text-sm ${
+  `w-full px-3 py-2.5 md:py-3 rounded-xl border text-sm ${
     isDark
       ? 'bg-[#1D1E20] border-gray-700 text-white placeholder:text-gray-500'
       : 'bg-white border-gray-300 text-gray-900'
@@ -263,7 +263,7 @@ export function TeamSizeSelect({ competition, formData, setFormData, isDark }) {
           {competition?.name || 'Competition'}
         </p>
       </div>
-      <div className="px-4 py-4">
+      <div className="px-4 py-4 md:px-6 md:py-5">
         <p className={`text-[11px] mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>People</p>
         <div className="flex items-center">
           <button
@@ -271,18 +271,18 @@ export function TeamSizeSelect({ competition, formData, setFormData, isDark }) {
             aria-label="Decrease"
             onClick={() => setSize(chosen - 1)}
             disabled={chosen <= min}
-            className={`w-8 h-8 rounded-l-lg flex items-center justify-center border transition-colors disabled:opacity-40 ${
+            className={`w-10 h-10 md:w-11 md:h-11 rounded-l-xl flex items-center justify-center border transition-colors disabled:opacity-40 ${
               isDark ? 'bg-[#1D1E20] border-gray-700 hover:border-[#0ECCEE]' : 'bg-white border-gray-300 hover:border-[#0ECCEE]'
             }`}
           >
-            <ChevronLeft size={14} className={isDark ? 'text-gray-300' : 'text-gray-700'} />
+            <ChevronLeft size={16} className={isDark ? 'text-gray-300' : 'text-gray-700'} />
           </button>
           <div
-            className={`w-10 h-8 flex items-center justify-center border-y ${
+            className={`w-14 h-10 md:h-11 flex items-center justify-center border-y ${
               isDark ? 'bg-[#1D1E20] border-gray-700' : 'bg-white border-gray-300'
             }`}
           >
-            <span className={`text-sm font-semibold tabular-nums ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            <span className={`text-base font-semibold tabular-nums ${isDark ? 'text-white' : 'text-gray-900'}`}>
               {chosen}
             </span>
           </div>
@@ -291,7 +291,7 @@ export function TeamSizeSelect({ competition, formData, setFormData, isDark }) {
             aria-label="Increase"
             onClick={() => setSize(chosen + 1)}
             disabled={chosen >= max}
-            className={`w-8 h-8 rounded-r-lg flex items-center justify-center border transition-colors disabled:opacity-40 ${
+            className={`w-10 h-10 md:w-11 md:h-11 rounded-r-xl flex items-center justify-center border transition-colors disabled:opacity-40 ${
               isDark ? 'bg-[#1D1E20] border-gray-700 hover:border-[#0ECCEE]' : 'bg-white border-gray-300 hover:border-[#0ECCEE]'
             }`}
           >
@@ -341,7 +341,7 @@ export function FeeTierStep({ competition, formData, setFormData, isDark }) {
           Registration fee depends on the category you select
         </p>
       </div>
-      <div className="px-4 py-4 space-y-2">
+      <div className="px-4 py-4 md:px-6 md:py-5 md:grid md:grid-cols-2 md:gap-3 space-y-2 md:space-y-0">
         {tiers.map((tier) => {
           const active = selected === tier.id;
           return (
@@ -457,9 +457,9 @@ export function TeamDetailsStep({ competition, formData, setFormData, isDark }) 
           {competition?.name || 'Competition'}
         </p>
       </div>
-      <div className="px-4 py-4 space-y-3">
+      <div className="px-4 py-4 md:px-6 md:py-5 md:grid md:grid-cols-2 md:gap-4 space-y-3 md:space-y-0">
         {teamFields.map((field) => (
-          <div key={field.id || field.key}>
+          <div key={field.id || field.key} className={field.type === 'radio' ? 'md:col-span-2' : ''}>
             <p className={`text-[11px] mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
               {field.label}
               {field.required ? <Req /> : null}
@@ -524,9 +524,12 @@ export function RosterPersonStep({ personIndex, competition, formData, setFormDa
           Fields marked <span className="text-red-400">*</span> are compulsory
         </p>
       </div>
-      <div className="px-4 py-4 space-y-3">
+      <div className="px-4 py-4 md:px-6 md:py-5 space-y-3 md:grid md:grid-cols-2 md:gap-x-4 md:gap-y-3 md:space-y-0">
         {personFields.map((field, fi) => (
-          <div key={field.id || field.key}>
+          <div
+            key={field.id || field.key}
+            className={field.type === 'radio' || field.type === 'textarea' ? 'md:col-span-2' : ''}
+          >
             <p className={`text-[11px] mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
               {field.label}
               {personIndex === 0 && field.key === 'name' ? ' (you)' : ''}

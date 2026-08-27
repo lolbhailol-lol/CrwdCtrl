@@ -86,8 +86,8 @@ export default function MindSparkSuccessStep({
       subtitle={`${compName} · ${festName}`}
       minMs={1000}
     >
-    <div className={`crwdctrl-page crwdctrl-page--content min-h-screen px-4 py-10 ${isDark ? 'bg-[#0a0b0c]' : 'bg-gray-50'}`}>
-      <div className="max-w-md mx-auto space-y-4">
+    <div className={`crwdctrl-page crwdctrl-page--content min-h-screen px-4 py-10 md:py-14 ${isDark ? 'bg-[#0a0b0c]' : 'bg-gray-50'}`}>
+      <div className="max-w-md md:max-w-2xl mx-auto space-y-4">
         <div className={`rounded-3xl border p-6 ${card}`}>
           <RegistrationStatusVisual
             mode="success"

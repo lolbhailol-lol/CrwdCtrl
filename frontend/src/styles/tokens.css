@@ -72,7 +72,7 @@
     --desktop-chrome-pr: 1rem;
     --desktop-chrome-inset-left: calc(var(--desktop-chrome-mx) + var(--desktop-chrome-px));
     --desktop-chrome-inset-right: calc(var(--desktop-chrome-mx) + var(--desktop-chrome-px) + var(--desktop-chrome-pr));
-    --desktop-navbar-h: 7rem;
+    --desktop-navbar-h: 3.75rem;
 
     --theme-switch-duration: 0.34s;
     --theme-switch-ease: cubic-bezier(0.4, 0, 0.2, 1);

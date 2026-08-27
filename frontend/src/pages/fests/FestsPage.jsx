@@ -53,7 +53,7 @@ const SubcategoryTile = ({ cat, isDark, onClick }) => (
         onClick={onClick}
         aria-label={cat.label}
         style={{ WebkitTapHighlightColor: 'transparent' }}
-        className="flex flex-col items-center justify-center gap-1.5 pt-1 pb-3 lg:pt-2 lg:pb-5 rounded-2xl lg:rounded-3xl transition-opacity duration-150 active:opacity-80"
+        className="flex flex-col items-center justify-center gap-1.5 pt-1 pb-3 lg:pt-1 lg:pb-2 rounded-2xl lg:rounded-3xl transition-opacity duration-150 active:opacity-80"
     >
         <img
             src={cat.icon}
@@ -85,7 +85,7 @@ const FestEventCard = ({ fest, isDark, isFavorite, onToggleFavorite, onViewDetai
 
     return (
         <div
-            className="card-surface card-carousel-fest lg:w-auto rounded-2xl lg:rounded-3xl overflow-hidden cursor-pointer snap-start shrink-0 transition-all duration-200 active:scale-[0.98]"
+            className="card-surface card-carousel-fest md:w-full rounded-2xl lg:rounded-3xl overflow-hidden cursor-pointer snap-start shrink-0 md:shrink md:max-w-none transition-all duration-200 active:scale-[0.98]"
             onClick={onViewDetails}
             onPointerDown={() => prefetchFestDetail(fest)}
         >
@@ -137,10 +137,10 @@ const FestSection = ({ title, fests, loading, isDark, isFavorite, toggleFavorite
             </h2>
 
             <div
-                className="carousel-scroll-gutter overflow-x-auto scrollbar-hide"
+                className="carousel-scroll-gutter overflow-x-auto scrollbar-hide md:overflow-visible"
                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
             >
-                <div className="flex gap-3 pb-1">
+                <div className="flex gap-3 pb-1 md:grid md:grid-cols-2 xl:grid-cols-3 md:gap-4 md:pb-0">
                     {loading
                         ? <FestCardsRowSkeleton count={2} />
                         : fests.map(fest => (
@@ -177,28 +177,42 @@ export default function FestsPage() {
 
     const cached = readFestsCache();
     const [fests, setFests] = useState(cached || []);
-    const [loading, setLoading] = useState(!cached);
+    const [loading, setLoading] = useState(!cached?.length);
+    const [loadError, setLoadError] = useState(null);
+    const [reloadKey, setReloadKey] = useState(0);
     usePageContentLoading(loading);
+
+    const retryFests = useCallback(() => {
+        setLoadError(null);
+        setLoading(true);
+        setReloadKey((key) => key + 1);
+    }, []);
 
     // Fetch all fests
     useEffect(() => {
         let cancelled = false;
         const load = async () => {
             try {
-                const list = await fetchRawPublicFests({ cacheBust: false });
-                if (!cancelled) {
-                    setFests(list);
-                    writeFestsCache(list);
-                }
+                const list = await fetchRawPublicFests({
+                    forceRefresh: reloadKey > 0,
+                });
+                if (cancelled) return;
+                setFests(list);
+                setLoadError(null);
+                writeFestsCache(list);
             } catch (err) {
                 console.error('FestsPage fetch error:', err);
+                if (cancelled) return;
+                const existing = readFestsCache();
+                if (existing?.length) setFests(existing);
+                setLoadError('Could not load fests. Check your connection and try again.');
             } finally {
                 if (!cancelled) setLoading(false);
             }
         };
         load();
         return () => { cancelled = true; };
-    }, []);
+    }, [reloadKey]);
 
     const filtered = fests;
 
@@ -342,7 +356,7 @@ export default function FestsPage() {
 
                 <div className="crwdctrl-hub-body">
                 {/* ── Sub-category tiles: Cultural / Tech / Sports ── */}
-                <section className="home-section-block mt-3 mb-6 lg:mt-3 lg:mb-10">
+                <section className="home-section-block mt-3 mb-6 lg:mt-1 lg:mb-5">
                     <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         Categories
                     </h2>
@@ -410,8 +424,26 @@ export default function FestsPage() {
                                    ${isDark ? 'bg-[#111213] text-gray-400' : 'bg-white text-gray-500 shadow-sm'}`}>
                         <div className="text-5xl mb-3">🎪</div>
                         <p className="text-base lg:text-lg font-semibold mb-1">
-                            {publicConfig.emptyStates.fests.none}
+                            {loadError || publicConfig.emptyStates.fests.none}
                         </p>
+                        <div className="mt-5 flex flex-col sm:flex-row items-center justify-center gap-3">
+                            <button
+                                type="button"
+                                onClick={retryFests}
+                                className="h-11 px-5 rounded-xl bg-[#0ECCEE] text-black text-sm font-semibold hover:bg-[#0ECCEE]/90"
+                            >
+                                Retry
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => navigate('/view-details/mindspark-2026')}
+                                className={`h-11 px-5 rounded-xl text-sm font-semibold border ${
+                                    isDark ? 'border-white/15 text-white hover:bg-white/5' : 'border-gray-200 text-gray-800 hover:bg-gray-50'
+                                }`}
+                            >
+                                Open MindSpark 2026
+                            </button>
+                        </div>
                     </div>
                 )}
                 </div>{/* end pt-5 wrapper */}

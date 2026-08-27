@@ -37,8 +37,24 @@ export const getFcmTokenWithRegistration = async () => {
     const fcm = await ensureMessaging();
     if (!fcm) return null;
 
-    const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-    await navigator.serviceWorker.ready;
+    // Reuse the PWA worker. A second root-scoped SW (firebase-messaging-sw.js)
+    // steals `clients.claim` from VitePWA autoUpdate and reloads the tab every few seconds.
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(registrations.map((registration) => {
+        const scriptUrl = String(
+            registration.active?.scriptURL
+            || registration.waiting?.scriptURL
+            || registration.installing?.scriptURL
+            || '',
+        );
+        if (scriptUrl.includes('firebase-messaging-sw.js')) {
+            return registration.unregister();
+        }
+        return Promise.resolve();
+    }));
+
+    const registration = await navigator.serviceWorker.ready.catch(() => null);
+    if (!registration) return null;
 
     const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY || undefined;
     const fcmToken = await getToken(fcm, {
