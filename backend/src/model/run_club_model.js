@@ -1,11 +1,13 @@
 const mongoose = require('mongoose');
 const coverImagesSchema = require('./coverImagesSchema');
-const { toSlug } = require('../utils/slug');
+const { toSlug, ensureUniqueSlug, mergePreviousSlugs } = require('../utils/slug');
 
 const runClubSchema = new mongoose.Schema(
     {
         name: { type: String, required: true, trim: true },
         slug: { type: String, trim: true, lowercase: true, index: true },
+        /** Former primary slugs — keep shared /sports/run-club/:slug links working after renames */
+        previousSlugs: { type: [{ type: String, trim: true, lowercase: true }], default: [] },
         basedIn: { type: String, trim: true, default: '' },
         /** Short line under the name, e.g. Sports & Social Community */
         tagline: { type: String, trim: true, default: '' },
@@ -51,16 +53,24 @@ const runClubSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
-runClubSchema.pre('save', function ensureSlug(next) {
-    if (this.isModified('name') || !this.slug) {
-        const nextSlug = toSlug(this.name);
+runClubSchema.pre('save', async function ensureSlug() {
+    // Immutable once set — renames must not break shared /sports/run-club/:slug links
+    if (!this.slug) {
+        const titleSlug = toSlug(this.name);
+        const nextSlug = await ensureUniqueSlug(this.constructor, this.name, {
+            excludeId: this._id,
+        });
         if (nextSlug) this.slug = nextSlug;
+        if (titleSlug && titleSlug !== nextSlug) {
+            this.previousSlugs = mergePreviousSlugs(this.previousSlugs, titleSlug);
+            this.markModified('previousSlugs');
+        }
     }
-    next();
 });
 
 runClubSchema.index({ status: 1 });
 runClubSchema.index({ runClubPriority: 1 });
 runClubSchema.index({ showOnSportsPage: 1 });
+runClubSchema.index({ previousSlugs: 1 });
 
 module.exports = mongoose.models.RunClub || mongoose.model('RunClub', runClubSchema);
