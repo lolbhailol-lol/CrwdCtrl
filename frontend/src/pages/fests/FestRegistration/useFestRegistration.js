@@ -48,7 +48,7 @@ import {
 } from '../../../features/fests/mindspark';
 import { getFestPluginFromAny } from '../../../features/fests/plugins';
 import { getCompetitionFeeTiers } from '../../../utils/competitionFeeTiers';
-import { waitAtLeast, sleep } from '../../../components/RegistrationStatusVisual';
+import { waitAtLeast, sleep, PROCESS_UI_MIN_MS } from '../../../components/RegistrationStatusVisual';
 import { useInAppBack } from '../../../hooks/useInAppBack';
 import { API_BASE_URL } from '../../../services/api/client';
 import { festRegisterPath, festPath, isObjectId } from '../../../utils/slugRoutes';
@@ -123,6 +123,7 @@ export default function useFestRegistration() {
   const [couponError, setCouponError] = useState('');
   const [couponQuoting, setCouponQuoting] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
+  const [loginDismissed, setLoginDismissed] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
   // True once we've waited long enough for Firebase -> backend JWT sync to finish
   const [authSyncExpired, setAuthSyncExpired] = useState(false);
@@ -187,11 +188,8 @@ export default function useFestRegistration() {
   };
 
   const handleCloseLogin = () => {
-    if (isAuthenticated || hasUsableAuthToken(authToken)) {
-      setShowLogin(false);
-      return;
-    }
-    goBack();
+    setLoginDismissed(true);
+    setShowLogin(false);
   };
   const handleCloseRegister = () => setShowRegister(false);
   const handleSwitchToRegister = () => {
@@ -206,6 +204,7 @@ export default function useFestRegistration() {
   useEffect(() => {
     if (isAuthenticated && showLogin) setShowLogin(false);
     if (isAuthenticated && showRegister) setShowRegister(false);
+    if (isAuthenticated) setLoginDismissed(false);
   }, [isAuthenticated, showLogin, showRegister]);
 
   const buildOrderRegistrationDraft = () => ({
@@ -296,7 +295,7 @@ export default function useFestRegistration() {
     setSuccess(true);
     clearPendingPayment();
     clearCashfreeReturnAndPending(navigate, location);
-    await sleep(1000);
+    await sleep(PROCESS_UI_MIN_MS);
     refreshNotifications();
     clearRegistrationDraft(draftKey);
   };
@@ -446,7 +445,7 @@ export default function useFestRegistration() {
     setSuccess(true);
     clearPendingPayment();
     clearCashfreeReturnAndPending(navigate, location);
-    await sleep(1000);
+    await sleep(PROCESS_UI_MIN_MS);
     refreshNotifications();
   };
 
@@ -535,6 +534,8 @@ export default function useFestRegistration() {
       return;
     }
 
+    if (loginDismissed) return;
+
     const usableToken = resolveAuthToken(authToken) || resolveAuthToken();
     if (usableToken) {
       setShowLogin(false);
@@ -553,6 +554,7 @@ export default function useFestRegistration() {
     location.pathname,
     location.search,
     hideFestOnlyForm,
+    loginDismissed,
   ]);
 
   useEffect(() => {
@@ -1537,7 +1539,7 @@ export default function useFestRegistration() {
           });
         } catch (checkoutErr) {
           const { kind, message } = classifyCheckoutError(checkoutErr);
-          await waitAtLeast(processUiStartedAt.current, 1000);
+          await waitAtLeast(processUiStartedAt.current, PROCESS_UI_MIN_MS);
           setCompletingPayment(false);
           setProcessOverlayMode('error');
           setSubmissionProgress(kind === 'cancelled' ? 'Payment cancelled' : message);
@@ -1561,7 +1563,7 @@ export default function useFestRegistration() {
             currentStep,
             completedSteps,
           });
-          await waitAtLeast(processUiStartedAt.current, 1000);
+          await waitAtLeast(processUiStartedAt.current, PROCESS_UI_MIN_MS);
           setSubmitting(false);
           setCompletingPayment(true);
           setProcessOverlayMode('payment');
@@ -1580,7 +1582,7 @@ export default function useFestRegistration() {
         );
         if (verifyResult.status === 'cancelled') {
           handleVerifyCancelled();
-          await waitAtLeast(processUiStartedAt.current, 1000);
+          await waitAtLeast(processUiStartedAt.current, PROCESS_UI_MIN_MS);
           setSubmitting(false);
           setSubmissionProgress('');
           setProcessOverlayMode('server');
@@ -1808,7 +1810,7 @@ export default function useFestRegistration() {
       setSubmissionProgress('Registration completed successfully!');
       const regId = result._id || result.registration?._id || result.registrationId;
       setRegistrationId(regId);
-      await waitAtLeast(processUiStartedAt.current, 1000);
+      await waitAtLeast(processUiStartedAt.current, PROCESS_UI_MIN_MS);
       setProcessOverlayMode('success');
       setSubmissionProgress('You\'re registered!');
       saveFestRegistrationSuccess({
@@ -1831,7 +1833,7 @@ export default function useFestRegistration() {
         setPaymentResumeError('');
         clearCashfreeReturnAndPending(navigate, location);
       }
-      await sleep(1000);
+      await sleep(PROCESS_UI_MIN_MS);
 
       return { success: true, regId };
 
@@ -1873,10 +1875,10 @@ export default function useFestRegistration() {
         userMessage = 'Network error. Please check your internet connection and try again.';
       }
 
-      await waitAtLeast(processUiStartedAt.current, 1000);
+      await waitAtLeast(processUiStartedAt.current, PROCESS_UI_MIN_MS);
       setProcessOverlayMode('error');
       setSubmissionProgress(userMessage);
-      await sleep(1100);
+      await sleep(PROCESS_UI_MIN_MS + 100);
       setError(userMessage);
     } finally {
       setSubmitting(false);
@@ -1938,7 +1940,7 @@ export default function useFestRegistration() {
         });
       } catch (checkoutErr) {
         const { kind, message } = classifyCheckoutError(checkoutErr);
-        await waitAtLeast(processUiStartedAt.current, 1000);
+        await waitAtLeast(processUiStartedAt.current, PROCESS_UI_MIN_MS);
         setProcessOverlayMode('error');
         setSubmissionProgress(kind === 'cancelled' ? 'Payment cancelled' : message);
         await sleep(900);
@@ -1963,7 +1965,7 @@ export default function useFestRegistration() {
           currentStep,
           completedSteps,
         });
-        await waitAtLeast(processUiStartedAt.current, 1000);
+        await waitAtLeast(processUiStartedAt.current, PROCESS_UI_MIN_MS);
         setPaymentLoading(false);
         setCompletingPayment(true);
         setProcessOverlayMode('payment');
@@ -2011,22 +2013,22 @@ export default function useFestRegistration() {
         competitionId: null,
         registrationId: regId,
       });
-      await waitAtLeast(processUiStartedAt.current, 1000);
+      await waitAtLeast(processUiStartedAt.current, PROCESS_UI_MIN_MS);
       setProcessOverlayMode('success');
       setSubmissionProgress("You're registered!");
       setCompletingPayment(false);
       setSuccess(true);
       clearPendingPayment();
       clearCashfreeReturnAndPending(navigate, location);
-      await sleep(1000);
+      await sleep(PROCESS_UI_MIN_MS);
       refreshNotifications();
       clearRegistrationDraft(draftKey);
     } catch (err) {
-      await waitAtLeast(processUiStartedAt.current, 1000);
+      await waitAtLeast(processUiStartedAt.current, PROCESS_UI_MIN_MS);
       setProcessOverlayMode('error');
       const msg = err.message || 'Payment failed. Please try again.';
       setSubmissionProgress(msg);
-      await sleep(1100);
+      await sleep(PROCESS_UI_MIN_MS + 100);
       setCompletingPayment(false);
       if (err.message !== 'Payment cancelled') {
         setPaymentError(msg);
@@ -2094,6 +2096,7 @@ export default function useFestRegistration() {
     couponError,
     couponQuoting,
     showLogin,
+    loginDismissed,
     setShowLogin,
     showRegister,
     setShowRegister,

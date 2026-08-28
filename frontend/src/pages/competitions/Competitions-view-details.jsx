@@ -531,13 +531,16 @@ function EventPage() {
     const [pageReady, setPageReady] = useState(() =>
         Boolean(resolvePaintPackage(competitionId, location)),
     );
-    const [holdLoader, setHoldLoader] = useState(() => !location.state?.skipDemoLoad);
+    const [holdLoader, setHoldLoader] = useState(() => {
+        if (location.state?.skipDemoLoad) return false;
+        return !resolvePaintPackage(competitionId, location);
+    });
     const [openingRegister, setOpeningRegister] = useState(false);
+    const openingRegisterRef = useRef(false);
     const { isDark } = useDarkMode();
     const { alert: showAlert, toast } = useDialog();
     const { isAuthenticated } = useAuth();
     const fetchGenRef = useRef(0);
-    const openRegisterTimerRef = useRef(null);
 
     // Switching comps reuses this page — swap to a complete package or hold on loader
     useLayoutEffect(() => {
@@ -545,8 +548,9 @@ function EventPage() {
         fetchGenRef.current += 1;
         setCompetitionData(pack);
         setPageReady(Boolean(pack));
-        setHoldLoader(!location.state?.skipDemoLoad);
+        setHoldLoader(!location.state?.skipDemoLoad && !pack);
         setOpeningRegister(false);
+        openingRegisterRef.current = false;
         setFetchDone(false);
         setError(null);
         setActiveRound(0);
@@ -557,15 +561,13 @@ function EventPage() {
     }, [competitionId]);
 
     useEffect(() => {
-        if (location.state?.skipDemoLoad) {
+        if (location.state?.skipDemoLoad || resolvePaintPackage(competitionId, location)) {
             setHoldLoader(false);
             return undefined;
         }
         const timer = window.setTimeout(() => setHoldLoader(false), COMPETITION_DEMO_LOAD_MS);
         return () => window.clearTimeout(timer);
     }, [competitionId, location.state?.skipDemoLoad]);
-
-    useEffect(() => () => window.clearTimeout(openRegisterTimerRef.current), []);
 
     // Fetch competition data from backend API
     useEffect(() => {
@@ -1216,17 +1218,15 @@ function EventPage() {
     const registrationInfo = getRegistrationStatus();
 
     const goToRegistration = (path, state = {}) => {
-        if (openingRegister) return;
+        if (openingRegisterRef.current) return;
+        openingRegisterRef.current = true;
         setOpeningRegister(true);
-        window.clearTimeout(openRegisterTimerRef.current);
-        openRegisterTimerRef.current = window.setTimeout(() => {
-            navigate(path, {
-                state: {
-                    ...state,
-                    skipDemoLoad: true,
-                },
-            });
-        }, COMPETITION_DEMO_LOAD_MS);
+        navigate(path, {
+            state: {
+                ...state,
+                skipDemoLoad: true,
+            },
+        });
     };
 
     const handleRegister = async () => {
@@ -1793,23 +1793,19 @@ function EventPage() {
                                     ) : null}
 
                                     <div className="flex flex-col sm:flex-row sm:items-end gap-3 mb-2">
-                                        {eventData.feeKnown ? (
-                                            <RegisterFeeLabel
-                                                large
-                                                isDark={isDark}
-                                                feeLabel={eventData.feeLabel}
-                                                feeIsFree={eventData.feeIsFree}
-                                                feeTiers={eventData.feeTiers}
-                                                feeAmount={eventData.feeAmount}
-                                            />
-                                        ) : (
-                                            <div className="flex-1" />
-                                        )}
+                                        <RegisterFeeLabel
+                                            large
+                                            isDark={isDark}
+                                            feeLabel={eventData.feeKnown ? eventData.feeLabel : 'TBA'}
+                                            feeIsFree={eventData.feeKnown && eventData.feeIsFree}
+                                            feeTiers={eventData.feeTiers}
+                                            feeAmount={eventData.feeAmount}
+                                        />
 
                                         <button
                                             type="button"
                                             onClick={handleRegister}
-                                            disabled={registrationInfo.isDisabled}
+                                            disabled={registrationInfo.isDisabled || openingRegister}
                                             className={`w-full sm:w-auto sm:min-w-[14rem] flex items-center justify-center gap-2 h-12 px-6 rounded-2xl text-base font-semibold shadow-md transition ${
                                                 registrationInfo.isDisabled
                                                     ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
@@ -1937,15 +1933,13 @@ function EventPage() {
                     </div>
 
                     <div className="flex items-center gap-3">
-                        {eventData.feeKnown ? (
-                            <RegisterFeeLabel
-                                isDark={isDark}
-                                feeLabel={eventData.feeLabel}
-                                feeIsFree={eventData.feeIsFree}
-                                feeTiers={eventData.feeTiers}
-                                feeAmount={eventData.feeAmount}
-                            />
-                        ) : null}
+                        <RegisterFeeLabel
+                            isDark={isDark}
+                            feeLabel={eventData.feeKnown ? eventData.feeLabel : 'TBA'}
+                            feeIsFree={eventData.feeKnown && eventData.feeIsFree}
+                            feeTiers={eventData.feeTiers}
+                            feeAmount={eventData.feeAmount}
+                        />
 
                         <button
                             type="button"
@@ -1958,7 +1952,7 @@ function EventPage() {
                                 });
                                 handleRegister();
                             }}
-                            disabled={registrationInfo.isDisabled}
+                            disabled={registrationInfo.isDisabled || openingRegister}
                             className={`flex-1 min-w-0 flex items-center justify-center gap-1.5 h-14 px-3 rounded-2xl text-base font-semibold shadow-md transition ${
                                 registrationInfo.isDisabled
                                     ? 'bg-gray-600 text-gray-300 cursor-not-allowed'

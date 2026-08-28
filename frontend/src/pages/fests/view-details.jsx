@@ -34,8 +34,6 @@ import CompetitionCoverImage from '../../components/CompetitionCoverImage';
 import FestPublicLiveStrip from '../../components/FestPublicLiveStrip';
 import { getFestPlugin } from '../../features/fests/plugins';
 import { useInAppBack } from '../../hooks/useInAppBack';
-import { COMPETITION_DEMO_LOAD_MS } from '../../constants/skeletonLoading';
-
 function formatCompFee(compOrFee) {
   if (compOrFee && typeof compOrFee === 'object') {
     return resolveCompetitionFee(compOrFee).label;
@@ -129,7 +127,6 @@ function EventDetailsPage() {
   const [showRegister, setShowRegister] = useState(false);
   const [showFullOverview, setShowFullOverview] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(null);
-  const [openingCompetition, setOpeningCompetition] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const [eventData, setEventData] = useState(() => resolveSeededFest(eventId, location));
   const [currentHeroImage, setCurrentHeroImage] = useState(() => {
@@ -139,11 +136,10 @@ function EventDetailsPage() {
   const [fetchDone, setFetchDone] = useState(() => Boolean(resolveSeededFest(eventId, location)));
   const [error, setError] = useState(null);
   const [bodyReady, setBodyReady] = useState(() => Boolean(resolveSeededFest(eventId, location)));
+  const [openingCompetition, setOpeningCompetition] = useState(false);
+  const openingCompetitionRef = useRef(false);
   const eventsRef = useRef(null);
   const fetchGenRef = useRef(0);
-  const openCompetitionTimerRef = useRef(null);
-
-  useEffect(() => () => window.clearTimeout(openCompetitionTimerRef.current), []);
 
   // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
 
@@ -152,14 +148,15 @@ function EventDetailsPage() {
     const seed = resolveSeededFest(eventId, location);
     fetchGenRef.current += 1;
     setEventData(seed);
-    // Blank hero until live fetch — avoids previous/demo image flash
-    setCurrentHeroImage('');
+    setCurrentHeroImage(seed?.heroImage || seed?.image || '');
     setFetchDone(Boolean(seed));
     setError(null);
     setActiveTab('GROUP');
     setShowFullOverview(false);
     setLightboxIndex(null);
     setBodyReady(false);
+    setOpeningCompetition(false);
+    openingCompetitionRef.current = false;
     if (seed) {
       const t = window.setTimeout(() => setBodyReady(true), 16);
       return () => window.clearTimeout(t);
@@ -406,19 +403,18 @@ function EventDetailsPage() {
   };
 
   const handleCompetitionRegister = (competition) => {
-    if (openingCompetition) return;
-    prefetchCompetition(competition);
+    if (openingCompetitionRef.current) return;
+    openingCompetitionRef.current = true;
     setOpeningCompetition(true);
+    prefetchCompetition(competition);
     const path = competitionPath(competition);
-    const state = {
-      competition: buildCompetitionNavPayload(competition, pageEvent),
-      eventData: pageEvent,
-      skipDemoLoad: true,
-    };
-    window.clearTimeout(openCompetitionTimerRef.current);
-    openCompetitionTimerRef.current = window.setTimeout(() => {
-      navigate(path, { state });
-    }, COMPETITION_DEMO_LOAD_MS);
+    navigate(path, {
+      state: {
+        competition: buildCompetitionNavPayload(competition, pageEvent),
+        eventData: pageEvent,
+        skipDemoLoad: true,
+      },
+    });
   };
 
   const handleShare = async () => {

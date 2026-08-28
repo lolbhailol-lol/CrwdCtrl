@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle } from 'lucide-react';
 import { DetailLoader3DIcon } from '../../components/DetailPageLoader';
+import { useDarkMode } from '../../context/DarkModeContext';
 import {
   getPendingPayment,
   isStalePendingPayment,
@@ -159,6 +160,7 @@ async function finishFestCompetitionAndNavigate({
  */
 export default function PaymentReturn() {
   const navigate = useNavigate();
+  const { isDark } = useDarkMode();
   const [status, setStatus] = useState('confirming'); // confirming | success | redirecting | pending
   const [message, setMessage] = useState('Confirming your payment…');
 
@@ -509,13 +511,13 @@ export default function PaymentReturn() {
   }, [navigate]);
 
   return (
-    <div className="crwdctrl-page crwdctrl-page--flat min-h-screen flex flex-col items-center justify-center px-4">
+    <div className={`crwdctrl-page crwdctrl-page--flat min-h-screen flex flex-col items-center justify-center px-4 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
       {status === 'success' ? (
         <CheckCircle className="w-10 h-10 text-emerald-400 mb-4" />
       ) : (
         <DetailLoader3DIcon variant="payment" size="compact" className="mb-4" />
       )}
-      <p className="text-sm text-gray-400 text-center max-w-sm">{message}</p>
+      <p className={`text-sm text-center max-w-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{message}</p>
     </div>
   );
 }

@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import CrwdCtrlLogin from '../../auth/login';
 import DetailPageLoader from '../../../components/DetailPageLoader';
 import { COMPETITION_DEMO_LOAD_MS } from '../../../constants/skeletonLoading';
 import useFestRegistration from './useFestRegistration';
@@ -33,6 +32,7 @@ export default function FestRegistration() {
     waitingOnAuth,
     hasAuth,
     showLogin,
+    loginDismissed,
     setShowLogin,
     showRegister,
     handleCloseLogin,
@@ -59,7 +59,9 @@ export default function FestRegistration() {
     location,
   } = r;
 
-  const skipDemoLoad = Boolean(location?.state?.skipDemoLoad);
+  const skipDemoLoad = Boolean(
+    location?.state?.skipDemoLoad || fest || location?.state?.prefetch,
+  );
   const [holdLoader, setHoldLoader] = useState(() => !skipDemoLoad);
   useEffect(() => {
     if (skipDemoLoad) {
@@ -69,6 +71,8 @@ export default function FestRegistration() {
     const timer = window.setTimeout(() => setHoldLoader(false), COMPETITION_DEMO_LOAD_MS);
     return () => window.clearTimeout(timer);
   }, [festId, competitionId, skipDemoLoad]);
+
+  const waitingForData = (!fest && loading) || (isCompetitionRegistration && loading && !competition);
 
   if (completingPayment && !success) {
     return (
@@ -139,26 +143,12 @@ export default function FestRegistration() {
     );
   }
 
-  if ((!fest && loading) || (isCompetitionRegistration && loading && !competition) || (holdLoader && !success && !completingPayment)) {
+  if (waitingForData || (holdLoader && !fest)) {
     return (
-      <>
-        <DetailPageLoader
-          variant={isCompetitionRegistration ? 'competition' : 'default'}
-          label={isCompetitionRegistration ? 'Loading competition' : 'Loading registration'}
-        />
-        {!hasAuth && (
-          <div className="fixed inset-0 z-100060 pointer-events-none">
-            <div className="pointer-events-auto h-full">
-              <CrwdCtrlLogin
-                googleOnly
-                title="Sign in to register"
-                subtitle="Sign in once — you stay signed in on this device"
-                onClose={handleCloseLogin}
-              />
-            </div>
-          </div>
-        )}
-      </>
+      <DetailPageLoader
+        variant={isCompetitionRegistration ? 'competition' : 'default'}
+        label={isCompetitionRegistration ? 'Loading competition' : 'Loading registration'}
+      />
     );
   }
 
@@ -363,7 +353,7 @@ export default function FestRegistration() {
       paymentModal={paymentModal}
       closePaymentModal={closePaymentModal}
       retryCheckoutRef={retryCheckoutRef}
-      showLogin={Boolean((showLogin || (!hasAuth && !!fest)) && !hasAuth)}
+      showLogin={Boolean((showLogin || (!hasAuth && !!fest && !loginDismissed)) && !hasAuth)}
       showRegister={showRegister}
       handleCloseLogin={handleCloseLogin}
       handleCloseRegister={handleCloseRegister}

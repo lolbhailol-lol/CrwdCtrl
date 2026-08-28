@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react';
 import { AlertTriangle, CheckCircle2, CreditCard, Server, Sparkles, Ticket } from 'lucide-react';
 
+import { PROCESS_UI_MIN_MS, SUCCESS_REVEAL_MIN_MS } from '../constants/skeletonLoading';
+
+export { PROCESS_UI_MIN_MS, SUCCESS_REVEAL_MIN_MS };
+
 /** Ensure a UI phase is visible for at least `minMs` from `startedAt`. */
-export async function waitAtLeast(startedAt, minMs = 1000) {
+export async function waitAtLeast(startedAt, minMs = PROCESS_UI_MIN_MS) {
   const start = Number(startedAt) || Date.now();
   const left = Math.max(0, minMs - (Date.now() - start));
   if (left > 0) {
@@ -10,7 +14,7 @@ export async function waitAtLeast(startedAt, minMs = 1000) {
   }
 }
 
-export function sleep(ms = 1000) {
+export function sleep(ms = PROCESS_UI_MIN_MS) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
@@ -184,7 +188,7 @@ export function SuccessRevealGate({
   isDark = true,
   title = "You're registered",
   subtitle = 'Booking confirmed',
-  minMs = 1000,
+  minMs = SUCCESS_REVEAL_MIN_MS,
   children,
 }) {
   const [ready, setReady] = useState(false);
