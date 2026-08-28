@@ -25,7 +25,7 @@ export default function CompetitionCoverImage({
     <div className={`relative overflow-hidden bg-[#1A1B1D] ${containerClassName}`.trim()}>
       {(status === 'loading' || status === 'error') && (
         <div className="absolute inset-0 flex items-center justify-center">
-          <DetailLoader3DIcon variant="competition" size={loaderSize} />
+          <DetailLoader3DIcon variant="competition" size={loaderSize} tone="dark" />
         </div>
       )}
       {imageUrl ? (

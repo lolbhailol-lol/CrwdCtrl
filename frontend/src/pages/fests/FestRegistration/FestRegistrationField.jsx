@@ -49,7 +49,7 @@ function renderField(field, fieldId, currentData, onFieldChange, ctx) {
             onFocus={scrollFieldIntoView}
             required={field.required}
             autoComplete={field.type === 'email' ? 'email' : field.type === 'tel' ? 'tel' : 'on'}
-            className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-600 hover:border-gray-500 text-white placeholder-gray-400' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900 placeholder-gray-500'}`}
+            className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-600 hover:border-gray-500 text-white placeholder-gray-400 [color-scheme:dark]' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900 placeholder-gray-500 [color-scheme:light]'}`}
           />
         );
       
@@ -423,7 +423,7 @@ function renderField(field, fieldId, currentData, onFieldChange, ctx) {
             value={value}
             onChange={(e) => onFieldChange(fieldId, e.target.value)}
             required={field.required}
-            className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-600 hover:border-gray-500 text-white placeholder-gray-400' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900 placeholder-gray-500'}`}
+            className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-600 hover:border-gray-500 text-white placeholder-gray-400 [color-scheme:dark]' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900 placeholder-gray-500 [color-scheme:light]'}`}
           />
         );
   }

@@ -65,9 +65,12 @@ export function DetailLoader3DIcon({
   variant = 'default',
   size = 'md',
   className = '',
+  tone = 'auto',
 }) {
   const useLogo = LOGO_VARIANTS.has(variant);
   const VariantIcon = !useLogo ? LOADER_VARIANT_ICONS[variant] : null;
+  const isDark = tone === 'auto' ? readShellDark() : tone === 'dark';
+  const toneClass = isDark ? 'detail-loader-tone-dark' : 'detail-loader-tone-light';
 
   const stageClass =
     size === 'splash'
@@ -81,7 +84,7 @@ export function DetailLoader3DIcon({
           : 'detail-loader-stage';
 
   return (
-    <div className={`${stageClass}${useLogo ? ' detail-loader-stage--mark' : ''} shrink-0 ${className}`.trim()} aria-hidden>
+    <div className={`${stageClass}${useLogo ? ' detail-loader-stage--mark' : ''} ${toneClass} shrink-0 ${className}`.trim()} aria-hidden>
       {useLogo || !VariantIcon ? (
         <CrwdCtrl3DMark />
       ) : (
@@ -125,7 +128,7 @@ export function InlinePageLoader({
       aria-live="polite"
       aria-label={label || 'Loading'}
     >
-      <DetailLoader3DIcon variant={variant} size={size} />
+      <DetailLoader3DIcon variant={variant} size={size} tone={isDark ? 'dark' : 'light'} />
       {label ? <p className={labelClassName}>{label}</p> : null}
     </div>
   );
@@ -146,7 +149,7 @@ export function HomeHubLoadingScreen() {
       aria-live="polite"
       aria-label="Loading"
     >
-      <DetailLoader3DIcon variant="brand" size="md" />
+      <DetailLoader3DIcon variant="brand" size="md" tone={readShellDark() ? 'dark' : 'light'} />
     </div>
   );
 
@@ -166,7 +169,7 @@ export function RouteLoadingFallback({ className = '' }) {
       aria-busy="true"
       aria-label="Loading page"
     >
-      <DetailLoader3DIcon variant="brand" size="md" />
+      <DetailLoader3DIcon variant="brand" size="md" tone={readShellDark() ? 'dark' : 'light'} />
     </div>
   );
 
@@ -205,7 +208,7 @@ export default function DetailPageLoader({
     >
       {/* Icon locked to visual center; copy sits below without pulling the icon up */}
       <div className="relative flex flex-col items-center justify-center">
-        <DetailLoader3DIcon variant={variant} />
+        <DetailLoader3DIcon variant={variant} tone={isDark ? 'dark' : 'light'} />
         <div className="absolute top-full left-1/2 mt-6 w-max max-w-[min(90vw,20rem)] -translate-x-1/2 px-6 text-center pointer-events-none">
           {label ? (
             <p className={`text-sm font-medium tracking-wide ${isDark ? 'text-white/70' : 'text-gray-600'}`}>

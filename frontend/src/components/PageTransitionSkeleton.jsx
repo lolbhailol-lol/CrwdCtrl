@@ -13,7 +13,7 @@ export default function PageTransitionSkeleton() {
             aria-hidden
             role="presentation"
         >
-            <DetailLoader3DIcon variant="brand" size="md" />
+            <DetailLoader3DIcon variant="brand" size="md" tone={isDark ? 'dark' : 'light'} />
         </div>
     );
 }

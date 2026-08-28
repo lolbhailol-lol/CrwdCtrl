@@ -17,6 +17,7 @@ import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { openExternalUrl, shareContent } from '../../utils/externalLink';
 import { competitionPath, competitionRegistrationPath, festRegisterPath, festPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
 import { resolveCompetitionFee, buildRegistrationPrefetch, saveRegistrationPrefetch } from '../../utils/festPublicTransform';
+import { minCompetitionFeeAmount } from '../../utils/competitionFeeTiers';
 import { trackBookNowClick } from '../../services/analyticsService';
 import PrizePoolPodium from '../../components/PrizePoolPodium';
 import DetailPageLoader from '../../components/DetailPageLoader';
@@ -84,26 +85,32 @@ function RegisterMetaChips({ slotsLabel, teamLabel, isDark }) {
     );
 }
 
-function compactRegisterMinAmount(feeTiers) {
+function registerBarFeeAmount(feeTiers, feeAmount) {
     const list = Array.isArray(feeTiers) ? feeTiers.filter((t) => t && (t.label || t.amount >= 0)) : [];
-    if (list.length <= 1) return null;
-    return Math.min(...list.map((t) => Math.max(0, Number(t.amount) || 0)));
+    if (list.length) return minCompetitionFeeAmount(list);
+    const n = Number(feeAmount);
+    return Number.isFinite(n) ? Math.max(0, n) : null;
 }
 
-function RegisterFeeLabel({ feeLabel, feeIsFree, isDark, feeTiers }) {
-    const fromAmount = compactRegisterMinAmount(feeTiers);
-    const display = fromAmount != null ? `₹${fromAmount.toLocaleString('en-IN')}` : feeLabel;
+function RegisterFeeLabel({ feeLabel, feeIsFree, isDark, feeTiers, feeAmount, large = false }) {
+    const list = Array.isArray(feeTiers) ? feeTiers.filter((t) => t && (t.label || t.amount >= 0)) : [];
+    const multiTier = list.length > 1;
+    const amount = registerBarFeeAmount(feeTiers, feeAmount);
+    const display = amount != null ? `₹${amount.toLocaleString('en-IN')}` : feeLabel;
+    const labelClass = large ? 'text-sm' : 'text-[11px]';
+    const priceClass = large ? 'text-2xl' : 'text-lg sm:text-xl';
+
     return (
-        <div className="min-w-0 flex-1 flex flex-col justify-center h-14">
+        <div className={`shrink-0 flex flex-col justify-center min-h-14 ${large ? 'min-w-0 flex-1' : 'max-w-[44%]'} pr-0.5`}>
             {!feeIsFree ? (
-                <p className={`text-sm font-semibold leading-none ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                    {fromAmount != null ? 'From' : ''}
+                <p className={`${labelClass} font-semibold leading-none ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {multiTier ? 'From' : 'Fee'}
                 </p>
             ) : null}
             {feeIsFree ? (
-                <p className="mt-1 text-xl font-bold leading-none text-green-500">Free</p>
+                <p className={`${priceClass} font-bold leading-none text-green-500`}>Free</p>
             ) : (
-                <p className={`mt-1 text-xl font-bold leading-none truncate tabular-nums ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                <p className={`mt-0.5 ${priceClass} font-bold leading-none tabular-nums ${isDark ? 'text-white' : 'text-gray-900'}`}>
                     {display}
                 </p>
             )}
@@ -1006,11 +1013,11 @@ function EventPage() {
     const ContactPersonCard = ({ contact }) => (
         <div className="space-y-3">
             <div>
-                <p className="text-base font-bold leading-snug text-white">
+                <p className={`text-base font-bold leading-snug ${isDark ? 'text-white' : 'text-gray-900'}`}>
                     {contact.name || 'Event Head'}
                 </p>
                 {contact.role ? (
-                    <p className="mt-0.5 text-xs font-medium text-gray-400">{contact.role}</p>
+                    <p className={`mt-0.5 text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{contact.role}</p>
                 ) : null}
             </div>
 
@@ -1025,12 +1032,14 @@ function EventPage() {
                             <a
                                 key={pi}
                                 href={`tel:${tel}`}
-                                className="flex items-center gap-2.5 text-white/90 hover:text-[#0ECCEE] transition"
+                                className={`flex items-center gap-2.5 transition ${
+                                    isDark ? 'text-white/90 hover:text-[#0ECCEE]' : 'text-gray-800 hover:text-[#0060DF]'
+                                }`}
                             >
-                                <Phone size={15} className="text-[#0ECCEE] shrink-0" strokeWidth={2.25} />
+                                <Phone size={15} className={`shrink-0 stroke-[2.25] ${isDark ? 'text-[#0ECCEE]' : 'text-[#0060DF]'}`} />
                                 <span className="min-w-0">
                                     {label ? (
-                                        <span className="block text-[11px] text-gray-400 leading-tight">{label}</span>
+                                        <span className={`block text-[11px] leading-tight ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{label}</span>
                                     ) : null}
                                     <span className="block text-sm font-medium tabular-nums tracking-wide">
                                         {rawNumber}
@@ -1044,9 +1053,11 @@ function EventPage() {
                 {contact.email ? (
                     <a
                         href={`mailto:${contact.email}`}
-                        className="flex items-center gap-2.5 text-white/90 hover:text-emerald-400 transition"
+                        className={`flex items-center gap-2.5 transition truncate ${
+                            isDark ? 'text-white/90 hover:text-emerald-400' : 'text-gray-800 hover:text-emerald-600'
+                        }`}
                     >
-                        <Mail size={15} className="text-emerald-400 shrink-0" strokeWidth={2.25} />
+                        <Mail size={15} className={`shrink-0 stroke-[2.25] ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
                         <span className="text-sm font-medium truncate">{contact.email}</span>
                     </a>
                 ) : null}
@@ -1056,9 +1067,11 @@ function EventPage() {
                         href={`https://instagram.com/${contact.instagramId.replace('@', '')}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-2.5 text-white/90 hover:text-pink-400 transition"
+                        className={`flex items-center gap-2.5 transition ${
+                            isDark ? 'text-white/90 hover:text-pink-400' : 'text-gray-800 hover:text-pink-600'
+                        }`}
                     >
-                        <Instagram size={15} className="text-pink-400 shrink-0" strokeWidth={2.25} />
+                        <Instagram size={15} className={`shrink-0 stroke-[2.25] ${isDark ? 'text-pink-400' : 'text-pink-600'}`} />
                         <span className="text-sm font-medium">
                             {contact.instagramId.startsWith('@') ? contact.instagramId : `@${contact.instagramId}`}
                         </span>
@@ -1069,8 +1082,12 @@ function EventPage() {
     );
 
     const ContactDetailsBox = () => (
-        <div className="rounded-2xl bg-[#111213] shadow-[0_8px_24px_rgba(0,0,0,0.28)] border border-white/5 p-4 sm:p-5">
-            <div className="space-y-5 divide-y divide-white/10">
+        <div className={`rounded-2xl p-4 sm:p-5 ${
+            isDark
+                ? 'bg-[#111213] shadow-[0_8px_24px_rgba(0,0,0,0.28)] border border-white/5'
+                : 'bg-white border border-gray-200 shadow-sm'
+        }`}>
+            <div className={`space-y-5 divide-y ${isDark ? 'divide-white/10' : 'divide-gray-200'}`}>
                 {contactList.map((contact, index) => (
                     <div key={index} className={index === 0 ? '' : 'pt-5'}>
                         <ContactPersonCard contact={contact} />
@@ -1777,20 +1794,14 @@ function EventPage() {
 
                                     <div className="flex flex-col sm:flex-row sm:items-end gap-3 mb-2">
                                         {eventData.feeKnown ? (
-                                            <div className="min-w-0 flex-1">
-                                                {!eventData.feeIsFree && compactRegisterMinAmount(eventData.feeTiers) != null ? (
-                                                    <p className={`text-sm font-semibold leading-none ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>From</p>
-                                                ) : null}
-                                                {eventData.feeIsFree ? (
-                                                    <p className="mt-1 text-2xl font-bold tabular-nums leading-none text-green-500">Free</p>
-                                                ) : (
-                                                    <p className={`mt-1 text-2xl font-bold tabular-nums leading-none truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                        {compactRegisterMinAmount(eventData.feeTiers) != null
-                                                            ? `₹${compactRegisterMinAmount(eventData.feeTiers).toLocaleString('en-IN')}`
-                                                            : eventData.feeLabel}
-                                                    </p>
-                                                )}
-                                            </div>
+                                            <RegisterFeeLabel
+                                                large
+                                                isDark={isDark}
+                                                feeLabel={eventData.feeLabel}
+                                                feeIsFree={eventData.feeIsFree}
+                                                feeTiers={eventData.feeTiers}
+                                                feeAmount={eventData.feeAmount}
+                                            />
                                         ) : (
                                             <div className="flex-1" />
                                         )}
@@ -1913,8 +1924,7 @@ function EventPage() {
                 style={{ paddingBottom: 'max(var(--safe-bottom), 6px)' }}
             >
                 <div className={`pointer-events-auto mx-auto w-full max-w-md rounded-[28px] px-4 py-3 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'}`}>
-                    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,20rem)] gap-x-3 gap-y-1.5 items-center">
-                        <div aria-hidden />
+                    <div className="mb-2">
                         <RegisterMetaChips
                             isDark={isDark}
                             slotsLabel={formatSlotsLabel(
@@ -1924,17 +1934,18 @@ function EventPage() {
                             )}
                             teamLabel={buildTeamSizeLabel(eventData.teamSizeMin, eventData.teamSizeMax)}
                         />
+                    </div>
 
+                    <div className="flex items-center gap-3">
                         {eventData.feeKnown ? (
                             <RegisterFeeLabel
                                 isDark={isDark}
                                 feeLabel={eventData.feeLabel}
                                 feeIsFree={eventData.feeIsFree}
                                 feeTiers={eventData.feeTiers}
+                                feeAmount={eventData.feeAmount}
                             />
-                        ) : (
-                            <div />
-                        )}
+                        ) : null}
 
                         <button
                             type="button"
@@ -1948,7 +1959,7 @@ function EventPage() {
                                 handleRegister();
                             }}
                             disabled={registrationInfo.isDisabled}
-                            className={`w-full flex items-center justify-center gap-1.5 h-14 px-3 rounded-2xl text-base font-semibold shadow-md transition ${
+                            className={`flex-1 min-w-0 flex items-center justify-center gap-1.5 h-14 px-3 rounded-2xl text-base font-semibold shadow-md transition ${
                                 registrationInfo.isDisabled
                                     ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
                                     : 'bg-[#0ECCEE] text-black active:opacity-90'

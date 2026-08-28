@@ -221,8 +221,8 @@ export function isTeamMemberComplete(raw, personFields = DEFAULT_PERSON_FIELDS) 
 const inputClass = (isDark) =>
   `w-full px-3 py-2.5 md:py-3 rounded-xl border text-sm ${
     isDark
-      ? 'bg-[#1D1E20] border-gray-700 text-white placeholder:text-gray-500'
-      : 'bg-white border-gray-300 text-gray-900'
+      ? 'bg-[#1D1E20] border-gray-700 text-white placeholder:text-gray-500 [color-scheme:dark]'
+      : 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-500 [color-scheme:light]'
   }`;
 
 /** Step 1 — People count stepper */
@@ -438,10 +438,12 @@ export function TeamDetailsStep({ competition, formData, setFormData, isDark }) 
     }
     return (
       <input
-        type="text"
+        type={field.type === 'tel' ? 'tel' : field.type === 'email' ? 'email' : 'text'}
         value={value}
         onChange={(e) => setTeamField(field.key, e.target.value)}
         placeholder={field.placeholder || field.label}
+        inputMode={field.type === 'tel' ? 'tel' : field.type === 'email' ? 'email' : undefined}
+        autoComplete={field.type === 'email' ? 'email' : field.type === 'tel' ? 'tel' : 'on'}
         className={inputClass(isDark)}
       />
     );

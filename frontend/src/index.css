@@ -1021,6 +1021,21 @@ html:not(.dark) .bg-\[\#EDEDF2\] {
     color-scheme: dark;
 }
 
+html:not(.dark) {
+    color-scheme: light;
+}
+
+/* Light mode — keep autofill from painting tel/email fields dark */
+html:not(.dark) .crwdctrl-page input:-webkit-autofill,
+html:not(.dark) .crwdctrl-page input:-webkit-autofill:hover,
+html:not(.dark) .crwdctrl-page input:-webkit-autofill:focus,
+html:not(.dark) .crwdctrl-page textarea:-webkit-autofill,
+html:not(.dark) .crwdctrl-page select:-webkit-autofill {
+    -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+    -webkit-text-fill-color: #111827 !important;
+    caret-color: #111827;
+}
+
 /* Footer — always pure white in light mode */
 html:not(.dark) .crwdctrl-footer {
     background-color: #ffffff !important;
@@ -1391,7 +1406,8 @@ html:not(.dark) .crwdctrl-footer {
     transform: translateZ(2px) scale(1.08);
 }
 
-html:not(.dark) .detail-loader-glass {
+html:not(.dark) .detail-loader-glass,
+.detail-loader-tone-light .detail-loader-glass {
     background: linear-gradient(145deg, #ffffff 0%, #f4f6f8 100%);
     border: 1px solid rgba(14, 204, 238, 0.38);
     box-shadow:
@@ -1399,18 +1415,50 @@ html:not(.dark) .detail-loader-glass {
         0 8px 20px rgba(0, 0, 0, 0.08);
 }
 
+/* Logo PNG has a black matte — screen blend drops the black on light backgrounds */
 html:not(.dark) .detail-loader-logo-layer,
-html:not(.dark) .detail-loader-logo-layer--front {
-    mix-blend-mode: multiply;
-    filter: invert(1) hue-rotate(180deg);
+html:not(.dark) .detail-loader-logo-layer--front,
+.detail-loader-tone-light .detail-loader-logo-layer,
+.detail-loader-tone-light .detail-loader-logo-layer--front {
+    mix-blend-mode: screen;
+    filter: none;
 }
 
-html:not(.dark) .detail-loader-logo-layer--front {
-    filter: invert(1) hue-rotate(180deg) drop-shadow(0 0 10px rgba(14, 204, 238, 0.28));
+html:not(.dark) .detail-loader-logo-layer--front,
+.detail-loader-tone-light .detail-loader-logo-layer--front {
+    filter: drop-shadow(0 0 10px rgba(14, 204, 238, 0.35));
 }
 
-html:not(.dark) .detail-loader-orb {
+html:not(.dark) .detail-loader-orb,
+.detail-loader-tone-light .detail-loader-orb {
     background: radial-gradient(circle at 35% 30%, rgba(14, 204, 238, 0.22), transparent 65%);
+}
+
+html:not(.dark) .detail-loader-card-front,
+.detail-loader-tone-light .detail-loader-card-front {
+    background: linear-gradient(145deg, #ffffff 0%, #f0f4f8 55%, #e8ecf0 100%);
+    border: 1px solid rgba(14, 204, 238, 0.42);
+    box-shadow:
+        0 18px 40px rgba(14, 204, 238, 0.14),
+        inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+html:not(.dark) .detail-loader-icon,
+html:not(.dark) .detail-loader-icon--competition,
+.detail-loader-tone-light .detail-loader-icon,
+.detail-loader-tone-light .detail-loader-icon--competition {
+    color: #0099b8;
+    filter: drop-shadow(0 0 10px rgba(14, 204, 238, 0.38));
+}
+
+html:not(.dark) .detail-loader-shine,
+.detail-loader-tone-light .detail-loader-shine {
+    background: linear-gradient(
+        115deg,
+        transparent 35%,
+        rgba(14, 204, 238, 0.14) 48%,
+        transparent 62%
+    );
 }
 
 .detail-loader-logo {
