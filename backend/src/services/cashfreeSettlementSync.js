@@ -112,7 +112,12 @@ function normalizeSettlementPayload(raw, { orderId: fallbackOrderId, eventType }
   if (!src) return null;
   const orderId = firstNonEmpty(src.order_id, src.orderId, fallbackOrderId);
   if (!orderId) return null;
-  const cfSettlementId = firstNonEmpty(src.cf_settlement_id, src.cfSettlementId, src.settlement_id);
+  const cfSettlementId = firstNonEmpty(
+    src.cf_settlement_id,
+    src.cfSettlementId,
+    src.settlement_id,
+    src.transfer_id,
+  );
   const transferTime = parseDateOrNull(
     src.transfer_time
     || src.transferTime
@@ -227,15 +232,15 @@ async function upsertSettlement({ normalized, source, raw, actor = 'system' }) {
     { orderId: normalized.orderId },
     {
       $set: {
-        cfSettlementId: normalized.cfSettlementId,
-        cfPaymentId: normalized.cfPaymentId,
-        settlementAmount: normalized.settlementAmount,
-        serviceCharge: normalized.serviceCharge,
-        serviceTax: normalized.serviceTax,
-        status: normalized.status,
-        statusDescription: normalized.statusDescription,
-        transferTime: normalized.transferTime,
-        transferUtr: normalized.transferUtr,
+        cfSettlementId: normalized.cfSettlementId || before?.cfSettlementId || null,
+        cfPaymentId: normalized.cfPaymentId || before?.cfPaymentId || null,
+        settlementAmount: normalized.settlementAmount ?? before?.settlementAmount ?? null,
+        serviceCharge: normalized.serviceCharge ?? before?.serviceCharge ?? null,
+        serviceTax: normalized.serviceTax ?? before?.serviceTax ?? null,
+        status: normalized.status || before?.status || null,
+        statusDescription: normalized.statusDescription || before?.statusDescription || null,
+        transferTime: normalized.transferTime || before?.transferTime || null,
+        transferUtr: normalized.transferUtr || before?.transferUtr || null,
         source,
         raw: raw || {},
         syncedAt: new Date(),
@@ -326,19 +331,30 @@ const PENDING_RETRY_MS = 10 * 60 * 1000;
 const NOT_FOUND_RETRY_MS = 30 * 60 * 1000;
 const AUTO_SYNC_GAP_MS = 90 * 1000;
 
+function hasSettlementReference(doc) {
+  return Boolean(
+    String(doc?.transferUtr || '').trim()
+    || String(doc?.cfSettlementId || '').trim(),
+  );
+}
+
 function isTerminalSuccessDoc(doc) {
   const s = String(doc?.status || '').toUpperCase();
-  if (s === 'SUCCESS' || s === 'SETTLED') return true;
   if (s.includes('PENDING') || s === 'FAILED' || s === 'NOT_FOUND') return false;
-  return Boolean(doc?.cfSettlementId || doc?.transferTime);
+  if ((s === 'SUCCESS' || s === 'SETTLED') && hasSettlementReference(doc)) return true;
+  if (hasSettlementReference(doc) && (doc?.cfSettlementId || doc?.transferTime)) return true;
+  return false;
 }
 
 function shouldRefreshSettlement(doc) {
   if (!doc) return true;
-  if (isTerminalSuccessDoc(doc)) return false;
   const synced = doc.syncedAt ? new Date(doc.syncedAt).getTime() : 0;
   const age = synced ? Date.now() - synced : Number.POSITIVE_INFINITY;
   const s = String(doc.status || '').toUpperCase();
+  const missingReference = (s === 'SUCCESS' || s === 'SETTLED' || doc.transferTime)
+    && !hasSettlementReference(doc);
+  if (missingReference && age >= PENDING_RETRY_MS) return true;
+  if (isTerminalSuccessDoc(doc)) return false;
   if (s === 'NOT_FOUND' && age < NOT_FOUND_RETRY_MS) return false;
   if (s.includes('PENDING') && age < PENDING_RETRY_MS) return false;
   if (s === 'FAILED' && age < FAILED_RETRY_MS) return false;
