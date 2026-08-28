@@ -145,6 +145,10 @@ export const FestOrganizerCouponsPage = lazyWithRetry(() => import('../../pages/
 export const FestStallInterestPage = lazyWithRetry(() => import('../../pages/stall/FestStallInterestPage'));
 export const FestOrganizerLeadsPage = lazyWithRetry(() => import('../../pages/fest-organizer/FestOrganizerLeadsPage'));
 
+export const MindSparkPaymentsLoginPage = lazyWithRetry(() => import('../../pages/mindspark-payments/MindSparkPaymentsLoginPage'));
+export const MindSparkPaymentsProtectedRoute = lazyWithRetry(() => import('../../pages/mindspark-payments/MindSparkPaymentsProtectedRoute'));
+export const MindSparkPaymentsPage = lazyWithRetry(() => import('../../pages/mindspark-payments/MindSparkPaymentsPage'));
+
 export const CampusHuntLandingPage = lazyWithRetry(() => import('../../features/campus-hunt/pages/CampusHuntLandingPage'));
 export const CampusHuntEnterPage = lazyWithRetry(() => import('../../features/campus-hunt/pages/CampusHuntEnterPage'));
 export const CampusHuntPlayPage = lazyWithRetry(() => import('../../features/campus-hunt/pages/CampusHuntPlayPage'));

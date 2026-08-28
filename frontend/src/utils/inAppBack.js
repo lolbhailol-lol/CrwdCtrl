@@ -41,6 +41,7 @@ function isPrivateShellPath(pathname = '') {
   return (
     pathname.startsWith('/admin')
     || pathname.startsWith('/fest-organizer')
+    || pathname.startsWith('/mindspark-payments')
     || pathname.startsWith('/trek-organizer')
     || pathname.startsWith('/run-club-organizer')
     || pathname.startsWith('/event-organizer')

@@ -3,6 +3,7 @@ import { adminRoutes } from './adminRoutes';
 import { organizerRoutes } from './organizerRoutes';
 import { trekOrganizerRoutes } from './trekOrganizerRoutes';
 import { festOrganizerRoutes } from './festOrganizerRoutes';
+import { mindsparkPaymentsRoutes } from './mindsparkPaymentsRoutes';
 import { runClubOrganizerRoutes } from './runClubOrganizerRoutes';
 import { eventOrganizerRoutes } from './eventOrganizerRoutes';
 import { campusHuntRoutes } from './campusHuntRoutes';
@@ -14,6 +15,7 @@ export const appRoutes = (
     {organizerRoutes}
     {trekOrganizerRoutes}
     {festOrganizerRoutes}
+    {mindsparkPaymentsRoutes}
     {runClubOrganizerRoutes}
     {eventOrganizerRoutes}
     {campusHuntRoutes}

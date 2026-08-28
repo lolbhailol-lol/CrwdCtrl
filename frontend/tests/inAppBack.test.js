@@ -25,5 +25,6 @@ test('hubs go home; organizer shells stay unmanaged', () => {
   assert.equal(resolveBrowseBackPath('/events'), '/');
   assert.equal(resolveBrowseBackPath('/fests'), '/');
   assert.equal(resolveBrowseBackPath('/fest-organizer/fests/abc/edit-listing'), null);
+  assert.equal(resolveBrowseBackPath('/mindspark-payments'), null);
   assert.equal(resolveBrowseBackPath('/'), null);
 });

@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const FestOrganizerAccount = require('../model/fest_organizer_account_model');
 const { getJwtSecret } = require('../config/jwtSecret');
 const { organizerCanAccessFest } = require('../utils/festOrganizerAccess');
+const { MINDSPARK_FEST_ID } = require('../modules/fest/plugins/mindspark');
 
 async function authenticateFestOrganizer(req, res, next) {
     try {
@@ -52,4 +53,14 @@ async function requireFestAccess(req, res, next) {
     }
 }
 
-module.exports = { authenticateFestOrganizer, requireFestAccess };
+function requireMindSparkPaymentsAccess(req, res, next) {
+    if (!organizerCanAccessFest(req.organizer, MINDSPARK_FEST_ID)) {
+        return res.status(403).json({
+            success: false,
+            message: 'This login is for MindSpark payments only',
+        });
+    }
+    next();
+}
+
+module.exports = { authenticateFestOrganizer, requireFestAccess, requireMindSparkPaymentsAccess };

@@ -29,6 +29,7 @@ export function resolveBrowseBackPath(pathname = '') {
   if (
     path.startsWith('/admin')
     || path.startsWith('/fest-organizer')
+    || path.startsWith('/mindspark-payments')
     || path.startsWith('/trek-organizer')
     || path.startsWith('/run-club-organizer')
     || path.startsWith('/event-organizer')

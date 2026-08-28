@@ -31,6 +31,7 @@ function shouldSkipPageTransition(pathname) {
         || pathname.startsWith('/admin')
         || pathname.startsWith('/trek-organizer')
         || pathname.startsWith('/fest-organizer')
+        || pathname.startsWith('/mindspark-payments')
         || pathname.startsWith('/event-organizer')
         || pathname.startsWith('/stall')
         || pathname.startsWith('/s/')
