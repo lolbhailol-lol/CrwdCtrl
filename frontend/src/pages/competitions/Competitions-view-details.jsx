@@ -1015,11 +1015,11 @@ function EventPage() {
     const ContactPersonCard = ({ contact }) => (
         <div className="space-y-3">
             <div>
-                <p className={`text-base font-bold leading-snug ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                <p className="text-base font-bold leading-snug text-gray-900 dark:text-white">
                     {contact.name || 'Event Head'}
                 </p>
                 {contact.role ? (
-                    <p className={`mt-0.5 text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{contact.role}</p>
+                    <p className="mt-0.5 text-xs font-medium text-gray-600 dark:text-gray-400">{contact.role}</p>
                 ) : null}
             </div>
 
@@ -1034,14 +1034,12 @@ function EventPage() {
                             <a
                                 key={pi}
                                 href={`tel:${tel}`}
-                                className={`flex items-center gap-2.5 transition ${
-                                    isDark ? 'text-white/90 hover:text-[#0ECCEE]' : 'text-gray-800 hover:text-[#0060DF]'
-                                }`}
+                                className="flex items-center gap-2.5 transition text-gray-800 hover:text-[#0060DF] dark:text-white/90 dark:hover:text-[#0ECCEE]"
                             >
-                                <Phone size={15} className={`shrink-0 stroke-[2.25] ${isDark ? 'text-[#0ECCEE]' : 'text-[#0060DF]'}`} />
+                                <Phone size={15} className="shrink-0 stroke-[2.25] text-[#0060DF] dark:text-[#0ECCEE]" />
                                 <span className="min-w-0">
                                     {label ? (
-                                        <span className={`block text-[11px] leading-tight ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{label}</span>
+                                        <span className="block text-[11px] leading-tight text-gray-500 dark:text-gray-400">{label}</span>
                                     ) : null}
                                     <span className="block text-sm font-medium tabular-nums tracking-wide">
                                         {rawNumber}
@@ -1055,11 +1053,9 @@ function EventPage() {
                 {contact.email ? (
                     <a
                         href={`mailto:${contact.email}`}
-                        className={`flex items-center gap-2.5 transition truncate ${
-                            isDark ? 'text-white/90 hover:text-emerald-400' : 'text-gray-800 hover:text-emerald-600'
-                        }`}
+                        className="flex items-center gap-2.5 transition truncate text-gray-800 hover:text-emerald-600 dark:text-white/90 dark:hover:text-emerald-400"
                     >
-                        <Mail size={15} className={`shrink-0 stroke-[2.25] ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+                        <Mail size={15} className="shrink-0 stroke-[2.25] text-emerald-600 dark:text-emerald-400" />
                         <span className="text-sm font-medium truncate">{contact.email}</span>
                     </a>
                 ) : null}
@@ -1069,11 +1065,9 @@ function EventPage() {
                         href={`https://instagram.com/${contact.instagramId.replace('@', '')}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className={`flex items-center gap-2.5 transition ${
-                            isDark ? 'text-white/90 hover:text-pink-400' : 'text-gray-800 hover:text-pink-600'
-                        }`}
+                        className="flex items-center gap-2.5 transition text-gray-800 hover:text-pink-600 dark:text-white/90 dark:hover:text-pink-400"
                     >
-                        <Instagram size={15} className={`shrink-0 stroke-[2.25] ${isDark ? 'text-pink-400' : 'text-pink-600'}`} />
+                        <Instagram size={15} className="shrink-0 stroke-[2.25] text-pink-600 dark:text-pink-400" />
                         <span className="text-sm font-medium">
                             {contact.instagramId.startsWith('@') ? contact.instagramId : `@${contact.instagramId}`}
                         </span>
@@ -1084,12 +1078,8 @@ function EventPage() {
     );
 
     const ContactDetailsBox = () => (
-        <div className={`rounded-2xl p-4 sm:p-5 ${
-            isDark
-                ? 'bg-[#111213] shadow-[0_8px_24px_rgba(0,0,0,0.28)] border border-white/5'
-                : 'bg-white border border-gray-200 shadow-sm'
-        }`}>
-            <div className={`space-y-5 divide-y ${isDark ? 'divide-white/10' : 'divide-gray-200'}`}>
+        <div className="contact-details-box rounded-2xl p-4 sm:p-5 bg-gray-50 border border-gray-200 shadow-sm dark:bg-[#111213] dark:border-white/5 dark:shadow-[0_8px_24px_rgba(0,0,0,0.28)]">
+            <div className="space-y-5 divide-y divide-gray-200 dark:divide-white/10">
                 {contactList.map((contact, index) => (
                     <div key={index} className={index === 0 ? '' : 'pt-5'}>
                         <ContactPersonCard contact={contact} />
