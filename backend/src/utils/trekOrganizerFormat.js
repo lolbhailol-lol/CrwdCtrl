@@ -88,13 +88,25 @@ function pickFormField(formData = {}, keys = []) {
 
 const { splitTrekOrganizerPayment } = require('./platformFee');
 
-function attachOrganizerPayment(row, booking, trek = null) {
+function platformFeePercentForBooking(booking, trek = null, communityGateway = '') {
+    const gateway = String(booking?.payment_gateway || communityGateway || '').toLowerCase();
+    if (gateway === 'razorpay') return 0;
+    if (String(communityGateway || '').toLowerCase() === 'razorpay') return 0;
+    const pct = Number(trek?.platformFeePercent);
+    return Number.isFinite(pct) && pct >= 0 ? pct : 3;
+}
+
+function attachOrganizerPayment(row, booking, trek = null, communityGateway = '') {
     const grossCollected = Number(booking.bookingDetails?.amountPaid) || 0;
     const people = Number(booking.bookingDetails?.people) || 1;
-    const split = splitTrekOrganizerPayment(grossCollected, trek?.platformFeePercent ?? 3, {
-        registrationFeePerPerson: trek?.registrationFee ?? 0,
-        people,
-    });
+    const split = splitTrekOrganizerPayment(
+        grossCollected,
+        platformFeePercentForBooking(booking, trek, communityGateway),
+        {
+            registrationFeePerPerson: trek?.registrationFee ?? 0,
+            people,
+        },
+    );
     return {
         ...row,
         grossCollected: split.grossCollected,
@@ -103,7 +115,7 @@ function attachOrganizerPayment(row, booking, trek = null) {
     };
 }
 
-function formatParticipantRow(booking, trek = null) {
+function formatParticipantRow(booking, trek = null, communityGateway = '') {
     const form = booking.formData || {};
     const grossCollected = Number(booking.bookingDetails?.amountPaid) || 0;
     const people = Number(booking.bookingDetails?.people) || 1;
@@ -177,7 +189,7 @@ function formatParticipantRow(booking, trek = null) {
             : grossCollected,
     };
 
-    return attachOrganizerPayment(row, booking, trek);
+    return attachOrganizerPayment(row, booking, trek, communityGateway);
 }
 
 function resolveFormColumns(formSchema = []) {
@@ -219,8 +231,8 @@ function buildSheetColumns(formSchema = []) {
     ];
 }
 
-function formatParticipantSheetRow(booking, trek = null) {
-    const row = formatParticipantRow(booking, trek);
+function formatParticipantSheetRow(booking, trek = null, communityGateway = '') {
+    const row = formatParticipantRow(booking, trek, communityGateway);
     const formSchema = trek?.registration?.formSchema || [];
     return {
         ...row,
@@ -239,7 +251,7 @@ function buildParticipantTimeline(booking, trek = null) {
     ];
     const split = splitTrekOrganizerPayment(
         booking.bookingDetails?.amountPaid,
-        trek?.platformFeePercent ?? 3,
+        platformFeePercentForBooking(booking, trek),
         {
             registrationFeePerPerson: trek?.registrationFee ?? 0,
             people: booking.bookingDetails?.people,

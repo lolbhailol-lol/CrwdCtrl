@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-    Users, UserCheck, Clock, IndianRupee, Bell, QrCode,
-    Copy, ExternalLink, RefreshCw, MapPin, Venus, Mars,
-    ContactRound, CalendarPlus,
+    Users, UserCheck, Clock, IndianRupee,
+    Copy, ExternalLink, RefreshCw, MapPin, QrCode,
 } from 'lucide-react';
 import {
     fetchTrekOrganizerDashboard,
@@ -13,7 +12,7 @@ import { trekPath } from '../../utils/slugRoutes';
 import { formatOrganizerTrekDate } from '../../utils/trekDateDisplay';
 import TrekOrganizerRegistrationPanel from './TrekOrganizerRegistrationPanel';
 import { InlinePageLoader } from '../../components/DetailPageLoader';
-import { ActionRail, CapacityBar, ProgressBar, SectionCard, StatTile } from './OrganizerUi';
+import { CapacityBar, ProgressBar, SectionCard, StatTile } from './OrganizerUi';
 import { getCoverImageUrl } from '../../utils/coverImages';
 
 function formatUpdatedAt(ts) {
@@ -99,15 +98,13 @@ export default function TrekOrganizerDashboardPage() {
 
     const trek = data.trek;
     const stats = data.stats || {};
-    const genderRegistration = data.genderRegistration;
 
     const total = Number(stats.totalRegistrations) || 0;
-    const male = Number(stats.maleCount) || 0;
-    const female = Number(stats.femaleCount) || 0;
     const checkedIn = Number(stats.checkedIn) || 0;
     const pending = Number(stats.pendingCheckIn ?? Math.max(0, total - checkedIn)) || 0;
     const revenue = Number(stats.organizerRevenue ?? stats.revenue) || 0;
     const fees = Number(stats.platformFees) || 0;
+    const gross = Number(stats.grossCollected) || 0;
     const today = Number(stats.todayRegistrations) || 0;
     const seatsFilled = Number(stats.seatsFilled ?? total) || 0;
     const capacity = Number(trek.capacity ?? stats.capacity) || 0;
@@ -118,6 +115,7 @@ export default function TrekOrganizerDashboardPage() {
     const isOrganizerQr = (trek.registrationMode || 'internal_form') === 'organizer_qr';
     const pendingReviewCount = Number(stats.pendingReview) || 0;
     const isOpen = (trek.registrationStatus || 'open') === 'open';
+    const paymentLabel = String(stats.paymentGatewayLabel || '').trim();
 
     const batches = Array.isArray(trek.trekBatches) ? trek.trekBatches.filter((b) => b?.date) : [];
     const availableDates = Array.isArray(trek.availableDates) ? trek.availableDates.filter(Boolean) : [];
@@ -134,6 +132,14 @@ export default function TrekOrganizerDashboardPage() {
         },
         'hero',
     );
+
+    const moneyHint = (() => {
+        const bits = [];
+        if (paymentLabel) bits.push(paymentLabel);
+        if (gross > 0 && fees > 0) bits.push(`Guest paid ₹${gross.toLocaleString('en-IN')}`);
+        if (fees > 0) bits.push(`Platform ₹${fees.toLocaleString('en-IN')}`);
+        return bits.length ? bits.join(' · ') : undefined;
+    })();
 
     const copyLink = async () => {
         if (!publicUrl) return;
@@ -168,7 +174,7 @@ export default function TrekOrganizerDashboardPage() {
     };
 
     return (
-        <div className="space-y-4 max-w-4xl xl:max-w-5xl mx-auto w-full">
+        <div className="space-y-4 max-w-3xl mx-auto w-full">
             {/* Hero */}
             <SectionCard className="overflow-hidden">
                 <div className="relative h-36 sm:h-40">
@@ -203,13 +209,6 @@ export default function TrekOrganizerDashboardPage() {
                             ) : null}
                         </div>
                         <div className="flex flex-wrap gap-1.5 pt-0.5">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold capitalize border ${
-                                String(trek.status || '').toLowerCase() === 'published'
-                                    ? 'bg-emerald-500/20 text-emerald-200 border-emerald-400/30'
-                                    : 'bg-amber-500/20 text-amber-200 border-amber-400/30'
-                            }`}>
-                                {trek.status || 'draft'}
-                            </span>
                             <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
                                 isOpen
                                     ? 'bg-emerald-500/20 text-emerald-200 border-emerald-400/30'
@@ -233,33 +232,7 @@ export default function TrekOrganizerDashboardPage() {
                 </div>
             ) : null}
 
-            {/* Actions first — what organizers use most */}
-            <ActionRail
-                actions={[
-                    {
-                        label: 'Guests',
-                        icon: Users,
-                        onClick: () => navigate(`/trek-organizer/treks/${trekId}/participants`),
-                    },
-                    {
-                        label: 'CRM',
-                        icon: ContactRound,
-                        onClick: () => navigate(`/trek-organizer/treks/${trekId}/customers`),
-                    },
-                    {
-                        label: 'Scan',
-                        icon: QrCode,
-                        onClick: () => navigate(`/trek-organizer/treks/${trekId}/scan`),
-                    },
-                    {
-                        label: 'Notify',
-                        icon: Bell,
-                        onClick: () => navigate(`/trek-organizer/treks/${trekId}/notifications`),
-                    },
-                ]}
-            />
-
-            {/* Share — compact */}
+            {/* Share */}
             {publicUrl ? (
                 <div className="flex gap-2">
                     <button
@@ -280,7 +253,7 @@ export default function TrekOrganizerDashboardPage() {
                 </div>
             ) : null}
 
-            {/* Numbers */}
+            {/* Core numbers — 4 tiles only */}
             <div className="grid grid-cols-2 gap-2.5">
                 <StatTile
                     compact
@@ -289,68 +262,47 @@ export default function TrekOrganizerDashboardPage() {
                     tone="accent"
                     icon={Users}
                     to={`/trek-organizer/treks/${trekId}/participants`}
+                    hint={today > 0 ? `+${today} today` : undefined}
                 />
                 <StatTile
                     compact
-                    label="Today"
-                    value={today}
-                    tone="accent"
-                    icon={CalendarPlus}
-                />
-                <StatTile
-                    compact
-                    label="Collected"
+                    label="Your money"
                     value={`₹${revenue.toLocaleString('en-IN')}`}
                     tone="money"
                     icon={IndianRupee}
-                    hint={fees > 0 ? `Fees ₹${fees.toLocaleString('en-IN')}` : undefined}
+                    hint={moneyHint}
                 />
                 <StatTile
                     compact
                     label="Checked in"
-                    value={`${checkedIn}`}
+                    value={`${checkedIn}/${total}`}
                     tone="ok"
                     icon={UserCheck}
                     to={`/trek-organizer/treks/${trekId}/scan`}
                     hint={total > 0 ? `${checkInPct}%` : undefined}
                 />
-                <StatTile
-                    compact
-                    label="Women"
-                    value={female}
-                    tone="women"
-                    icon={Venus}
-                    to={`/trek-organizer/treks/${trekId}/participants?gender=Female`}
-                />
-                <StatTile
-                    compact
-                    label="Men"
-                    value={male}
-                    tone="men"
-                    icon={Mars}
-                    to={`/trek-organizer/treks/${trekId}/participants?gender=Male`}
-                />
                 {(isOrganizerQr || pendingReviewCount > 0) ? (
                     <StatTile
                         compact
-                        label="Review"
+                        label="Payment review"
                         value={pendingReviewCount}
                         tone="warn"
                         icon={Clock}
                         to={`/trek-organizer/treks/${trekId}/participants?paymentStatus=pending_review`}
                     />
-                ) : null}
-                <StatTile
-                    compact
-                    label="Pending"
-                    value={pending}
-                    tone="warn"
-                    icon={Clock}
-                    to={`/trek-organizer/treks/${trekId}/participants?checkInStatus=pending`}
-                />
+                ) : (
+                    <StatTile
+                        compact
+                        label="Need check-in"
+                        value={pending}
+                        tone="warn"
+                        icon={QrCode}
+                        to={`/trek-organizer/treks/${trekId}/scan`}
+                    />
+                )}
             </div>
 
-            {/* Capacity + check-in together */}
+            {/* Capacity */}
             <SectionCard className="p-4 space-y-4">
                 <CapacityBar filled={seatsFilled} capacity={capacity} remaining={seatsRemaining} />
                 <div className="border-t border-white/10 pt-4 space-y-2">
@@ -359,6 +311,15 @@ export default function TrekOrganizerDashboardPage() {
                         <p className="text-sm tabular-nums text-emerald-300">{checkedIn}/{total}</p>
                     </div>
                     <ProgressBar pct={checkInPct} tone="emerald" />
+                    {pending > 0 ? (
+                        <button
+                            type="button"
+                            onClick={() => navigate(`/trek-organizer/treks/${trekId}/scan`)}
+                            className="mt-1 w-full rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-100 font-medium"
+                        >
+                            Scan {pending} remaining →
+                        </button>
+                    ) : null}
                 </div>
             </SectionCard>
 
@@ -387,7 +348,7 @@ export default function TrekOrganizerDashboardPage() {
                 <TrekOrganizerRegistrationPanel
                     trekId={trekId}
                     trek={trek}
-                    genderRegistration={genderRegistration}
+                    genderRegistration={data.genderRegistration}
                     embedded
                     onUpdated={(res) => setData((prev) => ({
                         ...prev,
@@ -397,20 +358,6 @@ export default function TrekOrganizerDashboardPage() {
                     }))}
                 />
             </SectionCard>
-
-            {pending > 0 ? (
-                <button
-                    type="button"
-                    onClick={() => navigate(`/trek-organizer/treks/${trekId}/scan`)}
-                    className="flex w-full items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 min-h-12"
-                >
-                    <span className="inline-flex items-center gap-2 text-sm text-amber-100 font-medium">
-                        <Clock size={15} />
-                        {pending} need check-in
-                    </span>
-                    <span className="text-xs text-amber-300 font-semibold">Scan →</span>
-                </button>
-            ) : null}
         </div>
     );
 }

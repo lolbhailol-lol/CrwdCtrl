@@ -71,14 +71,40 @@ async function buildOrganizerAuthResponse(organizer) {
     };
 }
 
-async function sumOrganizerRevenue(bookings, trek) {
+/**
+ * Organizer share for a trek.
+ * Razorpay communities settle 100% of ticket to the organizer merchant (platform fee 0 at checkout).
+ * Cashfree keeps CrwdCtrl platform % from the guest total.
+ */
+async function resolveTrekPaymentContext(trek) {
+    let communityGateway = 'cashfree';
+    if (trek?.communityId) {
+        const TrekCommunity = require('../model/trek_community_model');
+        const community = await TrekCommunity.findById(trek.communityId)
+            .select('paymentGateway')
+            .lean();
+        if (community?.paymentGateway === 'razorpay') communityGateway = 'razorpay';
+    }
+    return { communityGateway };
+}
+
+function platformFeePercentForBooking(booking, trek, communityGateway = 'cashfree') {
+    const gateway = String(booking?.payment_gateway || communityGateway || '').toLowerCase();
+    if (gateway === 'razorpay') return 0;
+    if (communityGateway === 'razorpay') return 0;
+    const pct = Number(trek?.platformFeePercent);
+    return Number.isFinite(pct) && pct >= 0 ? pct : 3;
+}
+
+async function sumOrganizerRevenue(bookings, trek, communityGateway = 'cashfree') {
     let organizerRevenue = 0;
     let platformFees = 0;
     let grossCollected = 0;
     for (const booking of bookings) {
+        const feePct = platformFeePercentForBooking(booking, trek, communityGateway);
         const split = splitTrekOrganizerPayment(
             booking.bookingDetails?.amountPaid,
-            trek?.platformFeePercent ?? 3,
+            feePct,
             {
                 registrationFeePerPerson: trek?.registrationFee ?? 0,
                 people: booking.bookingDetails?.people,
@@ -397,7 +423,7 @@ exports.getDashboard = async (req, res) => {
     try {
         const trekId = req.trekId;
         const trek = await Trek.findById(trekId).select(
-            'trekName city trekDate dateLabel status maxParticipants trekBatches registrationFee platformFeePercent registration meetingLocation coverImage coverImages images'
+            'trekName city trekDate dateLabel status maxParticipants trekBatches registrationFee platformFeePercent registration meetingLocation coverImage coverImages images communityId'
         ).lean();
         if (!trek) return res.status(404).json({ success: false, message: 'Trek not found' });
 
@@ -406,6 +432,7 @@ exports.getDashboard = async (req, res) => {
         tomorrow.setDate(tomorrow.getDate() + 1);
 
         const baseFilter = { trekId, status: 'confirmed' };
+        const { communityGateway } = await resolveTrekPaymentContext(trek);
 
         const [
             totalRegistrations,
@@ -417,7 +444,7 @@ exports.getDashboard = async (req, res) => {
         ] = await Promise.all([
             TrekBooking.countDocuments(baseFilter),
             TrekBooking.countDocuments({ ...baseFilter, checkedIn: true }),
-            TrekBooking.find(baseFilter).select('bookingDetails.amountPaid bookingDetails.people').lean(),
+            TrekBooking.find(baseFilter).select('bookingDetails.amountPaid bookingDetails.people payment_gateway paymentStatus').lean(),
             TrekBooking.countDocuments({ ...baseFilter, createdAt: { $gte: today, $lt: tomorrow } }),
             TrekBooking.aggregate([
                 { $match: baseFilter },
@@ -426,7 +453,11 @@ exports.getDashboard = async (req, res) => {
             TrekBooking.countDocuments({ trekId, status: 'pending', paymentStatus: 'pending' }),
         ]);
 
-        const { organizerRevenue, platformFees, grossCollected } = await sumOrganizerRevenue(paidBookings, trek);
+        const { organizerRevenue, platformFees, grossCollected } = await sumOrganizerRevenue(
+            paidBookings,
+            trek,
+            communityGateway,
+        );
 
         const seatsFilled = seatAgg[0]?.seats || totalRegistrations;
         const capacity = await getTrekCapacity(trek);
@@ -488,6 +519,8 @@ exports.getDashboard = async (req, res) => {
                 platformFees,
                 grossCollected,
                 todayRegistrations,
+                paymentGateway: communityGateway,
+                paymentGatewayLabel: communityGateway === 'razorpay' ? 'Razorpay' : 'Cashfree',
                 // Seat fills (people sum) so multi-person bookings count correctly on Women/Men tiles
                 femaleCount: genderStats.female?.filled || 0,
                 maleCount: genderStats.male?.filled || 0,
@@ -577,9 +610,10 @@ exports.listParticipants = async (req, res) => {
                 .limit(limit)
                 .lean(),
             TrekBooking.countDocuments(filter),
-            Trek.findById(trekId).select('trekName meetingLocation registration.formSchema registration.locationOptions registration.availableDates registrationFee platformFeePercent').lean(),
+            Trek.findById(trekId).select('trekName meetingLocation communityId registration.formSchema registration.locationOptions registration.availableDates registrationFee platformFeePercent').lean(),
         ]);
 
+        const { communityGateway } = await resolveTrekPaymentContext(trek || {});
         const formSchema = trek?.registration?.formSchema || [];
         const locationOptions = Array.isArray(trek?.registration?.locationOptions)
             ? trek.registration.locationOptions.map((s) => String(s || '').trim()).filter(Boolean)
@@ -617,7 +651,7 @@ exports.listParticipants = async (req, res) => {
         }
 
         const participants = bookings.map((b) => {
-            const row = formatParticipantSheetRow(b, trek);
+            const row = formatParticipantSheetRow(b, trek, communityGateway);
             const phoneNorm = normalizeCustomerPhone(row.phone);
             const userKey = b.userId?._id ? String(b.userId._id) : (b.userId ? String(b.userId) : '');
             const crm = (userKey && crmByUserId.get(userKey))

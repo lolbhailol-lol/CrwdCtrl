@@ -210,7 +210,7 @@ export default function TrekOrganizerHomePage() {
         const openCount = enriched.filter((e) => e.bucket.isOpen && !e.bucket.isPast).length;
         const todayBooked = enriched.reduce((n, e) => n + (e.bucket.todayCount || 0), 0);
         const weekRevenue = enriched.reduce((n, e) => n + Number(e.stats?.revenue || 0), 0);
-        return { openCount, todayBooked, weekRevenue };
+        return { openCount, todayBooked, collected: weekRevenue };
     }, [enriched]);
 
     const filtered = useMemo(() => {
@@ -222,7 +222,7 @@ export default function TrekOrganizerHomePage() {
 
     const filterChips = [
         { id: 'all', label: 'All' },
-        { id: 'live', label: 'Live / open' },
+        { id: 'live', label: 'Open' },
         { id: 'upcoming', label: 'Upcoming' },
         { id: 'full', label: 'Full' },
         { id: 'past', label: 'Past' },
@@ -324,9 +324,9 @@ export default function TrekOrganizerHomePage() {
                             <p className="text-2xl lg:text-3xl font-semibold tabular-nums text-emerald-100 mt-1.5">{liveStrip.todayBooked}</p>
                         </div>
                         <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-3.5 py-4 lg:px-4 lg:py-5 flex flex-col justify-center min-w-0">
-                            <p className="text-[10px] uppercase tracking-wide text-amber-300/90 font-medium">Collected</p>
+                            <p className="text-[10px] uppercase tracking-wide text-amber-300/90 font-medium">Your money</p>
                             <p className="text-xl lg:text-2xl font-semibold tabular-nums text-amber-50 mt-1.5 truncate">
-                                ₹{Number(liveStrip.weekRevenue).toLocaleString('en-IN')}
+                                ₹{Number(liveStrip.collected).toLocaleString('en-IN')}
                             </p>
                         </div>
                     </div>
