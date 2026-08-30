@@ -425,6 +425,13 @@ export async function fetchFestOrganizerParticipants(festId, params = {}) {
     return festOrganizerFetch(`/fest-organizer/fests/${festId}/participants${qs ? `?${qs}` : ''}`);
 }
 
+export async function lookupFestOrganizerParticipant(festId, q, params = {}) {
+    const qs = new URLSearchParams({ q: String(q || '') });
+    if (params.competitionId) qs.set('competitionId', params.competitionId);
+    if (params.proShow || params.proShowOnly) qs.set('proShow', '1');
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/participants/lookup?${qs}`);
+}
+
 export async function fetchFestOrganizerParticipant(festId, registrationId) {
     return festOrganizerFetch(`/fest-organizer/fests/${festId}/participants/${registrationId}`);
 }
@@ -485,6 +492,7 @@ export async function festOrganizerCheckin(festId, payload) {
 export async function fetchFestOrganizerCheckinStats(festId, params = {}) {
     const qs = new URLSearchParams();
     if (params.competitionId) qs.set('competitionId', params.competitionId);
+    if (params.proShow || params.proShowOnly) qs.set('proShow', '1');
     const q = qs.toString();
     return festOrganizerFetch(`/fest-organizer/fests/${festId}/checkin/stats${q ? `?${q}` : ''}`);
 }

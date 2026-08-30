@@ -33,6 +33,8 @@ export const IMAGE_PRESETS = {
     eventPage: { width: 960, height: 768, crop: 'fill', quality: 'good' },
     /** Community detail header */
     communityBanner: { width: 786, height: 792, crop: 'fill', quality: 'good' },
+    /** Event/community detail top — full poster fit, no crop */
+    eventHeroFit: { width: 960, height: 960, crop: 'fit', quality: 'good' },
     detail: { width: 1200, height: 675, crop: 'limit', quality: 'good' },
 };
 
@@ -51,6 +53,7 @@ export const IMAGE_PRESET_SIZES = {
     hero: '(min-width: 1024px) 960px, 100vw',
     eventPage: '(min-width: 768px) 672px, 100vw',
     communityBanner: '100vw',
+    eventHeroFit: '(min-width: 768px) 672px, 100vw',
     detail: '(min-width: 1024px) 1200px, 100vw',
 };
 

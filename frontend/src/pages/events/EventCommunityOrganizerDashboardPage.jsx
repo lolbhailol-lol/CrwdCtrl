@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-    Users, UserCheck, Clock, IndianRupee, Calendar, Bell, QrCode,
-    Copy, ExternalLink, RefreshCw, MapPin, Link2, Share2, Sparkles, Hourglass,
-    CreditCard, ChevronDown,
+    Copy, ExternalLink, RefreshCw, Hourglass, CreditCard, ChevronDown,
 } from 'lucide-react';
 import {
     fetchRunClubOrganizerDashboard,
@@ -18,69 +16,35 @@ import DetailPageLoader from '../../components/DetailPageLoader';
 import { organizerHubCopy } from '../../utils/listingHubCopy';
 import { organizerEventPath } from '../../utils/organizerPortalPaths';
 
-function StatTile({ label, value, tone = 'default', icon: Icon, to, hint }) {
-    const navigate = useNavigate();
-    const tones = {
-        default: {
-            card: 'border-white/10 bg-linear-to-br from-[#1a1b1d] to-[#141516]',
-            icon: 'bg-white/5 text-gray-300',
-            value: 'text-white',
-        },
-        accent: {
-            card: 'border-[#0ECCEE]/25 bg-linear-to-br from-[#0ECCEE]/15 to-[#0ECCEE]/5',
-            icon: 'bg-[#0ECCEE]/15 text-[#0ECCEE]',
-            value: 'text-white',
-        },
-        ok: {
-            card: 'border-emerald-500/20 bg-linear-to-br from-emerald-500/15 to-emerald-500/5',
-            icon: 'bg-emerald-500/15 text-emerald-300',
-            value: 'text-emerald-100',
-        },
-        warn: {
-            card: 'border-amber-500/20 bg-linear-to-br from-amber-500/15 to-amber-500/5',
-            icon: 'bg-amber-500/15 text-amber-300',
-            value: 'text-amber-100',
-        },
-        money: {
-            card: 'border-teal-400/25 bg-linear-to-br from-teal-500/18 to-[#101817]',
-            icon: 'bg-teal-500/15 text-teal-300',
-            value: 'text-teal-200',
-        },
-    };
-    const t = tones[tone] || tones.default;
-    const className = `rounded-2xl border p-4 min-h-24 text-left transition-all duration-200 ${t.card} ${
-        to ? 'hover:border-[#0ECCEE]/45 active:scale-[0.985] cursor-pointer' : ''
+const PULSE_TONES = {
+    cyan: { wrap: 'border-cyan-500/20 bg-cyan-500/[0.07]', value: 'text-cyan-200', label: 'text-cyan-400/70' },
+    emerald: { wrap: 'border-emerald-500/20 bg-emerald-500/[0.07]', value: 'text-emerald-200', label: 'text-emerald-400/70' },
+    rose: { wrap: 'border-rose-500/20 bg-rose-500/[0.07]', value: 'text-rose-200', label: 'text-rose-400/70' },
+    sky: { wrap: 'border-sky-500/20 bg-sky-500/[0.07]', value: 'text-sky-200', label: 'text-sky-400/70' },
+};
+
+function PulseCell({ label, value, hint, onClick, tone = 'cyan' }) {
+    const t = PULSE_TONES[tone] || PULSE_TONES.cyan;
+    const className = `rounded-xl border px-3.5 py-3.5 text-left ${t.wrap} ${
+        onClick ? 'hover:brightness-110 active:scale-[0.99] cursor-pointer transition' : ''
     }`;
-
     const inner = (
-        <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-                <p className="text-[11px] uppercase tracking-[0.08em] text-gray-500 font-medium">{label}</p>
-                <p className={`text-[1.5rem] leading-none font-semibold mt-2 tabular-nums tracking-tight ${t.value}`}>
-                    {value}
-                </p>
-                {hint ? <p className="text-[11px] text-gray-500 mt-1.5">{hint}</p> : null}
-            </div>
-            {Icon ? (
-                <div className={`size-9 rounded-xl flex items-center justify-center shrink-0 ${t.icon}`}>
-                    <Icon size={16} strokeWidth={2.25} />
-                </div>
-            ) : null}
-        </div>
+        <>
+            <p className={`text-[11px] font-medium ${t.label}`}>{label}</p>
+            <p className={`text-xl font-semibold tabular-nums tracking-tight mt-1.5 leading-none ${t.value}`}>
+                {value}
+            </p>
+            {hint ? <p className="text-[11px] text-gray-500 mt-1.5 leading-snug">{hint}</p> : null}
+        </>
     );
-
-    if (to) {
-        return <button type="button" onClick={() => navigate(to)} className={className}>{inner}</button>;
+    if (onClick) {
+        return (
+            <button type="button" onClick={onClick} className={className}>
+                {inner}
+            </button>
+        );
     }
     return <div className={className}>{inner}</div>;
-}
-
-function SectionCard({ children, className = '' }) {
-    return (
-        <div className={`rounded-2xl border border-white/10 bg-[#161718]/95 backdrop-blur-sm ${className}`}>
-            {children}
-        </div>
-    );
 }
 
 function formatEventDate(d) {
@@ -181,14 +145,11 @@ export default function EventCommunityOrganizerDashboardPage() {
     if (error) {
         return (
             <div className="text-center py-16 space-y-4 max-w-md mx-auto">
-                <div className="mx-auto size-12 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
-                    <RefreshCw size={18} className="text-red-400" />
-                </div>
                 <p className="text-red-300 text-sm">{error}</p>
                 <button
                     type="button"
                     onClick={() => load()}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-white/10 bg-white/5 text-sm text-[#0ECCEE] hover:border-[#0ECCEE]/40"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-white/10 text-sm text-white"
                 >
                     <RefreshCw size={14} /> Retry
                 </button>
@@ -208,7 +169,9 @@ export default function EventCommunityOrganizerDashboardPage() {
     const isOrganizerQr = mode === 'organizer_qr';
     const regStatus = registration.status || event?.registrationStatus || 'open';
     const isOpen = regStatus === 'open';
-    const total = stats.totalRegistrations ?? 0;
+    const total = stats.totalBookings ?? (
+        (stats.totalRegistrations ?? 0) + (isOrganizerQr ? (stats.pendingPaymentReview ?? 0) : 0)
+    );
     const femaleCount = Number(stats.femaleCount)
         || Number(genderRegistration?.quotas?.female?.filled)
         || 0;
@@ -219,7 +182,6 @@ export default function EventCommunityOrganizerDashboardPage() {
     const maleCap = Number(genderRegistration?.quotas?.male?.cap || 0);
     const guestsPath = organizerEventPath(eventId, true, 'participants');
     const checkedIn = stats.checkedIn ?? 0;
-    const pending = stats.pendingCheckIn ?? Math.max(0, total - checkedIn);
     const pendingReviewRaw = Number(stats.pendingPaymentReview ?? 0);
     const pendingReview = isOrganizerQr ? pendingReviewRaw : 0;
     const revenue = Number(stats.organizerRevenue ?? stats.revenue ?? 0);
@@ -228,19 +190,29 @@ export default function EventCommunityOrganizerDashboardPage() {
     const seatsFilled = Number(stats.seatsFilled ?? total);
     const isPaidEvent = isPaid || revenue > 0 || pendingReview > 0;
     const checkInPct = total > 0 ? Math.round((checkedIn / total) * 100) : 0;
-    const ttlHours = Number(stats?.manualExpireTtlHours ?? 72) || 72;
+    const todayCount = stats.todayRegistrations ?? 0;
     const dateLabel = formatEventDate(eventDetail?.eventDate || event?.eventDate);
     const reportingTime = String(eventDetail?.reportingTime || event?.reportingTime || '').trim();
     const venue = String(eventDetail?.venue || event?.venue || '').trim();
     const city = String(eventDetail?.city || event?.city || '').trim();
-    const distance = String(eventDetail?.distance || event?.distance || '').trim();
     const routeMap = String(eventDetail?.routeMap || '').trim();
-    const meetVenue = venue || (eventDetail?.meetingPoint ? String(eventDetail.meetingPoint).trim() : '');
+
+    const metaBits = [
+        dateLabel,
+        reportingTime,
+        [venue, city].filter(Boolean).join(', ') || '',
+    ].filter(Boolean);
+
+    const statusLine = [
+        status || 'draft',
+        isOpen ? 'Booking open' : 'Booking closed',
+        fee > 0 ? `₹${fee}` : 'Free',
+    ].join(' · ');
 
     const copyLink = async () => {
         try {
             await navigator.clipboard.writeText(publicUrl);
-            setCopyNotice('Link copied');
+            setCopyNotice('Copied');
             setTimeout(() => setCopyNotice(''), 2000);
         } catch {
             setCopyNotice('Copy failed');
@@ -351,216 +323,132 @@ export default function EventCommunityOrganizerDashboardPage() {
     };
 
     return (
-        <div className="space-y-4 max-w-3xl mx-auto pb-6">
+        <div className="space-y-5 max-w-xl mx-auto pb-6">
             {/* Header */}
-            <SectionCard className="overflow-hidden relative">
-                <div className="absolute inset-0 bg-linear-to-br from-[#0ECCEE]/12 via-transparent to-transparent pointer-events-none" />
-                <div className="relative p-5 sm:p-6">
-                    <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 space-y-2.5">
-                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[#0ECCEE]/20 bg-[#0ECCEE]/10 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#0ECCEE]">
-                                <Sparkles size={11} /> {copy.dashboardBadge}
-                            </div>
-                            <h1 className="text-2xl font-semibold tracking-tight leading-tight text-white">
-                                {event.title || eventDetail?.title || 'Event'}
-                            </h1>
-                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-400">
-                                {city || venue ? (
-                                    <span className="inline-flex items-center gap-1.5">
-                                        <MapPin size={13} className="text-[#0ECCEE]" />
-                                        {[venue, city].filter(Boolean).join(' · ')}
-                                    </span>
-                                ) : null}
-                                {dateLabel ? <span>{dateLabel}</span> : null}
-                                {reportingTime ? <span>{reportingTime}</span> : null}
-                                {distance ? <span>{distance}</span> : null}
-                            </div>
-                            <div className="flex flex-wrap gap-1.5 pt-0.5">
-                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-semibold capitalize border ${
-                                    String(status).toLowerCase() === 'published'
-                                        ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25'
-                                        : 'bg-amber-500/10 text-amber-300 border-amber-500/25'
-                                }`}>
-                                    {status || 'draft'}
-                                </span>
-                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border ${
-                                    isOpen
-                                        ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25'
-                                        : 'bg-red-500/10 text-red-300 border-red-500/25'
-                                }`}>
-                                    Booking {isOpen ? 'open' : 'closed'}
-                                </span>
-                                <span className="px-2.5 py-1 rounded-full text-[10px] font-semibold border border-white/10 bg-white/5 text-gray-300">
-                                    {fee > 0 ? `₹${fee}` : 'Free'}
-                                </span>
-                            </div>
-                            {(meetVenue || routeMap) ? (
-                                <div className="rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 space-y-1 text-xs text-gray-400">
-                                    {meetVenue ? <p><span className="text-gray-500">Meet · </span>{meetVenue}</p> : null}
-                                    {routeMap ? (
-                                        <a href={routeMap} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[#0ECCEE] hover:underline">
-                                            Open map <ExternalLink size={11} />
-                                        </a>
-                                    ) : null}
-                                </div>
-                            ) : null}
-                        </div>
-                        <button
-                            type="button"
-                            onClick={() => load({ silent: true })}
-                            disabled={refreshing}
-                            className="shrink-0 p-2.5 rounded-xl border border-white/10 bg-white/5 text-gray-400 hover:text-white disabled:opacity-50"
-                            aria-label="Refresh"
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 space-y-1.5">
+                    <h1 className="text-xl font-semibold tracking-tight text-white leading-snug">
+                        {event.title || eventDetail?.title || 'Event'}
+                    </h1>
+                    {metaBits.length ? (
+                        <p className="text-sm text-gray-500 leading-snug">{metaBits.join(' · ')}</p>
+                    ) : null}
+                    <p className={`text-xs capitalize ${isOpen ? 'text-emerald-400' : 'text-amber-400/90'}`}>
+                        {statusLine}
+                    </p>
+                    {routeMap ? (
+                        <a
+                            href={routeMap}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-xs text-[#0ECCEE]/80 hover:text-[#0ECCEE]"
                         >
-                            <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
-                        </button>
-                    </div>
+                            Map <ExternalLink size={11} />
+                        </a>
+                    ) : null}
                 </div>
-            </SectionCard>
+                <button
+                    type="button"
+                    onClick={() => load({ silent: true })}
+                    disabled={refreshing}
+                    className="shrink-0 p-2 rounded-lg text-[#0ECCEE]/70 hover:text-[#0ECCEE] disabled:opacity-50"
+                    aria-label="Refresh"
+                >
+                    <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
+                </button>
+            </div>
 
             {actionNotice ? (
-                <div className="rounded-xl border border-[#0ECCEE]/20 bg-[#0ECCEE]/10 px-3.5 py-2.5 text-xs text-[#9BE8F7]">
-                    {actionNotice}
-                </div>
+                <p className="text-xs text-emerald-300/90">{actionNotice}</p>
             ) : null}
 
-            {/* Manual QR only: pending payment review */}
+            {/* Urgent: pending QR review */}
             {isOrganizerQr && pendingReview > 0 ? (
                 <button
                     type="button"
-                    onClick={() => navigate(`${organizerEventPath(eventId, true, 'participants')}?paymentStatus=pending_review`)}
-                    className="w-full flex items-center justify-between gap-3 rounded-2xl border border-amber-500/35 bg-amber-500/10 px-4 py-3.5 text-left hover:border-amber-400/50 transition-colors"
+                    onClick={() => navigate(`${guestsPath}?paymentStatus=pending_review`)}
+                    className="w-full flex items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-3 text-left"
                 >
-                    <span className="text-sm font-semibold text-amber-100 flex items-center gap-2">
-                        <Hourglass size={16} />
+                    <span className="text-sm text-amber-100 flex items-center gap-2">
+                        <Hourglass size={15} />
                         {pendingReview} payment{pendingReview === 1 ? '' : 's'} to review
                     </span>
-                    <span className="shrink-0 text-xs font-bold text-amber-300">Review →</span>
+                    <span className="text-xs font-semibold text-amber-300">Review</span>
                 </button>
             ) : null}
 
-            {/* Stats — same 4 tiles always */}
-            <div className="grid grid-cols-2 gap-3">
-                <StatTile
-                    label="Total bookings"
+            {/* Pulse 2×2 */}
+            <div className="grid grid-cols-2 gap-2.5">
+                <PulseCell
+                    tone="cyan"
+                    label="Bookings"
                     value={total}
-                    tone="accent"
-                    icon={Users}
-                    to={guestsPath}
-                    hint={seatsFilled > total ? `${seatsFilled} guests` : 'All confirmed'}
+                    hint={
+                        seatsFilled > total
+                            ? `${seatsFilled} guests · ${checkedIn} in (${checkInPct}%)`
+                            : `${checkedIn} checked in · ${todayCount} today`
+                    }
+                    onClick={() => navigate(guestsPath)}
                 />
-                <StatTile
-                    label={gatewayFees > 0 ? 'After 1.6% gateway' : 'Collected'}
-                    value={isPaidEvent ? `₹${revenue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'Free'}
-                    tone={isPaidEvent ? 'money' : 'default'}
-                    icon={IndianRupee}
-                    hint={gatewayFees > 0
-                        ? `Students paid ₹${grossCollected.toLocaleString('en-IN', { maximumFractionDigits: 2 })} · 1.6% ₹${gatewayFees.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
-                        : isPaidEvent && seatsFilled > total
-                            ? 'Group bookings included'
+                <PulseCell
+                    tone="emerald"
+                    label={gatewayFees > 0 ? 'After fees' : 'Collected'}
+                    value={isPaidEvent ? `₹${revenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : 'Free'}
+                    hint={
+                        gatewayFees > 0
+                            ? `Gross ₹${grossCollected.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`
                             : isPaid && !isOrganizerQr
-                                ? 'Via Cashfree'
+                                ? 'Cashfree'
                                 : isPaidEvent
-                                    ? 'UPI received'
-                                    : undefined}
+                                    ? 'UPI'
+                                    : undefined
+                    }
                 />
-                <StatTile
+                <PulseCell
+                    tone="rose"
                     label="Women"
                     value={femaleCount}
-                    tone="ok"
-                    icon={Users}
-                    to={`${guestsPath}?gender=female`}
-                    hint={femaleCap > 0 ? `${Math.max(0, femaleCap - femaleCount)} of ${femaleCap} left` : 'Confirmed'}
+                    hint={femaleCap > 0 ? `${Math.max(0, femaleCap - femaleCount)} / ${femaleCap} left` : undefined}
+                    onClick={() => navigate(`${guestsPath}?gender=female`)}
                 />
-                <StatTile
+                <PulseCell
+                    tone="sky"
                     label="Men"
                     value={maleCount}
-                    tone="default"
-                    icon={Users}
-                    to={`${guestsPath}?gender=male`}
-                    hint={maleCap > 0 ? `${Math.max(0, maleCap - maleCount)} of ${maleCap} left` : 'Confirmed'}
-                />
-                <StatTile
-                    label="Checked in"
-                    value={checkedIn}
-                    tone="ok"
-                    icon={UserCheck}
-                    to={organizerEventPath(eventId, true, 'scan')}
-                />
-                <StatTile
-                    label="Today"
-                    value={stats.todayRegistrations ?? 0}
-                    tone="default"
-                    icon={Calendar}
+                    hint={maleCap > 0 ? `${Math.max(0, maleCap - maleCount)} / ${maleCap} left` : undefined}
+                    onClick={() => navigate(`${guestsPath}?gender=male`)}
                 />
             </div>
-            {gatewayFees > 0 ? (
-                <p className="text-[11px] text-gray-500 -mt-1">
-                    1.6% Cashfree gateway is deducted on each online payment. This is not a CrwdCtrl commission. UPI/QR stays in full.
-                </p>
-            ) : null}
 
-            {/* Share link */}
+            {/* Share */}
             {publicUrl && String(status).toLowerCase() === 'published' ? (
-                <SectionCard className="p-4 space-y-3">
-                    <p className="text-sm font-semibold text-white">{copy.shareTitle}</p>
-                    <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/30 px-3 py-2.5">
-                        <Link2 size={13} className="text-gray-500 shrink-0" />
-                        <p className="text-[12px] text-gray-300 truncate font-mono flex-1">{publicUrl}</p>
-                    </div>
-                    {copyNotice ? <p className="text-[11px] text-emerald-400">{copyNotice}</p> : null}
-                    <div className="grid grid-cols-2 gap-2">
-                        <button
-                            type="button"
-                            onClick={copyLink}
-                            className="inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-white/10 bg-white/5 text-sm font-medium hover:border-[#0ECCEE]/40"
-                        >
-                            <Copy size={15} /> Copy
-                        </button>
-                        <a
-                            href={publicPath}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-[#0ECCEE] text-black text-sm font-semibold"
-                        >
-                            <ExternalLink size={15} /> Open
-                        </a>
-                    </div>
-                </SectionCard>
+                <div className="flex items-center gap-2 rounded-xl border border-[#0ECCEE]/20 bg-[#0ECCEE]/[0.06] px-3 py-2.5">
+                    <p className="min-w-0 flex-1 truncate text-xs text-gray-400 font-mono">{publicUrl}</p>
+                    {copyNotice ? <span className="text-[11px] text-emerald-400 shrink-0">{copyNotice}</span> : null}
+                    <button
+                        type="button"
+                        onClick={copyLink}
+                        className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#0ECCEE]/25 text-xs text-[#0ECCEE]"
+                    >
+                        <Copy size={13} /> Copy
+                    </button>
+                    <a
+                        href={publicPath}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#0ECCEE] text-black text-xs font-semibold"
+                    >
+                        <ExternalLink size={13} /> Open
+                    </a>
+                </div>
             ) : null}
 
-            {/* Check-in */}
-            <SectionCard className="p-4 space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-semibold">Check-in</p>
-                    <p className="text-sm font-semibold tabular-nums text-emerald-300">{checkInPct}%</p>
-                </div>
-                <div className="h-2 rounded-full bg-black/40 overflow-hidden">
-                    <div
-                        className="h-full rounded-full bg-emerald-500 transition-all duration-500"
-                        style={{ width: `${checkInPct}%` }}
-                    />
-                </div>
-                <p className="text-xs text-gray-500">
-                    {checkedIn} of {total} checked in
-                    {pending > 0 ? (
-                        <button
-                            type="button"
-                            onClick={() => navigate(organizerEventPath(eventId, true, 'scan'))}
-                            className="ml-1 text-[#0ECCEE] font-medium hover:underline"
-                        >
-                            · Scan now
-                        </button>
-                    ) : null}
-                </p>
-            </SectionCard>
-
-            {/* Registration + payments */}
-            <SectionCard className="p-4 space-y-4">
+            {/* Booking + payments */}
+            <div className="rounded-xl border border-white/10 bg-[#161718] p-4 space-y-4">
                 <div className="flex items-center justify-between gap-3">
                     <div>
-                        <p className="text-sm font-semibold">Booking</p>
-                        <p className="text-xs text-gray-500 mt-0.5">
+                        <p className="text-sm font-medium text-white">Booking</p>
+                        <p className={`text-xs mt-0.5 ${isOpen ? 'text-emerald-400/90' : 'text-amber-400/80'}`}>
                             {isOpen ? copy.bookingOpen : copy.bookingClosed}
                         </p>
                     </div>
@@ -568,10 +456,10 @@ export default function EventCommunityOrganizerDashboardPage() {
                         type="button"
                         disabled={actionBusy}
                         onClick={toggleRegistration}
-                        className={`px-4 py-2 rounded-xl text-xs font-bold disabled:opacity-50 ${
+                        className={`px-3.5 py-2 rounded-lg text-xs font-semibold disabled:opacity-50 ${
                             isOpen
-                                ? 'border border-red-500/30 text-red-300'
-                                : 'bg-[#0ECCEE] text-black'
+                                ? 'border border-amber-500/30 text-amber-200 bg-amber-500/10'
+                                : 'bg-emerald-400 text-black'
                         }`}
                     >
                         {actionBusy ? '…' : isOpen ? 'Close' : 'Open'}
@@ -581,27 +469,25 @@ export default function EventCommunityOrganizerDashboardPage() {
                 {isPaid && paymentHydrated ? (
                     <>
                         {!isOrganizerQr ? (
-                            <div className="flex items-center gap-3 rounded-xl border border-teal-500/20 bg-teal-500/8 px-3.5 py-3">
-                                <div className="size-9 rounded-lg bg-teal-500/15 text-teal-300 flex items-center justify-center shrink-0">
-                                    <CreditCard size={16} />
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                    <p className="text-sm font-medium text-white">Online payments</p>
+                            <div className="flex items-start gap-3 pt-1 border-t border-white/5">
+                                <CreditCard size={16} className="text-[#0ECCEE] mt-0.5 shrink-0" />
+                                <div className="min-w-0">
+                                    <p className="text-sm text-white">Online payments</p>
                                     <p className="text-[11px] text-gray-500 mt-0.5">{copy.paymentCashfreeHint}</p>
                                 </div>
                             </div>
                         ) : (
-                            <div className="rounded-xl border border-amber-500/25 bg-amber-500/8 px-3.5 py-3 space-y-3">
-                                <div className="flex items-center justify-between gap-3">
+                            <div className="pt-1 border-t border-white/5 space-y-3">
+                                <div className="flex items-start justify-between gap-3">
                                     <div>
-                                        <p className="text-sm font-medium text-amber-100">Manual UPI + QR</p>
+                                        <p className="text-sm text-white">Manual UPI + QR</p>
                                         <p className="text-[11px] text-gray-500 mt-0.5">{copy.paymentManualHint}</p>
                                     </div>
                                     <button
                                         type="button"
                                         disabled={paymentBusy}
                                         onClick={() => setPaymentMode(false)}
-                                        className="shrink-0 text-[11px] font-semibold text-teal-300 hover:underline disabled:opacity-50"
+                                        className="shrink-0 text-[11px] text-gray-400 hover:text-white disabled:opacity-50"
                                     >
                                         Use Cashfree
                                     </button>
@@ -614,7 +500,7 @@ export default function EventCommunityOrganizerDashboardPage() {
                                             className="size-14 rounded-lg object-cover border border-white/10"
                                         />
                                     ) : null}
-                                    <label className="inline-flex items-center px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-xs font-medium cursor-pointer">
+                                    <label className="inline-flex items-center px-3 py-2 rounded-lg border border-white/10 text-xs cursor-pointer">
                                         {qrUploading ? 'Uploading…' : 'Change QR'}
                                         <input
                                             type="file"
@@ -632,8 +518,8 @@ export default function EventCommunityOrganizerDashboardPage() {
                                     <div className="flex gap-2">
                                         <button
                                             type="button"
-                                            onClick={() => navigate(`${organizerEventPath(eventId, true, 'participants')}?paymentStatus=pending_review`)}
-                                            className="flex-1 py-2 rounded-lg bg-amber-400 text-black text-xs font-bold"
+                                            onClick={() => navigate(`${guestsPath}?paymentStatus=pending_review`)}
+                                            className="flex-1 py-2 rounded-lg bg-white text-black text-xs font-semibold"
                                         >
                                             Review {pendingReview}
                                         </button>
@@ -641,7 +527,7 @@ export default function EventCommunityOrganizerDashboardPage() {
                                             type="button"
                                             disabled={actionBusy}
                                             onClick={expireStale}
-                                            className="px-3 py-2 rounded-lg border border-amber-500/30 text-amber-200/80 text-xs disabled:opacity-50"
+                                            className="px-3 py-2 rounded-lg border border-white/10 text-gray-400 text-xs disabled:opacity-50"
                                         >
                                             Clear old
                                         </button>
@@ -654,7 +540,7 @@ export default function EventCommunityOrganizerDashboardPage() {
                             <button
                                 type="button"
                                 onClick={() => setShowManualPayment((v) => !v)}
-                                className="w-full flex items-center justify-between gap-2 py-2 text-[11px] text-gray-500 hover:text-gray-400"
+                                className="w-full flex items-center justify-between gap-2 py-1 text-[11px] text-gray-500"
                             >
                                 <span>Use your own UPI QR instead?</span>
                                 <ChevronDown size={14} className={`transition-transform ${showManualPayment ? 'rotate-180' : ''}`} />
@@ -662,8 +548,8 @@ export default function EventCommunityOrganizerDashboardPage() {
                         ) : null}
 
                         {!isOrganizerQr && showManualPayment ? (
-                            <div className="rounded-xl border border-white/10 bg-black/25 p-3 space-y-2.5">
-                                <p className="text-xs text-gray-400">{copy.paymentManualHint}</p>
+                            <div className="rounded-lg border border-white/10 bg-black/20 p-3 space-y-2.5">
+                                <p className="text-xs text-gray-500">{copy.paymentManualHint}</p>
                                 <div className="flex items-center gap-3">
                                     {paymentDraft.paymentQR ? (
                                         <img src={paymentDraft.paymentQR} alt="" className="size-14 rounded-lg object-cover border border-white/10" />
@@ -687,13 +573,13 @@ export default function EventCommunityOrganizerDashboardPage() {
                                     value={paymentDraft.paymentUpiId}
                                     onChange={(e) => setPaymentDraft((p) => ({ ...p, paymentUpiId: e.target.value.trim() }))}
                                     placeholder="UPI ID (optional)"
-                                    className="w-full px-3 py-2 rounded-lg bg-[#111213] border border-gray-800 text-xs"
+                                    className="w-full px-3 py-2 rounded-lg bg-[#111213] border border-white/10 text-xs"
                                 />
                                 <button
                                     type="button"
                                     disabled={paymentBusy || !paymentDraft.paymentQR}
                                     onClick={savePaymentDetails}
-                                    className="w-full py-2 rounded-lg bg-amber-400/90 text-black text-xs font-bold disabled:opacity-40"
+                                    className="w-full py-2 rounded-lg bg-white text-black text-xs font-semibold disabled:opacity-40"
                                 >
                                     {paymentBusy ? 'Enabling…' : 'Enable manual UPI'}
                                 </button>
@@ -701,25 +587,6 @@ export default function EventCommunityOrganizerDashboardPage() {
                         ) : null}
                     </>
                 ) : null}
-            </SectionCard>
-
-            {/* Quick actions */}
-            <div className="grid grid-cols-3 gap-2.5">
-                {[
-                    { label: 'Guests', icon: Users, to: organizerEventPath(eventId, true, 'participants') },
-                    { label: 'Scan', icon: QrCode, to: organizerEventPath(eventId, true, 'scan') },
-                    { label: 'Notify', icon: Bell, to: organizerEventPath(eventId, true, 'notifications') },
-                ].map((action) => (
-                    <button
-                        key={action.label}
-                        type="button"
-                        onClick={() => navigate(action.to)}
-                        className="rounded-xl border border-white/10 bg-[#1a1b1d] p-3 text-center hover:border-[#0ECCEE]/35 active:scale-[0.98] transition-all"
-                    >
-                        <action.icon size={18} className="mx-auto text-[#0ECCEE] mb-1.5" />
-                        <p className="text-xs font-semibold">{action.label}</p>
-                    </button>
-                ))}
             </div>
         </div>
     );

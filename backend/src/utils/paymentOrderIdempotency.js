@@ -160,7 +160,8 @@ async function findReusablePendingOrder({
 
   try {
     const { fetchOrder, mapOrderStatus } = require('../services/cashfreeService');
-    const cashfreeOrder = await fetchOrder(existing.orderId);
+    const merchant = existing.cashfreeMerchant === 'events' ? 'events' : 'platform';
+    const cashfreeOrder = await fetchOrder(existing.orderId, { merchant });
     const mapped = mapOrderStatus(cashfreeOrder?.order_status);
     if (!shouldReuseMappedStatus(mapped)) {
       existing.status = mapped === 'failed' ? 'FAILED' : 'EXPIRED';

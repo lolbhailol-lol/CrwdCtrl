@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, useNavigate, useParams, useLocation } from 'react-router-dom';
-import { CalendarDays, LayoutDashboard, Users, QrCode, LogOut, Bell, Menu, Home, ArrowLeft, ExternalLink } from 'lucide-react';
+import { CalendarDays, LayoutDashboard, Users, QrCode, LogOut, Bell, Menu, Home, ExternalLink } from 'lucide-react';
 import { markRunClubOrganizerLoggedOut, getRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
 import { organizerHubCopy } from '../../utils/listingHubCopy';
 import { EVENT_COMMUNITY_ORGANIZER_BASE, organizerEventPath, organizerHomePath } from '../../utils/organizerPortalPaths';
@@ -44,7 +44,6 @@ export default function EventCommunityOrganizerLayout() {
     const { eventId } = useParams();
     const session = getRunClubOrganizerSession();
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    const isEventHub = true;
     const copy = organizerHubCopy(true);
     const BrandIcon = CalendarDays;
 
@@ -62,26 +61,26 @@ export default function EventCommunityOrganizerLayout() {
 
     return (
         <div className="min-h-dvh bg-[#0f1011] text-white flex">
-            <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#161718] border-r border-gray-800 transform transition-transform lg:translate-x-0 pt-[var(--safe-top)] pb-[var(--safe-bottom)] flex flex-col ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-                <div className="px-5 py-5 border-b border-gray-800 shrink-0">
-                    <div className="flex items-center gap-2">
-                        <BrandIcon className="text-[#0ECCEE]" size={22} />
-                        <div>
-                            <p className="font-bold text-sm">{copy.portalName}</p>
+            <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#161718] border-r border-white/10 transform transition-transform lg:translate-x-0 pt-[var(--safe-top)] pb-[var(--safe-bottom)] flex flex-col ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                <div className="px-5 py-5 border-b border-white/10 shrink-0">
+                    <div className="flex items-center gap-2.5">
+                        <BrandIcon className="text-[#0ECCEE]" size={20} />
+                        <div className="min-w-0">
+                            <p className="font-semibold text-sm truncate">{copy.portalName}</p>
                             <p className="text-[11px] text-gray-500 truncate">
                                 {session?.runClub?.name || session?.organizer?.name || 'Portal'}
                             </p>
                         </div>
                     </div>
                 </div>
-                <nav className="flex-1 min-h-0 overflow-y-auto p-3 space-y-1">
+                <nav className="flex-1 min-h-0 overflow-y-auto p-3 space-y-0.5">
                     <OrgNavButton
                         to={organizerHomePath(true)}
                         end
                         onNavigate={() => setSidebarOpen(false)}
                         className={({ isActive }) =>
                             `flex w-full items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
-                                isActive ? 'bg-[#0ECCEE]/15 text-[#0ECCEE]' : 'text-gray-400 hover:text-white hover:bg-white/5'
+                                isActive ? 'bg-[#0ECCEE]/12 text-[#0ECCEE]' : 'text-gray-400 hover:text-white hover:bg-white/5'
                             }`
                         }
                     >
@@ -96,7 +95,7 @@ export default function EventCommunityOrganizerLayout() {
                             onNavigate={() => setSidebarOpen(false)}
                             className={({ isActive }) =>
                                 `flex w-full items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
-                                    isActive ? 'bg-[#0ECCEE]/15 text-[#0ECCEE]' : 'text-gray-400 hover:text-white hover:bg-white/5'
+                                    isActive ? 'bg-[#0ECCEE]/12 text-[#0ECCEE]' : 'text-gray-400 hover:text-white hover:bg-white/5'
                                 }`
                             }
                         >
@@ -105,78 +104,59 @@ export default function EventCommunityOrganizerLayout() {
                         </OrgNavButton>
                     ))}
                 </nav>
-                <div className="shrink-0 p-3 border-t border-gray-800 space-y-1 bg-[#161718]">
+                <div className="shrink-0 p-3 border-t border-white/10 space-y-1 bg-[#161718]">
                     <button
                         type="button"
                         onClick={() => {
                             setSidebarOpen(false);
                             navigate('/');
                         }}
-                        className="flex items-center gap-2 w-full px-3 py-2.5 rounded-lg text-sm text-gray-300 hover:text-[#0ECCEE] hover:bg-white/5"
+                        className="flex items-center gap-2 w-full px-3 py-2.5 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-white/5"
                     >
-                        <ExternalLink size={16} /> Back to CrwdCtrl
+                        <ExternalLink size={16} /> Website
                     </button>
-                    <button type="button" onClick={logout} className="flex items-center gap-2 w-full px-3 py-3 min-h-11 rounded-lg text-sm font-medium text-gray-300 border border-gray-800 hover:text-red-400 hover:border-red-500/30 hover:bg-red-500/10">
+                    <button
+                        type="button"
+                        onClick={logout}
+                        className="flex items-center gap-2 w-full px-3 py-2.5 rounded-lg text-sm text-gray-400 hover:text-red-400 hover:bg-white/5"
+                    >
                         <LogOut size={16} /> Log out
                     </button>
                 </div>
             </aside>
 
             <div className="flex-1 lg:ml-64 min-w-0 flex flex-col">
-                <header className="sticky top-0 z-30 bg-[#0f1011]/95 backdrop-blur border-b border-gray-800 px-3 sm:px-4 py-3 flex items-center gap-2 pt-[max(0.75rem,var(--safe-top))]">
+                <header className="sticky top-0 z-30 bg-[#0f1011]/95 backdrop-blur border-b border-white/10 px-3 sm:px-4 py-2.5 flex items-center gap-2 pt-[max(0.65rem,var(--safe-top))]">
                     <button
                         type="button"
-                        className="lg:hidden inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-lg text-gray-300 border border-gray-800 hover:bg-white/5"
+                        className="lg:hidden inline-flex items-center justify-center size-10 rounded-lg text-gray-400 hover:text-white"
                         onClick={() => setSidebarOpen((v) => !v)}
                         aria-label="Open menu"
                     >
                         <Menu size={20} />
                     </button>
-                    <button
-                        type="button"
-                        onClick={() => navigate('/')}
-                        className="lg:hidden inline-flex items-center gap-1 min-h-[44px] px-2.5 rounded-lg text-[#0ECCEE] text-xs font-semibold border border-[#0ECCEE]/25 hover:bg-[#0ECCEE]/10"
-                        aria-label="Back to CrwdCtrl website"
-                    >
-                        <ArrowLeft size={14} />
-                        Website
-                    </button>
                     <div className="min-w-0 flex-1">
-                        <p className="text-sm text-gray-300 truncate font-medium">
+                        <p className="text-sm text-white truncate font-medium">
                             {activeEvent?.title || session?.runClub?.name || copy.portalName}
                         </p>
-                        <p className="text-[11px] text-gray-500 truncate hidden sm:block">
-                            {activeEvent ? copy.portalSubtitle : 'CrwdCtrl'}
-                        </p>
                     </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                        {hasEventContext ? (
-                            <button
-                                type="button"
-                                onClick={() => navigate(organizerHomePath(true))}
-                                className="text-xs text-[#0ECCEE] min-h-[44px] px-2 font-medium"
-                            >
-                                {copy.allEvents}
-                            </button>
-                        ) : (
-                            <button
-                                type="button"
-                                onClick={() => navigate('/')}
-                                className="hidden lg:inline-flex items-center gap-1 text-xs text-[#0ECCEE] min-h-[44px] px-2 font-medium"
-                            >
-                                <ArrowLeft size={14} /> Website
-                            </button>
-                        )}
+                    {hasEventContext ? (
                         <button
                             type="button"
-                            onClick={logout}
-                            className="inline-flex items-center gap-1.5 min-h-[44px] px-2.5 rounded-lg text-gray-300 text-xs font-semibold border border-gray-800 hover:text-red-400 hover:border-red-400/30 hover:bg-red-500/10"
-                            aria-label="Log out"
+                            onClick={() => navigate(organizerHomePath(true))}
+                            className="text-xs text-[#0ECCEE]/80 hover:text-[#0ECCEE] min-h-10 px-2 shrink-0"
                         >
-                            <LogOut size={14} />
-                            Log out
+                            {copy.allEvents}
                         </button>
-                    </div>
+                    ) : null}
+                    <button
+                        type="button"
+                        onClick={logout}
+                        className="inline-flex items-center justify-center size-10 rounded-lg text-gray-400 hover:text-red-400"
+                        aria-label="Log out"
+                    >
+                        <LogOut size={16} />
+                    </button>
                 </header>
                 <main className={`flex-1 p-4 sm:p-6 max-w-7xl mx-auto w-full ${hasEventContext ? 'pb-[calc(5.5rem+var(--safe-bottom))] lg:pb-6' : ''}`}>
                     <Outlet />
@@ -185,7 +165,7 @@ export default function EventCommunityOrganizerLayout() {
 
             {hasEventContext && !sidebarOpen ? (
                 <nav
-                    className="lg:hidden fixed bottom-0 inset-x-0 z-30 border-t border-gray-800 bg-[#161718]/95 backdrop-blur pb-[var(--safe-bottom)]"
+                    className="lg:hidden fixed bottom-0 inset-x-0 z-30 border-t border-white/10 bg-[#161718]/95 backdrop-blur pb-[var(--safe-bottom)]"
                     aria-label={copy.navAria}
                 >
                     <div className="grid grid-cols-4">
@@ -195,26 +175,28 @@ export default function EventCommunityOrganizerLayout() {
                                 ? Number(activeEvent?.pendingPaymentReview || 0)
                                 : 0;
                             return (
-                            <OrgNavButton
-                                key={item.path}
-                                to={item.path}
-                                end={item.end}
-                                className={({ isActive }) =>
-                                    `relative flex flex-col items-center justify-center gap-0.5 py-2.5 min-h-[56px] text-[10px] font-medium transition-colors ${
-                                        isActive ? 'text-[#0ECCEE]' : 'text-gray-500'
-                                    }`
-                                }
-                            >
-                                <span className="relative">
-                                    <item.icon size={20} strokeWidth={2} />
-                                    {pendingBadge > 0 ? (
-                                        <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-amber-500 text-[9px] font-bold text-black flex items-center justify-center">
-                                            {pendingBadge > 99 ? '99+' : pendingBadge}
-                                        </span>
-                                    ) : null}
-                                </span>
-                                {item.short}
-                            </OrgNavButton>
+                                <OrgNavButton
+                                    key={item.path}
+                                    to={item.path}
+                                    end={item.end}
+                                    className={({ isActive }) =>
+                                        `relative flex flex-col items-center justify-center gap-0.5 py-2 min-h-[56px] text-[10px] font-medium transition-colors border-t-2 ${
+                                            isActive
+                                                ? 'text-[#0ECCEE] border-[#0ECCEE]'
+                                                : 'text-gray-500 border-transparent'
+                                        }`
+                                    }
+                                >
+                                    <span className="relative">
+                                        <item.icon size={20} strokeWidth={2} />
+                                        {pendingBadge > 0 ? (
+                                            <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-amber-500 text-[9px] font-bold text-black flex items-center justify-center">
+                                                {pendingBadge > 99 ? '99+' : pendingBadge}
+                                            </span>
+                                        ) : null}
+                                    </span>
+                                    {item.short}
+                                </OrgNavButton>
                             );
                         })}
                     </div>

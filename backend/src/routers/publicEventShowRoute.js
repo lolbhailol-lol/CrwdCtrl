@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const EventShow = require('../model/event_show_model');
 const { findByIdOrSlug } = require('../utils/slug');
-const { sanitizePublicEventShow } = require('../utils/publicEntitySanitize');
+const { sanitizePublicEventShow, EVENT_SHOW_LIST_SELECT } = require('../utils/publicEntitySanitize');
 
 // GET /api/events — list published event shows
 router.get('/', async (req, res) => {
@@ -12,11 +12,13 @@ router.get('/', async (req, res) => {
     if (req.query.city) filter.city = { $regex: req.query.city, $options: 'i' };
 
     const shows = await EventShow.find(filter)
+      .select(EVENT_SHOW_LIST_SELECT)
       .sort({ pagePriority: 1, createdAt: -1 })
       .limit(100)
       .lean();
 
-    res.status(200).json({ shows: shows.map(sanitizePublicEventShow) });
+    res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+    res.status(200).json({ shows: shows.map((s) => sanitizePublicEventShow(s, { forList: true })) });
   } catch (error) {
     console.error('publicEventShow getAll error:', error);
     res.status(500).json({ message: 'Failed to fetch events' });

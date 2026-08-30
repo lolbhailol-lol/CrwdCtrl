@@ -262,6 +262,7 @@ export default function RunClubDetailPage() {
         const fallback = ok ? seeded : (cacheOk ? normalizeRunClub(cached) : null);
         setRuns([]);
         setPastRuns([]);
+        setLoadingRuns(true);
         setLoadError('');
 
         if (fallback) {
@@ -393,7 +394,7 @@ export default function RunClubDetailPage() {
         : runs.filter((run) => run.runCategory === activeCategory);
 
     if (showPageLoader) {
-        return <DetailPageLoader label={isEventHub ? 'Loading community' : 'Loading run club'} />;
+        return <DetailPageLoader label={isEventHub ? 'Loading community' : 'Loading run club'} variant={isEventHub ? 'brand' : 'run'} />;
     }
 
     if (!club) {

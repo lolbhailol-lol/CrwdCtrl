@@ -13,13 +13,26 @@ async function verifySportsBookingPayment({ event, people, paymentOrderId, payme
     return { ok: false, status: 400, message: 'payment_order_id is required for paid runs' };
   }
 
-  // Idempotency: one Cashfree order → one registration
+  // Idempotency: one Cashfree order → one registration (return existing as success payload)
   const existing = await CategoryRegistration.findOne({ payment_order_id: paymentOrderId }).lean();
   if (existing) {
-    return { ok: false, status: 409, message: 'This payment has already been used for a registration' };
+    return {
+      ok: false,
+      status: 409,
+      message: 'This payment has already been used for a registration',
+      alreadyRegistered: true,
+      registration: existing,
+    };
   }
 
-  const paymentResult = await verifyCashfreePayment({ orderId: paymentOrderId, paymentId });
+  const paymentOrder = await PaymentOrder.findOne({ orderId: paymentOrderId }).lean();
+  const cashfreeMerchant = paymentOrder?.cashfreeMerchant === 'events' ? 'events' : 'platform';
+
+  const paymentResult = await verifyCashfreePayment({
+    orderId: paymentOrderId,
+    paymentId,
+    merchant: cashfreeMerchant,
+  });
   if (!paymentResult.verified) {
     return {
       ok: false,
@@ -29,8 +42,6 @@ async function verifySportsBookingPayment({ event, people, paymentOrderId, payme
   }
 
   const expectedPeople = Math.max(1, Number(people) || 1);
-
-  const paymentOrder = await PaymentOrder.findOne({ orderId: paymentOrderId }).lean();
 
   const ticketPricePerPerson = (() => {
     if (paymentOrder?.ticketPrice != null && Number.isFinite(Number(paymentOrder.ticketPrice))) {
@@ -42,7 +53,7 @@ async function verifySportsBookingPayment({ event, people, paymentOrderId, payme
 
   let orderTags = {};
   try {
-    const cashfreeOrder = await fetchOrder(paymentOrderId);
+    const cashfreeOrder = await fetchOrder(paymentOrderId, { merchant: cashfreeMerchant });
     orderTags = cashfreeOrder.order_tags || {};
   } catch (err) {
     console.error('[sportsPaymentVerification] fetchOrder error:', err.message);

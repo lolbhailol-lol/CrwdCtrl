@@ -26,6 +26,7 @@ import { signalDetailPageReady } from '../../utils/bootSplash';
 import { COMPETITION_DEMO_LOAD_MS } from '../../constants/skeletonLoading';
 import { formatSlotsLabel, buildTeamSizeLabel, isCompetitionSoldOut, isCompetitionRegistrationClosed } from '../../utils/teamSize';
 import { useInAppBack } from '../../hooks/useInAppBack';
+import { isMindSparkFest } from '../../features/fests/mindspark/isMindSparkFest';
 import {
     loadCompetitionDetailCache,
     saveCompetitionDetailCache,
@@ -793,6 +794,7 @@ function EventPage() {
 
     const eventData = competitionData;
     const showHeroImage = Boolean(eventData?.image);
+    const isMindSparkCompetition = isMindSparkFest(eventData?.fest || eventData?.festId, eventData?.fest);
 
     if (!eventData?.title) {
         return <DetailPageLoader variant="competition" label="Loading competition" />;
@@ -968,10 +970,10 @@ function EventPage() {
     const contactList = (() => {
         const c = eventData?.contact;
         if (!c) return [];
-        const hasAny = Boolean(c.name || c.email || c.phone || c.instagram);
+        const hasAny = Boolean(c.name || c.email || c.phone || c.instagram || c.instagramId);
         if (!hasAny) return [];
 
-        let instagramId = c.instagram || '';
+        let instagramId = c.instagram || c.instagramId || '';
         if (instagramId.startsWith('http')) {
             try {
                 const path = new URL(instagramId).pathname.replace(/^\/+|\/+$/g, '');
@@ -1015,15 +1017,15 @@ function EventPage() {
     const ContactPersonCard = ({ contact }) => (
         <div className="space-y-3">
             <div>
-                <p className="text-base font-bold leading-snug text-gray-900 dark:text-white">
+                <p className={`text-base font-bold leading-snug ${isDark ? 'text-white' : 'text-gray-900'}`}>
                     {contact.name || 'Event Head'}
                 </p>
                 {contact.role ? (
-                    <p className="mt-0.5 text-xs font-medium text-gray-600 dark:text-gray-400">{contact.role}</p>
+                    <p className={`mt-0.5 text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{contact.role}</p>
                 ) : null}
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2.5">
                 {contact.phone
                     ? contact.phone.split(/\s*(?:,|\/)\s*/).filter(Boolean).map((entry, pi) => {
                         const nameMatch = entry.match(/\(([^)]+)\)/);
@@ -1034,14 +1036,16 @@ function EventPage() {
                             <a
                                 key={pi}
                                 href={`tel:${tel}`}
-                                className="flex items-center gap-2.5 transition text-gray-800 hover:text-[#0060DF] dark:text-white/90 dark:hover:text-[#0ECCEE]"
+                                className="flex items-center gap-2.5"
                             >
-                                <Phone size={15} className="shrink-0 stroke-[2.25] text-[#0060DF] dark:text-[#0ECCEE]" />
+                                <span className="size-9 shrink-0 rounded-full bg-[#0060DF] flex items-center justify-center">
+                                    <Phone size={16} className="text-white" />
+                                </span>
                                 <span className="min-w-0">
                                     {label ? (
-                                        <span className="block text-[11px] leading-tight text-gray-500 dark:text-gray-400">{label}</span>
+                                        <span className={`block text-[11px] leading-tight ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{label}</span>
                                     ) : null}
-                                    <span className="block text-sm font-medium tabular-nums tracking-wide">
+                                    <span className={`block text-sm font-semibold tabular-nums tracking-wide ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
                                         {rawNumber}
                                     </span>
                                 </span>
@@ -1053,10 +1057,12 @@ function EventPage() {
                 {contact.email ? (
                     <a
                         href={`mailto:${contact.email}`}
-                        className="flex items-center gap-2.5 transition truncate text-gray-800 hover:text-emerald-600 dark:text-white/90 dark:hover:text-emerald-400"
+                        className="flex items-center gap-2.5"
                     >
-                        <Mail size={15} className="shrink-0 stroke-[2.25] text-emerald-600 dark:text-emerald-400" />
-                        <span className="text-sm font-medium truncate">{contact.email}</span>
+                        <span className="size-9 shrink-0 rounded-full bg-emerald-600 flex items-center justify-center">
+                            <Mail size={16} className="text-white" />
+                        </span>
+                        <span className={`text-sm font-semibold truncate ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>{contact.email}</span>
                     </a>
                 ) : null}
 
@@ -1065,10 +1071,12 @@ function EventPage() {
                         href={`https://instagram.com/${contact.instagramId.replace('@', '')}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-2.5 transition text-gray-800 hover:text-pink-600 dark:text-white/90 dark:hover:text-pink-400"
+                        className="flex items-center gap-2.5"
                     >
-                        <Instagram size={15} className="shrink-0 stroke-[2.25] text-pink-600 dark:text-pink-400" />
-                        <span className="text-sm font-medium">
+                        <span className="size-9 shrink-0 rounded-full bg-linear-to-br from-[#f58529] via-[#dd2a7b] to-[#8134af] flex items-center justify-center">
+                            <Instagram size={16} className="text-white" />
+                        </span>
+                        <span className={`text-sm font-semibold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
                             {contact.instagramId.startsWith('@') ? contact.instagramId : `@${contact.instagramId}`}
                         </span>
                     </a>
@@ -1078,8 +1086,14 @@ function EventPage() {
     );
 
     const ContactDetailsBox = () => (
-        <div className="contact-details-box rounded-2xl p-4 sm:p-5 bg-gray-50 border border-gray-200 shadow-sm dark:bg-[#111213] dark:border-white/5 dark:shadow-[0_8px_24px_rgba(0,0,0,0.28)]">
-            <div className="space-y-5 divide-y divide-gray-200 dark:divide-white/10">
+        <div
+            className={`contact-details-box rounded-2xl p-4 sm:p-5 border shadow-sm ${
+                isDark
+                    ? 'bg-[#111213] border-white/10 shadow-[0_8px_24px_rgba(0,0,0,0.28)]'
+                    : 'bg-gray-50 border-gray-200'
+            }`}
+        >
+            <div className={`space-y-5 divide-y ${isDark ? 'divide-white/10' : 'divide-gray-200'}`}>
                 {contactList.map((contact, index) => (
                     <div key={index} className={index === 0 ? '' : 'pt-5'}>
                         <ContactPersonCard contact={contact} />
@@ -1565,7 +1579,7 @@ function EventPage() {
                                     headingClass: `text-base font-bold mb-1.5 ${isDark ? 'text-white' : 'text-gray-900'}`,
                                     bodyClass: `text-sm leading-relaxed text-left ${isDark ? 'text-gray-400' : 'text-gray-600'}`,
                                 })}
-                                {eventData.feeKnown ? (
+                                {eventData.feeKnown && !isMindSparkCompetition ? (
                                 <div className="mb-1">
                                     <RegistrationFeeLines
                                         tiers={eventData.feeTiers}
@@ -1681,7 +1695,7 @@ function EventPage() {
                                         <ArrowLeft size={15} />
                                         Back
                                     </button>
-                                    <div className="rounded-2xl overflow-hidden bg-[#1A1B1D] h-72 lg:h-[20rem] xl:h-[22rem]">
+                                    <div className={`rounded-2xl overflow-hidden bg-[#1A1B1D] ${isMindSparkCompetition ? 'h-80 lg:h-[24rem] xl:h-[26rem]' : 'h-72 lg:h-[20rem] xl:h-[22rem]'}`}>
                                     <CompetitionCoverImage
                                         key={`${competitionId}-${eventData.image || 'placeholder'}`}
                                         src={showHeroImage ? eventData.image : null}
@@ -1771,7 +1785,7 @@ function EventPage() {
                                         />
                                     </div>
 
-                                    {eventData.feeKnown && Array.isArray(eventData.feeTiers) && eventData.feeTiers.filter((t) => t && (t.label || t.amount >= 0)).length > 1 ? (
+                                    {eventData.feeKnown && !isMindSparkCompetition && Array.isArray(eventData.feeTiers) && eventData.feeTiers.filter((t) => t && (t.label || t.amount >= 0)).length > 1 ? (
                                         <div className="mb-3">
                                             <RegistrationFeeLines
                                                 tiers={eventData.feeTiers}

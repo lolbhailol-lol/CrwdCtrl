@@ -50,6 +50,88 @@ function copyText(text, onDone) {
     navigator.clipboard?.writeText(text).then(() => onDone?.()).catch(() => {});
 }
 
+/** Drink / skill answers organizers need at a glance (TouchGrass-style forms). */
+export function getGuestOpsAnswers(participant = {}) {
+    const fields = Array.isArray(participant.registrationFields) ? participant.registrationFields : [];
+    const formData = participant.formData && typeof participant.formData === 'object'
+        ? participant.formData
+        : {};
+    const byKey = new Map(
+        fields
+            .filter((f) => f?.fieldName)
+            .map((f) => [String(f.fieldName).toLowerCase(), f]),
+    );
+    const pickExact = (keys, labelHint) => {
+        for (const key of keys) {
+            const field = byKey.get(key);
+            const fromField = String(field?.value || '').trim();
+            if (fromField) {
+                return { key, label: field.label || labelHint, value: fromField };
+            }
+            const fromData = String(formData[key] || '').trim();
+            if (fromData) return { key, label: labelHint, value: fromData };
+        }
+        return null;
+    };
+    const pickByPattern = (keyRe, labelRe, labelHint) => {
+        for (const field of fields) {
+            const key = String(field.fieldName || '').toLowerCase();
+            const label = String(field.label || '');
+            const value = String(field.value || '').trim();
+            if (!value) continue;
+            if (keyRe.test(key) || labelRe.test(label)) {
+                return { key, label: label || labelHint, value };
+            }
+        }
+        for (const [key, raw] of Object.entries(formData)) {
+            const value = String(raw || '').trim();
+            if (!value) continue;
+            if (keyRe.test(String(key).toLowerCase())) {
+                return { key, label: labelHint, value };
+            }
+        }
+        return null;
+    };
+
+    const drink = pickExact(
+        [
+            'post_game_fuel_at_cafe_bok',
+            'post_game_fuel',
+            'cafe_drink',
+            'coffee',
+            'drink',
+            'cafe',
+            'beverage',
+        ],
+        'Post game fuel',
+    ) || pickByPattern(
+        /fuel|cafe|coffee|drink|beverage|mokaroma|ritrovo/,
+        /fuel|cafe|coffee|drink|mokaroma|ritrovo/i,
+        'Post game fuel',
+    );
+
+    const skill = pickExact(
+        ['badminton_level', 'skill_level', 'skill', 'level', 'playing_level'],
+        'Skill',
+    ) || pickByPattern(
+        /badminton|skill|level/,
+        /badminton|skill|rate yourself|playing level/i,
+        'Skill',
+    );
+
+    const gender = pickExact(['gender', 'participant_gender', 'sex'], 'Gender')
+        || pickByPattern(/^sex$|^gender$/, /gender/i, 'Gender');
+
+    return { drink, skill, gender };
+}
+
+export function shortOpsLabel(value = '') {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    const head = raw.split(/\s*[–—]\s*/)[0].trim();
+    return head.length > 28 ? `${head.slice(0, 26)}…` : head;
+}
+
 export default function ParticipantCard({
     participant,
     index,
@@ -69,9 +151,12 @@ export default function ParticipantCard({
     onReviewPayment,
     onOpenCrm,
     extraExpandedContent = null,
+    /** contact = name + phone only until expanded (event-community guests) */
+    summaryMode = 'full',
 }) {
     const [open, setOpen] = useState(false);
     const isOpen = forceOpen || open;
+    const contactOnly = summaryMode === 'contact';
     const fields = participant.registrationFields || [];
     const checkedIn = participant.checkInStatus === 'Checked In';
     const paid = participant.paymentStatus === 'Paid';
@@ -95,6 +180,7 @@ export default function ParticipantCard({
             return true;
         })
         .slice(0, 4);
+    const ops = getGuestOpsAnswers(participant);
     const bookingDetails = {
         date: trekDate,
         time: meetingPoint,
@@ -113,39 +199,96 @@ export default function ParticipantCard({
                     ? 'border-l-[#0ECCEE]'
                     : 'border-l-gray-500';
 
+    const statusHint = pendingReview
+        ? 'Review'
+        : rejected
+            ? 'Rejected'
+            : checkedIn
+                ? 'In'
+                : paid
+                    ? 'Paid'
+                    : participant.paymentStatus || '';
+
     return (
-        <article className={`rounded-2xl border border-white/10 border-l-[3px] ${borderTone} bg-linear-to-br from-[#1a1b1d] to-[#141516] overflow-hidden ${selected ? 'ring-1 ring-[#0ECCEE]/50' : ''}`}>
-            <div className="flex items-start gap-2 p-3 sm:p-4 pb-0">
+        <article className={`rounded-xl border border-white/10 border-l-[3px] ${borderTone} bg-[#161718] overflow-hidden ${selected ? 'ring-1 ring-[#0ECCEE]/50' : ''}`}>
+            <div className={`flex items-center gap-2 ${contactOnly ? 'px-3 py-3' : 'p-3 sm:p-4 pb-0 items-start'}`}>
                 {onToggleSelect ? (
                     <input
                         type="checkbox"
                         checked={selected}
                         onChange={() => onToggleSelect(participant.bookingId)}
-                        className="mt-3 rounded border-gray-600 shrink-0"
+                        className="mt-0.5 rounded border-gray-600 shrink-0"
                         aria-label={`Select ${participant.participantName}`}
                     />
                 ) : null}
                 <button
                     type="button"
                     onClick={() => setOpen((v) => !v)}
-                    className="flex-1 min-w-0 text-left flex gap-3 items-start pb-3 sm:pb-4 -mr-1 pr-1 rounded-lg"
+                    className={`flex-1 min-w-0 text-left flex gap-3 ${contactOnly ? 'items-start' : 'items-start pb-3 sm:pb-4'} -mr-1 pr-1 rounded-lg`}
                 >
-                    <div className="relative shrink-0">
-                        <div className="size-10 sm:size-11 rounded-xl bg-linear-to-br from-[#0ECCEE]/20 to-[#053780]/30 text-[#0ECCEE] flex items-center justify-center text-sm font-bold">
-                            {initials(participant.participantName)}
-                        </div>
-                        <span className="absolute -bottom-1 -right-1 size-5 rounded-full bg-[#111213] border border-gray-700 text-[9px] font-bold text-gray-400 flex items-center justify-center">
+                    {contactOnly ? (
+                        <span className="mt-0.5 shrink-0 size-6 rounded-md bg-white/5 border border-white/10 text-[11px] font-semibold tabular-nums text-gray-400 flex items-center justify-center">
                             {index}
                         </span>
-                    </div>
+                    ) : (
+                        <div className="relative shrink-0">
+                            <div className="size-10 sm:size-11 rounded-xl bg-[#0ECCEE]/15 text-[#0ECCEE] flex items-center justify-center text-sm font-bold">
+                                {initials(participant.participantName)}
+                            </div>
+                            <span className="absolute -bottom-1 -right-1 size-5 rounded-full bg-[#111213] border border-gray-700 text-[9px] font-bold text-gray-400 flex items-center justify-center">
+                                {index}
+                            </span>
+                        </div>
+                    )}
 
                     <div className="flex-1 min-w-0">
-                        <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                            <h3 className="font-semibold text-[15px] sm:text-base truncate max-w-full">
+                        <div className="flex items-center gap-2 min-w-0">
+                            <h3 className="font-semibold text-[15px] sm:text-base truncate text-white">
                                 {participant.participantName}
                             </h3>
+                            {contactOnly && statusHint ? (
+                                <span className={`shrink-0 text-[10px] font-semibold ${
+                                    pendingReview ? 'text-amber-400'
+                                        : checkedIn ? 'text-emerald-400'
+                                            : paid ? 'text-[#0ECCEE]'
+                                                : rejected ? 'text-red-400'
+                                                    : 'text-gray-500'
+                                }`}>
+                                    {statusHint}
+                                </span>
+                            ) : null}
                         </div>
-                        <div className="flex flex-wrap gap-1.5 mb-1.5">
+
+                        {contactOnly ? (
+                            <div className="mt-0.5 space-y-1">
+                                <p className="text-sm text-gray-400 truncate">
+                                    {phone || 'No phone'}
+                                </p>
+                                {(ops.drink || ops.skill || ops.gender) ? (
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {ops.drink ? (
+                                            <span className="inline-flex max-w-full truncate text-[11px] font-medium px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-200 border border-amber-500/25">
+                                                {shortOpsLabel(ops.drink.value)}
+                                            </span>
+                                        ) : null}
+                                        {ops.skill ? (
+                                            <span className="inline-flex max-w-full truncate text-[11px] font-medium px-2 py-0.5 rounded-md bg-sky-500/15 text-sky-200 border border-sky-500/25">
+                                                {shortOpsLabel(ops.skill.value)}
+                                            </span>
+                                        ) : null}
+                                        {ops.gender ? (
+                                            <span className="inline-flex text-[11px] font-medium px-2 py-0.5 rounded-md bg-white/5 text-gray-300 border border-white/10">
+                                                {shortOpsLabel(ops.gender.value)}
+                                            </span>
+                                        ) : null}
+                                    </div>
+                                ) : (
+                                    <p className="text-[11px] text-gray-600">No post game fuel / skill on file</p>
+                                )}
+                            </div>
+                        ) : (
+                            <>
+                        <div className="flex flex-wrap gap-1.5 mb-1.5 mt-1">
                             <Pill tone={pendingReview ? 'pending' : rejected ? 'pending' : paid ? 'paid' : 'free'}>
                                 {participant.paymentStatus}
                             </Pill>
@@ -236,9 +379,11 @@ export default function ParticipantCard({
                                 </span>
                             ) : null}
                         </div>
+                            </>
+                        )}
                     </div>
 
-                    {participant.paymentScreenshotUrl ? (
+                    {!contactOnly && participant.paymentScreenshotUrl ? (
                         <img
                             src={participant.paymentScreenshotUrl}
                             alt=""
@@ -247,7 +392,7 @@ export default function ParticipantCard({
                     ) : null}
                     <ChevronDown
                         size={18}
-                        className={`text-gray-500 shrink-0 mt-1 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+                        className={`text-gray-500 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''} ${contactOnly ? 'mt-1' : 'mt-1'}`}
                     />
                 </button>
             </div>

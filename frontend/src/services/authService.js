@@ -162,6 +162,19 @@ class AuthService {
                         message: firebaseResult.message || 'Redirecting to Google...'
                     };
                 }
+                if (firebaseResult.showOpenInBrowser || firebaseResult.isInAppBrowser) {
+                    const enhancedError = new Error(
+                        firebaseResult.error
+                        || 'Google sign-in is not supported in this browser. Please open in Chrome or Safari.',
+                    );
+                    enhancedError.isInAppBrowser = true;
+                    enhancedError.showOpenInBrowser = true;
+                    enhancedError.errorDetails = firebaseResult.errorDetails;
+                    enhancedError.appName = firebaseResult.appName;
+                    enhancedError.openInBrowserUrl = firebaseResult.openInBrowserUrl;
+                    enhancedError.code = firebaseResult.code;
+                    throw enhancedError;
+                }
                 throw new Error(firebaseResult.error || 'Google authentication failed');
             }
 

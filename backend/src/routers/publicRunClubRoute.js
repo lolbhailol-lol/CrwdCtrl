@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const RunClub = require('../model/run_club_model');
 const { findByIdOrSlug } = require('../utils/slug');
-const { sanitizePublicRunClub } = require('../utils/publicEntitySanitize');
+const { sanitizePublicRunClub, RUN_CLUB_LIST_SELECT } = require('../utils/publicEntitySanitize');
 
 router.get('/', async (req, res) => {
     try {
@@ -16,6 +16,7 @@ router.get('/', async (req, res) => {
                 listingHub: { $ne: 'events' },
             };
         const clubs = await RunClub.find(filter)
+            .select(RUN_CLUB_LIST_SELECT)
             .sort({ runClubPriority: 1, createdAt: -1 })
             .limit(100)
             .lean();

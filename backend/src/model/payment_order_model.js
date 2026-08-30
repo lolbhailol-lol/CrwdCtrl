@@ -43,6 +43,17 @@ const paymentOrderSchema = new mongoose.Schema(
       enum: ['cashfree', 'razorpay'],
       default: 'cashfree',
     },
+    /**
+     * Which Cashfree merchant collected this order.
+     * platform = main CrwdCtrl account (fests, sports clubs)
+     * events = Delulu / listingHub=events community account
+     */
+    cashfreeMerchant: {
+      type: String,
+      enum: ['platform', 'events'],
+      default: 'platform',
+      index: true,
+    },
     paymentId: { type: String, default: null },
     paymentSessionId: { type: String, default: null },
     orderTags: { type: mongoose.Schema.Types.Mixed, default: {} },

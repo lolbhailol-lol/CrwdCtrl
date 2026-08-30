@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Camera, CheckCircle, AlertTriangle, XCircle, RefreshCw, QrCode, Upload } from 'lucide-react';
+import { Camera, CheckCircle, AlertTriangle, XCircle, RefreshCw, QrCode, Upload, Flashlight } from 'lucide-react';
 import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
 import jsQR from 'jsqr';
 import { isNativeApp } from '../../utils/capacitorPlatform';
@@ -93,6 +93,8 @@ export default function CheckinScannerPage({
   /** Scope fest check-in to one competition (wrong-comp QR rejected) */
   competitionId = null,
   checkinExtraBody = null,
+  /** Called after a successful or already-checked-in scan so parents can refresh gate roster */
+  onCheckinSuccess = null,
 }) {
   const isVolunteerScanner =
     mode === 'scanner' || mode === 'trek_scanner' || mode === 'sport_scanner';
@@ -156,7 +158,11 @@ export default function CheckinScannerPage({
   const [scanSession, setScanSession] = useState(0);
   const [checkinStats, setCheckinStats] = useState(null);
   const [sessionCount, setSessionCount] = useState(0);
+  const [torchOn, setTorchOn] = useState(false);
+  const [torchSupported, setTorchSupported] = useState(false);
   const videoRef = useRef(null);
+  const onCheckinSuccessRef = useRef(onCheckinSuccess);
+  onCheckinSuccessRef.current = onCheckinSuccess;
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
   const streamRef = useRef(null);
@@ -226,6 +232,10 @@ export default function CheckinScannerPage({
 
     await clearNativeListener();
     scanLockRef.current = false;
+    if (mountedRef.current) {
+      setTorchOn(false);
+      setTorchSupported(false);
+    }
     await waitMs(300);
   }, [clearNativeListener]);
 
@@ -234,8 +244,23 @@ export default function CheckinScannerPage({
     if (mountedRef.current) {
       setIsScanning(false);
       setScannerHint('');
+      setTorchOn(false);
+      setTorchSupported(false);
     }
   }, [releaseCamera]);
+
+  const toggleTorch = useCallback(async () => {
+    const track = streamRef.current?.getVideoTracks?.()?.[0];
+    if (!track) return;
+    const next = !torchOn;
+    try {
+      await track.applyConstraints({ advanced: [{ torch: next }] });
+      setTorchOn(next);
+    } catch {
+      setTorchSupported(false);
+      setTorchOn(false);
+    }
+  }, [torchOn]);
 
   useEffect(() => {
     if (!isNativeApp()) return undefined;
@@ -324,8 +349,13 @@ export default function CheckinScannerPage({
         message: data.message || data.error || 'Check-in failed',
         data: data.data,
       });
-      if (data.status === 'checked_in' || data.status === 'already_checked_in') {
+      if (outcome === 'checked_in' || outcome === 'already_checked_in') {
         fetchCheckinStats();
+        try {
+          onCheckinSuccessRef.current?.(data);
+        } catch {
+          /* parent refresh errors should not break scan loop */
+        }
       }
       return outcome;
     } catch (err) {
@@ -338,7 +368,7 @@ export default function CheckinScannerPage({
       setIsProcessing(false);
       scanLockRef.current = false;
     }
-  }, [resolvedGetToken, resolvedCheckinUrl, mode, fetchCheckinStats, competitionId, checkinExtraBody]);
+  }, [resolvedGetToken, resolvedCheckinUrl, mode, fetchCheckinStats, competitionId, checkinExtraBody, sessionExpiredMessage, authErrorMessage, isVolunteerScanner]);
 
   const handleQRData = useCallback(async (rawData) => {
     if (scanLockRef.current) return;
@@ -568,11 +598,17 @@ export default function CheckinScannerPage({
       const stream = await acquireCameraStream();
       pendingStreamRef.current = stream;
       streamRef.current = stream;
+      const track = stream.getVideoTracks?.()?.[0];
+      const caps = track?.getCapabilities?.() || {};
+      setTorchSupported(Boolean(caps.torch));
+      setTorchOn(false);
       setScanSession((n) => n + 1);
       setIsScanning(true);
     } catch (err) {
       setIsScanning(false);
       setScannerHint('');
+      setTorchSupported(false);
+      setTorchOn(false);
       setScanResult({
         status: 'error',
         message: err?.message?.includes('Permission') || err?.name === 'NotAllowedError'
@@ -660,26 +696,40 @@ export default function CheckinScannerPage({
             </div>
           </div>
           {sessionCount > 0 && (
-            <div className="absolute top-4 left-4 px-3 py-2 bg-black/75 text-[#0ECCEE] rounded-lg text-sm font-semibold z-10">
+            <div className="absolute top-4 left-4 px-3 py-2.5 min-h-[44px] inline-flex items-center bg-black/75 text-[#0ECCEE] rounded-xl text-sm font-semibold z-10">
               {sessionCount} checked in
             </div>
           )}
-          <button
-            type="button"
-            onClick={stopWebScanning}
-            className="absolute top-4 right-4 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium z-10"
-          >
-            Stop
-          </button>
+          <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+            {torchSupported ? (
+              <button
+                type="button"
+                onClick={toggleTorch}
+                className={`min-h-[44px] min-w-[44px] px-3 inline-flex items-center justify-center rounded-xl text-sm font-medium ${
+                  torchOn ? 'bg-amber-400 text-black' : 'bg-black/75 text-white'
+                }`}
+                aria-label={torchOn ? 'Turn flashlight off' : 'Turn flashlight on'}
+              >
+                <Flashlight size={18} />
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={stopWebScanning}
+              className="min-h-[44px] px-4 py-2.5 bg-red-600 text-white rounded-xl text-sm font-semibold"
+            >
+              Stop
+            </button>
+          </div>
           <div className="absolute bottom-6 left-4 right-4 z-10 space-y-2">
             {isProcessing && (
-              <div className="bg-black/80 text-gray-100 text-sm rounded-lg px-4 py-3 text-center">
+              <div className="bg-black/80 text-gray-100 text-sm rounded-xl px-4 py-3.5 text-center">
                 Verifying check-in...
               </div>
             )}
             {!isProcessing && scanResult && (
               <div
-                className={`rounded-xl px-4 py-3 text-center ${
+                className={`rounded-xl px-4 py-3.5 text-center ${
                   scanResult.status === 'checked_in'
                     ? 'bg-green-600/95'
                     : scanResult.status === 'already_checked_in'
@@ -689,13 +739,18 @@ export default function CheckinScannerPage({
               >
                 <p className="text-white font-bold text-sm">{scanResult.message}</p>
                 {scanResult.data?.userName && (
-                  <p className="text-white/90 text-sm mt-0.5">{scanResult.data.userName}</p>
+                  <p className="text-white font-medium text-sm mt-1">{scanResult.data.userName}</p>
+                )}
+                {(scanResult.data?.userPhone || scanResult.data?.userEmail) && (
+                  <p className="text-white/85 text-xs mt-0.5">
+                    {[scanResult.data.userPhone, scanResult.data.userEmail].filter(Boolean).join(' · ')}
+                  </p>
                 )}
                 {scanResult.status !== 'checked_in' && (
                   <button
                     type="button"
                     onClick={resumeScanning}
-                    className="mt-3 w-full px-4 py-2.5 bg-white text-black rounded-lg text-sm font-semibold"
+                    className="mt-3 w-full min-h-[44px] px-4 py-2.5 bg-white text-black rounded-xl text-sm font-semibold"
                   >
                     Continue scanning
                   </button>
@@ -703,7 +758,7 @@ export default function CheckinScannerPage({
               </div>
             )}
             {!isProcessing && !scanResult && scannerHint && (
-              <div className="bg-black/80 text-gray-100 text-sm rounded-lg px-4 py-3 text-center">
+              <div className="bg-black/80 text-gray-100 text-sm rounded-xl px-4 py-3.5 text-center">
                 {scannerHint}
               </div>
             )}
@@ -741,33 +796,32 @@ export default function CheckinScannerPage({
         )}
 
         {embedded && (
-          <p className="text-sm text-gray-400 text-center">
+          <p className="text-xs text-gray-500 text-center">
             {useNativeScanner ? 'App camera mode' : resolvedSubtitle}
           </p>
         )}
 
         {checkinStats && (
-          <div className="rounded-xl border border-gray-800 bg-[#111213] p-4">
-            <div className="flex items-center justify-between gap-3 mb-3">
+          <div className={`rounded-xl border border-white/10 ${embedded ? 'bg-[#161718] p-3.5' : 'bg-[#111213] p-4 border-gray-800'}`}>
+            <div className="flex items-end justify-between gap-3 mb-2.5">
               <div>
-                <p className="text-xs text-gray-500 uppercase tracking-wide">Check-ins today</p>
-                <p className="text-lg font-bold text-white mt-0.5">
+                <p className="text-[11px] text-gray-500 font-medium">Checked in</p>
+                <p className="text-2xl font-semibold tabular-nums text-white mt-0.5 leading-none">
                   {checkinStats.totalCheckedIn}
                   <span className="text-gray-500 font-normal text-sm">
-                    {' '}
-                    / {checkinStats.totalRegistered}
+                    {' / '}{checkinStats.totalRegistered}
                   </span>
                 </p>
               </div>
               {checkinStats.totalRegistered > 0 && (
-                <span className="text-sm font-semibold text-[#0ECCEE]">
+                <span className="text-sm font-semibold text-emerald-400 tabular-nums">
                   {checkinStats.checkinRate ?? Math.round((checkinStats.totalCheckedIn / checkinStats.totalRegistered) * 100)}%
                 </span>
               )}
             </div>
-            <div className="h-1.5 rounded-full bg-gray-800 overflow-hidden">
+            <div className="h-1.5 rounded-full bg-black/40 overflow-hidden">
               <div
-                className="h-full bg-[#0ECCEE] rounded-full transition-all duration-500"
+                className="h-full bg-emerald-400 rounded-full transition-all duration-500"
                 style={{
                   width: `${
                     checkinStats.totalRegistered > 0
@@ -848,19 +902,19 @@ export default function CheckinScannerPage({
               <p className="text-gray-500 mb-8 text-sm px-2 max-w-xs mx-auto">
                 Point at the ticket QR from My Bookings, or upload a photo
               </p>
-              <div className="flex flex-col gap-3 max-w-sm mx-auto">
+              <div className="flex flex-col gap-3 max-w-sm mx-auto w-full px-1">
                 <button
                   type="button"
                   onClick={startScanning}
-                  className="inline-flex items-center justify-center gap-2 px-6 py-4 bg-[#0ECCEE] text-black rounded-xl font-semibold hover:opacity-90 transition-opacity text-base"
+                  className="inline-flex items-center justify-center gap-2 w-full min-h-[52px] px-6 py-4 bg-[#0ECCEE] text-black rounded-xl font-semibold hover:opacity-90 transition-opacity text-base"
                 >
-                  <Camera size={20} />
+                  <Camera size={22} />
                   {useNativeScanner ? 'Scan QR Code' : 'Open Camera'}
                 </button>
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="inline-flex items-center justify-center gap-2 px-6 py-3.5 border border-gray-700 text-gray-300 rounded-xl font-medium hover:bg-gray-800/80 transition-colors"
+                  className="inline-flex items-center justify-center gap-2 w-full min-h-[48px] px-6 py-3.5 border border-gray-700 text-gray-300 rounded-xl font-medium hover:bg-gray-800/80 transition-colors"
                 >
                   <Upload size={18} />
                   Upload QR photo
@@ -943,6 +997,11 @@ export default function CheckinScannerPage({
                   {scanResult.data.userName && (
                     <p className="text-white font-medium">{scanResult.data.userName}</p>
                   )}
+                  {(scanResult.data.userPhone || scanResult.data.userEmail) && (
+                    <p className="text-gray-300 text-xs">
+                      {[scanResult.data.userPhone, scanResult.data.userEmail].filter(Boolean).join(' · ')}
+                    </p>
+                  )}
                   {(scanResult.data.trekName || scanResult.data.festName) && (
                     <p className="text-gray-400">{scanResult.data.trekName || scanResult.data.festName}</p>
                   )}
@@ -958,7 +1017,7 @@ export default function CheckinScannerPage({
               <button
                 type="button"
                 onClick={scanAnother}
-                className="mt-6 w-full inline-flex items-center justify-center gap-2 px-5 py-3.5 bg-[#0ECCEE] text-black rounded-xl text-sm font-semibold hover:opacity-90"
+                className="mt-6 w-full min-h-[48px] inline-flex items-center justify-center gap-2 px-5 py-3.5 bg-[#0ECCEE] text-black rounded-xl text-sm font-semibold hover:opacity-90"
               >
                 <RefreshCw size={16} />
                 Scan next ticket
@@ -992,7 +1051,7 @@ export default function CheckinScannerPage({
               </form>
             </div>
           </details>
-        ) : (
+        ) : !embedded ? (
           <div className="bg-[#111213] rounded-xl border border-gray-800 p-4 sm:p-5">
             <h3 className="font-semibold text-white mb-1 text-sm">Manual check-in</h3>
             <p className="text-xs text-gray-500 mb-3">Paste QR JSON or hash if the camera fails</p>
@@ -1018,7 +1077,7 @@ export default function CheckinScannerPage({
               </p>
             )}
           </div>
-        )}
+        ) : null}
       </div>
     </>
   );

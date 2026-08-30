@@ -675,7 +675,14 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    const result = await verifyCashfreePayment({ orderId, paymentId });
+    const paymentOrderForMerchant = await PaymentOrder.findOne({ orderId: String(orderId) })
+      .select('cashfreeMerchant')
+      .lean();
+    const result = await verifyCashfreePayment({
+      orderId,
+      paymentId,
+      merchant: paymentOrderForMerchant?.cashfreeMerchant === 'events' ? 'events' : 'platform',
+    });
     if (result.status === 'cancelled' || result.status === 'failed') {
       expireCancelledPaymentOrder(orderId).catch(() => {});
     }
@@ -1277,6 +1284,9 @@ exports.createSportsOrder = async (req, res) => {
       },
     );
 
+    const cashfreeMerchant = listingHub === 'events' ? 'events' : 'platform';
+    const cashfreeMode = getCashfreeClientMode(cashfreeMerchant);
+
     const existingPending = await findReusablePendingOrder({
       userId: req.user?.userId || null,
       customerEmail: email,
@@ -1287,20 +1297,27 @@ exports.createSportsOrder = async (req, res) => {
       couponCode: coupon.couponCode,
     });
     if (existingPending?.paymentSessionId) {
-      existingPending.orderTags = {
-        ...(existingPending.orderTags && typeof existingPending.orderTags === 'object'
-          ? existingPending.orderTags
-          : {}),
-        formData: formDraft,
-        gender: formDraft.gender || gender || '',
-      };
-      if (resolvedPhone) existingPending.customerPhone = resolvedPhone;
-      await existingPending.save().catch(() => {});
-      return res.json({
-        success: true,
-        ...buildOrderResponse(existingPending),
-        cashfreeMode: getCashfreeClientMode(),
-      });
+      // Do not reuse a session from the other Cashfree merchant
+      if ((existingPending.cashfreeMerchant || 'platform') !== cashfreeMerchant) {
+        existingPending.status = 'EXPIRED';
+        await existingPending.save().catch(() => {});
+      } else {
+        existingPending.orderTags = {
+          ...(existingPending.orderTags && typeof existingPending.orderTags === 'object'
+            ? existingPending.orderTags
+            : {}),
+          formData: formDraft,
+          gender: formDraft.gender || gender || '',
+        };
+        if (resolvedPhone) existingPending.customerPhone = resolvedPhone;
+        await existingPending.save().catch(() => {});
+        return res.json({
+          success: true,
+          ...buildOrderResponse(existingPending),
+          cashfreeMode,
+          cashfreeMerchant,
+        });
+      }
     }
 
     const resolvedEventId = String(event._id);
@@ -1312,6 +1329,7 @@ exports.createSportsOrder = async (req, res) => {
       people: String(peopleCount),
       totalAmount: String(totalAmount),
       ticketPrice: String(ticketPricePerPerson),
+      merchant: cashfreeMerchant,
     };
     if (coupon.couponCode) cashfreeOrderTags.couponCode = coupon.couponCode;
     if (Number(coupon.discountAmount) > 0) {
@@ -1335,6 +1353,7 @@ exports.createSportsOrder = async (req, res) => {
       },
       orderNote: resolvedName,
       orderTags: cashfreeOrderTags,
+      merchant: cashfreeMerchant,
     });
 
     await PaymentOrder.create({
@@ -1353,6 +1372,8 @@ exports.createSportsOrder = async (req, res) => {
       people: peopleCount,
       currency,
       status: 'PENDING',
+      gateway: 'cashfree',
+      cashfreeMerchant,
       orderTags: {
         eventId: resolvedEventId,
         eventName: resolvedName,
@@ -1365,6 +1386,7 @@ exports.createSportsOrder = async (req, res) => {
         addOnFee: String(ticket.addOnFeePerPerson || 0),
         formData: formDraft,
         gender: formDraft.gender || gender || '',
+        listingHub,
       },
       customerEmail: email,
       customerPhone: resolvedPhone,
@@ -1373,7 +1395,8 @@ exports.createSportsOrder = async (req, res) => {
     res.json({
       orderId: order.order_id,
       paymentSessionId: order.payment_session_id,
-      cashfreeMode: getCashfreeClientMode(),
+      cashfreeMode,
+      cashfreeMerchant,
       amount: order.order_amount,
       currency: order.order_currency,
       ticketPrice: ticketPricePerPerson,
@@ -1443,7 +1466,11 @@ exports.verifySportsPayment = async (req, res) => {
       );
     }
 
-    const result = await verifyCashfreePayment({ orderId, paymentId });
+    const result = await verifyCashfreePayment({
+      orderId,
+      paymentId,
+      merchant: paymentOrder?.cashfreeMerchant === 'events' ? 'events' : 'platform',
+    });
     let paymentProof = null;
 
     if (result.verified) {
@@ -1551,7 +1578,11 @@ exports.verifyTrekPayment = async (req, res) => {
     }
     const result = gateway === 'razorpay'
       ? await verifyRazorpayPayment({ orderId, paymentId, signature })
-      : await verifyCashfreePayment({ orderId, paymentId });
+      : await verifyCashfreePayment({
+          orderId,
+          paymentId,
+          merchant: paymentOrder?.cashfreeMerchant === 'events' ? 'events' : 'platform',
+        });
     let paymentProof = null;
 
     if (result.verified) {

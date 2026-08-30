@@ -377,7 +377,7 @@ export default function SportsCategoryPage() {
     );
 
     if (loading && !hasSportsContent) {
-        return <DetailPageLoader label="Loading runs" />;
+        return <DetailPageLoader label="Loading runs" variant="run" />;
     }
 
     return (

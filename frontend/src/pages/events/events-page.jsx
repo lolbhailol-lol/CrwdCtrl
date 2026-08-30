@@ -215,15 +215,30 @@ export default function EventsPage() {
     const loadData = useCallback(async () => {
         const hasCache = Boolean(readEventsCache());
         try {
-            // Phase 1: primary events feed — show page as soon as this returns.
-            // Isolated so an events failure still lets Phase 2 carousels load.
+            // Phase 1: events hub content only (shows + communities + community events)
             let nextShows = [];
+            let nextEventCommunities = [];
+            let nextCommunityEvents = [];
             try {
-                const eventsRes = await fetchCatalogJSON('/events', { retries: 1 });
+                const [eventsRes, eventClubsRes, communityEventsRes] = await Promise.all([
+                    fetchCatalogJSON('/events', { retries: 1 }),
+                    fetchCatalogJSON('/run-clubs?hub=events', { retries: 1 }).catch(() => null),
+                    fetchCatalogJSON('/sports?hub=events', { retries: 1 }).catch(() => null),
+                ]);
                 const data = eventsRes?.data;
                 nextShows = Array.isArray(data?.shows) ? data.shows : [];
                 setRawShows(nextShows);
                 setShows(nextShows.map(mapEventShow));
+
+                if (eventClubsRes?.data) {
+                    nextEventCommunities = Array.isArray(eventClubsRes.data?.clubs) ? eventClubsRes.data.clubs : [];
+                    setEventCommunities(nextEventCommunities);
+                }
+                if (communityEventsRes?.data) {
+                    nextCommunityEvents = (Array.isArray(communityEventsRes.data?.events) ? communityEventsRes.data.events : [])
+                        .map((ev) => ({ ...ev, listingHub: 'events' }));
+                    setCommunityEvents(nextCommunityEvents);
+                }
             } catch {
                 if (!hasCache) {
                     setRawShows([]);
@@ -233,68 +248,83 @@ export default function EventsPage() {
                 setLoading(false);
             }
 
-            // Phase 2: carousel catalogs (shared in-memory cache, deduped across hub pages)
-            const [festsRes, treksRes, commRes, sportsRes, clubsRes, eventClubsRes, communityEventsRes] = await Promise.all([
-                fetchCatalogJSON('/fests/all', { retries: 1 }).catch(() => null),
-                fetchCatalogJSON('/treks', { retries: 1 }).catch(() => null),
-                fetchCatalogJSON('/trek-communities', { retries: 1 }).catch(() => null),
-                fetchCatalogJSON('/sports', { retries: 1 }).catch(() => null),
-                fetchCatalogJSON('/run-clubs', { retries: 1 }).catch(() => null),
-                fetchCatalogJSON('/run-clubs?hub=events', { retries: 1 }).catch(() => null),
-                fetchCatalogJSON('/sports?hub=events', { retries: 1 }).catch(() => null),
-            ]);
-
-            let nextFests = [];
-            let nextTreks = [];
-            let nextCommunities = [];
-            let nextSports = [];
-            let nextClubs = [];
-            let nextEventCommunities = [];
-            let nextCommunityEvents = [];
-
-            if (festsRes?.data) {
-                nextFests = Array.isArray(festsRes.data?.fests) ? festsRes.data.fests : Array.isArray(festsRes.data) ? festsRes.data : [];
-                setCarouselFests(nextFests);
-            }
-            if (treksRes?.data) {
-                nextTreks = Array.isArray(treksRes.data?.treks) ? treksRes.data.treks : [];
-                setCarouselTreks(nextTreks);
-            }
-            if (commRes?.data) {
-                nextCommunities = Array.isArray(commRes.data?.communities) ? commRes.data.communities : [];
-                setCarouselCommunities(nextCommunities);
-            }
-            if (sportsRes?.data) {
-                nextSports = Array.isArray(sportsRes.data?.events) ? sportsRes.data.events : [];
-                setCarouselSports(nextSports);
-            }
-            if (clubsRes?.data) {
-                nextClubs = Array.isArray(clubsRes.data?.clubs) ? clubsRes.data.clubs : [];
-                setCarouselRunClubs(nextClubs);
-            }
-            if (eventClubsRes?.data) {
-                nextEventCommunities = Array.isArray(eventClubsRes.data?.clubs) ? eventClubsRes.data.clubs : [];
-                setEventCommunities(nextEventCommunities);
-            }
-            if (communityEventsRes?.data) {
-                nextCommunityEvents = (Array.isArray(communityEventsRes.data?.events) ? communityEventsRes.data.events : [])
-                    .map((ev) => ({ ...ev, listingHub: 'events' }));
-                setCommunityEvents(nextCommunityEvents);
-            }
-
+            const prevCache = readEventsCache() || {};
             writeEventsCache({
                 shows: nextShows,
-                fests: nextFests,
-                treks: nextTreks,
-                communities: nextCommunities,
-                sports: nextSports,
-                clubs: nextClubs,
-                eventCommunities: nextEventCommunities,
-                communityEvents: nextCommunityEvents,
+                fests: prevCache.fests || [],
+                treks: prevCache.treks || [],
+                communities: prevCache.communities || [],
+                sports: prevCache.sports || [],
+                clubs: prevCache.clubs || [],
+                eventCommunities: nextEventCommunities.length
+                    ? nextEventCommunities
+                    : (prevCache.eventCommunities || []),
+                communityEvents: nextCommunityEvents.length
+                    ? nextCommunityEvents
+                    : (prevCache.communityEvents || []),
             });
+
+            // Phase 2: cross-hub carousels — deferred so they don't block first paint
+            const loadCrossHub = async () => {
+                const [festsRes, treksRes, commRes, sportsRes, clubsRes] = await Promise.all([
+                    fetchCatalogJSON('/fests/all', { retries: 1 }).catch(() => null),
+                    fetchCatalogJSON('/treks', { retries: 1 }).catch(() => null),
+                    fetchCatalogJSON('/trek-communities', { retries: 1 }).catch(() => null),
+                    fetchCatalogJSON('/sports', { retries: 1 }).catch(() => null),
+                    fetchCatalogJSON('/run-clubs', { retries: 1 }).catch(() => null),
+                ]);
+
+                let nextFests = [];
+                let nextTreks = [];
+                let nextCommunities = [];
+                let nextSports = [];
+                let nextClubs = [];
+
+                if (festsRes?.data) {
+                    nextFests = Array.isArray(festsRes.data?.fests) ? festsRes.data.fests : Array.isArray(festsRes.data) ? festsRes.data : [];
+                    setCarouselFests(nextFests);
+                }
+                if (treksRes?.data) {
+                    nextTreks = Array.isArray(treksRes.data?.treks) ? treksRes.data.treks : [];
+                    setCarouselTreks(nextTreks);
+                }
+                if (commRes?.data) {
+                    nextCommunities = Array.isArray(commRes.data?.communities) ? commRes.data.communities : [];
+                    setCarouselCommunities(nextCommunities);
+                }
+                if (sportsRes?.data) {
+                    nextSports = Array.isArray(sportsRes.data?.events) ? sportsRes.data.events : [];
+                    setCarouselSports(nextSports);
+                }
+                if (clubsRes?.data) {
+                    nextClubs = Array.isArray(clubsRes.data?.clubs) ? clubsRes.data.clubs : [];
+                    setCarouselRunClubs(nextClubs);
+                }
+
+                const latest = readEventsCache() || {};
+                writeEventsCache({
+                    ...latest,
+                    shows: nextShows.length ? nextShows : (latest.shows || []),
+                    fests: nextFests,
+                    treks: nextTreks,
+                    communities: nextCommunities,
+                    sports: nextSports,
+                    clubs: nextClubs,
+                    eventCommunities: nextEventCommunities.length
+                        ? nextEventCommunities
+                        : (latest.eventCommunities || []),
+                    communityEvents: nextCommunityEvents.length
+                        ? nextCommunityEvents
+                        : (latest.communityEvents || []),
+                });
+            };
+
+            if (typeof requestIdleCallback === 'function') {
+                requestIdleCallback(() => { loadCrossHub().catch(() => {}); }, { timeout: 2500 });
+            } else {
+                setTimeout(() => { loadCrossHub().catch(() => {}); }, 400);
+            }
         } catch {
-            // Phase 1 already handled its own errors and cleared the loading gate;
-            // don't wipe successfully-loaded events if a later step fails.
             setLoading(false);
         }
     }, []);
@@ -604,9 +634,38 @@ export default function EventsPage() {
                                                 isFavorite={isFavorite(card.id)}
                                                 onToggleFavorite={() => handleFav(card)}
                                                 onClick={() => {
-                                                    if (card._kind === 'community') navigate(runClubPath(card));
-                                                    else if (card._kind === 'event') navigate(eventCommunityEventPath(card));
-                                                    else handleShowClick(card);
+                                                    if (card._kind === 'community') {
+                                                        navigate(runClubPath(card), {
+                                                            state: {
+                                                                club: {
+                                                                    _id: card.id,
+                                                                    id: card.id,
+                                                                    slug: card.slug,
+                                                                    name: card.name || card.title,
+                                                                    title: card.title,
+                                                                    basedIn: card.basedIn,
+                                                                    coverImage: card.image,
+                                                                    coverImages: card.coverImages,
+                                                                    listingHub: 'events',
+                                                                },
+                                                            },
+                                                        });
+                                                    } else if (card._kind === 'event') {
+                                                        navigate(eventCommunityEventPath(card), {
+                                                            state: {
+                                                                event: {
+                                                                    _id: card.id,
+                                                                    slug: card.slug,
+                                                                    title: card.title,
+                                                                    coverImage: card.image,
+                                                                    coverImages: card.coverImages,
+                                                                    listingHub: 'events',
+                                                                },
+                                                            },
+                                                        });
+                                                    } else {
+                                                        handleShowClick(card);
+                                                    }
                                                 }}
                                             />
                                         </div>

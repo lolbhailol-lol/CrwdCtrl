@@ -146,8 +146,8 @@ export default function FestRegistration() {
   if (waitingForData || (holdLoader && !fest)) {
     return (
       <DetailPageLoader
-        variant={isCompetitionRegistration ? 'competition' : 'default'}
-        label={isCompetitionRegistration ? 'Loading competition' : 'Loading registration'}
+        variant={isCompetitionRegistration ? 'competition' : 'fest'}
+        label={isCompetitionRegistration ? 'Loading competition' : 'Loading fest'}
       />
     );
   }

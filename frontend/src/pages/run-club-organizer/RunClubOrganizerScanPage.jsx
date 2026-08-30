@@ -1,76 +1,87 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Search, Loader, UserCheck } from 'lucide-react';
+import { QrCode } from 'lucide-react';
 import CheckinScannerPage from '../../components/admin/CheckinScannerPage';
+import OrganizerGateCheckinPanel from '../../components/organizer/OrganizerGateCheckinPanel';
 import { getApiBaseUrl } from '../../config/apiBase';
 import { getRunClubOrganizerToken, getRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
-import { lookupRunClubOrganizerParticipant, runClubOrganizerCheckin } from '../../services/api/runClubOrganizer.api';
+import {
+    lookupRunClubOrganizerParticipant,
+    runClubOrganizerCheckin,
+    fetchRunClubOrganizerParticipants,
+} from '../../services/api/runClubOrganizer.api';
 import { useDialog } from '../../context/DialogContext';
-import RunClubOrganizerParticipantModal from './RunClubOrganizerParticipantModal';
 import { isEventsListingHub, organizerHubCopy } from '../../utils/listingHubCopy';
+
+function cleanPhone(phone) {
+    if (!phone || phone === '—') return '';
+    return String(phone);
+}
+
+function normalizeRunClubRow(p) {
+    if (!p) return null;
+    return {
+        id: String(p.bookingId),
+        name: p.participantName || 'Guest',
+        phone: cleanPhone(p.phone),
+        email: p.userEmail || '',
+        checkedIn: p.checkInStatus === 'Checked In' || Boolean(p.checkedIn),
+        checkedInAt: p.checkedInAt || null,
+        meta: p.bookingId ? `#${String(p.bookingId).slice(-8)}` : '',
+        raw: p,
+    };
+}
 
 export default function RunClubOrganizerScanPage() {
     const { eventId } = useParams();
-    const { toast, confirm } = useDialog();
+    const { toast } = useDialog();
     const api = getApiBaseUrl();
-    const copy = organizerHubCopy(isEventsListingHub(getRunClubOrganizerSession()?.runClub));
-    const [manualQuery, setManualQuery] = useState('');
-    const [lookupLoading, setLookupLoading] = useState(false);
-    const [lookupResults, setLookupResults] = useState([]);
-    const [detailId, setDetailId] = useState(null);
-    const [checkinLoading, setCheckinLoading] = useState(null);
+    const isEventHub = isEventsListingHub(getRunClubOrganizerSession()?.runClub);
+    const copy = organizerHubCopy(isEventHub);
+    const [rosterKey, setRosterKey] = useState(0);
 
-    const runLookup = async (e) => {
-        e?.preventDefault();
-        const q = manualQuery.trim();
-        if (!q) return;
-        setLookupLoading(true);
-        setLookupResults([]);
-        try {
-            const data = await lookupRunClubOrganizerParticipant(eventId, q);
-            setLookupResults(data.participants || []);
-            if (!data.participants?.length) toast('No matching participants');
-        } catch (err) {
-            toast(err.message || 'Lookup failed');
-        } finally {
-            setLookupLoading(false);
-        }
-    };
-
-    const manualCheckin = async (participant) => {
-        if (participant.checkInStatus === 'Checked In') {
-            toast('Already checked in');
-            return;
-        }
-        const ok = await confirm(`Check in ${participant.participantName}?`);
-        if (!ok) return;
-        setCheckinLoading(participant.bookingId);
-        try {
-            const res = await runClubOrganizerCheckin(eventId, { bookingId: participant.bookingId });
-            if (res.success || res.status === 'checked_in') {
-                toast('Check-in successful');
-                setLookupResults((prev) =>
-                    prev.map((p) =>
-                        p.bookingId === participant.bookingId
-                            ? { ...p, checkInStatus: 'Checked In', qrStatus: 'Checked In', checkedInAt: new Date().toISOString() }
-                            : p,
-                    ),
-                );
-            } else {
-                toast(res.message || res.error || 'Check-in failed');
+    const listRoster = useCallback(
+        async ({ checkInStatus, search, page, limit }) => {
+            const params = { page, limit };
+            if (checkInStatus === 'not_in' || checkInStatus === 'pending') {
+                params.checkInStatus = 'pending';
+            } else if (checkInStatus === 'checked_in') {
+                params.checkInStatus = 'checked_in';
             }
-        } catch (err) {
-            toast(err.message || 'Check-in failed');
-        } finally {
-            setCheckinLoading(null);
-        }
-    };
+            if (search) params.search = search;
+            return fetchRunClubOrganizerParticipants(eventId, params);
+        },
+        [eventId],
+    );
+
+    const lookup = useCallback(
+        (q) => lookupRunClubOrganizerParticipant(eventId, q),
+        [eventId],
+    );
+
+    const manualCheckin = useCallback(
+        async (row) => runClubOrganizerCheckin(eventId, { bookingId: row.id }),
+        [eventId],
+    );
 
     return (
-        <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold">Scan QR</h1>
-                <p className="text-sm text-gray-500">Scan ticket QR or search manually by booking ID, phone, or name.</p>
+        <div className={`mx-auto space-y-4 ${isEventHub ? 'max-w-xl' : 'max-w-2xl space-y-6'}`}>
+            <div className="flex items-start gap-3">
+                {isEventHub ? (
+                    <span className="size-10 rounded-xl bg-[#0ECCEE]/12 text-[#0ECCEE] flex items-center justify-center shrink-0">
+                        <QrCode size={18} />
+                    </span>
+                ) : null}
+                <div className="min-w-0">
+                    <h1 className={isEventHub ? 'text-xl font-semibold tracking-tight' : 'text-2xl font-bold'}>
+                        {isEventHub ? 'Scan' : 'Scan QR'}
+                    </h1>
+                    <p className="text-sm text-gray-500 mt-0.5">
+                        {isEventHub
+                            ? 'Scan a ticket QR, or check someone in from the list below.'
+                            : 'Scan ticket QR or search manually by booking ID, phone, or name.'}
+                    </p>
+                </div>
             </div>
 
             <CheckinScannerPage
@@ -84,57 +95,33 @@ export default function RunClubOrganizerScanPage() {
                 statsUrl={`${api}/run-club-organizer/events/${eventId}/checkin/stats`}
                 sessionExpiredMessage="Organizer session expired — please sign in again."
                 authErrorMessage="Access denied or session expired — sign in at the organizer portal."
-                title="Scan participant QR"
-                subtitle="Point camera at ticket QR from My Bookings"
+                title={isEventHub ? 'Scan guest QR' : 'Scan participant QR'}
+                subtitle={isEventHub ? 'Point at the ticket QR from their booking' : 'Point camera at ticket QR from My Bookings'}
+                onCheckinSuccess={() => setRosterKey((k) => k + 1)}
             />
 
-            <div className="rounded-xl border border-gray-800 bg-[#161718] p-4 space-y-3">
-                <h2 className="text-sm font-semibold flex items-center gap-2">
-                    <Search size={16} className="text-[#0ECCEE]" />
-                    Manual lookup
-                </h2>
-                <form onSubmit={runLookup} className="flex gap-2">
-                    <input
-                        value={manualQuery}
-                        onChange={(e) => setManualQuery(e.target.value)}
-                        placeholder="Booking ID, phone, or name"
-                        className="flex-1 px-3 py-2.5 rounded-xl bg-[#111213] border border-gray-800 text-sm focus:outline-none focus:border-[#0ECCEE]/50"
-                    />
-                    <button type="submit" disabled={lookupLoading} className="px-4 py-2.5 rounded-xl bg-[#0ECCEE] text-black text-sm font-bold disabled:opacity-60">
-                        {lookupLoading ? <Loader className="animate-spin" size={16} /> : 'Search'}
-                    </button>
-                </form>
-
-                {lookupResults.length > 0 ? (
-                    <div className="space-y-2">
-                        {lookupResults.map((p) => (
-                            <div key={p.bookingId} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg border border-gray-800 bg-[#111213]">
-                                <div>
-                                    <p className="font-medium">{p.participantName}</p>
-                                    <p className="text-xs text-gray-500">{p.phone} · {p.bookingId.slice(-8)}</p>
-                                    <p className="text-xs mt-0.5">{p.checkInStatus}</p>
-                                </div>
-                                <div className="flex gap-2">
-                                    <button type="button" onClick={() => setDetailId(p.bookingId)} className="px-3 py-1.5 rounded-lg border border-gray-700 text-xs">Details</button>
-                                    <button
-                                        type="button"
-                                        disabled={checkinLoading === p.bookingId || p.checkInStatus === 'Checked In'}
-                                        onClick={() => manualCheckin(p)}
-                                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600/20 text-emerald-400 text-xs font-medium disabled:opacity-40"
-                                    >
-                                        {checkinLoading === p.bookingId ? <Loader className="animate-spin" size={12} /> : <UserCheck size={12} />}
-                                        Check in
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                ) : null}
-            </div>
-
-            {detailId ? (
-                <RunClubOrganizerParticipantModal eventId={eventId} bookingId={detailId} onClose={() => setDetailId(null)} />
-            ) : null}
+            <OrganizerGateCheckinPanel
+                listRoster={listRoster}
+                lookup={lookup}
+                manualCheckin={manualCheckin}
+                normalize={normalizeRunClubRow}
+                refreshKey={rosterKey}
+                onToast={toast}
+                searchPlaceholder={isEventHub ? 'Name, phone, or booking ID' : 'Booking ID, phone, or name'}
+                outsideStatus="pending"
+                insideStatus="checked_in"
+                labels={isEventHub ? {
+                    title: 'Guest list',
+                    subtitle: 'If QR won’t scan — find them and let them in',
+                    outside: 'Outside',
+                    inside: 'Inside',
+                    outsideEmpty: 'Everyone is inside',
+                    insideEmpty: 'No check-ins yet',
+                    checkIn: 'Let in',
+                    stillOutside: 'Outside',
+                    checkedIn: 'Inside',
+                } : undefined}
+            />
         </div>
     );
 }

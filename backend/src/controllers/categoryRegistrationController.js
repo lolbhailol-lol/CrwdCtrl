@@ -219,6 +219,25 @@ exports.registerForEvent = async (req, res) => {
                 if (value === undefined || value === null || String(value).trim() === '') continue;
                 if (!String(responses[name] || '').trim()) responses[name] = value;
             }
+
+            // Block confirm if required answers (coffee, skill, gender, …) are missing
+            const missingRequired = (event.registration?.formSchema || [])
+                .filter((field) => field?.required && String(field?.fieldName || '').trim())
+                .filter((field) => {
+                    const name = String(field.fieldName).trim();
+                    // Contact PII may come from the logged-in user profile instead of responses
+                    if (/^(full_?name|name|email|e_?mail|contact_?no|phone|mobile)$/i.test(name)) {
+                        return false;
+                    }
+                    return !String(responses[name] || '').trim();
+                })
+                .map((field) => field.label || field.fieldName);
+            if (missingRequired.length > 0) {
+                return res.status(400).json({
+                    message: `Please complete: ${missingRequired.join(', ')}`,
+                    missingFields: missingRequired,
+                });
+            }
         }
 
         const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -495,6 +514,15 @@ exports.registerForEvent = async (req, res) => {
                     paymentId,
                 });
                 if (!check.ok) {
+                    if (check.status === 409 && check.registration) {
+                        const clubIdForPii = category === 'sports' ? event.runClubId : null;
+                        return res.status(200).json({
+                            success: true,
+                            alreadyRegistered: true,
+                            message: check.message || 'Registration already completed',
+                            registration: decryptRegistrationPii(check.registration, clubIdForPii),
+                        });
+                    }
                     return res.status(check.status || 400).json({ message: check.message });
                 }
                 paymentStatus = 'paid';
@@ -664,11 +692,11 @@ exports.registerForEvent = async (req, res) => {
                         registration: lean,
                         eventId: resolvedEventId,
                         eventTitle,
-                        title: 'Booking confirmed!',
-                        message: `You’re in for ${eventTitle}. Download your ticket and join the club WhatsApp for updates.`,
+                        title: 'You’re in',
+                        message: `You’re confirmed for ${eventTitle}. Save your ticket and jump into the WhatsApp group for updates.`,
                         type: 'registration',
                         link: detailsLink,
-                        emailSubject: `Booking confirmed — ${eventTitle}`,
+                        emailSubject: `You’re in — ${eventTitle}`,
                         metadata: { registrationId: String(registration._id), stage: 'confirmed' },
                         includeGroupLink: true,
                         paymentContext: {

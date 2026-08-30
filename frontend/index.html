@@ -305,21 +305,25 @@
       filter: drop-shadow(0 0 10px rgba(14, 204, 238, 0.4));
       transform: translateZ(2px) scale(1.08);
     }
+    /* Light: white plate + one crisp mark layer (hide depth stack that muddies ctrl.) */
     html:not(.dark) .boot-3d-glass {
-      background: linear-gradient(145deg, #ffffff 0%, #f4f6f8 100%);
-      border: 1px solid rgba(14, 204, 238, 0.38);
-      box-shadow: 0 16px 36px rgba(14, 204, 238, 0.12), 0 8px 20px rgba(0, 0, 0, 0.08);
+      background: #ffffff;
+      border: 1.5px solid rgba(14, 204, 238, 0.55);
+      box-shadow: 0 12px 28px rgba(14, 204, 238, 0.12), 0 4px 14px rgba(0, 0, 0, 0.06);
     }
-    html:not(.dark) .boot-3d-layer,
-    html:not(.dark) .boot-3d-layer--front {
-      mix-blend-mode: screen;
-      filter: none;
+    html:not(.dark) .boot-3d-layer {
+      display: none;
     }
     html:not(.dark) .boot-3d-layer--front {
-      filter: drop-shadow(0 0 10px rgba(14, 204, 238, 0.35));
+      display: block;
+      mix-blend-mode: normal;
+      opacity: 1;
+      filter: drop-shadow(0 2px 8px rgba(14, 204, 238, 0.28));
+      transform: translateZ(2px) scale(1.08);
+      image-rendering: -webkit-optimize-contrast;
     }
     html:not(.dark) .boot-3d-orb {
-      background: radial-gradient(circle at 35% 30%, rgba(14, 204, 238, 0.22), transparent 65%);
+      background: radial-gradient(circle at 35% 30%, rgba(14, 204, 238, 0.16), transparent 65%);
     }
     #boot-fallback {
       position: fixed;
@@ -333,7 +337,7 @@
       padding: 1.5rem;
       text-align: center;
       font-family: Poppins, system-ui, sans-serif;
-      background: #fff;
+      background: #ffffff;
       color: #111;
     }
     #boot-fallback[hidden] {
@@ -395,13 +399,13 @@
         <div class="boot-3d-ring"></div>
         <div class="boot-3d-extrude">
           <div class="boot-3d-glass"></div>
-          <img class="boot-3d-layer boot-3d-layer--front" src="/crwdctrl-mark.png" alt="" width="500" height="500" decoding="sync" style="--layer:0" />
-          <img class="boot-3d-layer" src="/crwdctrl-mark.png" alt="" width="500" height="500" decoding="sync" style="--layer:1" />
-          <img class="boot-3d-layer" src="/crwdctrl-mark.png" alt="" width="500" height="500" decoding="sync" style="--layer:2" />
-          <img class="boot-3d-layer" src="/crwdctrl-mark.png" alt="" width="500" height="500" decoding="sync" style="--layer:3" />
-          <img class="boot-3d-layer" src="/crwdctrl-mark.png" alt="" width="500" height="500" decoding="sync" style="--layer:4" />
-          <img class="boot-3d-layer" src="/crwdctrl-mark.png" alt="" width="500" height="500" decoding="sync" style="--layer:5" />
-          <img class="boot-3d-layer" src="/crwdctrl-mark.png" alt="" width="500" height="500" decoding="sync" style="--layer:6" />
+          <img class="boot-3d-layer boot-3d-layer--front" src="/crwdctrl-mark.png" data-mark-dark="/crwdctrl-mark.png" data-mark-light="/crwdctrl-mark-light.png" alt="" width="500" height="500" decoding="sync" style="--layer:0" />
+          <img class="boot-3d-layer" src="/crwdctrl-mark.png" data-mark-dark="/crwdctrl-mark.png" data-mark-light="/crwdctrl-mark-light.png" alt="" width="500" height="500" decoding="sync" style="--layer:1" />
+          <img class="boot-3d-layer" src="/crwdctrl-mark.png" data-mark-dark="/crwdctrl-mark.png" data-mark-light="/crwdctrl-mark-light.png" alt="" width="500" height="500" decoding="sync" style="--layer:2" />
+          <img class="boot-3d-layer" src="/crwdctrl-mark.png" data-mark-dark="/crwdctrl-mark.png" data-mark-light="/crwdctrl-mark-light.png" alt="" width="500" height="500" decoding="sync" style="--layer:3" />
+          <img class="boot-3d-layer" src="/crwdctrl-mark.png" data-mark-dark="/crwdctrl-mark.png" data-mark-light="/crwdctrl-mark-light.png" alt="" width="500" height="500" decoding="sync" style="--layer:4" />
+          <img class="boot-3d-layer" src="/crwdctrl-mark.png" data-mark-dark="/crwdctrl-mark.png" data-mark-light="/crwdctrl-mark-light.png" alt="" width="500" height="500" decoding="sync" style="--layer:5" />
+          <img class="boot-3d-layer" src="/crwdctrl-mark.png" data-mark-dark="/crwdctrl-mark.png" data-mark-light="/crwdctrl-mark-light.png" alt="" width="500" height="500" decoding="sync" style="--layer:6" />
         </div>
       </div>
     </div>
@@ -465,6 +469,17 @@
       var reloadBtn = document.getElementById('boot-fallback-reload');
       var skipSplash = document.documentElement.classList.contains('skip-boot-splash');
       var shortSplash = document.documentElement.classList.contains('short-boot-splash');
+
+      (function syncBootMarks() {
+        var dark = document.documentElement.classList.contains('dark');
+        var layers = document.querySelectorAll('#boot-splash img.boot-3d-layer[data-mark-light]');
+        for (var i = 0; i < layers.length; i++) {
+          var el = layers[i];
+          el.src = dark
+            ? (el.getAttribute('data-mark-dark') || '/crwdctrl-mark.png')
+            : (el.getAttribute('data-mark-light') || '/crwdctrl-mark-light.png');
+        }
+      })();
 
       function showFallback() {
         if (!fallback || fallback.hidden === false) return;

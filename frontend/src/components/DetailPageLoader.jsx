@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { isHomeHubPath } from '../utils/homeShellReady';
 import markLogo from '../assets/crwdctrl-mark.png';
+import markLogoLight from '../assets/crwdctrl-mark-light.png';
 import { LOGO_SOURCE_PX } from '../constants/logo';
 
 function readShellDark() {
@@ -35,17 +36,20 @@ const LOGO_VARIANTS = new Set(['default', 'brand', 'competition']);
 
 const LOGO_EXTRUDE_LAYERS = [0, 1, 2, 3, 4, 5, 6];
 
-function CrwdCtrl3DMark() {
+function CrwdCtrl3DMark({ isDark = false }) {
+  // Dark: full depth stack + screen blend. Light: one sharp layer (no muddy 3D inside letters).
+  const src = isDark ? markLogo : markLogoLight;
+  const layers = isDark ? LOGO_EXTRUDE_LAYERS : [0];
   return (
     <>
       <div className="detail-loader-orb" />
       <div className="detail-loader-ring" />
       <div className="detail-loader-extrude">
         <div className="detail-loader-glass" />
-        {LOGO_EXTRUDE_LAYERS.map((layer) => (
+        {layers.map((layer) => (
           <img
             key={layer}
-            src={markLogo}
+            src={src}
             alt=""
             width={LOGO_SOURCE_PX}
             height={LOGO_SOURCE_PX}
@@ -86,7 +90,7 @@ export function DetailLoader3DIcon({
   return (
     <div className={`${stageClass}${useLogo ? ' detail-loader-stage--mark' : ''} ${toneClass} shrink-0 ${className}`.trim()} aria-hidden>
       {useLogo || !VariantIcon ? (
-        <CrwdCtrl3DMark />
+        <CrwdCtrl3DMark isDark={isDark} />
       ) : (
         <>
           <div className="detail-loader-orb" />
@@ -110,11 +114,13 @@ export function InlinePageLoader({
   variant = 'default',
   size = 'md',
   className = '',
-  labelClassName = 'text-sm text-gray-400',
+  labelClassName = '',
   minHeight = true,
   fullScreen = false,
 }) {
   const isDark = readShellDark();
+  const labelCls = labelClassName
+    || (isDark ? 'text-sm text-gray-400' : 'text-sm font-semibold text-gray-700');
   return (
     <div
       className={`flex flex-col items-center justify-center gap-4 ${
@@ -129,7 +135,7 @@ export function InlinePageLoader({
       aria-label={label || 'Loading'}
     >
       <DetailLoader3DIcon variant={variant} size={size} tone={isDark ? 'dark' : 'light'} />
-      {label ? <p className={labelClassName}>{label}</p> : null}
+      {label ? <p className={labelCls}>{label}</p> : null}
     </div>
   );
 }
@@ -138,7 +144,7 @@ export function InlinePageLoader({
 export function HomeHubLoadingScreen() {
   const node = (
     <div
-      className={`home-hub-loading-screen fixed inset-0 z-100020 flex items-center justify-center ${shellBgClass()}`}
+      className={`home-hub-loading-screen fixed inset-0 z-100050 flex items-center justify-center ${shellBgClass()}`}
       style={{
         paddingTop: 'max(var(--safe-top), 0px)',
         paddingBottom: 'max(var(--safe-bottom), 0px)',
@@ -165,7 +171,7 @@ export function RouteLoadingFallback({ className = '' }) {
 
   const node = (
     <div
-      className={`fixed inset-0 z-100020 flex items-center justify-center ${shellBgClass()} ${className}`.trim()}
+      className={`route-loading-fallback-root fixed inset-0 z-100050 flex items-center justify-center ${shellBgClass()} ${className}`.trim()}
       aria-busy="true"
       aria-label="Loading page"
     >
@@ -178,15 +184,16 @@ export function RouteLoadingFallback({ className = '' }) {
 }
 
 /**
- * Detail-page wait state — light 3D icon + short message
- * (used while fest / competition / trek / sports details load).
+ * Detail-page wait state — logo + short type label
+ * (fest / competition / trek / sports / event community).
  * Portaled to body so parent transforms never offset it; icon sits on true viewport center.
  */
 export default function DetailPageLoader({
-  label = 'Hang tight — loading details',
-  variant = 'default',
+  label = 'Loading',
+  variant = 'brand',
 }) {
   const isDark = readShellDark();
+  const displayLabel = String(label || 'Loading').trim() || 'Loading';
 
   useLayoutEffect(() => {
     document.body.classList.add('detail-page-loading');
@@ -195,7 +202,7 @@ export default function DetailPageLoader({
 
   const node = (
     <div
-      className={`fixed inset-0 z-100050 flex items-center justify-center ${shellBgClass(isDark)}`}
+      className={`detail-page-loader-root fixed inset-0 z-100050 flex items-center justify-center ${shellBgClass(isDark)}`}
       style={{
         paddingTop: 'max(var(--safe-top), 0px)',
         paddingBottom: 'max(var(--safe-bottom), 0px)',
@@ -204,18 +211,14 @@ export default function DetailPageLoader({
       }}
       role="status"
       aria-live="polite"
-      aria-label={label || 'Loading'}
+      aria-label={displayLabel}
     >
-      {/* Icon locked to visual center; copy sits below without pulling the icon up */}
       <div className="relative flex flex-col items-center justify-center">
         <DetailLoader3DIcon variant={variant} tone={isDark ? 'dark' : 'light'} />
         <div className="absolute top-full left-1/2 mt-6 w-max max-w-[min(90vw,20rem)] -translate-x-1/2 px-6 text-center pointer-events-none">
-          {label ? (
-            <p className={`text-sm font-medium tracking-wide ${isDark ? 'text-white/70' : 'text-gray-600'}`}>
-              {label}
-            </p>
-          ) : null}
-          <p className={`text-xs ${isDark ? 'text-white/35' : 'text-gray-400'} ${label ? 'mt-1.5' : ''}`}>Almost there</p>
+          <p className={`text-sm font-semibold tracking-wide ${isDark ? 'text-white/75' : 'text-gray-700'}`}>
+            {displayLabel}
+          </p>
         </div>
       </div>
     </div>

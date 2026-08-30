@@ -13,6 +13,11 @@ import {
     markLoginModalOpen,
 } from '../../utils/loginFlow';
 import { useInAppBack } from '../../hooks/useInAppBack';
+import OpenInBrowserModal from '../../components/OpenInBrowserModal';
+import {
+    detectInAppBrowserName,
+    isLikelyInAppBrowser,
+} from '../../utils/openInExternalBrowser';
 
 function GoogleIcon({ className = 'w-5 h-5 sm:w-6 sm:h-6' }) {
     return (
@@ -40,6 +45,8 @@ export default function CrwdCtrlLogin({
     const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [errors, setErrors] = useState({});
+    const [showOpenBrowserSheet, setShowOpenBrowserSheet] = useState(false);
+    const [inAppBrowserName, setInAppBrowserName] = useState('this app');
     const { login, isAuthenticated, user } = useAuth();
     const { isDark } = useDarkMode();
     const navigate = useNavigate();
@@ -193,6 +200,15 @@ export default function CrwdCtrlLogin({
     // Google Social Login Handler
     const handleGoogleAuth = async () => {
         if (googleAuthInFlightRef.current || isLoading) return;
+
+        // Instagram / FB / WhatsApp: show “Open in Chrome” sheet (don't start Google OAuth here)
+        if (isLikelyInAppBrowser()) {
+            setInAppBrowserName(detectInAppBrowserName());
+            setShowOpenBrowserSheet(true);
+            setErrors({});
+            return;
+        }
+
         googleAuthInFlightRef.current = true;
         setIsLoading(true);
         setErrors({});
@@ -238,17 +254,9 @@ export default function CrwdCtrlLogin({
             
             // Check for in-app browser error (Instagram, Facebook, TikTok, etc.)
             if (error?.isInAppBrowser || error?.showOpenInBrowser || errorStr.includes('in-app-browser') || errorStr.includes('Open in Chrome') || errorStr.includes('Open in Safari')) {
-                setErrors({ 
-                    general: errorStr || 'Google Sign-In is blocked in this browser. Please open in Chrome or Safari.',
-                    showOpenInBrowser: true,
-                    errorDetails: error?.errorDetails || {
-                        icon: '📱',
-                        title: 'Browser Limitation',
-                        suggestion: 'Google Sign-In requires a full browser',
-                        instructions: 'Tap the ⋮ or ⋯ menu and select "Open in Browser" or "Open in Chrome/Safari"'
-                    },
-                    openInBrowser: error?.openInBrowserUrl || window.location.href
-                });
+                setInAppBrowserName(error?.appName || detectInAppBrowserName());
+                setShowOpenBrowserSheet(true);
+                setErrors({});
             } else if (errorStr.includes('unauthorized-domain')) {
                 errorMessage = 'This domain is not authorized for Google Sign-In. Please contact support.';
                 setErrors({ general: errorMessage });
@@ -257,17 +265,9 @@ export default function CrwdCtrlLogin({
                 const ua = navigator.userAgent || '';
                 const isInApp = /Instagram|FBAN|FBAV|TikTok|WhatsApp/i.test(ua);
                 if (isInApp) {
-                    setErrors({ 
-                        general: 'Google Sign-In is blocked in this browser. Please tap the ⋯ menu and select "Open in Chrome" or "Open in Safari".',
-                        showOpenInBrowser: true,
-                        errorDetails: {
-                            icon: '📱',
-                            title: 'Browser Limitation',
-                            suggestion: 'Google Sign-In requires a full browser',
-                            instructions: 'Tap the ⋮ or ⋯ menu and select "Open in Browser"'
-                        },
-                        openInBrowser: window.location.href
-                    });
+                    setInAppBrowserName(detectInAppBrowserName());
+                    setShowOpenBrowserSheet(true);
+                    setErrors({});
                 } else {
                     setErrors({ general: errorMessage });
                 }
@@ -440,13 +440,30 @@ export default function CrwdCtrlLogin({
     ) : null;
 
     if (googleOnly && isModal) {
-        return typeof document !== 'undefined'
+        const sheet = typeof document !== 'undefined'
             ? createPortal(googleOnlySheet, document.body)
             : googleOnlySheet;
+        return (
+            <>
+                {sheet}
+                <OpenInBrowserModal
+                    open={showOpenBrowserSheet}
+                    onClose={() => setShowOpenBrowserSheet(false)}
+                    appName={inAppBrowserName}
+                    isDark={isDark}
+                />
+            </>
+        );
     }
 
     return (
         <>
+            <OpenInBrowserModal
+                open={showOpenBrowserSheet}
+                onClose={() => setShowOpenBrowserSheet(false)}
+                appName={inAppBrowserName}
+                isDark={isDark}
+            />
             {/* Background overlay with blur - only show for modal */}
             {isModal && (
                 <div className={`fixed inset-0 ${isDark ? 'bg-black/50' : 'bg-black/30'}`} onClick={handleClose}></div>

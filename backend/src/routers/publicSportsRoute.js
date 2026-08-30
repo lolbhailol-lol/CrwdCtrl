@@ -19,7 +19,18 @@ const {
     sportsActivityNoun,
     sportsNotFoundMessage,
 } = require('../utils/listingHubCopy');
-const { sanitizePublicSportsEvent } = require('../utils/publicEntitySanitize');
+const { sanitizePublicSportsEvent, SPORTS_LIST_SELECT } = require('../utils/publicEntitySanitize');
+
+let eventClubIdsCache = { at: 0, ids: null };
+async function getEventHubClubIds() {
+    const now = Date.now();
+    if (eventClubIdsCache.ids && now - eventClubIdsCache.at < 60_000) {
+        return eventClubIdsCache.ids;
+    }
+    const ids = await RunClub.find({ listingHub: 'events' }).distinct('_id');
+    eventClubIdsCache = { at: now, ids };
+    return ids;
+}
 
 function getOptionalUserId(req) {
     try {
@@ -45,7 +56,7 @@ router.get('/', async (req, res) => {
         const and = [];
 
         if (hub === 'events') {
-            const eventClubIds = await RunClub.find({ listingHub: 'events' }).distinct('_id');
+            const eventClubIds = await getEventHubClubIds();
             and.push({ status: 'published' });
             and.push({ runClubId: { $in: eventClubIds } });
         } else if (hasClub && timeframe === 'past') {
@@ -99,6 +110,7 @@ router.get('/', async (req, res) => {
             : { priority: 1, eventDate: 1, createdAt: -1 };
 
         const events = await SportsEvent.find(filter)
+            .select(SPORTS_LIST_SELECT)
             .sort(sort)
             .limit(100)
             .lean();
@@ -106,7 +118,7 @@ router.get('/', async (req, res) => {
         res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
         res.status(200).json({
             events: events.map((e) => {
-                const clean = sanitizePublicSportsEvent(e);
+                const clean = sanitizePublicSportsEvent(e, { forList: true });
                 if (hub === 'events') clean.listingHub = 'events';
                 return clean;
             }),

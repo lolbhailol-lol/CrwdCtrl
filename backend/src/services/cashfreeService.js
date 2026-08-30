@@ -3,28 +3,68 @@ const crypto = require('crypto');
 
 const API_VERSION = '2025-01-01';
 
-const getCashfreeServerEnv = () =>
-  process.env.CASHFREE_ENV === 'production' ? 'production' : 'sandbox';
+/** @typedef {'platform' | 'events'} CashfreeMerchant */
+
+/**
+ * Platform = fests / run clubs / default.
+ * Events = Delulu Athletes (listingHub=events) community bookings — separate Cashfree account.
+ */
+function normalizeMerchant(merchant) {
+  return merchant === 'events' ? 'events' : 'platform';
+}
+
+function getCashfreeServerEnv(merchant = 'platform') {
+  const m = normalizeMerchant(merchant);
+  if (m === 'events') {
+    const eventsEnv = String(process.env.CASHFREE_EVENTS_ENV || '').trim().toLowerCase();
+    if (eventsEnv === 'production' || eventsEnv === 'sandbox') return eventsEnv;
+  }
+  return process.env.CASHFREE_ENV === 'production' ? 'production' : 'sandbox';
+}
 
 /** Must match @cashfreepayments/cashfree-js `load({ mode })` on the frontend. */
-const getCashfreeClientMode = () => getCashfreeServerEnv();
+const getCashfreeClientMode = (merchant = 'platform') => getCashfreeServerEnv(merchant);
 
-const getBaseUrl = () =>
-  getCashfreeServerEnv() === 'production'
+const getBaseUrl = (merchant = 'platform') =>
+  getCashfreeServerEnv(merchant) === 'production'
     ? 'https://api.cashfree.com/pg'
     : 'https://sandbox.cashfree.com/pg';
 
-const getHeaders = () => ({
-  'x-client-id': process.env.CASHFREE_CLIENT_ID,
-  'x-client-secret': process.env.CASHFREE_CLIENT_SECRET,
-  'x-api-version': API_VERSION,
-  'Content-Type': 'application/json',
-  Accept: 'application/json',
-});
+function getMerchantCredentials(merchant = 'platform') {
+  const m = normalizeMerchant(merchant);
+  if (m === 'events') {
+    const id = process.env.CASHFREE_EVENTS_CLIENT_ID?.trim();
+    const secret = process.env.CASHFREE_EVENTS_CLIENT_SECRET?.trim();
+    if (id && secret) return { clientId: id, clientSecret: secret, merchant: 'events' };
+    // Fail closed for events — never silently charge the platform merchant.
+    return { clientId: '', clientSecret: '', merchant: 'events' };
+  }
+  return {
+    clientId: process.env.CASHFREE_CLIENT_ID?.trim() || '',
+    clientSecret: process.env.CASHFREE_CLIENT_SECRET?.trim() || '',
+    merchant: 'platform',
+  };
+}
 
-function assertCredentials() {
-  if (!process.env.CASHFREE_CLIENT_ID?.trim() || !process.env.CASHFREE_CLIENT_SECRET?.trim()) {
-    const err = new Error('Cashfree credentials not configured');
+const getHeaders = (merchant = 'platform') => {
+  const { clientId, clientSecret } = getMerchantCredentials(merchant);
+  return {
+    'x-client-id': clientId,
+    'x-client-secret': clientSecret,
+    'x-api-version': API_VERSION,
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  };
+};
+
+function assertCredentials(merchant = 'platform') {
+  const { clientId, clientSecret, merchant: m } = getMerchantCredentials(merchant);
+  if (!clientId || !clientSecret) {
+    const err = new Error(
+      m === 'events'
+        ? 'Cashfree events merchant credentials not configured (CASHFREE_EVENTS_CLIENT_ID / CASHFREE_EVENTS_CLIENT_SECRET)'
+        : 'Cashfree credentials not configured',
+    );
     err.code = 'CASHFREE_CREDENTIALS_MISSING';
     throw err;
   }
@@ -82,8 +122,10 @@ async function createCashfreeOrder({
   orderMeta = {},
   orderNote = '',
   orderTags = {},
+  merchant = 'platform',
 }) {
-  assertCredentials();
+  const m = normalizeMerchant(merchant);
+  assertCredentials(m);
   const orderId = generateOrderId();
   const payload = {
     order_id: orderId,
@@ -103,26 +145,29 @@ async function createCashfreeOrder({
     order_tags: sanitizeCashfreeOrderTags(orderTags),
   };
 
-  const response = await axios.post(`${getBaseUrl()}/orders`, payload, { headers: getHeaders() });
+  const response = await axios.post(`${getBaseUrl(m)}/orders`, payload, { headers: getHeaders(m) });
+  return { ...response.data, cashfreeMerchant: m };
+}
+
+async function fetchOrder(orderId, { merchant = 'platform' } = {}) {
+  const m = normalizeMerchant(merchant);
+  const response = await axios.get(`${getBaseUrl(m)}/orders/${orderId}`, { headers: getHeaders(m) });
   return response.data;
 }
 
-async function fetchOrder(orderId) {
-  const response = await axios.get(`${getBaseUrl()}/orders/${orderId}`, { headers: getHeaders() });
+async function fetchPaymentsForOrder(orderId, { merchant = 'platform' } = {}) {
+  const m = normalizeMerchant(merchant);
+  const response = await axios.get(`${getBaseUrl(m)}/orders/${orderId}/payments`, { headers: getHeaders(m) });
   return response.data;
 }
 
-async function fetchPaymentsForOrder(orderId) {
-  const response = await axios.get(`${getBaseUrl()}/orders/${orderId}/payments`, { headers: getHeaders() });
-  return response.data;
-}
-
-async function fetchOrderSettlements(orderId) {
-  assertCredentials();
+async function fetchOrderSettlements(orderId, { merchant = 'platform' } = {}) {
+  const m = normalizeMerchant(merchant);
+  assertCredentials(m);
   try {
     const response = await axios.get(
-      `${getBaseUrl()}/orders/${encodeURIComponent(orderId)}/settlements`,
-      { headers: getHeaders() },
+      `${getBaseUrl(m)}/orders/${encodeURIComponent(orderId)}/settlements`,
+      { headers: getHeaders(m) },
     );
     return { ok: true, status: response.status, data: response.data };
   } catch (err) {
@@ -189,10 +234,11 @@ function buildVerifyMessages(status, orderStatus) {
   }
 }
 
-async function verifyCashfreePayment({ orderId, paymentId }) {
+async function verifyCashfreePayment({ orderId, paymentId, merchant = 'platform' }) {
+  const m = normalizeMerchant(merchant);
   let order;
   try {
-    order = await fetchOrder(orderId);
+    order = await fetchOrder(orderId, { merchant: m });
   } catch (err) {
     if (err.response?.status === 404) {
       const meta = buildVerifyMessages('not_found', null);
@@ -220,7 +266,7 @@ async function verifyCashfreePayment({ orderId, paymentId }) {
     };
   }
 
-  const paymentsRaw = await fetchPaymentsForOrder(orderId);
+  const paymentsRaw = await fetchPaymentsForOrder(orderId, { merchant: m });
   const payments = Array.isArray(paymentsRaw) ? paymentsRaw : [];
   const customerPhone = firstValidCustomerPhone([
     order?.customer_details?.customer_phone,
@@ -237,15 +283,16 @@ async function verifyCashfreePayment({ orderId, paymentId }) {
     );
     if (!match) {
       return {
-        verified: true,
-        status: 'paid',
-        code: 'PAYMENT_PAID',
-        message: 'Payment confirmed.',
-        retryable: false,
+        verified: false,
+        status: 'failed',
         orderId,
         paymentId: String(paymentId),
         orderStatus,
+        code: 'PAYMENT_MISMATCH',
+        message: 'Payment ID does not match a successful payment for this order.',
+        retryable: false,
         customerPhone,
+        cashfreeMerchant: m,
       };
     }
     return {
@@ -258,6 +305,7 @@ async function verifyCashfreePayment({ orderId, paymentId }) {
       paymentId: match.cf_payment_id,
       orderStatus,
       customerPhone,
+      cashfreeMerchant: m,
     };
   }
 
@@ -274,6 +322,7 @@ async function verifyCashfreePayment({ orderId, paymentId }) {
       paymentId: paymentId || null,
       orderStatus,
       customerPhone,
+      cashfreeMerchant: m,
     };
   }
 
@@ -287,6 +336,7 @@ async function verifyCashfreePayment({ orderId, paymentId }) {
     paymentId: successPayment.cf_payment_id,
     orderStatus,
     customerPhone,
+    cashfreeMerchant: m,
   };
 }
 
@@ -304,6 +354,8 @@ function getWebhookSecretCandidates() {
     process.env.CASHFREE_CLIENT_SECRET,
     process.env.CASHFREE_CLIENT_SECRET_PROD,
     process.env.CASHFREE_CLIENT_SECRET_SANDBOX,
+    process.env.CASHFREE_EVENTS_WEBHOOK_SECRET,
+    process.env.CASHFREE_EVENTS_CLIENT_SECRET,
   ]
     .map((s) => s?.trim())
     .filter(Boolean)
@@ -343,6 +395,8 @@ function inspectWebhookSignature({ signature, timestamp, rawBody }) {
     ['CASHFREE_CLIENT_SECRET', process.env.CASHFREE_CLIENT_SECRET],
     ['CASHFREE_CLIENT_SECRET_PROD', process.env.CASHFREE_CLIENT_SECRET_PROD],
     ['CASHFREE_CLIENT_SECRET_SANDBOX', process.env.CASHFREE_CLIENT_SECRET_SANDBOX],
+    ['CASHFREE_EVENTS_WEBHOOK_SECRET', process.env.CASHFREE_EVENTS_WEBHOOK_SECRET],
+    ['CASHFREE_EVENTS_CLIENT_SECRET', process.env.CASHFREE_EVENTS_CLIENT_SECRET],
   ]
     .map(([label, val]) => [label, val?.trim()])
     .filter(([, val]) => Boolean(val));
@@ -384,5 +438,7 @@ module.exports = {
   firstValidCustomerPhone,
   sanitizeCashfreeOrderTags,
   getCashfreeClientMode,
+  normalizeMerchant,
+  getMerchantCredentials,
   mapOrderStatus,
 };

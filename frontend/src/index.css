@@ -1004,16 +1004,12 @@ html.theme-switching .hero-search-bar {
 
 html:not(.dark) body,
 html:not(.dark) #root {
-    background-color: #ffffff;
+    background-color: var(--chrome-page-bg-light);
 }
 
 html.dark body,
 html.dark #root {
-    background-color: #161718;
-}
-
-html:not(.dark) .bg-\[\#EDEDF2\] {
-    background-color: #ffffff !important;
+    background-color: var(--chrome-page-bg-dark);
 }
 
 /* Competition / fest contact cards — never stay black in light mode */
@@ -1021,7 +1017,13 @@ html:not(.dark) .contact-details-box {
     background-color: #f9fafb !important;
     border-color: #e5e7eb !important;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
-    color: #111827;
+    color: #111827 !important;
+}
+
+html.dark .contact-details-box {
+    background-color: #111213 !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    color: #f3f4f6 !important;
 }
 
 /* Dark mode global styles */
@@ -1414,36 +1416,41 @@ html:not(.dark) .crwdctrl-footer {
     transform: translateZ(2px) scale(1.08);
 }
 
+/* Light mode loader mark — white page/plate; single crisp ctrl. (same clarity as dark) */
 html:not(.dark) .detail-loader-glass,
 .detail-loader-tone-light .detail-loader-glass {
-    background: linear-gradient(145deg, #ffffff 0%, #f4f6f8 100%);
-    border: 1px solid rgba(14, 204, 238, 0.38);
+    background: #ffffff;
+    border: 1.5px solid rgba(14, 204, 238, 0.55);
     box-shadow:
-        0 16px 36px rgba(14, 204, 238, 0.12),
-        0 8px 20px rgba(0, 0, 0, 0.08);
+        0 12px 28px rgba(14, 204, 238, 0.12),
+        0 4px 14px rgba(0, 0, 0, 0.06);
 }
 
-/* Logo PNG has a black matte — screen blend drops the black on light backgrounds */
 html:not(.dark) .detail-loader-logo-layer,
 html:not(.dark) .detail-loader-logo-layer--front,
 .detail-loader-tone-light .detail-loader-logo-layer,
 .detail-loader-tone-light .detail-loader-logo-layer--front {
-    mix-blend-mode: screen;
+    mix-blend-mode: normal;
+    opacity: 1;
     filter: none;
+    /* Match dark front-layer scale; no stacked depth ghosts */
+    transform: translateZ(2px) scale(1.08);
+    image-rendering: -webkit-optimize-contrast;
 }
 
 html:not(.dark) .detail-loader-logo-layer--front,
 .detail-loader-tone-light .detail-loader-logo-layer--front {
-    filter: drop-shadow(0 0 10px rgba(14, 204, 238, 0.35));
+    filter: drop-shadow(0 2px 8px rgba(14, 204, 238, 0.28));
 }
 
 html:not(.dark) .detail-loader-orb,
 .detail-loader-tone-light .detail-loader-orb {
-    background: radial-gradient(circle at 35% 30%, rgba(14, 204, 238, 0.22), transparent 65%);
+    background: radial-gradient(circle at 35% 30%, rgba(14, 204, 238, 0.16), transparent 65%);
 }
 
 html:not(.dark) .detail-loader-card-front,
 .detail-loader-tone-light .detail-loader-card-front {
+    /* Icon card only (non-logo variants) */
     background: linear-gradient(145deg, #ffffff 0%, #f0f4f8 55%, #e8ecf0 100%);
     border: 1px solid rgba(14, 204, 238, 0.42);
     box-shadow:
@@ -1699,7 +1706,7 @@ html[data-home-hub-loading] .crwdctrl-footer {
     display: none !important;
 }
 
-/* One solid viewport while home hub / page data / route overlay loads — no black/grey split */
+/* One solid viewport while home hub / page data / route overlay loads */
 html[data-home-hub-loading],
 html[data-home-hub-loading] body,
 html[data-home-hub-loading] #root,
@@ -1729,7 +1736,23 @@ html.dark body.page-transition-active .crwdctrl-app-shell,
 html.dark body.detail-page-loading,
 html.dark body.detail-page-loading #root,
 html.dark body.detail-page-loading .crwdctrl-app-shell {
-    background-color: #161718 !important;
+    background-color: var(--chrome-page-bg-dark) !important;
+}
+
+/* Loader overlays — white in light, charcoal in dark; sit above bottom nav */
+.page-transition-skeleton-root,
+.detail-page-loader-root,
+.route-loading-fallback-root,
+.home-hub-loading-screen {
+    z-index: 100050 !important;
+    background-color: #ffffff !important;
+}
+
+html.dark .page-transition-skeleton-root,
+html.dark .detail-page-loader-root,
+html.dark .route-loading-fallback-root,
+html.dark .home-hub-loading-screen {
+    background-color: var(--chrome-page-bg-dark) !important;
 }
 
 /* Detail deep-link loaders: hide header chrome so the screen stays one flat color */
@@ -2343,7 +2366,7 @@ h3, h4, h5, h6 {
     }
 }
 
-/* Loading / wait screens — kill header→page chrome gradient so the fill is one colour */
+/* Loading / wait screens — one solid fill matching theme page bg */
 body.page-content-loading .crwdctrl-page,
 body.page-content-loading .crwdctrl-page.crwdctrl-page--hub,
 body.page-content-loading .crwdctrl-page.crwdctrl-page--content,

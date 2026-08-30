@@ -10,13 +10,18 @@ export function hasPendingOAuthRedirect() {
     }
 }
 
-/** Clear OAuth redirect markers (fixes stuck loading on Capacitor after failed redirects). */
-export function clearOAuthRedirectMarkers() {
+/**
+ * Clear OAuth progress markers.
+ * Keep auth_redirect_url by default so post-login can return to the booking form.
+ */
+export function clearOAuthRedirectMarkers({ keepReturnUrl = true } = {}) {
     try {
         sessionStorage.removeItem('auth_redirect_type');
         sessionStorage.removeItem('auth_redirect_timestamp');
-        sessionStorage.removeItem('auth_redirect_url');
         sessionStorage.removeItem('auth_in_app_browser');
+        if (!keepReturnUrl) {
+            sessionStorage.removeItem('auth_redirect_url');
+        }
     } catch {
         /* ignore */
     }

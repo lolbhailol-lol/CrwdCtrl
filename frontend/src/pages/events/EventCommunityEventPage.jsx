@@ -23,8 +23,9 @@ import { publicFetchJSONRetry } from '../../services/api/client';
 import { DETAIL_FETCH_OPTS, classifyDetailLoadError } from '../../utils/detailPageLoad';
 import { trackBookNowClick } from '../../services/analyticsService';
 import { organizerHubCopy } from '../../utils/listingHubCopy';
+import { usePageContentLoading } from '../../hooks/usePageContentLoading';
 
-const RUN_DETAIL_CACHE_PREFIX = 'crwdctrl_event_community_detail_v17_';
+const RUN_DETAIL_CACHE_PREFIX = 'crwdctrl_event_community_detail_v18_';
 const readRunDetailCache = (key) => {
     try {
         const raw = sessionStorage.getItem(`${RUN_DETAIL_CACHE_PREFIX}${key}`);
@@ -44,20 +45,24 @@ function seedEventFromNav(navEvent) {
     return navEvent;
 }
 
-/** Club cards pass a thin stub (_id/title/image). Don't paint fee CTA until pricing is known. */
+/** Full event payload — pricing + enough fields that the page won't flash stubs/demo */
 function hasPricingSnapshot(ev) {
     if (!ev) return false;
     if (ev.pricingMode === 'tiers') return Array.isArray(ev.tiers);
     return typeof ev.registrationFee === 'number';
 }
 
+function isHydratedEvent(ev) {
+    if (!hasPricingSnapshot(ev)) return false;
+    // Require API-shaped fields so thin nav seeds never paint
+    return Boolean(ev.description != null || ev.overview != null || ev.formSchema || ev.runClub || ev.venue != null);
+}
+
 function pickRunFallback(seeded, cachedEvent, routeParam) {
     const seedOk = entityMatchesRouteParam(seeded, routeParam, ['title', 'name']);
     const cacheOk = entityMatchesRouteParam(cachedEvent, routeParam, ['title', 'name']);
-    if (seedOk && hasPricingSnapshot(seeded)) return seeded;
-    if (cacheOk && hasPricingSnapshot(cachedEvent)) return cachedEvent;
-    // Prefer richer cache over a thin title/image stub
-    if (cacheOk && cachedEvent && !hasPricingSnapshot(seeded)) return cachedEvent;
+    if (seedOk && isHydratedEvent(seeded)) return seeded;
+    if (cacheOk && isHydratedEvent(cachedEvent)) return cachedEvent;
     return null;
 }
 
@@ -143,10 +148,10 @@ export default function EventCommunityEventPage() {
         const cachedEvent = cachedByParam || cachedById;
         const fallback = pickRunFallback(seeded, cachedEvent, id);
 
-        // Only paint hydrated seed/cache — thin club stubs flash "Free" before API returns
-        setEvent(fallback);
+        // Always logo-load first — never paint thin/nav/demo stubs (Free flash, old copy)
+        setEvent(null);
         setLoadError('');
-        setLoading(!fallback);
+        setLoading(true);
 
         setImgPg(0);
         setOverviewExpanded(false);
@@ -206,9 +211,10 @@ export default function EventCommunityEventPage() {
     }, [event, id, navigate, location.state]);
 
     const showPageLoader = loading || (event && id && !entityMatchesRouteParam(event, id, ['title', 'name']));
+    usePageContentLoading(showPageLoader);
 
     if (showPageLoader) {
-        return <DetailPageLoader label="Loading event" />;
+        return <DetailPageLoader label="Loading event" variant="event" />;
     }
 
     if (!event) {
@@ -313,7 +319,7 @@ export default function EventCommunityEventPage() {
                 ]}
             />
             <div className="mx-auto w-full md:max-w-2xl flex flex-col flex-1">
-            <div className="relative w-full h-[396px] shrink-0 overflow-hidden">
+            <div className="relative w-full h-[396px] shrink-0 overflow-hidden bg-[#1A1B1D]">
                 <div
                     ref={imgRef}
                     className="overflow-x-auto scrollbar-hide snap-x snap-mandatory w-full h-full"
@@ -331,16 +337,16 @@ export default function EventCommunityEventPage() {
                 >
                     <div className="flex h-full">
                         {images.map((img, i) => (
-                            <div key={i} className="shrink-0 w-full h-full snap-start">
+                            <div key={i} className="relative shrink-0 w-full h-full snap-start bg-[#1A1B1D]">
                                 {img ? (
                                     <>
                                         {!heroLoaded && i === 0 && (
                                             <div aria-hidden className="absolute inset-0 bg-[#1A1B1D]" />
                                         )}
                                         <img
-                                        src={getImageUrl(img, { preset: 'hero' })}
+                                        src={getImageUrl(img, { preset: 'eventHeroFit' })}
                                         alt={event.title}
-                                        className={`w-full h-full object-cover content-image pointer-events-none select-none ${
+                                        className={`absolute inset-0 w-full h-full object-contain content-image pointer-events-none select-none ${
                                             i === 0 && !heroLoaded ? 'opacity-0' : 'opacity-100'
                                         }`}
                                         draggable={false}
@@ -362,7 +368,7 @@ export default function EventCommunityEventPage() {
                     </div>
                 </div>
 
-                <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-black/30 pointer-events-none" />
+                <div className="absolute inset-0 bg-linear-to-t from-black/55 via-transparent to-black/25 pointer-events-none" />
 
                 <div
                     className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 z-10"

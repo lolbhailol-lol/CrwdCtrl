@@ -1,29 +1,51 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Search, Loader, UserCheck, RefreshCw } from 'lucide-react';
+import { UserCheck, RefreshCw } from 'lucide-react';
 import CheckinScannerPage from '../../components/admin/CheckinScannerPage';
+import OrganizerGateCheckinPanel from '../../components/organizer/OrganizerGateCheckinPanel';
 import { getApiBaseUrl } from '../../config/apiBase';
 import { getTrekOrganizerToken } from '../../utils/trekOrganizerSession';
 import {
     lookupTrekOrganizerParticipant,
     trekOrganizerCheckin,
     fetchTrekOrganizerCheckinStats,
+    fetchTrekOrganizerParticipants,
 } from '../../services/api/trekOrganizer.api';
 import { useDialog } from '../../context/DialogContext';
-import TrekOrganizerParticipantModal from './TrekOrganizerParticipantModal';
 import { ProgressBar, SectionCard } from './OrganizerUi';
+
+function cleanPhone(phone) {
+    if (!phone || phone === '—') return '';
+    return String(phone);
+}
+
+function normalizeTrekRow(p) {
+    if (!p) return null;
+    return {
+        id: String(p.bookingId),
+        name: p.participantName || 'Participant',
+        phone: cleanPhone(p.phone),
+        email: p.userEmail || '',
+        checkedIn: p.checkInStatus === 'Checked In' || Boolean(p.checkedIn),
+        checkedInAt: p.checkedInAt || null,
+        meta: [
+            p.bookingId ? `#${String(p.bookingId).slice(-8)}` : '',
+            (p.people ?? 1) > 1 ? `${p.people} people` : '',
+            p.meetingPoint || '',
+        ]
+            .filter(Boolean)
+            .join(' · '),
+        raw: p,
+    };
+}
 
 export default function TrekOrganizerScanPage() {
     const { trekId } = useParams();
     const { toast, confirm } = useDialog();
     const api = getApiBaseUrl();
-    const [manualQuery, setManualQuery] = useState('');
-    const [lookupLoading, setLookupLoading] = useState(false);
-    const [lookupResults, setLookupResults] = useState([]);
-    const [detailId, setDetailId] = useState(null);
-    const [checkinLoading, setCheckinLoading] = useState(null);
     const [stats, setStats] = useState(null);
     const [statsLoading, setStatsLoading] = useState(true);
+    const [rosterKey, setRosterKey] = useState(0);
 
     const loadStats = useCallback(async () => {
         if (!trekId) return;
@@ -43,56 +65,33 @@ export default function TrekOrganizerScanPage() {
         return () => clearInterval(poll);
     }, [loadStats]);
 
-    const runLookup = async (e) => {
-        e?.preventDefault();
-        const q = manualQuery.trim();
-        if (!q) return;
-        setLookupLoading(true);
-        setLookupResults([]);
-        try {
-            const data = await lookupTrekOrganizerParticipant(trekId, q);
-            setLookupResults(data.participants || []);
-            if (!data.participants?.length) toast('No matching participants');
-        } catch (err) {
-            toast(err.message || 'Lookup failed');
-        } finally {
-            setLookupLoading(false);
-        }
-    };
-
-    const manualCheckin = async (participant) => {
-        if (participant.checkInStatus === 'Checked In') {
-            toast('Already checked in');
-            return;
-        }
-        const ok = await confirm(
-            (participant.people ?? 1) > 1
-                ? `Check in ${participant.participantName} (${participant.people} people on ticket)?`
-                : `Check in ${participant.participantName}?`,
-        );
-        if (!ok) return;
-        setCheckinLoading(participant.bookingId);
-        try {
-            const res = await trekOrganizerCheckin(trekId, { bookingId: participant.bookingId });
-            if (res.success || res.status === 'checked_in') {
-                toast('Check-in successful');
-                setLookupResults((prev) =>
-                    prev.map((p) =>
-                        p.bookingId === participant.bookingId
-                            ? { ...p, checkInStatus: 'Checked In', qrStatus: 'Checked In', checkedInAt: new Date().toISOString() }
-                            : p,
-                    ),
-                );
-                loadStats();
-            } else {
-                toast(res.message || res.error || 'Check-in failed');
+    const listRoster = useCallback(
+        async ({ checkInStatus, search, page, limit }) => {
+            const params = { page, limit };
+            if (checkInStatus === 'not_in' || checkInStatus === 'pending') {
+                params.checkInStatus = 'pending';
+            } else if (checkInStatus === 'checked_in') {
+                params.checkInStatus = 'checked_in';
             }
-        } catch (err) {
-            toast(err.message || 'Check-in failed');
-        } finally {
-            setCheckinLoading(null);
-        }
-    };
+            if (search) params.search = search;
+            return fetchTrekOrganizerParticipants(trekId, params);
+        },
+        [trekId],
+    );
+
+    const lookup = useCallback(
+        (q) => lookupTrekOrganizerParticipant(trekId, q),
+        [trekId],
+    );
+
+    const manualCheckin = useCallback(
+        async (row) => {
+            const res = await trekOrganizerCheckin(trekId, { bookingId: row.id });
+            loadStats();
+            return res;
+        },
+        [trekId, loadStats],
+    );
 
     const totalRegistered = Number(stats?.totalRegistered ?? 0);
     const totalCheckedIn = Number(stats?.totalCheckedIn ?? 0);
@@ -107,7 +106,7 @@ export default function TrekOrganizerScanPage() {
                 </div>
                 <button
                     type="button"
-                    onClick={() => { setStatsLoading(true); loadStats(); }}
+                    onClick={() => { setStatsLoading(true); loadStats(); setRosterKey((k) => k + 1); }}
                     className="p-2.5 min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 text-gray-400 hover:text-white hover:border-[#0ECCEE]/40"
                     aria-label="Refresh check-in stats"
                 >
@@ -158,55 +157,28 @@ export default function TrekOrganizerScanPage() {
                 authErrorMessage="Access denied or session expired — sign in at the organizer portal."
                 title="Scan participant QR"
                 subtitle="Point camera at ticket QR from My Bookings"
+                onCheckinSuccess={() => {
+                    loadStats();
+                    setRosterKey((k) => k + 1);
+                }}
             />
 
-            <div className="rounded-2xl border border-white/10 bg-[#161718] p-4 space-y-3">
-                <h2 className="text-sm font-semibold flex items-center gap-2">
-                    <Search size={16} className="text-[#0ECCEE]" />
-                    Manual lookup
-                </h2>
-                <form onSubmit={runLookup} className="flex gap-2">
-                    <input
-                        value={manualQuery}
-                        onChange={(e) => setManualQuery(e.target.value)}
-                        placeholder="Booking ID, phone, or name"
-                        className="flex-1 px-3 py-2.5 rounded-xl bg-[#111213] border border-white/10 text-sm focus:outline-none focus:border-[#0ECCEE]/50"
-                    />
-                    <button type="submit" disabled={lookupLoading} className="px-4 py-2.5 rounded-xl bg-[#0ECCEE] text-black text-sm font-bold disabled:opacity-60">
-                        {lookupLoading ? <Loader className="animate-spin" size={16} /> : 'Search'}
-                    </button>
-                </form>
-
-                {lookupResults.length > 0 ? (
-                    <div className="space-y-2">
-                        {lookupResults.map((p) => (
-                            <div key={p.bookingId} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-xl border border-white/10 bg-[#111213]">
-                                <div>
-                                    <p className="font-medium">{p.participantName}</p>
-                                    <p className="text-xs text-gray-500">{p.phone} · {p.bookingId.slice(-8)}{(p.people ?? 1) > 1 ? ` · ${p.people} people` : ''}</p>
-                                    <p className="text-xs mt-0.5">{p.checkInStatus}</p>
-                                </div>
-                                <div className="flex gap-2">
-                                    <button type="button" onClick={() => setDetailId(p.bookingId)} className="px-3 py-1.5 rounded-lg border border-white/10 text-xs">Details</button>
-                                    <button
-                                        type="button"
-                                        disabled={checkinLoading === p.bookingId || p.checkInStatus === 'Checked In'}
-                                        onClick={() => manualCheckin(p)}
-                                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600/20 text-emerald-400 text-xs font-medium disabled:opacity-40"
-                                    >
-                                        {checkinLoading === p.bookingId ? <Loader className="animate-spin" size={12} /> : <UserCheck size={12} />}
-                                        Check in
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                ) : null}
-            </div>
-
-            {detailId ? (
-                <TrekOrganizerParticipantModal trekId={trekId} bookingId={detailId} onClose={() => setDetailId(null)} />
-            ) : null}
+            <OrganizerGateCheckinPanel
+                listRoster={listRoster}
+                lookup={lookup}
+                manualCheckin={manualCheckin}
+                normalize={normalizeTrekRow}
+                refreshKey={rosterKey}
+                onToast={toast}
+                confirmCheckin={(row) => {
+                    const people = row.raw?.people ?? 1;
+                    if (people <= 1) return true;
+                    return confirm(`Check in ${row.name} (${people} people on ticket)?`);
+                }}
+                searchPlaceholder="Booking ID, phone, or name"
+                outsideStatus="pending"
+                insideStatus="checked_in"
+            />
         </div>
     );
 }

@@ -139,10 +139,10 @@ export default function RunEventDetailPage() {
         const cachedEvent = cachedByParam || cachedById;
         const fallback = pickRunFallback(seeded, cachedEvent, id);
 
-        // Only paint hydrated seed/cache — thin club stubs flash "Free" before API returns
-        setEvent(fallback);
+        // Always logo-load first — never paint thin/nav/demo stubs
+        setEvent(null);
         setLoadError('');
-        setLoading(!fallback);
+        setLoading(true);
 
         setImgPg(0);
         setOverviewExpanded(false);
@@ -204,7 +204,7 @@ export default function RunEventDetailPage() {
     const showPageLoader = loading || (event && id && !entityMatchesRouteParam(event, id, ['title', 'name']));
 
     if (showPageLoader) {
-        return <DetailPageLoader label="Loading run" />;
+        return <DetailPageLoader label="Loading run" variant="run" />;
     }
 
     if (!event) {

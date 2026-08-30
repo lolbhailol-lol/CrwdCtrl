@@ -7,6 +7,8 @@ const { pickFormField } = require('./trekOrganizerFormat');
 const { decryptRegistrationPii, decryptManyRegistrations } = require('./runClubPiiCrypto');
 const SportsEvent = require('../model/sports_model');
 const { resolveRunClubGroupLink } = require('./resolveRunClubGroupLink');
+const { listingHubForRunClubId } = require('./listingHubCopy');
+const { primaryCoverUrl } = require('./sanitizeCoverImages');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 
@@ -111,6 +113,21 @@ async function notifyRunClubParticipant({
     const sendEmailToUser = userId && email && shouldSendChannel(prefs, keys.email);
 
     if (!skipEmail && (sendEmailToGuest || sendEmailToUser)) {
+        let coverImage = '';
+        let product = 'run';
+        if (eventId) {
+            try {
+                const eventDoc = await SportsEvent.findById(eventId)
+                    .select('coverImage coverImages runClubId title')
+                    .lean();
+                coverImage = primaryCoverUrl(eventDoc?.coverImages || {}, eventDoc?.coverImage || '') || '';
+                const hub = await listingHubForRunClubId(eventDoc?.runClubId || registration?.runClubId || decrypted?.runClubId);
+                if (hub === 'events') product = 'event';
+            } catch (err) {
+                console.warn('[notifyRunClubParticipant] cover/hub lookup failed:', err.message);
+            }
+        }
+
         const emailResult = await sendTrekParticipantEmails([
             {
                 email,
@@ -118,10 +135,11 @@ async function notifyRunClubParticipant({
                 subject: emailSubject || title,
                 title,
                 message,
-                trekName: eventTitle || resolvedGroup.eventTitle || 'Run',
+                trekName: eventTitle || resolvedGroup.eventTitle || (product === 'event' ? 'Event' : 'Run'),
                 link: link || `/sports/run/${eventId}`,
                 kind: type,
-                product: 'run',
+                product,
+                coverImage,
                 groupLink: includeGroupLink ? resolvedGroup.groupLink : '',
                 communityName: includeGroupLink ? resolvedGroup.communityName : '',
                 paymentContext,

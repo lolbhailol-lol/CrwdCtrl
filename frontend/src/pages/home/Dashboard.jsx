@@ -1382,8 +1382,20 @@ const Dashboard = () => {
                             const slide = heroEvents.find((e) => e.id === id);
                             if (!slide) return;
                             if (slide._type === 'events') navigate(eventShowPath(slide));
-                            else if (slide._type === 'runclub') navigate(runClubPath(slide));
-                            else if (slide._type === 'trek') navigate(trekPath(slide), { state: { trek: slide } });
+                            else if (slide._type === 'runclub') {
+                                navigate(runClubPath(slide), {
+                                    state: {
+                                        club: {
+                                            _id: slide.id,
+                                            name: slide.name || slide.title,
+                                            basedIn: slide.subtitle,
+                                            coverImage: slide.image,
+                                            listingHub: slide.listingHub,
+                                            slug: slide.slug,
+                                        },
+                                    },
+                                });
+                            } else if (slide._type === 'trek') navigate(trekPath(slide), { state: { trek: slide } });
                             else if (slide._type === 'community') navigate(communityPath(slide));
                             else if (slide._type === 'sport') navigate(sportRunPath(slide));
                             else navigateToFestDetail(slide);

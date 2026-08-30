@@ -1027,8 +1027,15 @@ exports.listParticipants = async (req, res) => {
         const paymentStatus = String(req.query.paymentStatus || '').trim();
         const whatsappGroup = String(req.query.whatsappGroup || '').trim().toLowerCase();
         const competitionId = req.query.competitionId;
+        const proShowOnly = req.query.proShow === '1'
+            || req.query.proShow === 'true'
+            || req.query.proShowOnly === '1'
+            || req.query.proShowOnly === 'true';
 
-        const filter = { fest: festId, isProShow: { $ne: true } };
+        const filter = {
+            fest: festId,
+            isProShow: proShowOnly ? true : { $ne: true },
+        };
 
         if (['pending', 'approved', 'rejected'].includes(status)) {
             filter.status = status;
@@ -1047,7 +1054,7 @@ exports.listParticipants = async (req, res) => {
                 filter.status = 'approved';
             }
         }
-        if (competitionId && mongoose.Types.ObjectId.isValid(competitionId)) {
+        if (!proShowOnly && competitionId && mongoose.Types.ObjectId.isValid(competitionId)) {
             filter.competitionId = competitionId;
         }
         if (['paid', 'pending', 'free', 'failed', 'collected'].includes(paymentStatus)) {
@@ -1203,6 +1210,71 @@ exports.listParticipants = async (req, res) => {
     } catch (error) {
         console.error('[festOrganizerPortal.listParticipants]', error);
         res.status(500).json({ success: false, message: 'Failed to load participants' });
+    }
+};
+
+exports.lookupParticipant = async (req, res) => {
+    try {
+        const q = String(req.query.q || '').trim();
+        if (!q) return res.status(400).json({ success: false, message: 'Search query required' });
+
+        const competitionId = req.query.competitionId;
+        const proShowOnly = req.query.proShow === '1'
+            || req.query.proShow === 'true'
+            || req.query.proShowOnly === '1'
+            || req.query.proShowOnly === 'true';
+
+        const filter = {
+            fest: req.festId,
+            status: 'approved',
+            isProShow: proShowOnly ? true : { $ne: true },
+        };
+        if (!proShowOnly && competitionId && mongoose.Types.ObjectId.isValid(competitionId)) {
+            filter.competitionId = competitionId;
+        }
+
+        const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+        if (mongoose.Types.ObjectId.isValid(q) && String(q).length === 24) {
+            filter.$or = [{ _id: q }];
+        } else {
+            const userIds = await mongoose.model('User').find({
+                $or: [
+                    { name: regex },
+                    { email: regex },
+                    { phone: regex },
+                    { phoneNumber: regex },
+                ],
+            }).select('_id').limit(40).lean();
+            const ids = userIds.map((u) => u._id);
+            filter.$or = [
+                { user: { $in: ids } },
+                { 'responses.name': regex },
+                { 'responses.full_name': regex },
+                { 'responses.email': regex },
+                { 'responses.phone': regex },
+                { 'responses.mobile': regex },
+                { 'responses.contact_no': regex },
+                { 'responses.team_name': regex },
+                { 'responses.team_members.name': regex },
+                { 'responses.team_members.phone': regex },
+                { qrCodeData: regex },
+            ];
+        }
+
+        const rows = await Registration.find(filter)
+            .populate('user', 'name email phone phoneNumber')
+            .populate('competitionId', 'competitionName name')
+            .sort({ checkedIn: 1, createdAt: -1 })
+            .limit(10)
+            .lean();
+
+        res.json({
+            success: true,
+            participants: rows.map(formatParticipant),
+        });
+    } catch (error) {
+        console.error('[festOrganizerPortal.lookupParticipant]', error);
+        res.status(500).json({ success: false, message: 'Lookup failed' });
     }
 };
 

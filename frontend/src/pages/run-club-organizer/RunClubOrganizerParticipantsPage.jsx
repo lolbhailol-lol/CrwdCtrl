@@ -16,7 +16,7 @@ import {
 } from '../../services/api/runClubOrganizer.api';
 import { DetailLoader3DIcon } from '../../components/DetailPageLoader';
 import { useDialog } from '../../context/DialogContext';
-import ParticipantCard from '../trek-organizer/ParticipantCard';
+import ParticipantCard, { getGuestOpsAnswers, shortOpsLabel } from '../trek-organizer/ParticipantCard';
 import PaymentProofReviewModal from './PaymentProofReviewModal';
 import MissingFormAnswersEditor from './MissingFormAnswersEditor';
 import { getRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
@@ -114,7 +114,8 @@ export default function RunClubOrganizerParticipantsPage() {
     const { eventId } = useParams();
     const [searchParams, setSearchParams] = useSearchParams();
     const { confirm, toast } = useDialog();
-    const copy = organizerHubCopy(isEventsListingHub(getRunClubOrganizerSession()?.runClub));
+    const isEventHub = isEventsListingHub(getRunClubOrganizerSession()?.runClub);
+    const copy = organizerHubCopy(isEventHub);
     const [rows, setRows] = useState([]);
     const [eventTitle, setEventTitle] = useState('');
     const [stats, setStats] = useState(null);
@@ -139,6 +140,7 @@ export default function RunClubOrganizerParticipantsPage() {
     const [genderFilter, setGenderFilter] = useState(
         ['female', 'male'].includes(initialGender) ? initialGender : '',
     );
+    const [groupBy, setGroupBy] = useState(''); // '' | 'drink' | 'skill'
     const [page, setPage] = useState(1);
     const [reviewTarget, setReviewTarget] = useState(null);
     const [reviewQueue, setReviewQueue] = useState([]);
@@ -190,7 +192,12 @@ export default function RunClubOrganizerParticipantsPage() {
         if (!eventId) return;
         setLoading(true);
         try {
-            const params = { page, limit: 25, sortBy: 'createdAt', sortDir: 'desc' };
+            const params = {
+                page,
+                limit: isEventHub && groupBy ? 100 : 25,
+                sortBy: 'createdAt',
+                sortDir: 'desc',
+            };
             if (search) params.search = search;
             if (paymentFilter) params.paymentStatus = paymentFilter;
             if (checkInFilter) params.checkInStatus = checkInFilter;
@@ -229,7 +236,7 @@ export default function RunClubOrganizerParticipantsPage() {
         } finally {
             setLoading(false);
         }
-    }, [eventId, page, search, paymentFilter, checkInFilter, genderFilter, toast]);
+    }, [eventId, page, search, paymentFilter, checkInFilter, genderFilter, isEventHub, groupBy, toast]);
 
     useEffect(() => {
         load();
@@ -413,24 +420,80 @@ export default function RunClubOrganizerParticipantsPage() {
 
     const startIndex = (pagination.page - 1) * pagination.limit;
 
+    const hasOpsFields = useMemo(() => {
+        if (!isEventHub) return false;
+        return rows.some((row) => {
+            const ops = getGuestOpsAnswers(row);
+            return Boolean(ops.drink || ops.skill);
+        });
+    }, [rows, isEventHub]);
+
+    const groupedGuestSections = useMemo(() => {
+        if (!isEventHub || !groupBy) return null;
+        const map = new Map();
+        for (const row of rows) {
+            const ops = getGuestOpsAnswers(row);
+            const raw = groupBy === 'drink' ? ops.drink?.value : ops.skill?.value;
+            const key = String(raw || '').trim() || (groupBy === 'drink' ? 'No post game fuel set' : 'No skill set');
+            if (!map.has(key)) map.set(key, []);
+            map.get(key).push(row);
+        }
+        return [...map.entries()]
+            .sort((a, b) => {
+                const aEmpty = a[0].startsWith('No ');
+                const bEmpty = b[0].startsWith('No ');
+                if (aEmpty !== bEmpty) return aEmpty ? 1 : -1;
+                return b[1].length - a[1].length || a[0].localeCompare(b[0]);
+            })
+            .map(([title, items]) => ({ title, items, count: items.length }));
+    }, [rows, groupBy, isEventHub]);
+
+    const renderGuestCard = (row, i, indexOverride) => (
+        <ParticipantCard
+            key={row.bookingId}
+            participant={row}
+            index={indexOverride ?? (startIndex + i + 1)}
+            activityLabelSingular={copy.activitySingular}
+            activityLabelPlural={copy.activityPlural}
+            summaryMode={isEventHub ? 'contact' : 'full'}
+            forceOpen={expandAll || paymentFilter === 'pending_review'}
+            onResend={row.status === 'confirmed' ? handleResend : undefined}
+            onNotify={row.status === 'confirmed' ? () => setNotifyTarget(row) : undefined}
+            onDelete={row.status === 'confirmed' ? handleDelete : undefined}
+            onReviewPayment={
+                showPaymentReview && (row.paymentStatus === 'Pending review' || row.status === 'pending')
+                    ? () => setReviewTarget(row)
+                    : undefined
+            }
+            onCopied={(msg) => toast(msg)}
+            extraExpandedContent={(
+                <MissingFormAnswersEditor
+                    participant={row}
+                    busy={savingFormId === row.bookingId}
+                    onSave={(answers) => handleSaveFormAnswers(row.bookingId, answers)}
+                />
+            )}
+        />
+    );
+
     return (
-        <div className="space-y-5 max-w-4xl mx-auto">
+        <div className={`mx-auto ${isEventHub ? 'space-y-4 max-w-xl' : 'space-y-5 max-w-4xl'}`}>
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-bold">
-                        {paymentFilter === 'pending_review' ? 'Payment review' : 'Participants'}
+                    <h1 className={`${isEventHub ? 'text-xl font-semibold' : 'text-2xl font-bold'}`}>
+                        {paymentFilter === 'pending_review'
+                            ? 'Payment review'
+                            : isEventHub
+                                ? 'Guests'
+                                : 'Participants'}
                     </h1>
-                    <p className="text-sm text-gray-500 mt-0.5">{eventTitle || copy.registrations}</p>
-                    {isPaidEvent ? (
-                        <p className="text-[11px] text-gray-500 mt-1">
-                            {isOrganizerQr
-                                ? 'UPI + QR bookings · approve payments from screenshots'
-                                : 'Online checkout · payments confirm automatically'}
-                        </p>
-                    ) : null}
+                    <p className="text-sm text-gray-500 mt-0.5">
+                        {eventTitle || copy.registrations}
+                        {stats?.totalRegistrations != null ? ` · ${stats.totalRegistrations}` : ''}
+                    </p>
                 </div>
                 <div className="flex gap-2 shrink-0">
-                    {rows.length > 0 ? (
+                    {!isEventHub && rows.length > 0 ? (
                         <button type="button" onClick={() => setExpandAll((v) => !v)} className="inline-flex items-center gap-1.5 px-3 py-2.5 min-h-[44px] rounded-lg border border-gray-700 text-xs font-medium text-gray-300 hover:border-[#0ECCEE]/40">
                             <ChevronsDownUp size={14} />
                             {expandAll ? 'Collapse' : 'Expand'}
@@ -438,12 +501,14 @@ export default function RunClubOrganizerParticipantsPage() {
                     ) : null}
                     <button type="button" onClick={handleExportExcel} disabled={exporting} className="inline-flex items-center gap-1.5 px-3 py-2.5 min-h-[44px] rounded-lg border border-[#0ECCEE]/40 text-[#0ECCEE] text-xs font-bold hover:bg-[#0ECCEE]/10 disabled:opacity-60">
                         {exporting ? <Loader className="animate-spin" size={14} /> : <Download size={14} />}
-                        Export Excel
+                        {isEventHub ? 'Excel' : 'Export Excel'}
                     </button>
-                    <button type="button" onClick={handleExport} disabled={exporting} className="inline-flex items-center gap-1.5 px-3 py-2.5 min-h-[44px] rounded-lg bg-[#0ECCEE] text-black text-xs font-bold hover:opacity-90 disabled:opacity-60">
-                        {exporting ? <Loader className="animate-spin" size={14} /> : <Download size={14} />}
-                        Export CSV
-                    </button>
+                    {!isEventHub ? (
+                        <button type="button" onClick={handleExport} disabled={exporting} className="inline-flex items-center gap-1.5 px-3 py-2.5 min-h-[44px] rounded-lg bg-[#0ECCEE] text-black text-xs font-bold hover:opacity-90 disabled:opacity-60">
+                            {exporting ? <Loader className="animate-spin" size={14} /> : <Download size={14} />}
+                            Export CSV
+                        </button>
+                    ) : null}
                 </div>
             </div>
 
@@ -480,7 +545,7 @@ export default function RunClubOrganizerParticipantsPage() {
                 </button>
             ) : null}
 
-            {stats ? (
+            {stats && !isEventHub ? (
                 <div className={`grid gap-2 ${isPaidEvent ? 'grid-cols-2 sm:grid-cols-5' : 'grid-cols-2 sm:grid-cols-5'}`}>
                     <div className="rounded-xl border border-gray-800 bg-[#161718] px-3 py-3">
                         <p className="text-[10px] uppercase text-gray-500 flex items-center gap-1"><Users size={11} /> Confirmed</p>
@@ -518,13 +583,70 @@ export default function RunClubOrganizerParticipantsPage() {
                 </div>
             ) : null}
 
-            <div className="rounded-xl border border-gray-800 bg-[#161718] p-3 space-y-3">
+            {stats && isEventHub ? (
+                <div className="grid grid-cols-2 gap-2">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            const next = genderFilter === 'female' ? '' : 'female';
+                            setGenderFilter(next);
+                            setPage(1);
+                            const params = new URLSearchParams(searchParams);
+                            if (next) params.set('gender', next);
+                            else params.delete('gender');
+                            params.delete('paymentStatus');
+                            params.delete('checkInStatus');
+                            setPaymentFilter('');
+                            setCheckInFilter('');
+                            setSearchParams(params);
+                        }}
+                        className={`rounded-xl border px-3.5 py-3 text-left transition-colors ${
+                            genderFilter === 'female'
+                                ? 'border-rose-400/40 bg-rose-500/15'
+                                : 'border-white/10 bg-[#161718] hover:border-rose-400/25'
+                        }`}
+                    >
+                        <p className="text-[11px] text-rose-300/80 font-medium">Women</p>
+                        <p className="text-xl font-semibold tabular-nums text-rose-100 mt-1 leading-none">
+                            {stats.femaleCount ?? 0}
+                        </p>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            const next = genderFilter === 'male' ? '' : 'male';
+                            setGenderFilter(next);
+                            setPage(1);
+                            const params = new URLSearchParams(searchParams);
+                            if (next) params.set('gender', next);
+                            else params.delete('gender');
+                            params.delete('paymentStatus');
+                            params.delete('checkInStatus');
+                            setPaymentFilter('');
+                            setCheckInFilter('');
+                            setSearchParams(params);
+                        }}
+                        className={`rounded-xl border px-3.5 py-3 text-left transition-colors ${
+                            genderFilter === 'male'
+                                ? 'border-sky-400/40 bg-sky-500/15'
+                                : 'border-white/10 bg-[#161718] hover:border-sky-400/25'
+                        }`}
+                    >
+                        <p className="text-[11px] text-sky-300/80 font-medium">Men</p>
+                        <p className="text-xl font-semibold tabular-nums text-sky-100 mt-1 leading-none">
+                            {stats.maleCount ?? 0}
+                        </p>
+                    </button>
+                </div>
+            ) : null}
+
+            <div className={`rounded-xl border border-gray-800 bg-[#161718] p-3 ${isEventHub ? 'space-y-2.5' : 'space-y-3'}`}>
                 <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
                     <input
                         value={searchInput}
                         onChange={(e) => setSearchInput(e.target.value)}
-                        placeholder="Search name, phone, email…"
+                        placeholder={isEventHub ? 'Search name or phone…' : 'Search name, phone, email…'}
                         className="w-full pl-10 pr-10 py-3 min-h-[48px] rounded-lg bg-[#111213] border border-gray-700 text-base focus:outline-none focus:border-[#0ECCEE]/50"
                     />
                     {searchInput ? (
@@ -533,6 +655,7 @@ export default function RunClubOrganizerParticipantsPage() {
                         </button>
                     ) : null}
                 </div>
+                {!isEventHub ? (
                 <div className="flex flex-wrap items-center gap-2">
                     <FilterChip active={!paymentFilter && !checkInFilter && !genderFilter} onClick={() => { setPaymentFilter(''); setCheckInFilter(''); setGenderFilter(''); setSearchParams({}); setPage(1); }}>All</FilterChip>
                     <FilterChip
@@ -579,6 +702,48 @@ export default function RunClubOrganizerParticipantsPage() {
                         <button type="button" onClick={clearFilters} className="text-xs text-[#0ECCEE] ml-auto hover:underline py-2">Clear</button>
                     ) : null}
                 </div>
+                ) : (genderFilter || hasOpsFields) ? (
+                <div className="flex flex-wrap items-center gap-2">
+                    {genderFilter ? (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setGenderFilter('');
+                                const params = new URLSearchParams(searchParams);
+                                params.delete('gender');
+                                setSearchParams(params);
+                                setPage(1);
+                            }}
+                            className="text-xs text-[#0ECCEE] hover:underline py-1"
+                        >
+                            Show all
+                        </button>
+                    ) : null}
+                    {hasOpsFields ? (
+                        <>
+                            <span className="text-[11px] text-gray-500">{genderFilter ? '·' : ''} Group</span>
+                            <FilterChip
+                                active={!groupBy}
+                                onClick={() => { setGroupBy(''); setPage(1); }}
+                            >
+                                List
+                            </FilterChip>
+                            <FilterChip
+                                active={groupBy === 'drink'}
+                                onClick={() => { setGroupBy(groupBy === 'drink' ? '' : 'drink'); setPage(1); }}
+                            >
+                                Post game fuel
+                            </FilterChip>
+                            <FilterChip
+                                active={groupBy === 'skill'}
+                                onClick={() => { setGroupBy(groupBy === 'skill' ? '' : 'skill'); setPage(1); }}
+                            >
+                                Skill
+                            </FilterChip>
+                        </>
+                    ) : null}
+                </div>
+                ) : null}
             </div>
 
             {loading ? (
@@ -588,40 +753,35 @@ export default function RunClubOrganizerParticipantsPage() {
             ) : rows.length === 0 ? (
                 <div className="text-center py-16 rounded-xl border border-dashed border-gray-800">
                     <Users className="mx-auto text-gray-600 mb-3" size={32} />
-                    <p className="text-gray-400 font-medium">No participants found</p>
+                    <p className="text-gray-400 font-medium">{isEventHub ? 'No guests found' : 'No participants found'}</p>
+                </div>
+            ) : groupedGuestSections ? (
+                <div className="space-y-5">
+                    {groupedGuestSections.map((section) => (
+                        <section key={section.title} className="space-y-2">
+                            <div className="sticky top-12 z-10 -mx-1 px-1 py-1.5 bg-[#0f1011]/95 backdrop-blur flex items-baseline justify-between gap-2">
+                                <h2 className={`text-sm font-semibold truncate ${
+                                    groupBy === 'drink' ? 'text-amber-200' : 'text-sky-200'
+                                }`}>
+                                    {shortOpsLabel(section.title) || section.title}
+                                </h2>
+                                <span className="text-xs text-gray-500 tabular-nums shrink-0">
+                                    {section.count}
+                                </span>
+                            </div>
+                            <div className="space-y-2">
+                                {section.items.map((row, i) => renderGuestCard(row, i, i + 1))}
+                            </div>
+                        </section>
+                    ))}
                 </div>
             ) : (
-                <div className="space-y-3">
-                    {rows.map((row, i) => (
-                        <ParticipantCard
-                            key={row.bookingId}
-                            participant={row}
-                            index={startIndex + i + 1}
-                            activityLabelSingular={copy.activitySingular}
-                            activityLabelPlural={copy.activityPlural}
-                            forceOpen={expandAll || paymentFilter === 'pending_review'}
-                            onResend={row.status === 'confirmed' ? handleResend : undefined}
-                            onNotify={row.status === 'confirmed' ? () => setNotifyTarget(row) : undefined}
-                            onDelete={row.status === 'confirmed' ? handleDelete : undefined}
-                            onReviewPayment={
-                                showPaymentReview && (row.paymentStatus === 'Pending review' || row.status === 'pending')
-                                    ? () => setReviewTarget(row)
-                                    : undefined
-                            }
-                            onCopied={(msg) => toast(msg)}
-                            extraExpandedContent={(
-                                <MissingFormAnswersEditor
-                                    participant={row}
-                                    busy={savingFormId === row.bookingId}
-                                    onSave={(answers) => handleSaveFormAnswers(row.bookingId, answers)}
-                                />
-                            )}
-                        />
-                    ))}
+                <div className={isEventHub ? 'space-y-2' : 'space-y-3'}>
+                    {rows.map((row, i) => renderGuestCard(row, i))}
                 </div>
             )}
 
-            {pagination.totalPages > 1 ? (
+            {pagination.totalPages > 1 && !groupBy ? (
                 <div className="flex items-center justify-between pt-2">
                     <p className="text-xs text-gray-500">Page {pagination.page} of {pagination.totalPages}</p>
                     <div className="flex gap-2">

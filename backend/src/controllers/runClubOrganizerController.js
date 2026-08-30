@@ -1148,12 +1148,11 @@ exports.getDashboard = async (req, res) => {
         const seatsRemaining = capacity > 0 ? Math.max(0, capacity - seatsFilled) : null;
         const genderRegistration = await getSportsGenderRegistrationSnapshot(event);
         const genderStatsFromBookings = countSportsGenderFromRegs(
-            decryptManyRegistrations(
-                holdingRegs.filter((r) => r.status === 'confirmed'),
-                event.runClubId,
-            ),
+            decryptManyRegistrations(holdingRegs, event.runClubId),
         );
-        const genderStatsAgg = await aggregateSportsGenderQuotaStats(event._id || eventId, { statuses: ['confirmed'] });
+        const genderStatsAgg = await aggregateSportsGenderQuotaStats(event._id || eventId, {
+            statuses: ['pending', 'confirmed'],
+        });
         const genderStats = (
             genderStatsFromBookings.female.filled
             + genderStatsFromBookings.male.filled
@@ -1161,6 +1160,8 @@ exports.getDashboard = async (req, res) => {
         ) > 0
             ? genderStatsFromBookings
             : genderStatsAgg;
+
+        const totalBookings = totalRegistrations + pendingPaymentReview;
 
         res.json({
             success: true,
@@ -1181,6 +1182,7 @@ exports.getDashboard = async (req, res) => {
             genderRegistration,
             stats: {
                 totalRegistrations,
+                totalBookings,
                 seatsFilled,
                 seatsRemaining,
                 capacity,

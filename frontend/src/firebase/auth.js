@@ -270,93 +270,50 @@ export const signInWithGoogle = async () => {
         viewport: `${window.innerWidth}x${window.innerHeight}`
     });
 
-    // ✅ STEP 1: Handle in-app browsers (Instagram, Facebook, etc.)
-    // In-app browsers have SEVERE limitations with OAuth:
-    // - Instagram WebView blocks third-party cookies
-    // - Google Sign-In requires cookies for state management
-    // - signInWithRedirect often fails silently or throws empty errors
-    // SOLUTION: Show user a clear message to open in a real browser
+    // ✅ STEP 1: In-app browsers (Instagram, Facebook, etc.) — do NOT start Google OAuth.
+    // Those WebViews block Google cookies/popups. Same pattern as most sites: ask to open Chrome/Safari.
     if (isInApp) {
-        safeConsoleLog('🚨 IN-APP BROWSER DETECTED (Instagram, Facebook, etc.)');
-        safeConsoleLog('🚨 Instagram browser detected - authentication may not work properly');
-        
-        // Detect specific in-app browser for better messaging
+        safeConsoleLog('🚨 IN-APP BROWSER DETECTED — prompting Open in Chrome/Safari (skip Google OAuth)');
+
         const userAgent = navigator.userAgent || '';
         const isInstagram = /Instagram/i.test(userAgent);
         const isFacebook = /FBAN|FBAV/i.test(userAgent);
         const isTikTok = /TikTok/i.test(userAgent);
-        
+
         let appName = 'this app';
         if (isInstagram) appName = 'Instagram';
         else if (isFacebook) appName = 'Facebook';
         else if (isTikTok) appName = 'TikTok';
-        
-        // Generate "Open in Browser" URL for user
-        const currentUrl = window.location.href;
-        const openInBrowserUrl = currentUrl;
-        
+
+        const openInBrowserUrl = window.location.href;
         try {
-            // Store return URL and mark as in-app browser auth attempt
-            sessionStorage.setItem('auth_redirect_url', window.location.href);
-            sessionStorage.setItem('auth_redirect_timestamp', Date.now().toString());
-            sessionStorage.setItem('auth_redirect_type', 'google');
-            sessionStorage.setItem('auth_in_app_browser', 'true');
-            
-            safeConsoleLog('➡️ Attempting Google redirect flow for in-app browser (may fail)...');
-            
-            // Set a timeout to detect if redirect failed silently
-            const redirectTimeout = setTimeout(() => {
-                safeConsoleLog('⚠️ Redirect did not happen within 3 seconds - likely blocked');
-            }, 3000);
-            
-            await signInWithRedirect(auth, googleProvider);
-            
-            clearTimeout(redirectTimeout);
-            
-            // This typically won't execute - browser will redirect
-            return {
-                success: true,
-                user: null,
-                credential: null,
-                needsVerification: false,
-                method: 'in-app-redirect',
-                redirectInitiated: true,
-                message: 'Redirecting to Google sign-in...'
-            };
-        } catch (inAppError) {
-            safeConsoleError('❌ In-app browser redirect failed:', inAppError);
-            safeConsoleError('❌ Error details:', {
-                message: inAppError?.message,
-                code: inAppError?.code,
-                name: inAppError?.name,
-                stack: inAppError?.stack
-            });
-            
-            // If redirect fails in in-app browser, show helpful message
-            // This catches both explicit errors AND silent failures (empty Error objects)
-            const errorMessage = inAppError?.message || inAppError?.code || '';
-            const isEmptyError = !errorMessage || errorMessage === '[object Object]';
-            
-            return {
-                success: false,
-                error: isEmptyError 
-                    ? `Google Sign-In doesn't work in ${appName}'s browser. Please tap the ⋯ menu and select "Open in Chrome" or "Open in Safari".`
-                    : `Google sign-in had an issue in ${appName}. Try: 1) Tap ⋮ menu → "Open in Chrome/Safari", or 2) Copy the link and open in your browser.`,
-                code: inAppError?.code || 'auth/in-app-browser-blocked',
-                method: 'in-app-redirect-failed',
-                showOpenInBrowser: true,
-                isInAppBrowser: true,
-                appName: appName,
-                openInBrowserUrl: openInBrowserUrl,
-                errorDetails: {
-                    icon: '📱',
-                    title: `${appName} Browser Limitation`,
-                    suggestion: `Google Sign-In is blocked in ${appName}'s browser`,
-                    instructions: 'Tap the ⋮ or ⋯ menu at the top and select "Open in Browser" or "Open in Chrome/Safari"',
-                    copyUrl: openInBrowserUrl
-                }
-            };
+            sessionStorage.setItem('auth_redirect_url', openInBrowserUrl);
+            sessionStorage.setItem('crwdctrl_login_context', JSON.stringify({
+                fromProfile: false,
+                stayInProfile: false,
+                returnPath: `${window.location.pathname}${window.location.search}${window.location.hash}`,
+            }));
+        } catch {
+            /* ignore */
         }
+
+        return {
+            success: false,
+            error: `Google Sign-In doesn't work in ${appName}'s browser. Open this page in Chrome or Safari to continue.`,
+            code: 'auth/in-app-browser-blocked',
+            method: 'in-app-open-external',
+            showOpenInBrowser: true,
+            isInAppBrowser: true,
+            appName,
+            openInBrowserUrl,
+            errorDetails: {
+                icon: '📱',
+                title: `Open outside ${appName}`,
+                suggestion: 'Google Sign-In needs Chrome or Safari',
+                instructions: `Tap Open in Chrome/Safari, or use ${appName}'s ⋯ menu → Open in browser`,
+                copyUrl: openInBrowserUrl,
+            },
+        };
     }
 
     // ✅ STEP 2: MOBILE VS DESKTOP AUTHENTICATION STRATEGY
@@ -909,13 +866,10 @@ export const handleRedirectResult = async () => {
         if (timeSinceRedirect < 300000) { // Within 5 minutes
             safeConsoleLog('✅ FAST PATH: auth.currentUser already exists after redirect!');
             safeConsoleLog('👤 User:', auth.currentUser.email);
-            
-            // Clear redirect markers
-            sessionStorage.removeItem('auth_redirect_type');
-            sessionStorage.removeItem('auth_redirect_timestamp');
-            sessionStorage.removeItem('auth_redirect_url');
-            sessionStorage.removeItem('auth_in_app_browser');
-            
+
+            // Keep auth_redirect_url for resolvePostLoginRedirect → booking form
+            clearOAuthRedirectMarkers({ keepReturnUrl: true });
+
             return {
                 success: true,
                 user: auth.currentUser,
@@ -1007,12 +961,9 @@ export const handleRedirectResult = async () => {
                 wasInAppBrowser: wasInAppBrowser === 'true'
             });
             
-            // Clear ALL redirect markers including in-app browser flag
-            sessionStorage.removeItem('auth_redirect_type');
-            sessionStorage.removeItem('auth_redirect_timestamp');
-            sessionStorage.removeItem('auth_redirect_url');
-            sessionStorage.removeItem('auth_in_app_browser');
-            
+            // Keep auth_redirect_url so App can send the user back to /book
+            clearOAuthRedirectMarkers({ keepReturnUrl: true });
+
             return {
                 success: true,
                 user: result.user,
@@ -1050,12 +1001,9 @@ export const handleRedirectResult = async () => {
         // ✅ LAST RESORT: Check if auth.currentUser exists despite the error
         if (auth.currentUser && redirectType) {
             safeConsoleLog('✅ Error occurred but auth.currentUser exists - using it');
-            
-            sessionStorage.removeItem('auth_redirect_type');
-            sessionStorage.removeItem('auth_redirect_timestamp');
-            sessionStorage.removeItem('auth_redirect_url');
-            sessionStorage.removeItem('auth_in_app_browser');
-            
+
+            clearOAuthRedirectMarkers({ keepReturnUrl: true });
+
             return {
                 success: true,
                 user: auth.currentUser,

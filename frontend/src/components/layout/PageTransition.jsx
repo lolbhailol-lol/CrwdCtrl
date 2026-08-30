@@ -43,6 +43,12 @@ function shouldSkipPageTransition(pathname) {
         || pathname.startsWith('/competitions-view-details')
         || pathname.startsWith('/competition/')
         || /^\/fest\/[^/]+\/register/.test(pathname)
+        // Community / run / trek details own DetailPageLoader — avoid empty shell + bottom-nav flash
+        || pathname.startsWith('/events/community')
+        || pathname.startsWith('/sports/run-club/')
+        || pathname.startsWith('/sports/run/')
+        || pathname.startsWith('/trek/')
+        || pathname.startsWith('/treks/community/')
     );
 }
 
@@ -80,6 +86,7 @@ export function usePageTransition() {
 /** Mount once at Router level — shows loading UI on every route change app-wide */
 export function PageTransitionProvider({ children }) {
     const location = useLocation();
+    const navType = useNavigationType();
     const [isTransitioning, setIsTransitioning] = useState(false);
     const [skeletonPath, setSkeletonPath] = useState(location.pathname);
     const isFirstNavigation = useRef(true);
@@ -168,6 +175,15 @@ export function PageTransitionProvider({ children }) {
 
         if (shouldSkipPageTransition(location.pathname)) {
             prevLocationKey.current = location.key;
+            visitedRoutes.add(location.pathname);
+            setIsTransitioning(false);
+            return clearTimers;
+        }
+
+        // Canonical slug redirects (replace) — never re-flash the route skeleton
+        if (navType === 'REPLACE') {
+            prevLocationKey.current = location.key;
+            visitedRoutes.add(location.pathname);
             setIsTransitioning(false);
             return clearTimers;
         }
@@ -190,7 +206,7 @@ export function PageTransitionProvider({ children }) {
         scheduleTransitionEnd();
 
         return clearTimers;
-    }, [location.key, location.pathname, clearTimers, scheduleTransitionEnd]);
+    }, [location.key, location.pathname, navType, clearTimers, scheduleTransitionEnd]);
 
     return (
         <PageTransitionContext.Provider value={{

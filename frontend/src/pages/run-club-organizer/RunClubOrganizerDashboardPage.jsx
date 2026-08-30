@@ -183,7 +183,8 @@ export default function RunClubOrganizerDashboardPage() {
     const isOrganizerQr = mode === 'organizer_qr';
     const regStatus = eventDetail?.registration?.status || event?.registrationStatus || 'open';
     const isOpen = regStatus === 'open';
-    const total = stats.totalRegistrations ?? 0;
+    const total = stats.totalBookings
+        ?? ((stats.totalRegistrations ?? 0) + (isOrganizerQr ? (stats.pendingPaymentReview ?? 0) : 0));
     const femaleCount = Number(stats.femaleCount)
         || Number(genderRegistration?.quotas?.female?.filled)
         || 0;
@@ -194,7 +195,7 @@ export default function RunClubOrganizerDashboardPage() {
     const maleCap = Number(genderRegistration?.quotas?.male?.cap || 0);
     const guestsPath = `/run-club-organizer/events/${eventId}/participants`;
     const checkedIn = stats.checkedIn ?? 0;
-    const pending = stats.pendingCheckIn ?? Math.max(0, total - checkedIn);
+    const pending = stats.pendingCheckIn ?? Math.max(0, (stats.totalRegistrations ?? 0) - checkedIn);
     const pendingReviewRaw = Number(stats.pendingPaymentReview ?? 0);
     const revenue = Number(stats.organizerRevenue ?? stats.revenue ?? 0);
     const grossCollected = Number(stats.grossCollected ?? revenue);

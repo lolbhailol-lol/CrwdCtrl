@@ -41,7 +41,12 @@ async function verifyTrekBookingPayment({ trek, people, paymentOrderId, paymentI
       signature,
     });
   } else {
-    paymentResult = await verifyCashfreePayment({ orderId: paymentOrderId, paymentId });
+    const merchant = paymentOrder?.cashfreeMerchant === 'events' ? 'events' : 'platform';
+    paymentResult = await verifyCashfreePayment({
+      orderId: paymentOrderId,
+      paymentId,
+      merchant,
+    });
   }
 
   if (!paymentResult.verified) {
@@ -69,7 +74,8 @@ async function verifyTrekBookingPayment({ trek, people, paymentOrderId, paymentI
   let orderTags = {};
   if (gateway === 'cashfree') {
     try {
-      const cashfreeOrder = await fetchOrder(paymentOrderId);
+      const merchant = paymentOrder?.cashfreeMerchant === 'events' ? 'events' : 'platform';
+      const cashfreeOrder = await fetchOrder(paymentOrderId, { merchant });
       orderTags = cashfreeOrder.order_tags || {};
     } catch (err) {
       console.error('[trekPaymentVerification] fetchOrder error:', err.message);

@@ -179,6 +179,8 @@ async function performCheckinFromRaw(raw, options = {}) {
           message: 'Already checked in',
           data: {
             userName: eventReg.user?.name,
+            userPhone: eventReg.user?.phone || eventReg.user?.phoneNumber || '',
+            userEmail: eventReg.user?.email || '',
             festName: eventTitle,
             eventTitle,
             ticketType: 'event',
@@ -220,6 +222,7 @@ async function performCheckinFromRaw(raw, options = {}) {
         message: 'Check-in successful!',
         data: {
           userName: eventReg.user?.name,
+          userPhone: eventReg.user?.phone || eventReg.user?.phoneNumber || '',
           userEmail: eventReg.user?.email,
           userProfilePic: eventReg.user?.profilePic,
           festName: eventTitle,
@@ -503,6 +506,8 @@ async function performCheckinFromRaw(raw, options = {}) {
             : 'Already checked in',
           data: {
             userName: trekBooking.userId?.name || trekBooking.userName,
+            userPhone: trekBooking.userId?.phoneNumber || trekBooking.formData?.contact_no || trekBooking.formData?.phone || '',
+            userEmail: trekBooking.userEmail || trekBooking.userId?.email || '',
             festName: trekBooking.trekId?.trekName,
             trekName: trekBooking.trekId?.trekName,
             ticketType: 'trek',
@@ -583,6 +588,7 @@ async function performCheckinFromRaw(raw, options = {}) {
         })(),
         data: {
           userName: trekBooking.userId?.name || trekBooking.userName,
+          userPhone: trekBooking.userId?.phoneNumber || trekBooking.formData?.contact_no || trekBooking.formData?.phone || '',
           userEmail: trekBooking.userId?.email || trekBooking.userEmail,
           userProfilePic: trekBooking.userId?.profilePic,
           festName: trekName,
@@ -682,6 +688,8 @@ async function performCheckinFromRaw(raw, options = {}) {
         message: 'Already checked in',
         data: {
           userName: registration.user?.name,
+          userPhone: registration.user?.phone || registration.user?.phoneNumber || '',
+          userEmail: registration.user?.email || '',
           festName,
           competitionName,
           ticketType,
@@ -743,6 +751,7 @@ async function performCheckinFromRaw(raw, options = {}) {
       message: 'Check-in successful!',
       data: {
         userName: registration.user?.name,
+        userPhone: registration.user?.phone || registration.user?.phoneNumber || '',
         userEmail: registration.user?.email,
         userProfilePic: registration.user?.profilePic,
         festName,

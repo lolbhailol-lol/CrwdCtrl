@@ -67,6 +67,8 @@ export function resolvePostLoginRedirect() {
         const oauthReturn = sessionStorage.getItem('auth_redirect_url');
         if (oauthReturn) {
             sessionStorage.removeItem('auth_redirect_url');
+            // App already peeked login context for fromProfile before calling this
+            sessionStorage.removeItem(LOGIN_CONTEXT_KEY);
             return pathFromUrl(oauthReturn);
         }
     } catch {

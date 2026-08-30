@@ -7,7 +7,7 @@ export default function PageTransitionSkeleton() {
 
     return (
         <div
-            className={`fixed inset-0 z-100010 flex items-center justify-center overscroll-none ${
+            className={`page-transition-skeleton-root fixed inset-0 z-100050 flex items-center justify-center overscroll-none ${
                 isDark ? 'bg-[#161718]' : 'bg-white'
             }`}
             aria-hidden

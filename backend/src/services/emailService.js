@@ -104,7 +104,7 @@ function resolveTicketHref(ticketLink) {
     return ticketLink.startsWith('http') ? ticketLink : `${getSiteUrl()}${ticketLink.startsWith('/') ? '' : '/'}${ticketLink}`;
 }
 
-/** Shared responsive email shell — CrwdCtrl brand */
+/** Shared responsive email shell — CrwdCtrl brand (clean, image-led when possible) */
 function buildEmailShell({
     preheader = '',
     eyebrow = 'CrwdCtrl',
@@ -113,19 +113,54 @@ function buildEmailShell({
     bodyHtml = '',
     ctaLabel = '',
     ctaHref = '',
+    heroImageUrl = '',
     footnote = 'Need help? Reply to this email or contact us at team.crwdctrl@gmail.com',
 }) {
-    const safePreheader = preheader.replace(/"/g, '&quot;');
+    const safePreheader = String(preheader || '').replace(/"/g, '&quot;');
+    const safeHero = (() => {
+        const raw = String(heroImageUrl || '').trim();
+        if (!raw) return '';
+        try {
+            const u = new URL(raw);
+            return u.protocol === 'https:' ? u.toString() : '';
+        } catch {
+            return '';
+        }
+    })();
+
     const ctaBlock = ctaLabel && ctaHref ? `
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 28px 0 8px;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:28px 0 4px;">
             <tr>
                 <td align="center">
-                    <a href="${ctaHref}" style="display: inline-block; background: linear-gradient(135deg, #053780, #0a5ea8); color: #ffffff; text-decoration: none; font-weight: 700; font-size: 15px; padding: 14px 28px; border-radius: 999px;">
+                    <a href="${ctaHref}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;letter-spacing:0.01em;padding:14px 28px;border-radius:12px;">
                         ${ctaLabel}
                     </a>
                 </td>
             </tr>
         </table>` : '';
+
+    const heroBlock = safeHero ? `
+                    <tr>
+                        <td style="padding:0;line-height:0;font-size:0;">
+                            <img src="${safeHero}" alt="" width="560" style="display:block;width:100%;max-width:560px;height:auto;border:0;outline:none;" />
+                        </td>
+                    </tr>` : `
+                    <tr>
+                        <td style="background:#111827;padding:22px 24px;text-align:left;">
+                            <p style="margin:0 0 6px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#0ECCEE;">${eyebrow}</p>
+                            <h1 style="margin:0;font-size:22px;line-height:1.25;color:#ffffff;font-weight:700;">${title}</h1>
+                            ${subtitle ? `<p style="margin:8px 0 0;font-size:14px;line-height:1.45;color:rgba(255,255,255,0.72);">${subtitle}</p>` : ''}
+                        </td>
+                    </tr>`;
+
+    const titleUnderHero = safeHero ? `
+                    <tr>
+                        <td style="padding:22px 24px 0;">
+                            <p style="margin:0 0 6px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#6b7280;">${eyebrow}</p>
+                            <h1 style="margin:0;font-size:22px;line-height:1.3;color:#111827;font-weight:700;">${title}</h1>
+                            ${subtitle ? `<p style="margin:8px 0 0;font-size:15px;line-height:1.45;color:#4b5563;">${subtitle}</p>` : ''}
+                        </td>
+                    </tr>` : '';
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -134,29 +169,24 @@ function buildEmailShell({
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${title}</title>
 </head>
-<body style="margin:0;padding:0;background:#eef2f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#1f2937;">
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#111827;">
     <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${safePreheader}</div>
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#eef2f7;padding:24px 12px;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f4f6;padding:28px 12px;">
         <tr>
             <td align="center">
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 8px 30px rgba(5,55,128,0.08);">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e5e7eb;">
+                    ${heroBlock}
+                    ${titleUnderHero}
                     <tr>
-                        <td style="background:linear-gradient(135deg,#053780 0%,#0ECCEE 100%);padding:28px 24px;text-align:center;">
-                            <p style="margin:0 0 8px;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,0.85);">${eyebrow}</p>
-                            <h1 style="margin:0;font-size:24px;line-height:1.3;color:#ffffff;font-weight:800;">${title}</h1>
-                            ${subtitle ? `<p style="margin:10px 0 0;font-size:14px;line-height:1.5;color:rgba(255,255,255,0.92);">${subtitle}</p>` : ''}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding:28px 24px 12px;font-size:15px;line-height:1.7;color:#374151;">
+                        <td style="padding:${safeHero ? '18px' : '28px'} 24px 8px;font-size:15px;line-height:1.65;color:#374151;">
                             ${bodyHtml}
                             ${ctaBlock}
                         </td>
                     </tr>
                     <tr>
-                        <td style="padding:0 24px 24px;">
+                        <td style="padding:8px 24px 28px;">
                             <p style="margin:0;font-size:12px;line-height:1.6;color:#9ca3af;text-align:center;">${footnote}</p>
-                            <p style="margin:8px 0 0;font-size:12px;color:#9ca3af;text-align:center;">© ${new Date().getFullYear()} CrwdCtrl</p>
+                            <p style="margin:10px 0 0;font-size:12px;color:#9ca3af;text-align:center;">CrwdCtrl</p>
                         </td>
                     </tr>
                 </table>
@@ -170,13 +200,13 @@ function buildEmailShell({
 function buildDetailsTable(rows = []) {
     const items = (rows || []).filter((r) => r?.label && r?.value);
     if (!items.length) return '';
-    const rowHtml = items.map((r) => `
+    const rowHtml = items.map((r, i) => `
         <tr>
-            <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;font-size:13px;color:#6b7280;width:38%;vertical-align:top;">${r.label}</td>
-            <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;font-size:14px;color:#111827;font-weight:600;text-align:right;vertical-align:top;">${r.value}</td>
+            <td style="padding:12px 0;${i < items.length - 1 ? 'border-bottom:1px solid #f3f4f6;' : ''}font-size:13px;color:#6b7280;width:36%;vertical-align:top;">${r.label}</td>
+            <td style="padding:12px 0;${i < items.length - 1 ? 'border-bottom:1px solid #f3f4f6;' : ''}font-size:14px;color:#111827;font-weight:600;text-align:right;vertical-align:top;">${r.value}</td>
         </tr>`).join('');
     return `
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:20px 0;background:#f9fafb;border:1px solid #e5e7eb;border-radius:14px;padding:4px 16px;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:8px 0 4px;">
             ${rowHtml}
         </table>`;
 }
@@ -185,21 +215,32 @@ function buildWhatsAppJoinBlock(groupLink, communityName, { product = 'trek' } =
     const url = String(groupLink || '').trim();
     if (!url) return '';
     const isPhoneChat = /^https?:\/\/wa\.me\//i.test(url);
-    const fromLabel = communityName ? ` from <strong>${communityName}</strong>` : '';
-    const heading = isPhoneChat ? 'Message on WhatsApp' : 'Join the WhatsApp group';
-    const cta = isPhoneChat ? 'Message club on WhatsApp' : 'Join WhatsApp group';
+    const fromLabel = communityName ? ` · ${communityName}` : '';
+    const heading = isPhoneChat ? 'WhatsApp the organizers' : 'WhatsApp group';
+    const cta = isPhoneChat ? 'Message on WhatsApp' : 'Join WhatsApp group';
     const blurb = isPhoneChat
-        ? `Have a question${fromLabel}? Reach the club on WhatsApp.`
-        : product === 'run'
-            ? `Get run updates, meetup details and announcements${fromLabel}.`
-            : `Get trek updates, meetup details and announcements${fromLabel}.`;
+        ? `Questions${fromLabel}? Message the organizers here.`
+        : product === 'event'
+            ? `Event updates & meetup details${fromLabel}.`
+            : product === 'run'
+                ? `Run updates & meetup details${fromLabel}.`
+                : product === 'fest'
+                    ? `Fest updates${fromLabel}.`
+                    : `Trek updates & meetup details${fromLabel}.`;
     return `
-        <div style="margin:20px 0;padding:18px;border-radius:14px;background:#ecfdf5;border:1px solid #6ee7b7;">
-            <p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#065f46;">${heading}</p>
-            <p style="margin:0 0 14px;font-size:13px;line-height:1.6;color:#047857;">${blurb}</p>
-            <a href="${url}" style="display:inline-block;background:#25D366;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 20px;border-radius:999px;">${cta}</a>
-            <p style="margin:14px 0 0;font-size:12px;line-height:1.5;color:#047857;word-break:break-all;">Or copy this link: <a href="${url}" style="color:#047857;">${url}</a></p>
-        </div>`;
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:20px 0 8px;">
+            <tr>
+                <td style="padding:0 0 10px;font-size:13px;font-weight:600;color:#111827;letter-spacing:0.02em;">${heading}</td>
+            </tr>
+            <tr>
+                <td style="padding:0 0 14px;font-size:14px;line-height:1.55;color:#4b5563;">${blurb}</td>
+            </tr>
+            <tr>
+                <td>
+                    <a href="${url}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;font-weight:600;font-size:14px;padding:12px 18px;border-radius:10px;">${cta}</a>
+                </td>
+            </tr>
+        </table>`;
 }
 
 function buildPaymentNotice(paymentContext = {}) {
@@ -209,36 +250,31 @@ function buildPaymentNotice(paymentContext = {}) {
 
     if (status === 'paid') {
         return `
-            <div style="margin:18px 0;padding:16px 18px;border-radius:14px;background:#ecfdf5;border:1px solid #a7f3d0;">
-                <p style="margin:0 0 6px;font-size:14px;font-weight:700;color:#065f46;">Payment received</p>
-                <p style="margin:0;font-size:13px;line-height:1.6;color:#047857;">Your payment${methodLabel ? ` via ${methodLabel}` : ''} is confirmed. You're all set.</p>
-            </div>`;
+            <p style="margin:16px 0 4px;font-size:14px;line-height:1.55;color:#374151;">
+                <span style="color:#059669;font-weight:600;">Payment confirmed</span>${methodLabel ? ` via ${methodLabel}` : ''}. You’re all set.
+            </p>`;
     }
     if (status === 'free') {
         return `
-            <div style="margin:18px 0;padding:16px 18px;border-radius:14px;background:#eff6ff;border:1px solid #bfdbfe;">
-                <p style="margin:0 0 6px;font-size:14px;font-weight:700;color:#1e40af;">Free registration</p>
-                <p style="margin:0;font-size:13px;line-height:1.6;color:#1d4ed8;">No payment was required. See you there!</p>
-            </div>`;
+            <p style="margin:16px 0 4px;font-size:14px;line-height:1.55;color:#374151;">
+                <span style="color:#111827;font-weight:600;">Free registration</span> — no payment needed. See you there.
+            </p>`;
     }
     if (status === 'pending') {
         return `
-            <div style="margin:18px 0;padding:16px 18px;border-radius:14px;background:#fffbeb;border:1px solid #fde68a;">
-                <p style="margin:0 0 6px;font-size:14px;font-weight:700;color:#92400e;">Waiting for organizer approval</p>
-                <p style="margin:0;font-size:13px;line-height:1.6;color:#b45309;">${paymentContext.message || 'Your payment screenshot was submitted. The organizer will review it and confirm your spot. You’ll get another email once it’s approved.'}</p>
-            </div>`;
+            <p style="margin:16px 0 4px;font-size:14px;line-height:1.55;color:#374151;">
+                <span style="color:#b45309;font-weight:600;">Awaiting organizer approval</span> — ${paymentContext.message || 'your payment screenshot was submitted. You’ll get another email once it’s approved.'}
+
+            </p>`;
     }
     if (status === 'failed') {
         return `
-            <div style="margin:18px 0;padding:16px 18px;border-radius:14px;background:#fef2f2;border:1px solid #fecaca;">
-                <p style="margin:0 0 6px;font-size:14px;font-weight:700;color:#991b1b;">Payment not approved</p>
-                <p style="margin:0;font-size:13px;line-height:1.6;color:#b91c1c;">${paymentContext.message || 'Your payment was not approved. You can register again from My Bookings or the run page.'}</p>
-            </div>`;
+            <p style="margin:16px 0 4px;font-size:14px;line-height:1.55;color:#374151;">
+                <span style="color:#b91c1c;font-weight:600;">Payment not approved</span> — ${paymentContext.message || 'you can register again from My Bookings.'}
+
+            </p>`;
     }
-    return `
-        <div style="margin:18px 0;padding:16px 18px;border-radius:14px;background:#f9fafb;border:1px solid #e5e7eb;">
-            <p style="margin:0;font-size:13px;line-height:1.6;color:#4b5563;">We'll share updates and next steps closer to the date.</p>
-        </div>`;
+    return '';
 }
 
 // ✅ UNIVERSAL EMAIL SENDER - Uses queue to prevent rate limiting
@@ -302,43 +338,52 @@ const sendEventBroadcast = async (userList, eventDetails) => {
 };
 
 const generateTrekParticipantEmailHTML = ({
-    name, title, message, trekName, link, kind, groupLink, communityName, product = 'trek', paymentContext = null,
+    name, title, message, trekName, link, kind, groupLink, communityName, product = 'trek', paymentContext = null, coverImage = '',
 }) => {
     const isRun = product === 'run';
     const isFest = product === 'fest';
+    const isEvent = product === 'event';
     const headerLabel = kind === 'registration'
-        ? 'Booking update'
+        ? 'You’re booked'
         : kind === 'reminder'
-            ? (isRun ? 'Run reminder' : isFest ? 'Fest reminder' : 'Trek reminder')
+            ? (isEvent ? 'Event reminder' : isRun ? 'Run reminder' : isFest ? 'Fest reminder' : 'Trek reminder')
             : kind === 'organizer'
                 ? 'Message from organizer'
-                : (isRun ? 'Run update' : isFest ? 'Fest update' : 'Trek update');
-    const fullLink = resolveTicketHref(link || (isRun ? '/sports' : isFest ? '/fests' : '/treks'));
+                : (isEvent ? 'Event update' : isRun ? 'Run update' : isFest ? 'Fest update' : 'Trek update');
+    const fullLink = resolveTicketHref(link || (isEvent || isRun ? '/sports' : isFest ? '/fests' : '/treks'));
     const bodyMessage = String(message || '').replace(/\n/g, '<br/>');
-    const entityLabel = isRun ? 'Run' : isFest ? 'Fest' : 'Trek';
+    const entityLabel = isEvent ? 'Event' : isRun ? 'Run' : isFest ? 'Fest' : 'Trek';
     const paymentNoticeHtml = paymentContext ? buildPaymentNotice(paymentContext) : '';
+    const displayTitle = kind === 'registration'
+        ? (String(title || '').toLowerCase().includes('await') || String(title || '').toLowerCase().includes('submitted')
+            ? title
+            : 'You’re in')
+        : title;
 
     return buildEmailShell({
-        preheader: `${trekName} — ${title}`,
+        preheader: `${trekName} — ${displayTitle}`,
         eyebrow: headerLabel,
-        title,
+        title: displayTitle,
         subtitle: trekName,
+        heroImageUrl: coverImage,
         bodyHtml: `
-            <p style="margin:0 0 12px;">Hi <strong>${name || 'there'}</strong>,</p>
-            <p style="margin:0 0 12px;line-height:1.6;">${bodyMessage}</p>
+            <p style="margin:0 0 10px;">Hi ${name || 'there'},</p>
+            <p style="margin:0 0 4px;line-height:1.6;">${bodyMessage}</p>
             ${paymentNoticeHtml}
             ${buildDetailsTable([{ label: entityLabel, value: trekName }])}
-            ${buildWhatsAppJoinBlock(groupLink, communityName, { product: isRun ? 'run' : isFest ? 'fest' : 'trek' })}
+            ${buildWhatsAppJoinBlock(groupLink, communityName, { product: isEvent ? 'event' : isRun ? 'run' : isFest ? 'fest' : 'trek' })}
         `,
-        ctaLabel: isRun && kind === 'registration' && String(title || '').toLowerCase().includes('approved')
+        ctaLabel: (isRun || isEvent) && kind === 'registration' && String(title || '').toLowerCase().includes('approved')
             ? 'Download ticket'
             : (isFest ? 'View fest' : 'View booking'),
         ctaHref: fullLink,
-        footnote: isRun
-            ? 'You received this about your run booking on CrwdCtrl.'
-            : isFest
-                ? 'You received this about your fest registration on CrwdCtrl.'
-                : 'You received this about your trek on CrwdCtrl.',
+        footnote: isEvent
+            ? 'You received this about your event booking on CrwdCtrl.'
+            : isRun
+                ? 'You received this about your run booking on CrwdCtrl.'
+                : isFest
+                    ? 'You received this about your fest registration on CrwdCtrl.'
+                    : 'You received this about your trek on CrwdCtrl.',
     });
 };
 

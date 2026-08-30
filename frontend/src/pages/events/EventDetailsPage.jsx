@@ -263,7 +263,7 @@ export default function EventDetailsPage() {
   };
 
   if (loading) {
-    return <DetailPageLoader label="Loading event…" variant="event" />;
+        return <DetailPageLoader label="Loading event" variant="event" />;
   }
 
   if (error || !event) {

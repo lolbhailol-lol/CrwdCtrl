@@ -134,14 +134,32 @@ export function eventMapSideFacts(event) {
         ].filter(Boolean);
     }
 
+    const date = String(findBox(/^(date)$/i)?.value || formatCommunityEventDate(event.eventDate) || '').trim();
+    const gameBox = findBox(/^(game|session|activity)$/i);
+    const gameRaw = String(gameBox?.value || '').trim();
+    const gameLooksLikeName = Boolean(gameRaw) && !/^\d{1,2}([:.]?\d{0,2})?\s*(am|pm)\b/i.test(gameRaw);
+    const sportBox = findBox(/^(sport)$/i);
+
+    // Game nights (Mafia, etc.): Date + Game name + Time — not Sport / Café
+    if (gameLooksLikeName && !sportBox) {
+        const time = String(
+            findBox(/^(time|timing|event timing|start time)$/i)?.value || event.reportingTime || '',
+        ).trim();
+        return [
+            date ? { key: 'date', label: 'Date', value: date, icon: 'calendar' } : null,
+            { key: 'game', label: gameBox?.label || 'Game', value: gameRaw, icon: gameBox?.icon || 'star' },
+            time ? { key: 'time', label: 'Time', value: time, icon: 'clock' } : null,
+        ].filter(Boolean);
+    }
+
     const fallbacks = {
         sport: String(event.displayType || event.runCategory || '').trim(),
         game: String(event.reportingTime || '').trim(),
         cafe: String(event.returnTime || '').trim(),
     };
-    const sport = String(findBox(/^(sport)$/i)?.value || fallbacks.sport || '').trim();
+    const sport = String(sportBox?.value || fallbacks.sport || '').trim();
 
-    return EVENT_MAP_SIDE_RULES.map((rule) => {
+    const rows = EVENT_MAP_SIDE_RULES.map((rule) => {
         const box = findBox(rule.match);
         let value = String(box?.value || fallbacks[rule.key] || '').trim();
         if (rule.key === 'game') value = gameTimeOnly(value, sport);
@@ -153,6 +171,11 @@ export function eventMapSideFacts(event) {
             icon: box?.icon || rule.icon,
         };
     }).filter(Boolean);
+
+    if (date && !rows.some((row) => row.key === 'date')) {
+        rows.unshift({ key: 'date', label: 'Date', value: date, icon: 'calendar' });
+    }
+    return rows;
 }
 
 /** Details-tab cards — Game / Café times stay beside the map only. */

@@ -61,6 +61,7 @@ router.patch('/fests/:festId/competitions/:competitionId/slots', authenticateFes
 router.post('/fests/:festId/participants/manual', authenticateFestOrganizer, requireFestAccess, ctrl.createManualParticipant);
 router.patch('/fests/:festId/participants/bulk-status', authenticateFestOrganizer, requireFestAccess, ctrl.bulkUpdateParticipantStatus);
 router.get('/fests/:festId/participants/export', authenticateFestOrganizer, requireFestAccess, ctrl.exportParticipants);
+router.get('/fests/:festId/participants/lookup', authenticateFestOrganizer, requireFestAccess, ctrl.lookupParticipant);
 router.get('/fests/:festId/participants/:registrationId', authenticateFestOrganizer, requireFestAccess, ctrl.getParticipant);
 router.patch('/fests/:festId/participants/:registrationId/status', authenticateFestOrganizer, requireFestAccess, ctrl.updateParticipantStatus);
 router.patch('/fests/:festId/participants/:registrationId/whatsapp-group', authenticateFestOrganizer, requireFestAccess, ctrl.updateParticipantWhatsappGroup);

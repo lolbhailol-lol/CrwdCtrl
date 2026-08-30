@@ -177,7 +177,7 @@ export default function EventCommunityBookingPage() {
 
     const openLogin = useCallback(() => {
         openLoginSheet({
-            returnPath: `${window.location.pathname}${window.location.search || ''}`,
+            returnPath: `${window.location.pathname}${window.location.search || ''}${window.location.hash || ''}`,
         });
         setShowLogin(true);
     }, []);
@@ -198,7 +198,13 @@ export default function EventCommunityBookingPage() {
     const [addOnSelected, setAddOnSelected] = useState(Boolean(initialUi.addOnSelected));
     const [extraFields, setExtraFields] = useState(initialUi.extraFields);
     const [error, setError] = useState('');
-    const [paying, setPaying] = useState(initialUi.paying);
+    const [paying, setPayingState] = useState(initialUi.paying);
+    const payingRef = useRef(false);
+    const setPaying = useCallback((v) => {
+        const nextVal = typeof v === 'function' ? v(payingRef.current) : v;
+        payingRef.current = Boolean(nextVal);
+        setPayingState(nextVal);
+    }, []);
     const [payDone, setPayDone] = useState(initialUi.payDone);
     const [paymentId, setPaymentId] = useState('');
     const [cashfreeOrderId, setCashfreeOrderId] = useState('');
@@ -372,13 +378,10 @@ export default function EventCommunityBookingPage() {
         const cacheOk = entityMatchesRouteParam(cached, id, ['title', 'name']);
         const fallback = seedOk ? navEvent : (cacheOk ? cached : null);
 
+        // Always logo-load — thin seeds flash Free/demo form fields
+        setEvent(null);
         setLoadError('');
-        if (fallback) {
-            setEvent(fallback);
-            setLoadingEvent(false);
-        } else {
-            setLoadingEvent(true);
-        }
+        setLoadingEvent(true);
 
         const controller = new AbortController();
         (async () => {
@@ -516,9 +519,11 @@ export default function EventCommunityBookingPage() {
         }));
     }, [id, event, extraFields, selDate, selTime, people, step, selectedTierId, addOnSelected]);
 
+    // Debounce draft writes — avoid sessionStorage thrash on every keystroke (mobile lag)
     useEffect(() => {
         if (!event || payDone || paying) return;
-        saveDraft();
+        const t = window.setTimeout(() => saveDraft(), 400);
+        return () => window.clearTimeout(t);
     }, [saveDraft, event, payDone, paying]);
 
     const baseFee = chargePerPerson * people;
@@ -668,13 +673,22 @@ export default function EventCommunityBookingPage() {
                 }
             }
             // Race / stale client: server may already have the registration
-            if (res.status === 409 && regData.registration) {
+            if (
+                (res.status === 409 || regData.alreadyRegistered)
+                && (regData.registration || regData.alreadyRegistered)
+            ) {
                 const existingId = regData.registration?._id || regData.registration?.id;
                 if (existingId) {
                     sessionStorage.removeItem(runDraftKey(evId));
                     refreshNotifications();
                     setBookingId(String(existingId));
                     return { ...regData, alreadyRegistered: true };
+                }
+                // Payment already used but body lacked registration — treat as recoverable
+                if (res.status === 409) {
+                    throw new Error(
+                        regData.message || 'This payment was already used. Open My Bookings to view your ticket.',
+                    );
                 }
             }
             throw new Error(regData.message || 'Registration failed after payment');
@@ -885,6 +899,7 @@ export default function EventCommunityBookingPage() {
 
     const next = async () => {
         setError('');
+        if (payingRef.current || paying) return;
         if (singlePersonBooking && people !== 1) setPeople(1);
         if (requireLogin && !isAuthed()) {
             openLogin();
@@ -1281,7 +1296,7 @@ export default function EventCommunityBookingPage() {
     if ((loadingEvent || waitingOnAuth) && !showSuccess && !showProcessing) {
         return (
             <>
-                <DetailPageLoader label="Loading booking" />
+                <DetailPageLoader label="Loading booking" variant="booking" />
                 {loginOverlay}
             </>
         );

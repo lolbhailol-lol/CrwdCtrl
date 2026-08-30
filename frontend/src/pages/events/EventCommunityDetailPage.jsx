@@ -34,8 +34,9 @@ import {
     isTransientDetailError,
     createDetailCache,
 } from '../../utils/detailPageLoad';
+import { usePageContentLoading } from '../../hooks/usePageContentLoading';
 
-const runClubDetailCache = createDetailCache('crwdctrl_event_community_v4_');
+const runClubDetailCache = createDetailCache('crwdctrl_event_community_v5_');
 
 const resolveGallerySrc = (url, preset = 'thumb') =>
     getImageUrl(url, { preset }) || normalizeImageUrl(url) || url;
@@ -261,18 +262,15 @@ export default function EventCommunityDetailPage() {
         const ok = entityMatchesRouteParam(seeded, id, ['name', 'title']);
         const cached = runClubDetailCache.read(id);
         const cacheOk = entityMatchesRouteParam(cached, id, ['name', 'title']);
+        // Keep seed/cache only for API failure fallback — always logo-load first
         const fallback = ok ? seeded : (cacheOk ? normalizeRunClub(cached) : null);
         setRuns([]);
         setPastRuns([]);
+        setLoadingRuns(true);
+        setRunsError('');
         setLoadError('');
-
-        if (fallback) {
-            setClub(fallback);
-            setLoading(false);
-        } else {
-            setClub(null);
-            setLoading(true);
-        }
+        setClub(null);
+        setLoading(true);
 
         const controller = new AbortController();
         fetchRunClub(id, controller.signal)
@@ -334,8 +332,25 @@ export default function EventCommunityDetailPage() {
         subtitle: String(e.displayType || '').trim(),
         registrationLink: e.registrationLink || '',
         status: e.status || null,
-        // Keep list payload for detail seed (avoids Free/demo fee flash)
-        detail: e,
+        // Slim seed for event detail (fee/status only — full form loads on detail API)
+        detail: {
+            _id: e._id,
+            slug: e.slug,
+            title: e.title,
+            eventDate: e.eventDate,
+            coverImage: e.coverImage,
+            coverImages: e.coverImages,
+            registrationFee: e.registrationFee,
+            pricingMode: e.pricingMode,
+            tiers: e.tiers,
+            status: e.status,
+            venue: e.venue,
+            city: e.city,
+            registration: e.registration
+                ? { status: e.registration.status, mode: e.registration.mode, requireLogin: e.registration.requireLogin }
+                : undefined,
+            listingHub: 'events',
+        },
     });
 
     useEffect(() => {
@@ -358,17 +373,32 @@ export default function EventCommunityDetailPage() {
             .finally(() => {
                 if (!controller.signal.aborted) setLoadingRuns(false);
             });
-        fetchSportsByRunClub(clubId, controller.signal, { timeframe: 'past' })
-            .then((data) => {
-                if (controller.signal.aborted) return;
-                const list = Array.isArray(data?.events) ? data.events : [];
-                setPastRuns(list.map(mapRunCard));
-            })
-            .catch(() => {
-                if (controller.signal.aborted) return;
-                setPastRuns([]);
-            });
-        return () => controller.abort();
+
+        const loadPast = () => {
+            if (controller.signal.aborted) return;
+            fetchSportsByRunClub(clubId, controller.signal, { timeframe: 'past' })
+                .then((data) => {
+                    if (controller.signal.aborted) return;
+                    const list = Array.isArray(data?.events) ? data.events : [];
+                    setPastRuns(list.map(mapRunCard));
+                })
+                .catch(() => {
+                    if (controller.signal.aborted) return;
+                    setPastRuns([]);
+                });
+        };
+        const pastTimer = typeof requestIdleCallback === 'function'
+            ? requestIdleCallback(loadPast, { timeout: 2000 })
+            : setTimeout(loadPast, 350);
+
+        return () => {
+            controller.abort();
+            if (typeof cancelIdleCallback === 'function' && typeof pastTimer === 'number') {
+                try { cancelIdleCallback(pastTimer); } catch { /* ignore */ }
+            } else {
+                clearTimeout(pastTimer);
+            }
+        };
     }, [clubId, loading]);
 
     useEffect(() => {
@@ -381,8 +411,11 @@ export default function EventCommunityDetailPage() {
         }
     }, [categoryOptions, activeCategory]);
 
-    const showPageLoader = loading || (club && id && !entityMatchesRouteParam(club, id, ['name', 'title']));
+    const showPageLoader = loading
+        || loadingRuns
+        || (club && id && !entityMatchesRouteParam(club, id, ['name', 'title']));
     const isEventHub = true;
+    usePageContentLoading(showPageLoader);
 
     const name = club?.title || '';
     const basedIn = club?.subtitle || '';
@@ -404,7 +437,7 @@ export default function EventCommunityDetailPage() {
         : runs.filter((run) => (run.runCategory || '') === activeCategory);
 
     if (showPageLoader) {
-        return <DetailPageLoader label={isEventHub ? 'Loading community' : 'Loading run club'} />;
+        return <DetailPageLoader label="Loading community" variant="brand" />;
     }
 
     if (!club) {
@@ -486,7 +519,7 @@ export default function EventCommunityDetailPage() {
     const canonicalPath = eventCommunityPath(club || { id });
 
     return (
-        <div className="crwdctrl-page flex flex-col min-h-screen pb-24" style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}>
+        <div className="crwdctrl-page crwdctrl-page--content flex flex-col min-h-screen pb-8" style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}>
             <Seo
                 title={`${name} — Community`}
                 description={description}

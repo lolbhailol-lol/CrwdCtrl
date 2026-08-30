@@ -158,6 +158,12 @@ export async function fetchEventOrganizerParticipants(eventId, params = {}) {
     return eventOrganizerFetch(`/event-organizer/events/${eventId}/participants${q ? `?${q}` : ''}`);
 }
 
+export async function lookupEventOrganizerParticipant(eventId, q) {
+    return eventOrganizerFetch(
+        `/event-organizer/events/${eventId}/participants/lookup?q=${encodeURIComponent(q)}`,
+    );
+}
+
 export async function fetchEventOrganizerParticipant(eventId, registrationId) {
     return eventOrganizerFetch(`/event-organizer/events/${eventId}/participants/${registrationId}`);
 }

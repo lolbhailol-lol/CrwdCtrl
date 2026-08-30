@@ -1,6 +1,16 @@
 const crypto = require('crypto');
 
-const OPERATIONAL_RESPONSE_KEYS = new Set(['people', 'date', 'time', 'gender', 'sex']);
+const OPERATIONAL_RESPONSE_KEYS = new Set([
+    'people',
+    'date',
+    'time',
+    'gender',
+    'sex',
+    // Explicit ops answers (also kept via non-PII pass-through below)
+    'badminton_level',
+    'post_game_fuel',
+    'post_game_fuel_at_cafe_bok',
+]);
 const PII_RESPONSE_KEYS = new Set([
     'full_name',
     'fullname',

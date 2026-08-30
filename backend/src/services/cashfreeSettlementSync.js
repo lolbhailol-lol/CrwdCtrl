@@ -364,13 +364,14 @@ function shouldRefreshSettlement(doc) {
 async function syncSettlements({ limit = DEFAULT_SYNC_LIMIT, actor = 'admin', orderIds } = {}) {
   const cap = Math.min(100, Math.max(1, Number(limit) || DEFAULT_SYNC_LIMIT));
   let candidateIds = [...new Set((orderIds || []).map((id) => String(id || '').trim()).filter(Boolean))];
+  let orders = [];
 
   if (!candidateIds.length) {
-    const orders = await PaymentOrder.find({
+    orders = await PaymentOrder.find({
       status: 'PAID',
       $or: [{ gateway: 'cashfree' }, { gateway: { $exists: false } }, { gateway: null }],
     })
-      .select('orderId gateway')
+      .select('orderId gateway cashfreeMerchant')
       .sort({ createdAt: -1 })
       .lean();
     candidateIds = orders
@@ -384,6 +385,24 @@ async function syncSettlements({ limit = DEFAULT_SYNC_LIMIT, actor = 'admin', or
   const byOrder = new Map(existing.map((row) => [String(row.orderId), row]));
   const pending = candidateIds.filter((id) => shouldRefreshSettlement(byOrder.get(id))).slice(0, cap);
 
+  const merchantByOrder = new Map(
+    orders
+      .filter((o) => o?.orderId)
+      .map((o) => [String(o.orderId), o.cashfreeMerchant === 'events' ? 'events' : 'platform']),
+  );
+  // When candidateIds came from an explicit list, resolve merchants in one query.
+  if (merchantByOrder.size === 0 && pending.length) {
+    const metas = await PaymentOrder.find({ orderId: { $in: pending } })
+      .select('orderId cashfreeMerchant')
+      .lean();
+    for (const row of metas) {
+      merchantByOrder.set(
+        String(row.orderId),
+        row.cashfreeMerchant === 'events' ? 'events' : 'platform',
+      );
+    }
+  }
+
   const results = {
     attempted: pending.length,
     settled: 0,
@@ -395,7 +414,8 @@ async function syncSettlements({ limit = DEFAULT_SYNC_LIMIT, actor = 'admin', or
   };
 
   for (const orderId of pending) {
-    const fetched = await fetchOrderSettlements(orderId);
+    const merchant = merchantByOrder.get(String(orderId)) || 'platform';
+    const fetched = await fetchOrderSettlements(orderId, { merchant });
     if (fetched.missing || (fetched.ok && !fetched.data)) {
       await upsertSettlement({
         normalized: {

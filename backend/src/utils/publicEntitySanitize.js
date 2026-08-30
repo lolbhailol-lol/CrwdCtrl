@@ -84,8 +84,115 @@ function sanitizePublicTrek(trek, opts = {}) {
 }
 
 function sanitizePublicSportsEvent(event, opts = {}) {
-  return sanitizePublicEntity(event, { stripGroupLink: true, ...opts });
+  const copy = sanitizePublicEntity(event, { stripGroupLink: true, ...opts });
+  if (!copy || typeof copy !== 'object') return copy;
+
+  // List/card responses: drop heavy booking-only payloads (formSchema, QR, etc.)
+  if (opts.forList) {
+    delete copy.scannerAccess;
+    delete copy.description;
+    delete copy.termsAndConditions;
+    delete copy.inclusions;
+    delete copy.detailBoxes;
+    delete copy.images;
+    delete copy.previousSlugs;
+    if (copy.registration && typeof copy.registration === 'object') {
+      const {
+        formSchema: _fs,
+        paymentQR: _qr,
+        paymentUpiId: _upi,
+        paymentQRMessage: _qm,
+        confirmationEmail: _ce,
+        googleSheetsUrl: _gs,
+        organizerEmail: _oe,
+        formInstructions: _fi,
+        ...regRest
+      } = copy.registration;
+      copy.registration = {
+        status: regRest.status,
+        mode: regRest.mode,
+        requireLogin: regRest.requireLogin,
+      };
+    }
+    if (Array.isArray(copy.tiers)) {
+      copy.tiers = copy.tiers.map((t) => ({
+        id: t.id,
+        name: t.name,
+        fee: t.fee,
+        order: t.order,
+      }));
+    }
+  }
+  return copy;
 }
+
+/** Fields needed for sports/event community list cards + fee seed on navigate */
+const SPORTS_LIST_SELECT = [
+  'title',
+  'slug',
+  'sportType',
+  'runCategory',
+  'displayType',
+  'organizer',
+  'venue',
+  'city',
+  'eventDate',
+  'reportingTime',
+  'registrationFee',
+  'pricingMode',
+  'tiers.id',
+  'tiers.name',
+  'tiers.fee',
+  'tiers.order',
+  'optionalAddOn.enabled',
+  'optionalAddOn.label',
+  'optionalAddOn.fee',
+  'coverImage',
+  'coverImages',
+  'maxParticipants',
+  'distance',
+  'priority',
+  'pagePriority',
+  'status',
+  'runClubId',
+  'registrationLink',
+  'registration.status',
+  'registration.mode',
+  'registration.requireLogin',
+  'showOnSportsPage',
+  'createdAt',
+].join(' ');
+
+const EVENT_SHOW_LIST_SELECT = [
+  'title',
+  'slug',
+  'eventType',
+  'city',
+  'venue',
+  'eventDate',
+  'coverImage',
+  'coverImages',
+  'pagePriority',
+  'status',
+  'registrationFee',
+  'shortDescription',
+  'createdAt',
+].join(' ');
+
+const RUN_CLUB_LIST_SELECT = [
+  'name',
+  'slug',
+  'basedIn',
+  'coverImage',
+  'coverImages',
+  'logo',
+  'runClubPriority',
+  'listingHub',
+  'status',
+  'aboutUs',
+  'createdAt',
+].join(' ');
+
 
 function sanitizePublicRunClub(club) {
   if (!club || typeof club !== 'object') return club;
@@ -147,7 +254,7 @@ function sanitizePublicCompetition(competition) {
   return copy;
 }
 
-function sanitizePublicEventShow(show) {
+function sanitizePublicEventShow(show, opts = {}) {
   if (!show || typeof show !== 'object') return show;
   const copy = clonePlain(show);
   delete copy.googleSheetsUrl;
@@ -157,6 +264,25 @@ function sanitizePublicEventShow(show) {
   delete copy.createdBy;
   if (copy.registration && typeof copy.registration === 'object') {
     copy.registration = stripRegistrationSecrets(copy.registration);
+  }
+  if (opts.forList) {
+    delete copy.description;
+    delete copy.termsAndConditions;
+    delete copy.images;
+    delete copy.previousSlugs;
+    if (copy.registration && typeof copy.registration === 'object') {
+      const {
+        formSchema: _fs,
+        steps: _steps,
+        paymentQR: _qr,
+        paymentUpiId: _upi,
+        ...regRest
+      } = copy.registration;
+      copy.registration = {
+        status: regRest.status,
+        mode: regRest.mode,
+      };
+    }
   }
   return copy;
 }
@@ -180,4 +306,7 @@ module.exports = {
   sanitizePublicEventShow,
   sanitizePublicPlatformEvent,
   stripRegistrationSecrets,
+  SPORTS_LIST_SELECT,
+  EVENT_SHOW_LIST_SELECT,
+  RUN_CLUB_LIST_SELECT,
 };

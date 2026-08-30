@@ -1311,7 +1311,7 @@ export default function EventRegistrationPage() {
     }, [isPaymentStepPreview, suggestedCoupon]);
 
     if (loading && !done && !paying) {
-        return <DetailPageLoader label="Loading event…" variant="event" />;
+        return <DetailPageLoader label="Loading event" variant="event" />;
     }
 
     if (paying && !done) {

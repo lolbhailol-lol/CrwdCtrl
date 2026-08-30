@@ -386,7 +386,7 @@ export default function TrekDetailPage() {
         }
     }, [trek, id, navigate, location.state]);
 
-    if (showPageLoader) return <DetailPageLoader />;
+    if (showPageLoader) return <DetailPageLoader label="Loading trek" variant="trek" />;
     if (!trek) {
         const isNotFound = loadError === 'not_found';
         const isRetryable = !isNotFound;

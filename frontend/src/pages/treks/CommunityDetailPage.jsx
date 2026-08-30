@@ -359,7 +359,7 @@ export default function CommunityDetailPage() {
     const showPageLoader = loading || (community && id && !entityMatchesRouteParam(community, id, ['name', 'title']));
 
     if (showPageLoader) {
-        return <DetailPageLoader />;
+        return <DetailPageLoader label="Loading community" variant="trek" />;
     }
 
     if (!community) {

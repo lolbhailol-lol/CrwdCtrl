@@ -1200,7 +1200,7 @@ export default function TrekBookingPage() {
     const waitingOnAuth = !hasStoredSession && (authLoading || isAuthProcessing || isRedirectProcessing);
 
     if ((loadingTrek || waitingOnAuth) && !showSuccess && !showProcessing) {
-        return <InlinePageLoader variant="booking" fullScreen />;
+        return <InlinePageLoader variant="booking" fullScreen label="Loading booking" />;
     }
 
     if (!trek && !showSuccess && !showProcessing) {

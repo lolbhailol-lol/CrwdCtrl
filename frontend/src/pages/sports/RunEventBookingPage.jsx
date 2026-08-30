@@ -1106,7 +1106,7 @@ export default function RunEventBookingPage() {
     if ((loadingEvent || waitingOnAuth) && !showSuccess && !showProcessing) {
         return (
             <>
-                <DetailPageLoader label="Loading booking" />
+                <DetailPageLoader label="Loading booking" variant="booking" />
                 {loginOverlay}
             </>
         );

@@ -1027,6 +1027,47 @@ exports.listParticipants = async (req, res) => {
     }
 };
 
+exports.lookupParticipant = async (req, res) => {
+    try {
+        const q = String(req.query.q || '').trim();
+        if (!q) return res.status(400).json({ success: false, message: 'Search query required' });
+
+        const filter = { eventShow: req.eventShowId, status: 'approved' };
+        if (mongoose.Types.ObjectId.isValid(q) && String(q).length === 24) {
+            filter._id = q;
+        }
+
+        let regs = await EventShowRegistration.find(filter)
+            .populate('user', 'name email phone phoneNumber')
+            .sort({ checkedIn: 1, createdAt: -1 })
+            .lean();
+
+        let formatted = regs.map(formatParticipant);
+        if (!filter._id) {
+            const needle = q.toLowerCase();
+            formatted = formatted.filter((p) => {
+                const blob = [
+                    p.userName,
+                    p.userEmail,
+                    p.userPhone,
+                    p.tierName,
+                    String(p.id),
+                    ...(p.drivers || []).flatMap((d) => [d.name, d.email, d.phone]),
+                ]
+                    .filter(Boolean)
+                    .join(' ')
+                    .toLowerCase();
+                return blob.includes(needle);
+            }).slice(0, 10);
+        }
+
+        res.json({ success: true, participants: formatted.slice(0, 10) });
+    } catch (error) {
+        console.error('[eventShowOrganizer.lookupParticipant]', error);
+        res.status(500).json({ success: false, message: 'Lookup failed' });
+    }
+};
+
 exports.getParticipant = async (req, res) => {
     try {
         const reg = await EventShowRegistration.findOne({

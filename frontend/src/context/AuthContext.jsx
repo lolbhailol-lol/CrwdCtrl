@@ -320,9 +320,46 @@ export const AuthProvider = ({ children }) => {
                         setFirebaseUser(result.user);
                         setIsEmailVerified(result.user.emailVerified || false);
                         persistAuthSession(userData, userData.token);
+
+                        // Capture return URL before markFreshLogin → resolvePostLoginRedirect clears it
+                        let returnHref = '';
+                        try {
+                            returnHref =
+                                sessionStorage.getItem('auth_redirect_url')
+                                || (() => {
+                                    try {
+                                        const raw = sessionStorage.getItem('crwdctrl_login_context');
+                                        return raw ? (JSON.parse(raw)?.returnPath || '') : '';
+                                    } catch {
+                                        return '';
+                                    }
+                                })();
+                        } catch {
+                            returnHref = '';
+                        }
+
                         markFreshLogin();
-                        
+
                         safeConsoleLog('✅ Redirect session created successfully');
+
+                        try {
+                            if (returnHref) {
+                                const target = new URL(returnHref, window.location.origin);
+                                window.history.replaceState(
+                                    {},
+                                    document.title,
+                                    `${target.pathname}${target.search}${target.hash}`,
+                                );
+                            } else {
+                                window.history.replaceState(
+                                    {},
+                                    document.title,
+                                    `${window.location.pathname}${window.location.search}${window.location.hash}`,
+                                );
+                            }
+                        } catch {
+                            window.history.replaceState({}, document.title, window.location.pathname);
+                        }
                         
                     } catch (backendError) {
                         safeConsoleError('❌ Backend sync failed for redirect:', backendError.message);
@@ -335,10 +372,6 @@ export const AuthProvider = ({ children }) => {
                         setIsEmailVerified(false);
                         clearAuthSession();
                     }
-                    
-                    // Clean up URL - remove redirect markers
-                    const cleanUrl = window.location.origin + window.location.pathname;
-                    window.history.replaceState({}, document.title, cleanUrl);
                     
                     // ✅ Mark redirect processing complete
                     setIsRedirectProcessing(false);
@@ -367,10 +400,9 @@ export const AuthProvider = ({ children }) => {
                                 provider = 'facebook';
                             }
                             
-                            // Clear redirect markers
+                            // Clear progress markers; keep auth_redirect_url for post-login navigate
                             sessionStorage.removeItem('auth_redirect_type');
                             sessionStorage.removeItem('auth_redirect_timestamp');
-                            sessionStorage.removeItem('auth_redirect_url');
                             sessionStorage.removeItem('auth_in_app_browser');
                             
                             // Process the user

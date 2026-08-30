@@ -57,10 +57,34 @@ function getPrimaryInstagram(contacts = []) {
   return null;
 }
 
-function CompetitionScrollCard({ comp, isDark, isFavorite, onToggleFavorite, onClick, onPointerDown, fill = false, busy = false }) {
+function formatMindSparkTitle(title) {
+  const raw = String(title || '').trim();
+  if (!raw) return raw;
+  return raw.replace(/mindspark/gi, 'MindSpark');
+}
+
+function CompetitionScrollCard({
+  comp,
+  isDark,
+  isFavorite,
+  onToggleFavorite,
+  onClick,
+  onPointerDown,
+  fill = false,
+  busy = false,
+  hideFee = false,
+  largeCover = false,
+}) {
   const compName = typeof comp.name === 'string' ? comp.name : 'Competition';
   const feeLabel = formatCompFee(comp);
   const feeIsFree = feeLabel === 'Free';
+  const coverH = largeCover
+    ? fill
+      ? 'h-64 xl:h-72'
+      : 'h-56'
+    : fill
+      ? 'h-52 xl:h-56'
+      : 'h-48';
 
   return (
     <button
@@ -70,10 +94,10 @@ function CompetitionScrollCard({ comp, isDark, isFavorite, onToggleFavorite, onC
       disabled={busy}
       aria-busy={busy}
       className={`card-surface text-left rounded-2xl overflow-hidden transition hover:-translate-y-0.5 active:scale-[0.98] flex flex-col ${
-        fill ? 'w-full' : 'w-46 shrink-0'
+        fill ? 'w-full' : largeCover ? 'w-52 shrink-0' : 'w-46 shrink-0'
       } ${busy ? 'cursor-wait opacity-70' : ''} ${isDark ? 'bg-black!' : 'bg-white'}`}
     >
-      <div className={`relative ${fill ? 'h-52 xl:h-56' : 'h-48'} w-full shrink-0`}>
+      <div className={`relative ${coverH} w-full shrink-0`}>
         <CompetitionCoverImage
           src={comp.image}
           alt={compName}
@@ -86,15 +110,17 @@ function CompetitionScrollCard({ comp, isDark, isFavorite, onToggleFavorite, onC
         <h3 className={`text-[15px] font-bold leading-snug line-clamp-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
           {compName}
         </h3>
-        <p
-          className={`text-[15px] font-bold tracking-wide ${
-            feeIsFree
-              ? isDark ? 'text-emerald-400' : 'text-emerald-600'
-              : isDark ? 'text-[#0ECCEE]' : 'text-[#0099B8]'
-          }`}
-        >
-          {feeLabel}
-        </p>
+        {!hideFee ? (
+          <p
+            className={`text-[15px] font-bold tracking-wide ${
+              feeIsFree
+                ? isDark ? 'text-emerald-400' : 'text-emerald-600'
+                : isDark ? 'text-[#0ECCEE]' : 'text-[#0099B8]'
+            }`}
+          >
+            {feeLabel}
+          </p>
+        ) : null}
       </div>
     </button>
   );
@@ -383,12 +409,12 @@ function EventDetailsPage() {
   }
 
   if (!eventData?.title) {
-    return <DetailPageLoader label="" />;
+    return <DetailPageLoader label="Loading fest" variant="fest" />;
   }
 
   // Wait until competitions are in the payload (or the fetch finished with none).
   if (!festHasCompetitionGroups(eventData) && !fetchDone) {
-    return <DetailPageLoader label="" />;
+    return <DetailPageLoader label="Loading fest" variant="fest" />;
   }
 
   const pageEvent = eventData;
@@ -545,10 +571,10 @@ function EventDetailsPage() {
                   <img
                     src={getImageUrl(heroImage, { preset: 'hero' })}
                     alt={pageEvent.title}
-                    className={`w-full object-cover ${mindSparkDesktop ? 'h-56 lg:h-[18rem] xl:h-[20rem]' : 'h-64 sm:h-80 xl:h-96'}`}
+                    className={`w-full object-cover ${mindSparkDesktop ? 'h-72 lg:h-[22rem] xl:h-[26rem]' : 'h-64 sm:h-80 xl:h-96'}`}
                   />
                   ) : (
-                    <div className={`w-full ${mindSparkDesktop ? 'h-56 lg:h-[18rem] xl:h-[20rem]' : 'h-64 sm:h-80 xl:h-96'}`} />
+                    <div className={`w-full ${mindSparkDesktop ? 'h-72 lg:h-[22rem] xl:h-[26rem]' : 'h-64 sm:h-80 xl:h-96'}`} />
                   )}
                   {mindSparkDesktop ? (
                     <>
@@ -682,6 +708,8 @@ function EventDetailsPage() {
                             key={comp.id || idx}
                             comp={comp}
                             fill={mindSparkDesktop}
+                            hideFee={mindSparkDesktop}
+                            largeCover={mindSparkDesktop}
                             isDark={isDark}
                             isFavorite={isFavorite(comp.id)}
                             onToggleFavorite={() => toggleFavorite(comp.id, {
@@ -730,7 +758,14 @@ function EventDetailsPage() {
                 <div className={`sticky top-4 lg:top-[calc(var(--desktop-navbar-h)+0.75rem)] ${isDark ? 'bg-[#111213]' : 'bg-gray-100'} rounded-2xl p-4 sm:p-5 mb-6 transition-colors duration-300`}>
                   <div className={`flex items-start justify-between gap-3 ${mindSparkDesktop ? 'mb-3' : 'mb-4 sm:mb-6'}`}>
                     {mindSparkDesktop ? (
-                      <p className={`text-base font-semibold min-w-0 ${isDark ? 'text-white' : 'text-gray-900'}`}>{pageEvent.title}{collegeLabel ? ` · ${collegeLabel}` : ''}</p>
+                      <h1 className={`text-2xl lg:text-3xl font-bold leading-tight tracking-tight min-w-0 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {formatMindSparkTitle(pageEvent.title)}
+                        {collegeLabel ? (
+                          <span className={`block mt-1 text-sm font-semibold ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                            {collegeLabel}
+                          </span>
+                        ) : null}
+                      </h1>
                     ) : (
                       <h1 className={`text-lg sm:text-2xl font-bold min-w-0 ${isDark ? 'text-white' : 'text-gray-900'}`}>{pageEvent.title}{collegeLabel ? <><br />{collegeLabel}</> : null}</h1>
                     )}
@@ -885,14 +920,13 @@ function EventDetailsPage() {
 
                 {/* Contact Details */}
                 {pageEvent.contacts && pageEvent.contacts.length > 0 && (
-                  <div className={`${isDark ? 'bg-[#111213]' : 'bg-gray-100'} rounded-2xl p-4 transition-colors duration-300`}>
+                  <div className={`${isDark ? 'bg-[#111213]' : 'bg-white'} rounded-2xl p-4 border ${isDark ? 'border-white/10' : 'border-gray-200'} transition-colors duration-300`}>
                     <h3 className={`text-lg font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Details</h3>
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       {pageEvent.contacts.map((contact, index) => (
-                        <div key={index} className={`${isDark ? 'bg-[#161718]' : 'bg-[#EDEDF2]'} rounded-lg p-3 transition-colors duration-300`}>
-                          {/* Name - Role in one line */}
-                          <div className="mb-1">
-                            <span className={`font-semibold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        <div key={index} className={`${isDark ? 'bg-[#161718]' : 'bg-gray-50'} rounded-xl p-3.5 transition-colors duration-300`}>
+                          <div className="mb-2">
+                            <span className={`font-bold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
                               {contact.name || 'Contact Person'}
                             </span>
                             {contact.role && (
@@ -902,52 +936,60 @@ function EventDetailsPage() {
                             )}
                           </div>
 
-                          {/* Contact info in compact format */}
-                          <div className="space-y-1">
+                          <div className="space-y-2.5">
                             {contact.phone && contact.phone.split(/\s*(?:,|\/)\s*/).filter(Boolean).map((entry, pi) => {
                               const nameMatch = entry.match(/\(([^)]+)\)/);
                               const name = nameMatch ? nameMatch[1].trim() : null;
                               const rawNumber = entry.replace(/\s*\([^)]*\)/, '').trim();
                               return (
-                                <div key={pi} className="flex items-start gap-1.5">
-                                  <Phone size={12} className={`${isDark ? 'text-blue-400' : 'text-blue-600'} mt-0.5 shrink-0`} />
-                                  <div>
-                                    {name && <span className={`text-fluid-2xs ${isDark ? 'text-gray-500' : 'text-gray-400'} block leading-tight`}>{name}</span>}
-                                    <a
-                                      href={`tel:${rawNumber.replace(/[\s-]/g, '')}`}
-                                      className={`text-xs ${isDark ? 'text-gray-300 hover:text-blue-400' : 'text-gray-600 hover:text-blue-600'} transition`}
-                                    >
+                                <a
+                                  key={pi}
+                                  href={`tel:${rawNumber.replace(/[\s-]/g, '')}`}
+                                  className="flex items-center gap-2.5"
+                                >
+                                  <span className="size-8 shrink-0 rounded-full bg-[#0060DF] flex items-center justify-center">
+                                    <Phone size={14} className="text-white" />
+                                  </span>
+                                  <span className="min-w-0">
+                                    {name ? (
+                                      <span className={`block text-[11px] leading-tight ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{name}</span>
+                                    ) : null}
+                                    <span className={`block text-sm font-medium tabular-nums ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
                                       {rawNumber}
-                                    </a>
-                                  </div>
-                                </div>
+                                    </span>
+                                  </span>
+                                </a>
                               );
                             })}
 
                             {contact.email && (
-                              <div className="flex items-center">
-                                <Mail size={12} className={`${isDark ? 'text-green-400' : 'text-green-600'} mr-2`} />
-                                <a
-                                  href={`mailto:${contact.email}`}
-                                  className={`text-xs ${isDark ? 'text-gray-300 hover:text-green-400' : 'text-gray-600 hover:text-green-600'} transition truncate`}
-                                >
+                              <a
+                                href={`mailto:${contact.email}`}
+                                className="flex items-center gap-2.5"
+                              >
+                                <span className="size-8 shrink-0 rounded-full bg-emerald-600 flex items-center justify-center">
+                                  <Mail size={14} className="text-white" />
+                                </span>
+                                <span className={`text-sm font-medium truncate ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
                                   {contact.email}
-                                </a>
-                              </div>
+                                </span>
+                              </a>
                             )}
 
                             {contact.instagramId && (
-                              <div className="flex items-center">
-                                <Instagram size={12} className={`${isDark ? 'text-pink-400' : 'text-pink-600'} mr-2`} />
-                                <a
-                                  href={`https://instagram.com/${contact.instagramId.replace('@', '')}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className={`text-xs ${isDark ? 'text-gray-300 hover:text-pink-400' : 'text-gray-600 hover:text-pink-600'} transition`}
-                                >
+                              <a
+                                href={`https://instagram.com/${contact.instagramId.replace('@', '')}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2.5"
+                              >
+                                <span className="size-8 shrink-0 rounded-full bg-linear-to-br from-[#f58529] via-[#dd2a7b] to-[#8134af] flex items-center justify-center">
+                                  <Instagram size={14} className="text-white" />
+                                </span>
+                                <span className={`text-sm font-medium ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
                                   {contact.instagramId.startsWith('@') ? contact.instagramId : `@${contact.instagramId}`}
-                                </a>
-                              </div>
+                                </span>
+                              </a>
                             )}
                           </div>
                         </div>
@@ -964,7 +1006,7 @@ function EventDetailsPage() {
       {/* Mobile Version - Show below 768px */}
       <div className={`md:hidden pb-8 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
         {/* Hero with overlay controls — full bleed, overlaps into content sheet */}
-        <div className="relative h-[320px] overflow-hidden bg-[#1A1B1D]">
+        <div className={`relative ${mindSparkDesktop ? 'h-[380px]' : 'h-[320px]'} overflow-hidden bg-[#1A1B1D]`}>
           {heroImage ? (
           <img
             src={getImageUrl(heroImage, { preset: 'hero' })}
@@ -1009,8 +1051,8 @@ function EventDetailsPage() {
         <div className={`relative -mt-10 rounded-t-[28px] z-10 overflow-hidden px-5 pt-6 pb-4 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
           <div className="flex items-start justify-between gap-3 mb-5">
             <div className="min-w-0 flex-1">
-              <h1 className={`text-2xl font-bold leading-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                {pageEvent.title}
+              <h1 className={`text-2xl font-bold leading-tight ${isDark ? 'text-white' : 'text-gray-900'} ${mindSparkDesktop ? 'text-[1.75rem] tracking-tight' : ''}`}>
+                {mindSparkDesktop ? formatMindSparkTitle(pageEvent.title) : pageEvent.title}
               </h1>
               {collegeLabel ? (
               <p className={`text-sm font-semibold mt-1 ${isDark ? 'text-gray-400' : 'text-gray-700'}`}>
@@ -1152,6 +1194,8 @@ function EventDetailsPage() {
                   <CompetitionScrollCard
                     key={comp.id || idx}
                     comp={comp}
+                    hideFee={mindSparkDesktop}
+                    largeCover={mindSparkDesktop}
                     isDark={isDark}
                     isFavorite={isFavorite(comp.id)}
                     onToggleFavorite={() => toggleFavorite(comp.id, {

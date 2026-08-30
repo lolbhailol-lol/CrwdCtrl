@@ -1518,9 +1518,9 @@ export default function CompetitionRegistration() {
     if ((loading || waitingOnAuth) && !success && !completingPayment) {
         return (
             <InlinePageLoader
-                label="Loading registration"
+                label="Loading competition"
                 variant="competition"
-                className="min-h-screen bg-[#111213]"
+                fullScreen
             />
         );
     }

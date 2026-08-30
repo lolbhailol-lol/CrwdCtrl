@@ -28,7 +28,13 @@ async function verifyPaymentForRegistration(body, { expectedTotalAmount = null, 
   }
 
   try {
-    const result = await verifyCashfreePayment({ orderId, paymentId });
+    const PaymentOrder = require('../model/payment_order_model');
+    const paymentOrder = await PaymentOrder.findOne({ orderId: String(orderId) })
+      .select('cashfreeMerchant')
+      .lean();
+    const merchant = paymentOrder?.cashfreeMerchant === 'events' ? 'events' : 'platform';
+
+    const result = await verifyCashfreePayment({ orderId, paymentId, merchant });
     if (!result.verified) {
       return {
         ok: false,
@@ -42,7 +48,7 @@ async function verifyPaymentForRegistration(body, { expectedTotalAmount = null, 
     if (expectedTotalAmount != null && Number(expectedTotalAmount) > 0) {
       const { fetchOrder } = require('../services/cashfreeService');
       try {
-        const cashfreeOrder = await fetchOrder(orderId);
+        const cashfreeOrder = await fetchOrder(orderId, { merchant });
         const paidAmount = Number(cashfreeOrder.order_amount);
         if (paidAmount !== Number(expectedTotalAmount)) {
           return { ok: false, error: 'Payment amount does not match expected total.' };
