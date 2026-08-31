@@ -28,6 +28,10 @@ function normalizeCommunityPayload(body) {
         const gw = String(body.paymentGateway || '').trim().toLowerCase();
         payload.paymentGateway = gw === 'razorpay' ? 'razorpay' : 'cashfree';
     }
+    if (body.cashfreeMerchant !== undefined) {
+        const m = String(body.cashfreeMerchant || '').trim().toLowerCase();
+        payload.cashfreeMerchant = m === 'events' ? 'events' : 'platform';
+    }
     if (body.coverImages !== undefined) {
         payload.coverImages = sanitizeCoverImages(body.coverImages);
         payload.coverImage = primaryCoverUrl(payload.coverImages, body.coverImage);

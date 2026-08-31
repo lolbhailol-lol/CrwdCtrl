@@ -300,7 +300,7 @@ export default function TrekOrganizerHomePage() {
                                 className="shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2.5 min-h-11 rounded-xl bg-[#0ECCEE] text-black text-sm font-semibold hover:brightness-110"
                             >
                                 <ContactRound size={16} />
-                                Customers
+                                All customers
                             </button>
                         </div>
                     </SectionCard>

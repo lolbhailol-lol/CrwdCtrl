@@ -78,14 +78,16 @@ async function buildOrganizerAuthResponse(organizer) {
  */
 async function resolveTrekPaymentContext(trek) {
     let communityGateway = 'cashfree';
+    let cashfreeMerchant = 'platform';
     if (trek?.communityId) {
         const TrekCommunity = require('../model/trek_community_model');
         const community = await TrekCommunity.findById(trek.communityId)
-            .select('paymentGateway')
+            .select('paymentGateway cashfreeMerchant')
             .lean();
         if (community?.paymentGateway === 'razorpay') communityGateway = 'razorpay';
+        else if (community?.cashfreeMerchant === 'events') cashfreeMerchant = 'events';
     }
-    return { communityGateway };
+    return { communityGateway, cashfreeMerchant };
 }
 
 function platformFeePercentForBooking(booking, trek, communityGateway = 'cashfree') {
@@ -432,7 +434,7 @@ exports.getDashboard = async (req, res) => {
         tomorrow.setDate(tomorrow.getDate() + 1);
 
         const baseFilter = { trekId, status: 'confirmed' };
-        const { communityGateway } = await resolveTrekPaymentContext(trek);
+        const { communityGateway, cashfreeMerchant } = await resolveTrekPaymentContext(trek);
 
         const [
             totalRegistrations,
@@ -520,7 +522,10 @@ exports.getDashboard = async (req, res) => {
                 grossCollected,
                 todayRegistrations,
                 paymentGateway: communityGateway,
-                paymentGatewayLabel: communityGateway === 'razorpay' ? 'Razorpay' : 'Cashfree',
+                cashfreeMerchant: communityGateway === 'cashfree' ? cashfreeMerchant : null,
+                paymentGatewayLabel: communityGateway === 'razorpay'
+                    ? 'Razorpay'
+                    : (cashfreeMerchant === 'events' ? 'Cashfree (Delulu / events)' : 'Cashfree'),
                 // Seat fills (people sum) so multi-person bookings count correctly on Women/Men tiles
                 femaleCount: genderStats.female?.filled || 0,
                 maleCount: genderStats.male?.filled || 0,

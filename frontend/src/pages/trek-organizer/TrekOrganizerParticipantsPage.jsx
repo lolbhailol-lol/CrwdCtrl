@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import {
     Download, Loader, Search, ChevronLeft, ChevronRight,
     Users, UserCheck, ChevronsDownUp, X, Mail, Venus, Mars,
     ArrowUpDown, Copy, CheckSquare, Square, Sparkles, Clock,
-    IndianRupee, Filter, MessageCircle, MapPin, Calendar,
+    IndianRupee, MessageCircle, MapPin, Calendar,
 } from 'lucide-react';
 import {
     exportTrekOrganizerParticipants,
@@ -34,20 +34,47 @@ const SORT_OPTIONS = [
     { value: 'payment:desc', label: 'Highest paid' },
 ];
 
+/** Group "(City) Place ~time" options into optgroups for a compact pickup select. */
+function groupLocationOptions(options) {
+    const groups = new Map();
+    const ungrouped = [];
+    for (const raw of options) {
+        const opt = String(raw || '').trim();
+        if (!opt) continue;
+        const m = opt.match(/^\(([^)]+)\)\s*(.+)$/);
+        if (m) {
+            const city = m[1].trim();
+            const label = m[2].trim();
+            if (!groups.has(city)) groups.set(city, []);
+            groups.get(city).push({ value: opt, label });
+        } else {
+            ungrouped.push({ value: opt, label: opt });
+        }
+    }
+    return { groups, ungrouped };
+}
+
+function shortMeetingLabel(value) {
+    const s = String(value || '').trim();
+    if (!s) return '';
+    const m = s.match(/^\(([^)]+)\)\s*(.+)$/);
+    return m ? `${m[1]} · ${m[2]}` : s;
+}
+
 function FilterChip({ active, onClick, children, count }) {
     return (
         <button
             type="button"
             onClick={onClick}
-            className={`inline-flex items-center gap-1.5 px-3 py-2 min-h-9 rounded-full text-xs font-medium border transition-colors ${
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 min-h-9 rounded-lg text-xs font-medium border transition-colors ${
                 active
-                    ? 'bg-[#0ECCEE] text-black border-[#0ECCEE]'
-                    : 'border-white/10 text-gray-400 hover:border-[#0ECCEE]/40 hover:text-gray-200 bg-white/5'
+                    ? 'bg-[#0ECCEE]/15 text-[#0ECCEE] border-[#0ECCEE]/35'
+                    : 'border-transparent text-gray-500 hover:text-gray-300 hover:border-white/10'
             }`}
         >
             {children}
             {typeof count === 'number' ? (
-                <span className={`tabular-nums ${active ? 'text-black/70' : 'text-gray-600'}`}>{count}</span>
+                <span className={`tabular-nums ${active ? 'text-[#0ECCEE]/80' : 'text-gray-600'}`}>{count}</span>
             ) : null}
         </button>
     );
@@ -95,7 +122,6 @@ function SkeletonCard() {
 
 export default function TrekOrganizerParticipantsPage() {
     const { trekId } = useParams();
-    const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
     const { confirm, toast } = useDialog();
     const session = getTrekOrganizerSession();
@@ -144,13 +170,48 @@ export default function TrekOrganizerParticipantsPage() {
         if (id) setDetailBookingId(id);
     }, [searchParams]);
 
-    const hasFilters = search || paymentFilter || checkInFilter || genderFilter || meetingFilter;
+    // Keep shareable filter URLs in sync (MindSpark-style), preserve bookingId.
+    useEffect(() => {
+        setSearchParams((prev) => {
+            const next = new URLSearchParams(prev);
+            const setOrDel = (key, val) => {
+                if (val) next.set(key, val);
+                else next.delete(key);
+            };
+            setOrDel('paymentStatus', paymentFilter);
+            setOrDel('checkInStatus', checkInFilter);
+            setOrDel('gender', genderFilter);
+            setOrDel('meetingPoint', meetingFilter);
+            if (next.toString() === prev.toString()) return prev;
+            return next;
+        }, { replace: true });
+    }, [paymentFilter, checkInFilter, genderFilter, meetingFilter, setSearchParams]);
+
+    const hasFilters = Boolean(search || paymentFilter || checkInFilter || genderFilter || meetingFilter);
     const isOrganizerQr = registrationMode === 'organizer_qr';
     const pendingCount = isOrganizerQr ? (stats?.pendingReview ?? 0) : 0;
     const revenue = Number(stats?.organizerRevenue ?? stats?.revenue ?? 0);
     const [sortBy, sortDir] = sortValue.split(':');
     const displayDateLabel = dashDateLabel || trekDateLabel;
     const displayMapMeeting = mapMeetingLocation || sessionMeetingPoint;
+
+    const pickupGroups = useMemo(() => groupLocationOptions(locationOptions), [locationOptions]);
+
+    const viewingLabel = useMemo(() => {
+        const parts = [];
+        if (paymentFilter === 'pending_review') parts.push('Needs review');
+        else if (paymentFilter === 'paid') parts.push('Paid');
+        else if (paymentFilter === 'free') parts.push('Free');
+        else if (paymentFilter === 'rejected') parts.push('Rejected');
+        if (checkInFilter === 'checked_in') parts.push('Checked in');
+        else if (checkInFilter === 'pending') parts.push('Not checked in');
+        if (genderFilter === 'Female') parts.push('Women');
+        else if (genderFilter === 'Male') parts.push('Men');
+        else if (genderFilter === 'Others') parts.push('Other gender');
+        if (meetingFilter) parts.push(shortMeetingLabel(meetingFilter));
+        if (search) parts.push(`“${search}”`);
+        return parts.length ? parts.join(' · ') : 'All customers';
+    }, [paymentFilter, checkInFilter, genderFilter, meetingFilter, search]);
 
     const pendingQueue = useMemo(
         () => rows.filter((r) => r.paymentStatus === 'Pending review' || r.status === 'pending'),
@@ -210,7 +271,7 @@ export default function TrekOrganizerParticipantsPage() {
                 }
             }
         } catch (e) {
-            toast(e.message || 'Failed to load participants');
+            toast(e.message || 'Failed to load customers');
         } finally {
             setLoading(false);
         }
@@ -258,17 +319,6 @@ export default function TrekOrganizerParticipantsPage() {
                 meetingPoint: p.meetingPoint || p.trekTime || displayMapMeeting,
             }));
         setWaRecipients(list);
-    };
-
-    const openInCrm = (participant) => {
-        if (participant.customerId) {
-            navigate(`/trek-organizer/treks/${trekId}/customers?focus=${encodeURIComponent(participant.customerId)}`);
-            return;
-        }
-        navigate(`/trek-organizer/treks/${trekId}/customers`);
-        if (participant.phone && participant.phone !== '—') {
-            toast('Opened CRM — search by phone if needed');
-        }
     };
 
     const closeDetailModal = () => {
@@ -329,7 +379,7 @@ export default function TrekOrganizerParticipantsPage() {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `${(trekName || 'trek').replace(/[^a-z0-9-_]+/gi, '_')}_participants.xlsx`;
+            a.download = `${(trekName || 'trek').replace(/[^a-z0-9-_]+/gi, '_')}_customers.xlsx`;
             a.click();
             URL.revokeObjectURL(url);
             toast('Excel sheet downloaded');
@@ -341,7 +391,7 @@ export default function TrekOrganizerParticipantsPage() {
     };
 
     const handleResend = async (bookingId) => {
-        const ok = await confirm('Resend confirmation to this participant?');
+        const ok = await confirm('Resend confirmation to this customer?');
         if (!ok) return;
         try {
             await resendTrekOrganizerConfirmation(trekId, bookingId);
@@ -356,7 +406,7 @@ export default function TrekOrganizerParticipantsPage() {
             title: 'Delete entry?',
             message: participantName
                 ? `Remove ${participantName} from this trek? This cannot be undone.`
-                : 'Remove this participant from the trek? This cannot be undone.',
+                : 'Remove this customer from the trek? This cannot be undone.',
             confirmText: 'Delete',
             tone: 'danger',
         });
@@ -414,18 +464,6 @@ export default function TrekOrganizerParticipantsPage() {
         setPaymentFilter((prev) => (prev === value ? '' : value));
         setPage(1);
     };
-    const toggleCheckIn = (value) => {
-        setCheckInFilter((prev) => (prev === value ? '' : value));
-        setPage(1);
-    };
-    const toggleGender = (value) => {
-        setGenderFilter((prev) => (prev === value ? '' : value));
-        setPage(1);
-    };
-    const toggleMeeting = (value) => {
-        setMeetingFilter((prev) => (prev === value ? '' : value));
-        setPage(1);
-    };
 
     /** Stat pills: focus one dimension and clear the others for a clean jump. */
     const jumpFilter = (type, value) => {
@@ -440,7 +478,7 @@ export default function TrekOrganizerParticipantsPage() {
     };
 
     const startIndex = (pagination.page - 1) * pagination.limit;
-    const title = paymentFilter === 'pending_review' ? 'Payment review' : 'Participants';
+    const title = paymentFilter === 'pending_review' ? 'Payment review' : 'Customers';
 
     return (
         <div className="space-y-5 max-w-4xl mx-auto pb-24">
@@ -451,11 +489,11 @@ export default function TrekOrganizerParticipantsPage() {
                     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                         <div className="min-w-0 space-y-2">
                             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[#0ECCEE]/20 bg-[#0ECCEE]/10 text-[10px] font-semibold uppercase tracking-widest text-[#0ECCEE]">
-                                <Sparkles size={11} /> Guest list
+                                <Sparkles size={11} /> Customers
                             </div>
                             <div>
                                 <h1 className="text-2xl sm:text-[1.75rem] font-semibold tracking-tight">{title}</h1>
-                                <p className="text-sm text-gray-400 mt-1 truncate">{trekName || 'Trek registrations'}</p>
+                                <p className="text-sm text-gray-400 mt-1 truncate">{trekName || 'Trek bookings'}</p>
                                 <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-xs text-gray-500">
                                     {displayDateLabel ? (
                                         <span className="inline-flex items-center gap-1">
@@ -564,7 +602,7 @@ export default function TrekOrganizerParticipantsPage() {
             ) : null}
 
             {/* Search + filters + sort */}
-            <div className="rounded-2xl border border-white/10 bg-[#161718]/95 p-3.5 sm:p-4 space-y-3.5">
+            <div className="rounded-2xl border border-white/10 bg-[#161718]/95 p-3.5 sm:p-4 space-y-3">
                 <div className="flex flex-col sm:flex-row gap-2.5">
                     <div className="relative flex-1">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
@@ -597,13 +635,32 @@ export default function TrekOrganizerParticipantsPage() {
                     </label>
                 </div>
 
-                <div className="flex items-center gap-2 text-[11px] uppercase tracking-widest text-gray-500 font-medium">
-                    <Filter size={12} /> Filters
+                <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-[11px] text-gray-500 uppercase tracking-wide mr-0.5">Showing</p>
+                    <span className="text-xs font-medium text-white px-2.5 py-1 rounded-lg bg-white/5 border border-white/10">
+                        {viewingLabel}
+                    </span>
+                    <span className="text-xs text-gray-500 tabular-nums">
+                        {pagination.total} result{pagination.total === 1 ? '' : 's'}
+                    </span>
+                    {hasFilters ? (
+                        <button
+                            type="button"
+                            onClick={clearFilters}
+                            className="ml-auto text-xs text-gray-400 inline-flex items-center gap-1 hover:text-white"
+                        >
+                            <X size={12} /> Clear filters
+                        </button>
+                    ) : null}
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
-                    <FilterChip active={!paymentFilter && !checkInFilter && !genderFilter && !meetingFilter} onClick={clearFilters}>All</FilterChip>
-                    <span className="w-px h-4 bg-white/10 hidden sm:block" />
+                <div className="flex flex-wrap items-center gap-1.5">
+                    <FilterChip
+                        active={!paymentFilter && !checkInFilter && !genderFilter && !meetingFilter}
+                        onClick={clearFilters}
+                    >
+                        All
+                    </FilterChip>
                     {isOrganizerQr ? (
                         <FilterChip
                             active={paymentFilter === 'pending_review'}
@@ -618,30 +675,35 @@ export default function TrekOrganizerParticipantsPage() {
                     {isOrganizerQr ? (
                         <FilterChip active={paymentFilter === 'rejected'} onClick={() => togglePayment('rejected')}>Rejected</FilterChip>
                     ) : null}
-                    <span className="w-px h-4 bg-white/10 hidden sm:block" />
-                    <FilterChip active={checkInFilter === 'checked_in'} onClick={() => toggleCheckIn('checked_in')}>Checked in</FilterChip>
-                    <FilterChip active={checkInFilter === 'pending'} onClick={() => toggleCheckIn('pending')}>Not yet</FilterChip>
-                    <span className="w-px h-4 bg-white/10 hidden sm:block" />
-                    <FilterChip active={genderFilter === 'Female'} onClick={() => toggleGender('Female')}>Women</FilterChip>
-                    <FilterChip active={genderFilter === 'Male'} onClick={() => toggleGender('Male')}>Men</FilterChip>
+
                     {locationOptions.length > 0 ? (
                         <>
-                            <span className="w-px h-4 bg-white/10 hidden sm:block" />
-                            {locationOptions.map((opt) => (
-                                <FilterChip
-                                    key={opt}
-                                    active={meetingFilter === opt}
-                                    onClick={() => toggleMeeting(opt)}
+                            <span className="w-px h-6 bg-white/10 self-center mx-0.5" />
+                            <label className="relative min-w-44 max-w-full sm:max-w-xs flex-1 sm:flex-none">
+                                <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#0ECCEE] pointer-events-none" />
+                                <select
+                                    value={meetingFilter}
+                                    onChange={(e) => {
+                                        setMeetingFilter(e.target.value);
+                                        setPage(1);
+                                    }}
+                                    className="w-full appearance-none pl-9 pr-8 py-2.5 min-h-11 rounded-xl bg-[#1a1b1d] border border-white/15 text-sm text-white focus:outline-none focus:border-[#0ECCEE]/60"
+                                    aria-label="Pickup point"
                                 >
-                                    {opt}
-                                </FilterChip>
-                            ))}
+                                    <option value="">All pickups</option>
+                                    {[...pickupGroups.groups.entries()].map(([city, opts]) => (
+                                        <optgroup key={city} label={city}>
+                                            {opts.map((o) => (
+                                                <option key={o.value} value={o.value}>{o.label}</option>
+                                            ))}
+                                        </optgroup>
+                                    ))}
+                                    {pickupGroups.ungrouped.map((o) => (
+                                        <option key={o.value} value={o.value}>{o.label}</option>
+                                    ))}
+                                </select>
+                            </label>
                         </>
-                    ) : null}
-                    {hasFilters ? (
-                        <button type="button" onClick={clearFilters} className="text-xs text-[#0ECCEE] ml-auto hover:underline">
-                            Clear filters
-                        </button>
                     ) : null}
                 </div>
             </div>
@@ -676,7 +738,7 @@ export default function TrekOrganizerParticipantsPage() {
                     <div className="mx-auto size-12 rounded-2xl bg-[#0ECCEE]/10 text-[#0ECCEE] flex items-center justify-center mb-3">
                         <Users size={22} />
                     </div>
-                    <p className="text-gray-200 font-medium">No participants found</p>
+                    <p className="text-gray-200 font-medium">No customers found</p>
                     <p className="text-sm text-gray-500 mt-1">
                         {hasFilters ? 'Try clearing filters or search' : 'Registrations will appear here'}
                     </p>
@@ -702,7 +764,6 @@ export default function TrekOrganizerParticipantsPage() {
                             onWhatsApp={isValidWhatsAppPhone(row.phone) ? (p) => openWhatsAppFor(p) : undefined}
                             onDelete={row.status === 'confirmed' ? handleDelete : undefined}
                             onCopied={(msg) => toast(msg)}
-                            onOpenCrm={(p) => openInCrm(p)}
                             onReviewPayment={
                                 row.paymentStatus === 'Pending review' || row.status === 'pending'
                                     ? () => setReviewTarget(row)

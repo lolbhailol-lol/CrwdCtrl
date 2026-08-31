@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mountain, Loader, ArrowLeft } from 'lucide-react';
+import { Mountain, Loader } from 'lucide-react';
 import {
     fetchTrekOrganizerSignupCommunities,
     trekOrganizerSignup,
@@ -19,6 +19,26 @@ export default function TrekOrganizerSignupPage() {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        const prevTitle = document.title;
+        document.title = 'Trek Organizer Signup | CrwdCtrl';
+        let robots = document.querySelector('meta[name="robots"]');
+        const created = !robots;
+        if (!robots) {
+            robots = document.createElement('meta');
+            robots.setAttribute('name', 'robots');
+            document.head.appendChild(robots);
+        }
+        const prevRobots = robots.getAttribute('content');
+        robots.setAttribute('content', 'noindex, nofollow');
+        return () => {
+            document.title = prevTitle;
+            if (created) robots.remove();
+            else if (prevRobots != null) robots.setAttribute('content', prevRobots);
+            else robots.removeAttribute('content');
+        };
+    }, []);
 
     useEffect(() => {
         let cancelled = false;
@@ -76,26 +96,18 @@ export default function TrekOrganizerSignupPage() {
     return (
         <div className="min-h-dvh bg-[#0f1011] flex items-center justify-center px-4 py-6 pt-[max(1.5rem,var(--safe-top))] pb-[max(1.5rem,var(--safe-bottom))]">
             <div className="w-full max-w-md rounded-2xl border border-gray-800 bg-[#161718] p-6 sm:p-8 shadow-xl">
-                <button
-                    type="button"
-                    onClick={() => navigate('/')}
-                    className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-[#0ECCEE] mb-5"
-                >
-                    <ArrowLeft size={14} /> Back to CrwdCtrl
-                </button>
-
                 <div className="flex items-center gap-3 mb-6">
                     <div className="size-12 rounded-xl bg-[#0ECCEE]/10 flex items-center justify-center">
                         <Mountain className="text-[#0ECCEE]" size={24} />
                     </div>
                     <div>
-                        <h1 className="text-xl font-bold">Create trek community account</h1>
-                        <p className="text-xs text-gray-500">Invite-only — then CrwdCtrl approves login</p>
+                        <h1 className="text-xl font-bold">Trek Organizer signup</h1>
+                        <p className="text-xs text-gray-500">Invite-only trek portal — not fest or events</p>
                     </div>
                 </div>
 
                 <p className="text-[11px] text-gray-500 mb-4 rounded-lg border border-gray-800 bg-[#111213] px-3 py-2">
-                    Use the same email CrwdCtrl added under Profile emails. After signup, wait for account approval before signing in. Bookings stay in-app (Cashfree) — no QR payment required.
+                    Use the email CrwdCtrl approved for trek access. After signup, wait for approval, then sign in at the trek login link only.
                 </p>
 
                 {error ? (

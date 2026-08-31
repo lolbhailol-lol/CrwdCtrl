@@ -6,7 +6,7 @@ const PaymentOrder = require('../model/payment_order_model');
 const { verifyCashfreePayment } = require('./cashfreeService');
 const { logger } = require('../utils/logger');
 
-const RECONCILE_ENTITY_TYPES = ['sports', 'fest', 'competition', 'event_show'];
+const RECONCILE_ENTITY_TYPES = ['sports', 'fest', 'competition', 'event_show', 'trek'];
 
 function envMs(name, fallback) {
   const n = Number(process.env[name]);
@@ -32,6 +32,12 @@ async function fulfillPaidOrder(updated) {
     const { fulfillSportsFromPaidOrder } = require('./sportsPaymentFulfillment');
     await fulfillSportsFromPaidOrder(updated);
     return { fulfilled: true, entityType: 'sports' };
+  }
+
+  if (updated.entityType === 'trek' && updated.orderTags?.formData) {
+    const { fulfillTrekFromPaidOrder } = require('./trekPaymentFulfillment');
+    await fulfillTrekFromPaidOrder(updated);
+    return { fulfilled: true, entityType: 'trek' };
   }
 
   return { fulfilled: false, reason: 'no_draft' };

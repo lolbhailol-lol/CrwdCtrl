@@ -31,9 +31,14 @@ const trekCommunitySchema = new mongoose.Schema(
         status:            { type: String, enum: ['published', 'draft'], default: 'published' },
         /**
          * Online checkout for this community's treks.
-         * razorpay = organizer Razorpay merchant keys (env RAZORPAY_*); cashfree = platform Cashfree.
+         * razorpay = organizer Razorpay merchant keys (env RAZORPAY_*); cashfree = Cashfree.
          */
         paymentGateway:    { type: String, enum: ['cashfree', 'razorpay'], default: 'cashfree' },
+        /**
+         * Which Cashfree account when paymentGateway is cashfree.
+         * platform = main CrwdCtrl (CASHFREE_*); events = Delulu / events hub (CASHFREE_EVENTS_*).
+         */
+        cashfreeMerchant:  { type: String, enum: ['platform', 'events'], default: 'platform' },
         homeSection:       { type: String, default: null },
         /** Home page hero / moving banner */
         showOnHomeSlide:   { type: Boolean, default: false },

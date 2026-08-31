@@ -271,6 +271,7 @@ export default function TrekOrganizerDashboardPage() {
                     tone="money"
                     icon={IndianRupee}
                     hint={moneyHint}
+                    to={`/trek-organizer/treks/${trekId}/participants?paymentStatus=paid`}
                 />
                 <StatTile
                     compact
@@ -278,7 +279,7 @@ export default function TrekOrganizerDashboardPage() {
                     value={`${checkedIn}/${total}`}
                     tone="ok"
                     icon={UserCheck}
-                    to={`/trek-organizer/treks/${trekId}/scan`}
+                    to={`/trek-organizer/treks/${trekId}/participants?checkInStatus=checked_in`}
                     hint={total > 0 ? `${checkInPct}%` : undefined}
                 />
                 {(isOrganizerQr || pendingReviewCount > 0) ? (
@@ -297,7 +298,7 @@ export default function TrekOrganizerDashboardPage() {
                         value={pending}
                         tone="warn"
                         icon={QrCode}
-                        to={`/trek-organizer/treks/${trekId}/scan`}
+                        to={`/trek-organizer/treks/${trekId}/participants?checkInStatus=pending`}
                     />
                 )}
             </div>

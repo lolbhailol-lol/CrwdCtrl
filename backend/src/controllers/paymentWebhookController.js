@@ -164,6 +164,15 @@ exports.handleCashfreeWebhook = async (req, res) => {
             );
           });
         }
+        if (updated?.entityType === 'trek' && updated?.orderTags?.formData) {
+          const { fulfillTrekFromPaidOrder } = require('../services/trekPaymentFulfillment');
+          fulfillTrekFromPaidOrder(updated).catch((fulfillErr) => {
+            console.error(
+              '[paymentWebhook] Trek fulfill failed:',
+              fulfillErr?.message || fulfillErr,
+            );
+          });
+        }
       } catch (dbErr) {
         console.error('[paymentWebhook] Failed to mark order PAID:', dbErr.message);
       }

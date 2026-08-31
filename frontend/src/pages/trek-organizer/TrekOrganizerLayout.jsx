@@ -6,14 +6,13 @@ import { navActiveClass, navIdleClass } from './organizerTheme';
 
 const navForTrek = (trekId) => [
     { label: 'Dashboard', path: `/trek-organizer/treks/${trekId}`, icon: LayoutDashboard, end: true, short: 'Dash' },
-    { label: 'Participants', path: `/trek-organizer/treks/${trekId}/participants`, icon: Users, short: 'Guests' },
-    { label: 'Customers', path: `/trek-organizer/treks/${trekId}/customers`, icon: ContactRound, short: 'CRM' },
+    { label: 'Customers', path: `/trek-organizer/treks/${trekId}/participants`, icon: Users, short: 'Guests' },
     { label: 'Scan QR', path: `/trek-organizer/treks/${trekId}/scan`, icon: QrCode, short: 'Scan' },
     { label: 'Notify', path: `/trek-organizer/treks/${trekId}/notifications`, icon: Bell, short: 'Notify' },
 ];
 
 const communityNav = [
-    { label: 'Customers', path: '/trek-organizer/customers', icon: ContactRound, end: true, short: 'CRM' },
+    { label: 'All customers', path: '/trek-organizer/customers', icon: ContactRound, end: true, short: 'CRM' },
 ];
 
 function pathIsActive(pathname, to, end = false) {
@@ -192,7 +191,7 @@ export default function TrekOrganizerLayout() {
                             {activeTrek
                                 ? (onDashboard ? 'Live trek dashboard' : 'Trek tools')
                                 : onCustomers
-                                    ? 'Community guests'
+                                    ? 'All customers across treks'
                                     : 'Track all treks'}
                         </p>
                     </div>
@@ -211,7 +210,7 @@ export default function TrekOrganizerLayout() {
                                 onClick={() => navigate('/trek-organizer/customers')}
                                 className="text-xs text-[#0ECCEE] min-h-11 px-2 font-medium"
                             >
-                                Customers
+                                All customers
                             </button>
                         ) : null}
                         <button
@@ -236,7 +235,7 @@ export default function TrekOrganizerLayout() {
                     className="lg:hidden fixed bottom-0 inset-x-0 z-40 border-t border-white/10 bg-[#121314]/95 backdrop-blur pb-[var(--safe-bottom)]"
                     aria-label="Trek tools"
                 >
-                    <div className="grid grid-cols-5">
+                    <div className="grid grid-cols-4">
                         {nav.map((item) => {
                             const isActive = pathIsActive(pathname, item.path, item.end);
                             return (

@@ -965,6 +965,10 @@ export default function TrekBookingPage() {
                         trekName,
                         people,
                         formData,
+                        bookingDetails: {
+                            date: selDate || '',
+                            time: selTime || '',
+                        },
                         customerName: extraFields.full_name || extraFields.name || extraFields.fullname || '',
                         customerEmail,
                         customerPhone:

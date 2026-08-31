@@ -67,12 +67,24 @@ const CASHFREE_CONFIG_MSG =
 const RAZORPAY_CONFIG_MSG =
   'Razorpay credentials are invalid or missing. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in backend/.env';
 
-async function resolveTrekCommunityGateway(trek) {
+async function resolveTrekCommunityPayment(trek) {
   const communityRef = trek?.communityId;
-  if (!communityRef) return 'cashfree';
+  if (!communityRef) return { gateway: 'cashfree', cashfreeMerchant: 'platform' };
   const communityId = communityRef._id || communityRef;
-  const community = await TrekCommunity.findById(communityId).select('paymentGateway').lean();
-  return community?.paymentGateway === 'razorpay' ? 'razorpay' : 'cashfree';
+  const community = await TrekCommunity.findById(communityId)
+    .select('paymentGateway cashfreeMerchant')
+    .lean();
+  if (community?.paymentGateway === 'razorpay') {
+    return { gateway: 'razorpay', cashfreeMerchant: 'platform' };
+  }
+  const cashfreeMerchant = community?.cashfreeMerchant === 'events' ? 'events' : 'platform';
+  return { gateway: 'cashfree', cashfreeMerchant };
+}
+
+/** @deprecated prefer resolveTrekCommunityPayment */
+async function resolveTrekCommunityGateway(trek) {
+  const { gateway } = await resolveTrekCommunityPayment(trek);
+  return gateway;
 }
 
 const respondRazorpayError = (res, err, fallbackMessage) => {
@@ -666,6 +678,10 @@ async function markOrderPaidAndFulfill(result) {
       const { fulfillSportsFromPaidOrder } = require('../services/sportsPaymentFulfillment');
       fulfillSportsFromPaidOrder(updated).catch(() => {});
     }
+    if (updated.entityType === 'trek' && updated.orderTags?.formData) {
+      const { fulfillTrekFromPaidOrder } = require('../services/trekPaymentFulfillment');
+      fulfillTrekFromPaidOrder(updated).catch(() => {});
+    }
     return updated;
   } catch {
     return null;
@@ -913,7 +929,7 @@ exports.createTrekOrder = async (req, res) => {
       return res.status(400).json({ success: false, message: 'This trek does not require payment' });
     }
 
-    const gateway = await resolveTrekCommunityGateway(trek);
+    const { gateway, cashfreeMerchant } = await resolveTrekCommunityPayment(trek);
 
     // Security: ignore client-supplied baseAmount/amount — server is source of truth
     const baseTicketTotal = ticketPricePerPerson * peopleCount;
@@ -932,6 +948,30 @@ exports.createTrekOrder = async (req, res) => {
     const totalAmount = coupon.amountAfterDiscount;
     const resolvedTrekName = trek.trekName || trekName || 'Trek Booking';
 
+    const formDraft = sanitizeSportsFormDraft(req.body.formData || {}, {
+      customerName,
+      customerEmail: email,
+      customerPhone,
+    });
+    if (!Object.keys(formDraft).length) {
+      return res.status(400).json({
+        success: false,
+        message: 'Registration form data is required before payment.',
+      });
+    }
+    const bookingDraftRaw = req.body.bookingDetails && typeof req.body.bookingDetails === 'object'
+      ? req.body.bookingDetails
+      : {};
+    const bookingDraft = {
+      date: String(bookingDraftRaw.date || req.body.date || '').trim().slice(0, 80),
+      time: String(bookingDraftRaw.time || req.body.time || '').trim().slice(0, 120),
+    };
+    const resolvedPhone = firstValidCustomerPhone([
+      customerPhone,
+      formDraft.contact_no,
+      formDraft.phone,
+    ]) || '';
+
     const existingPending = await findReusablePendingOrder({
       customerEmail: email,
       entityType: 'trek',
@@ -947,23 +987,56 @@ exports.createTrekOrder = async (req, res) => {
         : Boolean(existingPending.paymentSessionId)
     )) {
       const reusedGateway = existingPending.gateway === 'razorpay' ? 'razorpay' : 'cashfree';
+      // Do not reuse a Cashfree session from the other merchant (platform vs Delulu/events)
+      if (
+        reusedGateway === 'cashfree'
+        && (existingPending.cashfreeMerchant || 'platform') !== cashfreeMerchant
+      ) {
+        existingPending.status = 'EXPIRED';
+        await existingPending.save().catch(() => {});
+      } else {
       const alreadyPaid = Boolean(
         existingPending._alreadyPaidAtGateway
         || existingPending.status === 'PAID',
       );
+      // Refresh draft so webhook/reconcile can fulfill if guest never returns
+      existingPending.orderTags = {
+        ...(existingPending.orderTags && typeof existingPending.orderTags === 'object'
+          ? existingPending.orderTags
+          : {}),
+        formData: formDraft,
+        bookingDetails: bookingDraft,
+        trekId: String(trek._id),
+        people: String(peopleCount),
+        totalAmount: String(totalAmount),
+        gateway: reusedGateway,
+        cashfreeMerchant,
+      };
+      if (resolvedPhone) existingPending.customerPhone = resolvedPhone;
+      if (reusedGateway === 'cashfree') existingPending.cashfreeMerchant = cashfreeMerchant;
+      await existingPending.save().catch(() => {});
+
+      // Paid at gateway but booking missing — fulfill now (MindSpark-style recovery)
+      if (alreadyPaid) {
+        const { fulfillTrekFromPaidOrder } = require('../services/trekPaymentFulfillment');
+        fulfillTrekFromPaidOrder(existingPending).catch(() => {});
+      }
+
       return res.json({
         success: true,
         gateway: reusedGateway,
         alreadyPaid,
         paymentId: existingPending.paymentId || null,
+        cashfreeMerchant: reusedGateway === 'cashfree' ? cashfreeMerchant : undefined,
         ...(reusedGateway === 'razorpay'
           ? {
               keyId: getRazorpayKeyId(),
               amountPaise: Math.round(Number(existingPending.totalAmount) * 100),
             }
-          : { cashfreeMode: getCashfreeClientMode() }),
+          : { cashfreeMode: getCashfreeClientMode(cashfreeMerchant) }),
         ...buildOrderResponse(existingPending),
       });
+      }
     }
 
     const canonicalTrekId = String(trek._id);
@@ -972,6 +1045,9 @@ exports.createTrekOrder = async (req, res) => {
       people: String(peopleCount),
       totalAmount: String(totalAmount),
       gateway,
+      cashfreeMerchant,
+      formData: formDraft,
+      bookingDetails: bookingDraft,
     };
 
     if (gateway === 'razorpay') {
@@ -1006,7 +1082,7 @@ exports.createTrekOrder = async (req, res) => {
         status: 'PENDING',
         orderTags,
         customerEmail: email,
-        customerPhone: firstValidCustomerPhone([customerPhone]) || '',
+        customerPhone: resolvedPhone,
       });
 
       return res.json({
@@ -1050,7 +1126,9 @@ exports.createTrekOrder = async (req, res) => {
         amountBeforeDiscount: String(coupon.amountBeforeDiscount),
         amountAfterDiscount: String(coupon.amountAfterDiscount),
         totalAmount: String(totalAmount),
+        merchant: cashfreeMerchant,
       },
+      merchant: cashfreeMerchant,
     });
 
     await PaymentOrder.create({
@@ -1072,13 +1150,16 @@ exports.createTrekOrder = async (req, res) => {
       status: 'PENDING',
       orderTags,
       customerEmail: email,
+      customerPhone: resolvedPhone,
+      cashfreeMerchant,
     });
 
     res.json({
       gateway: 'cashfree',
       orderId: order.order_id,
       paymentSessionId: order.payment_session_id,
-      cashfreeMode: getCashfreeClientMode(),
+      cashfreeMode: getCashfreeClientMode(cashfreeMerchant),
+      cashfreeMerchant,
       amount: order.order_amount,
       currency: order.order_currency,
       ticketPrice: ticketPricePerPerson,
@@ -1602,6 +1683,10 @@ exports.verifyTrekPayment = async (req, res) => {
     }
 
     if (paymentOrder?.status === 'PAID' && paymentOrder.entityType === 'trek') {
+      if (paymentOrder.orderTags?.formData) {
+        const { fulfillTrekFromPaidOrder } = require('../services/trekPaymentFulfillment');
+        fulfillTrekFromPaidOrder(paymentOrder).catch(() => {});
+      }
       const paymentProof = signPaymentProof({
         orderId: paymentOrder.orderId,
         paymentId: paymentOrder.paymentId || paymentId || null,
@@ -1658,6 +1743,14 @@ exports.verifyTrekPayment = async (req, res) => {
           totalAmount: paymentOrder.totalAmount,
           people: paymentOrder.people,
         });
+        if (paymentOrder.orderTags?.formData) {
+          const { fulfillTrekFromPaidOrder } = require('../services/trekPaymentFulfillment');
+          fulfillTrekFromPaidOrder({
+            ...paymentOrder,
+            status: 'PAID',
+            paymentId: result.paymentId || paymentOrder.paymentId,
+          }).catch(() => {});
+        }
       }
     }
 

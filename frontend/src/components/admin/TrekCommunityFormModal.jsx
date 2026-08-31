@@ -24,6 +24,7 @@ const EMPTY = {
     contacts: [],
     status: 'published',
     paymentGateway: 'cashfree',
+    cashfreeMerchant: 'platform',
 };
 
 const normalizeContacts = (list) =>
@@ -53,6 +54,7 @@ function pickCommunityFormFields(source = {}) {
         contacts: normalizeContacts(source.contacts),
         status: source.status || 'published',
         paymentGateway: source.paymentGateway === 'razorpay' ? 'razorpay' : 'cashfree',
+        cashfreeMerchant: source.cashfreeMerchant === 'events' ? 'events' : 'platform',
     };
 }
 
@@ -359,11 +361,11 @@ export default function TrekCommunityFormModal({ community, onClose, onSaved }) 
 
                     <AdminFormSection
                         title="Online payments"
-                        hint="Cashfree = CrwdCtrl platform gateway. Razorpay = this community’s organizer merchant keys (RAZORPAY_* on the backend)."
+                        hint="Cashfree platform = main CrwdCtrl. Cashfree events = same account as Delulu. Razorpay = organizer merchant keys."
                     >
                         <div className="flex flex-col gap-3 sm:flex-row sm:gap-6">
                             {[
-                                { value: 'cashfree', label: 'Cashfree (platform)' },
+                                { value: 'cashfree', label: 'Cashfree' },
                                 { value: 'razorpay', label: 'Razorpay (organizer)' },
                             ].map((opt) => (
                                 <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
@@ -379,6 +381,34 @@ export default function TrekCommunityFormModal({ community, onClose, onSaved }) 
                                 </label>
                             ))}
                         </div>
+                        {form.paymentGateway === 'cashfree' ? (
+                            <div className="space-y-2">
+                                <p className="text-xs text-gray-500">Cashfree account</p>
+                                <div className="flex flex-col gap-2 sm:flex-row sm:gap-6">
+                                    {[
+                                        { value: 'platform', label: 'Platform (main CrwdCtrl)' },
+                                        { value: 'events', label: 'Events (same as Delulu)' },
+                                    ].map((opt) => (
+                                        <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="radio"
+                                                name="comm_cashfree_merchant"
+                                                value={opt.value}
+                                                checked={form.cashfreeMerchant === opt.value}
+                                                onChange={() => set('cashfreeMerchant', opt.value)}
+                                                className="accent-[#0ECCEE]"
+                                            />
+                                            <span className="text-sm text-gray-300">{opt.label}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                                {form.cashfreeMerchant === 'events' ? (
+                                    <p className="text-xs text-emerald-400/90 rounded-lg border border-emerald-700/40 bg-emerald-900/15 px-3 py-2">
+                                        Paid treks settle on the Delulu / events Cashfree account (<code className="text-emerald-200">CASHFREE_EVENTS_*</code>).
+                                    </p>
+                                ) : null}
+                            </div>
+                        ) : null}
                         {form.paymentGateway === 'razorpay' ? (
                             <p className="text-xs text-amber-500/90 rounded-lg border border-amber-700/40 bg-amber-900/20 px-3 py-2">
                                 All paid treks in this community will checkout via Razorpay. Set <code className="text-amber-200">RAZORPAY_KEY_ID</code> and <code className="text-amber-200">RAZORPAY_KEY_SECRET</code> on the backend (Railway / .env).

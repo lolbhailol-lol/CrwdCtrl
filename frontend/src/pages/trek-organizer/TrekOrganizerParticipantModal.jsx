@@ -85,7 +85,7 @@ export default function TrekOrganizerParticipantModal({ trekId, bookingId, onClo
             <div className="relative w-full sm:max-w-lg max-h-[92dvh] overflow-y-auto rounded-t-3xl sm:rounded-3xl border border-white/10 bg-[#121314] shadow-2xl">
                 <div className="sticky top-0 flex items-center justify-between px-4 py-3.5 border-b border-white/10 bg-[#121314]/95 backdrop-blur z-10">
                     <div>
-                        <p className="text-[10px] uppercase tracking-[0.12em] text-gray-500 font-semibold">Participant</p>
+                        <p className="text-[10px] uppercase tracking-[0.12em] text-gray-500 font-semibold">Customer</p>
                         <h2 className="font-semibold text-white">Registration details</h2>
                     </div>
                     <button

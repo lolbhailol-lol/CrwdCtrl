@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Mountain, Plus, Pencil, Trash2, Search, Check, X } from 'lucide-react';
+import { Mountain, Plus, Pencil, Trash2, Search, Check, X, Copy, Link2 } from 'lucide-react';
 import { DetailLoader3DIcon } from '../../components/DetailPageLoader';
 import { adminFetchJSON } from '../../services/api/admin.api.js';
 import { useDialog } from '../../context/DialogContext';
+import { absoluteUrl } from '../../utils/seo';
 
 const emptyForm = {
     name: '',
@@ -13,6 +14,36 @@ const emptyForm = {
     communityId: '',
     isActive: true,
 };
+
+const TREK_LOGIN_PATH = '/trek-organizer/login';
+const TREK_SIGNUP_PATH = '/trek-organizer/signup';
+
+function trekLoginUrl(username = '') {
+    const base = absoluteUrl(TREK_LOGIN_PATH);
+    const u = String(username || '').trim().toLowerCase();
+    return u ? `${base}?u=${encodeURIComponent(u)}` : base;
+}
+
+function trekSignupUrl() {
+    return absoluteUrl(TREK_SIGNUP_PATH);
+}
+
+function buildShareText({ username, communityName, includePasswordHint = true }) {
+    const lines = [
+        'Trek organizer login (treks only — not fest / run club / events)',
+        '',
+        trekLoginUrl(username),
+        '',
+        `Username: ${username || '—'}`,
+    ];
+    if (communityName && communityName !== '—') {
+        lines.push(`Community: ${communityName}`);
+    }
+    if (includePasswordHint) {
+        lines.push('', 'Use the password shared by CrwdCtrl.');
+    }
+    return lines.join('\n');
+}
 
 function statusBadge(org) {
     const status = org.status || (org.isActive !== false ? 'approved' : 'rejected');
@@ -47,20 +78,32 @@ export default function TrekOrganizersPage() {
     const [inviteNote, setInviteNote] = useState('');
     const [inviteSaving, setInviteSaving] = useState(false);
 
-    const organizerLoginUrl = typeof window !== 'undefined'
-        ? `${window.location.origin}/trek-organizer/login`
-        : '/trek-organizer/login';
-    const organizerSignupUrl = typeof window !== 'undefined'
-        ? `${window.location.origin}/trek-organizer/signup`
-        : '/trek-organizer/signup';
+    const organizerLoginUrl = trekLoginUrl();
+    const organizerSignupUrl = trekSignupUrl();
 
-    const copyUrl = async (url, label) => {
+    const copyText = async (text, label) => {
         try {
-            await navigator.clipboard.writeText(url);
+            await navigator.clipboard.writeText(text);
             toast(`${label} copied`);
         } catch {
-            toast('Could not copy URL');
+            toast('Could not copy');
         }
+    };
+
+    const communityLabel = (org) => {
+        if (org.communityId?.name) return org.communityId.name;
+        const found = communities.find((c) => String(c._id) === String(org.communityId));
+        return found?.name || '—';
+    };
+
+    const copyShareFor = (org) => {
+        copyText(
+            buildShareText({
+                username: org.username,
+                communityName: communityLabel(org),
+            }),
+            'Trek login share',
+        );
     };
 
     const load = async () => {
@@ -258,12 +301,6 @@ export default function TrekOrganizersPage() {
         }
     };
 
-    const communityLabel = (org) => {
-        if (org.communityId?.name) return org.communityId.name;
-        const found = communities.find((c) => String(c._id) === String(org.communityId));
-        return found?.name || '—';
-    };
-
     const tabs = [
         { id: 'all', label: 'All' },
         { id: 'pending', label: `Pending${pendingCount ? ` (${pendingCount})` : ''}` },
@@ -275,10 +312,13 @@ export default function TrekOrganizersPage() {
         <div className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-bold">Community Organizers</h1>
-                    <p className="text-sm text-gray-500">
-                        Approve trek community logins, and choose which app emails see Trek community in Profile.
-                        Booking stays in-app (Cashfree) — this is access approval only, not payment QR.
+                    <h1 className="text-2xl font-bold flex items-center gap-2">
+                        <Mountain className="text-[#0ECCEE]" size={22} />
+                        Trek Organizers
+                    </h1>
+                    <p className="text-sm text-gray-500 mt-1">
+                        Trek portal only — share <span className="text-gray-300 font-mono text-xs">/trek-organizer/login</span>.
+                        Not fest, run club, or event community logins.
                     </p>
                 </div>
                 {section === 'accounts' ? (
@@ -292,6 +332,29 @@ export default function TrekOrganizersPage() {
                     </button>
                 ) : null}
             </div>
+
+            {section === 'accounts' ? (
+                <div className="rounded-xl border border-[#0ECCEE]/25 bg-[#0ECCEE]/8 p-3.5 space-y-2.5">
+                    <p className="text-xs font-semibold text-[#9BE8F7] uppercase tracking-wide">Share trek login</p>
+                    <p className="text-[11px] text-gray-400 break-all font-mono">{organizerLoginUrl}</p>
+                    <div className="flex flex-wrap gap-2">
+                        <button
+                            type="button"
+                            onClick={() => copyText(organizerLoginUrl, 'Trek login URL')}
+                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-white/15 bg-black/30 text-xs font-medium text-white hover:border-[#0ECCEE]/40"
+                        >
+                            <Link2 size={13} /> Copy login link
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => copyText(organizerSignupUrl, 'Trek signup URL')}
+                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-white/15 bg-black/30 text-xs font-medium text-white hover:border-[#0ECCEE]/40"
+                        >
+                            <Copy size={13} /> Copy signup link
+                        </button>
+                    </div>
+                </div>
+            ) : null}
 
             {section === 'accounts' && communities.length === 0 && !loading ? (
                 <div className="rounded-xl border border-amber-800/60 bg-amber-900/15 px-4 py-3 text-sm text-amber-200">
@@ -490,6 +553,14 @@ export default function TrekOrganizersPage() {
                                                     <Check size={12} /> Approve
                                                 </button>
                                             ) : null}
+                                            <button
+                                                type="button"
+                                                onClick={() => copyShareFor(org)}
+                                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-white/10 text-gray-300 hover:border-[#0ECCEE]/40 hover:text-[#0ECCEE] mr-1"
+                                                title="Copy trek login share text"
+                                            >
+                                                <Copy size={12} /> Share
+                                            </button>
                                             <button type="button" onClick={() => openEdit(org)} className="p-2 rounded-lg hover:bg-gray-800 text-gray-400"><Pencil size={14} /></button>
                                             <button type="button" onClick={() => remove(org)} className="p-2 rounded-lg hover:bg-red-900/30 text-red-400"><Trash2 size={14} /></button>
                                         </td>
@@ -501,19 +572,10 @@ export default function TrekOrganizersPage() {
                 )}
             </div>
 
-            <div className="flex flex-col gap-2 text-xs text-gray-600">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                    <span>Signup: <span className="text-[#0ECCEE]">{organizerSignupUrl}</span></span>
-                    <button type="button" onClick={() => copyUrl(organizerSignupUrl, 'Signup URL')} className="shrink-0 px-3 py-2 rounded-lg border border-gray-700 text-gray-300 hover:border-[#0ECCEE]/40 text-xs font-medium min-h-[36px]">
-                        Copy signup
-                    </button>
-                </div>
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                    <span>Login: <span className="text-[#0ECCEE]">{organizerLoginUrl}</span></span>
-                    <button type="button" onClick={() => copyUrl(organizerLoginUrl, 'Login URL')} className="shrink-0 px-3 py-2 rounded-lg border border-gray-700 text-gray-300 hover:border-[#0ECCEE]/40 text-xs font-medium min-h-[36px]">
-                        Copy login
-                    </button>
-                </div>
+            <div className="rounded-xl border border-gray-800 bg-[#161718] p-3.5 text-xs text-gray-500 space-y-1">
+                <p className="text-gray-400 font-medium">Always share the trek portal — never fest or home discover.</p>
+                <p>Login: <span className="text-[#0ECCEE] font-mono break-all">{organizerLoginUrl}</span></p>
+                <p>Signup: <span className="text-[#0ECCEE] font-mono break-all">{organizerSignupUrl}</span></p>
             </div>
             </>
             )}
