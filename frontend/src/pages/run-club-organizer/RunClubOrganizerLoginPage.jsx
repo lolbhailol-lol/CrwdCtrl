@@ -16,6 +16,7 @@ import {
 import { showAppPopup } from '../../utils/appPopup';
 import { useAuth } from '../../context/AuthContext';
 import DetailPageLoader from '../../components/DetailPageLoader';
+import Seo from '../../components/Seo';
 
 function resolvePostLoginPath(events, from, isEventHub) {
     if (from) return from;
@@ -168,6 +169,14 @@ export default function RunClubOrganizerLoginPage() {
 
     return (
         <div className="min-h-dvh bg-[#0f1011] flex items-center justify-center px-4 py-6 pt-[max(1.5rem,var(--safe-top))] pb-[max(1.5rem,var(--safe-bottom))]">
+            <Seo
+                title={isEventHub ? 'Community Organizer Login' : 'Club Manager Login'}
+                description={isEventHub
+                    ? 'Sign in to manage your event community — guests, check-ins and notifications.'
+                    : 'Sign in to manage your run club — participants, check-ins and updates.'}
+                canonical={organizerLoginPath(isEventHub)}
+                noindex
+            />
             <div className="w-full max-w-md rounded-2xl border border-gray-800 bg-[#161718] p-6 sm:p-8 shadow-xl">
                 <button
                     type="button"

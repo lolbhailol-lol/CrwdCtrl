@@ -53,6 +53,8 @@
           || /^\/sports\/run(\/|$)/.test(p)
           || /^\/sports\/run-club(\/|$)/.test(p)
           || /^\/events\/[^/]+/.test(p)
+          || /^\/event-community-organizer(\/|$)/.test(p)
+          || /^\/run-club-organizer(\/|$)/.test(p)
           || hunt;
         var isReload = false;
         try {
@@ -94,6 +96,47 @@
 
   <!-- Primary SEO -->
   <title>CrwdCtrl — Discover fests, clubs &amp; events</title>
+  <script>
+    (function () {
+      try {
+        var p = location.pathname || '';
+        var pageTitle = '';
+        var pageDesc = '';
+        if (p === '/event-community-organizer/login') {
+          pageTitle = 'Community Organizer Login';
+          pageDesc = 'Sign in to manage your event community — guests, check-ins and notifications.';
+        } else if (p === '/event-community-organizer/signup') {
+          pageTitle = 'Community Organizer Signup';
+          pageDesc = 'Create your event community organizer account on CrwdCtrl.';
+        } else if (/^\/event-community-organizer(\/|$)/.test(p)) {
+          pageTitle = 'Community Organizer';
+          pageDesc = 'Manage your event community dashboard on CrwdCtrl.';
+        } else if (p === '/run-club-organizer/login') {
+          pageTitle = 'Club Manager Login';
+          pageDesc = 'Sign in to manage your run club — participants, check-ins and updates.';
+        } else if (p === '/run-club-organizer/signup') {
+          pageTitle = 'Club Manager Signup';
+          pageDesc = 'Create your run club manager account on CrwdCtrl.';
+        } else if (/^\/run-club-organizer(\/|$)/.test(p)) {
+          pageTitle = 'Club Manager';
+          pageDesc = 'Manage your run club dashboard on CrwdCtrl.';
+        }
+        if (!pageTitle) return;
+        var full = pageTitle + ' | CrwdCtrl';
+        document.title = full;
+        function setMeta(sel, content) {
+          var el = document.querySelector(sel);
+          if (el && content) el.setAttribute('content', content);
+        }
+        setMeta('meta[property="og:title"]', full);
+        setMeta('meta[name="twitter:title"]', full);
+        setMeta('meta[name="description"]', pageDesc);
+        setMeta('meta[property="og:description"]', pageDesc);
+        setMeta('meta[name="twitter:description"]', pageDesc);
+        setMeta('meta[name="apple-mobile-web-app-title"]', pageTitle);
+      } catch (e) {}
+    })();
+  </script>
   <meta name="description" content="CrwdCtrl helps you find college fests, tech and sports events, running clubs, gym communities, and meetups near you." />
   <meta name="application-name" content="CrwdCtrl" />
   <meta name="color-scheme" content="light dark" />

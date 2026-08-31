@@ -4,6 +4,7 @@ import { CalendarDays, LayoutDashboard, Users, QrCode, LogOut, Bell, Menu, Home,
 import { markRunClubOrganizerLoggedOut, getRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
 import { organizerHubCopy } from '../../utils/listingHubCopy';
 import { EVENT_COMMUNITY_ORGANIZER_BASE, organizerEventPath, organizerHomePath } from '../../utils/organizerPortalPaths';
+import Seo from '../../components/Seo';
 
 const navForEvent = (eventId) => [
     { label: 'Home', path: organizerEventPath(eventId, true), icon: LayoutDashboard, end: true, short: 'Dash' },
@@ -61,6 +62,14 @@ export default function EventCommunityOrganizerLayout() {
 
     return (
         <div className="min-h-dvh bg-[#0f1011] text-white flex">
+            <Seo
+                title={hasEventContext && activeEvent?.title
+                    ? `${activeEvent.title} — Community Organizer`
+                    : 'Community Organizer'}
+                description="Manage your event community — guests, check-ins and notifications."
+                canonical={hasEventContext ? organizerEventPath(eventId, true) : organizerHomePath(true)}
+                noindex
+            />
             <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#161718] border-r border-white/10 transform transition-transform lg:translate-x-0 pt-[var(--safe-top)] pb-[var(--safe-bottom)] flex flex-col ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                 <div className="px-5 py-5 border-b border-white/10 shrink-0">
                     <div className="flex items-center gap-2.5">

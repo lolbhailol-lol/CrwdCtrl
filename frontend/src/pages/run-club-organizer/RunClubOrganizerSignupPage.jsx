@@ -14,7 +14,9 @@ import {
     RUN_CLUB_ORGANIZER_BASE,
     organizerHomePath,
     organizerEventPath,
+    organizerSignupPath,
 } from '../../utils/organizerPortalPaths';
+import Seo from '../../components/Seo';
 
 export default function RunClubOrganizerSignupPage() {
     const navigate = useNavigate();
@@ -111,6 +113,14 @@ export default function RunClubOrganizerSignupPage() {
 
     return (
         <div className="min-h-dvh bg-[#0f1011] flex items-center justify-center px-4 py-6 pt-[max(1.5rem,var(--safe-top))] pb-[max(1.5rem,var(--safe-bottom))]">
+            <Seo
+                title={isEventHub ? 'Community Organizer Signup' : 'Club Manager Signup'}
+                description={isEventHub
+                    ? 'Create your event community organizer account on CrwdCtrl.'
+                    : 'Create your run club manager account on CrwdCtrl.'}
+                canonical={organizerSignupPath(isEventHub)}
+                noindex
+            />
             <div className="w-full max-w-md rounded-2xl border border-gray-800 bg-[#161718] p-6 sm:p-8 shadow-xl">
                 <button
                     type="button"
