@@ -746,6 +746,28 @@ export default function CheckinScannerPage({
                     {[scanResult.data.userPhone, scanResult.data.userEmail].filter(Boolean).join(' · ')}
                   </p>
                 )}
+                {(scanResult.data?.gender || scanResult.data?.postGameFuel || scanResult.data?.skillLevel
+                  || (Array.isArray(scanResult.data?.opsRows) && scanResult.data.opsRows.length > 0)) && (
+                  <div className="mt-1.5 space-y-0.5 text-left">
+                    {scanResult.data.gender ? (
+                      <p className="text-white/90 text-xs">Gender · {scanResult.data.gender}</p>
+                    ) : null}
+                    {(scanResult.data.postGameFuel
+                      || scanResult.data.opsRows?.find((r) => /fuel/i.test(r.label))?.value) ? (
+                      <p className="text-white/90 text-xs">
+                        Fuel · {scanResult.data.postGameFuel
+                          || scanResult.data.opsRows?.find((r) => /fuel/i.test(r.label))?.value}
+                      </p>
+                    ) : null}
+                    {(scanResult.data.skillLevel
+                      || scanResult.data.opsRows?.find((r) => /skill/i.test(r.label))?.value) ? (
+                      <p className="text-white/90 text-xs">
+                        Skill · {scanResult.data.skillLevel
+                          || scanResult.data.opsRows?.find((r) => /skill/i.test(r.label))?.value}
+                      </p>
+                    ) : null}
+                  </div>
+                )}
                 {scanResult.status !== 'checked_in' && (
                   <button
                     type="button"
@@ -1002,6 +1024,23 @@ export default function CheckinScannerPage({
                       {[scanResult.data.userPhone, scanResult.data.userEmail].filter(Boolean).join(' · ')}
                     </p>
                   )}
+                  {scanResult.data.gender ? (
+                    <p className="text-gray-300 text-xs">Gender · {scanResult.data.gender}</p>
+                  ) : null}
+                  {(scanResult.data.postGameFuel
+                    || scanResult.data.opsRows?.find((r) => /fuel/i.test(String(r.label || '')))?.value) ? (
+                    <p className="text-[#0ECCEE] text-xs font-medium">
+                      Fuel · {scanResult.data.postGameFuel
+                        || scanResult.data.opsRows?.find((r) => /fuel/i.test(String(r.label || '')))?.value}
+                    </p>
+                  ) : null}
+                  {(scanResult.data.skillLevel
+                    || scanResult.data.opsRows?.find((r) => /skill/i.test(String(r.label || '')))?.value) ? (
+                    <p className="text-[#0ECCEE] text-xs font-medium">
+                      Skill · {scanResult.data.skillLevel
+                        || scanResult.data.opsRows?.find((r) => /skill/i.test(String(r.label || '')))?.value}
+                    </p>
+                  ) : null}
                   {(scanResult.data.trekName || scanResult.data.festName) && (
                     <p className="text-gray-400">{scanResult.data.trekName || scanResult.data.festName}</p>
                   )}

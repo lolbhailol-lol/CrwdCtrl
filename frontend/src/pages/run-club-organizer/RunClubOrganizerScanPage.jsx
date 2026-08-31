@@ -12,6 +12,7 @@ import {
 } from '../../services/api/runClubOrganizer.api';
 import { useDialog } from '../../context/DialogContext';
 import { isEventsListingHub, organizerHubCopy } from '../../utils/listingHubCopy';
+import { getGuestOpsAnswers, shortOpsLabel } from '../trek-organizer/ParticipantCard';
 
 function cleanPhone(phone) {
     if (!phone || phone === '—') return '';
@@ -20,6 +21,7 @@ function cleanPhone(phone) {
 
 function normalizeRunClubRow(p) {
     if (!p) return null;
+    const ops = getGuestOpsAnswers(p);
     return {
         id: String(p.bookingId),
         name: p.participantName || 'Guest',
@@ -28,6 +30,13 @@ function normalizeRunClubRow(p) {
         checkedIn: p.checkInStatus === 'Checked In' || Boolean(p.checkedIn),
         checkedInAt: p.checkedInAt || null,
         meta: p.bookingId ? `#${String(p.bookingId).slice(-8)}` : '',
+        gender: ops.gender?.value || p.participantGender || '',
+        drink: ops.drink?.value || '',
+        drinkLabel: ops.drink?.label || 'Post game fuel',
+        skill: ops.skill?.value || '',
+        skillLabel: ops.skill?.label || 'Skill',
+        drinkShort: ops.drink?.value ? shortOpsLabel(ops.drink.value) : '',
+        skillShort: ops.skill?.value ? shortOpsLabel(ops.skill.value) : '',
         raw: p,
     };
 }

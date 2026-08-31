@@ -8,6 +8,8 @@ const Trek = require('../model/trek_model');
 const Competition = require('../model/competition_model');
 const { parseQrPayload, resolveCheckinRecord } = require('../utils/qrCheckin');
 const { appendCheckinToGoogleSheets } = require('./googleSheetsService');
+const { decryptRegistrationPii } = require('../utils/runClubPiiCrypto');
+const { buildSportsCheckinGuestPayload } = require('../utils/runClubOrganizerFormat');
 
 function matchesFestScope(recordFestId, festId) {
   if (!festId) return true;
@@ -278,7 +280,7 @@ async function performCheckinFromRaw(raw, options = {}) {
     }
 
     const sportsReg = await CategoryRegistration.findById(resolved.record._id)
-      .populate('user', 'name email profilePic');
+      .populate('user', 'name email profilePic phoneNumber phone gender');
 
     if (!sportsReg || sportsReg.category !== 'sports' || sportsReg.status === 'cancelled') {
       return {
@@ -303,10 +305,13 @@ async function performCheckinFromRaw(raw, options = {}) {
     }
 
     const event = await SportsEvent.findById(sportsReg.eventId).select(
-      'title city sportType eventDate registration.googleSheetsUrl',
+      'title city sportType eventDate runClubId registration.googleSheetsUrl registration.formSchema',
     );
     const eventId = sportsReg.eventId;
     const eventTitle = event?.title || 'Sports Event';
+
+    const decryptedSports = decryptRegistrationPii(sportsReg, event?.runClubId) || sportsReg;
+    const guestPayload = buildSportsCheckinGuestPayload(decryptedSports, event);
 
     if (sportEventId && !matchesSportScope(eventId, sportEventId)) {
       return {
@@ -327,11 +332,12 @@ async function performCheckinFromRaw(raw, options = {}) {
           status: 'already_checked_in',
           message: 'Already checked in',
           data: {
-            userName: sportsReg.user?.name,
+            ...guestPayload,
             festName: eventTitle,
             eventTitle,
             ticketType: 'sports',
             checkedInAt: sportsReg.checkedInAt,
+            registrationId: sportsReg._id,
           },
         },
       };
@@ -357,11 +363,12 @@ async function performCheckinFromRaw(raw, options = {}) {
           status: 'already_checked_in',
           message: 'Already checked in',
           data: {
-            userName: sportsReg.user?.name,
+            ...guestPayload,
             festName: eventTitle,
             eventTitle,
             ticketType: 'sports',
             checkedInAt: current?.checkedInAt || null,
+            registrationId: sportsReg._id,
           },
         },
       };
@@ -403,8 +410,8 @@ async function performCheckinFromRaw(raw, options = {}) {
         competitionName: null,
         ticketType: 'sports',
         registrationId: sportsReg._id,
-        userName: sportsReg.user?.name,
-        userEmail: sportsReg.user?.email,
+        userName: guestPayload.userName || sportsReg.user?.name,
+        userEmail: guestPayload.userEmail || sportsReg.user?.email,
         checkedInAt: sportsReg.checkedInAt,
         status: 'Completed',
         scannedBy,
@@ -418,9 +425,7 @@ async function performCheckinFromRaw(raw, options = {}) {
         status: 'checked_in',
         message: 'Check-in successful!',
         data: {
-          userName: sportsReg.user?.name,
-          userEmail: sportsReg.user?.email,
-          userProfilePic: sportsReg.user?.profilePic,
+          ...guestPayload,
           festName: eventTitle,
           eventTitle,
           ticketType: 'sports',

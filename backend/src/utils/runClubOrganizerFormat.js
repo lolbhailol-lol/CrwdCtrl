@@ -115,6 +115,59 @@ function pickRegistrationEmailExtras(formSchema = [], formData = {}) {
     return rows;
 }
 
+/**
+ * Compact guest snapshot for sports QR check-in / scanner personal data
+ * (name, phone, gender, post-game fuel, skill — same ops as Guests list).
+ */
+function buildSportsCheckinGuestPayload(reg, event = null) {
+    const formData = responsesToObject(reg);
+    const user = reg.user && typeof reg.user === 'object' ? reg.user : null;
+    const schema = event?.registration?.formSchema || [];
+    const extras = pickRegistrationEmailExtras(schema, formData);
+
+    const pick = (keys) => {
+        for (const key of keys) {
+            const v = String(formData[key] || '').trim();
+            if (v) return v;
+        }
+        return '';
+    };
+
+    const userName =
+        pick(['full_name', 'name', 'Name', 'Full Name'])
+        || String(reg.guestName || '').trim()
+        || String(user?.name || '').trim()
+        || '';
+    const userPhone =
+        pick(['contact_no', 'phone', 'mobile', 'contact'])
+        || String(user?.phoneNumber || user?.phone || '').trim()
+        || '';
+    const userEmail =
+        pick(['email', 'e_mail', 'e_mail_id', 'Email'])
+        || String(reg.guestEmail || '').trim()
+        || String(user?.email || '').trim()
+        || '';
+    const gender =
+        String(reg.participantGender || '').trim()
+        || pick(['gender', 'sex', 'Gender'])
+        || String(user?.gender || '').trim()
+        || '';
+
+    const postGameFuel = extras.find((r) => /fuel/i.test(r.label))?.value || '';
+    const skillLevel = extras.find((r) => /skill/i.test(r.label))?.value || '';
+
+    return {
+        userName: userName || 'Guest',
+        userPhone: userPhone || undefined,
+        userEmail: userEmail || undefined,
+        userProfilePic: user?.profilePic || undefined,
+        gender: gender || undefined,
+        postGameFuel: postGameFuel || undefined,
+        skillLevel: skillLevel || undefined,
+        opsRows: extras,
+    };
+}
+
 function responsesToObject(reg) {
     if (!reg?.responses) return {};
     if (reg.responses instanceof Map) {
@@ -504,6 +557,7 @@ module.exports = {
     editableOrganizerFormFields,
     applyOrganizerFormAnswers,
     pickRegistrationEmailExtras,
+    buildSportsCheckinGuestPayload,
     INTERNAL_FORM_KEYS,
     participantsToCsv,
     participantsToXlsx,

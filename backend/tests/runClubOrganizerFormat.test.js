@@ -5,6 +5,7 @@ const {
   formatParticipantSheetRow,
   formatParticipantDetail,
   pickRegistrationEmailExtras,
+  buildSportsCheckinGuestPayload,
 } = require('../src/utils/runClubOrganizerFormat');
 
 const EVENT = {
@@ -142,5 +143,39 @@ test('confirmation email extras resolve alternate field names', () => {
     { label: 'Post-Game Fuel', value: 'Lemon Iced tea' },
     { label: 'Skill Level', value: 'Beginner – Learning the game' },
   ]);
+});
+
+test('sports check-in guest payload includes personal ops like Guests list', () => {
+  const payload = buildSportsCheckinGuestPayload(
+    {
+      guestName: '',
+      guestEmail: 'a@b.com',
+      participantGender: '',
+      user: { name: 'Fallback User', email: 'u@x.com' },
+      responses: {
+        full_name: 'Asha Patil',
+        contact_no: '9876543210',
+        gender: 'Female',
+        post_game_fuel: 'Cold Coffee',
+        badminton_level: 'Intermediate – Regular court player',
+      },
+    },
+    {
+      registration: {
+        formSchema: [
+          { fieldName: 'gender', label: 'Gender' },
+          { fieldName: 'post_game_fuel', label: 'Post-Game Fuel at Cafe Ritrovo' },
+          { fieldName: 'badminton_level', label: 'How would you rate yourself as a badminton player?' },
+        ],
+      },
+    },
+  );
+
+  assert.equal(payload.userName, 'Asha Patil');
+  assert.equal(payload.userPhone, '9876543210');
+  assert.equal(payload.gender, 'Female');
+  assert.equal(payload.postGameFuel, 'Cold Coffee');
+  assert.equal(payload.skillLevel, 'Intermediate – Regular court player');
+  assert.equal(payload.opsRows.length, 2);
 });
 

@@ -383,6 +383,14 @@ export default function EventsPage() {
                 coverImages: ev.coverImages,
                 slug: ev.slug,
                 pagePriority: ev.priority ?? 999,
+                registrationFee: ev.registrationFee,
+                pricingMode: ev.pricingMode,
+                tiers: ev.tiers,
+                description: ev.description,
+                eventDate: ev.eventDate,
+                registration: ev.registration
+                    ? { status: ev.registration.status, mode: ev.registration.mode }
+                    : undefined,
                 _kind: 'event',
             }))
             .sort((a, b) => (a.pagePriority || 999) - (b.pagePriority || 999)),
@@ -655,11 +663,20 @@ export default function EventsPage() {
                                                             state: {
                                                                 event: {
                                                                     _id: card.id,
+                                                                    id: card.id,
                                                                     slug: card.slug,
                                                                     title: card.title,
                                                                     coverImage: card.image,
                                                                     coverImages: card.coverImages,
                                                                     listingHub: 'events',
+                                                                    city: card.basedIn,
+                                                                    venue: card.basedIn,
+                                                                    registrationFee: card.registrationFee,
+                                                                    pricingMode: card.pricingMode,
+                                                                    tiers: card.tiers,
+                                                                    description: card.description,
+                                                                    eventDate: card.eventDate,
+                                                                    registration: card.registration,
                                                                 },
                                                             },
                                                         });

@@ -322,7 +322,7 @@ export default function OrganizerGateCheckinPanel({
                   <span className="mt-0.5 shrink-0 size-6 rounded-md bg-white/5 border border-white/10 text-[11px] font-semibold tabular-nums text-gray-500 flex items-center justify-center">
                     {(pagination.page - 1) * pageSize + idx + 1}
                   </span>
-                  <div className="min-w-0 space-y-0.5">
+                    <div className="min-w-0 space-y-0.5">
                     <p className="font-medium text-white truncate">{row.name || 'Guest'}</p>
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-gray-500">
                       {row.phone ? (
@@ -339,7 +339,22 @@ export default function OrganizerGateCheckinPanel({
                           <span>{row.phone}</span>
                         )
                       ) : null}
+                      {row.gender ? <span>· {row.gender}</span> : null}
                     </div>
+                    {(row.drinkShort || row.skillShort || row.drink || row.skill) ? (
+                      <div className="flex flex-wrap gap-1.5 pt-0.5">
+                        {(row.drinkShort || row.drink) ? (
+                          <span className="inline-flex max-w-full truncate rounded-md bg-[#0ECCEE]/15 px-1.5 py-0.5 text-[10px] font-semibold text-[#0ECCEE]">
+                            Fuel · {row.drinkShort || row.drink}
+                          </span>
+                        ) : null}
+                        {(row.skillShort || row.skill) ? (
+                          <span className="inline-flex max-w-full truncate rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold text-gray-200">
+                            Skill · {row.skillShort || row.skill}
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : null}
                     <p className={`text-[11px] font-medium ${row.checkedIn ? 'text-emerald-400' : 'text-amber-300'}`}>
                       {row.checkedIn
                         ? `${L.checkedIn}${formatTime(row.checkedInAt) ? ` · ${formatTime(row.checkedInAt)}` : ''}`

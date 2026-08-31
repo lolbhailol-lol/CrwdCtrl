@@ -54,17 +54,41 @@ function hasPricingSnapshot(ev) {
     return typeof ev.registrationFee === 'number';
 }
 
-function isHydratedEvent(ev) {
-    if (!hasPricingSnapshot(ev)) return false;
-    // Require API-shaped fields so thin nav seeds never paint
-    return Boolean(ev.description != null || ev.overview != null || ev.formSchema || ev.runClub || ev.venue != null);
+function eventCoverHint(ev) {
+    if (!ev) return '';
+    return (
+        primaryCoverUrl(ev.coverImages || {}, ev.coverImage || ev.image)
+        || (Array.isArray(ev.images) ? ev.images.find(Boolean) : '')
+        || ''
+    );
 }
 
-function pickRunFallback(seeded, cachedEvent, routeParam) {
+/** Thin card seed from listing — enough to paint hero + title without the branded loader */
+function isPreviewEvent(ev) {
+    if (!ev) return false;
+    const title = String(ev.title || ev.name || '').trim();
+    return Boolean(title && (eventCoverHint(ev) || ev._id || ev.id || ev.slug));
+}
+
+/** Real body copy (not empty listing stubs) + pricing so we never invent “demo” overview text */
+function isHydratedEvent(ev) {
+    if (!hasPricingSnapshot(ev)) return false;
+    const desc = typeof ev.description === 'string' ? ev.description.trim() : '';
+    const overview = typeof ev.overview === 'string' ? ev.overview.trim() : '';
+    return Boolean(desc || overview || ev.formSchema || ev.runClub || (ev.venue != null && String(ev.venue).trim()));
+}
+
+function pickRunFallback(seeded, cachedEvent, routeParam, keepEvent = null) {
     const seedOk = entityMatchesRouteParam(seeded, routeParam, ['title', 'name']);
     const cacheOk = entityMatchesRouteParam(cachedEvent, routeParam, ['title', 'name']);
+    const keepOk = entityMatchesRouteParam(keepEvent, routeParam, ['title', 'name']);
+    if (keepOk && isHydratedEvent(keepEvent)) return keepEvent;
     if (seedOk && isHydratedEvent(seeded)) return seeded;
     if (cacheOk && isHydratedEvent(cachedEvent)) return cachedEvent;
+    if (keepOk && keepEvent) return keepEvent;
+    // Prefer richer cache over a thin title/image stub
+    if (cacheOk && cachedEvent) return cachedEvent;
+    if (seedOk && isPreviewEvent(seeded)) return seeded;
     return null;
 }
 
@@ -111,6 +135,7 @@ export default function EventCommunityEventPage() {
 
     const [event, setEvent] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [fetchingDetail, setFetchingDetail] = useState(true);
     const [loadError, setLoadError] = useState('');
     const [liked, setLiked] = useState(false);
     const [imgPg, setImgPg] = useState(0);
@@ -124,6 +149,8 @@ export default function EventCommunityEventPage() {
     const [selectingTierId, setSelectingTierId] = useState(null);
     const [chromeGateUrl, setChromeGateUrl] = useState('');
     const imgRef = useRef(null);
+    const eventRef = useRef(null);
+    eventRef.current = event;
 
     useEffect(() => {
         if (!tierSheetOpen) return undefined;
@@ -140,6 +167,7 @@ export default function EventCommunityEventPage() {
             setEvent(null);
             setLoadError('');
             setLoading(false);
+            setFetchingDetail(false);
             return undefined;
         }
 
@@ -149,8 +177,18 @@ export default function EventCommunityEventPage() {
             ? readRunDetailCache(String(seeded._id || seeded.id))
             : null;
         const cachedEvent = cachedByParam || cachedById;
-        const fallback = pickRunFallback(seeded, cachedEvent, id);
+        // Keep already-loaded event across id→slug canonicalize (avoids loader remount flash)
+        const existing = eventRef.current;
+        const existingReady = entityMatchesRouteParam(existing, id, ['title', 'name']) && isHydratedEvent(existing);
+        if (existingReady) {
+            setEvent(existing);
+            setLoading(false);
+            setFetchingDetail(false);
+            return undefined;
+        }
+        const fallback = pickRunFallback(seeded, cachedEvent, id, existing);
 
+        setFetchingDetail(true);
         if (fallback) {
             setEvent(fallback);
             setLoading(false);
@@ -165,6 +203,9 @@ export default function EventCommunityEventPage() {
         setOpenInfo(null);
         setTermsOpen(false);
         setTierSheetOpen(false);
+        if (!fallback || eventCoverHint(fallback) !== eventCoverHint(eventRef.current)) {
+            setHeroLoaded(false);
+        }
 
         const controller = new AbortController();
         publicFetchJSONRetry(`/sports/${encodeURIComponent(eventId)}`, {
@@ -202,7 +243,10 @@ export default function EventCommunityEventPage() {
                 setLoadError(classifyDetailLoadError(err));
             })
             .finally(() => {
-                if (!controller.signal.aborted) setLoading(false);
+                if (!controller.signal.aborted) {
+                    setLoading(false);
+                    setFetchingDetail(false);
+                }
             });
         return () => controller.abort();
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -212,7 +256,14 @@ export default function EventCommunityEventPage() {
         if (!event || !id) return;
         const canonical = eventCommunityEventPath(event);
         if (canonical && window.location.pathname !== canonical) {
-            navigate(`${canonical}${window.location.search || ''}`, { replace: true, state: location.state });
+            navigate(`${canonical}${window.location.search || ''}`, {
+                replace: true,
+                state: {
+                    ...location.state,
+                    event,
+                    runClub: event.runClub || location.state?.runClub || null,
+                },
+            });
         }
     }, [event, id, navigate, location.state]);
 
@@ -289,18 +340,22 @@ export default function EventCommunityEventPage() {
     const mapQuery = mapPin.query;
     const mapUrl = mapPin.mapUrl;
     const mapCaption = mapPin.caption;
-    const desc =
-        event.description?.trim() ||
-        `${event.title || 'This event'} is hosted by ${communityName}. Join the community for a great session.`;
-    const firstBlock = desc.split(/\n\s*\n/)[0]?.trim() || desc;
+    const rawDesc = (event.description?.trim() || event.overview?.trim() || '');
+    // While the detail API is in flight, never invent overview/terms — that “demo” copy flashes then swaps
+    const desc = rawDesc || (!fetchingDetail
+        ? `${event.title || 'This event'} is hosted by ${communityName || 'the community'}. Join for a great session.`
+        : '');
+    const firstBlock = desc ? (desc.split(/\n\s*\n/)[0]?.trim() || desc) : '';
     const shortDesc = firstBlock.length > 180 ? `${firstBlock.slice(0, 150).replace(/\s+\S*$/, '')}...` : firstBlock;
-    const terms = event.termsAndConditions?.length
+    const terms = Array.isArray(event.termsAndConditions) && event.termsAndConditions.length
         ? event.termsAndConditions
-        : [
-              'Follow all safety instructions from organizers at all times.',
-              'Cancellation policy varies by organiser — contact the community for details.',
-              'The organiser reserves the right to modify or cancel due to weather or safety.',
-          ];
+        : (!fetchingDetail
+            ? [
+                'Follow all safety instructions from organizers at all times.',
+                'Cancellation policy varies by organiser — contact the community for details.',
+                'The organiser reserves the right to modify or cancel due to weather or safety.',
+            ]
+            : []);
     const termSections = groupTermsAndConditions(terms);
 
     const handleShare = () => {
@@ -483,7 +538,9 @@ export default function EventCommunityEventPage() {
                         }
                         return (
                             <button
+                                disabled={!hasPricingSnapshot(event) && !extLink}
                                 onClick={() => {
+                                    if (!hasPricingSnapshot(event) && !extLink) return;
                                     if (extLink) {
                                         trackBookNowClick({
                                             entityType: 'sports',
@@ -514,9 +571,15 @@ export default function EventCommunityEventPage() {
                                     });
                                     goToBookPage();
                                 }}
-                                className="flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-[#0ECCEE] text-black active:opacity-90 transition"
+                                className={`flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg transition ${
+                                    !hasPricingSnapshot(event) && !extLink
+                                        ? 'bg-[#0ECCEE]/60 text-black/70 cursor-wait'
+                                        : 'bg-[#0ECCEE] text-black active:opacity-90'
+                                }`}
                             >
-                                {extLink
+                                {!hasPricingSnapshot(event) && !extLink
+                                    ? 'Loading…'
+                                    : extLink
                                     ? 'Book Now'
                                     : tiers.length
                                         ? 'Register now'
@@ -525,9 +588,11 @@ export default function EventCommunityEventPage() {
                                             : event.registration?.mode === 'organizer_qr'
                                                 ? 'Pay via UPI'
                                                 : 'Book now'}
+                                {hasPricingSnapshot(event) || extLink ? (
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                     <path d="m9 18 6-6-6-6" />
                                 </svg>
+                                ) : null}
                             </button>
                         );
                     })()}
@@ -744,16 +809,24 @@ export default function EventCommunityEventPage() {
 
                 <div className="px-4 mb-5">
                     <h2 className={`text-lg font-semibold leading-7 tracking-wide mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>Overview</h2>
-                    <p className={`text-sm leading-6 whitespace-pre-line ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                        {overviewExpanded ? desc : shortDesc}
-                        {desc !== shortDesc && (
-                            <>
-                                <button onClick={() => setOverviewExpanded((v) => !v)} className="text-[#0ECCEE] text-sm font-medium ml-0.5">
-                                    {overviewExpanded ? ' show less' : 'read more'}
-                                </button>
-                            </>
-                        )}
-                    </p>
+                    {desc ? (
+                        <p className={`text-sm leading-6 whitespace-pre-line ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                            {overviewExpanded ? desc : shortDesc}
+                            {desc !== shortDesc && (
+                                <>
+                                    <button onClick={() => setOverviewExpanded((v) => !v)} className="text-[#0ECCEE] text-sm font-medium ml-0.5">
+                                        {overviewExpanded ? ' show less' : 'read more'}
+                                    </button>
+                                </>
+                            )}
+                        </p>
+                    ) : (
+                        <div className="space-y-2 animate-pulse" aria-hidden>
+                            <div className={`h-3.5 rounded-md w-full ${isDark ? 'bg-white/10' : 'bg-gray-200'}`} />
+                            <div className={`h-3.5 rounded-md w-[92%] ${isDark ? 'bg-white/10' : 'bg-gray-200'}`} />
+                            <div className={`h-3.5 rounded-md w-[78%] ${isDark ? 'bg-white/10' : 'bg-gray-200'}`} />
+                        </div>
+                    )}
                 </div>
 
                 {(() => {
@@ -847,6 +920,7 @@ export default function EventCommunityEventPage() {
                     );
                 })()}
 
+                {terms.length > 0 ? (
                 <div className="px-4 mb-6">
                     <h2 className={`text-lg font-semibold leading-7 tracking-wide mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         Terms &amp; Conditions
@@ -910,6 +984,7 @@ export default function EventCommunityEventPage() {
                         </div>
                     )}
                 </div>
+                ) : null}
 
                 <div className="px-4 pb-28">
                     <h2 className={`text-lg font-semibold leading-7 tracking-wide mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Details</h2>
