@@ -1446,6 +1446,11 @@ exports.verifySportsPayment = async (req, res) => {
     // Idempotency: if the order is already PAID, return the cached success
     // instead of re-hitting Cashfree.
     if (paymentOrder?.status === 'PAID' && paymentOrder.entityType === 'sports') {
+      const { fulfillSportsFromPaidOrder } = require('../services/sportsPaymentFulfillment');
+      const fullOrder = await PaymentOrder.findOne({ orderId });
+      fulfillSportsFromPaidOrder(fullOrder || paymentOrder).catch((fulfillErr) => {
+        console.error('[verifySportsPayment] fulfill failed:', fulfillErr?.message || fulfillErr);
+      });
       const paymentProof = signPaymentProof({
         orderId: paymentOrder.orderId,
         paymentId: paymentOrder.paymentId || paymentId || null,
@@ -1490,6 +1495,13 @@ exports.verifySportsPayment = async (req, res) => {
             ...(phone ? { customerPhone: phone } : {}),
           },
         );
+        const { fulfillSportsFromPaidOrder } = require('../services/sportsPaymentFulfillment');
+        fulfillSportsFromPaidOrder(
+          await PaymentOrder.findOne({ orderId }),
+          { paymentId: result.paymentId, markPaid: true },
+        ).catch((fulfillErr) => {
+          console.error('[verifySportsPayment] fulfill failed:', fulfillErr?.message || fulfillErr);
+        });
         paymentProof = signPaymentProof({
           orderId: result.orderId,
           paymentId: result.paymentId,

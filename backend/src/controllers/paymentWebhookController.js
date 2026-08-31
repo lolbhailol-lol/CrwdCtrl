@@ -155,6 +155,15 @@ exports.handleCashfreeWebhook = async (req, res) => {
             );
           });
         }
+        if (updated?.entityType === 'sports' && updated?.orderTags?.formData) {
+          const { fulfillSportsFromPaidOrder } = require('../services/sportsPaymentFulfillment');
+          fulfillSportsFromPaidOrder(updated).catch((fulfillErr) => {
+            console.error(
+              '[paymentWebhook] Sports fulfill failed:',
+              fulfillErr?.message || fulfillErr,
+            );
+          });
+        }
       } catch (dbErr) {
         console.error('[paymentWebhook] Failed to mark order PAID:', dbErr.message);
       }
