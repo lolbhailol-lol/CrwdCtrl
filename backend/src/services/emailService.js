@@ -107,7 +107,11 @@ function buildBookingTicketBlock({
     const qrSrc = buildQrImageUrl(qrHash);
     if (!qrSrc) return '';
 
-    const label = product === 'run' ? 'Run ticket' : 'Event ticket';
+    const label = product === 'run'
+        ? 'Run ticket'
+        : product === 'competition'
+            ? 'Competition ticket'
+            : 'Event ticket';
     const detailRows = [
         participantName ? { label: 'Name', value: participantName } : null,
         date ? { label: 'Date', value: date } : null,
@@ -186,6 +190,15 @@ function formatSubmissionDateIST(date = new Date()) {
 function resolveTicketHref(ticketLink) {
     if (!ticketLink) return `${getSiteUrl()}/profile/bookings`;
     return ticketLink.startsWith('http') ? ticketLink : `${getSiteUrl()}${ticketLink.startsWith('/') ? '' : '/'}${ticketLink}`;
+}
+
+function resolveEmailHeroImageUrl(raw) {
+    const value = String(raw || '').trim();
+    if (!value) return '';
+    if (/^https:\/\//i.test(value)) return value;
+    if (value.startsWith('//')) return `https:${value}`;
+    if (value.startsWith('/')) return `${getSiteUrl()}${value}`;
+    return '';
 }
 
 /** Shared responsive email shell — CrwdCtrl brand (clean, image-led when possible) */
@@ -310,7 +323,9 @@ function buildWhatsAppJoinBlock(groupLink, communityName, { product = 'trek' } =
                 ? `Run updates & meetup details${fromLabel}.`
                 : product === 'fest'
                     ? `Fest updates${fromLabel}.`
-                    : `Trek updates & meetup details${fromLabel}.`;
+                    : product === 'competition'
+                        ? `Competition updates & round info${fromLabel}.`
+                        : `Trek updates & meetup details${fromLabel}.`;
     return `
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:20px 0 8px;">
             <tr>
@@ -829,7 +844,7 @@ function buildCrwdCtrlExploreEmailHTML({
     const safeMessage = escapeHtml(message);
     const safePreheader = escapeHtml(preheader || headline);
     const loginMeta = loginTime
-        ? `<p style="margin:12px 0 0;font-size:12px;color:#94a3b8;line-height:1.5;text-align:center;">Logged in at ${escapeHtml(loginTime)} (IST)</p>`
+        ? `<p class="login-meta" style="margin:14px auto 0;max-width:420px;padding:10px 14px;border-radius:12px;background:#f8fafc;border:1px solid #e2e8f0;font-size:12px;color:#64748b;line-height:1.5;text-align:center;">Logged in at ${escapeHtml(loginTime)} (IST)</p>`
         : '';
 
     return `<!DOCTYPE html>
@@ -838,52 +853,71 @@ function buildCrwdCtrlExploreEmailHTML({
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="x-apple-disable-message-reformatting" />
+    <meta name="format-detection" content="telephone=no,email=no,address=no" />
     <title>${safeHeadline}</title>
+    <style>
+        body { margin:0 !important; padding:0 !important; width:100% !important; }
+        img { border:0; outline:none; text-decoration:none; -ms-interpolation-mode:bicubic; }
+        table { border-collapse:collapse; mso-table-lspace:0; mso-table-rspace:0; }
+        a { text-decoration:none; }
+        @media only screen and (max-width: 620px) {
+            .ecw { width:100% !important; min-width:0 !important; border-radius:0 !important; }
+            .shell-pad { padding:12px 8px !important; }
+            .copy-pad { padding:20px 18px 8px !important; }
+            .grid-pad { padding:8px 10px 4px !important; }
+            .headline { font-size:21px !important; line-height:1.25 !important; }
+            .body-copy { font-size:14px !important; line-height:1.65 !important; }
+            .cta-pad { padding:8px 14px 18px !important; }
+            .cta-btn { display:block !important; width:100% !important; box-sizing:border-box !important; text-align:center !important; }
+            .cta-btn a { display:block !important; width:100% !important; box-sizing:border-box !important; padding:14px 18px !important; }
+            .footer-pad { padding:14px 18px 20px !important; }
+        }
+    </style>
     <!--[if mso]><style>table{border-collapse:collapse;}td{font-family:Arial,Helvetica,sans-serif;}</style><![endif]-->
 </head>
-<body style="margin:0;padding:0;background-color:#f0f1f5;-webkit-text-size-adjust:100%;">
-    <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${safePreheader}</div>
+<body style="margin:0;padding:0;background-color:#f0f1f5;-webkit-text-size-adjust:100%;text-size-adjust:100%;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;">${safePreheader}</div>
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="#f0f1f5" style="background-color:#f0f1f5;">
         <tr>
-            <td align="center" style="padding:24px 12px;">
-                <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;">
+            <td align="center" class="shell-pad" style="padding:20px 10px;">
+                <table role="presentation" width="600" cellspacing="0" cellpadding="0" class="ecw" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 16px 40px rgba(15,23,42,0.08);">
                     <tr>
-                        <td style="padding:0;">
+                        <td style="padding:0;line-height:0;font-size:0;">
                             <img src="${CRWDCTRL_EXPLORE_EMAIL_IMAGES.hero}" width="600" alt="CrwdCtrl — discover events near you" style="display:block;width:100%;max-width:600px;height:auto;border:0;" />
                         </td>
                     </tr>
                     <tr>
-                        <td style="padding:24px 24px 8px;font-family:Arial,Helvetica,sans-serif;text-align:center;">
-                            <p style="margin:0 0 8px;font-size:22px;font-weight:700;color:#053780;line-height:1.3;">${safeHeadline}</p>
-                            <p style="margin:0;font-size:15px;color:#475569;line-height:1.6;">Hi ${safeName}, ${safeMessage}</p>
+                        <td class="copy-pad" style="padding:26px 28px 10px;font-family:Arial,Helvetica,sans-serif;text-align:center;">
+                            <p class="headline" style="margin:0 0 10px;font-size:24px;font-weight:800;color:#053780;line-height:1.25;letter-spacing:-0.02em;">${safeHeadline}</p>
+                            <p class="body-copy" style="margin:0;font-size:15px;color:#475569;line-height:1.65;">Hi ${safeName}, ${safeMessage}</p>
                             ${loginMeta}
                         </td>
                     </tr>
                     <tr>
-                        <td style="padding:8px 18px 4px;">
+                        <td class="grid-pad" style="padding:10px 16px 6px;">
                             ${buildExploreCategoryGrid(siteUrl)}
                         </td>
                     </tr>
                     <tr>
-                        <td align="center" style="padding:4px 24px 20px;">
-                            <table role="presentation" cellspacing="0" cellpadding="0">
+                        <td align="center" class="cta-pad" style="padding:6px 24px 22px;">
+                            <table role="presentation" cellspacing="0" cellpadding="0" width="100%" style="max-width:320px;">
                                 <tr>
-                                    <td bgcolor="#15c0e1" style="border-radius:25px;background-color:#15c0e1;">
-                                        <a href="${siteUrl}" target="_blank" rel="noopener" style="display:inline-block;padding:12px 28px;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:700;color:#ffffff;text-decoration:none;letter-spacing:0.02em;">EXPLORE NOW !</a>
+                                    <td class="cta-btn" bgcolor="#15c0e1" align="center" style="border-radius:999px;background-color:#15c0e1;box-shadow:0 10px 24px rgba(21,192,225,0.35);">
+                                        <a href="${siteUrl}" target="_blank" rel="noopener" style="display:inline-block;padding:14px 32px;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:800;color:#ffffff;text-decoration:none;letter-spacing:0.04em;">EXPLORE NOW !</a>
                                     </td>
                                 </tr>
                             </table>
                         </td>
                     </tr>
                     <tr>
-                        <td style="padding:0;">
+                        <td style="padding:0;line-height:0;font-size:0;">
                             <img src="${CRWDCTRL_EXPLORE_EMAIL_IMAGES.footer}" width="600" alt="CrwdCtrl" style="display:block;width:100%;max-width:600px;height:auto;border:0;" />
                         </td>
                     </tr>
                     <tr>
-                        <td style="padding:16px 24px 24px;font-family:Montserrat,Arial,Helvetica,sans-serif;">
-                            <p style="margin:0 0 6px;font-size:11px;font-weight:700;color:#111827;">Questions?</p>
-                            <p style="margin:0;font-size:11px;color:#475569;line-height:1.5;">
+                        <td class="footer-pad" style="padding:18px 24px 24px;font-family:Arial,Helvetica,sans-serif;">
+                            <p style="margin:0 0 6px;font-size:12px;font-weight:700;color:#111827;">Questions?</p>
+                            <p style="margin:0;font-size:12px;color:#475569;line-height:1.55;">
                                 Reach us at
                                 <a href="mailto:${SUPPORT_EMAIL}" style="color:#0ab6d7;font-weight:700;text-decoration:none;">${SUPPORT_EMAIL}</a>
                             </p>
@@ -932,6 +966,140 @@ const sendRegistrationThankYouEmail = async (userEmail, userName, eventName, opt
         return { success: false, error: error.message };
     }
 };
+
+function generateCompetitionRegistrationEmailHTML({
+    userName,
+    festName,
+    competitionName,
+    registrationId,
+    qrHash,
+    coverImageUrl = '',
+    submissionDate,
+    paymentContext = {},
+}) {
+    const meta = resolveRegistrationMeta('competition');
+    const ticketLink = paymentContext.ticketLink || `/qr-ticket/${registrationId}`;
+    const ticketHref = resolveTicketHref(ticketLink);
+    const rows = [
+        { label: 'Name', value: userName },
+        { label: meta.noun, value: festName },
+        competitionName ? { label: 'Competition', value: competitionName } : null,
+        { label: 'Booking ID', value: registrationId },
+        { label: 'Registered on', value: submissionDate },
+        ...(Array.isArray(paymentContext.details) ? paymentContext.details : []),
+    ].filter(Boolean);
+
+    const ticketBlockHtml = qrHash
+        ? buildBookingTicketBlock({
+            eventTitle: competitionName || festName,
+            participantName: userName,
+            qrHash,
+            ticketHref: ticketLink,
+            bookingHref: ticketLink,
+            product: 'competition',
+            extraRows: rows.filter((row) => row.label !== 'Name'),
+        })
+        : '';
+
+    return buildEmailShell({
+        preheader: `You're in — ${competitionName || festName}. Show your QR at check-in.`,
+        eyebrow: `${meta.icon} You're in`,
+        title: "You're in",
+        subtitle: competitionName ? `${competitionName} · ${festName}` : festName,
+        heroImageUrl: resolveEmailHeroImageUrl(coverImageUrl),
+        bodyHtml: `
+            <p style="margin:0 0 12px;">Hi <strong>${escapeHtml(userName || 'there')}</strong>,</p>
+            <p style="margin:0 0 8px;">Your registration for <strong>${escapeHtml(competitionName || festName)}</strong> is confirmed. Save this email and show your QR at the venue.</p>
+            ${ticketBlockHtml || buildDetailsTable(rows)}
+            ${buildPaymentNotice(paymentContext)}
+            ${buildWhatsAppJoinBlock(paymentContext.groupLink, paymentContext.communityName, { product: 'competition' })}
+            <p style="margin:16px 0 0;font-size:14px;color:#6b7280;">Need your ticket again? Open My Bookings anytime in CrwdCtrl.</p>
+        `,
+        ctaLabel: qrHash ? '' : 'View ticket & QR',
+        ctaHref: qrHash ? '' : ticketHref,
+    });
+}
+
+/** Single competition registration email — QR, cover image, and booking details in one message. */
+const sendCompetitionRegistrationEmail = async ({
+    userEmail,
+    userName,
+    festName,
+    competitionName,
+    registrationId,
+    qrHash = '',
+    coverImageUrl = '',
+    submissionDate = formatSubmissionDateIST(),
+    paymentContext = {},
+}) => {
+    try {
+        const email = String(userEmail || '').trim().toLowerCase();
+        if (!email || !EMAIL_ADDRESS_REGEX.test(email)) {
+            console.error('❌ Competition registration email skipped: invalid user email', userEmail);
+            return { success: false, error: 'User email missing or invalid' };
+        }
+
+        const meta = resolveRegistrationMeta('competition');
+        const mailOptions = {
+            from: getDefaultFrom(),
+            to: email,
+            subject: `${meta.icon} You're in — ${competitionName || festName}`,
+            html: generateCompetitionRegistrationEmailHTML({
+                userName,
+                festName,
+                competitionName,
+                registrationId,
+                qrHash,
+                coverImageUrl,
+                submissionDate,
+                paymentContext,
+            }),
+        };
+
+        const result = await sendEmail(mailOptions);
+        console.log('✅ Competition registration email sent:', result.messageId);
+        return result;
+    } catch (error) {
+        console.error('❌ Competition registration email failed:', error);
+        return { success: false, error: error.message };
+    }
+};
+
+async function sendCompetitionRegistrationEmailForRecord({
+    user,
+    fest,
+    competition,
+    registration,
+}) {
+    if (!user?.email || !registration?._id) {
+        return { success: false, error: 'Missing user email or registration id' };
+    }
+
+    const ticketLink = `/qr-ticket/${registration._id}`;
+    const amountPaid = Number(registration.amountPaid) || 0;
+    const paymentStatus = registration.paymentStatus || 'free';
+
+    return sendCompetitionRegistrationEmail({
+        userEmail: user.email,
+        userName: user.name,
+        festName: fest?.festName || fest?.name || 'Fest',
+        competitionName: competition?.name || '',
+        registrationId: String(registration._id),
+        qrHash: registration.qrCodeData || '',
+        coverImageUrl: competition?.coverImage || competition?.image || '',
+        submissionDate: formatSubmissionDateIST(registration.submittedAt || new Date()),
+        paymentContext: {
+            status: paymentStatus,
+            method: paymentStatus === 'paid' ? (registration.payment_gateway || 'cashfree') : '',
+            type: 'competition',
+            ticketLink,
+            groupLink: String(competition?.registration?.whatsappGroupLink || '').trim()
+                || String(fest?.registration?.whatsappCommunityLink || '').trim(),
+            communityName: competition?.name || fest?.festName || '',
+            details: amountPaid > 0 ? [{ label: 'Amount paid', value: `₹${amountPaid}` }] : [],
+        },
+    });
+}
 
 // Send registration confirmation email with details
 const sendRegistrationConfirmationEmail = async (userEmail, userName, festName, competitionName, registrationId, submissionDate, paymentContext = {}) => {
@@ -1551,6 +1719,8 @@ module.exports = {
     sendWelcomeEmail,
     sendRegistrationThankYouEmail,
     sendRegistrationConfirmationEmail,
+    sendCompetitionRegistrationEmail,
+    sendCompetitionRegistrationEmailForRecord,
     sendTrekRegistrationEmails,
     sendOrganizerNotificationEmail,
     sendEventOrganizerApprovalEmail,

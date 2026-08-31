@@ -2,7 +2,7 @@ const Registration = require('../../model/registration_model');
 const FestOrganizer = require('../../model/fest_organizer_model');
 const User = require('../../model/usermodel');
 const { appendPaymentOnlyToSheets } = require('../../services/googleSheetsService');
-const { sendRegistrationThankYouEmail, sendRegistrationConfirmationEmail } = require('../../services/emailService');
+const { sendCompetitionRegistrationEmailForRecord } = require('../../services/emailService');
 const { consumeCouponUsageForOrder } = require('../../utils/couponPricing');
 const { buildPriceBreakdown, parseTicketPrice } = require('../../utils/platformFee');
 const { resolveTrekPlatformFeePercent } = require('../../utils/trekRegistrationFee');
@@ -303,18 +303,12 @@ const payAndRegister = async (req, res) => {
     // Background: emails + sheets
     setImmediate(async () => {
       try {
-        await sendRegistrationThankYouEmail(user.email, user.name, competition.fest?.festName || competition.name, {
-          type: 'competition',
-          ticketLink: payCompRegistrationLink,
+        await sendCompetitionRegistrationEmailForRecord({
+          user,
+          fest: competition.fest,
+          competition,
+          registration: persistedComp,
         }).catch(() => {});
-        await sendRegistrationConfirmationEmail(
-          user.email, user.name,
-          competition.fest?.festName || competition.name,
-          competition.name,
-          persistedComp._id.toString(),
-          new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
-          { status: 'paid', method: 'cashfree', type: 'competition', ticketLink: payCompRegistrationLink },
-        ).catch(() => {});
 
         // Google Sheets — use the fest's Google Sheets URL if configured
         const sheetsUrl = competition.fest?.registration?.googleSheetsUrl;

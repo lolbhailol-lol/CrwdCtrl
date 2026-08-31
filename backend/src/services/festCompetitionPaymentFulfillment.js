@@ -8,7 +8,7 @@ const {
   mergeRegistrationResponses,
   scheduleRegistrationNotification,
 } = require('../controllers/registration/helpers');
-const { sendRegistrationThankYouEmail, sendRegistrationConfirmationEmail } = require('./emailService');
+const { sendCompetitionRegistrationEmailForRecord } = require('./emailService');
 const { appendPaymentOnlyToSheets } = require('./googleSheetsService');
 const { consumeCouponUsageForOrder } = require('../utils/couponPricing');
 const { logger } = require('../utils/logger');
@@ -131,7 +131,8 @@ async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides 
           userId,
           orderId: payment_order_id,
         });
-        const ticketLink = `/registration-details/${registration._id}`;
+        const persistedRegistration = saved.registration || registration;
+        const ticketLink = `/qr-ticket/${persistedRegistration._id}`;
         scheduleRegistrationNotification(userId, {
           title: 'Registration Confirmed!',
           message: `You've successfully registered for ${competition.name}.`,
@@ -140,30 +141,15 @@ async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides 
           metadata: {
             competitionId: competition._id,
             festId: competition.fest?._id,
-            registrationId: registration._id,
+            registrationId: persistedRegistration._id,
           },
         });
-        await sendRegistrationThankYouEmail(
-          user.email,
-          user.name,
-          competition.fest?.festName || competition.name,
-          { type: 'competition', ticketLink },
-        ).catch(() => {});
-        await sendRegistrationConfirmationEmail(
-          user.email,
-          user.name,
-          competition.fest?.festName || competition.name,
-          competition.name,
-          registration._id.toString(),
-          new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
-          {
-            status: 'paid',
-            method: 'cashfree',
-            type: 'competition',
-            ticketLink,
-            groupLink: competition.registration?.whatsappGroupLink || '',
-          },
-        ).catch(() => {});
+        await sendCompetitionRegistrationEmailForRecord({
+          user,
+          fest: competition.fest,
+          competition,
+          registration: persistedRegistration,
+        }).catch(() => {});
         const sheetsUrl = competition.fest?.registration?.googleSheetsUrl
           || competition.registration?.googleSheetsUrl;
         if (sheetsUrl) {

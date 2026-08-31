@@ -1,7 +1,7 @@
 const Registration = require('../../model/registration_model');
 const User = require('../../model/usermodel');
 const { uploadToCloudinary } = require('../../services/cloudinaryService');
-const { sendRegistrationThankYouEmail, sendRegistrationConfirmationEmail, sendOrganizerNotificationEmail } = require('../../services/emailService');
+const { sendCompetitionRegistrationEmailForRecord, sendOrganizerNotificationEmail } = require('../../services/emailService');
 const { consumeCouponUsageForOrder } = require('../../utils/couponPricing');
 const { buildPriceBreakdown, parseTicketPrice } = require('../../utils/platformFee');
 const { resolveTrekPlatformFeePercent } = require('../../utils/trekRegistrationFee');
@@ -354,59 +354,16 @@ const submitCustomCompetitionRegistration = async (req, res) => {
     // Email queue in emailService.js handles rate limiting automatically
     setImmediate(async () => {
       try {
-        // STEP 1: Send thank you email (queued automatically for rate limiting)
-        try {
-          logger.debug('📧 Sending thank you email (async)...');
-          await sendRegistrationThankYouEmail(
-            user.email,
-            user.name,
-            competition.fest?.festName || competition.name,
-            {
-              type: 'competition',
-              ticketLink: `/registration-details/${registration._id}`,
-            },
-          );
-          logger.debug('✅ Thank you email sent successfully');
-        } catch (emailError) {
-          logger.error('❌ Thank you email error:', emailError);
-        }
+        logger.debug('📧 Sending competition registration email (async)...');
+        await sendCompetitionRegistrationEmailForRecord({
+          user,
+          fest: competition.fest,
+          competition,
+          registration,
+        });
+        logger.debug('✅ Competition registration email sent successfully');
 
-        // STEP 2: Send confirmation email (queued automatically for rate limiting)
-        try {
-          logger.debug('📧 Sending confirmation email (async)...');
-          const submissionDate = new Date().toLocaleString('en-IN', {
-            timeZone: 'Asia/Kolkata',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-          });
-          
-          await sendRegistrationConfirmationEmail(
-            user.email,
-            user.name,
-            competition.fest?.festName || competition.name,
-            competition.name,
-            registrationId,
-            submissionDate,
-            {
-              status: paymentStatus,
-              method: paymentStatus === 'paid' ? 'cashfree' : 'free',
-              type: 'competition',
-              ticketLink: `/registration-details/${registration._id}`,
-              groupLink:
-                String(competition.registration?.whatsappGroupLink || '').trim()
-                || String(competition.fest?.registration?.whatsappCommunityLink || '').trim(),
-              communityName: competition.name || competition.fest?.festName || '',
-            },
-          );
-          logger.debug('✅ Confirmation email sent successfully');
-        } catch (emailError) {
-          logger.error('❌ Confirmation email error:', emailError);
-        }
-
-        // STEP 3: Send organizer notification email if configured (queued automatically)
+        // Send organizer notification email if configured
         // Check both confirmationEmail (competition model) and organizerEmail (fest model) for flexibility
         const organizerEmail = competition.registration.confirmationEmail || 
                                competition.registration.organizerEmail ||
@@ -446,7 +403,7 @@ const submitCustomCompetitionRegistration = async (req, res) => {
           logger.debug('⚠️ No organizer email configured - skipping organizer notification');
         }
 
-        // STEP 4: Add to Google Sheets (async, non-blocking)
+        // Add to Google Sheets (async, non-blocking)
         if (competition.registration.googleSheetsUrl) {
           try {
             logger.debug('📊 Adding registration to Google Sheets (async)...');
@@ -834,23 +791,20 @@ const submitCompetitionRegistration = async (req, res) => {
     // This allows the response to be sent immediately while emails sync in background
     setImmediate(async () => {
       try {
-        // STEP 1: Send thank you email (async, non-blocking)
         try {
-          logger.debug('📧 Sending thank you email for competition (async)...');
-          await sendRegistrationThankYouEmail(user.email, user.name, fest.festName, {
-            type: 'fest',
-            ticketLink: `/registration-details/${registration._id}`,
+          logger.debug('📧 Sending competition registration email (async)...');
+          await sendCompetitionRegistrationEmailForRecord({
+            user,
+            fest,
+            competition,
+            registration,
           });
-          logger.debug('✅ Thank you email sent successfully');
+          logger.debug('✅ Competition registration email sent successfully');
         } catch (emailError) {
-          logger.error('⚠️ Thank you email failed:', emailError.message);
+          logger.error('⚠️ Competition registration email failed:', emailError.message);
         }
 
-        // STEP 2: Send confirmation email with competition name (async, non-blocking)
         try {
-          logger.debug('📧 Sending confirmation email for competition (async)...');
-          
-          // Format submission date in Asia/Kolkata timezone
           const submissionDate = new Date().toLocaleString('en-IN', {
             timeZone: 'Asia/Kolkata',
             year: 'numeric',
@@ -860,27 +814,7 @@ const submitCompetitionRegistration = async (req, res) => {
             minute: '2-digit'
           });
 
-          await sendRegistrationConfirmationEmail(
-            user.email,
-            user.name,
-            fest.festName,
-            competition.name, // Use competition name
-            registration._id.toString(),
-            submissionDate,
-            {
-              status: paymentStatusRoute,
-              method: paymentStatusRoute === 'paid' ? 'cashfree' : 'free',
-              type: 'competition',
-              ticketLink: `/registration-details/${registration._id}`,
-              groupLink:
-                String(competition.registration?.whatsappGroupLink || '').trim()
-                || String(fest.registration?.whatsappCommunityLink || '').trim(),
-              communityName: competition.name || fest.festName || '',
-            },
-          );
-          logger.debug('✅ Confirmation email sent successfully');
-
-          // STEP 2.5: Send organizer notification email
+          // Send organizer notification email
           if (fest.registration?.organizerEmail) {
             try {
               logger.debug('📧 Sending organizer notification email (async)...');
@@ -901,7 +835,7 @@ const submitCompetitionRegistration = async (req, res) => {
             logger.debug('ℹ️ No organizer email configured for this fest');
           }
         } catch (emailError) {
-          logger.error('⚠️ Confirmation email failed:', emailError.message);
+          logger.error('⚠️ Organizer notification email failed:', emailError.message);
         }
 
         // STEP 3: Add to Google Sheets (async, non-blocking)
