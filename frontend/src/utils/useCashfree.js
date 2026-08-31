@@ -65,7 +65,7 @@ async function openInAppWebSdkCheckout({ paymentSessionId, cashfreeMode }) {
   }
 
   if (!result.paymentDetails) {
-    throw new Error('Payment was not completed');
+    throw new Error('Payment was cancelled');
   }
 
   return {
@@ -214,7 +214,8 @@ export async function openCashfreeCheckout({
   }
 
   if (!result.paymentDetails) {
-    throw new Error('Payment was not completed');
+    // Modal closed / dismissed — treat as cancel so UI does not keep “Finishing…”
+    throw new Error('Payment was cancelled');
   }
 
   return result;

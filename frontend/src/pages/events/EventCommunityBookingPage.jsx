@@ -23,6 +23,9 @@ import {
     verifyPaymentWithRetry,
     pollPaymentUntilVerified,
     PAYMENT_BACKGROUND_MAX_WAIT_MS,
+    PAYMENT_ESCAPE_AFTER_MS,
+    PAYMENT_HARD_TIMEOUT_MS,
+    PAYMENT_REDIRECT_STUCK_MS,
     classifyVerifyError,
     clearCashfreeReturnAndPending,
 } from '../../utils/paymentNavigation';
@@ -234,6 +237,8 @@ export default function EventCommunityBookingPage() {
     const [showTierIncludes, setShowTierIncludes] = useState(false);
     const [processingProgress, setProcessingProgress] = useState('');
     const [showPaymentEscape, setShowPaymentEscape] = useState(false);
+    const [paymentResumeError, setPaymentResumeError] = useState('');
+    const redirectStuckTimerRef = useRef(null);
     const retryCheckoutRef = useRef(null);
     const couponSourceRef = useRef(null);
     const couponCodeRef = useRef('');
@@ -312,32 +317,51 @@ export default function EventCommunityBookingPage() {
     const paymentQRMessage = event?.registration?.paymentQRMessage || '';
     const paymentUpiId = event?.registration?.paymentUpiId || '';
     const showSuccess = isFreeFlow
-        ? step === confirmStep && payDone && !paying
-        : step === confirmStep && payDone && !paying;
+        ? step === confirmStep && payDone && !paying && !paymentResumeError
+        : step === confirmStep && payDone && !paying && !paymentResumeError;
     const showProcessing = isFreeFlow
-        ? step === confirmStep && paying
-        : step === confirmStep && paying;
+        ? step === confirmStep && (paying || Boolean(paymentResumeError))
+        : step === confirmStep && (paying || Boolean(paymentResumeError));
     const qrNeedsReview = chargePerPerson > 0 && isOrganizerQr && !(couponInfo?.amountAfterDiscount === 0);
 
     useEffect(() => {
-        if (!paying) {
-            setShowPaymentEscape(false);
-            setProcessingProgress('');
+        // Only tick on the finishing overlay — not while Cashfree checkout modal/page is open
+        const finishing = paying && step === confirmStep && !paymentResumeError;
+        if (!finishing) {
+            if (!paying) {
+                setShowPaymentEscape(false);
+                setProcessingProgress('');
+            }
             return undefined;
         }
         const started = Date.now();
         setProcessingProgress('Confirming payment & saving your booking…');
         const tick = window.setInterval(() => {
             const elapsed = Date.now() - started;
-            if (elapsed >= 8000) setShowPaymentEscape(true);
-            if (elapsed >= 15000) {
-                setProcessingProgress('Still confirming with the bank — you can check My Bookings anytime…');
-            } else if (elapsed >= 5000) {
-                setProcessingProgress('Payment received — waiting for bank confirmation…');
+            if (elapsed >= PAYMENT_ESCAPE_AFTER_MS) setShowPaymentEscape(true);
+            if (elapsed >= PAYMENT_HARD_TIMEOUT_MS) {
+                setPaymentResumeError(
+                    'This is taking too long. Check My Bookings before paying again — or return to the form and retry.',
+                );
+                setPaying(false);
+                setProcessingProgress('');
+                return;
             }
-        }, 1000);
+            if (elapsed >= 10000) {
+                setProcessingProgress('Still confirming — you can check My Bookings anytime…');
+            } else if (elapsed >= 4000) {
+                setProcessingProgress('Waiting for bank confirmation…');
+            }
+        }, 500);
         return () => window.clearInterval(tick);
-    }, [paying]);
+    }, [paying, step, confirmStep, paymentResumeError, setPaying]);
+
+    useEffect(() => () => {
+        if (redirectStuckTimerRef.current) {
+            window.clearTimeout(redirectStuckTimerRef.current);
+            redirectStuckTimerRef.current = null;
+        }
+    }, []);
 
     useBookingSuccessPopup(showSuccess && !qrNeedsReview, {
         name: eventName,
@@ -858,6 +882,7 @@ export default function EventCommunityBookingPage() {
         setPayDone(false);
         setPaying(true);
         setError('');
+        setPaymentResumeError('');
 
         (async () => {
             try {
@@ -888,24 +913,22 @@ export default function EventCommunityBookingPage() {
                 if (verifyResult.status === 'cancelled') {
                     clearCashfreeReturnAndPending(navigate, location);
                     clearPendingPayment();
-                    setStep(detailsStep || 2);
                     setPayDone(false);
-                    setError('Payment cancelled.');
                     setPaying(false);
+                    setPaymentResumeError('Payment was cancelled. You can try again whenever you’re ready.');
                     return;
                 }
 
                 if (!verifyResult.ok || !verifyResult.verified) {
                     const { kind, message } = classifyVerifyError(verifyResult);
                     if (kind === 'cancelled' || kind === 'failed') clearPendingPayment();
-                    setStep(confirmStep);
                     setPayDone(false);
-                    setError(
-                        kind === 'pending'
-                            ? 'Payment is confirming. Check My Bookings — do not pay again.'
-                            : (message || 'Payment verification failed after redirect. Contact support.'),
-                    );
                     setPaying(false);
+                    setPaymentResumeError(
+                        kind === 'pending'
+                            ? 'Payment is still confirming. Open My Bookings before paying again.'
+                            : (message || 'Registration could not be completed. Try again or check My Bookings.'),
+                    );
                     return;
                 }
 
@@ -917,6 +940,7 @@ export default function EventCommunityBookingPage() {
                 setPaymentId(verified.payment_id);
                 setCashfreeOrderId(verified.payment_order_id || pending.orderId || '');
                 setPayDone(true);
+                setPaymentResumeError('');
                 if (registrationId) {
                     sessionStorage.removeItem(runDraftKey(evId));
                     refreshNotifications();
@@ -939,9 +963,8 @@ export default function EventCommunityBookingPage() {
                 });
                 setStep(confirmStep);
             } catch (e) {
-                setStep(detailsStep || 2);
                 setPayDone(false);
-                setError(e.message || 'Could not complete booking after payment');
+                setPaymentResumeError(e.message || 'Could not complete booking after payment. Try again.');
             } finally {
                 setPaying(false);
             }
@@ -1148,6 +1171,8 @@ export default function EventCommunityBookingPage() {
                     }
                 }
                 setPaying(true);
+                setStep(confirmStep);
+                setPaymentResumeError('');
                 try {
                     await submitRunRegistration({
                         amountPaid: payableAmount,
@@ -1158,12 +1183,11 @@ export default function EventCommunityBookingPage() {
                             couponCode: couponCode.trim() || undefined,
                         },
                     });
-                    setStep(confirmStep);
                     setPayDone(true);
-                } catch (e) {
-                    setError(e.message || 'Registration failed');
-                } finally {
                     setPaying(false);
+                } catch (e) {
+                    setPaying(false);
+                    setPaymentResumeError(e.message || 'Registration failed. Please try again.');
                 }
                 return;
             }
@@ -1250,22 +1274,40 @@ export default function EventCommunityBookingPage() {
                 if (checkoutFlow.status === 'redirect_deferred') {
                     setStep(confirmStep);
                     setPaying(true);
+                    setPaymentResumeError('');
+                    // If Cashfree never leaves this page (blocked UPI / in-app browser), unstick fast
+                    if (redirectStuckTimerRef.current) window.clearTimeout(redirectStuckTimerRef.current);
+                    redirectStuckTimerRef.current = window.setTimeout(() => {
+                        if (!payingRef.current) return;
+                        clearPendingPayment();
+                        setPaying(false);
+                        setPaymentResumeError(
+                            'Couldn’t open PhonePe / Google Pay from this browser. Open in Chrome, then try Pay again.',
+                        );
+                    }, PAYMENT_REDIRECT_STUCK_MS);
                     return;
                 }
 
                 if (checkoutFlow.status === 'cancelled') {
+                    clearPendingPayment();
+                    if (redirectStuckTimerRef.current) {
+                        window.clearTimeout(redirectStuckTimerRef.current);
+                        redirectStuckTimerRef.current = null;
+                    }
                     setPaymentFlowToStepTwo({
                         setStep,
                         setPayDone,
                         setPaying,
                         setError,
-                        message: '',
+                        message: checkoutFlow.message || 'Payment was cancelled. You can try again when ready.',
                         step: detailsStep || 2,
                     });
+                    setPaymentResumeError('');
                     return;
                 }
 
                 if (checkoutFlow.status === 'checkout_error') {
+                    clearPendingPayment();
                     setPaymentFlowToStepTwo({
                         setStep,
                         setPayDone,
@@ -1274,13 +1316,19 @@ export default function EventCommunityBookingPage() {
                         message: '',
                         step: detailsStep || 2,
                     });
+                    setPaymentResumeError('');
                     retryCheckoutRef.current = () => next();
                     setPaymentModal({ open: true, message: checkoutFlow.message, orderId: order.orderId });
                     return;
                 }
 
+                if (redirectStuckTimerRef.current) {
+                    window.clearTimeout(redirectStuckTimerRef.current);
+                    redirectStuckTimerRef.current = null;
+                }
                 setStep(confirmStep);
                 setPaying(true);
+                setPaymentResumeError('');
 
                 if (checkoutFlow.status === 'verified') {
                     const { verified, registrationId } = checkoutFlow;
@@ -1293,24 +1341,28 @@ export default function EventCommunityBookingPage() {
                         setPaymentFlowToSuccess({ setPayDone, setPaying, setError });
                         return;
                     }
-                    await submitRunRegistration({
-                        paymentOrderId: verified.payment_order_id || order.orderId,
-                        paymentId: verified.payment_id,
-                        amountPaid: order.totalAmount ?? total,
-                        formData: mergedFields,
-                    });
-                    setPaymentFlowToSuccess({ setPayDone, setPaying, setError });
+                    try {
+                        await submitRunRegistration({
+                            paymentOrderId: verified.payment_order_id || order.orderId,
+                            paymentId: verified.payment_id,
+                            amountPaid: order.totalAmount ?? total,
+                            formData: mergedFields,
+                        });
+                        setPaymentFlowToSuccess({ setPayDone, setPaying, setError });
+                    } catch (regErr) {
+                        setPaying(false);
+                        setPaymentResumeError(
+                            regErr.message || 'Payment received, but registration failed. Retry or check My Bookings.',
+                        );
+                    }
                 } else {
-                    setPaymentFlowToStepTwo({
-                        setStep,
-                        setPayDone,
-                        setPaying,
-                        setError,
-                        message: checkoutFlow.message || 'Payment verification failed. Contact support.',
-                        step: detailsStep || 2,
-                    });
+                    setPaying(false);
+                    setPaymentResumeError(
+                        checkoutFlow.message || 'Payment verification failed. Try again or check My Bookings.',
+                    );
                 }
             } catch (e) {
+                clearPendingPayment();
                 setPaymentFlowToStepTwo({
                     setStep,
                     setPayDone,
@@ -1319,6 +1371,7 @@ export default function EventCommunityBookingPage() {
                     message: 'Payment error: ' + e.message,
                     step: detailsStep || 2,
                 });
+                setPaymentResumeError('');
             }
         }
     };
@@ -1431,14 +1484,25 @@ export default function EventCommunityBookingPage() {
         return (
             <CompletingPaymentStep
                 isDark={isDark}
-                paymentResumeError=""
+                paymentResumeError={paymentResumeError}
+                paymentResumeWasPaid={/payment received|already paid|do not pay again|check my bookings/i.test(paymentResumeError)}
                 submissionProgress={processingProgress}
                 navigate={navigate}
-                showEscapeWhileWaiting={showPaymentEscape}
-                onReturnToForm={() => {
-                    paymentResumeRef.current = false;
+                showEscapeWhileWaiting={showPaymentEscape || Boolean(paymentResumeError)}
+                onRetryResume={paymentResumeError ? () => {
+                    setPaymentResumeError('');
                     setPaying(false);
                     setPayDone(false);
+                    setStep(detailsStep || 2);
+                    setError('');
+                    paymentResumeRef.current = false;
+                } : undefined}
+                onReturnToForm={() => {
+                    paymentResumeRef.current = false;
+                    clearPendingPayment();
+                    setPaying(false);
+                    setPayDone(false);
+                    setPaymentResumeError('');
                     setStep(detailsStep || 2);
                     setError('');
                 }}

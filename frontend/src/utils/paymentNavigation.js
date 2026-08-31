@@ -16,15 +16,21 @@ export {
 
 export const BOOKING_REDIRECT_MS = 400;
 /** Per-attempt inner retries inside one verify call. */
-export const PAYMENT_VERIFY_RETRY_MS = [300, 500, 800, 1200, 2000];
+export const PAYMENT_VERIFY_RETRY_MS = [250, 400, 700, 1000];
 /** Max wait on /payment/return before handing off to the booking page. */
-export const PAYMENT_RETURN_MAX_WAIT_MS = 15000;
+export const PAYMENT_RETURN_MAX_WAIT_MS = 10000;
 /** Background poll on fest/event/booking pages (user sees “Finishing…” overlay). */
-export const PAYMENT_BACKGROUND_MAX_WAIT_MS = 45000;
+export const PAYMENT_BACKGROUND_MAX_WAIT_MS = 18000;
 /** Gaps between poll rounds (background only). */
-export const PAYMENT_POLL_INTERVAL_MS = [600, 800, 1000, 1500, 2000, 3000];
+export const PAYMENT_POLL_INTERVAL_MS = [500, 700, 1000, 1500, 2000];
 /** @deprecated use PAYMENT_BACKGROUND_MAX_WAIT_MS */
 export const PAYMENT_POLL_MAX_WAIT_MS = PAYMENT_BACKGROUND_MAX_WAIT_MS;
+/** When to show “View My Bookings / Return to form” on the finishing overlay. */
+export const PAYMENT_ESCAPE_AFTER_MS = 4000;
+/** When finishing overlay should stop spinning and show a hard failure. */
+export const PAYMENT_HARD_TIMEOUT_MS = 20000;
+/** If redirect checkout never leaves the page, unstick after this. */
+export const PAYMENT_REDIRECT_STUCK_MS = 3500;
 
 export function goToBookings(navigate, pendingBooking = null) {
   navigate('/booking', {

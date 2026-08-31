@@ -84,7 +84,7 @@ export function classifyCheckoutError(error) {
   const msg = raw.toLowerCase();
 
   if (
-    /cancel|dismiss|closed by user|user closed|user_cancelled|aborted|back press/i.test(msg)
+    /cancel|dismiss|closed by user|user closed|user_cancelled|aborted|back press|not completed|payment was not completed|incomplete|closed the checkout|checkout closed|user closed the/i.test(msg)
   ) {
     return {
       kind: 'cancelled',
