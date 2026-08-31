@@ -75,6 +75,88 @@ const getDefaultFrom = () => {
 
 const getSiteUrl = () => (process.env.FRONTEND_URL || 'https://crwdctrl.in').replace(/\/$/, '');
 
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function buildQrImageUrl(qrHash) {
+    const hash = String(qrHash || '').trim();
+    if (!hash) return '';
+    return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=10&data=${encodeURIComponent(hash)}`;
+}
+
+/** Inline ticket card for run / event-community confirmation emails. */
+function buildBookingTicketBlock({
+    eventTitle = '',
+    participantName = '',
+    date = '',
+    time = '',
+    venue = '',
+    qrHash = '',
+    ticketHref = '',
+    bookingHref = '',
+    product = 'event',
+}) {
+    if (!qrHash) return '';
+    const qrSrc = buildQrImageUrl(qrHash);
+    if (!qrSrc) return '';
+
+    const label = product === 'run' ? 'Run ticket' : 'Event ticket';
+    const detailRows = [
+        participantName ? { label: 'Name', value: participantName } : null,
+        date ? { label: 'Date', value: date } : null,
+        time ? { label: 'Time', value: time } : null,
+        venue ? { label: 'Venue', value: venue } : null,
+        eventTitle ? { label: product === 'run' ? 'Run' : 'Event', value: eventTitle } : null,
+    ].filter(Boolean);
+
+    const ticketUrl = resolveTicketHref(ticketHref);
+    const bookingUrl = bookingHref ? resolveTicketHref(bookingHref) : ticketUrl;
+
+    return `
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:20px 0 8px;border:1px solid #e5e7eb;border-radius:16px;overflow:hidden;background:#fafafa;">
+            <tr>
+                <td style="padding:16px 18px 10px;background:#111827;">
+                    <p style="margin:0;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#0ECCEE;font-weight:600;">${escapeHtml(label)}</p>
+                    <p style="margin:6px 0 0;font-size:18px;line-height:1.3;color:#ffffff;font-weight:700;">${escapeHtml(eventTitle || 'Your booking')}</p>
+                </td>
+            </tr>
+            <tr>
+                <td style="padding:18px;text-align:center;background:#ffffff;">
+                    <img src="${qrSrc}" alt="Check-in QR code" width="220" height="220" style="display:block;margin:0 auto;width:220px;height:220px;border:1px solid #e5e7eb;border-radius:12px;" />
+                    <p style="margin:14px 0 0;font-size:13px;line-height:1.5;color:#6b7280;">Show this QR at the venue for check-in.</p>
+                </td>
+            </tr>
+            ${detailRows.length ? `
+            <tr>
+                <td style="padding:0 18px 16px;background:#ffffff;">
+                    ${buildDetailsTable(detailRows)}
+                </td>
+            </tr>` : ''}
+            <tr>
+                <td style="padding:0 18px 18px;background:#ffffff;">
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                        <tr>
+                            <td align="center" style="padding-bottom:10px;">
+                                <a href="${ticketUrl}" style="display:inline-block;background:#0ECCEE;color:#111827;text-decoration:none;font-weight:700;font-size:14px;padding:12px 22px;border-radius:10px;">Open ticket</a>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td align="center">
+                                <a href="${bookingUrl}" style="font-size:13px;color:#2563eb;text-decoration:underline;">View booking details</a>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>`;
+}
+
 const EMAIL_ADDRESS_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const REGISTRATION_TYPE_META = {
@@ -338,7 +420,7 @@ const sendEventBroadcast = async (userList, eventDetails) => {
 };
 
 const generateTrekParticipantEmailHTML = ({
-    name, title, message, trekName, link, kind, groupLink, communityName, product = 'trek', paymentContext = null, coverImage = '',
+    name, title, message, trekName, link, kind, groupLink, communityName, product = 'trek', paymentContext = null, coverImage = '', ticket = null,
 }) => {
     const isRun = product === 'run';
     const isFest = product === 'fest';
@@ -350,7 +432,8 @@ const generateTrekParticipantEmailHTML = ({
             : kind === 'organizer'
                 ? 'Message from organizer'
                 : (isEvent ? 'Event update' : isRun ? 'Run update' : isFest ? 'Fest update' : 'Trek update');
-    const fullLink = resolveTicketHref(link || (isEvent || isRun ? '/sports' : isFest ? '/fests' : '/treks'));
+    const ticketHref = ticket?.ticketHref || link;
+    const fullLink = resolveTicketHref(ticketHref || link || (isEvent || isRun ? '/sports' : isFest ? '/fests' : '/treks'));
     const bodyMessage = String(message || '').replace(/\n/g, '<br/>');
     const entityLabel = isEvent ? 'Event' : isRun ? 'Run' : isFest ? 'Fest' : 'Trek';
     const paymentNoticeHtml = paymentContext ? buildPaymentNotice(paymentContext) : '';
@@ -359,6 +442,20 @@ const generateTrekParticipantEmailHTML = ({
             ? title
             : 'You’re in')
         : title;
+    const showInlineTicket = kind === 'registration' && ticket?.qrHash;
+    const ticketBlockHtml = showInlineTicket
+        ? buildBookingTicketBlock({
+            eventTitle: ticket.eventTitle || trekName,
+            participantName: ticket.participantName || name,
+            date: ticket.date,
+            time: ticket.time,
+            venue: ticket.venue,
+            qrHash: ticket.qrHash,
+            ticketHref: ticket.ticketHref || link,
+            bookingHref: ticket.bookingHref || link,
+            product: isEvent ? 'event' : isRun ? 'run' : 'trek',
+        })
+        : '';
 
     return buildEmailShell({
         preheader: `${trekName} — ${displayTitle}`,
@@ -367,16 +464,18 @@ const generateTrekParticipantEmailHTML = ({
         subtitle: trekName,
         heroImageUrl: coverImage,
         bodyHtml: `
-            <p style="margin:0 0 10px;">Hi ${name || 'there'},</p>
+            <p style="margin:0 0 10px;">Hi ${escapeHtml(name || 'there')},</p>
             <p style="margin:0 0 4px;line-height:1.6;">${bodyMessage}</p>
             ${paymentNoticeHtml}
-            ${buildDetailsTable([{ label: entityLabel, value: trekName }])}
+            ${showInlineTicket ? ticketBlockHtml : buildDetailsTable([{ label: entityLabel, value: trekName }])}
             ${buildWhatsAppJoinBlock(groupLink, communityName, { product: isEvent ? 'event' : isRun ? 'run' : isFest ? 'fest' : 'trek' })}
         `,
-        ctaLabel: (isRun || isEvent) && kind === 'registration' && String(title || '').toLowerCase().includes('approved')
-            ? 'Download ticket'
-            : (isFest ? 'View fest' : 'View booking'),
-        ctaHref: fullLink,
+        ctaLabel: showInlineTicket
+            ? ''
+            : ((isRun || isEvent) && kind === 'registration' && String(title || '').toLowerCase().includes('approved')
+                ? 'Open ticket'
+                : (isFest ? 'View fest' : 'View booking')),
+        ctaHref: showInlineTicket ? '' : fullLink,
         footnote: isEvent
             ? 'You received this about your event booking on CrwdCtrl.'
             : isRun

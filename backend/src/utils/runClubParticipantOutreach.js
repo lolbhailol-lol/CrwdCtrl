@@ -1,4 +1,5 @@
 const CategoryRegistration = require('../model/category_registration_model');
+const crypto = require('crypto');
 const { createNotification } = require('../controllers/notificationController');
 const { sendPushNotification } = require('../services/pushService');
 const { sendTrekParticipantEmails } = require('../services/emailService');
@@ -39,6 +40,29 @@ function preferenceKeysForType(type) {
 
 function shouldSendChannel(prefs = {}, key) {
     return prefs[key] !== false;
+}
+
+async function ensureRegistrationQrHash(registration) {
+    const regId = registration?._id;
+    if (!regId) return registration?.qrCodeData || '';
+    if (registration.qrCodeData) return registration.qrCodeData;
+    const qrHash = crypto.randomBytes(16).toString('hex');
+    await CategoryRegistration.updateOne({ _id: regId }, { $set: { qrCodeData: qrHash } });
+    return qrHash;
+}
+
+function pickBookingDateTime(registration, eventDoc) {
+    const form = normalizeRegistrationForFormat(registration).formData || {};
+    const date = registration.bookingDate
+        || form.date
+        || form.run_date
+        || form.event_date
+        || (eventDoc?.eventDate ? new Date(eventDoc.eventDate).toLocaleDateString('en-IN', {
+            day: 'numeric', month: 'long', year: 'numeric',
+        }) : '');
+    const time = registration.bookingTime || form.time || form.time_slot || '';
+    const venue = eventDoc?.venue || eventDoc?.city || form.venue || '';
+    return { date: String(date || '').trim(), time: String(time || '').trim(), venue: String(venue || '').trim() };
 }
 
 async function loadConfirmedParticipants(eventId) {
@@ -109,16 +133,20 @@ async function notifyRunClubParticipant({
         }
     }
 
+    // Booking confirmations are transactional — always email when we have an address.
+    // Push/in-app still respect notification preferences.
+    const isTransactionalRegistration = type === 'registration';
     const sendEmailToGuest = !userId && email;
-    const sendEmailToUser = userId && email && shouldSendChannel(prefs, keys.email);
+    const sendEmailToUser = userId && email && (isTransactionalRegistration || shouldSendChannel(prefs, keys.email));
 
     if (!skipEmail && (sendEmailToGuest || sendEmailToUser)) {
         let coverImage = '';
         let product = 'run';
+        let eventDoc = null;
         if (eventId) {
             try {
-                const eventDoc = await SportsEvent.findById(eventId)
-                    .select('coverImage coverImages runClubId title')
+                eventDoc = await SportsEvent.findById(eventId)
+                    .select('coverImage coverImages runClubId title eventDate venue city')
                     .lean();
                 coverImage = primaryCoverUrl(eventDoc?.coverImages || {}, eventDoc?.coverImage || '') || '';
                 const hub = await listingHubForRunClubId(eventDoc?.runClubId || registration?.runClubId || decrypted?.runClubId);
@@ -126,6 +154,31 @@ async function notifyRunClubParticipant({
             } catch (err) {
                 console.warn('[notifyRunClubParticipant] cover/hub lookup failed:', err.message);
             }
+        }
+
+        const regId = decrypted._id ? String(decrypted._id) : '';
+        const isConfirmedRegistration = type === 'registration' && decrypted.status === 'confirmed';
+        const ticketHref = isConfirmedRegistration && regId
+            ? `/qr-ticket/${regId}?type=sports`
+            : (link || `/sports/run/${eventId}`);
+        const bookingHref = regId
+            ? `/registration-details/${regId}?type=sports`
+            : (link || `/sports/run/${eventId}`);
+
+        let ticket = null;
+        if (isConfirmedRegistration && regId) {
+            const qrHash = await ensureRegistrationQrHash(decrypted);
+            const { date, time, venue } = pickBookingDateTime(decrypted, eventDoc);
+            ticket = {
+                qrHash,
+                eventTitle: eventTitle || eventDoc?.title || '',
+                participantName: name,
+                date,
+                time,
+                venue,
+                ticketHref,
+                bookingHref,
+            };
         }
 
         const emailResult = await sendTrekParticipantEmails([
@@ -136,19 +189,70 @@ async function notifyRunClubParticipant({
                 title,
                 message,
                 trekName: eventTitle || resolvedGroup.eventTitle || (product === 'event' ? 'Event' : 'Run'),
-                link: link || `/sports/run/${eventId}`,
+                link: ticketHref,
                 kind: type,
                 product,
                 coverImage,
-                groupLink: includeGroupLink ? resolvedGroup.groupLink : '',
-                communityName: includeGroupLink ? resolvedGroup.communityName : '',
+                groupLink: includeGroupLink ? resolvedGroup.groupLink : (groupLink || ''),
+                communityName: includeGroupLink ? resolvedGroup.communityName : (communityName || ''),
                 paymentContext,
+                ticket,
             },
         ]);
         result.email = (emailResult?.success || 0) > 0;
+    } else if (!skipEmail && !email) {
+        console.warn('[notifyRunClubParticipant] No email address for participant', {
+            eventId,
+            registrationId: registration?._id ? String(registration._id) : undefined,
+            userId: userId ? String(userId) : null,
+            type,
+        });
     }
 
     return result;
+}
+
+/** Fire-and-forget confirmation for a confirmed sports / event-community registration. */
+async function sendRunClubRegistrationConfirmation({
+    registration,
+    eventId,
+    eventTitle,
+    runClubId,
+    paymentStatus = 'free',
+    paymentGateway = '',
+    stage = 'confirmed',
+}) {
+    if (!registration || registration.status !== 'confirmed') return null;
+
+    const regId = registration._id ? String(registration._id) : '';
+    const ticketLink = `/qr-ticket/${regId}?type=sports`;
+    const isPaid = paymentStatus === 'paid' || Number(registration.amountPaid) > 0;
+
+    return notifyRunClubParticipant({
+        registration,
+        eventId,
+        eventTitle,
+        title: stage === 'confirmed_resend' ? 'You’re in' : 'You’re in',
+        message: `You’re confirmed for ${eventTitle}. Your ticket is below — save this email or open it in the app. Join the WhatsApp group for updates.`,
+        type: 'registration',
+        link: ticketLink,
+        emailSubject: `You’re in — ${eventTitle}`,
+        metadata: {
+            registrationId: String(registration._id),
+            stage: stage === 'confirmed_resend' ? 'confirmed_resend' : 'confirmed',
+        },
+        includeGroupLink: true,
+        paymentContext: {
+            status: isPaid ? 'paid' : 'free',
+            method: paymentGateway || registration.payment_gateway || '',
+        },
+    });
+}
+
+function queueRunClubRegistrationConfirmation(args) {
+    sendRunClubRegistrationConfirmation(args).catch((err) => {
+        console.error('[sendRunClubRegistrationConfirmation]', err.message);
+    });
 }
 
 async function notifyRunClubParticipants({
@@ -208,4 +312,6 @@ module.exports = {
     loadConfirmedParticipants,
     notifyRunClubParticipant,
     notifyRunClubParticipants,
+    sendRunClubRegistrationConfirmation,
+    queueRunClubRegistrationConfirmation,
 };

@@ -1059,7 +1059,7 @@ exports.reviewPayment = async (req, res) => {
                 eventId: req.eventId,
                 eventTitle,
                 title: 'Payment approved — you’re in!',
-                message: `Great news! Your payment for ${eventTitle} was approved by the organizer. Download your ticket below and join the club WhatsApp for run updates.`,
+                message: `Great news! Your payment for ${eventTitle} was approved. Your ticket is below — show the QR at the venue and join the WhatsApp group for updates.`,
                 type: 'registration',
                 link,
                 emailSubject: `You’re confirmed — ${eventTitle}`,
@@ -1569,8 +1569,8 @@ exports.resendConfirmation = async (req, res) => {
 
         const event = await SportsEvent.findById(req.eventId).select('title runClubId').lean();
         const eventTitle = event?.title || 'your run';
-        const link = `/registration-details/${bookingId}?type=sports`;
-        const title = 'Run Registration Confirmed';
+        const link = `/qr-ticket/${bookingId}?type=sports`;
+        const title = 'You’re in';
         const decrypted = decryptRegistrationPii(
             registration,
             resolveEventRunClubId(event, req.organizer),
@@ -1581,10 +1581,10 @@ exports.resendConfirmation = async (req, res) => {
             eventId: req.eventId,
             eventTitle,
             title,
-            message: `Your registration for ${eventTitle} is confirmed. Download your ticket and join WhatsApp for run updates.`,
+            message: `Your registration for ${eventTitle} is confirmed. Your ticket is in this email — show the QR at the venue and join WhatsApp for updates.`,
             type: 'registration',
             link,
-            emailSubject: `Run registration confirmed — ${eventTitle}`,
+            emailSubject: `You’re in — ${eventTitle}`,
             metadata: { registrationId: bookingId, resentBy: 'run_club_organizer' },
             includeGroupLink: true,
             paymentContext: {

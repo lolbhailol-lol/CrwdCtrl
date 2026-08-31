@@ -34,7 +34,7 @@ const {
     redactRegistrationPii,
     isPiiEncryptionEnabled,
 } = require('../utils/runClubPiiCrypto');
-const { notifyRunClubParticipant } = require('../utils/runClubParticipantOutreach');
+const { notifyRunClubParticipant, queueRunClubRegistrationConfirmation } = require('../utils/runClubParticipantOutreach');
 const User = require('../model/usermodel');
 const PaymentOrder = require('../model/payment_order_model');
 
@@ -289,11 +289,30 @@ exports.registerForEvent = async (req, res) => {
                 payment_order_id: retryOrderId,
             }).lean();
             if (existing) {
+                const clubIdForPii = category === 'sports' ? event.runClubId : null;
+                const decrypted = decryptRegistrationPii(existing, clubIdForPii);
+                if (category === 'sports' && existing.status === 'confirmed') {
+                    CategoryRegistration.findById(existing._id)
+                        .populate('user', 'name email phoneNumber notificationPreferences')
+                        .then((populated) => queueRunClubRegistrationConfirmation({
+                            registration: decryptRegistrationPii(
+                                populated?.toObject ? populated.toObject() : populated || decrypted,
+                                clubIdForPii,
+                            ),
+                            eventId: resolvedEventId,
+                            eventTitle: event.title || event.name || 'your event',
+                            runClubId: clubIdForPii,
+                            paymentStatus: existing.paymentStatus,
+                            paymentGateway: existing.payment_gateway,
+                            stage: 'confirmed_resend',
+                        }))
+                        .catch((err) => console.error('[registerForEvent.notify.retryOrder]', err.message));
+                }
                 return res.status(200).json({
                     success: true,
                     alreadyRegistered: true,
                     message: 'Registration already completed',
-                    registration: existing,
+                    registration: decrypted,
                 });
             }
         }
@@ -310,11 +329,29 @@ exports.registerForEvent = async (req, res) => {
         if (activeExisting) {
             const clubIdForPii = category === 'sports' ? event.runClubId : null;
             if (activeExisting.status === 'confirmed') {
+                const decrypted = decryptRegistrationPii(activeExisting, clubIdForPii);
+                if (category === 'sports') {
+                    CategoryRegistration.findById(activeExisting._id)
+                        .populate('user', 'name email phoneNumber notificationPreferences')
+                        .then((populated) => queueRunClubRegistrationConfirmation({
+                            registration: decryptRegistrationPii(
+                                populated?.toObject ? populated.toObject() : populated || decrypted,
+                                clubIdForPii,
+                            ),
+                            eventId: resolvedEventId,
+                            eventTitle: event.title || event.name || 'your event',
+                            runClubId: clubIdForPii,
+                            paymentStatus: activeExisting.paymentStatus,
+                            paymentGateway: activeExisting.payment_gateway,
+                            stage: 'confirmed_resend',
+                        }))
+                        .catch((err) => console.error('[registerForEvent.notify.alreadyConfirmed]', err.message));
+                }
                 return res.status(200).json({
                     success: true,
                     alreadyRegistered: true,
                     message: 'You are already registered for this event',
-                    registration: decryptRegistrationPii(activeExisting, clubIdForPii),
+                    registration: decrypted,
                 });
             }
 
@@ -516,11 +553,29 @@ exports.registerForEvent = async (req, res) => {
                 if (!check.ok) {
                     if (check.status === 409 && check.registration) {
                         const clubIdForPii = category === 'sports' ? event.runClubId : null;
+                        const decrypted = decryptRegistrationPii(check.registration, clubIdForPii);
+                        if (category === 'sports' && check.registration.status === 'confirmed') {
+                            CategoryRegistration.findById(check.registration._id)
+                                .populate('user', 'name email phoneNumber notificationPreferences')
+                                .then((populated) => queueRunClubRegistrationConfirmation({
+                                    registration: decryptRegistrationPii(
+                                        populated?.toObject ? populated.toObject() : populated || decrypted,
+                                        clubIdForPii,
+                                    ),
+                                    eventId: resolvedEventId,
+                                    eventTitle: event.title || event.name || 'your event',
+                                    runClubId: clubIdForPii,
+                                    paymentStatus: check.registration.paymentStatus,
+                                    paymentGateway: check.registration.payment_gateway,
+                                    stage: 'confirmed_resend',
+                                }))
+                                .catch((err) => console.error('[registerForEvent.notify.payment409]', err.message));
+                        }
                         return res.status(200).json({
                             success: true,
                             alreadyRegistered: true,
                             message: check.message || 'Registration already completed',
-                            registration: decryptRegistrationPii(check.registration, clubIdForPii),
+                            registration: decrypted,
                         });
                     }
                     return res.status(check.status || 400).json({ message: check.message });
@@ -663,7 +718,7 @@ exports.registerForEvent = async (req, res) => {
         // Notify runner: pending QR review vs confirmed booking
         if (category === 'sports') {
             const eventTitle = event.title || event.name || 'your run';
-            const detailsLink = `/registration-details/${registration._id}?type=sports`;
+            const ticketLink = `/qr-ticket/${registration._id}?type=sports`;
             CategoryRegistration.findById(registration._id)
                 .populate('user', 'name email phoneNumber notificationPreferences')
                 .then((populated) => {
@@ -679,7 +734,7 @@ exports.registerForEvent = async (req, res) => {
                             title: 'Payment submitted — awaiting approval',
                             message: `Thanks! Your payment screenshot for ${eventTitle} was submitted. The run club organizer will review it and confirm your spot. You’ll get another email once it’s approved.`,
                             type: 'registration',
-                            link: detailsLink,
+                            link: `/registration-details/${registration._id}?type=sports`,
                             emailSubject: `Payment submitted — waiting for club approval · ${eventTitle}`,
                             metadata: { registrationId: String(registration._id), stage: 'pending_review' },
                             paymentContext: {
@@ -693,9 +748,9 @@ exports.registerForEvent = async (req, res) => {
                         eventId: resolvedEventId,
                         eventTitle,
                         title: 'You’re in',
-                        message: `You’re confirmed for ${eventTitle}. Save your ticket and jump into the WhatsApp group for updates.`,
+                        message: `You’re confirmed for ${eventTitle}. Your ticket is below — save this email or open it in the app. Join the WhatsApp group for updates.`,
                         type: 'registration',
-                        link: detailsLink,
+                        link: ticketLink,
                         emailSubject: `You’re in — ${eventTitle}`,
                         metadata: { registrationId: String(registration._id), stage: 'confirmed' },
                         includeGroupLink: true,
@@ -703,6 +758,15 @@ exports.registerForEvent = async (req, res) => {
                             status: paymentStatus === 'paid' ? 'paid' : 'free',
                             method: paymentGateway || '',
                         },
+                    }).then((delivery) => {
+                        if (!delivery.email) {
+                            console.warn('[registerForEvent.notify] Confirmation email not sent', {
+                                registrationId: String(registration._id),
+                                eventId: String(resolvedEventId),
+                                emailAddress: delivery.emailAddress || null,
+                                userId: delivery.userId ? String(delivery.userId) : null,
+                            });
+                        }
                     });
                 })
                 .catch((err) => console.error('[registerForEvent.notify]', err.message));
