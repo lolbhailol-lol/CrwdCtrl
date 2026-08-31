@@ -490,6 +490,7 @@ export default function FestOrganizerCouponsPage() {
                                         {c.maxTotalUses > 0
                                             ? ` · ${c.usedCount || 0}/${c.maxTotalUses} uses`
                                             : ` · ${c.usedCount || 0} uses`}
+                                        {c.userCount > 0 ? ` · ${c.userCount} users` : ''}
                                     </p>
                                 </button>
                                 <button

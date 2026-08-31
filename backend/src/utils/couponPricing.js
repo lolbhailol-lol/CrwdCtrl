@@ -203,11 +203,11 @@ async function validateAndPriceCoupon({
   };
 }
 
-async function consumeCouponUsageForOrder({ paymentOrderId, userId }) {
-  const orderId = String(paymentOrderId || '').trim();
-  if (!orderId || !userId) return { ok: true, skipped: true };
+async function consumeCouponUsageForOrder({ paymentOrderId, orderId, userId }) {
+  const resolvedOrderId = String(paymentOrderId || orderId || '').trim();
+  if (!resolvedOrderId || !userId) return { ok: true, skipped: true };
 
-  const paymentOrder = await PaymentOrder.findOne({ orderId });
+  const paymentOrder = await PaymentOrder.findOne({ orderId: resolvedOrderId });
   if (!paymentOrder || !paymentOrder.couponCode || paymentOrder.couponConsumedAt) {
     return { ok: true, skipped: true };
   }

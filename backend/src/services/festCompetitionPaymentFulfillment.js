@@ -127,9 +127,8 @@ async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides 
     setImmediate(async () => {
       try {
         await consumeCouponUsageForOrder({
-          couponCode: paymentOrder.couponCode || draft.couponCode,
+          paymentOrderId: payment_order_id,
           userId,
-          orderId: payment_order_id,
         });
         const persistedRegistration = saved.registration || registration;
         const ticketLink = `/qr-ticket/${persistedRegistration._id}`;
@@ -229,9 +228,8 @@ async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides 
   setImmediate(async () => {
     try {
       await consumeCouponUsageForOrder({
-        couponCode: paymentOrder.couponCode || draft.couponCode,
+        paymentOrderId: payment_order_id,
         userId,
-        orderId: payment_order_id,
       });
       const ticketLink = `/registration-details/${registration._id}`;
       scheduleRegistrationNotification(userId, {
