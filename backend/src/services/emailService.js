@@ -754,7 +754,7 @@ const sendWelcomeEmail = async (userData) => {
         const { data, error } = await resendInstance.emails.send({
             from: 'CrwdCtrl <onboarding@crwdctrl.in>', // ✅ IMPORTANT
             to: [userData.email],
-            subject: "🎉 Welcome to CrwdCtrl - Let's Explore Amazing Fests!",
+            subject: "🎉 Welcome to CrwdCtrl — explore fests, runs & more!",
             html: generateWelcomeEmailHTML(userData)
         });
 
@@ -773,95 +773,137 @@ const sendWelcomeEmail = async (userData) => {
 };
 
 // Generate HTML content for welcome email
-const generateWelcomeEmailHTML = (userData) => {
+const CRWDCTRL_EXPLORE_EMAIL_IMAGES = {
+    hero: 'https://b9kqebckzmreaq9waa54apdm8ecy3yrh3uhmwux93pi.canva-cdn.email/de062643409b8c5b636a1181e5c0be95.jpg',
+    footer: 'https://b9kqebckzmreaq9waa54apdm8ecy3yrh3uhmwux93pi.canva-cdn.email/5493b3562ba4d78ebbee8b983115a29f.jpg',
+};
+
+const SUPPORT_EMAIL = 'crwdctrl.in@gmail.com';
+
+function buildExploreCategoryCell(category, siteUrl) {
+    const href = `${siteUrl}${category.path.startsWith('/') ? '' : '/'}${category.path}`;
     return `
-    <!DOCTYPE html>>
-    <html>
-    <head>
-        <style>
-            body { 
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-                line-height: 1.8; 
-                color: #333; 
-                margin: 0; 
-                padding: 0;
-                background-color: #f5f5f5;
-            }
-            .container { 
-                max-width: 600px; 
-                margin: 40px auto; 
-                background: white;
-                border-radius: 12px;
-                overflow: hidden;
-                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            }
-            .header { 
-                background: linear-gradient(135deg, #053780, #0ECCEE); 
-                color: white; 
-                padding: 40px 30px; 
-                text-align: center;
-            }
-            .header h1 {
-                margin: 0;
-                font-size: 32px;
-                font-weight: bold;
-                letter-spacing: 2px;
-            }
-            .content { 
-                padding: 40px 30px;
-            }
-            .content p {
-                color: #555;
-                font-size: 16px;
-                line-height: 1.8;
-                margin-bottom: 15px;
-            }
-            .greeting {
-                font-weight: 600;
-                color: #053780;
-                font-size: 18px;
-            }
-            .footer {
-                background: #f8f9fa;
-                padding: 25px 30px;
-                text-align: left;
-                border-top: 1px solid #e9ecef;
-            }
-            .footer p {
-                margin: 5px 0;
-                color: #666;
-                font-size: 15px;
-            }
-            .team-signature {
-                margin-top: 20px;
-                font-weight: 600;
-                color: #053780;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header">
-                <h1>🎊 CRWDCTRL 🎊</h1>
-            </div>
-            
-            <div class="content">
-                <p class="greeting">Hi ${userData.name},</p>
-                <p>Thank you for registering on CrwdCtrl! 🎊</p>
-                
-                <p>You're now ready to explore all the exciting fest events, competitions, and activities happening around you. Dive in, discover opportunities, and make the most of your experience!</p>
-                
-                <p>If you have any questions or need support, we're here to help.</p>
-            </div>
-            
-            <div class="footer">
-                <p class="team-signature">Welcome aboard,</p>
-                <p class="team-signature">Team CrwdCtrl</p>
-            </div>
-        </div>
-    </body>
-    </html>
-    `;
+        <td width="50%" valign="top" style="padding:6px;">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:2px solid #15c0e1;border-radius:16px;background:#f8fdff;">
+                <tr>
+                    <td style="padding:18px 14px;text-align:center;font-family:Arial,Helvetica,sans-serif;">
+                        <p style="margin:0 0 6px;font-size:28px;line-height:1;">${category.emoji}</p>
+                        <p style="margin:0 0 4px;font-size:15px;font-weight:700;color:#053780;line-height:1.3;">${escapeHtml(category.label)}</p>
+                        <p style="margin:0 0 12px;font-size:12px;color:#64748b;line-height:1.4;">${escapeHtml(category.desc)}</p>
+                        <a href="${href}" style="display:inline-block;background:#15c0e1;color:#ffffff;text-decoration:none;font-size:12px;font-weight:700;padding:8px 14px;border-radius:999px;">Explore</a>
+                    </td>
+                </tr>
+            </table>
+        </td>`;
+}
+
+/** Four discovery tiles — includes College Fests as the 4th box. */
+function buildExploreCategoryGrid(siteUrl) {
+    const categories = [
+        { emoji: '🏃', label: 'Run Clubs', desc: 'Weekly runs & sports communities', path: '/sports' },
+        { emoji: '🎟️', label: 'Events', desc: 'Communities, meetups & game nights', path: '/events' },
+        { emoji: '🎪', label: 'College Fests', desc: 'Competitions, pro-shows & campus fests', path: '/fests' },
+        { emoji: '🥾', label: 'Treks', desc: 'Weekend treks & outdoor trips', path: '/treks' },
+    ];
+    const row1 = categories.slice(0, 2).map((c) => buildExploreCategoryCell(c, siteUrl)).join('');
+    const row2 = categories.slice(2, 4).map((c) => buildExploreCategoryCell(c, siteUrl)).join('');
+    return `
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 8px;">
+            <tr>${row1}</tr>
+        </table>
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 16px;">
+            <tr>${row2}</tr>
+        </table>`;
+}
+
+function buildCrwdCtrlExploreEmailHTML({
+    userName = 'there',
+    headline = 'Welcome to CrwdCtrl',
+    message = '',
+    loginTime = '',
+    preheader = '',
+}) {
+    const siteUrl = getSiteUrl();
+    const safeName = escapeHtml(userName || 'there');
+    const safeHeadline = escapeHtml(headline);
+    const safeMessage = escapeHtml(message);
+    const safePreheader = escapeHtml(preheader || headline);
+    const loginMeta = loginTime
+        ? `<p style="margin:12px 0 0;font-size:12px;color:#94a3b8;line-height:1.5;text-align:center;">Logged in at ${escapeHtml(loginTime)} (IST)</p>`
+        : '';
+
+    return `<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="x-apple-disable-message-reformatting" />
+    <title>${safeHeadline}</title>
+    <!--[if mso]><style>table{border-collapse:collapse;}td{font-family:Arial,Helvetica,sans-serif;}</style><![endif]-->
+</head>
+<body style="margin:0;padding:0;background-color:#f0f1f5;-webkit-text-size-adjust:100%;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${safePreheader}</div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="#f0f1f5" style="background-color:#f0f1f5;">
+        <tr>
+            <td align="center" style="padding:24px 12px;">
+                <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;">
+                    <tr>
+                        <td style="padding:0;">
+                            <img src="${CRWDCTRL_EXPLORE_EMAIL_IMAGES.hero}" width="600" alt="CrwdCtrl — discover events near you" style="display:block;width:100%;max-width:600px;height:auto;border:0;" />
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:24px 24px 8px;font-family:Arial,Helvetica,sans-serif;text-align:center;">
+                            <p style="margin:0 0 8px;font-size:22px;font-weight:700;color:#053780;line-height:1.3;">${safeHeadline}</p>
+                            <p style="margin:0;font-size:15px;color:#475569;line-height:1.6;">Hi ${safeName}, ${safeMessage}</p>
+                            ${loginMeta}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:8px 18px 4px;">
+                            ${buildExploreCategoryGrid(siteUrl)}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td align="center" style="padding:4px 24px 20px;">
+                            <table role="presentation" cellspacing="0" cellpadding="0">
+                                <tr>
+                                    <td bgcolor="#15c0e1" style="border-radius:25px;background-color:#15c0e1;">
+                                        <a href="${siteUrl}" target="_blank" rel="noopener" style="display:inline-block;padding:12px 28px;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:700;color:#ffffff;text-decoration:none;letter-spacing:0.02em;">EXPLORE NOW !</a>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:0;">
+                            <img src="${CRWDCTRL_EXPLORE_EMAIL_IMAGES.footer}" width="600" alt="CrwdCtrl" style="display:block;width:100%;max-width:600px;height:auto;border:0;" />
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:16px 24px 24px;font-family:Montserrat,Arial,Helvetica,sans-serif;">
+                            <p style="margin:0 0 6px;font-size:11px;font-weight:700;color:#111827;">Questions?</p>
+                            <p style="margin:0;font-size:11px;color:#475569;line-height:1.5;">
+                                Reach us at
+                                <a href="mailto:${SUPPORT_EMAIL}" style="color:#0ab6d7;font-weight:700;text-decoration:none;">${SUPPORT_EMAIL}</a>
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>`;
+}
+
+const generateWelcomeEmailHTML = (userData) => {
+    return buildCrwdCtrlExploreEmailHTML({
+        userName: userData?.name,
+        headline: 'Welcome to CrwdCtrl',
+        message: 'thanks for joining! Pick a category below and start exploring runs, college fests, treks and communities near you.',
+        preheader: 'Welcome to CrwdCtrl — explore runs, college fests, treks and more.',
+    });
 };
 
 // Send immediate thank you email after registration submission
@@ -1467,7 +1509,7 @@ const sendLoginConfirmationEmail = async (userData) => {
         const mailOptions = {
             from: getDefaultFrom(),
             to: userData.email,
-            subject: '✅ Login Confirmed - CrwdCtrl Account',
+            subject: '✅ You\'re logged in — explore CrwdCtrl',
             html: generateLoginConfirmationEmailHTML(userData)
         };
 
@@ -1495,119 +1537,13 @@ const sendLoginConfirmationEmail = async (userData) => {
 // Generate HTML for login confirmation email
 const generateLoginConfirmationEmailHTML = (userData) => {
     const loginTime = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-
-    return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <style>
-            body { 
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-                line-height: 1.6; 
-                color: #333; 
-                margin: 0; 
-                padding: 0;
-                background-color: #f5f5f5;
-            }
-            .container { 
-                max-width: 600px; 
-                margin: 20px auto; 
-                background: white;
-                border-radius: 12px;
-                overflow: hidden;
-                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            }
-            .header { 
-                background: linear-gradient(135deg, #053780, #0ECCEE); 
-                color: white; 
-                padding: 30px 20px; 
-                text-align: center;
-            }
-            .header h1 {
-                margin: 0;
-                font-size: 28px;
-                font-weight: bold;
-            }
-            .content { 
-                padding: 30px 20px;
-            }
-            .success-badge {
-                display: inline-block;
-                background: #10b981;
-                color: white;
-                padding: 8px 16px;
-                border-radius: 20px;
-                font-weight: 600;
-                margin-bottom: 20px;
-            }
-            .info-box {
-                background: #f0f9ff;
-                border-left: 4px solid #0ECCEE;
-                padding: 15px;
-                margin: 20px 0;
-                border-radius: 4px;
-            }
-            .info-box p {
-                margin: 8px 0;
-                color: #333;
-            }
-            .label {
-                font-weight: 600;
-                color: #053780;
-            }
-            .footer {
-                background: #f8f9fa;
-                padding: 20px;
-                text-align: center;
-                border-top: 1px solid #e9ecef;
-            }
-            .footer p {
-                margin: 8px 0;
-                color: #666;
-                font-size: 13px;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header">
-                <h1>✅ Login Successful!</h1>
-            </div>
-            
-            <div class="content">
-                <p class="greeting">Hi <strong>${userData.name || 'User'}</strong>,</p>
-                
-                <p>Your account has been accessed successfully. This is a security confirmation that you recently logged into your CrwdCtrl account.</p>
-                
-                <div class="info-box">
-                    <p><span class="label">📧 Account Email:</span></p>
-                    <p>${userData.email}</p>
-                    
-                    <p style="margin-top: 15px;"><span class="label">🕐 Login Time:</span></p>
-                    <p>${loginTime} (IST)</p>
-                    
-                    <p style="margin-top: 15px;"><span class="label">📱 Account Status:</span></p>
-                    <p><strong style="color: #10b981;">✓ Active</strong></p>
-                </div>
-                
-                <p style="color: #666; font-size: 14px; margin-top: 25px;">
-                    If you did not log in to your account, please <a href="mailto:${process.env.ADMIN_EMAIL || 'support@crwdctrl.com'}" style="color: #0ECCEE; text-decoration: none;">contact our support team</a> immediately.
-                </p>
-                
-                <p style="margin-top: 20px; color: #888; font-size: 13px;">
-                    Stay safe and enjoy exploring amazing fests on CrwdCtrl! 🎉
-                </p>
-            </div>
-            
-            <div class="footer">
-                <p style="margin-bottom: 15px;"><strong>Team CrwdCtrl</strong></p>
-                <p>This is an automated security notification email</p>
-                <p style="margin-top: 10px; color: #999;">© ${new Date().getFullYear()} CrwdCtrl. All rights reserved.</p>
-            </div>
-        </div>
-    </body>
-    </html>
-    `;
+    return buildCrwdCtrlExploreEmailHTML({
+        userName: userData?.name,
+        headline: 'You\'re logged in!',
+        message: 'your CrwdCtrl account is active. Explore run clubs, college fests, treks and event communities — or tap Explore Now to jump back in.',
+        loginTime,
+        preheader: 'Login confirmed — discover runs, college fests, treks and events on CrwdCtrl.',
+    });
 };
 
 module.exports = {
@@ -1626,4 +1562,6 @@ module.exports = {
     sendFestParticipantEmails,
     sendAdminCampaignEmails,
     previewAdminCampaignEmailHTML,
+    previewLoginEmailHTML: generateLoginConfirmationEmailHTML,
+    previewWelcomeEmailHTML: generateWelcomeEmailHTML,
 };
