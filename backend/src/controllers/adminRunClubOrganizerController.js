@@ -84,10 +84,15 @@ exports.listOrganizers = async (req, res) => {
             .sort({ createdAt: -1 })
             .lean();
 
+        const pendingFilter = { status: 'pending' };
+        if (hubClubIds) {
+            pendingFilter.runClubId = { $in: hubClubIds };
+        }
+
         res.json({
             success: true,
             organizers: organizers.map((o) => serializeOrganizer(o)),
-            pendingCount: await RunClubOrganizerAccount.countDocuments({ status: 'pending' }),
+            pendingCount: await RunClubOrganizerAccount.countDocuments(pendingFilter),
         });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Failed to list organizers' });

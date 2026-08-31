@@ -134,6 +134,15 @@ export default function RunClubOrganizerLoginPage() {
         setLoading(true);
         try {
             const data = await runClubOrganizerLogin(username, password);
+            const accountIsEvents = isEventsListingHub(data.runClub);
+            if (isEventHub && !accountIsEvents) {
+                setError('This account is for run club, not event community. Use the run club organizer login instead.');
+                return;
+            }
+            if (!isEventHub && accountIsEvents) {
+                setError('This account is for event community. Use /event-community-organizer/login instead.');
+                return;
+            }
             setRunClubOrganizerSession({
                 token: data.token,
                 organizer: data.organizer,
@@ -145,7 +154,7 @@ export default function RunClubOrganizerLoginPage() {
                 message: organizerHubCopy(isEventsListingHub(data.runClub)).welcome,
                 tone: 'login',
             });
-            navigate(resolvePostLoginPath(data.events, returnTo, isEventsListingHub(data.runClub) || isEventHub), { replace: true });
+            navigate(resolvePostLoginPath(data.events, returnTo, accountIsEvents), { replace: true });
         } catch (err) {
             setError(err.message || 'Login failed');
         } finally {
