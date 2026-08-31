@@ -126,6 +126,7 @@ export default function RunEventBookingPage() {
     const paymentResumeRef = useRef(false);
     const [showLogin, setShowLogin] = useState(false);
     const [showRegister, setShowRegister] = useState(false);
+    const [loginDismissed, setLoginDismissed] = useState(false);
 
     const isAuthed = useCallback(() => {
         return isAuthenticated || hasUsableAuthToken(authToken);
@@ -142,12 +143,14 @@ export default function RunEventBookingPage() {
         openLoginSheet({
             returnPath: `${window.location.pathname}${window.location.search || ''}`,
         });
+        setLoginDismissed(false);
         setShowLogin(true);
     }, []);
 
     useEffect(() => {
         if (isAuthenticated && showLogin) setShowLogin(false);
         if (isAuthenticated && showRegister) setShowRegister(false);
+        if (isAuthenticated) setLoginDismissed(false);
     }, [isAuthenticated, showLogin, showRegister]);
 
     const [event, setEvent] = useState(location.state?.event || null);
@@ -186,14 +189,7 @@ export default function RunEventBookingPage() {
     const formLocked = requireLogin && !loggedIn;
 
     const handleCloseLogin = () => {
-        if (loggedIn) {
-            closeLoginSheet();
-            return;
-        }
-        if (formLocked) {
-            goBack();
-            return;
-        }
+        setLoginDismissed(true);
         closeLoginSheet();
     };
 
@@ -1096,7 +1092,12 @@ export default function RunEventBookingPage() {
 
     const hasStoredSession = !!localStorage.getItem('crwdctrl_token');
     const waitingOnAuth = hasStoredSession && (authLoading || isAuthProcessing || isRedirectProcessing);
-    const showLoginOverlay = formLocked && !showSuccess && !showProcessing && !waitingOnAuth && !isRedirectProcessing;
+    const showLoginOverlay = formLocked
+        && !loginDismissed
+        && !showSuccess
+        && !showProcessing
+        && !waitingOnAuth
+        && !isRedirectProcessing;
 
     const loginOverlay = showLoginOverlay || showLogin ? (
         <CrwdCtrlLogin
@@ -1299,9 +1300,16 @@ export default function RunEventBookingPage() {
             <div className={`max-w-lg mx-auto px-4 sm:px-6 transition-opacity duration-300 ${formLocked ? 'opacity-90' : ''}`}>
 
                 {formLocked ? (
-                    <div className={`mb-4 rounded-xl border px-4 py-3 text-sm ${isDark ? 'bg-[#0ECCEE]/10 border-[#0ECCEE]/30 text-[#0ECCEE]' : 'bg-cyan-50 border-cyan-200 text-cyan-800'}`}>
-                        Preview the form below — sign in with Google to fill and book.
-                    </div>
+                    <button
+                        type="button"
+                        onClick={openLogin}
+                        className={`mb-4 w-full text-left rounded-xl border px-4 py-3 text-sm font-semibold transition-opacity hover:opacity-90 ${isDark ? 'bg-[#0ECCEE]/10 border-[#0ECCEE]/30 text-[#0ECCEE]' : 'bg-cyan-50 border-cyan-200 text-cyan-800'}`}
+                    >
+                        Sign in with Google to fill and book — tap here
+                        <span className={`mt-1 block text-xs font-normal ${isDark ? 'text-[#0ECCEE]/80' : 'text-cyan-700'}`}>
+                            On Instagram? Use Open in Chrome first, then sign in.
+                        </span>
+                    </button>
                 ) : null}
 
                 <div className="flex items-start gap-3 mb-4 sm:mb-6 pt-10">
