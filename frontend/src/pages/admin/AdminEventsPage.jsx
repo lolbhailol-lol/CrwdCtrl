@@ -466,7 +466,7 @@ export default function AdminEventsPage() {
                         setShowCommunityEventForm(false);
                         setActiveCommunityId(null);
                         fetchCommunities();
-                    }}
+            }}
                 />
             )}
         </div>

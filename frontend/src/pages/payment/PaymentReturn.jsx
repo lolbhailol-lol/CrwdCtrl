@@ -23,6 +23,7 @@ import {
   pollPaymentUntilVerified,
   goToBookings,
   goToTicketOrBookings,
+  ticketQueryForPaymentReturn,
   classifyVerifyError,
   clearCashfreeReturnAndPending,
   stripCashfreeReturnParams,
@@ -248,13 +249,14 @@ export default function PaymentReturn() {
                 clearPendingPayment();
                 clearOrderReturnContext(orderId);
                 const regId = verifyResult.data?.registrationId || null;
+                const ticketQuery = ticketQueryForPaymentReturn(returnPath, 'sports');
                 if (cancelledRef.current) return;
                 setStatus('success');
                 setMessage('Payment successful — booking confirmed!');
                 window.setTimeout(() => {
                   if (cancelledRef.current) return;
                   if (regId) {
-                    goToTicketOrBookings(navigate, regId);
+                    goToTicketOrBookings(navigate, regId, { ticketQuery });
                   } else {
                     handoffPaymentToReturnPath(navigate, returnPath, {
                       registrationComplete: true,
@@ -452,9 +454,16 @@ export default function PaymentReturn() {
       if (token) {
         try {
           if (!cancelledRef.current) setMessage('Payment received — finishing your registration…');
+          // Same precedence as component returnPath (fresh pending → orderCtx → stale pending).
+          const lostReturnPath =
+            returnPath
+            || (pending?.orderId && !isStalePendingPayment(pending) ? pending.returnPath : null)
+            || orderCtx?.returnPath
+            || pending?.returnPath
+            || '';
           const lostEntity = resolvePaymentEntityType(
-            orderCtx?.returnPath || pending?.returnPath,
-            orderCtx?.entityType || pending?.entityType,
+            lostReturnPath,
+            pending?.entityType || orderCtx?.entityType,
           );
           const lostKind =
             lostEntity === 'sports' ? 'sports'
@@ -474,12 +483,13 @@ export default function PaymentReturn() {
             clearPendingPayment();
             clearOrderReturnContext(orderId);
             const regId = verifyResult.data?.registrationId || null;
+            const ticketQuery = ticketQueryForPaymentReturn(lostReturnPath, 'sports');
             if (cancelledRef.current) return;
             setStatus('success');
             setMessage('Payment successful — booking confirmed!');
             window.setTimeout(() => {
               if (cancelledRef.current) return;
-              goToTicketOrBookings(navigate, regId);
+              goToTicketOrBookings(navigate, regId, { ticketQuery });
             }, 250);
             return;
           }
@@ -553,9 +563,15 @@ export default function PaymentReturn() {
 
       // Absolute last resort — try sports then fest verify (non-blocking)
       if (token) {
+        const lastReturnPath =
+          returnPath
+          || (pending?.orderId && !isStalePendingPayment(pending) ? pending.returnPath : null)
+          || orderCtx?.returnPath
+          || pending?.returnPath
+          || '';
         const lastEntity = resolvePaymentEntityType(
-          orderCtx?.returnPath || pending?.returnPath,
-          orderCtx?.entityType || pending?.entityType,
+          lastReturnPath,
+          pending?.entityType || orderCtx?.entityType,
         );
         const lastKind = lastEntity === 'sports' ? 'sports' : 'fest';
         try {

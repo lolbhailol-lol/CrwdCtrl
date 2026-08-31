@@ -598,7 +598,7 @@ function EventPage() {
                     cacheBust: false,
                 });
                 if (gen !== fetchGenRef.current) return;
-
+                
                 const compData = response.data;
                 if (compData) {
                     const built = buildCompetitionData(compData, { useFestRegistrationFallback: true });
@@ -611,7 +611,7 @@ function EventPage() {
             } catch (err) {
                 if (gen !== fetchGenRef.current) return;
                 console.error('Error fetching competition data:', err);
-
+                
                 let errorMessage = 'Competition not found';
                 if (err.response?.status === 404) {
                     errorMessage = 'Competition not found or not available';
@@ -622,7 +622,7 @@ function EventPage() {
                 } else if (err.message?.includes('Network Error') || !err.response) {
                     errorMessage = 'Network error. Please check your connection.';
                 }
-
+                
                 const stateCompetition = location.state?.competition;
                 if (stateCompetition && entityMatchesRouteParam(stateCompetition, competitionId, ['name', 'title'])) {
                     const built = buildCompetitionData(stateCompetition, { useFestRegistrationFallback: true });
@@ -636,12 +636,12 @@ function EventPage() {
                             : buildCompetitionData(cached, { useFestRegistrationFallback: true });
                         applyPackage(built);
                     } else if (!resolvePaintPackage(competitionId, location)) {
-                        setError(errorMessage);
+                    setError(errorMessage);
                         setFetchDone(true);
                     } else {
                         // Keep whatever package is already on screen
                         setFetchDone(true);
-                    }
+                }
                 }
             }
         };
@@ -818,11 +818,11 @@ function EventPage() {
     // Function to get round rules (flat list — used when no offline/online split)
     const getRoundRules = (roundData) => {
         if (!roundData) return [];
-
+        
         if (roundData.roundRulesMessage && roundData.roundRulesMessage.trim()) {
             return [sanitizeRoundDescription(roundData.roundRulesMessage)];
         }
-
+        
         return sanitizeRulesArray(roundData.rules || []);
     };
 
@@ -1121,7 +1121,7 @@ function EventPage() {
             const steps = eventData?.registration?.steps || [];
             hasFormFields = steps.length > 0 && steps.some(step => step.fields && step.fields.length > 0);
         }
-
+        
         return hasFormFields;
     };
 
@@ -1212,7 +1212,7 @@ function EventPage() {
             };
         }
 
-        return {
+            return {
             isAvailable: legacyStatus === 'STARTED' || registrationStatus === 'internal_form' || registrationStatus === 'external_link',
             buttonText: 'Register Now',
             isDisabled: false,
@@ -1349,7 +1349,7 @@ function EventPage() {
         const normalizedRules = flattenRulesForDisplay(rules);
 
         const shouldTruncate = normalizedRules.length > maxItems;
-        const displayRules = shouldTruncate && !isExpanded
+        const displayRules = shouldTruncate && !isExpanded 
             ? normalizedRules.slice(0, maxItems)
             : normalizedRules;
 
@@ -1383,8 +1383,8 @@ function EventPage() {
                         className={`mt-3 text-sm font-medium transition-colors ${isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'
                             }`}
                     >
-                        {isExpanded
-                            ? 'Read Less'
+                        {isExpanded 
+                            ? 'Read Less' 
                             : `Show More (${normalizedRules.length - maxItems} more rules)`}
                     </button>
                 )}
@@ -1466,7 +1466,7 @@ function EventPage() {
 
     const renderAboutBlock = ({ headingClass, bodyClass, className = '' } = {}) => {
         if (!aboutText) return null;
-        return (
+    return (
             <div className={className}>
                 <h2 className={headingClass}>About</h2>
                 <p className={`${bodyClass} ${showFullAbout ? '' : 'line-clamp-3'}`}>
@@ -1540,7 +1540,7 @@ function EventPage() {
                                         className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 z-10"
                                         style={{ paddingTop: 'calc(max(var(--safe-top), 0px) + 2.5rem)' }}
                                     >
-                                        <button
+                                <button
                                             type="button"
                                             onClick={goBack}
                                             aria-label="Go back"
@@ -1555,9 +1555,9 @@ function EventPage() {
                                             className="size-11 rounded-full bg-black/40 flex items-center justify-center"
                                         >
                                             <Share2 size={20} strokeWidth={2.25} className="text-white" />
-                                        </button>
-                                    </div>
+                                </button>
                                 </div>
+                            </div>
 
                                 <div
                                     className={`relative ${showHeroImage ? '-mt-10' : ''} flex-1 rounded-t-3xl z-10 pb-4 overflow-hidden ${
@@ -1609,7 +1609,7 @@ function EventPage() {
                                     ) : null}
                                 </div>
                                 )}
-                            </div>
+                                </div>
 
                             {/* Prize pool — classic medal podium (all fest competitions) */}
                             {eventData?.prize && !/^(tbd|tba|n\/a|na|-|subject to change)$/i.test(String(eventData.prize).trim()) && (
@@ -1619,8 +1619,8 @@ function EventPage() {
                                       isDark={isDark}
                                       compact
                                     />
-                                </div>
-                            )}
+                                    </div>
+                                )}
 
                             {/* Mobile Competition Rounds — hidden when no real round content */}
                             {showCompetitionRounds && (
@@ -1649,7 +1649,7 @@ function EventPage() {
                                     {/* Mobile Round Content */}
                                     <div className="mt-4">
                                         {renderActiveRoundBody('mobile')}
-                                    </div>
+                                                        </div>
                                 </div>
                             </div>
                             )}
@@ -1675,9 +1675,9 @@ function EventPage() {
                                 <ContactDetailsBox />
                             </section>
                             ) : null}
-                                </div>
-                            </div>
-                        </div>
+                                                </div>
+                                            </div>
+                                        </div>
 
                         {/* Desktop/Laptop Layout */}
                         <div className="hidden md:block max-w-7xl mx-auto px-6 lg:px-8 pt-3 pb-6">
@@ -1706,7 +1706,7 @@ function EventPage() {
                                         loaderSize="hero"
                                         eager={showHeroImage}
                                     />
-                                    </div>
+                                        </div>
                                 </div>
 
                                 <div className="space-y-6">
@@ -1733,10 +1733,10 @@ function EventPage() {
 
                                 {/* Contact Details */}
                                 {contactList.length > 0 ? (
-                                <div>
+                                                                <div>
                                     <h3 className={`text-lg font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Details</h3>
                                     <ContactDetailsBox />
-                                </div>
+                                                                </div>
                                 ) : null}
                             </div>
 
@@ -1783,7 +1783,7 @@ function EventPage() {
                                             )}
                                             teamLabel={buildTeamSizeLabel(eventData.teamSizeMin, eventData.teamSizeMax)}
                                         />
-                                    </div>
+                                            </div>
 
                                     {eventData.feeKnown && !isMindSparkCompetition && Array.isArray(eventData.feeTiers) && eventData.feeTiers.filter((t) => t && (t.label || t.amount >= 0)).length > 1 ? (
                                         <div className="mb-3">
@@ -1793,7 +1793,7 @@ function EventPage() {
                                                 feeIsFree={eventData.feeIsFree}
                                                 isDark={isDark}
                                             />
-                                        </div>
+                                            </div>
                                     ) : null}
 
                                     <div className="flex flex-col sm:flex-row sm:items-end gap-3 mb-2">
@@ -1814,7 +1814,7 @@ function EventPage() {
                                                 registrationInfo.isDisabled
                                                     ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
                                                     : 'bg-[#0ECCEE] text-black hover:bg-[#0ECCEE]/90 active:opacity-90'
-                                            }`}
+                                                }`}
                                             title={registrationInfo.isDisabled ? registrationInfo.buttonText : ''}
                                         >
                                             <>
@@ -1833,7 +1833,7 @@ function EventPage() {
                                                 onClick={() => setShowShareMenu(!showShareMenu)}
                                                 className={`h-12 w-11 rounded-full flex items-center justify-center transition ${
                                                     isDark ? 'bg-[#1D1E20] hover:bg-white/10' : 'bg-gray-100 hover:bg-gray-200'
-                                                }`}
+                                                    }`}
                                             >
                                                 <img src={ShareIcon} alt="Share" className="w-5 h-5" />
                                             </button>
@@ -1908,12 +1908,12 @@ function EventPage() {
 
                                     <div className="mt-2">
                                         {renderActiveRoundBody('desktop')}
-                                    </div>
-                                </div>
-                                )}
-                            </div>
+                                                        </div>
+                                                        </div>
+                                                    )}
                             </div>
                         </div>
+                    </div>
                 </main>
 
                 <div className="md:hidden h-32" aria-hidden="true" />
@@ -1934,7 +1934,7 @@ function EventPage() {
                             )}
                             teamLabel={buildTeamSizeLabel(eventData.teamSizeMin, eventData.teamSizeMax)}
                         />
-                    </div>
+                </div>
 
                     <div className="flex items-center gap-3">
                         <RegisterFeeLabel
@@ -1945,7 +1945,7 @@ function EventPage() {
                             feeAmount={eventData.feeAmount}
                         />
 
-                        <button
+                <button
                             type="button"
                             onClick={() => {
                                 trackBookNowClick({
@@ -1958,7 +1958,7 @@ function EventPage() {
                             }}
                             disabled={registrationInfo.isDisabled || openingRegister}
                             className={`flex-1 min-w-0 flex items-center justify-center gap-1.5 h-14 px-3 rounded-2xl text-base font-semibold shadow-md transition ${
-                                registrationInfo.isDisabled
+                        registrationInfo.isDisabled
                                     ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
                                     : 'bg-[#0ECCEE] text-black active:opacity-90'
                             }`}
@@ -1971,8 +1971,8 @@ function EventPage() {
                                     </svg>
                                 ) : null}
                             </>
-                        </button>
-                    </div>
+                </button>
+            </div>
                 </div>
             </div>,
             document.body,

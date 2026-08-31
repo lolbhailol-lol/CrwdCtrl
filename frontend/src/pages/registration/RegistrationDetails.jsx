@@ -81,8 +81,12 @@ export default function RegistrationDetails() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [errorCode, setErrorCode] = useState('');
+  const [resolvedAsSports, setResolvedAsSports] = useState(false);
   const pendingHint = location.state?.pendingApproval || null;
-  const isEventCommunitySports = isSportsRegistration && (
+  const treatAsSports = isSportsRegistration
+    || resolvedAsSports
+    || registration?.category === 'sports';
+  const isEventCommunitySports = treatAsSports && (
     searchParams.get('hub') === 'events'
     || isEventsListingHub(registration?.event)
     || isEventsListingHub(registration)
@@ -97,6 +101,7 @@ export default function RegistrationDetails() {
       return;
     }
 
+    setResolvedAsSports(false);
     fetchRegistrationDetails();
   }, [registrationId, isAuthenticated, authLoading, token, isTrekBooking, isEventRegistration, isSportsRegistration, navigate, location.pathname, location.search, bookingAccess]);
 
@@ -129,12 +134,26 @@ export default function RegistrationDetails() {
         }
         setRegistration(data);
       } else {
-        const data = await userFetchJSONStrict(path, {
-          token,
-          cacheBust: true,
-          headers: bookingAccess ? { 'x-booking-access': bookingAccess } : undefined,
-        });
-        setRegistration(data);
+        try {
+          const data = await userFetchJSONStrict(path, {
+            token,
+            cacheBust: true,
+            headers: bookingAccess ? { 'x-booking-access': bookingAccess } : undefined,
+          });
+          setRegistration(data);
+        } catch (primaryErr) {
+          const shouldRetrySports = !isTrekBooking
+            && !isEventRegistration
+            && !isSportsRegistration
+            && (primaryErr.code === 'NOT_FOUND' || /not found/i.test(primaryErr.message || ''));
+          if (!shouldRetrySports) throw primaryErr;
+          const data = await userFetchJSONStrict(`/category-registrations/details/${registrationId}`, {
+            token,
+            cacheBust: true,
+          });
+          setResolvedAsSports(true);
+          setRegistration(data);
+        }
       }
     } catch (err) {
       if (err.code === 'AUTH_401' && !(isTrekBooking && bookingAccess)) {
@@ -149,9 +168,17 @@ export default function RegistrationDetails() {
   };
 
   const renderFieldValue = (field, value) => {
-    // Don't render file/image fields
     if (field.type === 'file' || field.type === 'image') {
-      return null;
+      const url = typeof value === 'string' ? value.trim() : '';
+      if (!url) return 'Not provided';
+      if (/^https?:\/\//i.test(url)) {
+        return (
+          <a href={url} target="_blank" rel="noopener noreferrer" className="text-[#0ECCEE] underline break-all">
+            View upload
+          </a>
+        );
+      }
+      return url;
     }
 
     // Handle different field types
@@ -178,7 +205,7 @@ export default function RegistrationDetails() {
       || /authentication failed/i.test(error || '');
     const isNotFound = errorCode === 'NOT_FOUND' || /not found/i.test(error || '');
     // Only show pending-friendly UI when we arrived from a known pending submit/card
-    const showPendingFriendly = isSportsRegistration && !!pendingHint && !isAuthError;
+    const showPendingFriendly = treatAsSports && !!pendingHint && !isAuthError;
 
     if (showPendingFriendly) {
       return (
@@ -248,7 +275,7 @@ export default function RegistrationDetails() {
     );
   }
 
-  const isCompetitionRegistration = !isTrekBooking && !isEventRegistration && !isSportsRegistration && !!registration.competitionId;
+  const isCompetitionRegistration = !isTrekBooking && !isEventRegistration && !treatAsSports && !!registration.competitionId;
   const eventShow = registration.eventShow || {};
   const sportsEvent = registration.event || {};
   const eventShowDate = eventShow.showTimings?.[0]?.date || null;
@@ -257,7 +284,7 @@ export default function RegistrationDetails() {
     ? registration.trekId?.trekName || 'Trek'
     : isEventRegistration
       ? eventShow.displayName || eventShow.title || 'Event'
-      : isSportsRegistration
+      : treatAsSports
         ? sportsEvent.title || 'Run'
         : isCompetitionRegistration
           ? registration.competitionId?.name
@@ -269,7 +296,7 @@ export default function RegistrationDetails() {
           eventShow.coverImages,
           eventShow.poster || eventShow.banner || eventShow.coverImage || '',
         ) || null
-      : isSportsRegistration
+      : treatAsSports
         ? sportsEvent.coverImage || sportsEvent.images?.[0]
         : isCompetitionRegistration
           ? registration.competitionId?.coverImage
@@ -278,7 +305,7 @@ export default function RegistrationDetails() {
     ? Object.entries(registration.formData || {})
     : null;
 
-  const registrationFormFields = !isTrekBooking && !isEventRegistration && !isSportsRegistration
+  const registrationFormFields = !isTrekBooking && !isEventRegistration && !treatAsSports
     ? getRegistrationFormFields(registration)
     : [];
 
@@ -289,7 +316,7 @@ export default function RegistrationDetails() {
         : (eventShow.registration?.formSchema || []))
     : [];
 
-  const sportsFormFields = isSportsRegistration
+  const sportsFormFields = treatAsSports
     ? mergeRunFormFields(sportsEvent.registration?.formSchema || [])
     : [];
 
@@ -297,7 +324,7 @@ export default function RegistrationDetails() {
     sportsFormFields.flatMap((f) => [f.fieldName, f.id, f.id ? `field_${f.id}` : null].filter(Boolean)),
   );
 
-  const sportsResponses = isSportsRegistration
+  const sportsResponses = treatAsSports
     ? dedupeResponseEntries(
         Object.entries(normalizeResponses(registration.responses) || {}).filter(([k]) => {
           if (['people', 'date', 'time'].includes(k)) return false;
@@ -329,8 +356,8 @@ export default function RegistrationDetails() {
         status: registration.paymentStatus || 'free',
       };
 
-  const isPendingSports = isSportsRegistration && registration.status === 'pending';
-  const isRejectedSports = isSportsRegistration && registration.status === 'cancelled';
+  const isPendingSports = treatAsSports && registration.status === 'pending';
+  const isRejectedSports = treatAsSports && registration.status === 'cancelled';
 
   const hasPaymentReceipt =
     !isPendingSports &&
@@ -345,7 +372,7 @@ export default function RegistrationDetails() {
     ? `/payment-invoice/${registrationId}?type=trek${bookingAccess ? `&access=${encodeURIComponent(bookingAccess)}` : ''}`
     : isEventRegistration
       ? `/payment-invoice/${registrationId}?type=event`
-      : isSportsRegistration
+      : treatAsSports
         ? `/payment-invoice/${registrationId}?type=sports`
         : `/payment-invoice/${registrationId}`;
 
@@ -358,7 +385,7 @@ export default function RegistrationDetails() {
       ).trim()
     : '';
 
-  const sportsGroupLink = isSportsRegistration && !isPendingSports && !isRejectedSports
+  const sportsGroupLink = treatAsSports && !isPendingSports && !isRejectedSports
     ? String(registration.groupLink || '').trim()
     : '';
   const sportsClubName = registration.clubName || '';
@@ -400,7 +427,7 @@ export default function RegistrationDetails() {
                 ? 'Trek Booking'
                 : isEventRegistration
                   ? 'Event Registration'
-                  : isSportsRegistration
+                  : treatAsSports
                     ? 'Run Registration'
                     : isCompetitionRegistration
                       ? 'Competition Registration'
@@ -472,7 +499,7 @@ export default function RegistrationDetails() {
                   </div>
                 )}
 
-                {!isTrekBooking && !isEventRegistration && !isSportsRegistration && registration.fest?.collegeName && (
+                {!isTrekBooking && !isEventRegistration && !treatAsSports && registration.fest?.collegeName && (
                   <div className="flex items-center gap-2 text-gray-500">
                     <MapPin className={`w-[18px] h-[18px] ${isDark ? 'text-green-400' : 'text-green-600'}`} />
                     <span className={`${isDark ? 'text-gray-300' : 'text-gray-600'} line-clamp-1`}>
@@ -481,7 +508,7 @@ export default function RegistrationDetails() {
                   </div>
                 )}
 
-                {isSportsRegistration && (sportsEvent.venue || sportsEvent.city) && (
+                {treatAsSports && (sportsEvent.venue || sportsEvent.city) && (
                   <div className="flex items-center gap-2 text-gray-500">
                     <MapPin className={`w-[18px] h-[18px] ${isDark ? 'text-green-400' : 'text-green-600'}`} />
                     <span className={`${isDark ? 'text-gray-300' : 'text-gray-600'} line-clamp-1`}>
@@ -490,7 +517,7 @@ export default function RegistrationDetails() {
                   </div>
                 )}
 
-                {isSportsRegistration && (registration.bookingDate || sportsEvent.eventDate) && (
+                {treatAsSports && (registration.bookingDate || sportsEvent.eventDate) && (
                   <div className="flex items-center gap-2 text-gray-500">
                     <Calendar className={`w-[18px] h-[18px] ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
                     <span className={isDark ? 'text-gray-300' : 'text-gray-600'}>
@@ -534,7 +561,7 @@ export default function RegistrationDetails() {
                   </div>
                 )}
 
-                {!isTrekBooking && !isEventRegistration && !isSportsRegistration && registration.fest?.festDate && (
+                {!isTrekBooking && !isEventRegistration && !treatAsSports && registration.fest?.festDate && (
                   <div className="flex items-center gap-2 text-gray-500">
                     <Calendar className={`w-[18px] h-[18px] ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
                     <span className={isDark ? 'text-gray-300' : 'text-gray-600'}>
@@ -678,7 +705,7 @@ export default function RegistrationDetails() {
             </div>
           )}
 
-          {isSportsRegistration && (
+          {treatAsSports && (
             <div className="space-y-3 sm:space-y-4">
               {(registration.bookingPeople || sportsResponses.length > 0) && (
                 <>
@@ -791,7 +818,7 @@ export default function RegistrationDetails() {
             </div>
           )}
 
-          {!isTrekBooking && !isEventRegistration && !isSportsRegistration && registrationFormFields.length > 0 && (
+          {!isTrekBooking && !isEventRegistration && !treatAsSports && registrationFormFields.length > 0 && (
             <div className="space-y-3 sm:space-y-4">
               {registrationFormFields.map((field, index) => {
                 const value = getResponseValue(registration.responses, field);
@@ -820,7 +847,7 @@ export default function RegistrationDetails() {
             </div>
           )}
 
-          {!isTrekBooking && !isEventRegistration && !isSportsRegistration && registrationFormFields.length === 0 && (
+          {!isTrekBooking && !isEventRegistration && !treatAsSports && registrationFormFields.length === 0 && (
             <div className="space-y-3 sm:space-y-4">
               {Object.entries(normalizeResponses(registration.responses))
                 .filter(([key]) => !key.endsWith('_file'))
@@ -894,7 +921,7 @@ export default function RegistrationDetails() {
                     ? `/qr-ticket/${registrationId}?type=trek${bookingAccess ? `&access=${encodeURIComponent(bookingAccess)}` : ''}`
                     : isEventRegistration
                       ? `/qr-ticket/${registrationId}?type=event`
-                      : isSportsRegistration
+                      : treatAsSports
                         ? sportsQrTicketPath(registrationId, isEventCommunitySports)
                         : `/qr-ticket/${registrationId}`
                 )
@@ -904,7 +931,7 @@ export default function RegistrationDetails() {
               Download Ticket
             </button>
           ) : null}
-          {isRejectedSports && isSportsRegistration ? (
+          {isRejectedSports && treatAsSports ? (
             <button
               type="button"
               onClick={() => navigate('/sports')}

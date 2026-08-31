@@ -15,7 +15,7 @@ function sanitizeSportsFormDraft(formData = {}, extras = {}) {
     for (const [key, value] of Object.entries(src)) {
         if (value == null || typeof value === 'object') continue;
         const s = String(value).trim();
-        if (!s || s.length > 2000) continue;
+        if (!s || s.length > 4000) continue;
         out[String(key).slice(0, 80)] = s;
     }
 

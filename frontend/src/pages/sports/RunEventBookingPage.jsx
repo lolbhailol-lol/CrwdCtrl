@@ -241,6 +241,35 @@ export default function RunEventBookingPage() {
         }
     }, [authToken, event, id, requireLogin]);
 
+    const uploadFormFile = useCallback(async (file, fieldName) => {
+        if (!file || !fieldName) return;
+        setUploadingProof(true);
+        setError('');
+        try {
+            const token = resolveAuthToken(authToken);
+            const fd = new FormData();
+            fd.append('image', file);
+            const evId = event?._id || event?.id || id;
+            const uploadUrl = (!requireLogin || !token)
+                ? `${API}/sports/${evId}/payment-screenshot`
+                : `${API}/users/upload/image`;
+            const res = await fetch(uploadUrl, {
+                method: 'POST',
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+                body: fd,
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || data.message || 'Upload failed');
+            const url = String(data.url || '').trim();
+            if (!url) throw new Error('Upload failed');
+            setExtraFields((prev) => ({ ...prev, [fieldName]: url }));
+        } catch (err) {
+            setError(err.message || 'File upload failed');
+        } finally {
+            setUploadingProof(false);
+        }
+    }, [authToken, event, id, requireLogin]);
+
     const eventName = event?.title || event?.name || 'Run';
     const clubName =
         event?.runClub?.name ||
@@ -572,14 +601,19 @@ export default function RunEventBookingPage() {
                 </select>
             );
         }
-        if (field.type === 'file') {
+        if (field.type === 'file' || field.type === 'image') {
+            const shown = /^https?:\/\//i.test(val) ? 'Uploaded ✓' : (val ? `${String(val).slice(0, 24)}…` : (field.placeholder || 'Choose file'));
             return (
                 <label className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 border-dashed cursor-pointer transition-colors ${isDark ? 'border-gray-600 hover:border-[#0ECCEE] bg-[#1D1E20]' : 'border-gray-300 hover:border-[#0ECCEE] bg-white'}`}>
                     <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {val ? val.slice(0, 24) + '…' : field.placeholder || 'Choose file'}
+                        {shown}
                     </span>
                     <input type="file" accept="image/*,.pdf" className="hidden"
-                        onChange={(e) => { const f = e.target.files?.[0]; if (f) onChange(f.name); }} />
+                        onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) uploadFormFile(f, field.fieldName);
+                            e.target.value = '';
+                        }} />
                 </label>
             );
         }

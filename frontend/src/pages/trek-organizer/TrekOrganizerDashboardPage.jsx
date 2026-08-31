@@ -115,7 +115,6 @@ export default function TrekOrganizerDashboardPage() {
     const isOrganizerQr = (trek.registrationMode || 'internal_form') === 'organizer_qr';
     const pendingReviewCount = Number(stats.pendingReview) || 0;
     const isOpen = (trek.registrationStatus || 'open') === 'open';
-    const paymentLabel = String(stats.paymentGatewayLabel || '').trim();
 
     const batches = Array.isArray(trek.trekBatches) ? trek.trekBatches.filter((b) => b?.date) : [];
     const availableDates = Array.isArray(trek.availableDates) ? trek.availableDates.filter(Boolean) : [];
@@ -133,13 +132,10 @@ export default function TrekOrganizerDashboardPage() {
         'hero',
     );
 
-    const moneyHint = (() => {
-        const bits = [];
-        if (paymentLabel) bits.push(paymentLabel);
-        if (gross > 0 && fees > 0) bits.push(`Guest paid ₹${gross.toLocaleString('en-IN')}`);
-        if (fees > 0) bits.push(`Platform ₹${fees.toLocaleString('en-IN')}`);
-        return bits.length ? bits.join(' · ') : undefined;
-    })();
+    // Only show fee breakdown when money actually moved — no gateway/Delulu branding under ₹0.
+    const moneyHint = (gross > 0 && fees > 0)
+        ? `Guests paid ₹${gross.toLocaleString('en-IN')} · fees ₹${fees.toLocaleString('en-IN')}`
+        : undefined;
 
     const copyLink = async () => {
         if (!publicUrl) return;

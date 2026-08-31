@@ -46,9 +46,37 @@ export function scheduleGoToBookings(navigate, delayMs = BOOKING_REDIRECT_MS) {
   window.setTimeout(() => goToBookings(navigate), delayMs);
 }
 
-export function goToTicketOrBookings(navigate, regId) {
+/**
+ * After Cashfree return, sports/event-community tickets must include ?type=sports
+ * (optional &hub=events). Bare /qr-ticket/:id hits the fest Registration API →
+ * "Registration not found".
+ */
+export function ticketQueryForPaymentReturn(returnPath = '', entityType = '') {
+  const kind = String(entityType || '').toLowerCase();
+  const path = String(returnPath || '');
+  if (kind === 'trek' || (/\/trek\//.test(path) && /\/book/.test(path))) {
+    return 'type=trek';
+  }
+  if (
+    kind === 'sports'
+    || /\/events\/community-event\//.test(path)
+    || /\/sports\/run\//.test(path)
+  ) {
+    return /\/events\/community-event\//.test(path)
+      ? 'type=sports&hub=events'
+      : 'type=sports';
+  }
+  if (kind === 'event' || kind === 'event_show' || (/\/events\//.test(path) && /\/register/.test(path))) {
+    return 'type=event';
+  }
+  return '';
+}
+
+export function goToTicketOrBookings(navigate, regId, options = {}) {
   if (regId) {
-    navigate(`/qr-ticket/${regId}`, {
+    const rawQuery = options.ticketQuery || options.query || '';
+    const qs = String(rawQuery).replace(/^\?/, '').trim();
+    navigate(qs ? `/qr-ticket/${regId}?${qs}` : `/qr-ticket/${regId}`, {
       replace: true,
       state: { refreshBookings: true, fromPayment: true },
     });
@@ -57,8 +85,8 @@ export function goToTicketOrBookings(navigate, regId) {
   goToBookings(navigate);
 }
 
-export function scheduleTicketOrBookings(navigate, regId, delayMs = BOOKING_REDIRECT_MS) {
-  window.setTimeout(() => goToTicketOrBookings(navigate, regId), delayMs);
+export function scheduleTicketOrBookings(navigate, regId, delayMs = BOOKING_REDIRECT_MS, options = {}) {
+  window.setTimeout(() => goToTicketOrBookings(navigate, regId, options), delayMs);
 }
 
 export function getCashfreeReturnPaymentId(search = '') {

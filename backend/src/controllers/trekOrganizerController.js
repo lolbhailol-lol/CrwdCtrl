@@ -523,9 +523,8 @@ exports.getDashboard = async (req, res) => {
                 todayRegistrations,
                 paymentGateway: communityGateway,
                 cashfreeMerchant: communityGateway === 'cashfree' ? cashfreeMerchant : null,
-                paymentGatewayLabel: communityGateway === 'razorpay'
-                    ? 'Razorpay'
-                    : (cashfreeMerchant === 'events' ? 'Cashfree (Delulu / events)' : 'Cashfree'),
+                // Organizer-facing label only — never brand another community (e.g. Delulu).
+                paymentGatewayLabel: communityGateway === 'razorpay' ? 'Razorpay' : 'Cashfree',
                 // Seat fills (people sum) so multi-person bookings count correctly on Women/Men tiles
                 femaleCount: genderStats.female?.filled || 0,
                 maleCount: genderStats.male?.filled || 0,

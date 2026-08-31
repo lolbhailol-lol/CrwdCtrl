@@ -51,6 +51,27 @@ async function saveCategoryRegistrationIdempotent(registration, paymentOrderId) 
   }
 }
 
+async function syncUserPhoneFromResponses(userId, responses = {}) {
+  if (!userId) return;
+  const savedPhone = firstValidCustomerPhone([
+    responses.contact_no,
+    responses.phone,
+    responses.mobile,
+  ]);
+  if (!savedPhone) return;
+  await User.updateOne(
+    {
+      _id: userId,
+      $or: [
+        { phoneNumber: { $exists: false } },
+        { phoneNumber: null },
+        { phoneNumber: '' },
+      ],
+    },
+    { $set: { phoneNumber: savedPhone } },
+  ).catch(() => {});
+}
+
 /** If confirmed seats exceed capacity after save, hold for organizer review instead of confirming. */
 async function holdRegistrationIfCapacityExceeded(registration, event, capacity, paymentOrderId) {
   if (!registration || capacity <= 0) return { registration, needsOrganizerReview: false };
@@ -165,6 +186,16 @@ async function fulfillSportsFromPaidOrder(paymentOrderInput, overrides = {}) {
     } catch (profileErr) {
       logger.warn('[sportsFulfill.profileFill]', profileErr.message);
     }
+  }
+
+  const resolvedPhone = firstValidCustomerPhone([
+    responses.contact_no,
+    responses.phone,
+    paymentOrder.customerPhone,
+  ]);
+  if (resolvedPhone) {
+    responses.contact_no = resolvedPhone;
+    responses.phone = resolvedPhone;
   }
 
   const tierId = String(
@@ -324,6 +355,7 @@ async function fulfillSportsFromPaidOrder(paymentOrderInput, overrides = {}) {
     );
 
     consumeCouponUsageForOrder({ paymentOrderId: payment_order_id, userId }).catch(() => {});
+    syncUserPhoneFromResponses(userId, responses).catch(() => {});
 
     const overflow = await holdRegistrationIfCapacityExceeded(
       upgraded,
@@ -385,6 +417,7 @@ async function fulfillSportsFromPaidOrder(paymentOrderInput, overrides = {}) {
   }
 
   consumeCouponUsageForOrder({ paymentOrderId: payment_order_id, userId }).catch(() => {});
+  syncUserPhoneFromResponses(userId, responses).catch(() => {});
 
   if (saved.created && saved.registration.status === 'confirmed') {
     const eventTitle = event.title || event.name || 'your event';

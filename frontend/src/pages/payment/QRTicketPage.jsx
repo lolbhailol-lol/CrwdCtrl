@@ -84,7 +84,7 @@ export default function QRTicketPage() {
         if (!cached) setLoading(true);
         setError(null);
 
-        const url = isTrekTicket
+        const primaryUrl = isTrekTicket
           ? `${API_BASE_URL}/qr/trek-bookings/${registrationId}/qr`
           : isSportsTicket
             ? `${API_BASE_URL}/qr/sports-registrations/${registrationId}/qr`
@@ -92,9 +92,17 @@ export default function QRTicketPage() {
               ? `${API_BASE_URL}/qr/event-registrations/${registrationId}/qr`
               : `${API_BASE_URL}/qr/registrations/${registrationId}/qr`;
 
+        const loadAuthed = async (url) => {
+          const data = await authenticatedFetchJSON(url, {
+            token: authToken,
+            headers: bookingAccess ? { 'x-booking-access': bookingAccess } : undefined,
+          });
+          return data.data;
+        };
+
         let payload;
         if (canGuestTrek && !isAuthenticated) {
-          const res = await fetch(`${url}?access=${encodeURIComponent(bookingAccess)}`, {
+          const res = await fetch(`${primaryUrl}?access=${encodeURIComponent(bookingAccess)}`, {
             headers: {
               'Content-Type': 'application/json',
               'x-booking-access': bookingAccess,
@@ -104,11 +112,21 @@ export default function QRTicketPage() {
           if (!res.ok) throw new Error(data.message || data.error || 'Failed to load ticket');
           payload = data.data;
         } else {
-          const data = await authenticatedFetchJSON(url, {
-            token: authToken,
-            headers: bookingAccess ? { 'x-booking-access': bookingAccess } : undefined,
-          });
-          payload = data.data;
+          try {
+            payload = await loadAuthed(primaryUrl);
+          } catch (primaryErr) {
+            // Cashfree return used to omit ?type=sports — fest QR 404s while sports booking exists.
+            const msg = String(primaryErr?.message || '');
+            const shouldRetrySports = !ticketType
+              && !isTrekTicket
+              && !isSportsTicket
+              && !isEventTicket
+              && (/not found/i.test(msg) || primaryErr?.status === 404 || primaryErr?.code === 'NOT_FOUND');
+            if (!shouldRetrySports) throw primaryErr;
+            payload = await loadAuthed(
+              `${API_BASE_URL}/qr/sports-registrations/${registrationId}/qr`,
+            );
+          }
         }
         setTicket(payload);
         writeCachedTicket(cacheKey, payload);
