@@ -66,6 +66,8 @@ const categoryRegistrationSchema = new mongoose.Schema(
         paymentReviewNote: { type: String, default: '' },
         paymentReviewedAt: { type: Date, default: null },
         paymentReviewedBy: { type: String, default: '' },
+        /** Set when a confirmed booking confirmation email was delivered */
+        confirmationEmailSentAt: { type: Date, default: null },
         /** Persisted booking slot (sports / run club) */
         bookingDate: { type: String, default: '' },
         bookingTime: { type: String, default: '' },

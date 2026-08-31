@@ -116,6 +116,7 @@ export async function openCashfreeCheckout({
   returnPath,
   entityType,
   cashfreeMode,
+  customerEmail = '',
 }) {
   if (!paymentSessionId || typeof paymentSessionId !== 'string') {
     throw new Error('Payment session missing. Restart the payment and try again.');
@@ -136,6 +137,7 @@ export async function openCashfreeCheckout({
         paymentSessionId,
         returnPath: resolvedReturnPath,
         entityType,
+        customerEmail,
       });
     }
 
@@ -174,6 +176,7 @@ export async function openCashfreeCheckout({
       paymentSessionId,
       returnPath: resolvedReturnPath,
       entityType,
+      customerEmail,
     });
     // Must run before checkout — on redirect the page unloads and this line never runs after await
     markPaymentReturnExpected();

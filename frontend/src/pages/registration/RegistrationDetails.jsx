@@ -14,6 +14,7 @@ import {
 } from '../../utils/formFieldDedupe';
 import { primaryCoverUrl } from '../../utils/coverImages';
 import { InlinePageLoader } from '../../components/DetailPageLoader';
+import { sportsQrTicketPath, isEventsListingHub } from '../../utils/listingHubCopy';
 
 function normalizeResponses(responses) {
   if (!responses) return {};
@@ -81,6 +82,11 @@ export default function RegistrationDetails() {
   const [error, setError] = useState('');
   const [errorCode, setErrorCode] = useState('');
   const pendingHint = location.state?.pendingApproval || null;
+  const isEventCommunitySports = isSportsRegistration && (
+    searchParams.get('hub') === 'events'
+    || isEventsListingHub(registration?.event)
+    || isEventsListingHub(registration)
+  );
 
   useEffect(() => {
     if (authLoading) return;
@@ -747,7 +753,7 @@ export default function RegistrationDetails() {
               {!isPendingSports && !isRejectedSports ? (
                 <button
                   type="button"
-                  onClick={() => navigate(`/qr-ticket/${registrationId}?type=sports`)}
+                  onClick={() => navigate(sportsQrTicketPath(registrationId, isEventCommunitySports))}
                   className="mt-2 w-full sm:w-auto px-6 py-3 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition"
                 >
                   Download Ticket
@@ -889,7 +895,7 @@ export default function RegistrationDetails() {
                     : isEventRegistration
                       ? `/qr-ticket/${registrationId}?type=event`
                       : isSportsRegistration
-                        ? `/qr-ticket/${registrationId}?type=sports`
+                        ? sportsQrTicketPath(registrationId, isEventCommunitySports)
                         : `/qr-ticket/${registrationId}`
                 )
               }

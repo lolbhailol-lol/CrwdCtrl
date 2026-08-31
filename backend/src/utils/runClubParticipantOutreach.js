@@ -3,7 +3,7 @@ const crypto = require('crypto');
 const { createNotification } = require('../controllers/notificationController');
 const { sendPushNotification } = require('../services/pushService');
 const { sendTrekParticipantEmails } = require('../services/emailService');
-const { normalizeRegistrationForFormat } = require('./runClubOrganizerFormat');
+const { normalizeRegistrationForFormat, pickRegistrationEmailExtras } = require('./runClubOrganizerFormat');
 const { pickFormField } = require('./trekOrganizerFormat');
 const { decryptRegistrationPii, decryptManyRegistrations } = require('./runClubPiiCrypto');
 const SportsEvent = require('../model/sports_model');
@@ -12,6 +12,36 @@ const { listingHubForRunClubId } = require('./listingHubCopy');
 const { primaryCoverUrl } = require('./sanitizeCoverImages');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+
+const RECENT_CONFIRMATION_EMAIL_MS = 90_000;
+
+async function markConfirmationEmailSent(registrationId) {
+    if (!registrationId) return;
+    await CategoryRegistration.updateOne(
+        { _id: registrationId },
+        { $set: { confirmationEmailSentAt: new Date() } },
+    ).catch((err) => {
+        console.warn('[markConfirmationEmailSent]', err.message);
+    });
+}
+
+/**
+ * Skip duplicate confirmation resends only when the same payment order already
+ * triggered a delivered email recently. Do not infer from updatedAt — payment
+ * fulfillment updates the row without guaranteeing email delivery.
+ */
+function shouldSkipConfirmationResend(reg, { incomingPaymentOrderId } = {}) {
+    if (!reg) return false;
+
+    const incoming = String(incomingPaymentOrderId || '').trim();
+    const existing = String(reg.payment_order_id || '').trim();
+    if (incoming && incoming !== existing) return false;
+
+    const ts = reg.confirmationEmailSentAt
+        ? new Date(reg.confirmationEmailSentAt).getTime()
+        : 0;
+    return ts > 0 && Date.now() - ts < RECENT_CONFIRMATION_EMAIL_MS;
+}
 
 function resolveParticipantEmail(reg) {
     const booking = normalizeRegistrationForFormat(reg);
@@ -146,7 +176,7 @@ async function notifyRunClubParticipant({
         if (eventId) {
             try {
                 eventDoc = await SportsEvent.findById(eventId)
-                    .select('coverImage coverImages runClubId title eventDate venue city')
+                    .select('coverImage coverImages runClubId title eventDate venue city registration.formSchema')
                     .lean();
                 coverImage = primaryCoverUrl(eventDoc?.coverImages || {}, eventDoc?.coverImage || '') || '';
                 const hub = await listingHubForRunClubId(eventDoc?.runClubId || registration?.runClubId || decrypted?.runClubId);
@@ -158,8 +188,9 @@ async function notifyRunClubParticipant({
 
         const regId = decrypted._id ? String(decrypted._id) : '';
         const isConfirmedRegistration = type === 'registration' && decrypted.status === 'confirmed';
+        const ticketQs = product === 'event' ? 'type=sports&hub=events' : 'type=sports';
         const ticketHref = isConfirmedRegistration && regId
-            ? `/qr-ticket/${regId}?type=sports`
+            ? `/qr-ticket/${regId}?${ticketQs}`
             : (link || `/sports/run/${eventId}`);
         const bookingHref = regId
             ? `/registration-details/${regId}?type=sports`
@@ -169,6 +200,9 @@ async function notifyRunClubParticipant({
         if (isConfirmedRegistration && regId) {
             const qrHash = await ensureRegistrationQrHash(decrypted);
             const { date, time, venue } = pickBookingDateTime(decrypted, eventDoc);
+            const booking = normalizeRegistrationForFormat(decrypted);
+            const formSchema = eventDoc?.registration?.formSchema || [];
+            const extraRows = pickRegistrationEmailExtras(formSchema, booking.formData || {});
             ticket = {
                 qrHash,
                 eventTitle: eventTitle || eventDoc?.title || '',
@@ -178,6 +212,7 @@ async function notifyRunClubParticipant({
                 venue,
                 ticketHref,
                 bookingHref,
+                extraRows,
             };
         }
 
@@ -200,6 +235,9 @@ async function notifyRunClubParticipant({
             },
         ]);
         result.email = (emailResult?.success || 0) > 0;
+        if (result.email && isConfirmedRegistration && regId) {
+            await markConfirmationEmailSent(regId);
+        }
     } else if (!skipEmail && !email) {
         console.warn('[notifyRunClubParticipant] No email address for participant', {
             eventId,
@@ -225,7 +263,16 @@ async function sendRunClubRegistrationConfirmation({
     if (!registration || registration.status !== 'confirmed') return null;
 
     const regId = registration._id ? String(registration._id) : '';
-    const ticketLink = `/qr-ticket/${regId}?type=sports`;
+    let ticketQs = 'type=sports';
+    if (runClubId) {
+        try {
+            const hub = await listingHubForRunClubId(runClubId);
+            if (hub === 'events') ticketQs = 'type=sports&hub=events';
+        } catch {
+            /* default sports */
+        }
+    }
+    const ticketLink = `/qr-ticket/${regId}?${ticketQs}`;
     const isPaid = paymentStatus === 'paid' || Number(registration.amountPaid) > 0;
 
     return notifyRunClubParticipant({
@@ -314,4 +361,6 @@ module.exports = {
     notifyRunClubParticipants,
     sendRunClubRegistrationConfirmation,
     queueRunClubRegistrationConfirmation,
+    shouldSkipConfirmationResend,
+    markConfirmationEmailSent,
 };

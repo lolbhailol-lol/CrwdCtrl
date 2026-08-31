@@ -50,6 +50,7 @@ export default function QRTicketPage() {
   const { registrationId } = useParams();
   const [searchParams] = useSearchParams();
   const ticketType = searchParams.get('type');
+  const ticketHub = searchParams.get('hub') || '';
   const bookingAccess = searchParams.get('access') || '';
   const isTrekTicket = ticketType === 'trek';
   const isSportsTicket = ticketType === 'sports';
@@ -161,18 +162,23 @@ export default function QRTicketPage() {
 
   const eventTitle = isTrekTicket
     ? ticket.trekName || ticket.festName || 'Trek'
-    : isSportsTicket
-      ? ticket.eventTitle || ticket.festName || 'Sports Event'
-      : isEventTicket
-        ? ticket.eventTitle || ticket.festName || 'Event'
-        : ticket.festName || 'Event';
+    : (ticket.listingHub === 'events' || ticketHub === 'events')
+      ? ticket.eventTitle || ticket.festName || 'Event'
+      : isSportsTicket
+        ? ticket.eventTitle || ticket.festName || 'Sports Event'
+        : isEventTicket
+          ? ticket.eventTitle || ticket.festName || 'Event'
+          : ticket.festName || 'Event';
+  const isEventCommunityTicket = ticket.listingHub === 'events' || ticketHub === 'events';
   const ticketLabel = isTrekTicket
     ? 'Trek Ticket'
-    : isSportsTicket
-      ? 'Sports Ticket'
-      : isEventTicket
-        ? 'Event Ticket'
-        : 'Event Ticket';
+    : isEventCommunityTicket
+      ? 'Event Ticket'
+      : isSportsTicket
+        ? 'Sports Ticket'
+        : isEventTicket
+          ? 'Event Ticket'
+          : 'Event Ticket';
   const formattedDate = formatTicketDate(ticket.festDate);
 
   const calendarUrl = ticket.festDate

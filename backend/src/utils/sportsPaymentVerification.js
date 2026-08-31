@@ -13,7 +13,28 @@ async function verifySportsBookingPayment({ event, people, paymentOrderId, payme
     return { ok: false, status: 400, message: 'payment_order_id is required for paid runs' };
   }
 
-  // Idempotency: one Cashfree order → one registration (return existing as success payload)
+  const paymentOrder = await PaymentOrder.findOne({ orderId: paymentOrderId }).lean();
+  const cashfreeMerchant = paymentOrder?.cashfreeMerchant === 'events' ? 'events' : 'platform';
+
+  const buildPaidOk = (linkedReg = null) => ({
+    ok: true,
+    paymentId: paymentOrder?.paymentId || paymentId || null,
+    amountPaid: Number(paymentOrder?.totalAmount) || Number(linkedReg?.amountPaid) || 0,
+    couponCode: String(paymentOrder?.couponCode || '').trim().toUpperCase(),
+    couponDiscount: Number(paymentOrder?.couponDiscount) || 0,
+    amountBeforeDiscount: Number(paymentOrder?.amountBeforeDiscount) || Number(paymentOrder?.totalAmount) || 0,
+    tierId: String(paymentOrder?.orderTags?.tierId || '').trim(),
+    tierName: String(paymentOrder?.orderTags?.tierName || '').trim(),
+    ...(linkedReg ? { alreadyRegistered: true, registration: linkedReg } : {}),
+  });
+
+  // Fast path: PaymentOrder already PAID — skip Cashfree re-verify
+  if (String(paymentOrder?.status || '').toUpperCase() === 'PAID') {
+    const linked = await CategoryRegistration.findOne({ payment_order_id: paymentOrderId }).lean();
+    return buildPaidOk(linked);
+  }
+
+  // Idempotency: one Cashfree order → one registration
   const existing = await CategoryRegistration.findOne({ payment_order_id: paymentOrderId }).lean();
   if (existing) {
     return {
@@ -24,9 +45,6 @@ async function verifySportsBookingPayment({ event, people, paymentOrderId, payme
       registration: existing,
     };
   }
-
-  const paymentOrder = await PaymentOrder.findOne({ orderId: paymentOrderId }).lean();
-  const cashfreeMerchant = paymentOrder?.cashfreeMerchant === 'events' ? 'events' : 'platform';
 
   const paymentResult = await verifyCashfreePayment({
     orderId: paymentOrderId,

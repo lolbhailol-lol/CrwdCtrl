@@ -34,7 +34,7 @@ const {
     redactRegistrationPii,
     isPiiEncryptionEnabled,
 } = require('../utils/runClubPiiCrypto');
-const { notifyRunClubParticipant, queueRunClubRegistrationConfirmation } = require('../utils/runClubParticipantOutreach');
+const { notifyRunClubParticipant, queueRunClubRegistrationConfirmation, shouldSkipConfirmationResend } = require('../utils/runClubParticipantOutreach');
 const User = require('../model/usermodel');
 const PaymentOrder = require('../model/payment_order_model');
 
@@ -291,7 +291,7 @@ exports.registerForEvent = async (req, res) => {
             if (existing) {
                 const clubIdForPii = category === 'sports' ? event.runClubId : null;
                 const decrypted = decryptRegistrationPii(existing, clubIdForPii);
-                if (category === 'sports' && existing.status === 'confirmed') {
+                if (category === 'sports' && existing.status === 'confirmed' && !shouldSkipConfirmationResend(existing, { incomingPaymentOrderId: retryOrderId })) {
                     CategoryRegistration.findById(existing._id)
                         .populate('user', 'name email phoneNumber notificationPreferences')
                         .then((populated) => queueRunClubRegistrationConfirmation({
@@ -338,7 +338,7 @@ exports.registerForEvent = async (req, res) => {
                     confirmedRegistrationToUpdate = activeExisting;
                 } else {
                     const decrypted = decryptRegistrationPii(activeExisting, clubIdForPii);
-                    if (category === 'sports') {
+                    if (category === 'sports' && !shouldSkipConfirmationResend(activeExisting, { incomingPaymentOrderId: retryOrderId })) {
                         CategoryRegistration.findById(activeExisting._id)
                             .populate('user', 'name email phoneNumber notificationPreferences')
                             .then((populated) => queueRunClubRegistrationConfirmation({
@@ -564,10 +564,10 @@ exports.registerForEvent = async (req, res) => {
                     paymentId,
                 });
                 if (!check.ok) {
-                    if (check.status === 409 && check.registration) {
+                    if ((check.status === 409 || check.alreadyRegistered) && check.registration) {
                         const clubIdForPii = category === 'sports' ? event.runClubId : null;
                         const decrypted = decryptRegistrationPii(check.registration, clubIdForPii);
-                        if (category === 'sports' && check.registration.status === 'confirmed') {
+                        if (category === 'sports' && check.registration.status === 'confirmed' && !shouldSkipConfirmationResend(check.registration, { incomingPaymentOrderId: paymentOrderId })) {
                             CategoryRegistration.findById(check.registration._id)
                                 .populate('user', 'name email phoneNumber notificationPreferences')
                                 .then((populated) => queueRunClubRegistrationConfirmation({
@@ -592,6 +592,16 @@ exports.registerForEvent = async (req, res) => {
                         });
                     }
                     return res.status(check.status || 400).json({ message: check.message });
+                }
+                if (check.alreadyRegistered && check.registration) {
+                    const clubIdForPii = category === 'sports' ? event.runClubId : null;
+                    const decrypted = decryptRegistrationPii(check.registration, clubIdForPii);
+                    return res.status(200).json({
+                        success: true,
+                        alreadyRegistered: true,
+                        message: 'Registration already completed',
+                        registration: decrypted,
+                    });
                 }
                 paymentStatus = 'paid';
                 amountPaid = check.amountPaid;
@@ -732,7 +742,8 @@ exports.registerForEvent = async (req, res) => {
         // Notify runner: pending QR review vs confirmed booking
         if (category === 'sports') {
             const eventTitle = event.title || event.name || 'your run';
-            const ticketLink = `/qr-ticket/${registration._id}?type=sports`;
+            const ticketQs = sportsNoun === 'event' ? 'type=sports&hub=events' : 'type=sports';
+            const ticketLink = `/qr-ticket/${registration._id}?${ticketQs}`;
             CategoryRegistration.findById(registration._id)
                 .populate('user', 'name email phoneNumber notificationPreferences')
                 .then((populated) => {

@@ -188,29 +188,10 @@ export default function RunClubOrganizerParticipantsPage() {
         }
     }, [eventId]);
 
-    const load = useCallback(async () => {
+    const loadStats = useCallback(async () => {
         if (!eventId) return;
-        setLoading(true);
         try {
-            const params = {
-                page,
-                limit: isEventHub && groupBy ? 100 : 25,
-                sortBy: 'createdAt',
-                sortDir: 'desc',
-            };
-            if (search) params.search = search;
-            if (paymentFilter) params.paymentStatus = paymentFilter;
-            if (checkInFilter) params.checkInStatus = checkInFilter;
-            if (genderFilter) params.gender = genderFilter;
-
-            const [listData, dashData] = await Promise.all([
-                fetchRunClubOrganizerParticipants(eventId, params),
-                fetchRunClubOrganizerDashboard(eventId).catch(() => null),
-            ]);
-
-            setRows(listData.participants || []);
-            setEventTitle(listData.eventTitle || listData.trekName || '');
-            setPagination(listData.pagination || { page: 1, limit: 25, total: 0, totalPages: 1 });
+            const dashData = await fetchRunClubOrganizerDashboard(eventId);
             if (dashData?.stats) {
                 const quotas = dashData.genderRegistration?.quotas;
                 setStats({
@@ -228,7 +209,33 @@ export default function RunClubOrganizerParticipantsPage() {
             }
             if (dashData?.event?.registrationMode) {
                 setRegistrationMode(dashData.event.registrationMode);
-            } else if (listData.registrationMode) {
+            }
+        } catch {
+            /* stats optional */
+        }
+    }, [eventId]);
+
+    const load = useCallback(async () => {
+        if (!eventId) return;
+        setLoading(true);
+        try {
+            const params = {
+                page,
+                limit: isEventHub && groupBy ? 100 : 25,
+                sortBy: 'createdAt',
+                sortDir: 'desc',
+            };
+            if (search) params.search = search;
+            if (paymentFilter) params.paymentStatus = paymentFilter;
+            if (checkInFilter) params.checkInStatus = checkInFilter;
+            if (genderFilter) params.gender = genderFilter;
+
+            const listData = await fetchRunClubOrganizerParticipants(eventId, params);
+
+            setRows(listData.participants || []);
+            setEventTitle(listData.eventTitle || listData.trekName || '');
+            setPagination(listData.pagination || { page: 1, limit: 25, total: 0, totalPages: 1 });
+            if (listData.registrationMode) {
                 setRegistrationMode(listData.registrationMode);
             }
         } catch (e) {
@@ -237,6 +244,10 @@ export default function RunClubOrganizerParticipantsPage() {
             setLoading(false);
         }
     }, [eventId, page, search, paymentFilter, checkInFilter, genderFilter, isEventHub, groupBy, toast]);
+
+    useEffect(() => {
+        loadStats();
+    }, [loadStats]);
 
     useEffect(() => {
         load();
@@ -381,6 +392,7 @@ export default function RunClubOrganizerParticipantsPage() {
             toast(copy.approvedToast);
             advanceReviewQueue(bookingId);
             await load();
+            await loadStats();
         } catch (e) {
             // Toast only — do not rethrow (was flooding Sentry as unhandledrejection)
             toast(e.message || 'Approve failed');
@@ -393,6 +405,7 @@ export default function RunClubOrganizerParticipantsPage() {
             toast(copy.rejectedToast);
             advanceReviewQueue(bookingId);
             await load();
+            await loadStats();
         } catch (e) {
             toast(e.message || 'Reject failed');
         }

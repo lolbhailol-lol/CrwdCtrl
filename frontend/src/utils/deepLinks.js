@@ -58,7 +58,7 @@ export function isTrekPaymentPending(pending) {
 }
 
 /** Dual-write so Google Pay / new-tab return still finds pending payment. */
-export function storePendingPayment({ orderId, paymentSessionId, returnPath, entityType }) {
+export function storePendingPayment({ orderId, paymentSessionId, returnPath, entityType, customerEmail = '' }) {
   const path = returnPath || window.location.pathname;
   writeBoth(
     PENDING_PAYMENT_KEY,
@@ -67,6 +67,7 @@ export function storePendingPayment({ orderId, paymentSessionId, returnPath, ent
       paymentSessionId,
       returnPath: path,
       entityType: resolvePaymentEntityType(path, entityType),
+      customerEmail: String(customerEmail || '').trim().toLowerCase(),
       ts: Date.now(),
     }),
   );

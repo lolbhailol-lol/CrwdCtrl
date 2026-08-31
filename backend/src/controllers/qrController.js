@@ -153,9 +153,15 @@ const generateSportsQR = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Sports registration not found' });
     }
 
-    const event = await SportsEvent.findById(registration.eventId).select(
-      'title eventDate venue city sportType images',
-    );
+    const event = await SportsEvent.findById(registration.eventId)
+      .select('title eventDate venue city sportType images runClubId')
+      .lean();
+
+    let listingHub = 'sports';
+    if (event?.runClubId || registration.runClubId) {
+      const { listingHubForRunClubId } = require('../utils/listingHubCopy');
+      listingHub = await listingHubForRunClubId(event?.runClubId || registration.runClubId);
+    }
 
     if (!registration.qrCodeData) {
       registration.qrCodeData = crypto.randomBytes(16).toString('hex');
@@ -166,11 +172,12 @@ const generateSportsQR = async (req, res) => {
       success: true,
       data: {
         registrationId: registration._id,
-        ticketType: 'sports',
+        ticketType: listingHub === 'events' ? 'event_community' : 'sports',
+        listingHub,
         qrHash: registration.qrCodeData,
         userName: registration.user?.name || null,
-        eventTitle: event?.title || 'Sports Event',
-        festName: event?.title || 'Sports Event',
+        eventTitle: event?.title || (listingHub === 'events' ? 'Event' : 'Sports Event'),
+        festName: event?.title || (listingHub === 'events' ? 'Event' : 'Sports Event'),
         festDate: event?.eventDate || null,
         venue: event?.venue || event?.city || null,
         sportType: event?.sportType || null,

@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const {
   formatParticipantSheetRow,
   formatParticipantDetail,
+  pickRegistrationEmailExtras,
 } = require('../src/utils/runClubOrganizerFormat');
 
 const EVENT = {
@@ -119,5 +120,27 @@ test('cashfree bookings deduct 1.6% gateway from organizer share', () => {
   assert.equal(row.grossCollected, 499);
   assert.equal(row.gatewayFee, 7.98);
   assert.equal(row.organizerNet, 491.02);
+});
+
+test('confirmation email extras include post-game fuel and skill level', () => {
+  const reg = sampleReg();
+  const formSchema = EVENT.registration.formSchema;
+  const formData = reg.responses;
+  const extras = pickRegistrationEmailExtras(formSchema, formData);
+  assert.deepEqual(extras, [
+    { label: 'Post-Game Fuel', value: 'Iced Latte' },
+    { label: 'Skill Level', value: 'Amateur – Play casually with friends' },
+  ]);
+});
+
+test('confirmation email extras resolve alternate field names', () => {
+  const extras = pickRegistrationEmailExtras([], {
+    post_game_fuel_at_cafe_bok: 'Lemon Iced tea',
+    badminton_level: 'Beginner – Learning the game',
+  });
+  assert.deepEqual(extras, [
+    { label: 'Post-Game Fuel', value: 'Lemon Iced tea' },
+    { label: 'Skill Level', value: 'Beginner – Learning the game' },
+  ]);
 });
 

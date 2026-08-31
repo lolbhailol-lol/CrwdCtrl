@@ -466,6 +466,7 @@ export default function TrekBookingPage() {
             selTime,
             people,
             step,
+            confirmStep: 3,
             bookingGender,
             ...overrides,
         }));

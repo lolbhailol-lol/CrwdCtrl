@@ -51,6 +51,30 @@ async function saveCategoryRegistrationIdempotent(registration, paymentOrderId) 
   }
 }
 
+/** If confirmed seats exceed capacity after save, hold for organizer review instead of confirming. */
+async function holdRegistrationIfCapacityExceeded(registration, event, capacity, paymentOrderId) {
+  if (!registration || capacity <= 0) return { registration, needsOrganizerReview: false };
+
+  const confirmedHeld = await sumSeatsHeld(event._id, { statuses: ['confirmed'] });
+  if (confirmedHeld <= capacity) {
+    return { registration, needsOrganizerReview: false };
+  }
+
+  registration.status = 'pending';
+  registration.paymentStatus = 'paid';
+  registration.paymentReviewNote = 'Paid booking exceeded capacity — organizer review';
+  await registration.save();
+
+  logger.warn('[sportsFulfill] capacity exceeded after paid fulfillment', {
+    orderId: paymentOrderId,
+    registrationId: registration._id,
+    capacity,
+    confirmedHeld,
+  });
+
+  return { registration, needsOrganizerReview: true };
+}
+
 /**
  * After Cashfree marks a sports order PAID, create CategoryRegistration from
  * formData stored on PaymentOrder at checkout. Idempotent by payment_order_id.
@@ -293,7 +317,7 @@ async function fulfillSportsFromPaidOrder(paymentOrderInput, overrides = {}) {
   }
 
   if (activeExisting && activeExisting.payment_order_id !== payment_order_id) {
-    const upgraded = await CategoryRegistration.findByIdAndUpdate(
+    let upgraded = await CategoryRegistration.findByIdAndUpdate(
       activeExisting._id,
       { $set: regPayload },
       { new: true, runValidators: true },
@@ -301,22 +325,32 @@ async function fulfillSportsFromPaidOrder(paymentOrderInput, overrides = {}) {
 
     consumeCouponUsageForOrder({ paymentOrderId: payment_order_id, userId }).catch(() => {});
 
-    const eventTitle = event.title || event.name || 'your event';
-    CategoryRegistration.findById(upgraded._id)
-      .populate('user', 'name email phoneNumber notificationPreferences')
-      .then((populated) => queueRunClubRegistrationConfirmation({
-        registration: decryptRegistrationPii(
-          populated?.toObject ? populated.toObject() : populated || upgraded,
+    const overflow = await holdRegistrationIfCapacityExceeded(
+      upgraded,
+      event,
+      capacity,
+      payment_order_id,
+    );
+    upgraded = overflow.registration;
+
+    if (upgraded.status === 'confirmed') {
+      const eventTitle = event.title || event.name || 'your event';
+      CategoryRegistration.findById(upgraded._id)
+        .populate('user', 'name email phoneNumber notificationPreferences')
+        .then((populated) => queueRunClubRegistrationConfirmation({
+          registration: decryptRegistrationPii(
+            populated?.toObject ? populated.toObject() : populated || upgraded,
+            runClubId,
+          ),
+          eventId: event._id,
+          eventTitle,
           runClubId,
-        ),
-        eventId: event._id,
-        eventTitle,
-        runClubId,
-        paymentStatus: 'paid',
-        paymentGateway: 'cashfree',
-        stage: 'confirmed',
-      }))
-      .catch((err) => logger.error('[sportsFulfill.notify.upgrade]', err.message));
+          paymentStatus: 'paid',
+          paymentGateway: 'cashfree',
+          stage: 'confirmed',
+        }))
+        .catch((err) => logger.error('[sportsFulfill.notify.upgrade]', err.message));
+    }
 
     logger.debug(
       '✅ Sports registration upgraded from payment:',
@@ -328,6 +362,7 @@ async function fulfillSportsFromPaidOrder(paymentOrderInput, overrides = {}) {
       ok: true,
       alreadyCompleted: false,
       upgraded: true,
+      needsOrganizerReview: overflow.needsOrganizerReview,
       registration: upgraded,
       event,
       amountPaid,
@@ -337,20 +372,21 @@ async function fulfillSportsFromPaidOrder(paymentOrderInput, overrides = {}) {
   const registration = new CategoryRegistration(regPayload);
   const saved = await saveCategoryRegistrationIdempotent(registration, payment_order_id);
 
-  if (capacity > 0 && saved.created) {
-    const confirmedHeld = await sumSeatsHeld(event._id, { statuses: ['confirmed'] });
-    if (confirmedHeld > capacity) {
-      saved.registration.status = 'cancelled';
-      saved.registration.paymentStatus = 'failed';
-      saved.registration.paymentReviewNote = 'Auto-cancelled: event became full';
-      await saved.registration.save();
-      return { ok: false, error: 'Event became full during fulfillment' };
-    }
+  let needsOrganizerReview = false;
+  if (saved.created) {
+    const overflow = await holdRegistrationIfCapacityExceeded(
+      saved.registration,
+      event,
+      capacity,
+      payment_order_id,
+    );
+    saved.registration = overflow.registration;
+    needsOrganizerReview = overflow.needsOrganizerReview;
   }
 
   consumeCouponUsageForOrder({ paymentOrderId: payment_order_id, userId }).catch(() => {});
 
-  if (saved.created) {
+  if (saved.created && saved.registration.status === 'confirmed') {
     const eventTitle = event.title || event.name || 'your event';
     CategoryRegistration.findById(saved.registration._id)
       .populate('user', 'name email phoneNumber notificationPreferences')
@@ -379,6 +415,7 @@ async function fulfillSportsFromPaidOrder(paymentOrderInput, overrides = {}) {
   return {
     ok: true,
     alreadyCompleted: !saved.created,
+    needsOrganizerReview,
     registration: saved.registration,
     event,
     amountPaid,

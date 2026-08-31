@@ -438,9 +438,17 @@ export default function RunEventBookingPage() {
         const evId = id || event?._id || event?.id;
         if (!evId) return;
         sessionStorage.setItem(runDraftKey(evId), JSON.stringify({
-            extraFields, selDate, selTime, people, step, tierId: selectedTierId, addOnSelected, ...overrides,
+            extraFields,
+            selDate,
+            selTime,
+            people,
+            step,
+            confirmStep: successStep,
+            tierId: selectedTierId,
+            addOnSelected,
+            ...overrides,
         }));
-    }, [id, event, extraFields, selDate, selTime, people, step, selectedTierId, addOnSelected]);
+    }, [id, event, extraFields, selDate, selTime, people, step, successStep, selectedTierId, addOnSelected]);
 
     const baseFee = chargePerPerson * people;
     const total = baseFee;

@@ -101,6 +101,7 @@ function buildBookingTicketBlock({
     ticketHref = '',
     bookingHref = '',
     product = 'event',
+    extraRows = [],
 }) {
     if (!qrHash) return '';
     const qrSrc = buildQrImageUrl(qrHash);
@@ -112,6 +113,7 @@ function buildBookingTicketBlock({
         date ? { label: 'Date', value: date } : null,
         time ? { label: 'Time', value: time } : null,
         venue ? { label: 'Venue', value: venue } : null,
+        ...(Array.isArray(extraRows) ? extraRows.filter((r) => r?.label && r?.value) : []),
         eventTitle ? { label: product === 'run' ? 'Run' : 'Event', value: eventTitle } : null,
     ].filter(Boolean);
 
@@ -454,6 +456,7 @@ const generateTrekParticipantEmailHTML = ({
             ticketHref: ticket.ticketHref || link,
             bookingHref: ticket.bookingHref || link,
             product: isEvent ? 'event' : isRun ? 'run' : 'trek',
+            extraRows: ticket.extraRows,
         })
         : '';
 

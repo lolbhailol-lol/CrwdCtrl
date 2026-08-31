@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Outlet, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { CalendarDays, LayoutDashboard, Users, QrCode, LogOut, Bell, Menu, Home, ExternalLink } from 'lucide-react';
 import { markRunClubOrganizerLoggedOut, getRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
+import { fetchRunClubOrganizerDashboard } from '../../services/api/runClubOrganizer.api';
 import { organizerHubCopy } from '../../utils/listingHubCopy';
 import { EVENT_COMMUNITY_ORGANIZER_BASE, organizerEventPath, organizerHomePath } from '../../utils/organizerPortalPaths';
 import Seo from '../../components/Seo';
@@ -45,6 +46,7 @@ export default function EventCommunityOrganizerLayout() {
     const { eventId } = useParams();
     const session = getRunClubOrganizerSession();
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [livePendingReview, setLivePendingReview] = useState(null);
     const copy = organizerHubCopy(true);
     const BrandIcon = CalendarDays;
 
@@ -66,6 +68,30 @@ export default function EventCommunityOrganizerLayout() {
         void import('../run-club-organizer/RunClubOrganizerParticipantsPage');
         void import('../run-club-organizer/RunClubOrganizerScanPage');
     }, []);
+
+    useEffect(() => {
+        if (!hasEventContext) {
+            setLivePendingReview(null);
+            return undefined;
+        }
+        let cancelled = false;
+        const refreshBadge = async () => {
+            try {
+                const dash = await fetchRunClubOrganizerDashboard(eventId);
+                if (!cancelled) {
+                    setLivePendingReview(Number(dash?.stats?.pendingPaymentReview ?? 0));
+                }
+            } catch {
+                /* optional */
+            }
+        };
+        refreshBadge();
+        const poll = setInterval(refreshBadge, 45000);
+        return () => {
+            cancelled = true;
+            clearInterval(poll);
+        };
+    }, [eventId, hasEventContext]);
 
     return (
         <div className="min-h-dvh bg-[#0f1011] text-white flex">
@@ -188,7 +214,11 @@ export default function EventCommunityOrganizerLayout() {
                         {nav.map((item) => {
                             const pendingBadge = item.short === 'Guests'
                                 && Number(activeEvent?.registrationFee) > 0
-                                ? Number(activeEvent?.pendingPaymentReview || 0)
+                                ? Number(
+                                    livePendingReview != null
+                                        ? livePendingReview
+                                        : (activeEvent?.pendingPaymentReview || 0),
+                                )
                                 : 0;
                             return (
                                 <OrgNavButton

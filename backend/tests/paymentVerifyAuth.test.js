@@ -76,3 +76,20 @@ test('authorize returns ok when no PaymentOrder exists yet', () => {
   });
   assert.equal(result.ok, true);
 });
+
+test('authorize still requires email for PAID guest orders without JWT', () => {
+  const result = authorizePaymentVerify({
+    paymentOrder: { userId: null, customerEmail: 'guest@example.com', status: 'PAID' },
+    req: { user: null, body: {} },
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'ORDER_EMAIL_REQUIRED');
+});
+
+test('authorize allows PAID guest order when checkout email matches', () => {
+  const result = authorizePaymentVerify({
+    paymentOrder: { userId: null, customerEmail: 'guest@example.com', status: 'PAID' },
+    req: { user: null, body: { customerEmail: 'guest@example.com' } },
+  });
+  assert.equal(result.ok, true);
+});

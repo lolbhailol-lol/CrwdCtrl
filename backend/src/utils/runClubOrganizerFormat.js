@@ -46,6 +46,75 @@ function filterRegistrationFields(fields = []) {
     return (fields || []).filter((f) => !isInternalFormKey(f?.fieldName));
 }
 
+/** Post-game fuel + skill answers for confirmation emails (Touch Grass–style forms). */
+function pickRegistrationEmailExtras(formSchema = [], formData = {}) {
+    const fields = filterRegistrationFields(
+        buildRegistrationFields(mergeFormSchemaForDisplay(formSchema), formData),
+    );
+    const form = formData && typeof formData === 'object' ? formData : {};
+    const byKey = new Map(
+        fields
+            .filter((f) => f?.fieldName)
+            .map((f) => [String(f.fieldName).toLowerCase(), f]),
+    );
+
+    const pickExact = (keys) => {
+        for (const key of keys) {
+            const field = byKey.get(String(key).toLowerCase());
+            const fromField = String(field?.value || '').trim();
+            if (fromField) return fromField;
+            const fromData = String(form[key] || '').trim();
+            if (fromData) return fromData;
+        }
+        return '';
+    };
+
+    const pickByPattern = (keyRe, labelRe) => {
+        for (const field of fields) {
+            const key = String(field.fieldName || '').toLowerCase();
+            const label = String(field.label || '');
+            const value = String(field.value || '').trim();
+            if (!value) continue;
+            if (keyRe.test(key) || labelRe.test(label)) return value;
+        }
+        for (const [key, raw] of Object.entries(form)) {
+            const value = String(raw || '').trim();
+            if (!value) continue;
+            if (keyRe.test(String(key).toLowerCase())) return value;
+        }
+        return '';
+    };
+
+    const postGameFuel = pickExact([
+        'post_game_fuel_at_cafe_bok',
+        'post_game_fuel',
+        'cafe_drink',
+        'coffee',
+        'drink',
+        'cafe',
+        'beverage',
+    ]) || pickByPattern(
+        /fuel|cafe|coffee|drink|beverage|mokaroma|ritrovo|bokaroma/,
+        /fuel|cafe|coffee|drink|mokaroma|ritrovo|bokaroma/i,
+    );
+
+    const skillLevel = pickExact([
+        'badminton_level',
+        'skill_level',
+        'skill',
+        'level',
+        'playing_level',
+    ]) || pickByPattern(
+        /badminton|skill|level|playing_level/,
+        /badminton|skill|rate yourself|playing level/i,
+    );
+
+    const rows = [];
+    if (postGameFuel) rows.push({ label: 'Post-Game Fuel', value: postGameFuel });
+    if (skillLevel) rows.push({ label: 'Skill Level', value: skillLevel });
+    return rows;
+}
+
 function responsesToObject(reg) {
     if (!reg?.responses) return {};
     if (reg.responses instanceof Map) {
@@ -434,6 +503,7 @@ module.exports = {
     mergeFormSchemaForDisplay,
     editableOrganizerFormFields,
     applyOrganizerFormAnswers,
+    pickRegistrationEmailExtras,
     INTERNAL_FORM_KEYS,
     participantsToCsv,
     participantsToXlsx,

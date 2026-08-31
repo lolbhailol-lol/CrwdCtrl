@@ -42,11 +42,12 @@ import {
     createAuthModalHandlers,
     getInitialBookingUiState,
     runCashfreeCheckoutAndVerify,
+    registrationIdFromVerifyPayload,
     setPaymentFlowToStepTwo,
     setPaymentFlowToSuccess,
 } from '../../utils/bookingFlowShared';
 import { openLoginSheet } from '../../utils/loginFlow';
-import { organizerHubCopy } from '../../utils/listingHubCopy';
+import { organizerHubCopy, sportsQrTicketPath } from '../../utils/listingHubCopy';
 import {
     findSportsTier,
     getSportsTiers,
@@ -66,7 +67,7 @@ import {
     standaloneQuestionFields,
 } from '../../utils/formOptionCoupons';
 
-const runDetailCache = createDetailCache('crwdctrl_event_community_detail_v4_');
+const runDetailCache = createDetailCache('crwdctrl_event_community_detail_v18_');
 
 const API = API_BASE_URL;
 const copy = organizerHubCopy(true);
@@ -314,7 +315,7 @@ export default function EventCommunityBookingPage() {
         name: eventName,
         paid: payDone && chargePerPerson > 0 && !isOrganizerQr,
         bookingId,
-        ticketType: 'sports',
+        ticketQuery: 'type=sports&hub=events',
     });
     const reg = event?.registration || {};
     // Runs use a single event date + optional reporting time (no multi-date slots)
@@ -378,10 +379,15 @@ export default function EventCommunityBookingPage() {
         const cacheOk = entityMatchesRouteParam(cached, id, ['title', 'name']);
         const fallback = seedOk ? navEvent : (cacheOk ? cached : null);
 
-        // Always logo-load — thin seeds flash Free/demo form fields
-        setEvent(null);
-        setLoadError('');
-        setLoadingEvent(true);
+        if (fallback) {
+            setEvent(fallback);
+            setLoadError('');
+            setLoadingEvent(false);
+        } else {
+            setEvent(null);
+            setLoadError('');
+            setLoadingEvent(true);
+        }
 
         const controller = new AbortController();
         (async () => {
@@ -515,9 +521,17 @@ export default function EventCommunityBookingPage() {
         const evId = id || event?._id || event?.id;
         if (!evId) return;
         sessionStorage.setItem(runDraftKey(evId), JSON.stringify({
-            extraFields, selDate, selTime, people, step, tierId: selectedTierId, addOnSelected, ...overrides,
+            extraFields,
+            selDate,
+            selTime,
+            people,
+            step,
+            confirmStep,
+            tierId: selectedTierId,
+            addOnSelected,
+            ...overrides,
         }));
-    }, [id, event, extraFields, selDate, selTime, people, step, selectedTierId, addOnSelected]);
+    }, [id, event, extraFields, selDate, selTime, people, step, confirmStep, selectedTierId, addOnSelected]);
 
     // Debounce draft writes — avoid sessionStorage thrash on every keystroke (mobile lag)
     useEffect(() => {
@@ -805,7 +819,7 @@ export default function EventCommunityBookingPage() {
 
     useEffect(() => {
         const evId = id || event?._id || event?.id;
-        if (!evId || loadingEvent || paymentResumeRef.current) return;
+        if (!evId || loadingEvent || !event || paymentResumeRef.current) return;
 
         const pending = getPendingPayment();
         const returnPath = `/events/community-event/${evId}/book`;
@@ -833,6 +847,7 @@ export default function EventCommunityBookingPage() {
                     draft?.extraFields?.email
                     || draft?.extraFields?.e_mail_id
                     || draft?.extraFields?.e_mail
+                    || pending?.customerEmail
                     || '',
                 ).trim();
                 const verifyResult = await pollPaymentUntilVerified(API, pending.orderId, {
@@ -869,10 +884,18 @@ export default function EventCommunityBookingPage() {
                 clearPendingPayment();
 
                 const v = verifyResult.data;
+                const registrationId = registrationIdFromVerifyPayload(v);
                 const verified = buildVerifiedPaymentFields(v, pending.orderId);
                 setPaymentId(verified.payment_id);
                 setCashfreeOrderId(verified.payment_order_id || pending.orderId || '');
                 setPayDone(true);
+                if (registrationId) {
+                    sessionStorage.removeItem(runDraftKey(evId));
+                    refreshNotifications();
+                    setBookingId(String(registrationId));
+                    setStep(confirmStep);
+                    return;
+                }
                 await submitRunRegistration({
                     paymentOrderId: verified.payment_order_id || pending.orderId,
                     paymentId: verified.payment_id,
@@ -1187,6 +1210,7 @@ export default function EventCommunityBookingPage() {
                     returnPath: `/events/community-event/${id || event?._id || event?.id}/book`,
                     entityType: 'sports',
                     cashfreeMode: order.cashfreeMode,
+                    customerEmail,
                     verifyOrder: ({ orderId, paymentId }) => verifyPaymentWithRetry(API, orderId, {
                         kind: 'sports',
                         paymentId,
@@ -1231,9 +1255,16 @@ export default function EventCommunityBookingPage() {
                 setPaying(true);
 
                 if (checkoutFlow.status === 'verified') {
-                    const { verified } = checkoutFlow;
+                    const { verified, registrationId } = checkoutFlow;
                     setPaymentId(verified.payment_id);
                     setCashfreeOrderId(verified.payment_order_id || order.orderId || '');
+                    if (registrationId) {
+                        sessionStorage.removeItem(runDraftKey(id || event?._id || event?.id));
+                        refreshNotifications();
+                        setBookingId(String(registrationId));
+                        setPaymentFlowToSuccess({ setPayDone, setPaying, setError });
+                        return;
+                    }
                     await submitRunRegistration({
                         paymentOrderId: verified.payment_order_id || order.orderId,
                         paymentId: verified.payment_id,
@@ -1426,7 +1457,7 @@ export default function EventCommunityBookingPage() {
                     <div className="flex flex-col gap-3">
                         {bookingId && !isPendingQr && (
                             <button type="button"
-                                onClick={() => navigate(`/qr-ticket/${bookingId}?type=sports`, { state: { refreshBookings: true } })}
+                                onClick={() => navigate(sportsQrTicketPath(bookingId, true), { state: { refreshBookings: true } })}
                                 className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition">
                                 Download Ticket
                             </button>

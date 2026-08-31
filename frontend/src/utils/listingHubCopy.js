@@ -33,6 +33,16 @@ export function isEventHubSportsEvent(event, eventClubIds) {
     return Boolean(id && eventClubIds?.has(String(id)));
 }
 
+/** QR ticket URL query for sports category registrations (run club vs event community). */
+export function sportsQrTicketQuery(isEventHub) {
+    return isEventHub ? 'type=sports&hub=events' : 'type=sports';
+}
+
+export function sportsQrTicketPath(registrationId, isEventHub) {
+    if (!registrationId) return '/booking';
+    return `/qr-ticket/${registrationId}?${sportsQrTicketQuery(isEventHub)}`;
+}
+
 export function organizerHubCopy(isEventHub) {
     if (isEventHub) {
         return {

@@ -51,6 +51,7 @@ const {
 } = require('../utils/trekGenderRegistration');
 
 const notFoundMsg = (req) => (req.listingHub === 'events' ? 'Event not found' : 'Run not found');
+const sportsTicketQuery = (req) => (req.listingHub === 'events' ? 'type=sports&hub=events' : 'type=sports');
 
 const TOKEN_TTL = process.env.RUN_CLUB_ORGANIZER_JWT_TTL || '30d';
 const STATUSES = new Set(['draft', 'published', 'completed', 'cancelled']);
@@ -1119,7 +1120,7 @@ exports.reviewPayment = async (req, res) => {
         await registration.save();
 
         const link = action === 'approve'
-            ? `/qr-ticket/${registration._id}?type=sports`
+            ? `/qr-ticket/${registration._id}?${sportsTicketQuery(req)}`
             : `/registration-details/${registration._id}?type=sports`;
         const leanReg = decryptRegistrationPii(
             registration.toObject ? registration.toObject() : registration,
@@ -1642,7 +1643,7 @@ exports.resendConfirmation = async (req, res) => {
 
         const event = await SportsEvent.findById(req.eventId).select('title runClubId').lean();
         const eventTitle = event?.title || 'your run';
-        const link = `/qr-ticket/${bookingId}?type=sports`;
+        const link = `/qr-ticket/${bookingId}?${sportsTicketQuery(req)}`;
         const title = 'You’re in';
         const decrypted = decryptRegistrationPii(
             registration,

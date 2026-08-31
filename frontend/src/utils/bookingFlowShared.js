@@ -18,6 +18,24 @@ function readSessionDraft(draftKey) {
     }
 }
 
+/** Pick the first valid booking step (> 0); ignores NaN from Number(undefined). */
+function positiveStep(...candidates) {
+    for (const value of candidates) {
+        const n = Number(value);
+        if (Number.isFinite(n) && n > 0) return n;
+    }
+    return null;
+}
+
+export function registrationIdFromVerifyPayload(data) {
+    if (!data || typeof data !== 'object') return null;
+    return data.registrationId
+        || data.registration_id
+        || data.registration?._id
+        || data.registration?.id
+        || null;
+}
+
 /**
  * Shared draft + pending-payment bootstrap for booking pages.
  */
@@ -37,9 +55,14 @@ export function getInitialBookingUiState({
     const resuming = shouldResumePendingPayment(pending, returnPath, search);
 
     if (resuming) {
+        const resumeStep = positiveStep(
+            draft.confirmStep,
+            safeDefaults.confirmStep,
+            draft.step,
+        ) || 3;
         return {
             ...safeDefaults,
-            step: 3,
+            step: resumeStep,
             payDone: false,
             paying: true,
             selDate: draft.selDate || safeDefaults.selDate || '',
@@ -92,6 +115,7 @@ export async function runCashfreeCheckoutAndVerify({
     entityType,
     cashfreeMode,
     verifyOrder,
+    customerEmail = '',
 }) {
     let checkoutResult;
     try {
@@ -101,6 +125,7 @@ export async function runCashfreeCheckoutAndVerify({
             returnPath,
             entityType,
             cashfreeMode,
+            customerEmail,
         });
     } catch (checkoutErr) {
         const { kind, message } = classifyCheckoutError(checkoutErr);
@@ -127,10 +152,12 @@ export async function runCashfreeCheckoutAndVerify({
     const verifiedPayload = verification?.data || verification;
     if (verification?.ok && verifiedPayload?.verified) {
         const verified = buildVerifiedPaymentFields(verifiedPayload, order.orderId);
+        const registrationId = registrationIdFromVerifyPayload(verifiedPayload);
         return {
             status: 'verified',
             verified,
             checkoutPaymentId,
+            registrationId,
         };
     }
 
