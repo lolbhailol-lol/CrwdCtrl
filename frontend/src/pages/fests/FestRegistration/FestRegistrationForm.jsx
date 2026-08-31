@@ -452,16 +452,12 @@ export default function FestRegistrationForm({
       </div>
 
       {showLogin && (
-        <div className="fixed inset-0 z-50 pointer-events-none">
-          <div className="pointer-events-auto h-full">
-            <CrwdCtrlLogin
-              googleOnly
-              title="Sign in to register"
-              subtitle="Sign in once — you stay signed in on this device"
-              onClose={handleCloseLogin}
-            />
-          </div>
-        </div>
+        <CrwdCtrlLogin
+          googleOnly
+          title="Sign in to register"
+          subtitle="Sign in once — you stay signed in on this device"
+          onClose={handleCloseLogin}
+        />
       )}
 
       {showRegister && (
