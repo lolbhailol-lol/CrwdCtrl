@@ -45,6 +45,7 @@ function shouldSkipPageTransition(pathname) {
         || /^\/fest\/[^/]+\/register/.test(pathname)
         // Community / run / trek details own DetailPageLoader — avoid empty shell + bottom-nav flash
         || pathname.startsWith('/events/community')
+        || pathname.startsWith('/events/community-event')
         || pathname.startsWith('/sports/run-club/')
         || pathname.startsWith('/sports/run/')
         || pathname.startsWith('/trek/')

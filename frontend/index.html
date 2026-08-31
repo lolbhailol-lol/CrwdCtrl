@@ -9,9 +9,13 @@
   <script>
     (function () {
       try {
-        // Do NOT client-redirect apex → www here. Instagram's in-app browser often
-        // fails location.replace and leaves a black shell. Apex already 307s to www
-        // at the CDN; API calls use same-origin /api on whatever host loaded.
+        var p = location.pathname || '';
+        var forceOrganizerDark = /^\/(event-community-organizer|run-club-organizer|trek-organizer|fest-organizer|event-organizer|mindspark-payments)(\/|$)/.test(p);
+        if (forceOrganizerDark) {
+          document.documentElement.classList.add('dark');
+          document.documentElement.dataset.organizerDark = '1';
+          return;
+        }
         var saved = localStorage.getItem('crwdctrl-theme');
         var dark = saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches);
         if (dark) document.documentElement.classList.add('dark');
@@ -53,6 +57,7 @@
           || /^\/sports\/run(\/|$)/.test(p)
           || /^\/sports\/run-club(\/|$)/.test(p)
           || /^\/events\/[^/]+/.test(p)
+          || /^\/events\/community-event(\/|$)/.test(p)
           || /^\/event-community-organizer(\/|$)/.test(p)
           || /^\/run-club-organizer(\/|$)/.test(p)
           || hunt;
@@ -247,6 +252,9 @@
       min-height: 100dvh;
     }
     html.dark, html.dark body { background: #161718; }
+    html[data-organizer-dark="1"],
+    html[data-organizer-dark="1"] body { background: #0f1011; color-scheme: dark; }
+    html[data-organizer-dark="1"] #boot-splash { background: #161718; }
 
     /* Crawlable no-JS content lives in #root for SEO/answer engines.
        Hidden for real (JS) users — React replaces #root and the boot splash

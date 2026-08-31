@@ -3,6 +3,23 @@
 export const RUN_CLUB_ORGANIZER_BASE = '/run-club-organizer';
 export const EVENT_COMMUNITY_ORGANIZER_BASE = '/event-community-organizer';
 
+/** All organizer portals — always dark UI (login, signup, dashboard). */
+export const ORGANIZER_PORTAL_PREFIXES = [
+    '/event-community-organizer',
+    '/run-club-organizer',
+    '/trek-organizer',
+    '/fest-organizer',
+    '/event-organizer',
+    '/mindspark-payments',
+];
+
+export function isOrganizerPortalPath(pathname = '') {
+    const path = String(pathname || '');
+    return ORGANIZER_PORTAL_PREFIXES.some((prefix) => (
+        path === prefix || path.startsWith(`${prefix}/`)
+    ));
+}
+
 export function isEventCommunityOrganizerPath(pathname = '') {
     return String(pathname || '').startsWith(EVENT_COMMUNITY_ORGANIZER_BASE);
 }

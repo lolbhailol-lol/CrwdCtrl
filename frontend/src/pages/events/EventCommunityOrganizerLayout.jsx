@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Outlet, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { CalendarDays, LayoutDashboard, Users, QrCode, LogOut, Bell, Menu, Home, ExternalLink } from 'lucide-react';
 import { markRunClubOrganizerLoggedOut, getRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
@@ -59,6 +59,13 @@ export default function EventCommunityOrganizerLayout() {
     const activeEvent = hasEventContext
         ? session?.events?.find((e) => String(e._id) === String(eventId))
         : null;
+
+    useEffect(() => {
+        void import('./EventCommunityOrganizerDashboardPage');
+        void import('./EventCommunityOrganizerNotificationsPage');
+        void import('../run-club-organizer/RunClubOrganizerParticipantsPage');
+        void import('../run-club-organizer/RunClubOrganizerScanPage');
+    }, []);
 
     return (
         <div className="min-h-dvh bg-[#0f1011] text-white flex">

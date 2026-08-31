@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight, MapPin, Phone, Instagram } from 'lucide-react';
 import { fetchRunClubOrganizerMe } from '../../services/api/runClubOrganizer.api';
-import DetailPageLoader from '../../components/DetailPageLoader';
+import { DetailLoader3DIcon } from '../../components/DetailPageLoader';
 import { getRunClubOrganizerSession, setRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
 import { organizerHubCopy } from '../../utils/listingHubCopy';
 import { organizerEventPath } from '../../utils/organizerPortalPaths';
@@ -14,17 +14,21 @@ function formatEventDate(d) {
 
 export default function EventCommunityOrganizerHomePage() {
     const navigate = useNavigate();
-    const session = getRunClubOrganizerSession();
-    const [events, setEvents] = useState(session?.events || []);
-    const [runClub, setRunClub] = useState(session?.runClub || null);
-    const [loading, setLoading] = useState(true);
+    const initialSession = getRunClubOrganizerSession();
+    const hasSeed = Boolean(initialSession?.runClub || initialSession?.events?.length);
+    const [events, setEvents] = useState(initialSession?.events || []);
+    const [runClub, setRunClub] = useState(initialSession?.runClub || null);
+    const [refreshing, setRefreshing] = useState(hasSeed);
     const [error, setError] = useState('');
     const copy = organizerHubCopy(true);
 
     useEffect(() => {
+        let cancelled = false;
         (async () => {
+            if (hasSeed) setRefreshing(true);
             try {
                 const data = await fetchRunClubOrganizerMe();
+                if (cancelled) return;
                 const nextEvents = data.events || [];
                 setEvents(nextEvents);
                 setRunClub(data.runClub || null);
@@ -38,18 +42,25 @@ export default function EventCommunityOrganizerHomePage() {
                     });
                 }
             } catch (e) {
-                setError(e.message || 'Failed to load community');
+                if (!cancelled && !hasSeed) {
+                    setError(e.message || 'Failed to load community');
+                }
             } finally {
-                setLoading(false);
+                if (!cancelled) setRefreshing(false);
             }
         })();
-    }, []);
+        return () => { cancelled = true; };
+    }, [hasSeed]);
 
-    if (loading) {
-        return <DetailPageLoader label={copy.loadingCommunity} />;
+    if (!hasSeed && refreshing) {
+        return (
+            <div className="flex justify-center py-20">
+                <DetailLoader3DIcon size="compact" />
+            </div>
+        );
     }
 
-    if (error) {
+    if (error && !runClub && events.length === 0) {
         return (
             <div className="text-center py-16 px-4 space-y-4">
                 <p className="text-red-400 text-sm">{error}</p>

@@ -12,9 +12,10 @@ import {
     uploadRunClubOrganizerImage,
 } from '../../services/api/runClubOrganizer.api';
 import { eventCommunityEventPath } from '../../utils/slugRoutes';
-import DetailPageLoader from '../../components/DetailPageLoader';
+import DetailPageLoader, { DetailLoader3DIcon } from '../../components/DetailPageLoader';
 import { organizerHubCopy } from '../../utils/listingHubCopy';
 import { organizerEventPath } from '../../utils/organizerPortalPaths';
+import { getRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
 
 const PULSE_TONES = {
     cyan: { wrap: 'border-cyan-500/20 bg-cyan-500/[0.07]', value: 'text-cyan-200', label: 'text-cyan-400/70' },
@@ -61,9 +62,12 @@ export default function EventCommunityOrganizerDashboardPage() {
     const { eventId } = useParams();
     const navigate = useNavigate();
     const copy = organizerHubCopy(true);
+    const seedEvent = getRunClubOrganizerSession()?.events?.find(
+        (e) => String(e._id) === String(eventId),
+    );
     const [data, setData] = useState(null);
     const [eventDetail, setEventDetail] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(!seedEvent);
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState('');
     const [copyNotice, setCopyNotice] = useState('');
@@ -76,7 +80,9 @@ export default function EventCommunityOrganizerDashboardPage() {
     const [paymentHydrated, setPaymentHydrated] = useState(false);
 
     useEffect(() => {
-        setLoading(true);
+        const nextSeed = getRunClubOrganizerSession()?.events?.find(
+            (e) => String(e._id) === String(eventId),
+        );
         setShowManualPayment(false);
         setPaymentHydrated(false);
         setPaymentDraft({ paymentQR: '', paymentUpiId: '', paymentQRMessage: '' });
@@ -85,6 +91,7 @@ export default function EventCommunityOrganizerDashboardPage() {
         setData(null);
         setEventDetail(null);
         setError('');
+        setLoading(!nextSeed);
     }, [eventId]);
 
     const load = useCallback(async ({ silent = false } = {}) => {
@@ -138,8 +145,23 @@ export default function EventCommunityOrganizerDashboardPage() {
         return `${window.location.origin}${publicPath}`;
     }, [publicPath]);
 
-    if (loading) {
-        return <DetailPageLoader label={copy.loadingDashboard} />;
+    if (loading && !data) {
+        return (
+            <div className="space-y-4 max-w-xl mx-auto animate-pulse">
+                <div className="flex items-center justify-between gap-3">
+                    <h1 className="text-xl font-semibold text-white truncate">
+                        {seedEvent?.title || copy.loadingDashboard}
+                    </h1>
+                    <DetailLoader3DIcon size="mini" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                    {[0, 1, 2, 3].map((i) => (
+                        <div key={i} className="h-[72px] rounded-xl border border-white/10 bg-white/[0.04]" />
+                    ))}
+                </div>
+                <div className="h-28 rounded-xl border border-white/10 bg-white/[0.04]" />
+            </div>
+        );
     }
 
     if (error) {

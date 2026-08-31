@@ -148,10 +148,13 @@ export default function EventCommunityEventPage() {
         const cachedEvent = cachedByParam || cachedById;
         const fallback = pickRunFallback(seeded, cachedEvent, id);
 
-        // Always logo-load first — never paint thin/nav/demo stubs (Free flash, old copy)
-        setEvent(null);
-        setLoadError('');
-        setLoading(true);
+        if (fallback) {
+            setEvent(fallback);
+            setLoading(false);
+        } else {
+            setEvent(null);
+            setLoading(true);
+        }
 
         setImgPg(0);
         setOverviewExpanded(false);
@@ -210,7 +213,8 @@ export default function EventCommunityEventPage() {
         }
     }, [event, id, navigate, location.state]);
 
-    const showPageLoader = loading || (event && id && !entityMatchesRouteParam(event, id, ['title', 'name']));
+    const showPageLoader = (loading && !event)
+        || (event && id && !entityMatchesRouteParam(event, id, ['title', 'name']));
     usePageContentLoading(showPageLoader);
 
     if (showPageLoader) {

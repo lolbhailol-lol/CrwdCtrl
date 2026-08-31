@@ -262,15 +262,20 @@ export default function EventCommunityDetailPage() {
         const ok = entityMatchesRouteParam(seeded, id, ['name', 'title']);
         const cached = runClubDetailCache.read(id);
         const cacheOk = entityMatchesRouteParam(cached, id, ['name', 'title']);
-        // Keep seed/cache only for API failure fallback — always logo-load first
         const fallback = ok ? seeded : (cacheOk ? normalizeRunClub(cached) : null);
         setRuns([]);
         setPastRuns([]);
         setLoadingRuns(true);
         setRunsError('');
         setLoadError('');
-        setClub(null);
-        setLoading(true);
+
+        if (fallback) {
+            setClub(fallback);
+            setLoading(false);
+        } else {
+            setClub(null);
+            setLoading(true);
+        }
 
         const controller = new AbortController();
         fetchRunClub(id, controller.signal)
@@ -340,16 +345,18 @@ export default function EventCommunityDetailPage() {
             eventDate: e.eventDate,
             coverImage: e.coverImage,
             coverImages: e.coverImages,
+            images: e.images,
+            description: e.description,
             registrationFee: e.registrationFee,
             pricingMode: e.pricingMode,
             tiers: e.tiers,
             status: e.status,
             venue: e.venue,
             city: e.city,
+            listingHub: 'events',
             registration: e.registration
                 ? { status: e.registration.status, mode: e.registration.mode, requireLogin: e.registration.requireLogin }
                 : undefined,
-            listingHub: 'events',
         },
     });
 
@@ -411,8 +418,7 @@ export default function EventCommunityDetailPage() {
         }
     }, [categoryOptions, activeCategory]);
 
-    const showPageLoader = loading
-        || loadingRuns
+    const showPageLoader = (loading && !club)
         || (club && id && !entityMatchesRouteParam(club, id, ['name', 'title']));
     const isEventHub = true;
     usePageContentLoading(showPageLoader);

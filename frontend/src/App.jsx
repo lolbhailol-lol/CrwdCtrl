@@ -20,6 +20,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import AdSenseLoader from './components/AdSense'
 import PWAInstallPrompt from './components/PWAInstallPrompt'
 import RouteTracker from './components/RouteTracker'
+import OrganizerPortalTheme from './components/OrganizerPortalTheme'
 import GoogleOneTap from './components/GoogleOneTap'
 import CapacitorInit from './components/CapacitorInit'
 import DeepLinkHistorySeed from './components/DeepLinkHistorySeed'
@@ -454,6 +455,7 @@ function App() {
                   <DeepLinkHistorySeed />
                   <OfflineHuntBootGate />
                   <RouteTracker />
+                  <OrganizerPortalTheme />
                   <GoogleOneTap />
                   <AdSenseLoader />
                   <PWAInstallPrompt />
