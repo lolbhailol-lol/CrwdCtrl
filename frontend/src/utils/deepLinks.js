@@ -45,9 +45,14 @@ function removeBoth(key) {
 }
 
 export function resolvePaymentEntityType(returnPath, entityType) {
-  if (entityType === 'trek' || entityType === 'fest' || entityType === 'event') return entityType;
+  const known = String(entityType || '').toLowerCase();
+  if (['trek', 'fest', 'event', 'sports', 'competition', 'event_show'].includes(known)) {
+    return known === 'event_show' ? 'event' : known;
+  }
   const path = returnPath || (typeof window !== 'undefined' ? window.location.pathname : '');
   if (path.includes('/trek/') && path.includes('/book')) return 'trek';
+  if (/\/sports\/run\/[^/]+(?:\/book)?/.test(path)) return 'sports';
+  if (/\/events\/community-event\/[^/]+(?:\/book)?/.test(path)) return 'sports';
   if (path.includes('/events/') && path.includes('/register')) return 'event';
   return 'fest';
 }

@@ -77,6 +77,8 @@ function competitionRequiresPayment(competition) {
 function findCompetitionFeeTierOrThrow(tiers, tierId) {
   const id = String(tierId || '').trim();
   if (!id) {
+    // Single-category events: no need to force a picker
+    if (tiers.length === 1) return tiers[0];
     const err = new Error('Please select a registration category.');
     err.status = 400;
     throw err;

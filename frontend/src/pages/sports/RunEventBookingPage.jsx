@@ -1,17 +1,16 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, Suspense, lazy } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { ArrowLeft, ChevronLeft, ChevronRight, ChevronDown, Loader, CheckCircle, Clock, Check } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationsContext';
-import CrwdCtrlLogin from '../auth/login';
-import CrwdCtrlRegister from '../auth/register';
 import { buildVerifiedPaymentFields } from '../../utils/useCashfree';
 import { useInAppBack } from '../../hooks/useInAppBack';
 
 import PaymentErrorModal from '../../components/PaymentErrorModal';
 import RunCheckoutPanel from '../../components/sports/RunCheckoutPanel';
 import DetailPageLoader from '../../components/DetailPageLoader';
+import { CompletingPaymentStep } from '../fests/FestRegistration/PaymentStep';
 import {
     getPendingPayment,
     clearPendingPayment,
@@ -58,6 +57,9 @@ import {
     resolveFormAutoCouponCode,
     selectOptionLabels,
 } from '../../utils/formOptionCoupons';
+
+const CrwdCtrlLogin = lazy(() => import('../auth/login'));
+const CrwdCtrlRegister = lazy(() => import('../auth/register'));
 
 const runDetailCache = createDetailCache('crwdctrl_run_detail_v1_');
 
@@ -178,6 +180,8 @@ export default function RunEventBookingPage() {
     const [uploadingProof, setUploadingProof] = useState(false);
     const [upiCopied, setUpiCopied] = useState(false);
     const [showTierIncludes, setShowTierIncludes] = useState(false);
+    const [processingProgress, setProcessingProgress] = useState('');
+    const [showPaymentEscape, setShowPaymentEscape] = useState(false);
     const retryCheckoutRef = useRef(null);
     const couponSourceRef = useRef(null);
     const couponCodeRef = useRef('');
@@ -253,6 +257,26 @@ export default function RunEventBookingPage() {
         ? step === 2 && paying
         : step === 3 && paying;
     const qrNeedsReview = chargePerPerson > 0 && isOrganizerQr && !(couponInfo?.amountAfterDiscount === 0);
+
+    useEffect(() => {
+        if (!paying) {
+            setShowPaymentEscape(false);
+            setProcessingProgress('');
+            return undefined;
+        }
+        const started = Date.now();
+        setProcessingProgress('Confirming payment & saving your booking…');
+        const tick = window.setInterval(() => {
+            const elapsed = Date.now() - started;
+            if (elapsed >= 8000) setShowPaymentEscape(true);
+            if (elapsed >= 15000) {
+                setProcessingProgress('Still confirming with the bank — you can check My Bookings anytime…');
+            } else if (elapsed >= 5000) {
+                setProcessingProgress('Payment received — waiting for bank confirmation…');
+            }
+        }, 1000);
+        return () => window.clearInterval(tick);
+    }, [paying]);
 
     useBookingSuccessPopup(showSuccess && !qrNeedsReview, {
         name: eventName,
@@ -1100,15 +1124,17 @@ export default function RunEventBookingPage() {
         && !isRedirectProcessing;
 
     const loginOverlay = showLoginOverlay || showLogin ? (
-        <CrwdCtrlLogin
-            googleOnly
-            title="Sign in to book"
-            subtitle="Your form is ready below — one tap with Google to start filling it"
-            onClose={handleCloseLogin}
-        />
+        <Suspense fallback={null}>
+            <CrwdCtrlLogin
+                googleOnly
+                title="Sign in to book"
+                subtitle="Your form is ready below — one tap with Google to start filling it"
+                onClose={handleCloseLogin}
+            />
+        </Suspense>
     ) : null;
 
-    if ((loadingEvent || waitingOnAuth) && !showSuccess && !showProcessing) {
+    if (loadingEvent && !showSuccess && !showProcessing) {
         return (
             <>
                 <DetailPageLoader label="Loading booking" variant="booking" />
@@ -1168,7 +1194,22 @@ export default function RunEventBookingPage() {
     }
 
     if (showProcessing) {
-        return <DetailPageLoader label="Confirming your booking" />;
+        return (
+            <CompletingPaymentStep
+                isDark={isDark}
+                paymentResumeError=""
+                submissionProgress={processingProgress}
+                navigate={navigate}
+                showEscapeWhileWaiting={showPaymentEscape}
+                onReturnToForm={() => {
+                    paymentResumeRef.current = false;
+                    setPaying(false);
+                    setPayDone(false);
+                    setStep(isFreeFlow ? 1 : 2);
+                    setError('');
+                }}
+            />
+        );
     }
 
     if (showSuccess) {
@@ -1299,15 +1340,22 @@ export default function RunEventBookingPage() {
             />
             <div className={`max-w-lg mx-auto px-4 sm:px-6 transition-opacity duration-300 ${formLocked ? 'opacity-90' : ''}`}>
 
-                {formLocked ? (
+                {formLocked || waitingOnAuth ? (
                     <button
                         type="button"
-                        onClick={openLogin}
+                        onClick={() => {
+                            if (waitingOnAuth) return;
+                            openLogin();
+                        }}
                         className={`mb-4 w-full text-left rounded-xl border px-4 py-3 text-sm font-semibold transition-opacity hover:opacity-90 ${isDark ? 'bg-[#0ECCEE]/10 border-[#0ECCEE]/30 text-[#0ECCEE]' : 'bg-cyan-50 border-cyan-200 text-cyan-800'}`}
                     >
-                        Sign in with Google to fill and book — tap here
+                        {waitingOnAuth
+                            ? 'Finishing sign-in…'
+                            : 'Sign in with Google to fill and book — tap here'}
                         <span className={`mt-1 block text-xs font-normal ${isDark ? 'text-[#0ECCEE]/80' : 'text-cyan-700'}`}>
-                            On Instagram? Use Open in Chrome first, then sign in.
+                            {waitingOnAuth
+                                ? 'Your booking form is ready — hang tight a second.'
+                                : 'On Instagram? Use Open in Chrome first, then sign in.'}
                         </span>
                     </button>
                 ) : null}
@@ -1704,7 +1752,9 @@ export default function RunEventBookingPage() {
 
             {showRegister && (
                 <div className="fixed inset-0 z-50">
-                    <CrwdCtrlRegister onClose={handleCloseRegister} onSwitchToLogin={handleSwitchToLogin} />
+                    <Suspense fallback={null}>
+                        <CrwdCtrlRegister onClose={handleCloseRegister} onSwitchToLogin={handleSwitchToLogin} />
+                    </Suspense>
                 </div>
             )}
         </div>

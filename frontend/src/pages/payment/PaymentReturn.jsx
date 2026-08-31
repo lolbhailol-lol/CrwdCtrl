@@ -10,6 +10,7 @@ import {
   hasCashfreeReturnParams,
   loadOrderReturnContext,
   clearOrderReturnContext,
+  resolvePaymentEntityType,
 } from '../../utils/deepLinks';
 import {
   loadEventPayDraft,
@@ -21,11 +22,13 @@ import {
   verifyPaymentWithRetry,
   pollPaymentUntilVerified,
   goToBookings,
+  goToTicketOrBookings,
   classifyVerifyError,
   clearCashfreeReturnAndPending,
   stripCashfreeReturnParams,
   handoffPaymentToReturnPath,
   PAYMENT_RETURN_MAX_WAIT_MS,
+  PAYMENT_BACKGROUND_MAX_WAIT_MS,
 } from '../../utils/paymentNavigation';
 import { buildVerifiedPaymentFields } from '../../utils/useCashfree';
 import { finalizeCompetitionAfterPayment } from '../../utils/competitionPaymentComplete';
@@ -191,6 +194,18 @@ export default function PaymentReturn() {
       if (returnPath && hasCashfreeReturnParams(search)) {
         const orderId = orderIdFromUrl || pending?.orderId || orderCtx?.orderId || '';
         const token = resolveAuthToken();
+        const entityType = resolvePaymentEntityType(
+          returnPath,
+          pending?.entityType || orderCtx?.entityType,
+        );
+        const verifyKind =
+          entityType === 'sports' ? 'sports'
+          : entityType === 'trek' ? 'trek'
+          : 'fest';
+        const returnWaitMs =
+          verifyKind === 'sports' || verifyKind === 'trek'
+            ? PAYMENT_BACKGROUND_MAX_WAIT_MS
+            : PAYMENT_RETURN_MAX_WAIT_MS;
 
         if (orderId && !token) {
           const returnUrl = `/payment/return?order_id=${encodeURIComponent(orderId)}`;
@@ -207,8 +222,13 @@ export default function PaymentReturn() {
             const verifyResult = await pollPaymentUntilVerified(
               API_BASE_URL,
               orderId,
-              { token, kind: 'fest', search },
-              { maxWaitMs: PAYMENT_RETURN_MAX_WAIT_MS, onProgress: updateProgress },
+              {
+                token,
+                kind: verifyKind,
+                search,
+                customerEmail: pending?.customerEmail || orderCtx?.customerEmail || '',
+              },
+              { maxWaitMs: returnWaitMs, onProgress: updateProgress },
             );
 
             if (verifyResult.status === 'cancelled') {
@@ -221,6 +241,36 @@ export default function PaymentReturn() {
                   replace: true,
                   state: { paymentCancelled: true },
                 });
+              }
+              return;
+            }
+
+            // Sports / run-community: sports-verify already fulfills — never fest recovery.
+            if (verifyKind === 'sports') {
+              if (verifyResult.ok && verifyResult.verified) {
+                clearPendingPayment();
+                clearOrderReturnContext(orderId);
+                const regId = verifyResult.data?.registrationId || null;
+                if (cancelledRef.current) return;
+                setStatus('success');
+                setMessage('Payment successful — booking confirmed!');
+                window.setTimeout(() => {
+                  if (cancelledRef.current) return;
+                  if (regId) {
+                    goToTicketOrBookings(navigate, regId);
+                  } else {
+                    handoffPaymentToReturnPath(navigate, returnPath, {
+                      registrationComplete: true,
+                      fromPaymentReturn: true,
+                    });
+                  }
+                }, 250);
+                return;
+              }
+              if (!cancelledRef.current) {
+                setStatus('redirecting');
+                setMessage('Finishing your booking…');
+                handoffPaymentToReturnPath(navigate, returnPath);
               }
               return;
             }
@@ -405,12 +455,37 @@ export default function PaymentReturn() {
       if (token) {
         try {
           if (!cancelledRef.current) setMessage('Payment received — finishing your registration…');
+          const lostEntity = resolvePaymentEntityType(
+            orderCtx?.returnPath || pending?.returnPath,
+            orderCtx?.entityType || pending?.entityType,
+          );
+          const lostKind =
+            lostEntity === 'sports' ? 'sports'
+            : lostEntity === 'trek' ? 'trek'
+            : 'fest';
           const verifyResult = await pollPaymentUntilVerified(
             API_BASE_URL,
             orderId,
-            { token, kind: 'fest', search },
-            { maxWaitMs: PAYMENT_RETURN_MAX_WAIT_MS, onProgress: updateProgress },
+            { token, kind: lostKind, search },
+            {
+              maxWaitMs: lostKind === 'sports' ? PAYMENT_BACKGROUND_MAX_WAIT_MS : PAYMENT_RETURN_MAX_WAIT_MS,
+              onProgress: updateProgress,
+            },
           );
+
+          if (verifyResult.ok && verifyResult.verified && lostKind === 'sports') {
+            clearPendingPayment();
+            clearOrderReturnContext(orderId);
+            const regId = verifyResult.data?.registrationId || null;
+            if (cancelledRef.current) return;
+            setStatus('success');
+            setMessage('Payment successful — booking confirmed!');
+            window.setTimeout(() => {
+              if (cancelledRef.current) return;
+              goToTicketOrBookings(navigate, regId);
+            }, 250);
+            return;
+          }
 
           if (verifyResult.ok && verifyResult.verified) {
             const recovery = verifyResult.data?.recovery || {};
@@ -479,13 +554,18 @@ export default function PaymentReturn() {
         }
       }
 
-      // Absolute last resort (non-fest flows only)
+      // Absolute last resort — try sports then fest verify (non-blocking)
       if (token) {
+        const lastEntity = resolvePaymentEntityType(
+          orderCtx?.returnPath || pending?.returnPath,
+          orderCtx?.entityType || pending?.entityType,
+        );
+        const lastKind = lastEntity === 'sports' ? 'sports' : 'fest';
         try {
-          await fetch(`${API_BASE_URL}/payment/verify`, {
-            method: 'POST',
-            headers: getBearerAuthHeaders(token),
-            body: JSON.stringify({ payment_order_id: orderId }),
+          await verifyPaymentWithRetry(API_BASE_URL, orderId, {
+            token,
+            kind: lastKind,
+            search,
           });
         } catch {
           /* ignore */
@@ -518,6 +598,15 @@ export default function PaymentReturn() {
         <DetailLoader3DIcon variant="payment" size="compact" className="mb-4" />
       )}
       <p className={`text-sm text-center max-w-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{message}</p>
+      {status === 'confirming' || status === 'pending' ? (
+        <button
+          type="button"
+          onClick={() => goToBookings(navigate)}
+          className={`mt-6 text-sm font-semibold ${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-800'}`}
+        >
+          View My Bookings
+        </button>
+      ) : null}
     </div>
   );
 }

@@ -250,7 +250,13 @@ const getPricingForRequest = async (req) => {
     couponCode,
     tierId,
     selectedAddOnIds,
-  } = req.body;
+    registrationDraft,
+  } = req.body || {};
+  const draftTierId = registrationDraft?.formData?.feeTierId
+    || notes?.registrationDraft?.formData?.feeTierId
+    || notes?.feeTierId
+    || '';
+  const resolvedTierId = String(tierId || notes.tierId || draftTierId || '').trim();
   let pricedEntity;
   try {
     pricedEntity = await resolvePricedEntity({
@@ -259,7 +265,7 @@ const getPricingForRequest = async (req) => {
       festId,
       eventShowId,
       notes,
-      tierId,
+      tierId: resolvedTierId,
       selectedAddOnIds,
     });
   } catch (e) {
@@ -654,6 +660,11 @@ async function markOrderPaidAndFulfill(result) {
     if (['fest', 'competition'].includes(updated.entityType) && updated.orderTags?.registrationDraft) {
       const { fulfillFestCompetitionFromPaidOrder } = require('../services/festCompetitionPaymentFulfillment');
       fulfillFestCompetitionFromPaidOrder(updated).catch(() => {});
+    }
+    // Sports bookings store draft under orderTags.formData — same path as webhook.
+    if (updated.entityType === 'sports' && updated.orderTags?.formData) {
+      const { fulfillSportsFromPaidOrder } = require('../services/sportsPaymentFulfillment');
+      fulfillSportsFromPaidOrder(updated).catch(() => {});
     }
     return updated;
   } catch {

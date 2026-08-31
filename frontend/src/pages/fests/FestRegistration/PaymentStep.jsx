@@ -13,6 +13,7 @@ export function CompletingPaymentStep({
   navigate,
   onReturnToForm,
   onRetryResume,
+  showEscapeWhileWaiting = false,
 }) {
   return (
     <div className={`crwdctrl-page crwdctrl-page--flat min-h-screen flex flex-col items-center justify-center px-4 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
@@ -64,18 +65,46 @@ export function CompletingPaymentStep({
           </div>
         </div>
       ) : (
-        <div
-          className={`w-full max-w-sm rounded-3xl border p-8 ${
-            isDark ? 'bg-[#121314] border-white/10' : 'bg-white border-gray-200 shadow-xl'
-          }`}
-        >
-          <RegistrationStatusVisual
-            mode={/pay|cashfree|checkout/i.test(String(submissionProgress || '')) ? 'payment' : 'server'}
-            title="Finishing registration"
-            subtitle="This usually takes a few seconds"
-            progressMessage={submissionProgress || 'Confirming payment & saving your booking…'}
-            isDark={isDark}
-          />
+        <div className="w-full max-w-sm mx-auto flex flex-col gap-4">
+          <div
+            className={`w-full rounded-3xl border p-8 ${
+              isDark ? 'bg-[#121314] border-white/10' : 'bg-white border-gray-200 shadow-xl'
+            }`}
+          >
+            <RegistrationStatusVisual
+              mode={/pay|cashfree|checkout/i.test(String(submissionProgress || '')) ? 'payment' : 'server'}
+              title="Finishing registration"
+              subtitle="This usually takes a few seconds"
+              progressMessage={submissionProgress || 'Confirming payment & saving your booking…'}
+              isDark={isDark}
+            />
+          </div>
+          {showEscapeWhileWaiting ? (
+            <div className="flex flex-col gap-2 px-1">
+              <button
+                type="button"
+                onClick={() => goToBookings(navigate)}
+                className={`w-full px-6 py-3 rounded-lg font-semibold transition-colors ${
+                  isDark
+                    ? 'border border-gray-600 text-gray-200 hover:bg-gray-800'
+                    : 'border border-gray-300 text-gray-800 hover:bg-gray-100'
+                }`}
+              >
+                View My Bookings
+              </button>
+              {onReturnToForm ? (
+                <button
+                  type="button"
+                  onClick={onReturnToForm}
+                  className={`w-full px-6 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-800'
+                  }`}
+                >
+                  Return to form
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       )}
     </div>

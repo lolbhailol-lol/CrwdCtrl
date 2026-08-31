@@ -1,11 +1,14 @@
 import { lazyWithRetry } from '../../utils/lazyWithRetry';
-import ViewDetailsPage from '../../pages/fests/view-details';
-import CompetitionsViewDetails from '../../pages/competitions/Competitions-view-details';
 
-export { ViewDetailsPage, CompetitionsViewDetails };
+export const ViewDetailsPage = lazyWithRetry(() => import('../../pages/fests/view-details'));
+export const CompetitionsViewDetails = lazyWithRetry(
+  () => import('../../pages/competitions/Competitions-view-details'),
+);
 
 export const Dashboard = lazyWithRetry(() => import('../../pages/home/Dashboard'));
 export const Booking = lazyWithRetry(() => import('../../pages/profile/booking'));
+export const PaymentReturn = lazyWithRetry(() => import('../../pages/payment/PaymentReturn'));
+export const FestStallInterestPage = lazyWithRetry(() => import('../../pages/stall/FestStallInterestPage'));
 
 export const CulturalFestPage = lazyWithRetry(() => import('../../pages/fests/cultural-fest'));
 export const TechFestPage = lazyWithRetry(() => import('../../pages/fests/tech-fest'));
@@ -142,7 +145,6 @@ export const FestOrganizerLiveUpdatesPage = lazyWithRetry(() => import('../../pa
 export const FestOrganizerInfoPage = lazyWithRetry(() => import('../../pages/fest-organizer/FestOrganizerInfoPage'));
 export const FestOrganizerListingEditPage = lazyWithRetry(() => import('../../pages/fest-organizer/FestOrganizerListingEditPage'));
 export const FestOrganizerCouponsPage = lazyWithRetry(() => import('../../pages/fest-organizer/FestOrganizerCouponsPage'));
-export const FestStallInterestPage = lazyWithRetry(() => import('../../pages/stall/FestStallInterestPage'));
 export const FestOrganizerLeadsPage = lazyWithRetry(() => import('../../pages/fest-organizer/FestOrganizerLeadsPage'));
 
 export const MindSparkPaymentsLoginPage = lazyWithRetry(() => import('../../pages/mindspark-payments/MindSparkPaymentsLoginPage'));

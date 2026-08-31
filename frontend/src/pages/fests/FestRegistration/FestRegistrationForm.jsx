@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { ArrowLeft, Loader, CheckCircle } from 'lucide-react';
 import CrwdCtrlLogin from '../../auth/login';
 import CrwdCtrlRegister from '../../auth/register';
 import PaymentErrorModal from '../../../components/PaymentErrorModal';
+import InAppOpenChromeGate, { shouldShowInAppChromeGate } from '../../../components/InAppOpenChromeGate';
 import FestRegistrationField from './FestRegistrationField';
 import { generateFieldId } from './helpers';
 import {
@@ -66,6 +68,10 @@ export default function FestRegistrationForm({
   handleFileUpload,
 }) {
   const goBack = useInAppBack();
+  const inAppChrome = shouldShowInAppChromeGate();
+  const [chromeGateDismissed, setChromeGateDismissed] = useState(false);
+  const showChromeGate = formLocked && inAppChrome && !chromeGateDismissed && !authSyncing;
+  const showLoginSheet = Boolean(showLogin) && (!inAppChrome || chromeGateDismissed);
   const hideFestCommonForm =
     Boolean(isCompetitionRegistration)
     && getFestPluginFromAny(fest, competition?.fest, competition).skipFestCommonFormOnCompetition;
@@ -122,11 +128,23 @@ export default function FestRegistrationForm({
       />
       <div className={`mx-auto px-4 sm:px-6 lg:px-8 transition-opacity duration-300 ${mindSparkLayout ? 'max-w-5xl' : 'max-w-4xl'} ${formLocked ? 'opacity-90' : ''}`}>
         {formLocked && (
-          <div className={`mb-4 rounded-xl border px-4 py-3 text-sm ${isDark ? 'bg-[#0ECCEE]/10 border-[#0ECCEE]/30 text-[#0ECCEE]' : 'bg-cyan-50 border-cyan-200 text-cyan-800'}`}>
+          <button
+            type="button"
+            onClick={() => {
+              if (authSyncing) return;
+              if (inAppChrome) {
+                setChromeGateDismissed(false);
+                return;
+              }
+            }}
+            className={`mb-4 w-full text-left rounded-xl border px-4 py-3 text-sm ${isDark ? 'bg-[#0ECCEE]/10 border-[#0ECCEE]/30 text-[#0ECCEE]' : 'bg-cyan-50 border-cyan-200 text-cyan-800'}`}
+          >
             {authSyncing
               ? 'Finishing sign-in…'
-              : 'Preview the form below — sign in with Google to fill and submit.'}
-          </div>
+              : inAppChrome
+                ? 'Instagram blocks Google — tap to OPEN IN CHROME'
+                : 'Preview the form below — sign in with Google to fill and submit.'}
+          </button>
         )}
         {/* Header */}
         <div className="flex items-start gap-3 sm:gap-4 mb-5 sm:mb-6 mt-1 sm:mt-0 md:mb-4">
@@ -451,7 +469,15 @@ export default function FestRegistrationForm({
         </div>
       </div>
 
-      {showLogin && (
+      <InAppOpenChromeGate
+        open={showChromeGate}
+        actionLabel="register"
+        eventName={competition?.name || fest?.festName || fest?.name || ''}
+        isDark={isDark}
+        onDismiss={() => setChromeGateDismissed(true)}
+      />
+
+      {showLoginSheet && (
         <CrwdCtrlLogin
           googleOnly
           title="Sign in to register"

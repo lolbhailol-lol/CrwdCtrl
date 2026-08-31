@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, Suspense, lazy } from 'react';
 import { Calendar, MapPin, Heart } from "lucide-react";
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { Phone, Instagram, Mail, ArrowLeft, Share, ChevronLeft, ChevronRight, X } from 'lucide-react';
@@ -21,8 +21,6 @@ import {
   isFestPlaceholderCopy,
   festHasCompetitionGroups,
 } from '../../utils/festPublicTransform';
-import CrwdCtrlLogin from '../auth/login';
-import CrwdCtrlRegister from '../auth/register';
 import { publicFetchJSONRetry as fetchJSON } from '../../services/api/client';
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
@@ -34,6 +32,9 @@ import CompetitionCoverImage from '../../components/CompetitionCoverImage';
 import FestPublicLiveStrip from '../../components/FestPublicLiveStrip';
 import { getFestPlugin } from '../../features/fests/plugins';
 import { useInAppBack } from '../../hooks/useInAppBack';
+
+const CrwdCtrlLogin = lazy(() => import('../auth/login'));
+const CrwdCtrlRegister = lazy(() => import('../auth/register'));
 function formatCompFee(compOrFee) {
   if (compOrFee && typeof compOrFee === 'object') {
     return resolveCompetitionFee(compOrFee).label;
@@ -1409,19 +1410,23 @@ function EventDetailsPage() {
       {/* Login Modal */}
       {showLogin && (
         <div className="fixed inset-0 z-50">
-          <CrwdCtrlLogin
-            googleOnly
-            title="Sign in to register"
-            subtitle="One tap with Google — then finish registration"
-            onClose={handleCloseLogin}
-          />
+          <Suspense fallback={null}>
+            <CrwdCtrlLogin
+              googleOnly
+              title="Sign in to register"
+              subtitle="One tap with Google — then finish registration"
+              onClose={handleCloseLogin}
+            />
+          </Suspense>
         </div>
       )}
 
       {/* Register Modal */}
       {showRegister && (
         <div className="fixed inset-0 z-50">
-          <CrwdCtrlRegister onClose={handleCloseRegister} onSwitchToLogin={handleSwitchToLogin} />
+          <Suspense fallback={null}>
+            <CrwdCtrlRegister onClose={handleCloseRegister} onSwitchToLogin={handleSwitchToLogin} />
+          </Suspense>
         </div>
       )}
     </div>

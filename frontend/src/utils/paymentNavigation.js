@@ -18,7 +18,7 @@ export const BOOKING_REDIRECT_MS = 400;
 /** Per-attempt inner retries inside one verify call. */
 export const PAYMENT_VERIFY_RETRY_MS = [300, 500, 800, 1200, 2000];
 /** Max wait on /payment/return before handing off to the booking page. */
-export const PAYMENT_RETURN_MAX_WAIT_MS = 4500;
+export const PAYMENT_RETURN_MAX_WAIT_MS = 15000;
 /** Background poll on fest/event/booking pages (user sees “Finishing…” overlay). */
 export const PAYMENT_BACKGROUND_MAX_WAIT_MS = 45000;
 /** Gaps between poll rounds (background only). */

@@ -83,6 +83,7 @@ export default function FestRegistration() {
         paymentResumeWasPaid={paymentResumeWasPaid}
         submissionProgress={submissionProgress}
         navigate={navigate}
+        showEscapeWhileWaiting={!paymentResumeError}
         onRetryResume={retryPaymentResume}
         onReturnToForm={() => {
           setCompletingPayment(false);

@@ -89,6 +89,13 @@ test('Game of Innovation fee tiers resolve by selected category', () => {
 
   assert.throws(() => resolveCompetitionTicketPrice(competition, ''), /select a registration category/i);
   assert.throws(() => resolveCompetitionTicketPrice(competition, 'alumni'), /Invalid registration category/i);
+
+  const solo = resolveCompetitionTicketPrice(
+    { feeTiers: [{ id: 'ug', label: 'UG students', amount: 300 }] },
+    '',
+  );
+  assert.equal(solo.ticketPrice, 300);
+  assert.equal(solo.tier.id, 'ug');
 });
 
 test('competitions without feeTiers keep a single ticket price', () => {

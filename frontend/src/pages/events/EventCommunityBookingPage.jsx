@@ -1,11 +1,9 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, Suspense, lazy } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { ArrowLeft, ChevronLeft, ChevronRight, ChevronDown, Loader, CheckCircle, Clock, Check, CalendarX } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationsContext';
-import CrwdCtrlLogin from '../auth/login';
-import CrwdCtrlRegister from '../auth/register';
 import InAppOpenChromeGate, { shouldShowInAppChromeGate } from '../../components/InAppOpenChromeGate';
 import { buildVerifiedPaymentFields } from '../../utils/useCashfree';
 import { useInAppBack } from '../../hooks/useInAppBack';
@@ -14,6 +12,7 @@ import PaymentErrorModal from '../../components/PaymentErrorModal';
 import GenderQuickPick from '../../components/GenderQuickPick';
 import RunCheckoutPanel from '../../components/sports/RunCheckoutPanel';
 import DetailPageLoader from '../../components/DetailPageLoader';
+import { CompletingPaymentStep } from '../fests/FestRegistration/PaymentStep';
 import {
     getPendingPayment,
     clearPendingPayment,
@@ -67,6 +66,9 @@ import {
     shortBookingStepLabel,
     standaloneQuestionFields,
 } from '../../utils/formOptionCoupons';
+
+const CrwdCtrlLogin = lazy(() => import('../auth/login'));
+const CrwdCtrlRegister = lazy(() => import('../auth/register'));
 
 const runDetailCache = createDetailCache('crwdctrl_event_community_detail_v18_');
 
@@ -230,6 +232,8 @@ export default function EventCommunityBookingPage() {
     const [uploadingProof, setUploadingProof] = useState(false);
     const [upiCopied, setUpiCopied] = useState(false);
     const [showTierIncludes, setShowTierIncludes] = useState(false);
+    const [processingProgress, setProcessingProgress] = useState('');
+    const [showPaymentEscape, setShowPaymentEscape] = useState(false);
     const retryCheckoutRef = useRef(null);
     const couponSourceRef = useRef(null);
     const couponCodeRef = useRef('');
@@ -314,6 +318,26 @@ export default function EventCommunityBookingPage() {
         ? step === confirmStep && paying
         : step === confirmStep && paying;
     const qrNeedsReview = chargePerPerson > 0 && isOrganizerQr && !(couponInfo?.amountAfterDiscount === 0);
+
+    useEffect(() => {
+        if (!paying) {
+            setShowPaymentEscape(false);
+            setProcessingProgress('');
+            return undefined;
+        }
+        const started = Date.now();
+        setProcessingProgress('Confirming payment & saving your booking…');
+        const tick = window.setInterval(() => {
+            const elapsed = Date.now() - started;
+            if (elapsed >= 8000) setShowPaymentEscape(true);
+            if (elapsed >= 15000) {
+                setProcessingProgress('Still confirming with the bank — you can check My Bookings anytime…');
+            } else if (elapsed >= 5000) {
+                setProcessingProgress('Payment received — waiting for bank confirmation…');
+            }
+        }, 1000);
+        return () => window.clearInterval(tick);
+    }, [paying]);
 
     useBookingSuccessPopup(showSuccess && !qrNeedsReview, {
         name: eventName,
@@ -1332,17 +1356,19 @@ export default function EventCommunityBookingPage() {
                 onDismiss={() => setChromeGateDismissed(true)}
             />
             {showLoginOverlay || showLogin ? (
-                <CrwdCtrlLogin
-                    googleOnly
-                    title="Sign in to book"
-                    subtitle="Your form is ready below — one tap with Google to start filling it"
-                    onClose={handleCloseLogin}
-                />
+                <Suspense fallback={null}>
+                    <CrwdCtrlLogin
+                        googleOnly
+                        title="Sign in to book"
+                        subtitle="Your form is ready below — one tap with Google to start filling it"
+                        onClose={handleCloseLogin}
+                    />
+                </Suspense>
             ) : null}
         </>
     );
 
-    if ((loadingEvent || waitingOnAuth) && !showSuccess && !showProcessing) {
+    if (loadingEvent && !showSuccess && !showProcessing) {
         return (
             <>
                 <DetailPageLoader label="Loading booking" variant="booking" />
@@ -1402,7 +1428,22 @@ export default function EventCommunityBookingPage() {
     }
 
     if (showProcessing) {
-        return <DetailPageLoader label="Confirming your booking" />;
+        return (
+            <CompletingPaymentStep
+                isDark={isDark}
+                paymentResumeError=""
+                submissionProgress={processingProgress}
+                navigate={navigate}
+                showEscapeWhileWaiting={showPaymentEscape}
+                onReturnToForm={() => {
+                    paymentResumeRef.current = false;
+                    setPaying(false);
+                    setPayDone(false);
+                    setStep(detailsStep || 2);
+                    setError('');
+                }}
+            />
+        );
     }
 
     if (showSuccess) {
@@ -1539,10 +1580,11 @@ export default function EventCommunityBookingPage() {
             />
             <div className={`max-w-lg mx-auto px-4 sm:px-6 transition-opacity duration-300 ${formLocked ? 'opacity-90' : ''}`}>
 
-                {formLocked ? (
+                {formLocked || waitingOnAuth ? (
                     <button
                         type="button"
                         onClick={() => {
+                            if (waitingOnAuth) return;
                             if (inAppChrome) {
                                 setChromeGateDismissed(false);
                                 return;
@@ -1551,13 +1593,17 @@ export default function EventCommunityBookingPage() {
                         }}
                         className={`mb-4 w-full text-left rounded-xl border px-4 py-3 text-sm font-semibold transition-opacity hover:opacity-90 ${isDark ? 'bg-[#0ECCEE]/10 border-[#0ECCEE]/30 text-[#0ECCEE]' : 'bg-cyan-50 border-cyan-200 text-cyan-800'}`}
                     >
-                        {inAppChrome
-                            ? 'Instagram blocks Google — tap to OPEN IN CHROME'
-                            : 'Sign in with Google to fill and book — tap here'}
+                        {waitingOnAuth
+                            ? 'Finishing sign-in…'
+                            : inAppChrome
+                                ? 'Instagram blocks Google — tap to OPEN IN CHROME'
+                                : 'Sign in with Google to fill and book — tap here'}
                         <span className={`mt-1 block text-xs font-normal ${isDark ? 'text-[#0ECCEE]/80' : 'text-cyan-700'}`}>
-                            {inAppChrome
-                                ? 'Same booking page opens in Chrome / Safari, then you can register.'
-                                : 'Required to complete your booking.'}
+                            {waitingOnAuth
+                                ? 'Your booking form is ready — hang tight a second.'
+                                : inAppChrome
+                                    ? 'Same booking page opens in Chrome / Safari, then you can register.'
+                                    : 'Required to complete your booking.'}
                         </span>
                     </button>
                 ) : null}
@@ -1984,7 +2030,9 @@ export default function EventCommunityBookingPage() {
 
             {showRegister && (
                 <div className="fixed inset-0 z-50">
-                    <CrwdCtrlRegister onClose={handleCloseRegister} onSwitchToLogin={handleSwitchToLogin} />
+                    <Suspense fallback={null}>
+                        <CrwdCtrlRegister onClose={handleCloseRegister} onSwitchToLogin={handleSwitchToLogin} />
+                    </Suspense>
                 </div>
             )}
         </div>

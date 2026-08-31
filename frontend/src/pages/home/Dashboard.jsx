@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useMemo, useCallback, Suspense, lazy } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Heart, ChevronRight, ChevronLeft, Bell, User, Search, Calendar, MapPin, Instagram, Navigation, X, Zap, Clock, Wifi, ImageOff } from 'lucide-react';
 import CardFavoriteButton from '../../components/CardFavoriteButton';
@@ -21,9 +21,7 @@ import { usePageContentLoading } from '../../hooks/usePageContentLoading';
 import { setHomeShellReady } from '../../utils/homeShellReady';
 import { buildSearchKeywordsFromCatalog } from '../../utils/buildSearchKeywords';
 import { clearSearchKeywordsCache } from '../../services/searchService';
-import CrwdCtrlLogin from '../auth/login';
 import { useAuth } from '../../context/AuthContext';
-import CrwdCtrlRegister from '../auth/register';
 import { TRENDING_CARD_GAP } from '../../hooks/useHomeCarousel';
 import HeroBanner from '../../components/HeroBanner';
 import MobileHeroSearchField from '../../components/MobileHeroSearchField';
@@ -49,6 +47,9 @@ import { usePublicConfig } from '../../hooks/usePublicConfig';
 import { communityPath, competitionPath, eventShowPath, festPath, runClubPath, sportRunPath, trekPath } from '../../utils/slugRoutes';
 import { buildFestDetailNavState } from '../../utils/detailPageCache';
 import { prefetchFestDetail } from '../../services/api/fests.api';
+
+const CrwdCtrlLogin = lazy(() => import('../auth/login'));
+const CrwdCtrlRegister = lazy(() => import('../auth/register'));
 
 const HOME_JSON_LD = [
     webPageSchema({
@@ -284,11 +285,9 @@ const Dashboard = () => {
     const [showRegister, setShowRegister] = useState(false);
     const [fests, setFests] = useState(readInitialFestsFromCache);
     const [isFestsLoading, setIsFestsLoading] = useState(() => readInitialFestsFromCache().length === 0);
-    // True once all secondary section sources (treks, sports, run clubs, events, ...)
-    // have settled. Carousels wait for this so the centered priority card doesn't
-    // change as later sources stream in (no "wrong card briefly in center" flash).
-    const [homeAuxLoaded, setHomeAuxLoaded] = useState(false);
-    usePageContentLoading(isFestsLoading || !homeAuxLoaded);
+    // Aux feeds hydrate in place; flag kept for settle markers in fetch effects.
+    const [, setHomeAuxLoaded] = useState(false);
+    usePageContentLoading(isFestsLoading);
 
     // Soft safety only — do not end loading before cold-start fetches can finish (iOS)
     useEffect(() => {
@@ -1252,7 +1251,8 @@ const Dashboard = () => {
         [fests, homeTreks, homeCommunities, homeSports],
     );
 
-    const homeBooting = isFestsLoading || !homeAuxLoaded;
+    // Paint as soon as fests exist (cache or network). Aux feeds hydrate in place.
+    const homeBooting = isFestsLoading && fests.length === 0;
 
     useLayoutEffect(() => {
         setHomeShellReady(!homeBooting);
@@ -1501,14 +1501,18 @@ const Dashboard = () => {
             {/* Login Modal */}
             {showLogin && !isAuthProcessing && !isLoading && !isRedirectProcessing && (
                 <div className="fixed inset-0 z-50">
-                    <CrwdCtrlLogin onClose={handleCloseLogin} onSwitchToRegister={handleSwitchToRegister} />
+                    <Suspense fallback={null}>
+                        <CrwdCtrlLogin onClose={handleCloseLogin} onSwitchToRegister={handleSwitchToRegister} />
+                    </Suspense>
                 </div>
             )}
 
             {/* Register Modal */}
             {showRegister && !isAuthProcessing && !isLoading && !isRedirectProcessing && (
                 <div className="fixed inset-0 z-50">
-                    <CrwdCtrlRegister onClose={handleCloseRegister} onSwitchToLogin={handleSwitchToLogin} />
+                    <Suspense fallback={null}>
+                        <CrwdCtrlRegister onClose={handleCloseRegister} onSwitchToLogin={handleSwitchToLogin} />
+                    </Suspense>
                 </div>
             )}
 

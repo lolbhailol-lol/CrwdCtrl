@@ -594,6 +594,12 @@ export default function useFestRegistration() {
 
     let pricingPayload = null;
     if (isCompetitionRegistration && competitionBaseFee > 0) {
+      // Prefetch/stubs sometimes omit feeTiers — wait until public competition payload is hydrated
+      if (!Object.prototype.hasOwnProperty.call(competition || {}, 'feeTiers')) {
+        setPriceBreakdown(null);
+        setCouponQuoting(false);
+        return;
+      }
       if (competitionFeeTiers.length && !String(formData.feeTierId || '').trim()) {
         setPriceBreakdown(null);
         setCouponQuoting(false);
@@ -1503,10 +1509,17 @@ export default function useFestRegistration() {
         const orderNotes = isCompetitionRegistration
           ? {
             competitionId: resolvedCompetitionId || competitionId,
-            tierId: formData.feeTierId || undefined,
+            tierId: String(formData.feeTierId || getAllFormData()?.feeTierId || '').trim() || undefined,
             registrationDraft: buildOrderRegistrationDraft(),
           }
           : { festId, registrationDraft: buildOrderRegistrationDraft() };
+        if (
+          isCompetitionRegistration
+          && getCompetitionFeeTiers(competition).length > 1
+          && !orderNotes.tierId
+        ) {
+          throw new Error('Please select a registration category before payment.');
+        }
         const orderRes = await fetch(`${API_BASE_URL}/payment/order`, {
           method: 'POST',
           headers: getBearerAuthHeaders(authToken),
