@@ -793,6 +793,16 @@ const CRWDCTRL_EXPLORE_EMAIL_IMAGES = {
     footer: 'https://b9kqebckzmreaq9waa54apdm8ecy3yrh3uhmwux93pi.canva-cdn.email/5493b3562ba4d78ebbee8b983115a29f.jpg',
 };
 
+/** Canva login email assets (export from Canva email designer). */
+const CRWDCTRL_LOGIN_EMAIL_IMAGES = {
+    header: 'https://b9kqebckzmreaq9waa54apdm8ecy3yrh3uhmwux93pi.canva-cdn.email/c7b6052654b27b1c90734d45040b4383.png',
+    midTop: 'https://b9kqebckzmreaq9waa54apdm8ecy3yrh3uhmwux93pi.canva-cdn.email/b9fc39c1730cc6ef2a85e9a49110ff61.jpg',
+    midBottom: 'https://b9kqebckzmreaq9waa54apdm8ecy3yrh3uhmwux93pi.canva-cdn.email/73988c6987f71eb250fa7448642ab2dd.jpg',
+    footer: 'https://b9kqebckzmreaq9waa54apdm8ecy3yrh3uhmwux93pi.canva-cdn.email/b1ba7c7bd4e178baeea205d304b18b85.png',
+};
+
+const CRWDCTRL_COMMUNITY_WHATSAPP_LINK = 'https://chat.whatsapp.com/DD3JZyrasKxGTTX1wV9E7J';
+
 const SUPPORT_EMAIL = 'crwdctrl.in@gmail.com';
 
 function buildExploreCategoryCell(category, siteUrl) {
@@ -1702,16 +1712,102 @@ const sendLoginConfirmationEmail = async (userData) => {
     }
 };
 
-// Generate HTML for login confirmation email
+// Generate HTML for login confirmation email (Canva design)
 const generateLoginConfirmationEmailHTML = (userData) => {
     const loginTime = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-    return buildCrwdCtrlExploreEmailHTML({
-        userName: userData?.name,
-        headline: 'You\'re logged in!',
-        message: 'your CrwdCtrl account is active. Explore run clubs, college fests, treks and event communities — or tap Explore Now to jump back in.',
-        loginTime,
-        preheader: 'Login confirmed — discover runs, college fests, treks and events on CrwdCtrl.',
-    });
+    const safeName = escapeHtml(userData?.name || 'there');
+    const imgs = CRWDCTRL_LOGIN_EMAIL_IMAGES;
+    const waLink = CRWDCTRL_COMMUNITY_WHATSAPP_LINK;
+    const preheader = 'You\'re logged in to CrwdCtrl — join the community on WhatsApp.';
+
+    return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="format-detection" content="telephone=no, date=no, address=no, email=no" />
+    <meta name="x-apple-disable-message-reformatting" />
+    <title>You're logged in — CrwdCtrl</title>
+    <style>
+        body{margin:0;padding:0}
+        table{mso-table-lspace:0;mso-table-rspace:0}
+        img{border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic}
+        a[x-apple-data-detectors]{color:inherit!important;text-decoration:inherit!important}
+        @media (max-width:599px){.ecw{width:100%!important;min-width:0!important}}
+    </style>
+    <!--[if mso]><noscript><xml>
+        <o:OfficeDocumentSettings><o:AllowPNG/><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings>
+    </xml></noscript><![endif]-->
+</head>
+<body style="width:100%;-webkit-text-size-adjust:100%;text-size-adjust:100%;background-color:#f0f1f5;margin:0;padding:0">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;">${escapeHtml(preheader)}</div>
+    <table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="#f0f1f5" style="background-color:#f0f1f5" role="presentation">
+        <tr>
+            <td style="background-color:#f0f1f5">
+                <!--[if mso]><center><table align="center" border="0" cellpadding="0" cellspacing="0" width="600"><tr><td><![endif]-->
+                <table align="center" width="600" border="0" cellpadding="0" cellspacing="0" role="presentation" class="ecw" style="max-width:600px;margin:0 auto;background-color:#fafaf8;width:600px">
+                    <tr>
+                        <td style="vertical-align:top;padding:24px 0 16px">
+                            <img src="${imgs.header}" width="600" alt="CrwdCtrl" style="display:block;width:100%;max-width:600px;height:auto" />
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:0 24px 12px;font-family:Arial,Helvetica,sans-serif;text-align:center">
+                            <p style="margin:0;font-size:18px;font-weight:800;color:#053780;line-height:1.35;letter-spacing:-0.01em">Hi ${safeName} — welcome to CrwdCtrl</p>
+                            <p style="margin:8px 0 0;font-size:14px;font-weight:600;color:#0ab6d7;line-height:1.45">Login successful</p>
+                            <p style="margin:6px 0 0;font-size:12px;color:#64748b;line-height:1.5">Signed in at ${escapeHtml(loginTime)} (IST)</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="vertical-align:top;padding:0 0 16px">
+                            <img src="${imgs.midTop}" width="600" alt="Join the CrwdCtrl community" style="display:block;width:100%;max-width:600px;height:auto" />
+                        </td>
+                    </tr>
+                    <tr>
+                        <td align="center" style="padding:0 24px 16px">
+                            <!--[if mso]>
+                            <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="${waLink}" style="height:39px;width:176px;v-text-anchor:middle;" arcsize="65%" fillcolor="#57ccd8">
+                                <w:anchorlock/>
+                                <center style="color:#ffffff;font-family:sans-serif;font-size:16px;font-weight:700">JOIN NOW !</center>
+                            </v:roundrect>
+                            <![endif]-->
+                            <!--[if !mso]><!-->
+                            <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;max-width:176px;width:100%">
+                                <tr>
+                                    <td bgcolor="#57ccd8" align="center" style="background-color:#57ccd8;border-radius:25px">
+                                        <a href="${waLink}" target="_blank" rel="noopener" style="display:block;padding:10px 16px;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:700;color:#ffffff;text-decoration:none;text-align:center;line-height:1.4">JOIN NOW !</a>
+                                    </td>
+                                </tr>
+                            </table>
+                            <!--<![endif]-->
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="vertical-align:top;padding:0 0 16px">
+                            <img src="${imgs.midBottom}" width="600" alt="Discover events on CrwdCtrl" style="display:block;width:100%;max-width:600px;height:auto" />
+                        </td>
+                    </tr>
+                    <tr>
+                        <td align="center" style="padding:0 24px 16px">
+                            <img src="${imgs.footer}" width="590" alt="CrwdCtrl" style="display:block;width:100%;max-width:590px;height:auto" />
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:0 24px 8px;font-family:Montserrat,Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;color:#111827">Questions?</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:0 24px 24px;font-family:Montserrat,Arial,Helvetica,sans-serif;font-size:11px;color:#475569;line-height:1.5">
+                            Reach us at
+                            <a href="mailto:${SUPPORT_EMAIL}" style="color:#4cc9d8;font-weight:700;text-decoration:none">${SUPPORT_EMAIL}</a>
+                        </td>
+                    </tr>
+                </table>
+                <!--[if mso]></td></tr></table></center><![endif]-->
+            </td>
+        </tr>
+    </table>
+</body>
+</html>`;
 };
 
 module.exports = {
