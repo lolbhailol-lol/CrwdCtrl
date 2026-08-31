@@ -24,6 +24,8 @@ import { DETAIL_FETCH_OPTS, classifyDetailLoadError } from '../../utils/detailPa
 import { trackBookNowClick } from '../../services/analyticsService';
 import { organizerHubCopy } from '../../utils/listingHubCopy';
 import { usePageContentLoading } from '../../hooks/usePageContentLoading';
+import InAppOpenChromeGate, { shouldShowInAppChromeGate } from '../../components/InAppOpenChromeGate';
+import { getExternalBrowserTargetUrl } from '../../utils/openInExternalBrowser';
 
 const RUN_DETAIL_CACHE_PREFIX = 'crwdctrl_event_community_detail_v18_';
 const readRunDetailCache = (key) => {
@@ -120,6 +122,7 @@ export default function EventCommunityEventPage() {
     const [tierSheetOpen, setTierSheetOpen] = useState(false);
     const [expandedTierId, setExpandedTierId] = useState(null);
     const [selectingTierId, setSelectingTierId] = useState(null);
+    const [chromeGateUrl, setChromeGateUrl] = useState('');
     const imgRef = useRef(null);
 
     useEffect(() => {
@@ -255,6 +258,20 @@ export default function EventCommunityEventPage() {
     }
 
     const club = event.runClub || null;
+    const goToBookPage = (tierId = '') => {
+        const path = `${eventCommunityEventPath(event)}/book${tierId ? `?tier=${encodeURIComponent(tierId)}` : ''}`;
+        if (shouldShowInAppChromeGate()) {
+            setChromeGateUrl(getExternalBrowserTargetUrl(`${window.location.origin}${path}`));
+            return;
+        }
+        navigate(path, {
+            state: {
+                event,
+                runClub: club,
+                ...(tierId ? { tierId, freshBooking: true } : { freshBooking: true }),
+            },
+        });
+    };
     const shareImage = primaryCoverUrl(event.coverImages || {}, event.coverImage || event.image);
     const coverImg = shareImage || null;
     // Gallery uploads only — strip any card/cover URLs that leaked into images[]
@@ -495,7 +512,7 @@ export default function EventCommunityEventPage() {
                                         mode: event.registration?.mode || 'internal_form',
                                         destination: 'internal_book_page',
                                     });
-                                    navigate(`${eventCommunityEventPath(event)}/book`, { state: { event, runClub: club, freshBooking: true } });
+                                    goToBookPage();
                                 }}
                                 className="flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-[#0ECCEE] text-black active:opacity-90 transition"
                             >
@@ -582,9 +599,7 @@ export default function EventCommunityEventPage() {
                                                         setTierSheetOpen(false);
                                                         setExpandedTierId(null);
                                                         setSelectingTierId(null);
-                                                        navigate(`${eventCommunityEventPath(event)}/book?tier=${encodeURIComponent(tier.id)}`, {
-                                                            state: { event, runClub: club, tierId: tier.id, freshBooking: true },
-                                                        });
+                                                        goToBookPage(tier.id);
                                                     }, 320);
                                                 }}
                                                 className="w-full text-left p-4 cursor-pointer disabled:cursor-wait"
@@ -960,6 +975,14 @@ export default function EventCommunityEventPage() {
                 </div>
             </div>
             </div>
+            <InAppOpenChromeGate
+                open={Boolean(chromeGateUrl)}
+                actionLabel="register"
+                eventName={event?.title || event?.name || ''}
+                isDark={isDark}
+                pageUrl={chromeGateUrl}
+                onDismiss={() => setChromeGateUrl('')}
+            />
         </div>
     );
 }

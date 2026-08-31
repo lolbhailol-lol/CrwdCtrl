@@ -449,10 +449,10 @@ export default function CrwdCtrlLogin({
                                     <button
                                         type="button"
                                         onClick={handoffToExternalBrowser}
-                                        className="w-full min-h-12 flex items-center justify-center gap-2 rounded-2xl bg-[#0ECCEE] text-black font-bold text-sm hover:opacity-90"
+                                        className="w-full min-h-12 flex items-center justify-center gap-2 rounded-2xl bg-[#0ECCEE] text-black font-extrabold text-sm tracking-wide hover:opacity-90"
                                     >
                                         <ExternalLink size={18} />
-                                        Open in {preferredBrowserName}
+                                        OPEN IN {preferredBrowserName.toUpperCase()}
                                     </button>
                                     <p className={`pt-1 text-center text-[11px] ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
                                         {isAndroidDevice

@@ -6,6 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationsContext';
 import CrwdCtrlLogin from '../auth/login';
 import CrwdCtrlRegister from '../auth/register';
+import InAppOpenChromeGate, { shouldShowInAppChromeGate } from '../../components/InAppOpenChromeGate';
 import { buildVerifiedPaymentFields } from '../../utils/useCashfree';
 import { useInAppBack } from '../../hooks/useInAppBack';
 
@@ -165,6 +166,8 @@ export default function EventCommunityBookingPage() {
     const [showLogin, setShowLogin] = useState(false);
     const [showRegister, setShowRegister] = useState(false);
     const [loginDismissed, setLoginDismissed] = useState(false);
+    const [chromeGateDismissed, setChromeGateDismissed] = useState(false);
+    const inAppChrome = shouldShowInAppChromeGate();
 
     const isAuthed = useCallback(() => {
         return isAuthenticated || hasUsableAuthToken(authToken);
@@ -182,13 +185,17 @@ export default function EventCommunityBookingPage() {
             returnPath: `${window.location.pathname}${window.location.search || ''}${window.location.hash || ''}`,
         });
         setLoginDismissed(false);
+        setChromeGateDismissed(false);
         setShowLogin(true);
     }, []);
 
     useEffect(() => {
         if (isAuthenticated && showLogin) setShowLogin(false);
         if (isAuthenticated && showRegister) setShowRegister(false);
-        if (isAuthenticated) setLoginDismissed(false);
+        if (isAuthenticated) {
+            setLoginDismissed(false);
+            setChromeGateDismissed(false);
+        }
     }, [isAuthenticated, showLogin, showRegister]);
 
     const [event, setEvent] = useState(location.state?.event || null);
@@ -1306,21 +1313,34 @@ export default function EventCommunityBookingPage() {
 
     const hasStoredSession = !!localStorage.getItem('crwdctrl_token');
     const waitingOnAuth = hasStoredSession && (authLoading || isAuthProcessing || isRedirectProcessing);
-    const showLoginOverlay = formLocked
-        && !loginDismissed
+    const needsAuthGate = formLocked
         && !showSuccess
         && !showProcessing
         && !waitingOnAuth
         && !isRedirectProcessing;
+    // Instagram first: clear OPEN IN CHROME sheet (Google cannot work in-app)
+    const showChromeGate = needsAuthGate && inAppChrome && !chromeGateDismissed;
+    const showLoginOverlay = needsAuthGate && !loginDismissed && (!inAppChrome || chromeGateDismissed);
 
-    const loginOverlay = showLoginOverlay || showLogin ? (
-        <CrwdCtrlLogin
-            googleOnly
-            title="Sign in to book"
-            subtitle="Your form is ready below — one tap with Google to start filling it"
-            onClose={handleCloseLogin}
-        />
-    ) : null;
+    const loginOverlay = (
+        <>
+            <InAppOpenChromeGate
+                open={showChromeGate}
+                actionLabel="book"
+                eventName={event?.title || event?.name || ''}
+                isDark={isDark}
+                onDismiss={() => setChromeGateDismissed(true)}
+            />
+            {showLoginOverlay || showLogin ? (
+                <CrwdCtrlLogin
+                    googleOnly
+                    title="Sign in to book"
+                    subtitle="Your form is ready below — one tap with Google to start filling it"
+                    onClose={handleCloseLogin}
+                />
+            ) : null}
+        </>
+    );
 
     if ((loadingEvent || waitingOnAuth) && !showSuccess && !showProcessing) {
         return (
@@ -1522,12 +1542,22 @@ export default function EventCommunityBookingPage() {
                 {formLocked ? (
                     <button
                         type="button"
-                        onClick={openLogin}
+                        onClick={() => {
+                            if (inAppChrome) {
+                                setChromeGateDismissed(false);
+                                return;
+                            }
+                            openLogin();
+                        }}
                         className={`mb-4 w-full text-left rounded-xl border px-4 py-3 text-sm font-semibold transition-opacity hover:opacity-90 ${isDark ? 'bg-[#0ECCEE]/10 border-[#0ECCEE]/30 text-[#0ECCEE]' : 'bg-cyan-50 border-cyan-200 text-cyan-800'}`}
                     >
-                        Sign in with Google to fill and book — tap here
+                        {inAppChrome
+                            ? 'Instagram blocks Google — tap to OPEN IN CHROME'
+                            : 'Sign in with Google to fill and book — tap here'}
                         <span className={`mt-1 block text-xs font-normal ${isDark ? 'text-[#0ECCEE]/80' : 'text-cyan-700'}`}>
-                            On Instagram? Use Open in Chrome first, then sign in.
+                            {inAppChrome
+                                ? 'Same booking page opens in Chrome / Safari, then you can register.'
+                                : 'Required to complete your booking.'}
                         </span>
                     </button>
                 ) : null}
