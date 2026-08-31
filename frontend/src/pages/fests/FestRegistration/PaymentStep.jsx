@@ -72,10 +72,15 @@ export function CompletingPaymentStep({
             }`}
           >
             <RegistrationStatusVisual
-              mode={/pay|cashfree|checkout/i.test(String(submissionProgress || '')) ? 'payment' : 'server'}
-              title="Finishing registration"
-              subtitle="This usually takes a few seconds"
-              progressMessage={submissionProgress || 'Confirming payment & saving your booking…'}
+              mode="server"
+              title="Almost done"
+              subtitle="Saving your spot"
+              // Keep copy stable — rotating submissionProgress made mid-flow loaders feel glitchy
+              progressMessage={
+                /cancel|fail|error|couldn|unable/i.test(String(submissionProgress || ''))
+                  ? submissionProgress
+                  : 'Please wait a moment…'
+              }
               isDark={isDark}
             />
           </div>

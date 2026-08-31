@@ -208,7 +208,36 @@ router.get('/:idOrSlug', async (req, res) => {
         }
         event.genderRegistration = genderRegistration;
 
-        res.json({ event: sanitizePublicSportsEvent(event) });
+        let userRegistration = null;
+        const userId = getOptionalUserId(req);
+        if (userId) {
+            try {
+                const CategoryRegistration = require('../model/category_registration_model');
+                const existing = await CategoryRegistration.findOne({
+                    category: 'sports',
+                    eventId: event._id,
+                    user: userId,
+                    status: { $in: ['pending', 'confirmed'] },
+                })
+                    .select('_id status paymentStatus')
+                    .sort({ createdAt: -1 })
+                    .lean();
+                if (existing) {
+                    userRegistration = {
+                        registrationId: existing._id,
+                        status: existing.status,
+                        paymentStatus: existing.paymentStatus || '',
+                    };
+                }
+            } catch (err) {
+                console.warn('publicSports userRegistration lookup failed:', err?.message || err);
+            }
+        }
+
+        res.json({
+            event: sanitizePublicSportsEvent(event),
+            userRegistration,
+        });
     } catch (error) {
         console.error('publicSports getById error:', error);
         res.status(500).json({ message: 'Failed to fetch sports event' });

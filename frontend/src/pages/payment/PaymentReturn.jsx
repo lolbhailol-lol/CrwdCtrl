@@ -165,18 +165,15 @@ export default function PaymentReturn() {
   const navigate = useNavigate();
   const { isDark } = useDarkMode();
   const [status, setStatus] = useState('confirming'); // confirming | success | redirecting | pending
-  const [message, setMessage] = useState('Confirming your payment…');
+  const [message, setMessage] = useState('Please wait a moment…');
 
   useEffect(() => {
     const cancelledRef = { current: false };
 
-    const updateProgress = ({ attempt }) => {
+    const updateProgress = () => {
       if (cancelledRef.current) return;
-      setMessage(
-        attempt <= 2
-          ? 'Confirming your payment…'
-          : 'Payment received — waiting for bank confirmation…',
-      );
+      // Keep one calm line — rotating copy felt like a glitch between screens
+      setMessage('Please wait a moment…');
     };
 
     (async () => {
@@ -269,7 +266,7 @@ export default function PaymentReturn() {
               }
               if (!cancelledRef.current) {
                 setStatus('redirecting');
-                setMessage('Finishing your booking…');
+                setMessage('Please wait a moment…');
                 handoffPaymentToReturnPath(navigate, returnPath);
               }
               return;
@@ -278,7 +275,7 @@ export default function PaymentReturn() {
             if (verifyResult.status === 'pending' && !verifyResult.verified) {
               if (!cancelledRef.current) {
                 setStatus('redirecting');
-                setMessage('Finishing your registration…');
+                setMessage('Please wait a moment…');
                 handoffPaymentToReturnPath(navigate, returnPath);
               }
               return;
@@ -597,7 +594,12 @@ export default function PaymentReturn() {
       ) : (
         <DetailLoader3DIcon variant="payment" size="compact" className="mb-4" />
       )}
-      <p className={`text-sm text-center max-w-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{message}</p>
+      <p className={`text-base font-semibold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+        {status === 'success' ? 'You’re in' : 'Almost done'}
+      </p>
+      <p className={`text-sm text-center max-w-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+        {status === 'success' ? (message || 'Payment successful') : 'Please wait a moment…'}
+      </p>
       {status === 'confirming' || status === 'pending' ? (
         <button
           type="button"

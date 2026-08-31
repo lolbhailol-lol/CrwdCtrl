@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { ArrowLeft, Share2, Heart, ChevronRight, ChevronDown, Check } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
+import { useAuth } from '../../context/AuthContext';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import Seo from '../../components/Seo';
@@ -17,6 +18,7 @@ import { resolveRunContacts, instagramHandle } from '../../utils/runContacts';
 import { getSportsTiers, isTiersPricing, minSportsFee, formatInr } from '../../utils/sportsTiers';
 import { groupTermsAndConditions } from '../../utils/termsAndConditions';
 import { useInAppBack } from '../../hooks/useInAppBack';
+import { resolveAuthToken, getBearerAuthHeaders } from '../../utils/authToken';
 
 import { publicFetchJSONRetry } from '../../services/api/client';
 import { DETAIL_FETCH_OPTS, classifyDetailLoadError } from '../../utils/detailPageLoad';
@@ -97,10 +99,12 @@ export default function RunEventDetailPage() {
     const location = useLocation();
     const { id } = useParams();
     const { isDark } = useDarkMode();
+    const { authToken, isAuthenticated } = useAuth();
 
     const [event, setEvent] = useState(null);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState('');
+    const [userRegistration, setUserRegistration] = useState(null);
     const [liked, setLiked] = useState(false);
     const [imgPg, setImgPg] = useState(0);
     const [overviewExpanded, setOverviewExpanded] = useState(false);
@@ -155,6 +159,7 @@ export default function RunEventDetailPage() {
         publicFetchJSONRetry(`/sports/${encodeURIComponent(eventId)}`, {
             signal: controller.signal,
             ...DETAIL_FETCH_OPTS,
+            headers: getBearerAuthHeaders(resolveAuthToken(authToken)),
         })
             .then((res) => {
                 if (controller.signal.aborted) return;
@@ -175,6 +180,15 @@ export default function RunEventDetailPage() {
                     setEvent(null);
                     setLoadError('not_found');
                 }
+                const ur = d?.userRegistration;
+                if (ur?.registrationId) {
+                    setUserRegistration({
+                        registrationId: String(ur.registrationId),
+                        status: ur.status || 'confirmed',
+                    });
+                } else {
+                    setUserRegistration(null);
+                }
             })
             .catch((err) => {
                 if (controller.signal.aborted) return;
@@ -191,7 +205,7 @@ export default function RunEventDetailPage() {
             });
         return () => controller.abort();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [id]);
+    }, [id, isAuthenticated, authToken]);
 
     useEffect(() => {
         if (!event || !id) return;
@@ -434,6 +448,8 @@ export default function RunEventDetailPage() {
                             ? event.registrationLink
                             : null;
                         const tiers = getSportsTiers(event);
+                        const alreadyReg = Boolean(userRegistration?.registrationId);
+                        const isPendingReg = alreadyReg && userRegistration.status === 'pending';
                         if (closed || full) {
                             return (
                                 <button
@@ -441,6 +457,24 @@ export default function RunEventDetailPage() {
                                     className="flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-gray-600 text-gray-300 cursor-not-allowed"
                                 >
                                     {closed ? 'Registration Closed' : 'Sold out'}
+                                </button>
+                            );
+                        }
+                        if (alreadyReg) {
+                            return (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const regId = userRegistration.registrationId;
+                                        navigate(
+                                            isPendingReg
+                                                ? `/registration-details/${regId}?type=sports`
+                                                : `/qr-ticket/${regId}?type=sports`,
+                                        );
+                                    }}
+                                    className="flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-[#0ECCEE] text-black active:opacity-90 transition"
+                                >
+                                    {isPendingReg ? 'View registration' : 'Already registered · View ticket'}
                                 </button>
                             );
                         }

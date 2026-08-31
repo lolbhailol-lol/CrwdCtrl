@@ -22,12 +22,14 @@ function progressWidth(message = '') {
   const m = String(message || '');
   if (/completed|success|done/i.test(m)) return '100%';
   if (/error|fail|unable|couldn/i.test(m)) return '100%';
-  if (/process|verif|confirm/i.test(m)) return '88%';
+  // Keep finishing / wait copy on one calm bar width — avoids mid-flow jumps
+  if (/please wait|almost|saving your|moment/i.test(m)) return '72%';
+  if (/process|verif|confirm|bank|booking/i.test(m)) return '72%';
   if (/submit|server|send/i.test(m)) return '68%';
   if (/prepar|upload|pack/i.test(m)) return '42%';
   if (/valid/i.test(m)) return '22%';
   if (/pay|cashfree|checkout/i.test(m)) return '55%';
-  return '18%';
+  return '62%';
 }
 
 function Icon3D({ mode = 'processing' }) {

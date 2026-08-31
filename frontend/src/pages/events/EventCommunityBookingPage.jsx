@@ -238,6 +238,8 @@ export default function EventCommunityBookingPage() {
     const [processingProgress, setProcessingProgress] = useState('');
     const [showPaymentEscape, setShowPaymentEscape] = useState(false);
     const [paymentResumeError, setPaymentResumeError] = useState('');
+    const [existingRegistrationId, setExistingRegistrationId] = useState('');
+    const [existingRegistrationStatus, setExistingRegistrationStatus] = useState('');
     const redirectStuckTimerRef = useRef(null);
     const retryCheckoutRef = useRef(null);
     const couponSourceRef = useRef(null);
@@ -334,8 +336,9 @@ export default function EventCommunityBookingPage() {
             }
             return undefined;
         }
+        // One stable line — rotating copy made the finishing screen feel glitchy
+        setProcessingProgress('Please wait a moment…');
         const started = Date.now();
-        setProcessingProgress('Confirming payment & saving your booking…');
         const tick = window.setInterval(() => {
             const elapsed = Date.now() - started;
             if (elapsed >= PAYMENT_ESCAPE_AFTER_MS) setShowPaymentEscape(true);
@@ -345,12 +348,6 @@ export default function EventCommunityBookingPage() {
                 );
                 setPaying(false);
                 setProcessingProgress('');
-                return;
-            }
-            if (elapsed >= 10000) {
-                setProcessingProgress('Still confirming — you can check My Bookings anytime…');
-            } else if (elapsed >= 4000) {
-                setProcessingProgress('Waiting for bank confirmation…');
             }
         }, 500);
         return () => window.clearInterval(tick);
@@ -447,6 +444,7 @@ export default function EventCommunityBookingPage() {
                 const res = await publicFetchJSONRetry(`/sports/${encodeURIComponent(evId)}`, {
                     signal: controller.signal,
                     ...DETAIL_FETCH_OPTS,
+                    headers: getBearerAuthHeaders(resolveAuthToken(authToken)),
                 });
                 if (controller.signal.aborted) return;
                 if (res?.data?.event) {
@@ -461,6 +459,14 @@ export default function EventCommunityBookingPage() {
                 } else {
                     setEvent(null);
                     setLoadError('not_found');
+                }
+                const ur = res?.data?.userRegistration;
+                if (ur?.registrationId && (isAuthenticated || hasUsableAuthToken(authToken))) {
+                    setExistingRegistrationId(String(ur.registrationId));
+                    setExistingRegistrationStatus(ur.status || 'confirmed');
+                } else {
+                    setExistingRegistrationId('');
+                    setExistingRegistrationStatus('');
                 }
             } catch (err) {
                 if (controller.signal.aborted) return;
@@ -477,7 +483,7 @@ export default function EventCommunityBookingPage() {
         })();
 
         return () => controller.abort();
-    }, [id, location.state?.event]);
+    }, [id, location.state?.event, authToken, isAuthenticated]);
 
     useEffect(() => {
         if (!event) return;
@@ -1480,6 +1486,64 @@ export default function EventCommunityBookingPage() {
         );
     }
 
+    if (existingRegistrationId && !showSuccess && !showProcessing) {
+        const isPending = existingRegistrationStatus === 'pending';
+        return (
+            <div className="crwdctrl-page crwdctrl-page--flat min-h-dvh flex items-center justify-center px-4">
+                <div className="text-center max-w-md mx-auto p-8 w-full">
+                    <CheckCircle className={`w-14 h-14 mx-auto mb-5 ${isPending ? 'text-amber-400' : 'text-[#0ECCEE]'}`} />
+                    <h1 className={`text-2xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {isPending ? 'Already submitted' : 'Already registered'}
+                    </h1>
+                    <p className={`text-sm mb-6 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                        {isPending ? (
+                            <>
+                                You already registered for <span className="text-[#0ECCEE] font-semibold">{eventName}</span>. Payment is waiting for community approval — don’t register again.
+                            </>
+                        ) : (
+                            <>
+                                This account is already registered for <span className="text-[#0ECCEE] font-semibold">{eventName}</span>. Open your ticket instead of registering again.
+                            </>
+                        )}
+                    </p>
+                    <div className="flex flex-col gap-3">
+                        <button
+                            type="button"
+                            onClick={() => navigate(
+                                isPending
+                                    ? `/registration-details/${existingRegistrationId}?type=sports&hub=events`
+                                    : `/qr-ticket/${existingRegistrationId}?type=sports&hub=events`,
+                            )}
+                            className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition"
+                        >
+                            {isPending ? 'View registration' : 'View ticket'}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => goToBookings(navigate)}
+                            className={`w-full py-3.5 rounded-xl font-semibold transition ${
+                                isDark
+                                    ? 'border border-gray-600 text-gray-200 hover:bg-gray-800'
+                                    : 'border border-gray-300 text-gray-800 hover:bg-gray-100'
+                            }`}
+                        >
+                            View My Bookings
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => navigate(event ? eventCommunityEventPath(event) : '/events')}
+                            className={`w-full py-2.5 rounded-xl text-sm font-medium transition ${
+                                isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'
+                            }`}
+                        >
+                            Back to event
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     if (showProcessing) {
         return (
             <CompletingPaymentStep
@@ -2070,7 +2134,9 @@ export default function EventCommunityBookingPage() {
                         <button type="button" onClick={next} disabled={paying || uploadingProof}
                             className="flex-1 px-4 sm:px-6 py-3 rounded-xl bg-[#0ECCEE] text-black font-bold hover:bg-[#0ECCEE]/90 active:scale-[0.98] transition-all text-sm flex items-center justify-center gap-2 shadow-lg shadow-[#0ECCEE]/10 disabled:opacity-60">
                             {paying ? (
-                                <><Loader className="w-4 h-4 animate-spin" /> Processing...</>
+                                <><Loader className="w-4 h-4 animate-spin" /> Please wait…</>
+                            ) : uploadingProof ? (
+                                <><Loader className="w-4 h-4 animate-spin" /> Uploading…</>
                             ) : step === 1 && isFreeFlow && extraCount === 0 ? (
                                 'Confirm free spot'
                             ) : step === detailsStep && chargePerPerson > 0 && isOrganizerQr ? (
