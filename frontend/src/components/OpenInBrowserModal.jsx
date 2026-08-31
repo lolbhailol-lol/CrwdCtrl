@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ExternalLink, Copy, Check, X } from 'lucide-react';
+import { ExternalLink, X } from 'lucide-react';
 import {
-    copyPageLink,
     detectInAppBrowserName,
     getExternalBrowserTargetUrl,
     openInExternalBrowser,
 } from '../utils/openInExternalBrowser';
+
+const AUTO_OPEN_SECONDS = 3;
 
 /**
  * Simple “open in Chrome / Safari” sheet for Instagram & other in-app browsers.
@@ -17,18 +18,49 @@ export default function OpenInBrowserModal({
     appName: appNameProp,
     pageUrl,
     isDark = true,
+    autoOpen = true,
 }) {
-    const [copied, setCopied] = useState(false);
+    const [secondsLeft, setSecondsLeft] = useState(null);
+    const [paused, setPaused] = useState(false);
+    const firedRef = useRef(false);
     const appName = appNameProp || detectInAppBrowserName();
     const url = getExternalBrowserTargetUrl(pageUrl || (typeof window !== 'undefined' ? window.location.href : ''));
     const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/i.test(navigator.userAgent);
     const browserName = isIOS ? 'Safari' : 'Chrome';
 
     useEffect(() => {
-        if (!open) setCopied(false);
-    }, [open]);
+        if (!open) {
+            setSecondsLeft(null);
+            setPaused(false);
+            firedRef.current = false;
+            return;
+        }
+        // Android: auto-try Chrome intent after a short countdown. iOS usually blocks this.
+        if (autoOpen && !isIOS) {
+            setSecondsLeft(AUTO_OPEN_SECONDS);
+        }
+    }, [open, autoOpen, isIOS]);
+
+    useEffect(() => {
+        if (!open || paused || secondsLeft == null) return undefined;
+        if (secondsLeft <= 0) {
+            if (!firedRef.current) {
+                firedRef.current = true;
+                openInExternalBrowser(url);
+            }
+            return undefined;
+        }
+        const t = window.setTimeout(() => setSecondsLeft((s) => (typeof s === 'number' ? s - 1 : null)), 1000);
+        return () => window.clearTimeout(t);
+    }, [open, paused, secondsLeft, url]);
 
     if (!open || typeof document === 'undefined') return null;
+
+    const openNow = () => {
+        setPaused(true);
+        setSecondsLeft(null);
+        openInExternalBrowser(url);
+    };
 
     return createPortal(
         <div className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -61,34 +93,43 @@ export default function OpenInBrowserModal({
                 </div>
 
                 <p className={`mt-2 text-sm leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                    Google login doesn&apos;t work inside {appName}. Open {browserName}, then sign in — takes a few seconds.
+                    {isIOS ? (
+                        <>
+                            Google login doesn&apos;t work inside {appName}. Tap <strong>⋯</strong> →{' '}
+                            <strong>Open in {browserName}</strong>, then sign in.
+                        </>
+                    ) : secondsLeft != null && !paused ? (
+                        <>
+                            Opening {browserName} in <strong>{secondsLeft}s</strong>. Google login works there.
+                        </>
+                    ) : (
+                        <>
+                            Google login doesn&apos;t work inside {appName}. Open {browserName}, then sign in — takes a few seconds.
+                        </>
+                    )}
                 </p>
 
                 <button
                     type="button"
-                    onClick={() => openInExternalBrowser(url)}
+                    onClick={openNow}
                     className="mt-5 w-full min-h-12 rounded-2xl bg-[#0ECCEE] text-black font-semibold text-sm flex items-center justify-center gap-2 hover:opacity-90"
                 >
                     <ExternalLink size={18} />
-                    Open in {browserName}
+                    {secondsLeft != null && !paused ? `Open in ${browserName} now` : `Open in ${browserName}`}
                 </button>
 
-                <button
-                    type="button"
-                    onClick={async () => {
-                        const result = await copyPageLink(url);
-                        if (result.ok) {
-                            setCopied(true);
-                            window.setTimeout(() => setCopied(false), 2500);
-                        }
-                    }}
-                    className={`mt-2.5 w-full min-h-11 rounded-2xl font-medium text-sm flex items-center justify-center gap-2 ${
-                        isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'
-                    }`}
-                >
-                    {copied ? <Check size={15} className="text-emerald-400" /> : <Copy size={15} />}
-                    {copied ? `Link copied — paste in ${browserName}` : 'Or copy link'}
-                </button>
+                {secondsLeft != null && !paused ? (
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setPaused(true);
+                            setSecondsLeft(null);
+                        }}
+                        className={`mt-2 w-full text-center text-xs font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}
+                    >
+                        Cancel auto-open
+                    </button>
+                ) : null}
             </div>
         </div>,
         document.body,

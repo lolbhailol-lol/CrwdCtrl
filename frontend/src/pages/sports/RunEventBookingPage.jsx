@@ -1099,16 +1099,12 @@ export default function RunEventBookingPage() {
     const showLoginOverlay = formLocked && !showSuccess && !showProcessing && !waitingOnAuth && !isRedirectProcessing;
 
     const loginOverlay = showLoginOverlay || showLogin ? (
-        <div className="fixed inset-0 z-100060 pointer-events-none">
-            <div className="pointer-events-auto h-full">
-                <CrwdCtrlLogin
-                    googleOnly
-                    title="Sign in to book"
-                    subtitle="Your form is ready below — one tap with Google to start filling it"
-                    onClose={handleCloseLogin}
-                />
-            </div>
-        </div>
+        <CrwdCtrlLogin
+            googleOnly
+            title="Sign in to book"
+            subtitle="Your form is ready below — one tap with Google to start filling it"
+            onClose={handleCloseLogin}
+        />
     ) : null;
 
     if ((loadingEvent || waitingOnAuth) && !showSuccess && !showProcessing) {

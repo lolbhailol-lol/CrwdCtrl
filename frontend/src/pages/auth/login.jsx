@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Eye, EyeOff, X, ArrowLeft } from 'lucide-react';
+import { Eye, EyeOff, X, ArrowLeft, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import { useDarkMode } from '../../context/DarkModeContext';
@@ -17,7 +17,10 @@ import OpenInBrowserModal from '../../components/OpenInBrowserModal';
 import {
     detectInAppBrowserName,
     isLikelyInAppBrowser,
+    openInExternalBrowser,
 } from '../../utils/openInExternalBrowser';
+
+const IN_APP_AUTO_OPEN_SECONDS = 3;
 
 function GoogleIcon({ className = 'w-5 h-5 sm:w-6 sm:h-6' }) {
     return (
@@ -47,16 +50,57 @@ export default function CrwdCtrlLogin({
     const [errors, setErrors] = useState({});
     const [showOpenBrowserSheet, setShowOpenBrowserSheet] = useState(false);
     const [inAppBrowserName, setInAppBrowserName] = useState('this app');
+    const [inAppBrowserBlocked, setInAppBrowserBlocked] = useState(false);
+    const [autoOpenSeconds, setAutoOpenSeconds] = useState(null);
+    const [autoOpenPaused, setAutoOpenPaused] = useState(false);
+    const autoOpenFiredRef = useRef(false);
     const { login, isAuthenticated, user } = useAuth();
     const { isDark } = useDarkMode();
     const navigate = useNavigate();
     const goBack = useInAppBack('/');
     const location = useLocation();
     const reduceMotion = useReducedMotion();
+    const isIOSDevice = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/i.test(navigator.userAgent);
+    const isAndroidDevice = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
+    const preferredBrowserName = isIOSDevice ? 'Safari' : 'Chrome';
 
     useEffect(() => {
         if (initialEmail) setEmailOrPhone(initialEmail);
     }, [initialEmail]);
+
+    // Instagram / FB / WhatsApp: Google OAuth is blocked — show Open in Chrome immediately
+    useEffect(() => {
+        if (!isLikelyInAppBrowser()) return;
+        const name = detectInAppBrowserName();
+        setInAppBrowserName(name);
+        setInAppBrowserBlocked(true);
+        // Android intent:// often works without a tap; iOS Instagram blocks auto-open
+        if (!/iPad|iPhone|iPod/i.test(navigator.userAgent || '')) {
+            setAutoOpenSeconds(IN_APP_AUTO_OPEN_SECONDS);
+        }
+    }, []);
+
+    const handoffToExternalBrowser = () => {
+        setAutoOpenPaused(true);
+        setAutoOpenSeconds(null);
+        openInExternalBrowser(window.location.href);
+    };
+
+    // Countdown → try Chrome automatically (Android / desktop WebViews)
+    useEffect(() => {
+        if (!inAppBrowserBlocked || autoOpenPaused || autoOpenSeconds == null) return undefined;
+        if (autoOpenSeconds <= 0) {
+            if (!autoOpenFiredRef.current) {
+                autoOpenFiredRef.current = true;
+                openInExternalBrowser(window.location.href);
+            }
+            return undefined;
+        }
+        const timer = window.setTimeout(() => {
+            setAutoOpenSeconds((s) => (typeof s === 'number' ? s - 1 : null));
+        }, 1000);
+        return () => window.clearTimeout(timer);
+    }, [inAppBrowserBlocked, autoOpenPaused, autoOpenSeconds]);
 
     // Determine if this is being used as a modal or a page
     const isModal = !!onClose;
@@ -386,10 +430,12 @@ export default function CrwdCtrlLogin({
                                     CRWDCTRL
                                 </h1>
                                 <p className={`mt-2 text-base font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                    {title}
+                                    {inAppBrowserBlocked ? `Open in ${preferredBrowserName} to book` : title}
                                 </p>
                                 <p className={`mt-1 text-sm leading-snug ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                    {subtitle}
+                                    {inAppBrowserBlocked
+                                        ? `Google sign-in doesn't work inside ${inAppBrowserName}. Open ${preferredBrowserName}, then continue booking.`
+                                        : subtitle}
                                 </p>
                             </div>
 
@@ -403,37 +449,96 @@ export default function CrwdCtrlLogin({
                                 </div>
                             ) : null}
 
-                            {errors.showOpenInBrowser ? (
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        if (typeof errors.openInBrowser === 'function') errors.openInBrowser();
-                                        else window.open(window.location.href, '_blank');
-                                    }}
-                                    className="w-full mb-3 bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-xl font-medium"
-                                >
-                                    Open in Browser
-                                </button>
-                            ) : null}
+                            {inAppBrowserBlocked ? (
+                                <div className="space-y-2.5">
+                                    <div className={`rounded-xl px-3.5 py-3 text-left text-sm leading-snug border ${
+                                        isDark
+                                            ? 'bg-amber-500/10 border-amber-400/30 text-amber-100'
+                                            : 'bg-amber-50 border-amber-200 text-amber-900'
+                                    }`}>
+                                        {isIOSDevice ? (
+                                            <>
+                                                Google sign-in is blocked in {inAppBrowserName}. Tap{' '}
+                                                <strong>⋯</strong> (top right) → <strong>Open in {preferredBrowserName}</strong>,
+                                                then continue booking.
+                                            </>
+                                        ) : autoOpenSeconds != null && !autoOpenPaused ? (
+                                            <>
+                                                Opening {preferredBrowserName} automatically in{' '}
+                                                <strong>{autoOpenSeconds}s</strong> — Google login works there.
+                                            </>
+                                        ) : (
+                                            <>
+                                                Google sign-in doesn&apos;t work inside {inAppBrowserName}. Open{' '}
+                                                {preferredBrowserName} to continue booking.
+                                            </>
+                                        )}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={handoffToExternalBrowser}
+                                        className="w-full min-h-12 flex items-center justify-center gap-2 rounded-2xl bg-[#0ECCEE] text-black font-bold text-sm hover:opacity-90"
+                                    >
+                                        <ExternalLink size={18} />
+                                        {autoOpenSeconds != null && !autoOpenPaused
+                                            ? `Open in ${preferredBrowserName} now`
+                                            : `Open in ${preferredBrowserName}`}
+                                    </button>
+                                    {autoOpenSeconds != null && !autoOpenPaused ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setAutoOpenPaused(true);
+                                                setAutoOpenSeconds(null);
+                                            }}
+                                            className={`w-full text-center text-xs font-medium py-1 ${
+                                                isDark ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'
+                                            }`}
+                                        >
+                                            Cancel auto-open
+                                        </button>
+                                    ) : null}
+                                    <p className={`pt-1 text-center text-[11px] ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
+                                        {isAndroidDevice
+                                            ? 'You stay on the same booking page in Chrome'
+                                            : `${inAppBrowserName} blocks Google sign-in — browser works`}
+                                    </p>
+                                </div>
+                            ) : (
+                                <>
+                                    {errors.showOpenInBrowser ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                if (typeof errors.openInBrowser === 'function') errors.openInBrowser();
+                                                else openInExternalBrowser(window.location.href);
+                                            }}
+                                            className="w-full mb-3 bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-xl font-medium"
+                                        >
+                                            Open in Browser
+                                        </button>
+                                    ) : null}
 
-                            <motion.button
-                                type="button"
-                                onClick={handleGoogleAuth}
-                                disabled={isLoading}
-                                whileTap={reduceMotion ? undefined : { scale: 0.98 }}
-                                className={`w-full min-h-12 flex items-center justify-center gap-2.5 rounded-2xl font-semibold text-sm transition-colors disabled:opacity-60 ${
-                                    isDark
-                                        ? 'bg-[#1D1E20] text-white hover:bg-[#2A2B2D] border border-white/10'
-                                        : 'bg-gray-50 text-gray-900 hover:bg-gray-100 border border-gray-200'
-                                }`}
-                            >
-                                <GoogleIcon />
-                                {isLoading ? 'Opening Google…' : 'Sign in with Google'}
-                            </motion.button>
+                                    <motion.button
+                                        type="button"
+                                        onClick={handleGoogleAuth}
+                                        disabled={isLoading}
+                                        whileTap={reduceMotion ? undefined : { scale: 0.98 }}
+                                        className={`w-full min-h-12 flex items-center justify-center gap-2.5 rounded-2xl font-semibold text-sm transition-colors disabled:opacity-60 ${
+                                            isDark
+                                                ? 'bg-[#1D1E20] text-white hover:bg-[#2A2B2D] border border-white/10'
+                                                : 'bg-gray-50 text-gray-900 hover:bg-gray-100 border border-gray-200'
+                                        }`}
+                                    >
+                                        <GoogleIcon />
+                                        {isLoading ? 'Opening Google…' : 'Sign in with Google'}
+                                    </motion.button>
 
-                            <p className={`mt-3 mb-1 text-center text-[11px] ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
-                                Fast · secure · no password needed
-                            </p>
+                                    <p className={`mt-3 mb-1 text-center text-[11px] ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
+                                        Fast · secure · no password needed
+                                    </p>
+                                </>
+                            )}
                         </motion.div>
                     </motion.div>
                 </AnimatePresence>
@@ -669,6 +774,25 @@ export default function CrwdCtrlLogin({
 
                     {/* Social Buttons */}
                     <div className="flex flex-col gap-3">
+                        {inAppBrowserBlocked ? (
+                            <>
+                                <div className={`rounded-lg px-3 py-2.5 text-sm border ${
+                                    isDark
+                                        ? 'bg-amber-500/10 border-amber-400/30 text-amber-100'
+                                        : 'bg-amber-50 border-amber-200 text-amber-900'
+                                }`}>
+                                    Google login is blocked in {inAppBrowserName}. Open {preferredBrowserName} to continue.
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => openInExternalBrowser(window.location.href)}
+                                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg font-semibold text-sm bg-[#0ECCEE] text-black hover:opacity-90"
+                                >
+                                    <ExternalLink size={18} />
+                                    Open in {preferredBrowserName}
+                                </button>
+                            </>
+                        ) : null}
                         {/* Google */}
                         <button
                             type="button"

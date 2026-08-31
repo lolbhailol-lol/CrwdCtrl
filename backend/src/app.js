@@ -14,6 +14,7 @@ const { getFirebaseAdminStatus } = require('./config/firebaseAdmin');
 const apiRoutes = require('./routes');
 const { handleCashfreeWebhook } = require('./controllers/paymentWebhookController');
 const { handleResendWebhook } = require('./controllers/resendWebhookController');
+const whatsappWebhookRoutes = require('./routers/whatsappWebhookRoute');
 
 require('./models');
 
@@ -59,6 +60,9 @@ app.use(compression({
   level: 6,
   threshold: 1024,
 }));
+
+// Meta WhatsApp webhook — no auth; mount before /api rate limiter
+app.use('/api/whatsapp', whatsappWebhookRoutes);
 
 app.use(securityHeaders);
 app.use(requestLogger);
