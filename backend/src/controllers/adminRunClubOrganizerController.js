@@ -147,35 +147,41 @@ exports.createOrganizer = async (req, res) => {
             .lean();
 
         let emailStatus = { attempted: false, sent: false, reason: '' };
-        try {
-            if (email) {
-                const club = await RunClub.findById(runClubId).select('name listingHub').lean();
-                const listingHub = club?.listingHub === 'events' ? 'events' : 'sports';
-                const eventTitles = await eventTitlesForClub(runClubId);
-                const { loginUrl, signupUrl } = organizerPortalUrls(listingHub);
-                const mailResult = await sendCommunityOrganizerApprovalEmail({
-                    toEmail: email,
-                    organizerName: name,
-                    username,
-                    temporaryPassword: password,
-                    accountCreatedByAdmin: true,
-                    loginUrl,
-                    signupUrl,
-                    communityName: club?.name || '',
-                    eventTitles,
-                    listingHub,
-                });
-                emailStatus = {
-                    attempted: true,
-                    sent: Boolean(mailResult?.success !== false && !mailResult?.error),
-                    reason: mailResult?.error || '',
-                };
-            } else {
-                emailStatus = { attempted: false, sent: false, reason: 'Organizer email not provided' };
+        const listingHub = (await RunClub.findById(runClubId).select('listingHub').lean())?.listingHub === 'events'
+            ? 'events'
+            : 'sports';
+        if (listingHub !== 'events') {
+            try {
+                if (email) {
+                    const club = await RunClub.findById(runClubId).select('name listingHub').lean();
+                    const eventTitles = await eventTitlesForClub(runClubId);
+                    const { loginUrl, signupUrl } = organizerPortalUrls(listingHub);
+                    const mailResult = await sendCommunityOrganizerApprovalEmail({
+                        toEmail: email,
+                        organizerName: name,
+                        username,
+                        temporaryPassword: password,
+                        accountCreatedByAdmin: true,
+                        loginUrl,
+                        signupUrl,
+                        communityName: club?.name || '',
+                        eventTitles,
+                        listingHub,
+                    });
+                    emailStatus = {
+                        attempted: true,
+                        sent: Boolean(mailResult?.success !== false && !mailResult?.error),
+                        reason: mailResult?.error || '',
+                    };
+                } else {
+                    emailStatus = { attempted: false, sent: false, reason: 'Organizer email not provided' };
+                }
+            } catch (mailErr) {
+                console.error('[adminRunClubOrganizer.create] account mail failed:', mailErr.message);
+                emailStatus = { attempted: true, sent: false, reason: mailErr.message || 'Failed to send email' };
             }
-        } catch (mailErr) {
-            console.error('[adminRunClubOrganizer.create] account mail failed:', mailErr.message);
-            emailStatus = { attempted: true, sent: false, reason: mailErr.message || 'Failed to send email' };
+        } else {
+            emailStatus = { attempted: false, sent: false, reason: 'Event community organizers — share login link manually' };
         }
 
         res.status(201).json({
@@ -296,34 +302,38 @@ exports.approveOrganizer = async (req, res) => {
         await organizer.save();
 
         let emailStatus = { attempted: false, sent: false, reason: '' };
-        try {
-            if (organizer.email) {
-                const club = await RunClub.findById(organizer.runClubId).select('name listingHub').lean();
-                const listingHub = club?.listingHub === 'events' ? 'events' : 'sports';
-                const eventTitles = await eventTitlesForClub(organizer.runClubId);
-                const { loginUrl, signupUrl } = organizerPortalUrls(listingHub);
-                const mailResult = await sendCommunityOrganizerApprovalEmail({
-                    toEmail: organizer.email,
-                    organizerName: organizer.name || '',
-                    username: organizer.username || '',
-                    loginUrl,
-                    signupUrl,
-                    communityName: club?.name || '',
-                    eventTitles,
-                    listingHub,
-                    existingAccountApproved: true,
-                });
-                emailStatus = {
-                    attempted: true,
-                    sent: Boolean(mailResult?.success !== false && !mailResult?.error),
-                    reason: mailResult?.error || '',
-                };
-            } else {
-                emailStatus = { attempted: false, sent: false, reason: 'Organizer email not provided' };
+        const club = await RunClub.findById(organizer.runClubId).select('name listingHub').lean();
+        const listingHub = club?.listingHub === 'events' ? 'events' : 'sports';
+        if (listingHub !== 'events') {
+            try {
+                if (organizer.email) {
+                    const eventTitles = await eventTitlesForClub(organizer.runClubId);
+                    const { loginUrl, signupUrl } = organizerPortalUrls(listingHub);
+                    const mailResult = await sendCommunityOrganizerApprovalEmail({
+                        toEmail: organizer.email,
+                        organizerName: organizer.name || '',
+                        username: organizer.username || '',
+                        loginUrl,
+                        signupUrl,
+                        communityName: club?.name || '',
+                        eventTitles,
+                        listingHub,
+                        existingAccountApproved: true,
+                    });
+                    emailStatus = {
+                        attempted: true,
+                        sent: Boolean(mailResult?.success !== false && !mailResult?.error),
+                        reason: mailResult?.error || '',
+                    };
+                } else {
+                    emailStatus = { attempted: false, sent: false, reason: 'Organizer email not provided' };
+                }
+            } catch (mailErr) {
+                console.error('[adminRunClubOrganizer.approve] approval mail failed:', mailErr.message);
+                emailStatus = { attempted: true, sent: false, reason: mailErr.message || 'Failed to send email' };
             }
-        } catch (mailErr) {
-            console.error('[adminRunClubOrganizer.approve] approval mail failed:', mailErr.message);
-            emailStatus = { attempted: true, sent: false, reason: mailErr.message || 'Failed to send email' };
+        } else {
+            emailStatus = { attempted: false, sent: false, reason: 'Event community organizers — share login link manually' };
         }
 
         const populated = await RunClubOrganizerAccount.findById(organizer._id)
@@ -487,27 +497,39 @@ exports.addProfileInvite = async (req, res) => {
         }
 
         let emailStatus = { attempted: false, sent: false, reason: '' };
-        try {
-            const signupUrl = `${SITE()}/run-club-organizer/signup${listingHub === 'events' ? '?hub=events' : ''}`;
-            const mailResult = await sendCommunityOrganizerProfileInviteEmail({
-                toEmail: email,
-                signupUrl,
-                listingHub,
-                note,
-            });
-            emailStatus = {
-                attempted: true,
-                sent: Boolean(mailResult?.success !== false && !mailResult?.error),
-                reason: mailResult?.error || '',
-            };
-        } catch (mailErr) {
-            console.error('[adminRunClubOrganizer.addProfileInvite] invite mail failed:', mailErr.message);
-            emailStatus = { attempted: true, sent: false, reason: mailErr.message || 'Failed to send email' };
+        if (listingHub !== 'events') {
+            try {
+                const signupUrl = `${SITE()}/run-club-organizer/signup${listingHub === 'events' ? '?hub=events' : ''}`;
+                const mailResult = await sendCommunityOrganizerProfileInviteEmail({
+                    toEmail: email,
+                    signupUrl,
+                    listingHub,
+                    note,
+                });
+                emailStatus = {
+                    attempted: true,
+                    sent: Boolean(mailResult?.success !== false && !mailResult?.error),
+                    reason: mailResult?.error || '',
+                };
+            } catch (mailErr) {
+                console.error('[adminRunClubOrganizer.addProfileInvite] invite mail failed:', mailErr.message);
+                emailStatus = { attempted: true, sent: false, reason: mailErr.message || 'Failed to send email' };
+            }
+        } else {
+            emailStatus = { attempted: false, sent: false, reason: 'Event community organizers — share signup link manually' };
         }
 
         const label = listingHub === 'events' ? 'Community organizer' : 'Club manager';
         let message;
-        if (reactivated && upgraded) {
+        if (listingHub === 'events') {
+            if (reactivated && upgraded) {
+                message = `Email updated for ${label}`;
+            } else if (reactivated) {
+                message = `Email re-activated for Profile → ${label}`;
+            } else {
+                message = `Email approved for ${label} signup — share the signup link manually`;
+            }
+        } else if (reactivated && upgraded) {
             message = `Email updated for ${label} — invite sent again`;
         } else if (reactivated) {
             message = `Email re-activated for Profile → ${label}`;

@@ -47,6 +47,33 @@ export default function RunClubOrganizerLoginPage() {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [booting, setBooting] = useState(true);
+    const [sessionHint, setSessionHint] = useState('');
+
+    const tryCrwdCtrlSession = async ({ force = false } = {}) => {
+        setSessionHint('');
+        setError('');
+        setLoading(true);
+        try {
+            const session = await tryRunClubOrganizerAppSession(null, hub, { force });
+            if (session?.token) {
+                navigate(resolvePostLoginPath(session.events, returnTo, isEventHub), { replace: true });
+                return true;
+            }
+        } catch (err) {
+            if (err?.code === 'pending_approval') {
+                setSessionHint(err.message || 'Account awaiting approval.');
+            } else if (err?.code === 'no_organizer_account') {
+                setSessionHint(isEventHub
+                    ? 'No organizer account linked to your CrwdCtrl email. Create one first, or sign in with username and password above.'
+                    : 'No club manager account for your CrwdCtrl email. Create one at signup or use username below.');
+            } else {
+                setError(err.message || 'Could not open organizer session');
+            }
+        } finally {
+            setLoading(false);
+        }
+        return false;
+    };
 
     useEffect(() => {
         if (
@@ -67,6 +94,20 @@ export default function RunClubOrganizerLoginPage() {
                 if (!cancelled) setBooting(false);
                 return;
             }
+            // Events hub: username/password is primary — only auto-enter if CrwdCtrl session works silently
+            if (isEventHub) {
+                try {
+                    const session = await tryRunClubOrganizerAppSession(null, hub);
+                    if (!cancelled && session?.token) {
+                        navigate(resolvePostLoginPath(session.events, returnTo, isEventHub), { replace: true });
+                        return;
+                    }
+                } catch {
+                    /* show login form — no warning on load */
+                }
+                if (!cancelled) setBooting(false);
+                return;
+            }
             try {
                 const session = await tryRunClubOrganizerAppSession(null, hub);
                 if (!cancelled && session?.token) {
@@ -74,11 +115,13 @@ export default function RunClubOrganizerLoginPage() {
                     return;
                 }
             } catch (err) {
-                if (!cancelled && err?.code === 'no_organizer_account') {
-                    navigate(organizerSignupPath(isEventHub), { replace: true });
-                    return;
+                if (!cancelled) {
+                    if (err?.code === 'pending_approval') {
+                        setSessionHint(err.message || 'Account awaiting approval.');
+                    } else if (err?.code === 'no_organizer_account') {
+                        setSessionHint('No club manager account for your CrwdCtrl email. Create one at signup or use username below.');
+                    }
                 }
-                /* fall through to manual login */
             }
             if (!cancelled) setBooting(false);
         })();
@@ -137,22 +180,9 @@ export default function RunClubOrganizerLoginPage() {
 
                 <p className="text-[11px] text-gray-500 mb-4 rounded-lg border border-gray-800 bg-[#111213] px-3 py-2">
                     {isEventHub
-                        ? 'Sign in with the Google account that matches your invited email, or use your organizer username below.'
+                        ? 'Enter the username and password you set when you created your organizer account.'
                         : 'Only your club can see participant details. CrwdCtrl approves access — you set your own password.'}
                 </p>
-
-                {!isAuthenticated ? (
-                    <Link
-                        to={crwdCtrlLoginRedirect(isEventHub)}
-                        className="mb-4 flex w-full items-center justify-center gap-2 min-h-[48px] py-3 rounded-xl bg-white text-black text-sm font-bold hover:opacity-90"
-                    >
-                        Continue with CrwdCtrl sign-in
-                    </Link>
-                ) : null}
-
-                {!isAuthenticated ? (
-                    <p className="text-[11px] text-center text-gray-600 mb-4">or use organizer username</p>
-                ) : null}
 
                 {error ? (
                     <div className="mb-4 rounded-lg border border-red-800 bg-red-900/20 px-3 py-2.5 text-sm text-red-300">{error}</div>
@@ -196,11 +226,78 @@ export default function RunClubOrganizerLoginPage() {
                         Sign in
                     </button>
                 </form>
-                <p className="text-[11px] text-gray-600 mt-5 text-center">
-                    {isEventHub ? 'New community organizer?' : 'New club?'}{' '}
-                    Ask CrwdCtrl to approve your email, then{' '}
-                    <Link to={copy.signupPath} className="text-[#0ECCEE] hover:underline">create your account</Link>.
-                </p>
+
+                {isEventHub ? (
+                    <div className="mt-6 pt-5 border-t border-white/10 space-y-3">
+                        <p className="text-[11px] text-gray-500 text-center">
+                            Don&apos;t have an account yet?{' '}
+                            <Link to={copy.signupPath} className="text-[#0ECCEE] hover:underline">
+                                Create one here
+                            </Link>
+                        </p>
+                        <p className="text-[11px] text-gray-600 text-center">
+                            Or open from CrwdCtrl app (same email as signup):
+                        </p>
+                        {!isAuthenticated ? (
+                            <Link
+                                to={crwdCtrlLoginRedirect(isEventHub)}
+                                className="flex w-full items-center justify-center gap-2 min-h-12 py-3 rounded-xl border border-gray-700 text-gray-300 text-sm font-medium hover:border-[#0ECCEE]/40 hover:text-white"
+                            >
+                                Sign into CrwdCtrl first
+                            </Link>
+                        ) : (
+                            <>
+                                <button
+                                    type="button"
+                                    disabled={loading}
+                                    onClick={() => tryCrwdCtrlSession({ force: true })}
+                                    className="flex w-full items-center justify-center gap-2 min-h-12 py-3 rounded-xl border border-gray-700 text-gray-300 text-sm font-medium hover:border-[#0ECCEE]/40 hover:text-white disabled:opacity-60"
+                                >
+                                    {loading ? <Loader className="animate-spin" size={18} /> : null}
+                                    Open with my CrwdCtrl account
+                                </button>
+                                {sessionHint ? (
+                                    <div className="rounded-lg border border-amber-800/60 bg-amber-900/20 px-3 py-2.5 text-xs text-amber-200/90">
+                                        {sessionHint}{' '}
+                                        <Link to={organizerSignupPath(isEventHub)} className="text-[#0ECCEE] hover:underline">
+                                            Create account
+                                        </Link>
+                                    </div>
+                                ) : null}
+                            </>
+                        )}
+                    </div>
+                ) : (
+                    <>
+                        {!isAuthenticated ? (
+                            <Link
+                                to={crwdCtrlLoginRedirect(isEventHub)}
+                                className="mt-4 flex w-full items-center justify-center gap-2 min-h-12 py-3 rounded-xl bg-white text-black text-sm font-bold hover:opacity-90"
+                            >
+                                Continue with CrwdCtrl sign-in
+                            </Link>
+                        ) : (
+                            <button
+                                type="button"
+                                disabled={loading}
+                                onClick={() => tryCrwdCtrlSession({ force: true })}
+                                className="mt-4 flex w-full items-center justify-center gap-2 min-h-12 py-3 rounded-xl bg-white text-black text-sm font-bold hover:opacity-90 disabled:opacity-60"
+                            >
+                                {loading ? <Loader className="animate-spin" size={18} /> : null}
+                                Continue with CrwdCtrl sign-in
+                            </button>
+                        )}
+                        {sessionHint ? (
+                            <div className="mt-4 rounded-lg border border-amber-800/60 bg-amber-900/20 px-3 py-2.5 text-sm text-amber-200/90">
+                                {sessionHint}
+                            </div>
+                        ) : null}
+                        <p className="text-[11px] text-gray-600 mt-5 text-center">
+                            New club? Ask CrwdCtrl to approve your email, then{' '}
+                            <Link to={copy.signupPath} className="text-[#0ECCEE] hover:underline">create your account</Link>.
+                        </p>
+                    </>
+                )}
             </div>
         </div>
     );

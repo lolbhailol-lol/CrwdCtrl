@@ -5,12 +5,15 @@ import { DetailLoader3DIcon } from '../../components/DetailPageLoader';
 import {
     fetchRunClubOrganizerSignupClubs,
     runClubOrganizerSignup,
+    applyRunClubOrganizerAuthPayload,
 } from '../../services/api/runClubOrganizer.api';
 import { organizerHubCopy } from '../../utils/listingHubCopy';
 import {
     isEventCommunityOrganizerPath,
     EVENT_COMMUNITY_ORGANIZER_BASE,
     RUN_CLUB_ORGANIZER_BASE,
+    organizerHomePath,
+    organizerEventPath,
 } from '../../utils/organizerPortalPaths';
 
 export default function RunClubOrganizerSignupPage() {
@@ -87,7 +90,17 @@ export default function RunClubOrganizerSignupPage() {
                 email: email.trim().toLowerCase(),
                 runClubId,
             });
-            setSuccess(data.message || 'Account created. Await CrwdCtrl approval before signing in.');
+            if (data?.token && applyRunClubOrganizerAuthPayload(data)) {
+                const events = data.events || [];
+                const destination = events.length === 1 && events[0]?._id
+                    ? organizerEventPath(events[0]._id, isEventHub)
+                    : organizerHomePath(isEventHub);
+                navigate(destination, { replace: true });
+                return;
+            }
+            setSuccess(data.message || (isEventHub
+                ? 'Account created. You can sign in now.'
+                : 'Account created. Await CrwdCtrl approval before signing in.'));
             setTimeout(() => navigate(copy.signupLoginPath, { replace: true }), 2200);
         } catch (err) {
             setError(err.message || 'Signup failed');
@@ -218,7 +231,7 @@ export default function RunClubOrganizerSignupPage() {
                         className="w-full min-h-[48px] py-3.5 rounded-xl bg-[#0ECCEE] text-black text-base font-bold hover:opacity-90 disabled:opacity-60 flex items-center justify-center gap-2"
                     >
                         {loading ? <Loader className="animate-spin" size={20} /> : null}
-                        Request access
+                        {isEventHub ? 'Create account' : 'Request access'}
                     </button>
                 </form>
 

@@ -399,20 +399,63 @@ exports.appSession = async (req, res) => {
             .populate('runClubId', 'listingHub')
             .sort({ updatedAt: -1 });
 
-        const organizer = organizers.find((org) => {
-            if (!RunClubOrganizerAccount.canLogin(org)) return false;
+        const matchesHub = (org) => {
             const clubHub = org.runClubId?.listingHub === 'events' ? 'events' : 'sports';
             if (hub === 'events') return clubHub === 'events';
             if (hub === 'sports') return clubHub !== 'events';
             return true;
-        });
+        };
+
+        const organizer = organizers.find((org) => (
+            RunClubOrganizerAccount.canLogin(org) && matchesHub(org)
+        ));
 
         if (!organizer) {
+            const pendingEventsOrg = organizers.find((org) => (
+                hub === 'events'
+                && RunClubOrganizerAccount.effectiveStatus(org) === 'pending'
+                && matchesHub(org)
+            ));
+            if (pendingEventsOrg) {
+                pendingEventsOrg.status = 'approved';
+                pendingEventsOrg.isActive = true;
+                pendingEventsOrg.approvedAt = pendingEventsOrg.approvedAt || new Date();
+                await pendingEventsOrg.save();
+                const payload = await buildOrganizerAuthResponse(pendingEventsOrg);
+                return res.json(payload);
+            }
+
+            const pendingOrg = organizers.find((org) => (
+                RunClubOrganizerAccount.effectiveStatus(org) === 'pending' && matchesHub(org)
+            ));
+            if (pendingOrg) {
+                return res.status(403).json({
+                    success: false,
+                    code: 'pending_approval',
+                    message: hub === 'events'
+                        ? 'Your community organizer account is awaiting approval. Sign in with username and password after CrwdCtrl approves you, or contact support.'
+                        : 'Your club manager account is awaiting approval. Sign in with username and password after CrwdCtrl approves you.',
+                });
+            }
+
+            const inactiveApproved = organizers.find((org) => (
+                RunClubOrganizerAccount.effectiveStatus(org) === 'approved'
+                && org.isActive === false
+                && matchesHub(org)
+            ));
+            if (inactiveApproved) {
+                return res.status(403).json({
+                    success: false,
+                    code: 'inactive',
+                    message: 'This organizer account is deactivated. Contact CrwdCtrl support.',
+                });
+            }
+
             return res.status(403).json({
                 success: false,
                 code: 'no_organizer_account',
                 message: hub === 'events'
-                    ? 'No approved community organizer account for this email. Create one or sign in with your organizer username and password.'
+                    ? 'No community organizer account for this email yet. Create one at the signup link or sign in with your organizer username and password.'
                     : 'No approved club manager account for this email. Create one or sign in with your organizer username and password.',
             });
         }
@@ -487,6 +530,20 @@ exports.signup = async (req, res) => {
             return res.status(409).json({ success: false, message: 'Username already taken' });
         }
 
+        const emailTaken = await RunClubOrganizerAccount.findOne({
+            email,
+            runClubId,
+        }).select('_id username status').lean();
+        if (emailTaken) {
+            return res.status(409).json({
+                success: false,
+                code: 'account_exists',
+                message: 'An organizer account already exists for this email. Sign in with your username and password.',
+            });
+        }
+
+        const autoApprove = clubHub === 'events';
+        const now = new Date();
         const organizer = await RunClubOrganizerAccount.create({
             name,
             username,
@@ -494,10 +551,19 @@ exports.signup = async (req, res) => {
             passwordHash: await RunClubOrganizerAccount.hashPassword(password),
             phone,
             runClubId,
-            status: 'pending',
-            isActive: false,
+            status: autoApprove ? 'approved' : 'pending',
+            isActive: autoApprove,
+            approvedAt: autoApprove ? now : null,
             createdBy: null,
         });
+
+        if (autoApprove) {
+            const payload = await buildOrganizerAuthResponse(organizer);
+            return res.status(201).json({
+                ...payload,
+                message: 'Account created — you are signed in.',
+            });
+        }
 
         res.status(201).json({
             success: true,
@@ -531,7 +597,7 @@ exports.login = async (req, res) => {
 
         const organizer = await RunClubOrganizerAccount.findOne({
             $or: [{ username }, { email: username }],
-        });
+        }).populate('runClubId', 'listingHub');
         if (!organizer) {
             return res.status(401).json({ success: false, message: 'Invalid credentials' });
         }
@@ -541,7 +607,14 @@ exports.login = async (req, res) => {
             return res.status(401).json({ success: false, message: 'Invalid credentials' });
         }
 
-        const status = RunClubOrganizerAccount.effectiveStatus(organizer);
+        let status = RunClubOrganizerAccount.effectiveStatus(organizer);
+        const isEventsHub = organizer.runClubId?.listingHub === 'events';
+        if (status === 'pending' && isEventsHub) {
+            organizer.status = 'approved';
+            organizer.isActive = true;
+            organizer.approvedAt = organizer.approvedAt || new Date();
+            status = 'approved';
+        }
         if (status === 'pending') {
             return res.status(403).json({
                 success: false,
