@@ -16,7 +16,7 @@ import { shareContent } from '../../utils/externalLink';
 import { eventCommunityEventPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
 import { eventDetailTabBoxes, eventMapSideFacts, resolveRunMapPin } from '../../utils/trekDetailBoxes';
 import { resolveRunContacts, instagramHandle } from '../../utils/runContacts';
-import { getSportsTiers, isTiersPricing, minSportsFee, formatInr } from '../../utils/sportsTiers';
+import { getSportsTiers, isTiersPricing, minSportsFee, formatInr, hasPricingSnapshot } from '../../utils/sportsTiers';
 import { groupTermsAndConditions } from '../../utils/termsAndConditions';
 import { useInAppBack } from '../../hooks/useInAppBack';
 import { resolveAuthToken, getBearerAuthHeaders } from '../../utils/authToken';
@@ -47,13 +47,6 @@ const writeRunDetailCache = (key, event) => {
 function seedEventFromNav(navEvent) {
     if (!navEvent) return null;
     return navEvent;
-}
-
-/** Full event payload — pricing + enough fields that the page won't flash stubs/demo */
-function hasPricingSnapshot(ev) {
-    if (!ev) return false;
-    if (ev.pricingMode === 'tiers') return Array.isArray(ev.tiers);
-    return typeof ev.registrationFee === 'number';
 }
 
 function eventCoverHint(ev) {

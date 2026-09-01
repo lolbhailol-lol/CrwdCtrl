@@ -1253,12 +1253,25 @@ const Dashboard = () => {
 
     // Paint as soon as fests exist (cache or network). Aux feeds hydrate in place.
     const homeBooting = isFestsLoading && fests.length === 0;
+    const [homeLoadTimedOut, setHomeLoadTimedOut] = useState(false);
 
-    useLayoutEffect(() => {
-        setHomeShellReady(!homeBooting);
+    useEffect(() => {
+        if (!homeBooting) {
+            setHomeLoadTimedOut(false);
+            return undefined;
+        }
+        const timeoutMs = /iPhone|iPad|iPod|Safari/i.test(navigator.userAgent || '') ? 12000 : 8000;
+        const timer = window.setTimeout(() => setHomeLoadTimedOut(true), timeoutMs);
+        return () => window.clearTimeout(timer);
     }, [homeBooting]);
 
-    if (homeBooting) {
+    const showHomeContent = !homeBooting || homeLoadTimedOut;
+
+    useLayoutEffect(() => {
+        setHomeShellReady(showHomeContent);
+    }, [showHomeContent]);
+
+    if (!showHomeContent) {
         return null;
     }
 

@@ -15,7 +15,7 @@ import { shareContent } from '../../utils/externalLink';
 import { sportRunPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
 import { normalizeRunDetailBoxes, resolveRunMapPin } from '../../utils/trekDetailBoxes';
 import { resolveRunContacts, instagramHandle } from '../../utils/runContacts';
-import { getSportsTiers, isTiersPricing, minSportsFee, formatInr } from '../../utils/sportsTiers';
+import { getSportsTiers, isTiersPricing, minSportsFee, formatInr, hasPricingSnapshot } from '../../utils/sportsTiers';
 import { groupTermsAndConditions } from '../../utils/termsAndConditions';
 import { useInAppBack } from '../../hooks/useInAppBack';
 import { resolveAuthToken, getBearerAuthHeaders } from '../../utils/authToken';
@@ -49,13 +49,6 @@ const SKILL_LABELS = {
 function seedEventFromNav(navEvent) {
     if (!navEvent) return null;
     return navEvent;
-}
-
-/** Club cards pass a thin stub (_id/title/image). Don't paint fee CTA until pricing is known. */
-function hasPricingSnapshot(ev) {
-    if (!ev) return false;
-    if (ev.pricingMode === 'tiers') return Array.isArray(ev.tiers);
-    return typeof ev.registrationFee === 'number';
 }
 
 function pickRunFallback(seeded, cachedEvent, routeParam) {

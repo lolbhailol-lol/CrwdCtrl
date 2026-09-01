@@ -96,7 +96,7 @@ export default defineConfig(({ mode }) => ({
         globIgnores: ['**/firebase-messaging-sw.js'],
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         // Bump when changing runtime cache strategy so installed devices drop old SW caches
-        cacheId: 'crwdctrl-v8',
+        cacheId: 'crwdctrl-v9',
         // Ensure new builds activate quickly and old caches are removed.
         cleanupOutdatedCaches: true,
         clientsClaim: true,

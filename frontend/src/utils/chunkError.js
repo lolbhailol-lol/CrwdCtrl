@@ -102,6 +102,18 @@ export function clearChunkReloadFlag() {
     }
 }
 
+/** Called as soon as React mounts — Safari can leave boot-fallback covering the page. */
+export function markAppBootSuccess() {
+    clearChunkReloadFlag();
+    try {
+        if (typeof window !== 'undefined') {
+            window.__crwdctrlAppReady = true;
+        }
+    } catch {
+        /* ignore */
+    }
+}
+
 function handleScriptLoadFailure(event) {
     const target = event?.target;
     if (!target || target.tagName !== 'SCRIPT') return false;

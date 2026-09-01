@@ -21,6 +21,10 @@ export function isLikelyInAppBrowser(ua = typeof navigator !== 'undefined' ? nav
 export function getExternalBrowserTargetUrl(href = typeof window !== 'undefined' ? window.location.href : '') {
     try {
         const u = new URL(href, typeof window !== 'undefined' ? window.location.origin : 'https://www.crwdctrl.in');
+        // Always hand off to www — apex 307 + in-app cookies break login/payment in Safari.
+        if (u.hostname === 'crwdctrl.in') {
+            u.hostname = 'www.crwdctrl.in';
+        }
         return `${u.origin}${u.pathname}${u.search}${u.hash}`;
     } catch {
         return href || 'https://www.crwdctrl.in';
@@ -42,10 +46,8 @@ export function openInExternalBrowser(href = typeof window !== 'undefined' ? win
             return { ok: true, method: 'android-chrome-intent' };
         }
         if (isIOS) {
-            // iOS WebViews usually block custom schemes — open + copy is the reliable path
-            const opened = window.open(url, '_blank');
-            if (opened) return { ok: true, method: 'ios-window-open' };
-            return { ok: false, method: 'ios-blocked', url };
+            // Instagram iOS blocks window.open → Safari; copy + manual ⋯ menu is reliable.
+            return { ok: false, method: 'ios-manual-safari', url };
         }
         window.open(url, '_blank', 'noopener,noreferrer');
         return { ok: true, method: 'window-open' };

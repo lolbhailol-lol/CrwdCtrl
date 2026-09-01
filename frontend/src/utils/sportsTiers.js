@@ -1,5 +1,12 @@
 /** Client helpers for sports/run custom registration tiers */
 
+/** Full event payload — pricing present so booking UI does not flash stubs. */
+export function hasPricingSnapshot(ev) {
+    if (!ev) return false;
+    if (ev.pricingMode === 'tiers') return Array.isArray(ev.tiers);
+    return typeof ev.registrationFee === 'number';
+}
+
 export function createEmptyTier(order = 0, name = '') {
     return {
         id: `tier_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,

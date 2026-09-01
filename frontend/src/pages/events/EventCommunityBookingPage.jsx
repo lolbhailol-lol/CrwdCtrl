@@ -172,6 +172,7 @@ export default function EventCommunityBookingPage() {
     const [showRegister, setShowRegister] = useState(false);
     const [loginDismissed, setLoginDismissed] = useState(false);
     const [chromeGateDismissed, setChromeGateDismissed] = useState(false);
+    const [payChromeGate, setPayChromeGate] = useState(false);
     const inAppChrome = shouldShowInAppChromeGate();
 
     const isAuthed = useCallback(() => {
@@ -1232,6 +1233,13 @@ export default function EventCommunityBookingPage() {
                 return;
             }
 
+            if (inAppChrome && payableAmount > 0) {
+                setPayChromeGate(true);
+                setChromeGateDismissed(false);
+                setError('Open in Safari to pay — Instagram blocks Google Pay / PhonePe.');
+                return;
+            }
+
             saveDraft({ step: detailsStep });
             setPaying(true);
             try {
@@ -1435,18 +1443,21 @@ export default function EventCommunityBookingPage() {
         && !showProcessing
         && !waitingOnAuth
         && !isRedirectProcessing;
-    // Instagram first: clear OPEN IN CHROME sheet (Google cannot work in-app)
-    const showChromeGate = needsAuthGate && inAppChrome && !chromeGateDismissed;
+    // Instagram first: clear OPEN IN SAFARI sheet (Google + UPI cannot work in-app)
+    const showChromeGate = inAppChrome && !chromeGateDismissed && (needsAuthGate || payChromeGate);
     const showLoginOverlay = needsAuthGate && !loginDismissed && (!inAppChrome || chromeGateDismissed);
 
     const loginOverlay = (
         <>
             <InAppOpenChromeGate
                 open={showChromeGate}
-                actionLabel="book"
+                actionLabel={payChromeGate ? 'pay & book' : 'book'}
                 eventName={event?.title || event?.name || ''}
                 isDark={isDark}
-                onDismiss={() => setChromeGateDismissed(true)}
+                onDismiss={() => {
+                    setChromeGateDismissed(true);
+                    setPayChromeGate(false);
+                }}
             />
             {showLoginOverlay || showLogin ? (
                 <Suspense fallback={null}>
@@ -1748,6 +1759,7 @@ export default function EventCommunityBookingPage() {
                         onClick={() => {
                             if (waitingOnAuth) return;
                             if (inAppChrome) {
+                                setPayChromeGate(false);
                                 setChromeGateDismissed(false);
                                 return;
                             }
@@ -1758,13 +1770,13 @@ export default function EventCommunityBookingPage() {
                         {waitingOnAuth
                             ? 'Finishing sign-in…'
                             : inAppChrome
-                                ? 'Instagram blocks Google — tap to OPEN IN CHROME'
+                                ? 'Instagram blocks Google & UPI — tap to OPEN IN SAFARI'
                                 : 'Sign in with Google to fill and book — tap here'}
                         <span className={`mt-1 block text-xs font-normal ${isDark ? 'text-[#0ECCEE]/80' : 'text-cyan-700'}`}>
                             {waitingOnAuth
                                 ? 'Your booking form is ready — hang tight a second.'
                                 : inAppChrome
-                                    ? 'Same booking page opens in Chrome / Safari, then you can register.'
+                                    ? 'Same booking page opens in Safari, then sign in and pay.'
                                     : 'Required to complete your booking.'}
                         </span>
                     </button>

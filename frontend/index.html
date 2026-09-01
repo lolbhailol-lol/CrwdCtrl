@@ -591,7 +591,13 @@
           if (/^\/campus-hunt\/offline(\/|$)/.test(location.pathname || '')) {
             return;
           }
+          if (window.__crwdctrlAppReady) {
+            sessionStorage.removeItem(RECOVER_KEY);
+            hideFallback();
+            return;
+          }
           if (sessionStorage.getItem(RECOVER_KEY)) {
+            // Already retried once — show reload UI instead of looping forever (Safari PWA).
             showFallback();
             return;
           }
@@ -629,6 +635,11 @@
 
       setTimeout(function () {
         var root = document.getElementById('root');
+        if (window.__crwdctrlAppReady || (root && root.querySelector('[data-crwdctrl-app]'))) {
+          hideFallback();
+          dismissBootSplash();
+          return;
+        }
         if (root && root.childNodes.length) {
           hideFallback();
           return;
@@ -640,8 +651,13 @@
 
       new MutationObserver(function () {
         var root = document.getElementById('root');
-        if (root && root.childNodes.length) hideFallback();
-      }).observe(document.getElementById('root'), { childList: true });
+        if (window.__crwdctrlAppReady || (root && root.querySelector('[data-crwdctrl-app]'))) {
+          hideFallback();
+          dismissBootSplash();
+        } else if (root && root.childNodes.length) {
+          hideFallback();
+        }
+      }).observe(document.getElementById('root'), { childList: true, subtree: true });
     })();
   </script>
   <script type="module" src="/src/main.jsx"></script>

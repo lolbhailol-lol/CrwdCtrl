@@ -18,6 +18,8 @@ import {
     detectInAppBrowserName,
     isLikelyInAppBrowser,
     openInExternalBrowser,
+    getExternalBrowserTargetUrl,
+    copyPageLink,
 } from '../../utils/openInExternalBrowser';
 
 function GoogleIcon({ className = 'w-5 h-5 sm:w-6 sm:h-6' }) {
@@ -75,8 +77,17 @@ export default function CrwdCtrlLogin({
         setInAppBrowserBlocked(true);
     }, []);
 
-    const handoffToExternalBrowser = () => {
-        openInExternalBrowser(window.location.href);
+    const handoffToExternalBrowser = async () => {
+        const url = getExternalBrowserTargetUrl(window.location.href);
+        try {
+            sessionStorage.setItem('auth_redirect_url', url);
+        } catch {
+            /* ignore */
+        }
+        const result = openInExternalBrowser(url);
+        if (!result.ok && isIOSDevice) {
+            await copyPageLink(url);
+        }
     };
 
     // Determine if this is being used as a modal or a page

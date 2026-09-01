@@ -1,14 +1,17 @@
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ExternalLink } from 'lucide-react';
 import {
     detectInAppBrowserName,
     isLikelyInAppBrowser,
     openInExternalBrowser,
+    copyPageLink,
+    getExternalBrowserTargetUrl,
 } from '../utils/openInExternalBrowser';
 
 /**
  * Full-screen Instagram / in-app browser gate.
- * Google login cannot work inside Instagram — force a clear Open in Chrome/Safari CTA.
+ * Google login + UPI payment cannot work inside Instagram — guide to Safari/Chrome.
  */
 export default function InAppOpenChromeGate({
     open,
@@ -18,13 +21,35 @@ export default function InAppOpenChromeGate({
     pageUrl,
     onDismiss,
 }) {
+    const [copied, setCopied] = useState(false);
+
     if (!open || typeof document === 'undefined') return null;
     if (!isLikelyInAppBrowser()) return null;
 
     const appName = detectInAppBrowserName();
     const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/i.test(navigator.userAgent);
     const browserName = isIOS ? 'Safari' : 'Chrome';
-    const url = pageUrl || (typeof window !== 'undefined' ? window.location.href : '');
+    const url = getExternalBrowserTargetUrl(
+        pageUrl || (typeof window !== 'undefined' ? window.location.href : ''),
+    );
+
+    const handleOpen = async () => {
+        const result = openInExternalBrowser(url);
+        if (result.ok) return;
+        const copy = await copyPageLink(url);
+        if (copy.ok) {
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 2500);
+        }
+    };
+
+    const handleCopy = async () => {
+        const copy = await copyPageLink(url);
+        if (copy.ok) {
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 2500);
+        }
+    };
 
     return createPortal(
         <div className="fixed inset-0 z-[100080] flex items-end sm:items-center justify-center">
@@ -55,31 +80,53 @@ export default function InAppOpenChromeGate({
                 }`}>
                     {isIOS ? (
                         <>
-                            Google sign-in does <strong>not</strong> work inside {appName}.
+                            Google sign-in and UPI payment do <strong>not</strong> work inside {appName}.
                             Tap <strong>⋯</strong> (top right) → <strong>Open in {browserName}</strong>, then {actionLabel}.
                         </>
                     ) : (
                         <>
-                            Google sign-in does <strong>not</strong> work inside {appName}.
+                            Google sign-in and UPI payment do <strong>not</strong> work inside {appName}.
                             Tap the button below — this same page opens in {browserName} so you can {actionLabel}.
                         </>
                     )}
                 </div>
 
-                <button
-                    type="button"
-                    onClick={() => openInExternalBrowser(url)}
-                    className="mt-5 w-full min-h-14 rounded-2xl bg-[#0ECCEE] text-black text-base font-extrabold tracking-wide flex items-center justify-center gap-2 hover:opacity-90 active:scale-[0.99]"
-                >
-                    <ExternalLink size={20} strokeWidth={2.5} />
-                    OPEN IN {browserName.toUpperCase()}
-                </button>
+                {isIOS ? (
+                    <button
+                        type="button"
+                        onClick={handleCopy}
+                        className="mt-5 w-full min-h-14 rounded-2xl bg-[#0ECCEE] text-black text-base font-extrabold tracking-wide flex items-center justify-center gap-2 hover:opacity-90 active:scale-[0.99]"
+                    >
+                        {copied ? 'Link copied — paste in Safari' : `Copy link for ${browserName}`}
+                    </button>
+                ) : (
+                    <button
+                        type="button"
+                        onClick={handleOpen}
+                        className="mt-5 w-full min-h-14 rounded-2xl bg-[#0ECCEE] text-black text-base font-extrabold tracking-wide flex items-center justify-center gap-2 hover:opacity-90 active:scale-[0.99]"
+                    >
+                        <ExternalLink size={20} strokeWidth={2.5} />
+                        OPEN IN {browserName.toUpperCase()}
+                    </button>
+                )}
+
+                {isIOS ? (
+                    <button
+                        type="button"
+                        onClick={handleOpen}
+                        className={`mt-3 w-full text-center text-xs font-medium py-2 ${
+                            isDark ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'
+                        }`}
+                    >
+                        Or try opening {browserName} directly
+                    </button>
+                ) : null}
 
                 {typeof onDismiss === 'function' ? (
                     <button
                         type="button"
                         onClick={onDismiss}
-                        className={`mt-3 w-full text-center text-xs font-medium py-2 ${
+                        className={`mt-1 w-full text-center text-xs font-medium py-2 ${
                             isDark ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'
                         }`}
                     >

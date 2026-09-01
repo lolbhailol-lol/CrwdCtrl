@@ -15,7 +15,8 @@ import { removeHtmlBootSplash, BOOT_SPLASH_MS, BOOT_SPLASH_SHORT_MAX_MS, shouldS
 import { isCategoryHubRoute } from './utils/categoryHubRoutes'
 import { MobileSearchProvider, useMobileSearchOptional } from './context/MobileSearchContext'
 import MobileSearchHost from './components/MobileSearchHost'
-import { clearChunkReloadFlag } from './utils/chunkError'
+import { clearChunkReloadFlag, markAppBootSuccess } from './utils/chunkError'
+import { dismissBootOverlays } from './utils/dismissBootOverlays'
 import ErrorBoundary from './components/ErrorBoundary'
 import AdSenseLoader from './components/AdSense'
 import PWAInstallPrompt from './components/PWAInstallPrompt'
@@ -283,7 +284,7 @@ function AppContent({
   }, [navigate, setIsProfileOpen, setShowLogin, setShowRegister]);
 
   return (
-    <div className={`crwdctrl-app-shell relative min-h-screen overflow-x-clip ${!isStandaloneRoute ? '' : ''}`}>
+    <div className={`crwdctrl-app-shell relative min-h-screen overflow-x-clip ${!isStandaloneRoute ? '' : ''}`} data-crwdctrl-app>
       {isHomeHub && !homeShellReady ? <HomeHubLoadingScreen /> : null}
       <ConditionalNavigation
         isProfileOpen={isProfileOpen}
@@ -361,6 +362,8 @@ function App() {
   // HTML boot splash covers first paint — never defer mounting Router/Auth behind it.
   // Shared trek/fest/club links skip the logo entirely so content paints immediately.
   useEffect(() => {
+    markAppBootSuccess();
+    dismissBootOverlays();
     if (!shouldShowBootSplash()) {
       removeHtmlBootSplash();
       clearChunkReloadFlag();

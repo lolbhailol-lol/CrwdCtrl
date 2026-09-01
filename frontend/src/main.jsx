@@ -9,13 +9,16 @@ import { initThemeClass } from './utils/themeInit'
 import { initSentry } from './utils/sentry'
 import { isNativeApp } from './utils/capacitorPlatform'
 import { initCashfreeNativeGateway } from './utils/bootstrapCashfreeNative'
-import { initGlobalErrorHandlers } from './utils/chunkError'
+import { initGlobalErrorHandlers, markAppBootSuccess } from './utils/chunkError'
+import { dismissBootOverlays } from './utils/dismissBootOverlays'
+import { isSafariBrowser } from './utils/safariBrowser'
 import { preloadCategoryNavIcons } from './constants/categoryNavIcons'
 import { SpeedInsights } from '@vercel/speed-insights/react'
 
 initThemeClass()
 initSentry()
 initGlobalErrorHandlers()
+markAppBootSuccess()
 // Warm current-theme nav icons only (no <link rel=preload> — avoids unused-preload warnings on event pages)
 try {
   const isDark = document.documentElement.classList.contains('dark')
@@ -79,7 +82,7 @@ createRoot(document.getElementById('root')).render(
   import.meta.env.PROD ? (
     <ErrorBoundary>
       <App />
-      {!isNativeApp() && <SpeedInsights />}
+      {!isNativeApp() && !isSafariBrowser() && <SpeedInsights />}
     </ErrorBoundary>
   ) : (
     <StrictMode>
@@ -90,7 +93,9 @@ createRoot(document.getElementById('root')).render(
   ),
 )
 
+dismissBootOverlays()
 window.requestAnimationFrame(() => {
+  dismissBootOverlays()
   const fallback = document.getElementById('boot-fallback');
   if (fallback) fallback.hidden = true;
 })
