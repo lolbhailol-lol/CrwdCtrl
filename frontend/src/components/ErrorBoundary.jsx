@@ -18,11 +18,14 @@ class ErrorBoundary extends React.Component {
     captureException(error, { extra: { componentStack: errorInfo?.componentStack } });
   }
 
-  handleReload = () => {
+  handleReload = async () => {
     const chunkError = isChunkLoadError(this.state.error);
     if (chunkError) {
       this.setState({ recovering: true });
-      void forceRecoverFromStaleDeploy();
+      const started = await forceRecoverFromStaleDeploy();
+      if (!started) {
+        this.setState({ recovering: false });
+      }
       return;
     }
     this.setState({ hasError: false, error: null, errorInfo: null, recovering: false });
@@ -50,7 +53,9 @@ class ErrorBoundary extends React.Component {
             </h1>
             <p className={`mb-6 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
               {chunkError
-                ? 'CrwdCtrl was updated. Refresh to load the latest version.'
+                ? (recovering
+                  ? 'Clearing cache and loading the latest version…'
+                  : 'CrwdCtrl was updated. Refresh to load the latest version.')
                 : 'We\'re sorry, but something unexpected happened. Please try again.'}
             </p>
 

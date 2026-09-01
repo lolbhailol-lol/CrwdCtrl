@@ -1,6 +1,10 @@
 export const CHUNK_RELOAD_SESSION_KEY = 'crwdctrl_chunk_reload';
 const STALE_RECOVER_AT_KEY = 'crwdctrl_stale_recover_at';
+const CACHE_BUST_DONE_KEY = 'crwdctrl_cache_bust_done';
+const FORCE_RECOVER_DONE_KEY = 'crwdctrl_force_recover_done';
 export const STALE_RECOVER_COOLDOWN_MS = 60_000;
+
+let forceRecoverInFlight = false;
 
 /** gtag.js / Firebase Analytics: config missing, then every fetch throws `undefined.M_ID`. */
 export function isGtagMeasurementIdError(error) {
@@ -71,22 +75,46 @@ function clearRecoverSessionFlags() {
     }
 }
 
-function reloadWithCacheBust() {
+function reloadWithCacheBust({ force = false } = {}) {
     const url = new URL(window.location.href);
+    const alreadyBusted = url.searchParams.has('_crwd');
+
+    if (!force) {
+        // Automatic recovery: one cache-bust per session; skip if URL already busted.
+        if (alreadyBusted) return false;
+        try {
+            if (sessionStorage.getItem(CACHE_BUST_DONE_KEY)) return false;
+            sessionStorage.setItem(CACHE_BUST_DONE_KEY, '1');
+        } catch {
+            /* private mode */
+        }
+    } else {
+        // User-initiated: allow one force reload even when _crwd is present.
+        try {
+            if (sessionStorage.getItem(FORCE_RECOVER_DONE_KEY)) return false;
+            sessionStorage.setItem(FORCE_RECOVER_DONE_KEY, '1');
+        } catch {
+            /* private mode */
+        }
+    }
+
     url.searchParams.set('_crwd', String(Date.now()));
     window.location.replace(url.toString());
+    return true;
 }
 
-/** User tapped Refresh — always clear SW/caches and reload (no cooldown). */
+/** User tapped Refresh — clear SW/caches and reload once (guarded against loops). */
 export async function forceRecoverFromStaleDeploy() {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined') return false;
+    if (forceRecoverInFlight) return false;
     if (String(window.location?.pathname || '').startsWith('/campus-hunt/offline')) {
         window.location.reload();
-        return;
+        return true;
     }
+    forceRecoverInFlight = true;
     clearRecoverSessionFlags();
     await clearStaleAppCaches();
-    reloadWithCacheBust();
+    return reloadWithCacheBust({ force: true });
 }
 
 export async function recoverFromStaleDeploy() {
@@ -102,7 +130,7 @@ export async function recoverFromStaleDeploy() {
         /* private mode */
     }
     await clearStaleAppCaches();
-    reloadWithCacheBust();
+    return reloadWithCacheBust({ force: false });
 }
 
 /** Reload once per session when a stale JS chunk fails after deploy */
@@ -131,9 +159,12 @@ export function clearChunkReloadFlag() {
         sessionStorage.removeItem('crwdctrl_sw_reload');
         sessionStorage.removeItem('crwdctrl_boot_recover');
         sessionStorage.removeItem(STALE_RECOVER_AT_KEY);
+        sessionStorage.removeItem(CACHE_BUST_DONE_KEY);
+        sessionStorage.removeItem(FORCE_RECOVER_DONE_KEY);
     } catch {
         // ignore storage errors
     }
+    forceRecoverInFlight = false;
 }
 
 /** Called as soon as React mounts — Safari can leave boot-fallback covering the page. */
