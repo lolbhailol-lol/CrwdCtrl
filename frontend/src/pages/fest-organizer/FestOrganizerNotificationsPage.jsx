@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
-    Bell, Check, Copy, Loader, Megaphone, MessageCircle, Phone,
-    RefreshCw, Search, Users, Zap,
+    Bell, Check, Copy, Loader, Mail, Megaphone, MessageCircle, Phone,
+    RefreshCw, Search, Users, X, Zap,
 } from 'lucide-react';
 import {
     sendFestOrganizerReminder,
     sendFestOrganizerBroadcast,
     fetchFestOrganizerDashboard,
     fetchFestOrganizerNotifyContacts,
+    notifyFestOrganizerParticipant,
     buildFestOrganizerAdminApi,
 } from '../../services/api/festOrganizer.api';
 import { InlinePageLoader } from '../../components/DetailPageLoader';
@@ -157,6 +158,11 @@ export default function FestOrganizerNotificationsPage() {
     const [notifyChannels, setNotifyChannels] = useState({ inApp: true, email: false });
     const [busy, setBusy] = useState('');
     const [waCursor, setWaCursor] = useState(0);
+    const [selectedIds, setSelectedIds] = useState([]);
+    const [notifyOpen, setNotifyOpen] = useState(null);
+    const [notifyBatch, setNotifyBatch] = useState([]);
+    const [notifyForm, setNotifyForm] = useState({ title: '', message: '', inApp: true, email: true });
+    const [notifyBusy, setNotifyBusy] = useState(false);
 
     const setTab = (next) => {
         const p = new URLSearchParams(searchParams);
@@ -212,6 +218,12 @@ export default function FestOrganizerNotificationsPage() {
         loadContacts();
     }, [loadContacts]);
 
+    useEffect(() => {
+        setSelectedIds([]);
+        setNotifyOpen(null);
+        setNotifyBatch([]);
+    }, [audience, competitionId]);
+
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase();
         if (!q) return contacts;
@@ -221,6 +233,106 @@ export default function FestOrganizerNotificationsPage() {
     }, [contacts, query]);
 
     const withPhone = useMemo(() => filtered.filter((c) => c.phone), [filtered]);
+
+    const selectedContacts = useMemo(
+        () => filtered.filter((c) => selectedIds.includes(String(c.id))),
+        [filtered, selectedIds],
+    );
+
+    const toggleSelect = (id) => {
+        const key = String(id);
+        setSelectedIds((prev) => (
+            prev.includes(key) ? prev.filter((x) => x !== key) : [...prev, key]
+        ));
+    };
+
+    const selectAllFiltered = () => {
+        setSelectedIds(filtered.map((c) => String(c.id)));
+    };
+
+    const clearSelection = () => setSelectedIds([]);
+
+    const openNotifyOne = (contact) => {
+        const compLabel = contact.competitionName || festName || 'the fest';
+        setNotifyBatch([]);
+        setNotifyForm({
+            title: appForm.title.trim() || `Update — ${compLabel}`,
+            message: appForm.message.trim() || `Hi! Quick update about ${compLabel}. Please check the fest page or your QR ticket for details.`,
+            inApp: true,
+            email: Boolean(contact.email),
+        });
+        setNotifyOpen(contact);
+    };
+
+    const openNotifySelected = () => {
+        if (!selectedContacts.length) {
+            toast('Select at least one participant');
+            return;
+        }
+        const compLabel = competitionId
+            ? (competitions.find((c) => c.id === competitionId)?.name || 'your competition')
+            : (festName || 'the fest');
+        setNotifyOpen(null);
+        setNotifyBatch(selectedContacts);
+        setNotifyForm({
+            title: appForm.title.trim() || `Update — ${compLabel}`,
+            message: appForm.message.trim() || `Hi! Quick update about ${compLabel}. Please check the fest page or your QR ticket for details.`,
+            inApp: true,
+            email: selectedContacts.some((c) => c.email),
+        });
+    };
+
+    const sendIndividualNotify = async () => {
+        const targets = notifyOpen
+            ? [notifyOpen]
+            : notifyBatch;
+        if (!targets.length) return;
+
+        const title = notifyForm.title.trim();
+        const message = notifyForm.message.trim();
+        if (!title || !message) {
+            toast('Add title & message');
+            return;
+        }
+        const channels = [];
+        if (notifyForm.inApp) channels.push('inApp');
+        if (notifyForm.email) channels.push('email');
+        if (!channels.length) {
+            toast('Pick at least one channel');
+            return;
+        }
+
+        if (targets.length > 1) {
+            const ok = await confirm({
+                title: 'Notify selected?',
+                message: `Send ${channels.join(' + ')} to ${targets.length} selected participant${targets.length === 1 ? '' : 's'}?`,
+            });
+            if (!ok) return;
+        }
+
+        setNotifyBusy(true);
+        let sent = 0;
+        try {
+            for (const contact of targets) {
+                await notifyFestOrganizerParticipant(festId, contact.id, {
+                    title,
+                    message,
+                    channels,
+                });
+                sent += 1;
+            }
+            toast(targets.length === 1 ? 'Notification sent' : `Sent to ${sent} participant${sent === 1 ? '' : 's'}`);
+            setNotifyOpen(null);
+            setNotifyBatch([]);
+            clearSelection();
+        } catch (err) {
+            toast(sent
+                ? `Sent ${sent}/${targets.length} — ${err.message || 'Failed'}`
+                : (err.message || 'Failed'));
+        } finally {
+            setNotifyBusy(false);
+        }
+    };
 
     const applyTemplate = (t) => {
         setWaMessage(t.wa);
@@ -535,6 +647,43 @@ export default function FestOrganizerNotificationsPage() {
                         />
                     </div>
 
+                    {filtered.length ? (
+                        <div className="flex flex-wrap items-center justify-between gap-2 px-0.5">
+                            <p className="text-[11px] text-gray-500">
+                                {selectedIds.length
+                                    ? <span><span className="text-[#0ECCEE] font-medium">{selectedIds.length}</span> selected</span>
+                                    : 'Tap to select · notify one or many'}
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                                <button
+                                    type="button"
+                                    onClick={selectAllFiltered}
+                                    className="text-[11px] px-2.5 py-1 rounded-lg border border-white/10 text-gray-400"
+                                >
+                                    Select all
+                                </button>
+                                {selectedIds.length ? (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={clearSelection}
+                                            className="text-[11px] px-2.5 py-1 rounded-lg border border-white/10 text-gray-400"
+                                        >
+                                            Clear
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={openNotifySelected}
+                                            className="text-[11px] px-2.5 py-1.5 rounded-lg bg-[#0ECCEE]/15 text-[#0ECCEE] font-semibold inline-flex items-center gap-1"
+                                        >
+                                            <Mail size={12} /> Notify selected
+                                        </button>
+                                    </>
+                                ) : null}
+                            </div>
+                        </div>
+                    ) : null}
+
                     {loading ? (
                         <InlinePageLoader label="Loading contacts…" variant="fest" minHeight={false} />
                     ) : (
@@ -543,21 +692,48 @@ export default function FestOrganizerNotificationsPage() {
                                 const text = personalize(waMessage, c.name, festName, c.competitionName);
                                 const wa = waLink(c.phone, text);
                                 const tel = telLink(c.phone);
+                                const selected = selectedIds.includes(String(c.id));
                                 return (
                                     <div
                                         key={c.id}
-                                        className="rounded-2xl border border-white/10 bg-[#161718] px-3.5 py-3 flex items-center gap-3"
+                                        className={`rounded-2xl border px-3.5 py-3 flex items-center gap-3 ${
+                                            selected
+                                                ? 'border-[#0ECCEE]/35 bg-[#0ECCEE]/5'
+                                                : 'border-white/10 bg-[#161718]'
+                                        }`}
                                     >
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleSelect(c.id)}
+                                            className={`w-5 h-5 rounded-md border shrink-0 flex items-center justify-center ${
+                                                selected
+                                                    ? 'bg-[#0ECCEE] border-[#0ECCEE] text-black'
+                                                    : 'border-white/20 text-transparent'
+                                            }`}
+                                            aria-label={selected ? `Deselect ${c.name}` : `Select ${c.name}`}
+                                        >
+                                            <Check size={12} />
+                                        </button>
                                         <div className="min-w-0 flex-1">
                                             <p className="text-sm font-semibold text-white truncate">{c.name}</p>
                                             <p className="text-[11px] text-gray-500 truncate">
                                                 {c.competitionName || 'Fest'}
                                                 {c.phone ? ` · ${c.phone}` : ' · no phone'}
+                                                {c.email ? ` · ${c.email}` : ''}
                                                 {c.paymentStatus === 'pending' ? ' · unpaid' : ''}
                                                 {!mindSpark && c.status === 'pending' ? ' · review' : ''}
                                             </p>
                                         </div>
                                         <div className="flex items-center gap-1.5 shrink-0">
+                                            <button
+                                                type="button"
+                                                onClick={() => openNotifyOne(c)}
+                                                className="p-2 rounded-xl bg-[#0ECCEE]/10 text-[#0ECCEE]"
+                                                title="Notify participant"
+                                                aria-label={`Notify ${c.name}`}
+                                            >
+                                                <Bell size={15} />
+                                            </button>
                                             {wa ? (
                                                 <a
                                                     href={wa}
@@ -614,7 +790,20 @@ export default function FestOrganizerNotificationsPage() {
                             Send to <span className="text-white">{audienceLabel}</span>
                             {competitionId ? ' in the selected competition' : ' across the fest'}
                             {' '}(~{meta.total} people).
+                            {selectedContacts.length ? (
+                                <> Or use <span className="text-[#0ECCEE]">Notify selected</span> below for {selectedContacts.length} picked.</>
+                            ) : null}
                         </p>
+                        {selectedContacts.length ? (
+                            <button
+                                type="button"
+                                onClick={openNotifySelected}
+                                className="w-full py-2.5 rounded-xl border border-[#0ECCEE]/40 text-[#0ECCEE] text-sm font-semibold inline-flex items-center justify-center gap-2"
+                            >
+                                <Mail size={16} />
+                                Notify {selectedContacts.length} selected
+                            </button>
+                        ) : null}
                         <div className="flex flex-wrap gap-4 text-xs text-gray-300">
                             <label className="inline-flex items-center gap-2">
                                 <input
@@ -683,6 +872,61 @@ export default function FestOrganizerNotificationsPage() {
                                 )}
                         </p>
                     </div>
+
+                    <section className="rounded-2xl border border-white/10 bg-[#161718] p-3.5 space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                            <p className="text-[11px] uppercase tracking-wide text-gray-500">Pick individuals</p>
+                            {filtered.length ? (
+                                <div className="flex gap-2">
+                                    <button type="button" onClick={selectAllFiltered} className="text-[10px] text-gray-500">All</button>
+                                    {selectedIds.length ? (
+                                        <button type="button" onClick={clearSelection} className="text-[10px] text-gray-500">Clear</button>
+                                    ) : null}
+                                </div>
+                            ) : null}
+                        </div>
+                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                            {filtered.slice(0, 80).map((c) => {
+                                const selected = selectedIds.includes(String(c.id));
+                                return (
+                                    <div
+                                        key={`app-${c.id}`}
+                                        className={`rounded-xl border px-3 py-2.5 flex items-center gap-2 ${
+                                            selected ? 'border-[#0ECCEE]/35 bg-[#0ECCEE]/5' : 'border-white/10'
+                                        }`}
+                                    >
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleSelect(c.id)}
+                                            className={`w-4 h-4 rounded border shrink-0 flex items-center justify-center ${
+                                                selected ? 'bg-[#0ECCEE] border-[#0ECCEE] text-black' : 'border-white/20 text-transparent'
+                                            }`}
+                                        >
+                                            <Check size={10} />
+                                        </button>
+                                        <div className="min-w-0 flex-1">
+                                            <p className="text-xs font-medium text-white truncate">{c.name}</p>
+                                            <p className="text-[10px] text-gray-500 truncate">
+                                                {c.competitionName || 'Fest'}
+                                                {c.email ? ` · ${c.email}` : ''}
+                                            </p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => openNotifyOne(c)}
+                                            className="p-1.5 rounded-lg bg-[#0ECCEE]/10 text-[#0ECCEE] shrink-0"
+                                            aria-label={`Notify ${c.name}`}
+                                        >
+                                            <Bell size={13} />
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                            {!filtered.length && !loading ? (
+                                <p className="text-xs text-gray-500 text-center py-4">No contacts in this audience</p>
+                            ) : null}
+                        </div>
+                    </section>
                 </div>
             )}
 
@@ -698,6 +942,94 @@ export default function FestOrganizerNotificationsPage() {
                     </div>
                     <WhatsAppAdmin festId={festId} api={adminApi} />
                 </section>
+            ) : null}
+
+            {(notifyOpen || notifyBatch.length > 0) ? (
+                <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/70">
+                    <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#161718] p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                            <div>
+                                <p className="text-[10px] uppercase tracking-wide text-[#0ECCEE]">
+                                    {notifyBatch.length > 1 ? `Notify ${notifyBatch.length} selected` : 'Notify one'}
+                                </p>
+                                {notifyOpen ? (
+                                    <>
+                                        <h3 className="text-sm font-semibold text-white">{notifyOpen.name || 'Participant'}</h3>
+                                        <p className="text-[11px] text-gray-500 truncate">
+                                            {notifyOpen.email || 'No email'}
+                                            {notifyOpen.phone ? ` · ${notifyOpen.phone}` : ''}
+                                            {notifyOpen.competitionName ? ` · ${notifyOpen.competitionName}` : ''}
+                                        </p>
+                                    </>
+                                ) : (
+                                    <p className="text-sm text-gray-300 mt-1">
+                                        {notifyBatch.slice(0, 3).map((c) => c.name).join(', ')}
+                                        {notifyBatch.length > 3 ? ` +${notifyBatch.length - 3} more` : ''}
+                                    </p>
+                                )}
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setNotifyOpen(null);
+                                    setNotifyBatch([]);
+                                }}
+                                className="p-1.5 text-gray-500"
+                                aria-label="Close"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+                        <input
+                            value={notifyForm.title}
+                            onChange={(e) => setNotifyForm((f) => ({ ...f, title: e.target.value }))}
+                            placeholder="Title"
+                            className="w-full px-3 py-2.5 rounded-xl bg-[#121314] border border-white/10 text-sm text-white"
+                        />
+                        <textarea
+                            value={notifyForm.message}
+                            onChange={(e) => setNotifyForm((f) => ({ ...f, message: e.target.value }))}
+                            rows={4}
+                            placeholder="Message"
+                            className="w-full px-3 py-2.5 rounded-xl bg-[#121314] border border-white/10 text-sm text-white"
+                        />
+                        <div className="flex flex-wrap gap-3 text-xs text-gray-300">
+                            <label className="inline-flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    checked={notifyForm.inApp}
+                                    onChange={(e) => setNotifyForm((f) => ({ ...f, inApp: e.target.checked }))}
+                                />
+                                In-app
+                            </label>
+                            <label className="inline-flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    checked={notifyForm.email}
+                                    onChange={(e) => setNotifyForm((f) => ({ ...f, email: e.target.checked }))}
+                                    disabled={notifyOpen
+                                        ? !notifyOpen.email
+                                        : !notifyBatch.some((c) => c.email)}
+                                />
+                                Email
+                                {notifyOpen && !notifyOpen.email ? (
+                                    <span className="text-gray-600">(no email)</span>
+                                ) : null}
+                            </label>
+                        </div>
+                        <button
+                            type="button"
+                            disabled={notifyBusy}
+                            onClick={sendIndividualNotify}
+                            className="w-full py-2.5 rounded-xl bg-[#0ECCEE] text-black text-sm font-semibold disabled:opacity-50 inline-flex items-center justify-center gap-2"
+                        >
+                            {notifyBusy ? <Loader className="animate-spin" size={16} /> : <Mail size={16} />}
+                            {notifyBatch.length > 1
+                                ? `Send to ${notifyBatch.length} people`
+                                : 'Send notification'}
+                        </button>
+                    </div>
+                </div>
             ) : null}
         </div>
     );

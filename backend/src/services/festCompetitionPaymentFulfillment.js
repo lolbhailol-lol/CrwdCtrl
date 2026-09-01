@@ -16,6 +16,7 @@ const {
   sanitizeFestCompetitionDraft,
   draftToResponses,
 } = require('../utils/festCompetitionDraft');
+const { normalizeLeadIdentityFromRoster } = require('../utils/rosterResponses');
 const { saveRegistrationIdempotent } = require('../utils/registrationIdempotency');
 const { cashfreeSettlementFields } = require('../utils/cashfreeGatewayFee');
 
@@ -82,7 +83,7 @@ async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides 
       ? paidTotal
       : quotedTotal;
 
-    const draftResponses = draftToResponses(draft);
+    const draftResponses = normalizeLeadIdentityFromRoster(draftToResponses(draft));
     if (paymentOrder.orderTags?.tierId) {
       draftResponses.feeTierId = paymentOrder.orderTags.tierId;
       if (paymentOrder.orderTags.tierName) {
@@ -198,7 +199,7 @@ async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides 
     user: userId,
     responses: mergeRegistrationResponses(
       { name: user.name || '', email: user.email || '', phone: user.phoneNumber || '' },
-      draftToResponses(draft),
+      normalizeLeadIdentityFromRoster(draftToResponses(draft)),
     ),
     status: 'approved',
     payment_order_id,

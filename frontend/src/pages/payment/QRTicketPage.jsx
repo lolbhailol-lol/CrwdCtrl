@@ -42,6 +42,34 @@ const formatTicketDate = (date) => {
   });
 };
 
+const TICKET_POLL_MS = [400, 700, 1000, 1500, 2000, 2500, 3000];
+const sleep = (ms) => new Promise((resolve) => { window.setTimeout(resolve, ms); });
+
+function isTicketNotFoundError(err) {
+  const msg = String(err?.message || '');
+  return err?.code === 'NOT_FOUND'
+    || err?.status === 404
+    || /registration not found/i.test(msg)
+    || /sports registration not found/i.test(msg);
+}
+
+function ticketEndpoints(registrationId) {
+  const base = API_BASE_URL;
+  return [
+    `${base}/qr/sports-registrations/${registrationId}/qr`,
+    `${base}/qr/event-registrations/${registrationId}/qr`,
+    `${base}/qr/registrations/${registrationId}/qr`,
+  ];
+}
+
+function preferredTicketUrl(registrationId, { isTrekTicket, isSportsTicket, isEventTicket, ticketHub }) {
+  const treatAsSports = isSportsTicket || ticketHub === 'events';
+  if (isTrekTicket) return `${API_BASE_URL}/qr/trek-bookings/${registrationId}/qr`;
+  if (isEventTicket) return `${API_BASE_URL}/qr/event-registrations/${registrationId}/qr`;
+  if (treatAsSports) return `${API_BASE_URL}/qr/sports-registrations/${registrationId}/qr`;
+  return `${API_BASE_URL}/qr/registrations/${registrationId}/qr`;
+}
+
 export default function QRTicketPage() {
   const { isDark } = useDarkMode();
   const { token: authToken, isAuthenticated, isLoading: authLoading } = useAuth();
@@ -53,8 +81,9 @@ export default function QRTicketPage() {
   const ticketHub = searchParams.get('hub') || '';
   const bookingAccess = searchParams.get('access') || '';
   const isTrekTicket = ticketType === 'trek';
-  const isSportsTicket = ticketType === 'sports';
+  const isSportsTicket = ticketType === 'sports' || ticketHub === 'events';
   const isEventTicket = ticketType === 'event';
+  const fromPayment = Boolean(location.state?.fromPayment);
   const [ticket, setTicket] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -84,13 +113,12 @@ export default function QRTicketPage() {
         if (!cached) setLoading(true);
         setError(null);
 
-        const primaryUrl = isTrekTicket
-          ? `${API_BASE_URL}/qr/trek-bookings/${registrationId}/qr`
-          : isSportsTicket
-            ? `${API_BASE_URL}/qr/sports-registrations/${registrationId}/qr`
-            : isEventTicket
-              ? `${API_BASE_URL}/qr/event-registrations/${registrationId}/qr`
-              : `${API_BASE_URL}/qr/registrations/${registrationId}/qr`;
+        const primaryUrl = preferredTicketUrl(registrationId, {
+          isTrekTicket,
+          isSportsTicket,
+          isEventTicket,
+          ticketHub,
+        });
 
         const loadAuthed = async (url) => {
           const data = await authenticatedFetchJSON(url, {
@@ -100,36 +128,83 @@ export default function QRTicketPage() {
           return data.data;
         };
 
-        let payload;
-        if (canGuestTrek && !isAuthenticated) {
-          const res = await fetch(`${primaryUrl}?access=${encodeURIComponent(bookingAccess)}`, {
-            headers: {
-              'Content-Type': 'application/json',
-              'x-booking-access': bookingAccess,
-            },
-          });
-          const data = await res.json().catch(() => ({}));
-          if (!res.ok) throw new Error(data.message || data.error || 'Failed to load ticket');
-          payload = data.data;
-        } else {
+        const tryLoadTicket = async () => {
+          if (canGuestTrek && !isAuthenticated) {
+            const res = await fetch(`${primaryUrl}?access=${encodeURIComponent(bookingAccess)}`, {
+              headers: {
+                'Content-Type': 'application/json',
+                'x-booking-access': bookingAccess,
+              },
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              const err = new Error(data.message || data.error || 'Failed to load ticket');
+              err.status = res.status;
+              if (res.status === 404) err.code = 'NOT_FOUND';
+              throw err;
+            }
+            return { payload: data.data, resolvedUrl: primaryUrl };
+          }
+
+          const urls = [primaryUrl];
+          if (!isTrekTicket) {
+            for (const url of ticketEndpoints(registrationId)) {
+              if (!urls.includes(url)) urls.push(url);
+            }
+          }
+
+          let lastErr = null;
+          for (const url of urls) {
+            try {
+              const payload = await loadAuthed(url);
+              return { payload, resolvedUrl: url };
+            } catch (err) {
+              lastErr = err;
+              if (!isTicketNotFoundError(err)) throw err;
+            }
+          }
+          throw lastErr || new Error('Registration not found');
+        };
+
+        let result = null;
+        const shouldPoll = fromPayment || !ticketType || ticketHub === 'events';
+        const attempts = shouldPoll ? TICKET_POLL_MS.length + 1 : 1;
+
+        for (let attempt = 0; attempt < attempts; attempt += 1) {
           try {
-            payload = await loadAuthed(primaryUrl);
-          } catch (primaryErr) {
-            // Cashfree return used to omit ?type=sports — fest QR 404s while sports booking exists.
-            const msg = String(primaryErr?.message || '');
-            const shouldRetrySports = !ticketType
-              && !isTrekTicket
-              && !isSportsTicket
-              && !isEventTicket
-              && (/not found/i.test(msg) || primaryErr?.status === 404 || primaryErr?.code === 'NOT_FOUND');
-            if (!shouldRetrySports) throw primaryErr;
-            payload = await loadAuthed(
-              `${API_BASE_URL}/qr/sports-registrations/${registrationId}/qr`,
-            );
+            result = await tryLoadTicket();
+            break;
+          } catch (err) {
+            const retryable = isTicketNotFoundError(err);
+            if (!retryable || attempt >= attempts - 1) throw err;
+            await sleep(TICKET_POLL_MS[attempt] || 1500);
           }
         }
+
+        const { payload, resolvedUrl } = result;
         setTicket(payload);
-        writeCachedTicket(cacheKey, payload);
+
+        const resolvedSports = resolvedUrl.includes('/sports-registrations/');
+        const resolvedEvent = resolvedUrl.includes('/event-registrations/');
+        const needsQueryFix = resolvedSports && !isSportsTicket && ticketType !== 'sports';
+        const hubSuffix = (ticketHub === 'events' || payload?.listingHub === 'events') ? '&hub=events' : '';
+        if (needsQueryFix) {
+          const qs = `type=sports${hubSuffix}`;
+          navigate(`/qr-ticket/${registrationId}?${qs}`, {
+            replace: true,
+            state: location.state,
+          });
+        } else if (resolvedSports && ticketHub === 'events' && ticketType !== 'sports') {
+          navigate(`/qr-ticket/${registrationId}?type=sports&hub=events`, {
+            replace: true,
+            state: location.state,
+          });
+        } else if (resolvedEvent && !isEventTicket) {
+          navigate(`/qr-ticket/${registrationId}?type=event`, { replace: true, state: location.state });
+        }
+
+        const cacheType = resolvedSports ? 'sports' : resolvedEvent ? 'event' : ticketType;
+        writeCachedTicket(ticketCacheKey(cacheType, registrationId), payload);
         setFromCache(false);
       } catch (err) {
         // A saved ticket beats bouncing someone to a login screen while they stand at the gate.
@@ -138,14 +213,18 @@ export default function QRTicketPage() {
           navigate('/login', { state: { from: location.pathname + location.search }, replace: true });
           return;
         }
-        setError(err.message);
+        if (isTicketNotFoundError(err) && (fromPayment || !ticketType)) {
+          setError('Your booking is still confirming. Open My Bookings — your ticket will appear in a moment.');
+        } else {
+          setError(err.message);
+        }
       } finally {
         setLoading(false);
       }
     };
 
     fetchTicket();
-  }, [registrationId, ticketType, isTrekTicket, isSportsTicket, isEventTicket, authToken, authLoading, isAuthenticated, navigate, location.pathname, location.search, bookingAccess]);
+  }, [registrationId, ticketType, ticketHub, isTrekTicket, isSportsTicket, isEventTicket, authToken, authLoading, isAuthenticated, navigate, location.pathname, location.search, location.state, bookingAccess, fromPayment]);
 
   const cardClass = isDark
     ? 'bg-[#111213] border-gray-800'
@@ -168,11 +247,14 @@ export default function QRTicketPage() {
   }
 
   if (error) {
+    const stillConfirming = /still confirming/i.test(error);
     return (
       <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center px-4">
-        <div className="text-center">
-          <p className="text-red-400 mb-4">{error}</p>
-          <Link to="/booking" className="text-[#0ECCEE] hover:underline">Back to Bookings</Link>
+        <div className="text-center max-w-sm">
+          <p className={`mb-4 ${stillConfirming ? 'text-amber-300' : 'text-red-400'}`}>{error}</p>
+          <Link to="/booking" className="text-[#0ECCEE] hover:underline font-semibold">
+            {stillConfirming ? 'Open My Bookings' : 'Back to Bookings'}
+          </Link>
         </div>
       </div>
     );

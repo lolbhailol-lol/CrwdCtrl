@@ -28,6 +28,48 @@ function labelToFieldId(label) {
   return `field_${label.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')}`;
 }
 
+const RESPONSE_ALIAS_KEYS = {
+  name: ['full_name', 'name', 'leader_name'],
+  email: ['email'],
+  phone: ['contact_no', 'phone', 'mobile', 'tel'],
+  college: ['college', 'college_name', 'institution'],
+};
+
+function pickAliasValue(responses, alias) {
+  const r = normalizeResponses(responses);
+  const keys = RESPONSE_ALIAS_KEYS[alias] || [];
+  for (const key of keys) {
+    const value = r[key];
+    if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+  }
+  const members = r.team_members;
+  if (Array.isArray(members) && members[0] && typeof members[0] === 'object') {
+    const memberKey = alias === 'name' ? 'name' : alias;
+    const value = members[0][memberKey];
+    if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+  }
+  return undefined;
+}
+
+function labelAliasGroup(label) {
+  const text = String(label || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!text) return null;
+  if (/^(full name|name)$/.test(text)) return 'name';
+  if (/^(e-?mail|email|email address)$/.test(text)) return 'email';
+  if (/^(contact( no\.?)?|phone|mobile( number)?|tel)$/.test(text)) return 'phone';
+  if (/college|institute/.test(text)) return 'college';
+  return null;
+}
+
+function resolveFieldAlias(field) {
+  const fromLabelId = labelToFieldId(field.label);
+  const strippedLabelId = fromLabelId.replace(/^field_/, '');
+  return responseAliasGroup(field.fieldName)
+    || responseAliasGroup(field.id)
+    || labelAliasGroup(field.label)
+    || responseAliasGroup(strippedLabelId);
+}
+
 function getResponseValue(responses, field) {
   const r = normalizeResponses(responses);
   const candidates = [
@@ -40,12 +82,53 @@ function getResponseValue(responses, field) {
     const value = r[key];
     if (value !== undefined && value !== null && value !== '') return value;
   }
+  const alias = resolveFieldAlias(field);
+  if (alias) {
+    const fromAlias = pickAliasValue(r, alias);
+    if (fromAlias !== undefined) return fromAlias;
+  }
+  if (field.fieldName === 'team_name' || /team.?name/i.test(field.label || '')) {
+    const teamName = r.team_name;
+    if (teamName !== undefined && teamName !== null && String(teamName).trim() !== '') return teamName;
+  }
   return undefined;
 }
 
+function personFieldToFormField(field) {
+  const key = String(field?.key || '').trim();
+  if (!key) return null;
+  return {
+    id: key,
+    fieldName: key,
+    label: field.label || key,
+    type: key === 'email' ? 'email' : key === 'phone' ? 'tel' : 'text',
+  };
+}
+
 function getRegistrationFormFields(registration) {
+  const responses = normalizeResponses(registration.responses);
   const comp = registration.competitionId;
   const fest = registration.fest;
+
+  const savedPersonFields = Array.isArray(responses.person_fields) ? responses.person_fields : [];
+  const schemaPersonFields = Array.isArray(comp?.registration?.personFields)
+    ? comp.registration.personFields
+    : [];
+
+  const personFieldsMeta = savedPersonFields.length ? savedPersonFields : schemaPersonFields;
+  if (personFieldsMeta.length > 0) {
+    const fields = [];
+    if (responses.team_name || Number(responses.team_size) > 1) {
+      fields.push({ id: 'team_name', fieldName: 'team_name', label: 'Team Name', type: 'text' });
+    }
+    personFieldsMeta
+      .filter((field) => field.scope !== 'team')
+      .forEach((field) => {
+        const mapped = personFieldToFormField(field);
+        if (mapped) fields.push(mapped);
+      });
+    return dedupeFormFields(fields);
+  }
 
   if (comp?.registrationType === 'custom' && comp.registration) {
     const reg = comp.registration;
@@ -307,6 +390,20 @@ export default function RegistrationDetails() {
 
   const registrationFormFields = !isTrekBooking && !isEventRegistration && !treatAsSports
     ? getRegistrationFormFields(registration)
+    : [];
+
+  const rosterTeamMembers = !isTrekBooking && !isEventRegistration && !treatAsSports
+    ? (Array.isArray(normalizeResponses(registration.responses).team_members)
+      ? normalizeResponses(registration.responses).team_members.filter(
+        (member) => member && typeof member === 'object',
+      )
+      : [])
+    : [];
+
+  const rosterPersonFields = !isTrekBooking && !isEventRegistration && !treatAsSports
+    ? (Array.isArray(normalizeResponses(registration.responses).person_fields)
+      ? normalizeResponses(registration.responses).person_fields.filter((field) => field?.scope !== 'team')
+      : [])
     : [];
 
   // Flatten event form fields (single-step schema or multi-step) for rendering responses
@@ -851,6 +948,7 @@ export default function RegistrationDetails() {
             <div className="space-y-3 sm:space-y-4">
               {Object.entries(normalizeResponses(registration.responses))
                 .filter(([key]) => !key.endsWith('_file'))
+                .filter(([key]) => !['team_members', 'person_fields', 'team_size'].includes(key))
                 .map(([key, value]) => (
                   <div key={key} className={`border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} pb-4`}>
                     <div className="flex flex-col sm:flex-row sm:items-start gap-2">
@@ -869,6 +967,47 @@ export default function RegistrationDetails() {
                 ))}
             </div>
           )}
+
+          {!isTrekBooking && !isEventRegistration && !treatAsSports && rosterTeamMembers.length > 1 ? (
+            <div className={`mt-6 pt-6 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+              <h3 className={`text-base font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                Team members
+              </h3>
+              <div className="space-y-4">
+                {rosterTeamMembers.map((member, index) => (
+                  <div
+                    key={`member-${index}`}
+                    className={`rounded-xl border p-4 ${isDark ? 'border-gray-700 bg-[#151617]' : 'border-gray-200 bg-gray-50'}`}
+                  >
+                    <p className={`text-sm font-semibold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                      {rosterTeamMembers.length > 1 ? `Person ${index + 1}` : 'Participant'}
+                    </p>
+                    <div className="space-y-2 text-sm">
+                      {(rosterPersonFields.length ? rosterPersonFields : [
+                        { key: 'name', label: 'Name' },
+                        { key: 'email', label: 'Email' },
+                        { key: 'phone', label: 'Phone' },
+                        { key: 'college', label: 'College' },
+                      ]).map((field) => {
+                        const value = member?.[field.key];
+                        if (!value) return null;
+                        return (
+                          <div key={`${index}-${field.key}`} className="flex flex-col sm:flex-row sm:gap-3">
+                            <span className={`sm:w-1/3 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                              {field.label || field.key}
+                            </span>
+                            <span className={`sm:w-2/3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                              {value}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           {/* Registration Metadata */}
           <div className={`mt-6 pt-6 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>

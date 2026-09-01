@@ -870,7 +870,7 @@ exports.getMyRegistrations = async (req, res) => {
                 let clubMap = {};
                 if (clubIds.length > 0) {
                     const RunClub = require('../model/run_club_model');
-                    const clubs = await RunClub.find({ _id: { $in: clubIds } }).select('name').lean();
+                    const clubs = await RunClub.find({ _id: { $in: clubIds } }).select('name listingHub').lean();
                     clubMap = Object.fromEntries(clubs.map((c) => [String(c._id), c]));
                 }
                 registrations.forEach((reg) => {
@@ -878,7 +878,9 @@ exports.getMyRegistrations = async (req, res) => {
                         const event = eventMap[String(reg.eventId)] || null;
                         reg.event = event;
                         const clubId = event?.runClubId || reg.runClubId;
-                        reg.clubName = clubId ? (clubMap[String(clubId)]?.name || '') : '';
+                        const club = clubId ? clubMap[String(clubId)] : null;
+                        reg.clubName = club?.name || '';
+                        reg.listingHub = club?.listingHub === 'events' ? 'events' : 'sports';
                     }
                 });
             }

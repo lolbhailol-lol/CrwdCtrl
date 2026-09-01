@@ -237,7 +237,17 @@ const getRegistrationDetails = async (req, res) => {
       return res.status(404).json({ error: 'Registration not found' });
     }
 
-    res.json(registration);
+    const payload = registration.toObject ? registration.toObject() : registration;
+    const { normalizeLeadIdentityFromRoster } = require('../../utils/rosterResponses');
+    if (payload.responses) {
+      payload.responses = normalizeLeadIdentityFromRoster(
+        payload.responses instanceof Map
+          ? Object.fromEntries(payload.responses)
+          : payload.responses,
+      );
+    }
+
+    res.json(payload);
 
   } catch (error) {
     logger.error('Error fetching registration details:', error);

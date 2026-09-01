@@ -244,6 +244,8 @@ export async function authenticatedFetchJSON(url, options = {}) {
   }
   if (!response.ok) {
     const err = new Error(data.message || data.error || `Request failed (${response.status})`);
+    err.status = response.status;
+    if (response.status === 404) err.code = 'NOT_FOUND';
     if (isAuthFailureMessage(err.message)) {
       err.code = 'AUTH_401';
       clearStoredAuthSession();

@@ -10,6 +10,7 @@ const { logger } = require('../../utils/logger');
 const { cashfreeSettlementFields } = require('../../utils/cashfreeGatewayFee');
 const { getFestPlugin } = require('../../modules/fest/plugins');
 const { assertCompetitionAcceptsRegistration } = require('../../utils/competitionSlots');
+const { normalizeLeadIdentityFromRoster } = require('../../utils/rosterResponses');
 const {
   parseResponsesBody,
   maybeEnrichExistingResponses,
@@ -296,7 +297,7 @@ const submitCustomCompetitionRegistration = async (req, res) => {
       fest: competition.fest._id,
       user: userId,
       competitionId: competition._id,
-      responses: responses,
+      responses: normalizeLeadIdentityFromRoster(responses),
       status: autoConfirm ? 'approved' : 'pending',
       payment_order_id: paymentOrderId,
       payment_id: paymentId,
@@ -737,7 +738,7 @@ const submitCompetitionRegistration = async (req, res) => {
     const registration = new Registration({
       fest: competition.fest._id,
       user: userId,
-      responses: processedResponses,
+      responses: normalizeLeadIdentityFromRoster(processedResponses),
       status: autoConfirm ? 'approved' : 'pending',
       competitionId: competitionId,
       payment_order_id: paymentOrderId,

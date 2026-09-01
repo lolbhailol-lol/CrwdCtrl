@@ -16,6 +16,7 @@ import { API_BASE_URL } from '../../services/api/client';
 import { resolveAuthToken } from '../../utils/authToken';
 import { clearPendingPayment } from '../../utils/deepLinks';
 import { verifyPaymentWithRetry } from '../../utils/paymentNavigation';
+import { isEventsListingHub, sportsQrTicketPath } from '../../utils/listingHubCopy';
 import {
     listRecoverableEventPayDrafts,
     completeEventPayAndRegister,
@@ -138,6 +139,7 @@ function mapSportsRegistrations(sportsRegistrations = []) {
             isSports: true,
             sportType: reg.event?.sportType || '',
             clubName: reg.clubName || '',
+            listingHub: reg.listingHub || reg.event?.listingHub || '',
             paymentAmount: reg.amountPaid || 0,
             paymentStatus: reg.paymentStatus,
             paymentReviewNote: reg.paymentReviewNote || '',
@@ -538,7 +540,8 @@ function Booking() {
             return;
         }
         if (item.isSports) {
-            navigate(`/registration-details/${item.id}?type=sports`, {
+            const hubQs = isEventsListingHub(item) ? '&hub=events' : '';
+            navigate(`/registration-details/${item.id}?type=sports${hubQs}`, {
                 state: item.registrationStatus === 'pending'
                     ? {
                         pendingApproval: {
@@ -560,8 +563,19 @@ function Booking() {
 
     const handleDownloadTicket = (item) => {
         if (!item.id) return;
-        const typeQuery = item.isTrek ? '?type=trek' : item.isSports ? '?type=sports' : item.isEvent ? '?type=event' : '';
-        navigate(`/qr-ticket/${item.id}${typeQuery}`);
+        if (item.isTrek) {
+            navigate(`/qr-ticket/${item.id}?type=trek`);
+            return;
+        }
+        if (item.isSports) {
+            navigate(sportsQrTicketPath(item.id, isEventsListingHub(item)));
+            return;
+        }
+        if (item.isEvent) {
+            navigate(`/qr-ticket/${item.id}?type=event`);
+            return;
+        }
+        navigate(`/qr-ticket/${item.id}`);
     };
 
     const handleAddToCalendar = (item) => {

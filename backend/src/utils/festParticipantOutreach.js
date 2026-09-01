@@ -5,28 +5,42 @@ const { sendFestParticipantEmails } = require('../services/emailService');
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 
 function pickPhone(user, responses = {}) {
+    const members = responses.team_members;
+    const leadPhone = Array.isArray(members) && members[0] && typeof members[0] === 'object'
+        ? String(members[0].phone || members[0].mobile || '').trim()
+        : '';
     return String(
         user?.phone
         || user?.phoneNumber
         || responses.contact_no
         || responses.phone
         || responses.mobile
+        || leadPhone
         || '',
     ).trim();
 }
 
 function pickName(user, responses = {}) {
+    const members = responses.team_members;
+    const leadName = Array.isArray(members) && members[0] && typeof members[0] === 'object'
+        ? String(members[0].name || '').trim()
+        : '';
     return String(
         user?.name
         || responses.full_name
         || responses.name
         || responses.leader_name
+        || leadName
         || '',
     ).trim();
 }
 
 function pickEmail(user, responses = {}) {
-    const email = String(user?.email || responses.email || '').trim().toLowerCase();
+    const members = responses.team_members;
+    const leadEmail = Array.isArray(members) && members[0] && typeof members[0] === 'object'
+        ? String(members[0].email || '').trim().toLowerCase()
+        : '';
+    const email = String(user?.email || responses.email || leadEmail || '').trim().toLowerCase();
     return EMAIL_REGEX.test(email) ? email : '';
 }
 
