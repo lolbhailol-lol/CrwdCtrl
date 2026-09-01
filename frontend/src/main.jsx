@@ -9,7 +9,7 @@ import { initThemeClass } from './utils/themeInit'
 import { initSentry } from './utils/sentry'
 import { isNativeApp } from './utils/capacitorPlatform'
 import { initCashfreeNativeGateway } from './utils/bootstrapCashfreeNative'
-import { initGlobalErrorHandlers, markAppBootSuccess } from './utils/chunkError'
+import { initGlobalErrorHandlers } from './utils/chunkError'
 import { dismissBootOverlays } from './utils/dismissBootOverlays'
 import { isSafariBrowser } from './utils/safariBrowser'
 import { preloadCategoryNavIcons } from './constants/categoryNavIcons'
@@ -18,7 +18,6 @@ import { SpeedInsights } from '@vercel/speed-insights/react'
 initThemeClass()
 initSentry()
 initGlobalErrorHandlers()
-markAppBootSuccess()
 // Warm current-theme nav icons only (no <link rel=preload> — avoids unused-preload warnings on event pages)
 try {
   const isDark = document.documentElement.classList.contains('dark')
@@ -48,9 +47,23 @@ if (!shouldShowBootSplash()) {
 
 // PWA service worker — web only (not Capacitor native shell)
 if (import.meta.env.PROD && !isNativeApp()) {
+  let swRefreshing = false;
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (swRefreshing) return;
+      swRefreshing = true;
+      window.location.reload();
+    });
+  }
+
   import('virtual:pwa-register').then(({ registerSW }) => {
     registerSW({
       immediate: true,
+      onNeedRefresh() {
+        if (swRefreshing) return;
+        swRefreshing = true;
+        window.location.reload();
+      },
       onRegisteredSW() {
         // Drop legacy Workbox API caches (NetworkFirst/NetworkOnly) that threw
         // no-response when Railway was cold and could serve stale empty JSON.

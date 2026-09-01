@@ -550,8 +550,27 @@
 
       if (reloadBtn) {
         reloadBtn.addEventListener('click', function () {
-          try { sessionStorage.removeItem(RECOVER_KEY); } catch (e) {}
-          window.location.reload();
+          try {
+            sessionStorage.removeItem(RECOVER_KEY);
+            sessionStorage.removeItem('crwdctrl_chunk_reload');
+            sessionStorage.removeItem('crwdctrl_stale_recover_at');
+          } catch (e) {}
+          var cleanup = ('caches' in window)
+            ? caches.keys().then(function (keys) {
+                return Promise.all(keys.map(function (key) { return caches.delete(key); }));
+              })
+            : Promise.resolve();
+          cleanup.finally(function () {
+            if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.getRegistrations()
+                .then(function (regs) {
+                  return Promise.all(regs.map(function (reg) { return reg.unregister(); }));
+                })
+                .finally(reloadFresh);
+            } else {
+              reloadFresh();
+            }
+          });
         });
       }
 

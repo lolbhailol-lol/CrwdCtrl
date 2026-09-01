@@ -1,11 +1,11 @@
 import React from 'react';
 import { captureException } from '../utils/sentry';
-import { isChunkLoadError } from '../utils/chunkError';
+import { forceRecoverFromStaleDeploy, isChunkLoadError } from '../utils/chunkError';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null, errorInfo: null };
+    this.state = { hasError: false, error: null, errorInfo: null, recovering: false };
   }
 
   static getDerivedStateFromError(error) {
@@ -19,7 +19,13 @@ class ErrorBoundary extends React.Component {
   }
 
   handleReload = () => {
-    this.setState({ hasError: false, error: null, errorInfo: null });
+    const chunkError = isChunkLoadError(this.state.error);
+    if (chunkError) {
+      this.setState({ recovering: true });
+      void forceRecoverFromStaleDeploy();
+      return;
+    }
+    this.setState({ hasError: false, error: null, errorInfo: null, recovering: false });
     window.location.reload();
   };
 
@@ -31,6 +37,7 @@ class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       const chunkError = isChunkLoadError(this.state.error);
+      const recovering = this.state.recovering;
       const isDark = typeof document !== 'undefined'
         && document.documentElement.classList.contains('dark');
 
@@ -70,9 +77,10 @@ class ErrorBoundary extends React.Component {
               <button
                 type="button"
                 onClick={this.handleReload}
-                className="px-6 py-3 bg-[#0ECCEE] hover:bg-[#0ECCEE]/90 text-black font-semibold rounded-lg transition"
+                disabled={recovering}
+                className="px-6 py-3 bg-[#0ECCEE] hover:bg-[#0ECCEE]/90 text-black font-semibold rounded-lg transition disabled:opacity-60"
               >
-                {chunkError ? 'Refresh App' : 'Try Again'}
+                {recovering ? 'Updating…' : (chunkError ? 'Refresh App' : 'Try Again')}
               </button>
             </div>
           </div>

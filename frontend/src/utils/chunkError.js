@@ -40,6 +40,55 @@ export function shouldAttemptStaleRecover(now = Date.now(), lastAt = 0, cooldown
     return !lastAt || (now - lastAt) >= cooldownMs;
 }
 
+export async function clearStaleAppCaches() {
+    if (typeof window === 'undefined') return;
+    try {
+        if ('caches' in window) {
+            const keys = await caches.keys();
+            await Promise.all(keys.map((key) => caches.delete(key)));
+        }
+    } catch {
+        /* ignore cleanup errors */
+    }
+    try {
+        if ('serviceWorker' in navigator) {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(registrations.map((registration) => registration.unregister()));
+        }
+    } catch {
+        /* ignore cleanup errors */
+    }
+}
+
+function clearRecoverSessionFlags() {
+    try {
+        sessionStorage.removeItem(CHUNK_RELOAD_SESSION_KEY);
+        sessionStorage.removeItem(STALE_RECOVER_AT_KEY);
+        sessionStorage.removeItem('crwdctrl_boot_recover');
+        sessionStorage.removeItem('crwdctrl_sw_reload');
+    } catch {
+        /* private mode */
+    }
+}
+
+function reloadWithCacheBust() {
+    const url = new URL(window.location.href);
+    url.searchParams.set('_crwd', String(Date.now()));
+    window.location.replace(url.toString());
+}
+
+/** User tapped Refresh — always clear SW/caches and reload (no cooldown). */
+export async function forceRecoverFromStaleDeploy() {
+    if (typeof window === 'undefined') return;
+    if (String(window.location?.pathname || '').startsWith('/campus-hunt/offline')) {
+        window.location.reload();
+        return;
+    }
+    clearRecoverSessionFlags();
+    await clearStaleAppCaches();
+    reloadWithCacheBust();
+}
+
 export async function recoverFromStaleDeploy() {
     if (typeof navigator !== 'undefined' && !navigator.onLine) return;
     if (typeof window !== 'undefined' && String(window.location?.pathname || '').startsWith('/campus-hunt/offline')) {
@@ -52,23 +101,8 @@ export async function recoverFromStaleDeploy() {
     } catch {
         /* private mode */
     }
-    try {
-        if ('caches' in window) {
-            const keys = await caches.keys();
-            await Promise.all(keys.map((key) => caches.delete(key)));
-        }
-        if ('serviceWorker' in navigator) {
-            const registrations = await navigator.serviceWorker.getRegistrations();
-            await Promise.all(registrations.map((registration) => registration.unregister()));
-        }
-    } catch {
-        /* ignore cleanup errors */
-    }
-
-    const url = new URL(window.location.href);
-    if (url.searchParams.has('_crwd')) return;
-    url.searchParams.set('_crwd', String(Date.now()));
-    window.location.replace(url.toString());
+    await clearStaleAppCaches();
+    reloadWithCacheBust();
 }
 
 /** Reload once per session when a stale JS chunk fails after deploy */
@@ -79,7 +113,7 @@ export function reloadOnceForChunkError() {
     }
     try {
         if (sessionStorage.getItem(CHUNK_RELOAD_SESSION_KEY)) {
-            void recoverFromStaleDeploy();
+            void forceRecoverFromStaleDeploy();
             return false;
         }
         sessionStorage.setItem(CHUNK_RELOAD_SESSION_KEY, '1');
