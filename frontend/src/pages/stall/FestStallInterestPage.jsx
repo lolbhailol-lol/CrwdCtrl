@@ -8,6 +8,7 @@ const INTERESTS = [
     { id: 'volunteer', label: 'Volunteer', hint: 'Help run it' },
     { id: 'participate', label: 'Participate', hint: 'Compete' },
     { id: 'both', label: 'Both', hint: 'Do both' },
+    { id: 'intro', label: 'Intro', hint: 'Aarohan intro' },
 ];
 
 const DEFAULT_TEAMS = [
@@ -19,6 +20,9 @@ const DEFAULT_TEAMS = [
 
 const YEARS = ['1st', '2nd', '3rd', '4th'];
 const DEPTS = ['CSE', 'BBA', 'Design', 'BSc'];
+
+const fieldClass =
+    'w-full px-0 py-3.5 bg-transparent border-0 border-b border-white/12 text-white text-base placeholder:text-gray-600 focus:outline-none focus:border-[#0ECCEE] transition-[border-color] duration-200 caret-[#0ECCEE]';
 
 function digitsOnly(v) {
     return String(v || '').replace(/\D/g, '').slice(0, 10);
@@ -83,7 +87,7 @@ export default function FestStallInterestPage() {
         e?.preventDefault?.();
         if (submittingRef.current || submitting || done) return;
         if (!form.interest) {
-            setError('Pick Volunteer, Participate, or Both');
+            setError('Pick Volunteer, Participate, Both, or Intro');
             return;
         }
         if (!form.name.trim() || form.name.trim().length < 2) {
@@ -114,7 +118,7 @@ export default function FestStallInterestPage() {
                         interest: form.interest,
                         volunteerTeams: wantsVolunteer ? form.volunteerTeams : [],
                         competitionIds: wantsParticipate ? form.competitionIds : [],
-                        source: 'shubharam_stall',
+                        source: form.interest === 'intro' ? 'aarohan_intro' : 'shubharam_stall',
                     },
                 },
             );
@@ -123,6 +127,8 @@ export default function FestStallInterestPage() {
         } catch (err) {
             if (err?.status === 429) {
                 setError('Lots of people submitting right now — wait a few seconds and try again');
+            } else if (err?.status === 503) {
+                setError('Server busy — tap Submit again');
             } else if (err?.isNetworkError || err?.code === 'ECONNABORTED' || err?.code === 'ERR_NOT_JSON') {
                 setError('Connection hiccup — check WiFi and tap Submit again');
             } else {
@@ -137,7 +143,7 @@ export default function FestStallInterestPage() {
     const submitFromSticky = () => {
         if (submittingRef.current || submitting || done) return;
         if (!form.interest) {
-            setError('Pick Volunteer, Participate, or Both');
+            setError('Pick Volunteer, Participate, Both, or Intro');
             return;
         }
         if (formRef.current && !formRef.current.checkValidity()) {
@@ -153,7 +159,7 @@ export default function FestStallInterestPage() {
 
     if (loading) {
         return (
-            <div className="min-h-dvh bg-[#0c0d0e] text-white">
+            <div className="min-h-dvh bg-[#0c0d0e] text-white" style={{ colorScheme: 'dark' }}>
                 <InlinePageLoader label="Loading…" variant="fest" />
             </div>
         );
@@ -161,7 +167,10 @@ export default function FestStallInterestPage() {
 
     if (!fest) {
         return (
-            <div className="min-h-dvh bg-[#0c0d0e] text-white flex flex-col items-center justify-center px-6 text-center gap-3">
+            <div
+                className="min-h-dvh bg-[#0c0d0e] text-white flex flex-col items-center justify-center px-6 text-center gap-3"
+                style={{ colorScheme: 'dark' }}
+            >
                 <p className="text-red-400">{error || 'Stall not found'}</p>
                 <Link to="/" className="text-[#0ECCEE] text-sm">Back to CrwdCtrl</Link>
             </div>
@@ -173,9 +182,12 @@ export default function FestStallInterestPage() {
             ? `/view-details/${fest.slug}`
             : `/view-details/${fest.id}`;
         return (
-            <div className="min-h-dvh bg-[#0c0d0e] text-white flex items-center justify-center px-5 relative overflow-hidden">
+            <div
+                className="min-h-dvh bg-[#0c0d0e] text-white flex items-center justify-center px-5 relative overflow-hidden"
+                style={{ colorScheme: 'dark' }}
+            >
                 <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(14,204,238,0.12),_transparent_55%)]" />
-                <div className="relative w-full max-w-sm text-center space-y-4">
+                <div className="relative w-full max-w-sm text-center space-y-4 animate-in fade-in zoom-in-95 duration-300">
                     <div className="mx-auto size-14 rounded-full bg-emerald-500/15 flex items-center justify-center">
                         <CheckCircle2 className="text-emerald-400" size={28} />
                     </div>
@@ -185,7 +197,7 @@ export default function FestStallInterestPage() {
                     </p>
                     <Link
                         to={publicUrl}
-                        className="inline-flex w-full justify-center py-3.5 rounded-2xl bg-[#0ECCEE] text-black font-semibold text-sm"
+                        className="inline-flex w-full justify-center py-3.5 rounded-2xl bg-[#0ECCEE] text-black font-semibold text-sm active:scale-[0.98] transition"
                     >
                         View fest page
                     </Link>
@@ -204,7 +216,7 @@ export default function FestStallInterestPage() {
                                 competitionIds: [],
                             });
                         }}
-                        className="text-xs text-gray-500 hover:text-gray-300"
+                        className="text-xs text-gray-500 hover:text-gray-300 transition"
                     >
                         Submit another
                     </button>
@@ -215,14 +227,17 @@ export default function FestStallInterestPage() {
     }
 
     const chipClass = (active) =>
-        `min-h-10 px-3 py-2 rounded-full text-[13px] border transition active:scale-[0.98] ${
+        `min-h-10 px-3 py-2 rounded-full text-[13px] border transition duration-200 active:scale-[0.98] ${
             active
                 ? 'border-[#0ECCEE] bg-[#0ECCEE]/15 text-[#0ECCEE] font-medium'
-                : 'border-white/10 bg-white/[0.03] text-gray-300'
+                : 'border-white/10 bg-white/[0.03] text-gray-300 hover:border-white/20'
         }`;
 
     return (
-        <div className="min-h-dvh bg-[#0c0d0e] text-white relative overflow-hidden">
+        <div
+            className="min-h-dvh bg-[#0c0d0e] text-white relative overflow-hidden"
+            style={{ colorScheme: 'dark' }}
+        >
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(14,204,238,0.10),_transparent_50%)]" />
             <div className="relative max-w-md mx-auto px-4 pt-[max(1.25rem,var(--safe-top))] pb-[max(1.25rem,var(--safe-bottom))]">
                 <header className="pt-3 pb-5">
@@ -237,7 +252,7 @@ export default function FestStallInterestPage() {
                 <form ref={formRef} id="stall-interest-form" onSubmit={submit} className="space-y-5 pb-40">
                     <section>
                         <p className="text-[11px] text-gray-500 mb-2.5 uppercase tracking-wider">I want to</p>
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid grid-cols-2 gap-2">
                             {INTERESTS.map((opt) => {
                                 const active = form.interest === opt.id;
                                 return (
@@ -248,16 +263,20 @@ export default function FestStallInterestPage() {
                                             setForm({
                                                 ...form,
                                                 interest: opt.id,
-                                                volunteerTeams: opt.id === 'participate' ? [] : form.volunteerTeams,
-                                                competitionIds: opt.id === 'volunteer' ? [] : form.competitionIds,
+                                                volunteerTeams: (opt.id === 'participate' || opt.id === 'intro')
+                                                    ? []
+                                                    : form.volunteerTeams,
+                                                competitionIds: (opt.id === 'volunteer' || opt.id === 'intro')
+                                                    ? []
+                                                    : form.competitionIds,
                                             });
                                             setError('');
                                             setTimeout(() => nameRef.current?.focus(), 80);
                                         }}
-                                        className={`rounded-2xl border px-2 py-3 text-center transition active:scale-[0.98] ${
+                                        className={`rounded-2xl border px-2 py-3.5 text-center transition duration-200 active:scale-[0.98] ${
                                             active
-                                                ? 'border-[#0ECCEE] bg-[#0ECCEE]/15'
-                                                : 'border-white/10 bg-white/[0.03]'
+                                                ? 'border-[#0ECCEE] bg-[#0ECCEE]/15 shadow-[0_0_24px_rgba(14,204,238,0.12)]'
+                                                : 'border-white/10 bg-white/[0.03] hover:border-white/20'
                                         }`}
                                     >
                                         <p className={`text-[13px] font-semibold leading-tight ${active ? 'text-[#0ECCEE]' : 'text-white'}`}>
@@ -271,7 +290,7 @@ export default function FestStallInterestPage() {
                     </section>
 
                     {wantsVolunteer ? (
-                        <section>
+                        <section className="animate-in fade-in slide-in-from-top-1 duration-200">
                             <div className="flex items-baseline justify-between gap-2 mb-2.5">
                                 <p className="text-[11px] text-gray-500 uppercase tracking-wider">
                                     Which team? <span className="normal-case tracking-normal text-gray-600">(optional)</span>
@@ -299,7 +318,7 @@ export default function FestStallInterestPage() {
                     ) : null}
 
                     {wantsParticipate ? (
-                        <section>
+                        <section className="animate-in fade-in slide-in-from-top-1 duration-200">
                             <div className="flex items-baseline justify-between gap-2 mb-2.5">
                                 <p className="text-[11px] text-gray-500 uppercase tracking-wider">
                                     Which competition? <span className="normal-case tracking-normal text-gray-600">(optional)</span>
@@ -321,10 +340,10 @@ export default function FestStallInterestPage() {
                                                     ...form,
                                                     competitionIds: toggleInList(form.competitionIds, id),
                                                 })}
-                                                className={`min-h-11 px-3 py-2.5 rounded-xl text-left text-[13px] border transition active:scale-[0.98] ${
+                                                className={`min-h-11 px-3 py-2.5 rounded-xl text-left text-[13px] border transition duration-200 active:scale-[0.98] ${
                                                     active
                                                         ? 'border-[#0ECCEE] bg-[#0ECCEE]/15 text-[#0ECCEE] font-medium'
-                                                        : 'border-white/10 bg-white/[0.03] text-gray-300'
+                                                        : 'border-white/10 bg-white/[0.03] text-gray-300 hover:border-white/20'
                                                 }`}
                                             >
                                                 {c.name}
@@ -347,7 +366,7 @@ export default function FestStallInterestPage() {
                             onChange={(e) => setForm({ ...form, name: e.target.value })}
                             placeholder="Your name"
                             autoComplete="name"
-                            className="w-full px-0 py-3.5 bg-transparent border-0 border-b border-white/12 text-white text-base placeholder:text-gray-600 focus:outline-none focus:border-[#0ECCEE]"
+                            className={fieldClass}
                         />
                         <div>
                             <input
@@ -359,7 +378,7 @@ export default function FestStallInterestPage() {
                                 placeholder="10-digit phone"
                                 autoComplete="tel"
                                 maxLength={10}
-                                className="w-full px-0 py-3.5 bg-transparent border-0 border-b border-white/12 text-white text-base placeholder:text-gray-600 focus:outline-none focus:border-[#0ECCEE]"
+                                className={fieldClass}
                             />
                             {form.phone && form.phone.length < 10 ? (
                                 <p className="text-[11px] text-gray-600 mt-1.5">{10 - form.phone.length} more digits</p>
@@ -375,10 +394,10 @@ export default function FestStallInterestPage() {
                                     key={y}
                                     type="button"
                                     onClick={() => setForm({ ...form, year: form.year === y ? '' : y })}
-                                    className={`min-h-10 rounded-xl text-sm border transition ${
+                                    className={`min-h-10 rounded-xl text-sm border transition duration-200 ${
                                         form.year === y
                                             ? 'border-[#0ECCEE] bg-[#0ECCEE]/15 text-[#0ECCEE] font-medium'
-                                            : 'border-white/10 bg-white/[0.03] text-gray-400'
+                                            : 'border-white/10 bg-white/[0.03] text-gray-400 hover:border-white/20'
                                     }`}
                                 >
                                     {y}
@@ -406,19 +425,19 @@ export default function FestStallInterestPage() {
                             onChange={(e) => setForm({ ...form, branch: e.target.value.slice(0, 80) })}
                             placeholder="Or write your dept"
                             autoComplete="organization-title"
-                            className="w-full px-0 py-3 bg-transparent border-0 border-b border-white/12 text-white text-base placeholder:text-gray-600 focus:outline-none focus:border-[#0ECCEE]"
+                            className={fieldClass}
                         />
                     </section>
                 </form>
 
                 <div className="fixed bottom-0 inset-x-0 z-20 pointer-events-none">
-                    <div className="max-w-md mx-auto px-4 pb-[max(0.85rem,var(--safe-bottom))] pt-8 bg-gradient-to-t from-[#0c0d0e] via-[#0c0d0e]/95 to-transparent pointer-events-auto">
+                    <div className="max-w-md mx-auto px-4 pb-[max(0.85rem,var(--safe-bottom))] pt-10 bg-gradient-to-t from-[#0c0d0e] via-[#0c0d0e]/95 to-transparent pointer-events-auto">
                         {error ? <p className="mb-2 text-sm text-red-400 text-center">{error}</p> : null}
                         <button
                             type="button"
                             onClick={submitFromSticky}
                             disabled={submitting}
-                            className="w-full py-3.5 rounded-2xl bg-[#0ECCEE] text-black font-semibold text-sm disabled:opacity-50 inline-flex items-center justify-center gap-2 shadow-[0_8px_30px_rgba(14,204,238,0.25)]"
+                            className="w-full py-3.5 rounded-2xl bg-[#0ECCEE] text-black font-semibold text-sm disabled:opacity-50 inline-flex items-center justify-center gap-2 shadow-[0_8px_30px_rgba(14,204,238,0.25)] active:scale-[0.98] transition"
                         >
                             {submitting ? <Loader className="animate-spin" size={16} /> : null}
                             Submit

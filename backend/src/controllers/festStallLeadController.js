@@ -121,9 +121,11 @@ function parseLeadBody(body = {}, festCompetitions = []) {
         return { error: 'Enter a valid 10-digit phone number' };
     }
     if (!FestInterestLead.INTERESTS.includes(interest)) {
-        return { error: 'Choose volunteer, participate, or both' };
+        return { error: 'Choose volunteer, participate, both, or intro' };
     }
-    const safeSource = FestInterestLead.SOURCES.includes(source) ? source : 'shubharam_stall';
+    const safeSource = FestInterestLead.SOURCES.includes(source)
+        ? source
+        : (interest === 'intro' ? 'aarohan_intro' : 'shubharam_stall');
 
     const wantsVolunteer = interest === 'volunteer' || interest === 'both';
     const wantsParticipate = interest === 'participate' || interest === 'both';
@@ -199,7 +201,7 @@ async function loadCompetitionsByIds(festId, ids = []) {
         .lean();
 }
 
-/** Upsert same phone + fest within today (IST) — single atomic write when possible */
+/** Upsert same phone + fest within today (IST) — atomic + concurrent-safe */
 async function upsertSameDayLead({ festId, payload, capturedBy = null }) {
     const festOid = mongoose.Types.ObjectId.isValid(String(festId))
         ? new mongoose.Types.ObjectId(String(festId))
@@ -218,54 +220,80 @@ async function upsertSameDayLead({ festId, payload, capturedBy = null }) {
     };
     if (capturedBy) setFields.capturedBy = capturedBy;
 
-    try {
-        const lead = await FestInterestLead.findOneAndUpdate(
-            { fest: festOid, phone: payload.phone, dayKey },
-            {
-                $set: setFields,
-                $setOnInsert: {
-                    fest: festOid,
-                    phone: payload.phone,
-                },
-            },
-            {
-                upsert: true,
-                new: true,
-                setDefaultsOnInsert: true,
-                runValidators: true,
-            },
-        );
-        const createdMs = new Date(lead.createdAt).getTime();
-        const updatedMs = new Date(lead.updatedAt).getTime();
-        const updated = Number.isFinite(createdMs) && Number.isFinite(updatedMs) && (updatedMs - createdMs) > 800;
-        return { lead, updated };
-    } catch (error) {
-        // Concurrent duplicate key — retry as update
-        if (error?.code === 11000) {
-            const lead = await FestInterestLead.findOneAndUpdate(
-                { fest: festOid, phone: payload.phone, dayKey },
-                { $set: setFields },
-                { new: true, runValidators: true },
-            );
-            if (lead) return { lead, updated: true };
+    const filter = { fest: festOid, phone: payload.phone, dayKey };
+    const update = {
+        $set: setFields,
+        $setOnInsert: {
+            fest: festOid,
+            phone: payload.phone,
+        },
+    };
+    const options = {
+        upsert: true,
+        new: true,
+        setDefaultsOnInsert: true,
+        runValidators: true,
+    };
 
-            // Legacy row without dayKey — update today's phone match
-            const todayStart = startOfToday();
-            const todayEnd = endOfToday();
-            const legacy = await FestInterestLead.findOneAndUpdate(
-                {
-                    fest: festOid,
-                    phone: payload.phone,
-                    $or: [{ dayKey: '' }, { dayKey: null }, { dayKey: { $exists: false } }],
-                    createdAt: { $gte: todayStart, $lt: todayEnd },
-                },
-                { $set: setFields },
-                { new: true, runValidators: true, sort: { createdAt: -1 } },
-            );
-            if (legacy) return { lead: legacy, updated: true };
+    let lastError = null;
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+        try {
+            const lead = await FestInterestLead.findOneAndUpdate(filter, update, options);
+            if (!lead) {
+                // Extremely rare under concurrent upsert — fall through to retry
+                lastError = new Error('Lead upsert returned empty');
+                continue;
+            }
+            const createdMs = new Date(lead.createdAt).getTime();
+            const updatedMs = new Date(lead.updatedAt).getTime();
+            const updated = Number.isFinite(createdMs)
+                && Number.isFinite(updatedMs)
+                && (updatedMs - createdMs) > 800;
+            return { lead, updated };
+        } catch (error) {
+            lastError = error;
+            // Concurrent duplicate key — retry as plain update, then upsert again
+            if (error?.code === 11000) {
+                const existing = await FestInterestLead.findOneAndUpdate(
+                    filter,
+                    { $set: setFields },
+                    { new: true, runValidators: true },
+                );
+                if (existing) return { lead: existing, updated: true };
+
+                // Legacy row without dayKey — claim it for today
+                const todayStart = startOfToday();
+                const todayEnd = endOfToday();
+                const legacy = await FestInterestLead.findOneAndUpdate(
+                    {
+                        fest: festOid,
+                        phone: payload.phone,
+                        $or: [{ dayKey: '' }, { dayKey: null }, { dayKey: { $exists: false } }],
+                        createdAt: { $gte: todayStart, $lt: todayEnd },
+                    },
+                    { $set: setFields },
+                    { new: true, runValidators: true, sort: { createdAt: -1 } },
+                );
+                if (legacy) return { lead: legacy, updated: true };
+
+                // Brief backoff then retry upsert (other writer may still be inserting)
+                await new Promise((r) => setTimeout(r, 25 * (attempt + 1)));
+                continue;
+            }
+            // Transient network / write conflict
+            if (
+                error?.name === 'MongoNetworkError'
+                || error?.name === 'MongoServerSelectionError'
+                || error?.code === 112
+                || error?.codeName === 'WriteConflict'
+            ) {
+                await new Promise((r) => setTimeout(r, 40 * (attempt + 1)));
+                continue;
+            }
+            throw error;
         }
-        throw error;
     }
+    throw lastError || new Error('Failed to save lead under load');
 }
 
 exports.getPublicStallMeta = async (req, res) => {
@@ -314,13 +342,17 @@ exports.createPublicStallLead = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Fest not available' });
         }
 
+        const interestHint = String(req.body?.interest || '').trim().toLowerCase();
         const rawCompIds = Array.isArray(req.body?.competitionIds)
             ? req.body.competitionIds
             : Array.isArray(req.body?.competitions)
                 ? req.body.competitions.map((c) => (typeof c === 'object' ? c.id || c._id : c))
                 : [];
-        // Only fetch selected comps — avoid loading the full fest catalog on every submit
-        const festCompetitions = await loadCompetitionsByIds(fest._id, rawCompIds);
+        // Intro / volunteer-only: skip competition DB hit under crowd load
+        const needsComps = interestHint === 'participate' || interestHint === 'both';
+        const festCompetitions = needsComps && rawCompIds.length
+            ? await loadCompetitionsByIds(fest._id, rawCompIds)
+            : [];
         const parsed = parseLeadBody({
             ...req.body,
             source: req.body.source || 'shubharam_stall',
@@ -348,6 +380,16 @@ exports.createPublicStallLead = async (req, res) => {
         });
     } catch (error) {
         console.error('[stall.createPublicStallLead]', error);
+        const transient = error?.name === 'MongoNetworkError'
+            || error?.name === 'MongoServerSelectionError'
+            || error?.code === 112
+            || /under load/i.test(String(error?.message || ''));
+        if (transient) {
+            return res.status(503).json({
+                success: false,
+                message: 'Busy right now — tap Submit again in a moment',
+            });
+        }
         res.status(500).json({
             success: false,
             message: error?.message?.includes('validation') || error?.name === 'ValidationError'
@@ -391,15 +433,36 @@ exports.listLeads = async (req, res) => {
             }
         }
         if (day) {
-            filter.createdAt = { $gte: day.start, $lt: day.end };
+            // Prefer dayKey (indexed) with legacy createdAt fallback
+            filter.$and = [
+                ...(filter.$and || []),
+                {
+                    $or: [
+                        { dayKey: day.date },
+                        {
+                            createdAt: { $gte: day.start, $lt: day.end },
+                            $or: [
+                                { dayKey: '' },
+                                { dayKey: null },
+                                { dayKey: { $exists: false } },
+                            ],
+                        },
+                    ],
+                },
+            ];
         }
         if (search) {
             const regex = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
             const digits = FestInterestLead.normalizePhone(search);
-            filter.$or = [
-                { name: regex },
-                { phone: regex },
-                ...(digits ? [{ phone: new RegExp(digits) }] : []),
+            filter.$and = [
+                ...(filter.$and || []),
+                {
+                    $or: [
+                        { name: regex },
+                        { phone: regex },
+                        ...(digits ? [{ phone: new RegExp(digits) }] : []),
+                    ],
+                },
             ];
         }
 
@@ -437,7 +500,16 @@ exports.listLeads = async (req, res) => {
 
 exports.createKioskLead = async (req, res) => {
     try {
-        const festCompetitions = await loadFestCompetitions(req.festId);
+        const interestHint = String(req.body?.interest || '').trim().toLowerCase();
+        const rawCompIds = Array.isArray(req.body?.competitionIds)
+            ? req.body.competitionIds
+            : [];
+        const needsComps = interestHint === 'participate' || interestHint === 'both';
+        const festCompetitions = needsComps
+            ? (rawCompIds.length
+                ? await loadCompetitionsByIds(req.festId, rawCompIds)
+                : await loadFestCompetitions(req.festId))
+            : [];
         const parsed = parseLeadBody({
             ...req.body,
             source: req.body.source || 'organizer_kiosk',
@@ -450,7 +522,8 @@ exports.createKioskLead = async (req, res) => {
             festId: req.festId,
             payload: {
                 ...parsed.data,
-                source: 'organizer_kiosk',
+                // Keep aarohan_intro (and other explicit sources); default kiosk only when unset
+                source: parsed.data.source || 'organizer_kiosk',
             },
             capturedBy: req.organizer?._id || null,
         });
@@ -463,6 +536,16 @@ exports.createKioskLead = async (req, res) => {
         });
     } catch (error) {
         console.error('[stall.createKioskLead]', error);
+        const transient = error?.name === 'MongoNetworkError'
+            || error?.name === 'MongoServerSelectionError'
+            || error?.code === 112
+            || /under load/i.test(String(error?.message || ''));
+        if (transient) {
+            return res.status(503).json({
+                success: false,
+                message: 'Busy — try save again',
+            });
+        }
         res.status(500).json({
             success: false,
             message: error?.name === 'ValidationError' ? error.message : 'Failed to save lead',
@@ -478,7 +561,17 @@ exports.getLeadStats = async (req, res) => {
 
         const scopeMatch = { fest: festOid };
         if (day) {
-            scopeMatch.createdAt = { $gte: day.start, $lt: day.end };
+            scopeMatch.$or = [
+                { dayKey: day.date },
+                {
+                    createdAt: { $gte: day.start, $lt: day.end },
+                    $or: [
+                        { dayKey: '' },
+                        { dayKey: null },
+                        { dayKey: { $exists: false } },
+                    ],
+                },
+            ];
         }
 
         const [allTime, scopedCount, byInterest] = await Promise.all([
@@ -490,7 +583,7 @@ exports.getLeadStats = async (req, res) => {
             ]),
         ]);
 
-        const interestCounts = { volunteer: 0, participate: 0, both: 0 };
+        const interestCounts = { volunteer: 0, participate: 0, both: 0, intro: 0 };
         for (const row of byInterest) {
             if (interestCounts[row._id] !== undefined) {
                 interestCounts[row._id] = row.count;
@@ -507,6 +600,7 @@ exports.getLeadStats = async (req, res) => {
                 volunteer: interestCounts.volunteer,
                 participate: interestCounts.participate,
                 both: interestCounts.both,
+                intro: interestCounts.intro,
             },
         });
     } catch (error) {
@@ -580,6 +674,7 @@ exports.exportLeads = async (req, res) => {
         const sourceLabel = {
             shubharam_stall: 'QR / stall',
             organizer_kiosk: 'Kiosk',
+            aarohan_intro: 'Aarohan intro',
             other: 'Other',
         };
 

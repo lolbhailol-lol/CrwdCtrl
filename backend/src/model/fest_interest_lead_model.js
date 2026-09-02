@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
-const INTERESTS = ['volunteer', 'participate', 'both'];
-const SOURCES = ['shubharam_stall', 'organizer_kiosk', 'other'];
+const INTERESTS = ['volunteer', 'participate', 'both', 'intro'];
+const SOURCES = ['shubharam_stall', 'organizer_kiosk', 'aarohan_intro', 'other'];
 const VOLUNTEER_TEAMS = [
     { id: 'competition', label: 'Competitions' },
     { id: 'pr', label: 'PR' },
@@ -102,6 +102,8 @@ const festInterestLeadSchema = new mongoose.Schema(
 
 festInterestLeadSchema.index({ fest: 1, createdAt: -1 });
 festInterestLeadSchema.index({ fest: 1, phone: 1 });
+festInterestLeadSchema.index({ fest: 1, interest: 1, createdAt: -1 });
+festInterestLeadSchema.index({ fest: 1, dayKey: 1, createdAt: -1 });
 festInterestLeadSchema.index(
     { fest: 1, phone: 1, dayKey: 1 },
     { unique: true, partialFilterExpression: { dayKey: { $gt: '' } } },

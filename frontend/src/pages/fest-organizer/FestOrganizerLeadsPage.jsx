@@ -21,6 +21,7 @@ const INTERESTS = [
     { id: 'volunteer', label: 'Volunteer' },
     { id: 'participate', label: 'Participate' },
     { id: 'both', label: 'Both' },
+    { id: 'intro', label: 'Intro' },
 ];
 
 const DEFAULT_TEAMS = [
@@ -111,6 +112,15 @@ export default function FestOrganizerLeadsPage() {
         competitionIds: [],
         note: '',
     });
+    const [introForm, setIntroForm] = useState({
+        name: '',
+        phone: '',
+        year: '',
+        branch: '',
+        note: '',
+    });
+    const [introLeads, setIntroLeads] = useState([]);
+    const [savingIntro, setSavingIntro] = useState(false);
 
     const sessionFest = useMemo(() => {
         const session = getFestOrganizerSession();
@@ -118,12 +128,16 @@ export default function FestOrganizerLeadsPage() {
     }, [festId]);
 
     const festName = sessionFest?.festName || 'Fest';
+    const isAarohan = useMemo(() => {
+        const blob = `${festName} ${sessionFest?.slug || ''}`.toLowerCase();
+        return blob.includes('aarohan');
+    }, [festName, sessionFest?.slug]);
     const stallKey = sessionFest?.slug || festId;
     const stallPath = `/stall/${stallKey}`;
     const stallUrl = typeof window !== 'undefined'
         ? `${window.location.origin}${stallPath}`
         : stallPath;
-    const qrImg = `https://api.qrserver.com/v1/create-qr-code/?size=480x480&data=${encodeURIComponent(stallUrl)}`;
+    const qrImg = `https://api.qrserver.com/v1/create-qr-code/?size=640x640&margin=12&color=0c0d0e&bgcolor=ffffff&data=${encodeURIComponent(stallUrl)}`;
 
     const load = useCallback(async ({ silent = false } = {}) => {
         if (!silent) setLoading(true);
@@ -135,12 +149,20 @@ export default function FestOrganizerLeadsPage() {
             if (competitionFilter) params.competitionId = competitionFilter;
             if (search.trim()) params.search = search.trim();
             const statsParams = selectedDate ? { date: selectedDate } : {};
-            const [listData, statsData] = await Promise.all([
+            const introParams = { limit: 100, interest: 'intro', date: localDateInputValue() };
+            const requests = [
                 fetchFestOrganizerLeads(festId, params),
                 fetchFestOrganizerLeadStats(festId, statsParams),
-            ]);
+            ];
+            if (isAarohan) {
+                requests.push(fetchFestOrganizerLeads(festId, introParams));
+            }
+            const [listData, statsData, introData] = await Promise.all(requests);
             setLeads(listData.leads || []);
             setStats(statsData.stats || null);
+            if (isAarohan) {
+                setIntroLeads(introData?.leads || []);
+            }
             if (Array.isArray(listData.volunteerTeams) && listData.volunteerTeams.length) {
                 setVolunteerTeams(listData.volunteerTeams);
             }
@@ -152,26 +174,38 @@ export default function FestOrganizerLeadsPage() {
         } finally {
             if (!silent) setLoading(false);
         }
-    }, [festId, interestFilter, teamFilter, competitionFilter, search, selectedDate, toast]);
+    }, [festId, interestFilter, teamFilter, competitionFilter, search, selectedDate, toast, isAarohan]);
 
     useEffect(() => {
-        load({ silent: false });
+        let cancelled = false;
+        let inFlight = false;
+        let timer = null;
 
-        const poll = () => {
-            if (typeof document !== 'undefined' && document.hidden) return;
-            load({ silent: true });
+        const safeLoad = async ({ silent = false } = {}) => {
+            if (cancelled || inFlight) return;
+            if (silent && typeof document !== 'undefined' && document.hidden) return;
+            inFlight = true;
+            try {
+                await load({ silent });
+            } finally {
+                inFlight = false;
+            }
         };
 
-        const t = setInterval(poll, 3000);
+        safeLoad({ silent: false });
+
+        // 5s poll — enough for live desk, avoids request pile-up under stall traffic
+        timer = setInterval(() => safeLoad({ silent: true }), 5000);
         const onVisible = () => {
-            if (!document.hidden) load({ silent: true });
+            if (!document.hidden) safeLoad({ silent: true });
         };
-        const onFocus = () => load({ silent: true });
+        const onFocus = () => safeLoad({ silent: true });
 
         document.addEventListener('visibilitychange', onVisible);
         window.addEventListener('focus', onFocus);
         return () => {
-            clearInterval(t);
+            cancelled = true;
+            clearInterval(timer);
             document.removeEventListener('visibilitychange', onVisible);
             window.removeEventListener('focus', onFocus);
         };
@@ -210,7 +244,7 @@ export default function FestOrganizerLeadsPage() {
                 volunteerTeams: wantsVolunteer ? form.volunteerTeams : [],
                 competitionIds: wantsParticipate ? form.competitionIds : [],
                 note: form.note.trim(),
-                source: 'organizer_kiosk',
+                source: form.interest === 'intro' ? 'aarohan_intro' : 'organizer_kiosk',
             });
             toast('Saved');
             setForm({
@@ -236,6 +270,44 @@ export default function FestOrganizerLeadsPage() {
             toast(err.message || 'Save failed');
         } finally {
             setSaving(false);
+        }
+    };
+
+    const saveIntroLead = async (e) => {
+        e.preventDefault();
+        const phone = String(introForm.phone || '').replace(/\D/g, '');
+        if (phone.length !== 10) {
+            toast('Enter a valid 10-digit phone');
+            return;
+        }
+        if (!introForm.name.trim() || introForm.name.trim().length < 2) {
+            toast('Enter name');
+            return;
+        }
+        setSavingIntro(true);
+        try {
+            const data = await createFestOrganizerLead(festId, {
+                name: introForm.name.trim(),
+                phone,
+                year: introForm.year.trim(),
+                branch: introForm.branch.trim(),
+                interest: 'intro',
+                note: introForm.note.trim(),
+                source: 'aarohan_intro',
+            });
+            toast('Intro lead saved');
+            setIntroForm({ name: '', phone: '', year: '', branch: '', note: '' });
+            if (data.lead) {
+                setIntroLeads((prev) => {
+                    const without = prev.filter((l) => l.id !== data.lead.id && l.phone !== data.lead.phone);
+                    return [data.lead, ...without];
+                });
+            }
+            await load({ silent: true });
+        } catch (err) {
+            toast(err.message || 'Save failed');
+        } finally {
+            setSavingIntro(false);
         }
     };
 
@@ -298,6 +370,9 @@ export default function FestOrganizerLeadsPage() {
 
     const messageForLead = (lead) => {
         const who = firstName(lead.name);
+        if (lead.interest === 'intro') {
+            return `Hi${who ? ` ${who}` : ''}! Thanks for joining the Aarohan intro. Quick follow-up from the team.`;
+        }
         const interest = interestLabel(lead.interest).toLowerCase();
         return `Hi${who ? ` ${who}` : ''}! Thanks for signing up to ${interest} at ${festName}. Quick follow-up from the team.`;
     };
@@ -354,12 +429,13 @@ export default function FestOrganizerLeadsPage() {
             </div>
 
             {stats ? (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                     {[
                         [formatDayLabel(selectedDate), stats.day ?? stats.today ?? stats.allTime],
                         ['Volunteer', stats.volunteer],
                         ['Participate', stats.participate],
                         ['Both', stats.both],
+                        ['Intro', stats.intro ?? 0],
                     ].map(([label, value]) => (
                         <div key={label} className="rounded-2xl border border-white/10 bg-[#161718] p-4 text-center">
                             <p className="text-2xl font-semibold tabular-nums">{value}</p>
@@ -369,12 +445,142 @@ export default function FestOrganizerLeadsPage() {
                 </div>
             ) : null}
 
+            {isAarohan ? (
+                <section className="rounded-2xl border border-[#0ECCEE]/25 bg-[#161718] p-4 space-y-4">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                            <h2 className="text-sm font-semibold text-white">Aarohan intro data</h2>
+                            <p className="text-[11px] text-gray-500 mt-0.5">
+                                Stall form + manual intro sign-ups for today · {introLeads.length} listed
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setSelectedDate(todayStr);
+                                setInterestFilter('intro');
+                                setTeamFilter('');
+                                setCompetitionFilter('');
+                            }}
+                            className="text-[11px] text-[#0ECCEE] hover:underline"
+                        >
+                            Filter main list → Intro
+                        </button>
+                    </div>
+                    <form onSubmit={saveIntroLead} className="space-y-2">
+                        <div className="grid sm:grid-cols-2 gap-2">
+                            <input
+                                required
+                                value={introForm.name}
+                                onChange={(e) => setIntroForm({ ...introForm, name: e.target.value })}
+                                placeholder="Name"
+                                className="w-full px-3 py-2.5 rounded-xl bg-[#111213] border border-white/10 text-sm text-white"
+                            />
+                            <input
+                                required
+                                type="tel"
+                                inputMode="numeric"
+                                value={introForm.phone}
+                                onChange={(e) => setIntroForm({
+                                    ...introForm,
+                                    phone: e.target.value.replace(/\D/g, '').slice(0, 10),
+                                })}
+                                placeholder="10-digit phone"
+                                maxLength={10}
+                                className="w-full px-3 py-2.5 rounded-xl bg-[#111213] border border-white/10 text-sm text-white"
+                            />
+                            <input
+                                value={introForm.year}
+                                onChange={(e) => setIntroForm({ ...introForm, year: e.target.value })}
+                                placeholder="Year (opt)"
+                                className="w-full px-3 py-2.5 rounded-xl bg-[#111213] border border-white/10 text-sm text-white"
+                            />
+                            <input
+                                value={introForm.branch}
+                                onChange={(e) => setIntroForm({ ...introForm, branch: e.target.value })}
+                                placeholder="Branch / dept (opt)"
+                                className="w-full px-3 py-2.5 rounded-xl bg-[#111213] border border-white/10 text-sm text-white"
+                            />
+                        </div>
+                        <input
+                            value={introForm.note}
+                            onChange={(e) => setIntroForm({ ...introForm, note: e.target.value })}
+                            placeholder="Note (opt)"
+                            className="w-full px-3 py-2.5 rounded-xl bg-[#111213] border border-white/10 text-sm text-white"
+                        />
+                        <button
+                            type="submit"
+                            disabled={savingIntro}
+                            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-[#0ECCEE] text-black font-semibold text-sm disabled:opacity-50 inline-flex items-center justify-center gap-2"
+                        >
+                            {savingIntro ? <Loader className="animate-spin" size={14} /> : null}
+                            Add intro
+                        </button>
+                    </form>
+                    {introLeads.length ? (
+                        <ul className="divide-y divide-white/5 max-h-72 overflow-y-auto rounded-xl border border-white/5">
+                            {introLeads.map((lead) => {
+                                const fromForm = lead.source === 'shubharam_stall' || lead.source === 'aarohan_intro';
+                                const sourceTag = lead.source === 'organizer_kiosk'
+                                    ? 'Manual'
+                                    : lead.source === 'aarohan_intro'
+                                        ? 'Intro add'
+                                        : 'Stall form';
+                                const meta = [lead.year, lead.branch].filter(Boolean).join(' · ');
+                                return (
+                                    <li key={lead.id} className="flex items-start justify-between gap-3 px-3 py-2.5 text-sm">
+                                        <div className="min-w-0">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <p className="font-medium text-white truncate">{lead.name}</p>
+                                                <span className={`text-[10px] px-1.5 py-0.5 rounded-md border ${
+                                                    fromForm && lead.source !== 'organizer_kiosk'
+                                                        ? 'border-[#0ECCEE]/30 text-[#0ECCEE]'
+                                                        : 'border-white/10 text-gray-500'
+                                                }`}
+                                                >
+                                                    {sourceTag}
+                                                </span>
+                                            </div>
+                                            <p className="text-[11px] text-gray-500 tabular-nums mt-0.5">{lead.phone}</p>
+                                            {meta ? (
+                                                <p className="text-[11px] text-gray-400 mt-0.5 truncate">{meta}</p>
+                                            ) : null}
+                                            {lead.note ? (
+                                                <p className="text-[11px] text-gray-500 mt-0.5 truncate">{lead.note}</p>
+                                            ) : null}
+                                        </div>
+                                        <div className="flex items-center gap-2 shrink-0 pt-0.5">
+                                            <span className="text-[10px] text-gray-500">{formatTime(lead.createdAt)}</span>
+                                            {telHref(lead.phone) ? (
+                                                <a href={telHref(lead.phone)} className="p-1.5 rounded-lg text-gray-400 hover:text-[#0ECCEE]">
+                                                    <Phone size={14} />
+                                                </a>
+                                            ) : null}
+                                            <button
+                                                type="button"
+                                                onClick={() => openWhatsApp(lead.phone, messageForLead(lead))}
+                                                className="p-1.5 rounded-lg text-gray-400 hover:text-emerald-400"
+                                                title="WhatsApp"
+                                            >
+                                                <MessageCircle size={14} />
+                                            </button>
+                                        </div>
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    ) : (
+                        <p className="text-xs text-gray-500 text-center py-3">No intro sign-ups yet today</p>
+                    )}
+                </section>
+            ) : null}
+
             <div className="grid lg:grid-cols-2 gap-4">
                 <form onSubmit={saveKiosk} className="rounded-2xl border border-white/10 bg-[#161718] p-4 space-y-3">
                     <p className="text-sm font-semibold flex items-center gap-2">
                         <Users size={14} className="text-[#0ECCEE]" /> Quick add
                     </p>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                         {INTERESTS.map((opt) => (
                             <button
                                 key={opt.id}
@@ -382,8 +588,8 @@ export default function FestOrganizerLeadsPage() {
                                 onClick={() => setForm({
                                     ...form,
                                     interest: opt.id,
-                                    volunteerTeams: opt.id === 'participate' ? [] : form.volunteerTeams,
-                                    competitionIds: opt.id === 'volunteer' ? [] : form.competitionIds,
+                                    volunteerTeams: (opt.id === 'participate' || opt.id === 'intro') ? [] : form.volunteerTeams,
+                                    competitionIds: (opt.id === 'volunteer' || opt.id === 'intro') ? [] : form.competitionIds,
                                 })}
                                 className={`py-2.5 rounded-xl text-xs font-semibold border ${
                                     form.interest === opt.id
@@ -495,17 +701,29 @@ export default function FestOrganizerLeadsPage() {
                         <button
                             type="button"
                             onClick={() => setQrFullscreen(true)}
-                            className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-white"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-gray-400 hover:text-white hover:bg-white/5 transition"
                         >
                             <Maximize2 size={12} /> Fullscreen
                         </button>
                     </div>
-                    <p className="text-xs text-gray-500">Show on tablet or print for the stall.</p>
-                    <div className="flex justify-center bg-white rounded-xl p-3">
-                        <img src={qrImg} alt="Stall QR" width={200} height={200} className="rounded-lg" />
+                    <p className="text-xs text-gray-500">Same printed link — show on tablet for the stall.</p>
+                    <div className="rounded-2xl bg-[#0c0d0e] border border-white/8 p-4 flex flex-col items-center gap-3">
+                        <div className="rounded-2xl bg-[#f4f4f5] p-3 shadow-[0_0_0_1px_rgba(255,255,255,0.06)]">
+                            <img
+                                src={qrImg}
+                                alt="Stall QR"
+                                width={200}
+                                height={200}
+                                className="rounded-lg block size-[180px] sm:size-[200px]"
+                            />
+                        </div>
+                        <p className="text-[11px] text-gray-500 break-all text-center leading-relaxed max-w-[240px]">{stallUrl}</p>
                     </div>
-                    <p className="text-[11px] text-gray-500 break-all text-center">{stallUrl}</p>
-                    <button type="button" onClick={copyLink} className="w-full py-2.5 rounded-xl border border-white/10 text-sm text-gray-300">
+                    <button
+                        type="button"
+                        onClick={copyLink}
+                        className="w-full py-2.5 rounded-xl border border-white/10 text-sm text-gray-300 hover:bg-white/[0.04] hover:text-white transition"
+                    >
                         Copy link
                     </button>
                 </div>
@@ -629,6 +847,17 @@ export default function FestOrganizerLeadsPage() {
                                     className={chipBtn(interestFilter === 'participate')}
                                 >
                                     Participate
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setInterestFilter('intro');
+                                        setTeamFilter('');
+                                        setCompetitionFilter('');
+                                    }}
+                                    className={chipBtn(interestFilter === 'intro')}
+                                >
+                                    Intro
                                 </button>
                             </div>
                         </div>
@@ -794,19 +1023,40 @@ export default function FestOrganizerLeadsPage() {
             </div>
 
             {qrFullscreen ? (
-                <div className="fixed inset-0 z-50 bg-white flex flex-col items-center justify-center p-6">
+                <div
+                    className="fixed inset-0 z-50 bg-[#0c0d0e]/95 backdrop-blur-md flex flex-col items-center justify-center p-6 animate-in fade-in duration-200"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Stall QR fullscreen"
+                >
+                    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(14,204,238,0.08),_transparent_55%)]" />
                     <button
                         type="button"
                         onClick={() => setQrFullscreen(false)}
-                        className="absolute top-4 right-4 p-2 rounded-full bg-black/5 text-black"
+                        className="absolute top-4 right-4 z-10 p-2.5 rounded-full border border-white/10 bg-white/5 text-gray-300 hover:text-white hover:bg-white/10 transition"
                         aria-label="Close fullscreen QR"
                     >
                         <X size={20} />
                     </button>
-                    <p className="text-black font-bold text-xl mb-2 text-center">{festName}</p>
-                    <p className="text-gray-500 text-sm mb-6 text-center">Scan to leave your interest</p>
-                    <img src={qrImg} alt="Stall QR fullscreen" className="w-[min(70vw,420px)] h-auto" />
-                    <p className="mt-6 text-xs text-gray-400 break-all text-center max-w-md">{stallUrl}</p>
+                    <div className="relative w-full max-w-md flex flex-col items-center text-center">
+                        <p className="text-white font-semibold text-xl tracking-tight">{festName}</p>
+                        <p className="text-gray-500 text-sm mt-1.5 mb-6">Scan to leave your interest</p>
+                        <div className="rounded-[1.35rem] bg-[#f4f4f5] p-4 sm:p-5 shadow-[0_20px_60px_rgba(0,0,0,0.45)] ring-1 ring-white/10">
+                            <img
+                                src={qrImg}
+                                alt="Stall QR fullscreen"
+                                className="w-[min(72vw,360px)] h-auto rounded-xl block"
+                            />
+                        </div>
+                        <p className="mt-5 text-[11px] text-gray-500 break-all max-w-sm leading-relaxed">{stallUrl}</p>
+                        <button
+                            type="button"
+                            onClick={copyLink}
+                            className="mt-4 px-4 py-2 rounded-xl border border-white/10 text-xs text-gray-400 hover:text-white hover:bg-white/5 transition"
+                        >
+                            Copy link
+                        </button>
+                    </div>
                 </div>
             ) : null}
         </div>

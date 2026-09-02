@@ -175,9 +175,12 @@ const scannerCheckinLimiter = rateLimit({
 /** Public stall interest form — high ceiling (college WiFi = many users, one IP) */
 const stallLeadLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: isDev ? 5000 : Number(process.env.STALL_LEAD_RATE_LIMIT_MAX) || 3000,
+  // ~5k / 15m per IP covers dense campus NAT; env override if needed
+  max: isDev ? 8000 : Number(process.env.STALL_LEAD_RATE_LIMIT_MAX) || 5000,
   standardHeaders: true,
   legacyHeaders: false,
+  // Don't punish successful saves — only throttle spam bursts
+  skipSuccessfulRequests: true,
   message: { success: false, message: 'Too many submissions right now. Please wait a few seconds and try again.' },
 });
 
