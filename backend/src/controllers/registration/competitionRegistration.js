@@ -894,7 +894,107 @@ const submitCompetitionRegistration = async (req, res) => {
   }
 };
 
+// ─── Update team members on an existing registration ─────────────────────────
+const Competition = require('../../model/competition_model');
+
+const updateTeamMembers = async (req, res) => {
+  try {
+    const { registrationId } = req.params;
+    const { team_members } = req.body;
+
+    if (!Array.isArray(team_members)) {
+      return res.status(400).json({ error: 'team_members must be an array' });
+    }
+
+    // Fetch registration
+    const registration = await Registration.findById(registrationId);
+    if (!registration) {
+      return res.status(404).json({ error: 'Registration not found' });
+    }
+
+    // Authorization: user route — must own the registration
+    if (req.festOrganizerContext !== true) {
+      const userId = req.user?.userId;
+      if (!registration.user || String(registration.user) !== String(userId)) {
+        return res.status(403).json({ error: 'You do not own this registration' });
+      }
+    } else {
+      // Organizer route — must belong to their fest
+      const { festId } = req.params;
+      if (String(registration.fest) !== String(festId)) {
+        return res.status(403).json({ error: 'Registration does not belong to this fest' });
+      }
+    }
+
+    // Fetch competition for size limits and personFields
+    const competition = await Competition.findById(registration.competitionId);
+    if (!competition) {
+      return res.status(404).json({ error: 'Competition not found' });
+    }
+
+    const sizeMin = competition.teamSizeMin || 1;
+    const sizeMax = competition.teamSizeMax || 1;
+
+    // Keep the lead (index 0) from the existing data; additional members come from request
+    const existingMembers = registration.responses?.get
+      ? (registration.responses.get('team_members') || [])
+      : (registration.responses?.team_members || []);
+
+    const lead = existingMembers[0] || {};
+    const additionalMembers = team_members.filter((_, i) => i > 0 || team_members.length === 1 ? false : true);
+    // Build the full new roster: lead + submitted additional members (index 1+)
+    // Caller may send full array (lead included) or just the additions
+    let newMembers;
+    if (team_members[0] && String(team_members[0].email || '').toLowerCase() === String(lead.email || '').toLowerCase()) {
+      // Caller sent full array including lead
+      newMembers = [lead, ...team_members.slice(1)];
+    } else {
+      // Caller sent only additions
+      newMembers = [lead, ...team_members];
+    }
+
+    // Validate size
+    if (newMembers.length < sizeMin) {
+      return res.status(400).json({ error: `Team must have at least ${sizeMin} member(s)` });
+    }
+    if (newMembers.length > sizeMax) {
+      return res.status(400).json({ error: `Team cannot exceed ${sizeMax} member(s)` });
+    }
+
+    // Validate required personFields on additional members
+    const personFields = competition.registration?.personFields || [];
+    const requiredFields = personFields.filter(f => f.required !== false && f.scope !== 'team');
+    for (let i = 1; i < newMembers.length; i++) {
+      const member = newMembers[i];
+      for (const field of requiredFields) {
+        const key = field.key || field.id;
+        if (!member[key] && !member[field.label?.toLowerCase()]) {
+          return res.status(400).json({
+            error: `Member ${i + 1} is missing required field: ${field.label || key}`,
+          });
+        }
+      }
+    }
+
+    // Persist
+    if (typeof registration.responses.set === 'function') {
+      registration.responses.set('team_members', newMembers);
+    } else {
+      registration.responses.team_members = newMembers;
+    }
+    registration.markModified('responses');
+    await registration.save();
+
+    logger.debug(`✅ Team members updated for registration ${registrationId}: ${newMembers.length} members`);
+    res.json({ success: true, team_members: newMembers, memberCount: newMembers.length });
+  } catch (error) {
+    logger.error('❌ updateTeamMembers error:', error);
+    res.status(500).json({ error: 'Failed to update team members' });
+  }
+};
+
 module.exports = {
   submitCustomCompetitionRegistration,
   submitCompetitionRegistration,
+  updateTeamMembers,
 };

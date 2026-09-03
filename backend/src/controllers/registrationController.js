@@ -2,6 +2,7 @@ const { upload } = require('./registration/helpers');
 const {
   submitCustomCompetitionRegistration,
   submitCompetitionRegistration,
+  updateTeamMembers,
 } = require('./registration/competitionRegistration');
 const {
   submitRegistration,
@@ -47,4 +48,5 @@ module.exports = {
   testGoogleSheets,
   diagnoseGoogleSheets,
   upload,
+  updateTeamMembers,
 };

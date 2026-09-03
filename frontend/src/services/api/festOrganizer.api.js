@@ -456,6 +456,13 @@ export async function updateFestOrganizerParticipantWhatsappGroup(festId, regist
     });
 }
 
+export async function updateFestOrganizerParticipantTeamMembers(festId, registrationId, teamMembers) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/participants/${registrationId}/team-members`, {
+        method: 'PATCH',
+        body: { team_members: teamMembers },
+    });
+}
+
 export async function exportFestOrganizerParticipants(festId, params = {}) {
     const qs = new URLSearchParams();
     if (params.competitionId) qs.set('competitionId', params.competitionId);

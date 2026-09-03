@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { X, Loader, Check, Ban, RotateCcw, MessageCircle, Phone, Trash2 } from 'lucide-react';
+import { X, Loader, Check, Ban, RotateCcw, MessageCircle, Phone, Trash2, UserPlus, Pencil } from 'lucide-react';
 import { DetailLoader3DIcon } from '../../components/DetailPageLoader';
 import {
     fetchFestOrganizerParticipant,
     deleteFestOrganizerParticipant,
     updateFestOrganizerParticipantStatus,
     updateFestOrganizerParticipantWhatsappGroup,
+    updateFestOrganizerParticipantTeamMembers,
 } from '../../services/api/festOrganizer.api';
 import { useDialog } from '../../context/DialogContext';
 import { filterExtraFestFormResponses } from '../../utils/festFormResponseKeys';
@@ -73,6 +74,11 @@ export default function FestOrganizerParticipantModal({ festId, registrationId, 
     const [loading, setLoading] = useState(true);
     const [busy, setBusy] = useState('');
     const noReview = getFestPlugin(festId).skipRegistrationReview;
+    // Edit-roster state
+    const [rosterEditOpen, setRosterEditOpen] = useState(false);
+    const [rosterRows, setRosterRows] = useState([]);
+    const [rosterBusy, setRosterBusy] = useState(false);
+    const [rosterError, setRosterError] = useState('');
 
     useEffect(() => {
         if (!festId || !registrationId) return;
@@ -288,6 +294,156 @@ export default function FestOrganizerParticipantModal({ festId, registrationId, 
                                 teamSize={participant.teamSize || participant.memberCount}
                             />
                         ) : null}
+
+                        {/* ── Edit / Add roster members (organizer) ── */}
+                        {Array.isArray(participant.teamMembers) && (() => {
+                            const sizeMax = participant.teamSizeMax || participant.teamSize || participant.memberCount || 1;
+                            const displayFields = Array.isArray(participant.personFields) && participant.personFields.length
+                                ? participant.personFields.filter(f => f.scope !== 'team')
+                                : [
+                                    { key: 'name', label: 'Full Name', required: true },
+                                    { key: 'email', label: 'Email', required: true },
+                                    { key: 'phone', label: 'Phone', required: false },
+                                    { key: 'college', label: 'College / Institution', required: false },
+                                ];
+                            const emptyRow = () => Object.fromEntries(displayFields.map(f => [f.key, '']));
+
+                            const openEdit = () => {
+                                // Pre-fill from existing members (skip index 0 = lead)
+                                const existingExtra = (participant.teamMembers || []).slice(1).map(m => {
+                                    const row = emptyRow();
+                                    displayFields.forEach(f => { row[f.key] = m[f.key] || ''; });
+                                    return row;
+                                });
+                                setRosterRows(existingExtra.length ? existingExtra : [emptyRow()]);
+                                setRosterError('');
+                                setRosterEditOpen(true);
+                            };
+
+                            const handleRosterFieldChange = (rowIdx, key, value) => {
+                                setRosterRows(prev => prev.map((r, i) => i === rowIdx ? { ...r, [key]: value } : r));
+                            };
+                            const handleAddRosterRow = () => {
+                                if (rosterRows.length < sizeMax - 1) {
+                                    setRosterRows(prev => [...prev, emptyRow()]);
+                                }
+                            };
+                            const handleRemoveRosterRow = (i) => {
+                                setRosterRows(prev => prev.filter((_, idx) => idx !== i));
+                            };
+                            const handleSaveRoster = async () => {
+                                setRosterBusy(true);
+                                setRosterError('');
+                                try {
+                                    const lead = participant.teamMembers?.[0] || {};
+                                    const newFullList = [lead, ...rosterRows];
+                                    const res = await updateFestOrganizerParticipantTeamMembers(festId, registrationId, newFullList);
+                                    if (res.success) {
+                                        setParticipant(prev => ({
+                                            ...prev,
+                                            teamMembers: res.team_members,
+                                            memberCount: res.memberCount,
+                                        }));
+                                        if (onUpdated) onUpdated();
+                                        setRosterEditOpen(false);
+                                        toast('Roster updated');
+                                    } else {
+                                        setRosterError(res.error || 'Failed to update roster');
+                                    }
+                                } catch (e) {
+                                    setRosterError(e.message || 'Failed to update roster');
+                                } finally {
+                                    setRosterBusy(false);
+                                }
+                            };
+
+                            return (
+                                <div className="mt-1">
+                                    {!rosterEditOpen ? (
+                                        <button
+                                            type="button"
+                                            onClick={openEdit}
+                                            className="flex items-center gap-1.5 text-xs text-[#0ECCEE] hover:opacity-80 transition"
+                                        >
+                                            <Pencil size={12} />
+                                            Edit roster
+                                            {participant.teamMembers.length < sizeMax && (
+                                                <span className="text-gray-500">
+                                                    ({sizeMax - participant.teamMembers.length} slot{sizeMax - participant.teamMembers.length !== 1 ? 's' : ''} open)
+                                                </span>
+                                            )}
+                                        </button>
+                                    ) : (
+                                        <div className="rounded-xl border border-white/10 p-3 space-y-3">
+                                            <p className="text-xs font-semibold text-white">Edit additional members</p>
+                                            {rosterRows.map((row, rowIdx) => (
+                                                <div key={`edit-member-${rowIdx}`} className="rounded-lg border border-white/8 bg-white/3 p-3 space-y-2">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-[10px] text-gray-500 uppercase">
+                                                            Person {rowIdx + 2}
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleRemoveRosterRow(rowIdx)}
+                                                            className="text-red-400 hover:text-red-500 transition"
+                                                        >
+                                                            <Trash2 size={13} />
+                                                        </button>
+                                                    </div>
+                                                    {displayFields.map(field => (
+                                                        <div key={field.key}>
+                                                            <label className="block text-[10px] text-gray-500 mb-0.5">
+                                                                {field.label}{field.required ? ' *' : ''}
+                                                            </label>
+                                                            <input
+                                                                type={field.type === 'email' ? 'email' : field.type === 'tel' ? 'tel' : 'text'}
+                                                                value={row[field.key] || ''}
+                                                                onChange={e => handleRosterFieldChange(rowIdx, field.key, e.target.value)}
+                                                                placeholder={field.placeholder || field.label}
+                                                                className="w-full px-2.5 py-1.5 rounded-lg border border-white/10 bg-[#1a1b1c] text-white text-xs placeholder-gray-600 outline-none focus:ring-1 focus:ring-[#0ECCEE]"
+                                                            />
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ))}
+
+                                            {rosterRows.length < sizeMax - 1 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={handleAddRosterRow}
+                                                    className="flex items-center gap-1 text-[11px] text-[#0ECCEE] hover:opacity-80 transition"
+                                                >
+                                                    <UserPlus size={12} /> Add member
+                                                </button>
+                                            )}
+
+                                            {rosterError && (
+                                                <p className="text-xs text-red-400">{rosterError}</p>
+                                            )}
+
+                                            <div className="flex gap-2 pt-1">
+                                                <button
+                                                    type="button"
+                                                    onClick={handleSaveRoster}
+                                                    disabled={rosterBusy}
+                                                    className="px-4 py-1.5 rounded-lg bg-[#0ECCEE] text-black text-xs font-semibold hover:opacity-90 disabled:opacity-50 transition"
+                                                >
+                                                    {rosterBusy ? 'Saving…' : 'Save'}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { setRosterEditOpen(false); setRosterRows([]); setRosterError(''); }}
+                                                    disabled={rosterBusy}
+                                                    className="px-4 py-1.5 rounded-lg border border-white/10 text-gray-300 text-xs hover:bg-white/5 transition"
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })()}
 
                         {responses.length ? (
                             <div className="rounded-xl border border-white/10 overflow-hidden">

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, Calendar, MapPin, Receipt, Clock } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Calendar, MapPin, Receipt, Clock, UserPlus, Trash2 } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
 
@@ -165,6 +165,11 @@ export default function RegistrationDetails() {
   const [error, setError] = useState('');
   const [errorCode, setErrorCode] = useState('');
   const [resolvedAsSports, setResolvedAsSports] = useState(false);
+  // Add-members state
+  const [addMembersOpen, setAddMembersOpen] = useState(false);
+  const [addMemberRows, setAddMemberRows] = useState([]);
+  const [addMembersBusy, setAddMembersBusy] = useState(false);
+  const [addMembersError, setAddMembersError] = useState('');
   const pendingHint = location.state?.pendingApproval || null;
   const treatAsSports = isSportsRegistration
     || resolvedAsSports
@@ -1008,6 +1013,173 @@ export default function RegistrationDetails() {
               </div>
             </div>
           ) : null}
+
+          {/* ── Add team members (only when slots remain and not rejected) ── */}
+          {isCompetitionRegistration &&
+            registration.status !== 'rejected' &&
+            (() => {
+              const comp = registration.competitionId;
+              const sizeMax = comp?.teamSizeMax || comp?.registration?.teamSizeMax || 1;
+              const canAdd = rosterTeamMembers.length < sizeMax;
+              if (!canAdd) return null;
+              const slotsLeft = sizeMax - rosterTeamMembers.length;
+              const displayFields = rosterPersonFields.length
+                ? rosterPersonFields.filter(f => f.scope !== 'team')
+                : [
+                    { key: 'name', label: 'Full Name', required: true },
+                    { key: 'email', label: 'Email', required: true },
+                    { key: 'phone', label: 'Phone', required: false },
+                    { key: 'college', label: 'College / Institution', required: false },
+                  ];
+              const emptyRow = () => Object.fromEntries(displayFields.map(f => [f.key, '']));
+
+              const handleOpenAddMembers = () => {
+                setAddMemberRows(Array.from({ length: 1 }, emptyRow));
+                setAddMembersError('');
+                setAddMembersOpen(true);
+              };
+              const handleAddRow = () => {
+                if (addMemberRows.length < slotsLeft) {
+                  setAddMemberRows(prev => [...prev, emptyRow()]);
+                }
+              };
+              const handleRemoveRow = (i) => {
+                setAddMemberRows(prev => prev.filter((_, idx) => idx !== i));
+              };
+              const handleFieldChange = (rowIdx, key, value) => {
+                setAddMemberRows(prev => prev.map((row, i) => i === rowIdx ? { ...row, [key]: value } : row));
+              };
+              const handleSubmitMembers = async () => {
+                setAddMembersBusy(true);
+                setAddMembersError('');
+                try {
+                  // Build full new array: existing + new rows
+                  const newFullList = [...rosterTeamMembers, ...addMemberRows];
+                  const res = await userFetchJSONStrict(`/api/registrations/details/${registration._id}/team-members`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ team_members: newFullList }),
+                  });
+                  if (res.success) {
+                    // Update local registration state with new team_members
+                    setRegistration(prev => {
+                      const updated = { ...prev };
+                      const resp = updated.responses ? { ...updated.responses } : {};
+                      resp.team_members = res.team_members;
+                      updated.responses = resp;
+                      return updated;
+                    });
+                    setAddMembersOpen(false);
+                    setAddMemberRows([]);
+                  } else {
+                    setAddMembersError(res.error || 'Failed to save members');
+                  }
+                } catch (err) {
+                  setAddMembersError(err.message || 'Failed to save members');
+                } finally {
+                  setAddMembersBusy(false);
+                }
+              };
+
+              return (
+                <div className={`mt-4 pt-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                  {!addMembersOpen ? (
+                    <button
+                      type="button"
+                      onClick={handleOpenAddMembers}
+                      className="flex items-center gap-2 text-sm font-medium text-[#0ECCEE] hover:opacity-80 transition"
+                    >
+                      <UserPlus size={16} />
+                      Add team members ({slotsLeft} slot{slotsLeft !== 1 ? 's' : ''} remaining)
+                    </button>
+                  ) : (
+                    <div>
+                      <h3 className={`text-base font-semibold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        Add team members
+                      </h3>
+                      <div className="space-y-4">
+                        {addMemberRows.map((row, rowIdx) => (
+                          <div
+                            key={`new-member-${rowIdx}`}
+                            className={`rounded-xl border p-4 ${isDark ? 'border-gray-700 bg-[#151617]' : 'border-gray-200 bg-gray-50'}`}
+                          >
+                            <div className="flex items-center justify-between mb-3">
+                              <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                Person {rosterTeamMembers.length + rowIdx + 1}
+                              </p>
+                              {addMemberRows.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveRow(rowIdx)}
+                                  className="text-red-400 hover:text-red-500 transition"
+                                  aria-label="Remove member"
+                                >
+                                  <Trash2 size={15} />
+                                </button>
+                              )}
+                            </div>
+                            <div className="space-y-3">
+                              {displayFields.map(field => (
+                                <div key={field.key}>
+                                  <label className={`block text-xs mb-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                    {field.label}{field.required ? ' *' : ''}
+                                  </label>
+                                  <input
+                                    type={field.type === 'email' ? 'email' : field.type === 'tel' ? 'tel' : 'text'}
+                                    value={row[field.key] || ''}
+                                    onChange={e => handleFieldChange(rowIdx, field.key, e.target.value)}
+                                    placeholder={field.placeholder || field.label}
+                                    className={`w-full px-3 py-2 rounded-lg border text-sm outline-none focus:ring-2 focus:ring-[#0ECCEE] ${
+                                      isDark
+                                        ? 'bg-[#1a1b1c] border-gray-700 text-white placeholder-gray-500'
+                                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+                                    }`}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {addMemberRows.length < slotsLeft && (
+                        <button
+                          type="button"
+                          onClick={handleAddRow}
+                          className="mt-3 flex items-center gap-1 text-xs text-[#0ECCEE] hover:opacity-80 transition"
+                        >
+                          <UserPlus size={13} /> Add another member
+                        </button>
+                      )}
+
+                      {addMembersError && (
+                        <p className="mt-3 text-sm text-red-400">{addMembersError}</p>
+                      )}
+
+                      <div className="mt-4 flex gap-3">
+                        <button
+                          type="button"
+                          onClick={handleSubmitMembers}
+                          disabled={addMembersBusy}
+                          className="px-5 py-2 rounded-xl bg-[#0ECCEE] text-black text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition"
+                        >
+                          {addMembersBusy ? 'Saving…' : 'Save members'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setAddMembersOpen(false); setAddMemberRows([]); setAddMembersError(''); }}
+                          disabled={addMembersBusy}
+                          className={`px-5 py-2 rounded-xl border text-sm font-medium transition ${isDark ? 'border-gray-700 text-gray-300 hover:bg-gray-800' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()
+          }
 
           {/* Registration Metadata */}
           <div className={`mt-6 pt-6 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>

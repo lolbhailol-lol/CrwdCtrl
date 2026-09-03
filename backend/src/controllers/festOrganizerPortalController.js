@@ -234,6 +234,7 @@ function formatParticipant(reg) {
         whatsappGroupJoinedAt: reg.whatsappGroupJoinedAt || null,
         competitionId: reg.competitionId?._id || reg.competitionId || null,
         competitionName: reg.competitionId?.competitionName || reg.competitionId?.name || '',
+        teamSizeMax: reg.competitionId?.teamSizeMax || reg.competitionId?.registration?.teamSizeMax || null,
         userName,
         userEmail,
         userPhone,
@@ -1286,7 +1287,7 @@ exports.getParticipant = async (req, res) => {
         }
         const reg = await Registration.findOne({ _id: registrationId, fest: req.festId })
             .populate('user', 'name email phone phoneNumber')
-            .populate('competitionId', 'competitionName name')
+            .populate('competitionId', 'competitionName name teamSizeMax registration')
             .lean();
         if (!reg) return res.status(404).json({ success: false, message: 'Participant not found' });
         res.json({ success: true, participant: formatParticipant(reg) });
