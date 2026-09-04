@@ -67,6 +67,12 @@ function mapFestRegistrations(internalRegistrations = []) {
     return internalRegistrations.map((reg) => {
         const isCompetitionRegistration = !!(reg.competitionId && (reg.competitionId._id || reg.competitionId));
         if (isCompetitionRegistration) {
+            const responses = reg.responses instanceof Map
+                ? Object.fromEntries(reg.responses)
+                : (reg.responses || {});
+            const teamMembersArr = Array.isArray(responses.team_members) ? responses.team_members : [];
+            const memberCount = teamMembersArr.length || 1;
+            const teamSizeMax = reg.competitionId?.teamSizeMax || 1;
             return {
                 id: reg._id,
                 name: reg.competitionId?.name || 'Competition',
@@ -88,6 +94,9 @@ function mapFestRegistrations(internalRegistrations = []) {
                 paymentId: reg.payment_id || '',
                 paymentOrderId: reg.payment_order_id || '',
                 registeredAt: reg.submittedAt,
+                teamSizeMax,
+                memberCount,
+                slotsLeft: Math.max(0, teamSizeMax - memberCount),
             };
         }
         return {
@@ -309,6 +318,11 @@ function BookingCard({ item, isDark, onViewBooking, onDownloadTicket, onAddToCal
                             {item.festName}
                         </p>
                     )}
+                    {item.isCompetition && item.slotsLeft > 0 && item.registrationStatus !== 'rejected' && (
+                        <span className="mt-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium bg-[#0ECCEE]/15 text-[#0ECCEE]">
+                            + {item.slotsLeft} slot{item.slotsLeft !== 1 ? 's' : ''} open
+                        </span>
+                    )}
                     {isPendingPayment ? (
                         <span
                             className={`mt-2 inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium ${
@@ -355,6 +369,15 @@ function BookingCard({ item, isDark, onViewBooking, onDownloadTicket, onAddToCal
                 >
                     View Booking
                 </button>
+                {item.isCompetition && item.slotsLeft > 0 && item.registrationStatus !== 'rejected' && (
+                    <button
+                        type="button"
+                        onClick={() => onViewBooking({ ...item, _autoAddMembers: true })}
+                        className="flex-1 h-11 rounded-2xl bg-[#0ECCEE] text-black text-sm font-semibold font-inter leading-6 hover:bg-[#0ECCEE]/90 transition-colors"
+                    >
+                        Add members
+                    </button>
+                )}
                 {canDownloadTicket ? (
                     <button
                         type="button"
@@ -558,7 +581,9 @@ function Booking() {
             navigate(`/registration-details/${item.id}?type=event`);
             return;
         }
-        navigate(`/registration-details/${item.id}`);
+        navigate(`/registration-details/${item.id}`, {
+            state: item._autoAddMembers ? { autoAddMembers: true } : undefined,
+        });
     };
 
     const handleDownloadTicket = (item) => {

@@ -38,7 +38,7 @@ const getUserRegistrations = async (req, res) => {
     const [registrations, trekBookings, eventRegistrations, total] = await Promise.all([
       Registration.find({ user: userId })
         .populate('fest', 'festName collegeName festDate venue status coverImage registration ticketPrice')
-        .populate('competitionId', 'name description coverImage registrationFee')
+        .populate('competitionId', 'name description coverImage registrationFee teamSizeMax teamSizeMin')
         .sort({ submittedAt: -1 })
         .limit(limit * 1)
         .skip((page - 1) * limit)

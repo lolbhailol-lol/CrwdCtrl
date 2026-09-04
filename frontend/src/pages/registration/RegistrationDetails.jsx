@@ -171,6 +171,7 @@ export default function RegistrationDetails() {
   const [addMembersBusy, setAddMembersBusy] = useState(false);
   const [addMembersError, setAddMembersError] = useState('');
   const pendingHint = location.state?.pendingApproval || null;
+  const autoAddMembers = location.state?.autoAddMembers || false;
   const treatAsSports = isSportsRegistration
     || resolvedAsSports
     || registration?.category === 'sports';
@@ -179,6 +180,16 @@ export default function RegistrationDetails() {
     || isEventsListingHub(registration?.event)
     || isEventsListingHub(registration)
   );
+
+  // Auto-open the add-members form when navigated with autoAddMembers flag
+  useEffect(() => {
+    if (!autoAddMembers || loading || !registration) return;
+    setAddMembersOpen(true);
+    // Scroll down a bit so the form is visible
+    setTimeout(() => {
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    }, 300);
+  }, [autoAddMembers, loading, registration]);
 
   useEffect(() => {
     if (authLoading) return;
