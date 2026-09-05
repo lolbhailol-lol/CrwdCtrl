@@ -13,8 +13,11 @@ const getDefaultUserToken = () =>
 const waitMs = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 // A scanned ticket usually lingers in frame for a moment after it is read, so ignore the same
 // payload briefly instead of re-submitting it once scanning resumes.
-const DUPLICATE_SCAN_WINDOW_MS = 5000;
-const SUCCESS_RESUME_DELAY_MS = 1400;
+const DUPLICATE_SCAN_WINDOW_MS = 4500;
+/** Brief success flash, then keep scanning the next guest without a tap. */
+const SUCCESS_RESUME_DELAY_MS = 900;
+/** Already-in tickets should not stall the gate — flash and continue. */
+const ALREADY_IN_RESUME_DELAY_MS = 700;
 const acquireCameraStream = async () => {
   if (!navigator.mediaDevices?.getUserMedia) {
     throw new Error('Camera not supported. Use Photo of QR or manual entry.');
@@ -394,8 +397,21 @@ export default function CheckinScannerPage({
           scanLockRef.current = false;
           startScanLoopRef.current?.();
         }, SUCCESS_RESUME_DELAY_MS);
+        return;
       }
-      // Anything other than a clean check-in needs the organiser to look, so it waits for a tap.
+
+      if (outcome === 'already_checked_in') {
+        // Don't make the organizer tap "Scan next" when someone re-shows a used ticket.
+        resumeTimerRef.current = setTimeout(() => {
+          if (!mountedRef.current) return;
+          setScanResult(null);
+          scanLockRef.current = false;
+          startScanLoopRef.current?.();
+        }, ALREADY_IN_RESUME_DELAY_MS);
+        return;
+      }
+
+      // Hard errors need a tap so the organiser can read the message.
       return;
     }
 

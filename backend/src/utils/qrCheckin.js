@@ -32,12 +32,11 @@ async function resolveCheckinRecord({ Registration, TrekBooking, CategoryRegistr
   const candidateId = payload?.bookingId || payload?.registrationId || null;
 
   if (hash) {
-    // Run all four indexed lookups in parallel — only one collection actually
-    // holds a matching record. This shaves ~3x the round-trip time on the
-    // event-day scanner hot path where every second of latency counts.
+    // Run indexed lookups in parallel — only one collection holds a match.
+    // Null-safe so scoped callers can omit unused models without crashing the gate.
     const [registration, trekBooking, sportsReg, eventReg] = await Promise.all([
-      Registration.findOne({ qrCodeData: hash }),
-      TrekBooking.findOne({ qrCodeData: hash }),
+      Registration ? Registration.findOne({ qrCodeData: hash }) : Promise.resolve(null),
+      TrekBooking ? TrekBooking.findOne({ qrCodeData: hash }) : Promise.resolve(null),
       CategoryRegistration
         ? CategoryRegistration.findOne({ qrCodeData: hash, category: 'sports' })
         : Promise.resolve(null),
@@ -81,27 +80,31 @@ async function resolveCheckinRecord({ Registration, TrekBooking, CategoryRegistr
       }
     }
 
-    const registration = await Registration.findById(candidateId);
-    if (registration) {
-      if (!registration.qrCodeData && hash) {
-        registration.qrCodeData = hash;
-        await registration.save();
-      }
-      if (registration.qrCodeData) {
-        if (hash && registration.qrCodeData !== hash) return null;
-        return { kind: 'registration', record: registration };
+    if (Registration) {
+      const registration = await Registration.findById(candidateId);
+      if (registration) {
+        if (!registration.qrCodeData && hash) {
+          registration.qrCodeData = hash;
+          await registration.save();
+        }
+        if (registration.qrCodeData) {
+          if (hash && registration.qrCodeData !== hash) return null;
+          return { kind: 'registration', record: registration };
+        }
       }
     }
 
-    const trekBooking = await TrekBooking.findById(candidateId);
-    if (trekBooking) {
-      if (!trekBooking.qrCodeData && hash) {
-        trekBooking.qrCodeData = hash;
-        await trekBooking.save();
-      }
-      if (trekBooking.qrCodeData) {
-        if (hash && trekBooking.qrCodeData !== hash) return null;
-        return { kind: 'trek', record: trekBooking };
+    if (TrekBooking) {
+      const trekBooking = await TrekBooking.findById(candidateId);
+      if (trekBooking) {
+        if (!trekBooking.qrCodeData && hash) {
+          trekBooking.qrCodeData = hash;
+          await trekBooking.save();
+        }
+        if (trekBooking.qrCodeData) {
+          if (hash && trekBooking.qrCodeData !== hash) return null;
+          return { kind: 'trek', record: trekBooking };
+        }
       }
     }
   }

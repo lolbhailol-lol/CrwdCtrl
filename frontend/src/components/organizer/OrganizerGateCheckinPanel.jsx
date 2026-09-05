@@ -204,6 +204,7 @@ export default function OrganizerGateCheckinPanel({
     } catch (err) {
       toast(err?.message || 'Check-in failed');
     } finally {
+      // Clear lock immediately so the next Let in can fire without waiting a paint.
       setCheckinId(null);
     }
   };
