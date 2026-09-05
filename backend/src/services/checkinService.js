@@ -314,8 +314,9 @@ async function performCheckinFromRaw(raw, options = {}) {
     const guestPayload = buildSportsCheckinGuestPayload(decryptedSports, event);
 
     if (sportEventId && !matchesSportScope(eventId, sportEventId)) {
+      // 409 (not 403): organizers must see the ticket message — 403 is often remapped to "session expired" in the scanner UI.
       return {
-        status: 403,
+        status: 409,
         body: {
           success: false,
           status: 'invalid',

@@ -338,10 +338,31 @@ export default function CheckinScannerPage({
 
       const data = await res.json().catch(() => ({}));
 
-      if (res.status === 401 || res.status === 403) {
+      // 401 = auth. 403 from check-in can be either auth OR a ticket scope miss
+      // (wrong event / fest / trek) — never hide the server's ticket message.
+      if (res.status === 401) {
         setScanResult({
           status: 'error',
-          message: authErrorMessage || data.error || data.message || 'Session expired — please sign in again',
+          message:
+            sessionExpiredMessage ||
+            data.message ||
+            data.error ||
+            'Session expired — please sign in again',
+        });
+        return 'error';
+      }
+      if (res.status === 403) {
+        const serverMsg = data.message || data.error || '';
+        const isTicketScopeReject =
+          data.status === 'invalid' ||
+          /ticket|different (sports )?event|different fest|different trek|correct scanner|not for (this|event|fest|trek|sports)/i.test(
+            serverMsg,
+          );
+        setScanResult({
+          status: 'error',
+          message: isTicketScopeReject
+            ? serverMsg || 'This ticket is not valid on this scanner.'
+            : authErrorMessage || serverMsg || 'Access denied or session expired — please sign in again',
         });
         return 'error';
       }

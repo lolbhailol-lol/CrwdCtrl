@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { QrCode } from 'lucide-react';
 import CheckinScannerPage from '../../components/admin/CheckinScannerPage';
@@ -9,6 +9,7 @@ import {
     lookupRunClubOrganizerParticipant,
     runClubOrganizerCheckin,
     fetchRunClubOrganizerParticipants,
+    fetchRunClubOrganizerEvent,
 } from '../../services/api/runClubOrganizer.api';
 import { useDialog } from '../../context/DialogContext';
 import { isEventsListingHub, organizerHubCopy } from '../../utils/listingHubCopy';
@@ -48,6 +49,22 @@ export default function RunClubOrganizerScanPage() {
     const isEventHub = isEventsListingHub(getRunClubOrganizerSession()?.runClub);
     const copy = organizerHubCopy(isEventHub);
     const [rosterKey, setRosterKey] = useState(0);
+    const [eventTitle, setEventTitle] = useState('');
+
+    useEffect(() => {
+        if (!eventId) return undefined;
+        let cancelled = false;
+        (async () => {
+            try {
+                const data = await fetchRunClubOrganizerEvent(eventId);
+                const title = data?.event?.title || data?.title || '';
+                if (!cancelled && title) setEventTitle(String(title));
+            } catch {
+                /* title is optional context for the gate */
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [eventId]);
 
     const listRoster = useCallback(
         async ({ checkInStatus, search, page, limit }) => {
@@ -85,9 +102,14 @@ export default function RunClubOrganizerScanPage() {
                     <h1 className={isEventHub ? 'text-xl font-semibold tracking-tight' : 'text-2xl font-bold'}>
                         {isEventHub ? 'Scan' : 'Scan QR'}
                     </h1>
+                    {eventTitle ? (
+                        <p className="text-sm font-medium text-[#0ECCEE] mt-0.5">
+                            Scanning for: {eventTitle}
+                        </p>
+                    ) : null}
                     <p className="text-sm text-gray-500 mt-0.5">
                         {isEventHub
-                            ? 'Scan a ticket QR, or check someone in from the list below.'
+                            ? 'Open this event’s Scan tab only — tickets from another event will be rejected. Or use Let in below.'
                             : 'Scan ticket QR or search manually by booking ID, phone, or name.'}
                     </p>
                 </div>
@@ -98,7 +120,7 @@ export default function RunClubOrganizerScanPage() {
                 showStats
                 showSheetStatus={false}
                 sportEventId={eventId}
-                festName={copy.scanName}
+                festName={eventTitle || copy.scanName}
                 getAuthToken={getRunClubOrganizerToken}
                 checkinUrl={`${api}/run-club-organizer/events/${eventId}/checkin`}
                 statsUrl={`${api}/run-club-organizer/events/${eventId}/checkin/stats`}
