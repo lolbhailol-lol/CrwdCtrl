@@ -373,7 +373,9 @@ export default function EventsPage() {
     );
     const communityEventCards = useMemo(
         () => communityEvents
-            .filter((ev) => ev.showOnEventsPage === true)
+            // Hub API may omit the flag on older builds; treat missing as visible
+            // (admin can still hide with showOnEventsPage: false).
+            .filter((ev) => ev.showOnEventsPage !== false)
             .map((ev) => ({
                 id: ev._id,
                 listingHub: 'events',

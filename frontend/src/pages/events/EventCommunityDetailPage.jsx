@@ -525,7 +525,10 @@ export default function EventCommunityDetailPage() {
     const canonicalPath = eventCommunityPath(club || { id });
 
     return (
-        <div className="crwdctrl-page crwdctrl-page--content flex flex-col min-h-screen pb-8" style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}>
+        <div
+            className="crwdctrl-page crwdctrl-page--content flex flex-col min-h-screen pb-[calc(5.75rem+var(--safe-bottom,0px))]"
+            style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}
+        >
             <Seo
                 title={`${name} — Community`}
                 description={description}

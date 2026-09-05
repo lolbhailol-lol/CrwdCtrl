@@ -160,6 +160,7 @@ const SPORTS_LIST_SELECT = [
   'registration.mode',
   'registration.requireLogin',
   'showOnSportsPage',
+  'showOnEventsPage',
   'createdAt',
 ].join(' ');
 
