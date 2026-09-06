@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Phone, Instagram, Check, Mail, ArrowLeft, Ticket, Share2, Users } from 'lucide-react';
+import { Phone, Instagram, Check, Mail, ArrowLeft, Ticket, Share2, Users, FileText, ExternalLink } from 'lucide-react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useDialog } from '../../context/DialogContext';
@@ -27,6 +27,7 @@ import { COMPETITION_DEMO_LOAD_MS } from '../../constants/skeletonLoading';
 import { formatSlotsLabel, buildTeamSizeLabel, isCompetitionSoldOut, isCompetitionRegistrationClosed } from '../../utils/teamSize';
 import { useInAppBack } from '../../hooks/useInAppBack';
 import { isMindSparkFest } from '../../features/fests/mindspark/isMindSparkFest';
+import { isTechfestFest } from '../../features/fests/techfest/isTechfestFest';
 import {
     loadCompetitionDetailCache,
     saveCompetitionDetailCache,
@@ -478,6 +479,15 @@ const buildCompetitionData = (compData, options = {}) => {
         teamSizeMin: Math.max(1, Number(compData.teamSizeMin) || 1),
         teamSizeMax: Math.max(1, Number(compData.teamSizeMax) || Number(compData.teamSizeMin) || 1),
         teamSizeLabel: compData.teamSizeLabel || '',
+        resourceLinks: Array.isArray(compData.registration?.resourceLinks)
+            ? compData.registration.resourceLinks
+                .filter((l) => l && l.url)
+                .map((l) => ({ label: String(l.label || 'Resource').trim(), url: String(l.url).trim() }))
+            : Array.isArray(compData.resourceLinks)
+                ? compData.resourceLinks
+                    .filter((l) => l && l.url)
+                    .map((l) => ({ label: String(l.label || 'Resource').trim(), url: String(l.url).trim() }))
+                : [],
 
         rounds: {
             description: roundsDescription,
@@ -520,6 +530,7 @@ function EventPage() {
     const [showRegistrationSuccess] = useState(false);
     const [showShareMenu, setShowShareMenu] = useState(false);
     const [showFullAbout, setShowFullAbout] = useState(false);
+    const [showFullRoundDesc, setShowFullRoundDesc] = useState(false);
     const [expandedRules, setExpandedRules] = useState({});
     const [competitionData, setCompetitionData] = useState(() =>
         resolvePaintPackage(competitionId, location),
@@ -659,6 +670,10 @@ function EventPage() {
         if (activeRound >= total) setActiveRound(0);
     }, [competitionData?.id, competitionData?.rounds?.roundsList?.length, activeRound]);
 
+    useEffect(() => {
+        setShowFullRoundDesc(false);
+    }, [activeRound, competitionData?.id]);
+
     // 🔄 Listen for admin updates and refetch data
     useEffect(() => {
         const handleAdminUpdate = () => {
@@ -795,6 +810,7 @@ function EventPage() {
     const eventData = competitionData;
     const showHeroImage = Boolean(eventData?.image);
     const isMindSparkCompetition = isMindSparkFest(eventData?.fest || eventData?.festId, eventData?.fest);
+    const isTechfestCompetition = isTechfestFest(eventData?.fest || eventData?.festId, eventData?.fest);
 
     if (!eventData?.title) {
         return <DetailPageLoader variant="competition" label="Loading competition" />;
@@ -826,12 +842,22 @@ function EventPage() {
         return sanitizeRulesArray(roundData.rules || []);
     };
 
-    const getRoundModeSections = (roundData) => {
+    const isGenericModeFillerRule = (rule = '') =>
+        /this stage is (conducted|held)\s+(online|on-ground|offline)/i.test(String(rule || ''))
+        || /via remote submission as per the official/i.test(String(rule || ''))
+        || /as per the official (problem statement|schedule)/i.test(String(rule || ''));
+
+    const getRoundModeSections = (roundData, { hideGenericFillers = false } = {}) => {
         if (!roundData) return { offline: [], online: [], general: [] };
 
-        const offline = sanitizeRulesArray(roundData.offline?.rules || []);
-        const online = sanitizeRulesArray(roundData.online?.rules || []);
-        const general = getRoundRules(roundData);
+        const filterFiller = (list) =>
+            hideGenericFillers
+                ? list.filter((r) => !isGenericModeFillerRule(r))
+                : list;
+
+        const offline = filterFiller(sanitizeRulesArray(roundData.offline?.rules || []));
+        const online = filterFiller(sanitizeRulesArray(roundData.online?.rules || []));
+        const general = filterFiller(getRoundRules(roundData));
 
         if (offline.length || online.length) {
             return { offline, online, general: [] };
@@ -840,8 +866,8 @@ function EventPage() {
         return { offline: [], online: [], general };
     };
 
-    const RoundRulesContent = ({ round, roundIndex, variant = 'mobile' }) => {
-        const { offline, online, general } = getRoundModeSections(round);
+    const RoundRulesContent = ({ round, roundIndex, variant = 'mobile', hideGenericFillers = false }) => {
+        const { offline, online, general } = getRoundModeSections(round, { hideGenericFillers });
         const boxClass = `${isDark ? (variant === 'mobile' ? 'bg-[#1D1E20]' : 'bg-[#111213]') : 'bg-gray-50'} rounded-lg p-4`;
         const labelClass = `text-sm font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`;
 
@@ -852,7 +878,7 @@ function EventPage() {
                 <RulesList
                     rules={rules}
                     ruleKey={`${variant}-round${roundIndex}-${keySuffix}-${eventData?.id}`}
-                    maxItems={8}
+                    maxItems={variant === 'mobile' ? 3 : 5}
                 />
             </div>
         );
@@ -876,7 +902,47 @@ function EventPage() {
         return null;
     };
 
-    /** Hide generic Offline / Online titles — Final stays on the last round tab */
+    /** Strip venue/mode suffixes so long Techfest titles fit on tabs */
+    const stripRoundModeSuffix = (name = '') =>
+        String(name || '')
+            .replace(/\s*\((?:online|offline|hybrid|iit\s*bombay(?:\s*campus)?|zonal[^)]*)\)\s*$/i, '')
+            .replace(/\s*[-–—]\s*(?:online|offline|hybrid)\s*$/i, '')
+            .trim();
+
+    /** Short tab labels — prefer Round N / Final when the real name is long */
+    const shortenRoundTitle = (rawTitle, idx, totalRounds = 0) => {
+        const title = String(rawTitle || '').trim();
+        const fallback = totalRounds > 1 && idx === totalRounds - 1 ? 'Final' : `Round ${idx + 1}`;
+        if (!title) return fallback;
+
+        if (/^(offline|online)\s*rounds?$/i.test(title)) return fallback;
+        if (/^final\s*rounds?$/i.test(title)) return 'Final';
+        if (/^rounds?\s*\d+$/i.test(title)) return `Round ${idx + 1}`;
+
+        const headed = title.match(/^(round\s*\d+|stage\s*\d+)\s*:\s*(.+)$/i);
+        const candidate = headed
+            ? stripRoundModeSuffix(headed[2].split(/:\s*/)[0].trim())
+            : stripRoundModeSuffix(title);
+
+        // 3+ round grids are narrow on mobile — keep chips as Round N / Final
+        if (totalRounds >= 3) return fallback;
+
+        // 2-round: only keep a short real name that fits without "…"
+        if (!candidate || candidate.length > 18) return fallback;
+        return candidate;
+    };
+
+    const extractRoundBlurb = (round) => {
+        const desc = sanitizeRoundDescription(round?.description || '').trim();
+        if (desc) return desc;
+        const title = String(round?.title || '').trim();
+        const parts = title.split(/:\s*/);
+        if (parts.length >= 3) return parts.slice(2).join(': ').trim();
+        if (parts.length === 2 && parts[1].length > 70) return parts[1].trim();
+        return '';
+    };
+
+    /** Full readable name under the tabs (not truncated like tab chips) */
     const getRoundDisplayTitle = (round, idx, totalRounds = 0) => {
         const title = String(round?.title || '').trim();
         if (!title) return '';
@@ -884,31 +950,24 @@ function EventPage() {
         if (/^final\s*rounds?$/i.test(title)) return '';
         if (/^rounds?\s*\d+$/i.test(title)) return '';
         if (title.toLowerCase() === `round ${idx + 1}`.toLowerCase()) return '';
-        // Last round tab already says Final — don't repeat
-        if (totalRounds > 1 && idx === totalRounds - 1 && /final/i.test(title)) return '';
-        return title;
+
+        const headed = title.match(/^(round\s*\d+|stage\s*\d+)\s*:\s*(.+)$/i);
+        if (headed) {
+            const shortName = stripRoundModeSuffix(headed[2].split(/:\s*/)[0].trim());
+            return shortName || '';
+        }
+        return stripRoundModeSuffix(title);
     };
 
-    const getRoundTabLabel = (round, idx, totalRounds) => {
-        const title = String(round?.title || '').trim();
-        const isGeneric =
-            !title
-            || /^(offline|online)\s*rounds?$/i.test(title)
-            || /^rounds?\s*\d+$/i.test(title)
-            || /^final\s*rounds?$/i.test(title);
-
-        // Keep real names (e.g. FLASH → Videography); only label generic last tabs as Final
-        if (!isGeneric) return title;
-        if (totalRounds > 1 && idx === totalRounds - 1) return 'Final';
-        return `Round ${idx + 1}`;
-    };
+    const getRoundTabLabel = (round, idx, totalRounds) =>
+        shortenRoundTitle(round?.title, idx, totalRounds);
 
     /** Title → short blurb → rules (no duplicate title / Online-Offline noise) */
     const renderActiveRoundBody = (variant = 'mobile') => {
         const round = roundsList[activeRound];
         if (!round) return null;
 
-        const cleanedRoundDescription = sanitizeRoundDescription(round.description || '');
+        const cleanedRoundDescription = extractRoundBlurb(round);
         const cleanedOverviewDescription = sanitizeRoundDescription(eventData?.rounds?.description || '');
         const normalizedRoundDescription = cleanedRoundDescription.toLowerCase().replace(/\s+/g, ' ').trim();
         const normalizedOverviewDescription = cleanedOverviewDescription.toLowerCase().replace(/\s+/g, ' ').trim();
@@ -920,42 +979,66 @@ function EventPage() {
 
         const tabLabel = getRoundTabLabel(round, activeRound, roundsList.length);
         let displayTitle = getRoundDisplayTitle(round, activeRound, roundsList.length);
-        // Tab already shows this name (e.g. Fusion Fundamentals) — don't repeat above the blurb
-        if (displayTitle && displayTitle.toLowerCase() === tabLabel.toLowerCase()) {
+        // Tab already shows the full short name — don't repeat above the blurb
+        if (
+            displayTitle
+            && displayTitle.toLowerCase() === tabLabel.toLowerCase()
+            && !/^round\s*\d+$/i.test(tabLabel)
+            && !/^final$/i.test(tabLabel)
+        ) {
             displayTitle = '';
         }
-        // On Final tab, keep the real round name as the upper heading (e.g. Design Round)
-        if (!displayTitle && tabLabel === 'Final') {
-            const raw = String(round?.title || '').trim();
-            if (raw && !/^final\s*rounds?$/i.test(raw) && !/^rounds?\s*\d+$/i.test(raw)) {
-                displayTitle = raw;
-            }
+        // When tabs are Round N / Final, always surface the real stage name in the body
+        if (!displayTitle && /^(round\s*\d+|final)$/i.test(tabLabel)) {
+            displayTitle = getRoundDisplayTitle(round, activeRound, roundsList.length) || '';
         }
 
-        const { offline, online, general } = getRoundModeSections(round);
+        const showDescription = Boolean(cleanedRoundDescription && !isDuplicateOfOverview);
+        const { offline, online, general } = getRoundModeSections(round, {
+            hideGenericFillers: showDescription,
+        });
         const hasRoundContent = offline.length + online.length + general.length > 0;
-        // Always show intro when there are no rule bullets; otherwise keep it short
-        const showDescription =
-            cleanedRoundDescription &&
-            !isDuplicateOfOverview &&
-            (!hasRoundContent || cleanedRoundDescription.length <= 220);
+        const needsReadMore =
+            cleanedRoundDescription.length > 160 || cleanedRoundDescription.split(/\n/).length > 2;
 
         return (
             <div className="space-y-3">
                 {displayTitle ? (
-                    <h3 className={`font-bold text-lg leading-snug ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    <h3 className={`font-bold text-base leading-snug line-clamp-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         {displayTitle}
                     </h3>
                 ) : null}
 
                 {showDescription ? (
-                    <p className={`text-sm leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                        {cleanedRoundDescription}
-                    </p>
+                    <div>
+                        <p
+                            className={`text-sm leading-relaxed ${
+                                showFullRoundDesc ? 'whitespace-pre-line' : 'line-clamp-3'
+                            } ${isDark ? 'text-gray-300' : 'text-gray-600'}`}
+                        >
+                            {cleanedRoundDescription}
+                        </p>
+                        {needsReadMore ? (
+                            <button
+                                type="button"
+                                onClick={() => setShowFullRoundDesc((v) => !v)}
+                                className={`mt-1.5 text-sm font-semibold ${
+                                    isDark ? 'text-[#0ECCEE]' : 'text-[#0099B8]'
+                                }`}
+                            >
+                                {showFullRoundDesc ? 'read less' : 'read more'}
+                            </button>
+                        ) : null}
+                    </div>
                 ) : null}
 
                 {hasRoundContent ? (
-                    <RoundRulesContent round={round} roundIndex={activeRound} variant={variant} />
+                    <RoundRulesContent
+                        round={round}
+                        roundIndex={activeRound}
+                        variant={variant}
+                        hideGenericFillers={showDescription}
+                    />
                 ) : null}
             </div>
         );
@@ -1466,7 +1549,7 @@ function EventPage() {
 
     const renderAboutBlock = ({ headingClass, bodyClass, className = '' } = {}) => {
         if (!aboutText) return null;
-    return (
+        return (
             <div className={className}>
                 <h2 className={headingClass}>About</h2>
                 <p className={`${bodyClass} ${showFullAbout ? '' : 'line-clamp-3'}`}>
@@ -1481,6 +1564,53 @@ function EventPage() {
                         {showFullAbout ? 'read less' : 'read more'}
                     </button>
                 ) : null}
+            </div>
+        );
+    };
+
+    const resourceLinks = Array.isArray(eventData?.resourceLinks) ? eventData.resourceLinks : [];
+    const problemStatementLink = resourceLinks.find((l) =>
+        /problem\s*statement|\.pdf$/i.test(`${l.label || ''} ${l.url || ''}`)
+    );
+    const officialPageLink = resourceLinks.find((l) =>
+        /official|techfest\.org\/competitions/i.test(`${l.label || ''} ${l.url || ''}`)
+        && l !== problemStatementLink
+    );
+
+    const renderProblemStatementLink = ({ className = '' } = {}) => {
+        if (!problemStatementLink) return null;
+        const pdfBtnClass = isDark
+            ? 'w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition bg-zinc-900 text-white border border-white/10 hover:border-cyan-400'
+            : 'w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition bg-white text-gray-900 border border-gray-200 hover:border-cyan-400';
+        return (
+            <div className={className || undefined}>
+                <button
+                    type="button"
+                    onClick={() => openExternalUrl(problemStatementLink.url)}
+                    className={pdfBtnClass}
+                >
+                    <FileText size={16} className="text-cyan-400" />
+                    Problem Statement (PDF)
+                </button>
+            </div>
+        );
+    };
+
+    const renderOfficialWebsiteLink = ({ className = '' } = {}) => {
+        if (!officialPageLink?.url) return null;
+        const linkBtnClass = isDark
+            ? 'w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition bg-zinc-900 text-white border border-white/10 hover:border-cyan-400'
+            : 'w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition bg-white text-gray-900 border border-gray-200 hover:border-cyan-400';
+        return (
+            <div className={className || undefined}>
+                <button
+                    type="button"
+                    onClick={() => openExternalUrl(officialPageLink.url)}
+                    className={linkBtnClass}
+                >
+                    <ExternalLink size={15} className="text-cyan-400" />
+                    {officialPageLink.label || 'Official Techfest website'}
+                </button>
             </div>
         );
     };
@@ -1618,9 +1748,16 @@ function EventPage() {
                                       prizeText={eventData.prize}
                                       isDark={isDark}
                                       compact
+                                      showTitle={isTechfestCompetition}
                                     />
                                     </div>
                                 )}
+
+                            {problemStatementLink ? (
+                            <div className="px-4 pb-2">
+                                {renderProblemStatementLink()}
+                            </div>
+                            ) : null}
 
                             {/* Mobile Competition Rounds — hidden when no real round content */}
                             {showCompetitionRounds && (
@@ -1635,12 +1772,12 @@ function EventPage() {
                                                 <button
                                                     key={idx}
                                                     onClick={() => setActiveRound(idx)}
-                                                    className={`py-3 px-3 rounded-lg font-medium transition text-sm ${activeRound === idx
+                                                    className={`py-2.5 px-2 rounded-lg font-medium transition text-xs sm:text-sm ${activeRound === idx
                                                         ? `border-2 border-[#00C2CB] ${isDark ? 'bg-[#1D1E20] text-white' : 'bg-blue-50 text-black'}`
                                                         : `${isDark ? 'bg-[#1D1E20] text-gray-300' : 'bg-gray-100 text-black'}`
                                                         }`}
                                                 >
-                                                    {getRoundTabLabel(round, idx, roundsList.length)}
+                                                    <span className="block truncate text-center leading-tight">{getRoundTabLabel(round, idx, roundsList.length)}</span>
                                                 </button>
                                             ))}
                                         </div>
@@ -1669,10 +1806,15 @@ function EventPage() {
                             ) : null}
 
                             {/* Mobile Contact Details */}
-                            {contactList.length > 0 ? (
+                            {(contactList.length > 0 || officialPageLink) ? (
                             <section className="px-4 mb-8">
-                                <h2 className={`text-base font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Details</h2>
-                                <ContactDetailsBox />
+                                {contactList.length > 0 ? (
+                                    <>
+                                        <h2 className={`text-base font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Details</h2>
+                                        <ContactDetailsBox />
+                                    </>
+                                ) : null}
+                                {renderOfficialWebsiteLink({ className: contactList.length > 0 ? 'mt-3' : '' })}
                             </section>
                             ) : null}
                                                 </div>
@@ -1715,6 +1857,7 @@ function EventPage() {
                                         <PrizePoolPodium
                                           prizeText={eventData.prize}
                                           isDark={isDark}
+                                          showTitle={isTechfestCompetition}
                                         />
                                     )}
 
@@ -1736,8 +1879,11 @@ function EventPage() {
                                                                 <div>
                                     <h3 className={`text-lg font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Details</h3>
                                     <ContactDetailsBox />
+                                    {renderOfficialWebsiteLink({ className: 'mt-3' })}
                                                                 </div>
-                                ) : null}
+                                ) : (
+                                    renderOfficialWebsiteLink()
+                                )}
                             </div>
 
                             {/* Right Column - Event Details */}
@@ -1875,11 +2021,17 @@ function EventPage() {
                                 </div>
 
                                 {aboutText ? (
-                                <div className={`${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'} rounded-2xl p-5 lg:p-6`}>
+                                <div className={`${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'} rounded-2xl p-5 lg:p-6 space-y-4`}>
                                     {renderAboutBlock({
                                         headingClass: `text-lg font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`,
                                         bodyClass: `text-sm leading-relaxed text-left ${isDark ? 'text-gray-300' : 'text-gray-600'}`,
                                     })}
+                                </div>
+                                ) : null}
+
+                                {problemStatementLink ? (
+                                <div>
+                                    {renderProblemStatementLink()}
                                 </div>
                                 ) : null}
 
@@ -1895,12 +2047,12 @@ function EventPage() {
                                                 <button
                                                     key={idx}
                                                     onClick={() => setActiveRound(idx)}
-                                                    className={`flex-1 py-2 px-4 rounded-2xl font-medium transition ${activeRound === idx
-                                                        ? `border-2 border-[#00C2CB] ${isDark ? 'bg-[#1D1E20] text-white' : 'bg-[#EDEDF2] text-black'}`
+                                                    className={`flex-1 min-w-0 py-2 px-3 rounded-2xl font-medium transition text-sm ${activeRound === idx
+                                                        ? `border-2 border-[#00C2CB] ${isDark ? 'bg-[#1D1E20] text-white' : 'bg-blue-50 text-black'}`
                                                         : `shadow-md ${isDark ? 'bg-[#1D1E20] text-gray-300' : 'bg-[#EDEDF2] text-black'}`
                                                         }`}
                                                 >
-                                                    {getRoundTabLabel(round, idx, roundsList.length)}
+                                                    <span className="block truncate text-center leading-tight">{getRoundTabLabel(round, idx, roundsList.length)}</span>
                                                 </button>
                                             ))}
                                         </div>

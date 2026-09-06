@@ -961,11 +961,17 @@ const updateTeamMembers = async (req, res) => {
       return res.status(400).json({ error: `Team cannot exceed ${sizeMax} member(s)` });
     }
 
-    // Validate required personFields on additional members
+    // Validate required personFields per roster slot (leader vs member roles when set)
     const personFields = competition.registration?.personFields || [];
-    const requiredFields = personFields.filter(f => f.required !== false && f.scope !== 'team');
-    for (let i = 1; i < newMembers.length; i++) {
+    for (let i = 0; i < newMembers.length; i++) {
       const member = newMembers[i];
+      const isLead = i === 0;
+      const requiredFields = personFields.filter((f) => {
+        if (f.required === false || f.scope === 'team') return false;
+        const roles = Array.isArray(f.roles) ? f.roles.map(String) : [];
+        if (!roles.length) return true;
+        return isLead ? roles.includes('leader') : roles.includes('member');
+      });
       for (const field of requiredFields) {
         const key = field.key || field.id;
         if (!member[key] && !member[field.label?.toLowerCase()]) {

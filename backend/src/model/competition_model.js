@@ -261,6 +261,8 @@ const competitionSchema = new mongoose.Schema(
         enum: ['person', 'team'],
         default: 'person',
       },
+      /** Optional: leader | member. Empty = all roster slots (MindSpark default). */
+      roles: [{ type: String, enum: ['leader', 'member'] }],
       options: [String],
       placeholder: String,
       required: { type: Boolean, default: true },

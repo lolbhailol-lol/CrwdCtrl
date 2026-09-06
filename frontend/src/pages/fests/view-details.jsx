@@ -95,7 +95,7 @@ function CompetitionScrollCard({
       disabled={busy}
       aria-busy={busy}
       className={`card-surface text-left rounded-2xl overflow-hidden transition hover:-translate-y-0.5 active:scale-[0.98] flex flex-col ${
-        fill ? 'w-full' : largeCover ? 'w-52 shrink-0' : 'w-46 shrink-0'
+        fill ? 'w-full h-full' : largeCover ? 'w-52 shrink-0' : 'w-46 shrink-0'
       } ${busy ? 'cursor-wait opacity-70' : ''} ${isDark ? 'bg-black!' : 'bg-white'}`}
     >
       <div className={`relative ${coverH} w-full shrink-0`}>
@@ -107,13 +107,13 @@ function CompetitionScrollCard({
         />
         <CardFavoriteButton isFavorite={isFavorite} onClick={onToggleFavorite} />
       </div>
-      <div className={`px-4 pt-3 pb-4 flex flex-col gap-2.5 ${isDark ? 'bg-black' : 'bg-white'}`}>
-        <h3 className={`text-[15px] font-bold leading-snug line-clamp-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+      <div className={`px-4 pt-3 pb-4 flex flex-col flex-1 min-h-0 ${isDark ? 'bg-black' : 'bg-white'}`}>
+        <h3 className={`text-[15px] font-bold leading-snug line-clamp-2 min-h-[2.5rem] ${isDark ? 'text-white' : 'text-gray-900'}`}>
           {compName}
         </h3>
         {!hideFee ? (
           <p
-            className={`text-[15px] font-bold tracking-wide ${
+            className={`mt-auto pt-2.5 text-[15px] font-bold tracking-wide ${
               feeIsFree
                 ? isDark ? 'text-emerald-400' : 'text-emerald-600'
                 : isDark ? 'text-[#0ECCEE]' : 'text-[#0099B8]'
@@ -422,6 +422,10 @@ function EventDetailsPage() {
   const festPlugin = getFestPlugin(pageEvent?.id || eventId, pageEvent);
   const LiveBadge = festPlugin.LiveBadge;
   const mindSparkDesktop = festPlugin.id === 'mindspark';
+  const techfestPage = festPlugin.id === 'techfest';
+  // Techfest fest hero: brand logo contained & centered (URL from fest cover / admin)
+  const heroShellClass = 'bg-[#1A1B1D]';
+  const heroImageClass = 'object-cover object-center';
 
   const prefetchCompetition = (competition) => {
     const payload = buildCompetitionNavPayload(competition, pageEvent);
@@ -501,7 +505,11 @@ function EventDetailsPage() {
 
   const canonicalPath = festPath({ id: pageEvent.id, _id: pageEvent.id, festName: pageEvent.title, title: pageEvent.title });
   const festDescription = `${pageEvent.title}${!isFestPlaceholderCopy(pageEvent.collegeName) ? ` by ${pageEvent.collegeName}` : ''}${pageEvent.description ? ` — ${pageEvent.description}` : ''}`;
-  const heroImage = currentHeroImage || pageEvent.heroImage || pageEvent.image;
+  // Techfest: always use fest cover from admin/DB (logo); other fests allow gallery swap
+  const heroImage = techfestPage
+    ? (pageEvent.heroImage || pageEvent.image || '')
+    : (currentHeroImage || pageEvent.heroImage || pageEvent.image);
+  const techfestHeroSrc = heroImage ? getImageUrl(heroImage, { preset: 'hero' }) : '';
   const overviewText = isFestPlaceholderCopy(pageEvent.overview) ? '' : pageEvent.overview;
   const dateLabel = isFestPlaceholderCopy(pageEvent.dateTime) ? '' : pageEvent.dateTime;
   const venueLabel = isFestPlaceholderCopy(pageEvent.venue) ? '' : pageEvent.venue;
@@ -566,13 +574,35 @@ function EventDetailsPage() {
             }>
               {/* Left Column - Event Details */}
               <div className={mindSparkDesktop ? 'order-2 md:order-1 space-y-4 min-w-0' : 'md:col-span-2 space-y-4 sm:space-y-6'}>
-                {/* Hero Image */}
-                <div className="relative rounded-2xl overflow-hidden bg-[#1A1B1D]">
+                {/* Hero — Techfest brand logo, contained & centered */}
+                {techfestPage ? (
+                <div className={`relative rounded-3xl overflow-hidden shadow-sm ${isDark ? 'bg-[#111213]' : 'bg-white'} p-2`}>
+                  <button
+                    type="button"
+                    onClick={goBack}
+                    aria-label="Go back"
+                    className="absolute top-5 left-5 z-10 inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-black/70 backdrop-blur-sm text-white text-sm font-medium hover:bg-black/80 transition"
+                  >
+                    <ArrowLeft size={15} />
+                    Back
+                  </button>
+                  <div className="rounded-2xl overflow-hidden bg-[#0B0C0D] h-72 lg:h-[20rem] xl:h-[22rem] flex items-center justify-center">
+                    {techfestHeroSrc ? (
+                    <img
+                      src={techfestHeroSrc}
+                      alt={pageEvent.title}
+                      className="max-w-[88%] max-h-[78%] w-auto h-auto object-contain"
+                    />
+                    ) : null}
+                  </div>
+                </div>
+                ) : (
+                <div className={`relative rounded-2xl overflow-hidden ${heroShellClass}`}>
                   {heroImage ? (
                   <img
                     src={getImageUrl(heroImage, { preset: 'hero' })}
                     alt={pageEvent.title}
-                    className={`w-full object-cover ${mindSparkDesktop ? 'h-72 lg:h-[22rem] xl:h-[26rem]' : 'h-64 sm:h-80 xl:h-96'}`}
+                    className={`w-full ${heroImageClass} ${mindSparkDesktop ? 'h-72 lg:h-[22rem] xl:h-[26rem]' : 'h-64 sm:h-80 xl:h-96'}`}
                   />
                   ) : (
                     <div className={`w-full ${mindSparkDesktop ? 'h-72 lg:h-[22rem] xl:h-[26rem]' : 'h-64 sm:h-80 xl:h-96'}`} />
@@ -619,7 +649,8 @@ function EventDetailsPage() {
                   </div>
                   )}
                 </div>
-                {mindSparkDesktop && galleryPreview.length > 0 ? (
+                )}
+                {!techfestPage && mindSparkDesktop && galleryPreview.length > 0 ? (
                   <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-1 px-1">
                     {galleryPreview.map((img, idx) => (
                       <button
@@ -709,7 +740,7 @@ function EventDetailsPage() {
                             key={comp.id || idx}
                             comp={comp}
                             fill={mindSparkDesktop}
-                            hideFee={mindSparkDesktop}
+                            hideFee={false}
                             largeCover={mindSparkDesktop}
                             isDark={isDark}
                             isFavorite={isFavorite(comp.id)}
@@ -1006,33 +1037,53 @@ function EventDetailsPage() {
 
       {/* Mobile Version - Show below 768px */}
       <div className={`md:hidden pb-8 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
-        {/* Hero with overlay controls — full bleed, overlaps into content sheet */}
-        <div className={`relative ${mindSparkDesktop ? 'h-[380px]' : 'h-[320px]'} overflow-hidden bg-[#1A1B1D]`}>
-          {heroImage ? (
+        {/* Hero — Techfest: brand logo centered; others: full-bleed cover */}
+        <div className={`relative w-full shrink-0 overflow-hidden bg-[#0B0C0D] ${techfestPage ? 'h-[320px]' : mindSparkDesktop ? 'h-[380px]' : 'h-[320px]'}`}>
+          {techfestPage ? (
+            <div className="absolute inset-0 flex items-center justify-center px-8 pb-6 pt-14">
+              {techfestHeroSrc ? (
+              <img
+                src={techfestHeroSrc}
+                alt={pageEvent.title}
+                className="max-w-full max-h-full w-auto h-auto object-contain"
+              />
+              ) : null}
+            </div>
+          ) : heroImage ? (
           <img
             src={getImageUrl(heroImage, { preset: 'hero' })}
             alt={pageEvent.title}
             className="absolute inset-0 w-full h-full object-cover object-[center_30%]"
           />
           ) : null}
-          <div className="absolute inset-x-0 top-0 flex items-center justify-between px-4 pt-[max(0.75rem,var(--safe-top))] pb-3 bg-linear-to-b from-black/35 to-transparent z-10">
+          <div
+            className={`absolute inset-x-0 top-0 flex items-center justify-between px-4 z-10 ${
+              techfestPage ? '' : 'pt-[max(0.75rem,var(--safe-top))] pb-3 bg-linear-to-b from-black/35 to-transparent'
+            }`}
+            style={techfestPage ? { paddingTop: 'calc(max(var(--safe-top), 0px) + 2.5rem)' } : undefined}
+          >
             <button
               type="button"
               onClick={goBack}
-              className="p-2 rounded-full bg-black/30 backdrop-blur-sm text-white"
+              className={techfestPage
+                ? 'size-11 rounded-full bg-black/40 flex items-center justify-center'
+                : 'p-2 rounded-full bg-black/30 backdrop-blur-sm text-white'}
               aria-label="Back to fests"
             >
-              <ArrowLeft size={20} />
+              <ArrowLeft size={techfestPage ? 22 : 20} strokeWidth={techfestPage ? 2.25 : undefined} className="text-white" />
             </button>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={handleShare}
-                className="p-2 rounded-full bg-black/30 backdrop-blur-sm text-white"
+                className={techfestPage
+                  ? 'size-11 rounded-full bg-black/40 flex items-center justify-center'
+                  : 'p-2 rounded-full bg-black/30 backdrop-blur-sm text-white'}
                 aria-label="Share"
               >
-                <Share size={20} />
+                <Share size={techfestPage ? 20 : 20} strokeWidth={techfestPage ? 2.25 : undefined} className="text-white" />
               </button>
+              {!techfestPage ? (
               <button
                 type="button"
                 onClick={handleFestFavorite}
@@ -1044,12 +1095,15 @@ function EventDetailsPage() {
                   className={isFavorite(pageEvent.id) ? 'fill-red-500 text-red-500' : 'text-white'}
                 />
               </button>
+              ) : null}
             </div>
           </div>
         </div>
 
-        {/* Content sheet — overlaps hero so rounded corners sit on the image (no white ring) */}
-        <div className={`relative -mt-10 rounded-t-[28px] z-10 overflow-hidden px-5 pt-6 pb-4 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
+        {/* Content sheet — overlaps hero like competition detail */}
+        <div className={`relative z-10 overflow-hidden px-5 pt-6 pb-4 -mt-10 rounded-t-3xl ${
+          isDark ? 'bg-[#161718]' : 'bg-white'
+        }`}>
           <div className="flex items-start justify-between gap-3 mb-5">
             <div className="min-w-0 flex-1">
               <h1 className={`text-2xl font-bold leading-tight ${isDark ? 'text-white' : 'text-gray-900'} ${mindSparkDesktop ? 'text-[1.75rem] tracking-tight' : ''}`}>
@@ -1195,7 +1249,7 @@ function EventDetailsPage() {
                   <CompetitionScrollCard
                     key={comp.id || idx}
                     comp={comp}
-                    hideFee={mindSparkDesktop}
+                    hideFee={false}
                     largeCover={mindSparkDesktop}
                     isDark={isDark}
                     isFavorite={isFavorite(comp.id)}

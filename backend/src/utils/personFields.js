@@ -44,6 +44,9 @@ function normalizePersonField(raw, index = 0) {
     const type = allowed.has(raw?.type) ? raw.type : 'text';
     const scope = raw?.scope === 'team' ? 'team' : 'person';
     const options = type === 'select' || type === 'radio' ? parseOptions(raw?.options) : [];
+    const roles = (Array.isArray(raw?.roles) ? raw.roles : [])
+        .map((r) => String(r || '').trim().toLowerCase())
+        .filter((r) => r === 'leader' || r === 'member');
     return {
         id,
         key,
@@ -51,6 +54,7 @@ function normalizePersonField(raw, index = 0) {
         type,
         scope,
         options,
+        roles,
         placeholder: String(raw?.placeholder || '').trim(),
         required: raw?.required !== false,
     };

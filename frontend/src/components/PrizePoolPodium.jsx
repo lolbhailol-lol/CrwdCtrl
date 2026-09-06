@@ -124,10 +124,28 @@ export function parsePrizePool(text) {
 
   if (!parsed.some((p) => p.kind === 'total')) {
     const totalM = raw.match(
-      /(?:total(?:\s+prize)?\s*pool|worth)\s*[:\-]?\s*(₹[\d,.\s+kK]+|Rs\.?\s*[\d,.\s+]+|[\d,]+\+?)/i,
+      /(?:total(?:\s+prize)?\s*pool|worth)\s*[:\-]?\s*(₹[\d,.\s+kK]+|Rs\.?\s*[\d,.\s+]+|INR\s*[\d,.\s+]+|[\d,]+\+?)/i,
     );
     if (totalM) {
       parsed.push({ kind: 'total', amount: normalizeAmount(totalM[1]), label: 'Total Pool' });
+    }
+  }
+
+  // Bare pool amounts: "INR 1,50,000" / "₹1,50,000" / "Rs. 50000/-"
+  if (!parsed.some((p) => p.kind === 'place' || p.kind === 'total')) {
+    const bare = raw.match(
+      /^(?:rs\.?|inr)\s*([\d,]+(?:\.\d+)?\+?)\s*(?:\/\-)?$/i,
+    ) || raw.match(
+      /^₹\s*([\d,]+(?:\.\d+)?\+?)\s*(?:\/\-)?$/i,
+    ) || raw.match(
+      /^([\d,]+(?:\.\d+)?\+?)\s*(?:\/\-)?$/,
+    );
+    if (bare) {
+      parsed.push({
+        kind: 'total',
+        amount: normalizeAmount(bare[0]),
+        label: 'Total Pool',
+      });
     }
   }
 
@@ -143,6 +161,10 @@ export function parsePrizePool(text) {
   const others = parsed.filter((p) => {
     if (p.kind !== 'other') return false;
     if (places.length >= 1 && /\b(1st|2nd|3rd|first|second|third)\b/i.test(p.amount || '')) {
+      return false;
+    }
+    // Drop bare amounts already captured as total
+    if (parsed.some((x) => x.kind === 'total') && /^(?:rs\.?|inr|₹)?\s*[\d,]+/i.test(p.amount || '')) {
       return false;
     }
     return true;
@@ -215,8 +237,10 @@ export default function PrizePoolPodium({
   className = '',
   title = 'Prize Pool',
   compact = false,
+  /** Techfest: single box with "Prize Pool" + amount inside. MindSpark: podium / amount only. */
+  showTitle = false,
 }) {
-  const { places, others, hasPodium } = useMemo(() => parsePrizePool(prizeText), [prizeText]);
+  const { places, total, others, hasPodium } = useMemo(() => parsePrizePool(prizeText), [prizeText]);
 
   const trimmed = String(prizeText || '').trim();
   if (!trimmed || /^(tbd|tba|n\/a|na|-)$/i.test(trimmed)) {
@@ -225,16 +249,41 @@ export default function PrizePoolPodium({
 
   const sectionCard = isDark ? 'bg-[#111213]' : 'bg-white border border-gray-100 shadow-md';
   const podiumOrder = buildPodiumOrder(places);
+  const amountClass = isDark ? 'text-[#0ECCEE]' : 'text-[#0099B8]';
+
+  const resolveAmount = () =>
+    total?.amount
+    || (hasPodium && places[0]?.amount)
+    || trimmed.replace(/^(?:rs\.?|inr)\s*/i, '₹').replace(/^₹\s*/, '₹');
+
+  // Techfest: one highlighted box — "Prize Pool" + amount inside
+  if (showTitle) {
+    return (
+      <div
+        className={`rounded-2xl text-center border ${compact ? 'px-3 py-4' : 'px-4 py-5'} ${
+          isDark ? 'bg-[#1D1E20] border-[#0ECCEE]/25' : 'bg-cyan-50/80 border-cyan-100'
+        } ${className}`}
+        aria-label={title}
+      >
+        <p
+          className={`text-[11px] font-semibold uppercase tracking-wide mb-1.5 ${
+            isDark ? 'text-gray-400' : 'text-gray-500'
+          }`}
+        >
+          {title}
+        </p>
+        <p className={`font-bold tabular-nums leading-none ${compact ? 'text-2xl' : 'text-3xl'} ${amountClass}`}>
+          {resolveAmount()}
+        </p>
+      </div>
+    );
+  }
 
   return (
-    <div className={`rounded-2xl ${compact ? 'p-3.5' : 'p-4'} ${sectionCard} ${className}`}>
-      <div className={`flex items-center gap-2 ${compact ? 'mb-3' : 'mb-4'}`}>
-        <ClassicTrophySvg size={compact ? 24 : 28} />
-        <h2 className={`font-semibold ${compact ? 'text-base' : 'text-lg'} ${isDark ? 'text-white' : 'text-gray-900'}`}>
-          {title}
-        </h2>
-      </div>
-
+    <div
+      className={`rounded-2xl ${compact ? 'p-3.5' : 'p-4'} ${sectionCard} ${className}`}
+      aria-label={title}
+    >
       {hasPodium ? (
         <>
           <div
@@ -272,7 +321,7 @@ export default function PrizePoolPodium({
                   <p className={`text-[11px] font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                     {place.label}
                   </p>
-                  <p className={`font-bold mt-0.5 ${isGold ? 'text-base' : 'text-sm'} ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                  <p className={`font-bold mt-0.5 tabular-nums ${isGold ? 'text-base' : 'text-sm'} ${amountClass}`}>
                     {place.amount}
                   </p>
                 </div>
@@ -280,20 +329,39 @@ export default function PrizePoolPodium({
             })}
           </div>
 
-          {others.length > 0 && (
-            <ul className="mt-3 space-y-1.5">
-              {others.map((item, idx) => (
-                <li key={idx} className={`flex items-start gap-2 text-xs ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                  <span className="mt-1.5 size-1.5 rounded-full bg-[#0ECCEE] shrink-0" />
-                  {item.amount}
-                </li>
-              ))}
-            </ul>
-          )}
+          {(() => {
+            const notes = others.filter((item) => {
+              const a = String(item.amount || '');
+              if (/subject\s*to\s*change/i.test(a)) return false;
+              if (/total\s*(prize\s*)?pool/i.test(a)) return false;
+              return true;
+            });
+            if (!notes.length) return null;
+            return (
+              <ul className="mt-3 space-y-1.5">
+                {notes.map((item, idx) => (
+                  <li key={idx} className={`flex items-start gap-2 text-xs ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    <span className="mt-1.5 size-1.5 rounded-full bg-[#0ECCEE] shrink-0" />
+                    {item.amount}
+                  </li>
+                ))}
+              </ul>
+            );
+          })()}
         </>
+      ) : total?.amount ? (
+        <div
+          className={`rounded-2xl text-center border ${compact ? 'px-3 py-4' : 'px-4 py-5'} ${
+            isDark ? 'bg-[#1D1E20] border-[#0ECCEE]/25' : 'bg-cyan-50/80 border-cyan-100'
+          }`}
+        >
+          <p className={`font-bold tabular-nums leading-none ${compact ? 'text-2xl' : 'text-3xl'} ${amountClass}`}>
+            {total.amount}
+          </p>
+        </div>
       ) : (
         <div className={`text-sm leading-relaxed whitespace-pre-wrap ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-          {prizeText}
+          <span className={`font-bold tabular-nums ${amountClass}`}>{trimmed}</span>
         </div>
       )}
     </div>

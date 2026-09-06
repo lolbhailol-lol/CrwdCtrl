@@ -12,6 +12,7 @@ import {
   FeeTierStep,
   RosterPersonStep,
 } from '../../../features/fests/mindspark';
+import { TechfestRosterPersonStep } from '../../../features/fests/techfest';
 import { getFestPluginFromAny } from '../../../features/fests/plugins';
 import { RegistrationProcessingOverlay } from '../../../components/RegistrationStatusVisual';
 import { useInAppBack } from '../../../hooks/useInAppBack';
@@ -72,10 +73,11 @@ export default function FestRegistrationForm({
   const [chromeGateDismissed, setChromeGateDismissed] = useState(false);
   const showChromeGate = formLocked && inAppChrome && !chromeGateDismissed && !authSyncing;
   const showLoginSheet = Boolean(showLogin) && (!inAppChrome || chromeGateDismissed);
+  const festPlugin = getFestPluginFromAny(fest, competition?.fest, competition);
   const hideFestCommonForm =
-    Boolean(isCompetitionRegistration)
-    && getFestPluginFromAny(fest, competition?.fest, competition).skipFestCommonFormOnCompetition;
-  const mindSparkLayout = getFestPluginFromAny(fest, competition?.fest, competition).id === 'mindspark';
+    Boolean(isCompetitionRegistration) && festPlugin.skipFestCommonFormOnCompetition;
+  const mindSparkLayout = festPlugin.id === 'mindspark';
+  const PersonStep = festPlugin.id === 'techfest' ? TechfestRosterPersonStep : RosterPersonStep;
   const onParticipantStep = typeof isOnParticipantStep === 'function' && isOnParticipantStep();
   const onTeamDetailsStep = typeof isOnTeamDetailsStep === 'function' && isOnTeamDetailsStep();
   const onFeeTierStep = typeof isOnFeeTierStep === 'function' && isOnFeeTierStep();
@@ -265,7 +267,7 @@ export default function FestRegistrationForm({
 
             {/* Person details (solo = step 1; teams = after size + team details) */}
             {onPersonStep ? (
-              <RosterPersonStep
+              <PersonStep
                 personIndex={getPersonIndex()}
                 competition={competition}
                 formData={formData}

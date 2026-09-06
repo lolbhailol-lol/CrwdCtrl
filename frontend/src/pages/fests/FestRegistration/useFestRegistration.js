@@ -46,6 +46,7 @@ import {
   validateTeamDetails,
   isMindSparkFest,
 } from '../../../features/fests/mindspark';
+import { rosterMemberMissingLabel } from '../../../features/fests/techfest';
 import { getFestPluginFromAny } from '../../../features/fests/plugins';
 import { getCompetitionFeeTiers } from '../../../utils/competitionFeeTiers';
 import { waitAtLeast, sleep, PROCESS_UI_MIN_MS } from '../../../components/RegistrationStatusVisual';
@@ -924,9 +925,15 @@ export default function useFestRegistration() {
   const validateCurrentPerson = () => {
     const idx = getPersonIndex();
     if (idx < 0) return true;
-    const personFields = getPersonScopedFields(competition);
+    const isTechfest = festPlugin.id === 'techfest';
+    // Techfest: use raw personFields so leader/member roles survive MindSpark normalize
+    const personFields = isTechfest
+      ? (competition?.registration?.personFields || getPersonScopedFields(competition))
+      : getPersonScopedFields(competition);
     const members = Array.isArray(formData.team_members) ? formData.team_members : [];
-    const missing = teamMemberMissingLabel(members[idx], personFields);
+    const missing = isTechfest
+      ? rosterMemberMissingLabel(members[idx], personFields, idx, { techfest: true })
+      : teamMemberMissingLabel(members[idx], personFields);
     if (missing) {
       setError(`Person ${idx + 1}: ${missing}`);
       return false;
@@ -961,10 +968,15 @@ export default function useFestRegistration() {
       return false;
     }
     const chosen = getPeopleCount();
-    const personFields = getPersonScopedFields(competition);
+    const isTechfest = festPlugin.id === 'techfest';
+    const personFields = isTechfest
+      ? (competition?.registration?.personFields || getPersonScopedFields(competition))
+      : getPersonScopedFields(competition);
     const members = Array.isArray(formData.team_members) ? formData.team_members : [];
     for (let i = 0; i < chosen; i += 1) {
-      const missing = teamMemberMissingLabel(members[i], personFields);
+      const missing = isTechfest
+        ? rosterMemberMissingLabel(members[i], personFields, i, { techfest: true })
+        : teamMemberMissingLabel(members[i], personFields);
       if (missing) {
         setError(`Person ${i + 1}: ${missing}`);
         return false;
@@ -1695,12 +1707,28 @@ export default function useFestRegistration() {
       if (isCompetitionRegistration && festPlugin.hasRosterPersonStep && hasParticipantStep()) {
         const chosen = getPeopleCount();
         const personFields = getPersonFields(competition);
+        const rawPersonFields = Array.isArray(competition?.registration?.personFields)
+          ? competition.registration.personFields
+          : [];
         const members = (Array.isArray(formData.team_members) ? formData.team_members : [])
           .slice(0, chosen)
           .map((m) => normalizeTeamMember(m, personFields));
         textResponses.team_size = chosen;
         textResponses.team_members = members;
-        textResponses.person_fields = personFields.map((f) => ({ key: f.key, label: f.label, scope: f.scope || 'person' }));
+        textResponses.person_fields = personFields.map((f, i) => {
+          const src =
+            rawPersonFields.find((r) => String(r?.key || r?.fieldName || '').toLowerCase() === f.key)
+            || rawPersonFields[i];
+          const roles = (Array.isArray(src?.roles) ? src.roles : [])
+            .map((r) => String(r || '').trim().toLowerCase())
+            .filter((r) => r === 'leader' || r === 'member');
+          return {
+            key: f.key,
+            label: f.label,
+            scope: f.scope || 'person',
+            ...(roles.length ? { roles } : {}),
+          };
+        });
         const teamName = String(formData.team_name || '').trim();
         if (teamName) textResponses.team_name = teamName;
         const teamResponses = formData.team_responses && typeof formData.team_responses === 'object'
@@ -1722,6 +1750,12 @@ export default function useFestRegistration() {
           if (members[0].email) textResponses.email = members[0].email;
           if (members[0].phone) textResponses.phone = members[0].phone;
           if (members[0].college) textResponses.college = members[0].college;
+          if (festPlugin.id === 'techfest') {
+            if (members[0].state) textResponses.state = members[0].state;
+            if (members[0].pin || members[0].pincode) {
+              textResponses.pin = members[0].pin || members[0].pincode;
+            }
+          }
         }
       }
       submissionFormData.append('responses', JSON.stringify(textResponses));

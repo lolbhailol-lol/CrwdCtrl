@@ -1,1 +1,7 @@
-export { getFestPlugin, getFestPluginFromAny, defaultFestPlugin, mindsparkPlugin } from './registry';
+export {
+  getFestPlugin,
+  getFestPluginFromAny,
+  defaultFestPlugin,
+  mindsparkPlugin,
+  techfestPlugin,
+} from './registry';

@@ -128,7 +128,17 @@ export function transformCompetitionItem(comp, festData) {
     registrationLink: comp.registrationLink || '',
     registrationType: comp.registrationType || 'fest',
     registration: comp.registration || { status: 'not_started' },
+    resourceLinks: Array.isArray(comp.registration?.resourceLinks)
+      ? comp.registration.resourceLinks
+      : Array.isArray(comp.resourceLinks)
+        ? comp.resourceLinks
+        : [],
     legacyRegistration: comp.legacyRegistration || { status: 'NOT_STARTED' },
+    teamSizeMin: Math.max(1, Number(comp.teamSizeMin) || 1),
+    teamSizeMax: Math.max(1, Number(comp.teamSizeMax) || Number(comp.teamSizeMin) || 1),
+    teamSizeLabel: comp.teamSizeLabel || '',
+    slotsAllotted: Math.max(0, Number(comp.slotsAllotted) || 0),
+    showSlotsPublic: comp.showSlotsPublic !== false,
     fest: festData
       ? {
           _id: festId,
@@ -299,8 +309,10 @@ export function buildRegistrationPrefetch({ fest, competition } = {}) {
           ),
           teamSizeLabel: competition.teamSizeLabel || '',
           slotsAllotted: Math.max(0, Number(competition.slotsAllotted) || 0),
+          showSlotsPublic: competition.showSlotsPublic !== false,
           slotsFilled: Math.max(0, Number(competition.slotsFilled) || 0),
           slotsLeft: (() => {
+            if (competition.showSlotsPublic === false) return null;
             const allotted = Math.max(0, Number(competition.slotsAllotted) || 0);
             if (competition.slotsLeft != null && Number.isFinite(Number(competition.slotsLeft))) {
               return Math.max(0, Math.floor(Number(competition.slotsLeft)));
