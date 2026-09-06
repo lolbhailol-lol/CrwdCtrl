@@ -350,8 +350,15 @@ export default function FestRegistrationForm({
               </div>
             )}
 
-            {/* Fee box — amount first, coupon secondary */}
-            {!paymentFields && !onFeeTierStep && !onParticipantStep && !onTeamDetailsStep && (!onPersonStep || currentStep === getTotalSteps()) && (() => {
+            {/* Fee box — amount first, coupon secondary.
+                MindSpark roster: show on every person step (not only the last),
+                so coupon codes are visible throughout participant details. */}
+            {!paymentFields
+              && !onFeeTierStep
+              && !onParticipantStep
+              && !onTeamDetailsStep
+              && (onPersonStep || !hasParticipantStep?.() || currentStep === getTotalSteps())
+              ? (() => {
               if (!priceBreakdown) return null;
               const total = Number(priceBreakdown.totalAmount) || 0;
               const saved = Number(priceBreakdown.couponDiscount) || 0;
@@ -390,7 +397,7 @@ export default function FestRegistrationForm({
                             applyCouponCode();
                           }
                         }}
-                        placeholder="Code"
+                        placeholder="Enter coupon code"
                         autoComplete="off"
                         className={`flex-1 min-w-0 px-3 py-2 rounded-lg border text-sm outline-none focus:border-[#0ECCEE] ${
                           isDark
@@ -417,7 +424,8 @@ export default function FestRegistrationForm({
                   </div>
                 </div>
               );
-            })()}
+            })()
+              : null}
 
             {/* Payment confirmed notice — shown after Cashfree payment is verified */}
             {paymentFields && (

@@ -620,9 +620,34 @@ export default function useFestRegistration() {
       return;
     }
 
-    if (!resolveAuthToken(authToken) || isAuthProcessing) return;
+    // Show fee + coupon immediately from known competition/fest price while quote loads
+    // (MindSpark comps previously hid the coupon UI until an authenticated quote returned).
+    const provisionalTicket = Number(
+      isCompetitionRegistration
+        ? (
+          competitionFeeTiers.length && formData.feeTierId
+            ? (competitionFeeTiers.find((t) => String(t.id) === String(formData.feeTierId))?.amount
+              || competitionBaseFee)
+            : competitionBaseFee
+        )
+        : (fest.feeAmount || 0),
+    ) || 0;
+    if (provisionalTicket > 0) {
+      setPriceBreakdown((prev) => {
+        if (prev && Number(prev.ticketPrice) > 0) return prev;
+        return {
+          ticketPrice: provisionalTicket,
+          platformFee: Number(prev?.platformFee) || 0,
+          couponDiscount: 0,
+          couponCode: '',
+          totalAmount: provisionalTicket,
+          currency: 'INR',
+        };
+      });
+    }
 
     let cancelled = false;
+    const hasToken = Boolean(resolveAuthToken(authToken));
     setCouponQuoting(Boolean(appliedCouponCode));
     (async () => {
       try {
@@ -637,7 +662,10 @@ export default function useFestRegistration() {
         if (cancelled) return;
         const msg = err?.message || '';
         if (msg.includes('token') || msg.includes('401') || msg.includes('Unauthorized')) {
-          if (!firebaseUser) {
+          // Quote is optional-auth now; keep provisional price so coupon UI stays visible.
+          if (!hasToken && !firebaseUser) {
+            /* stay on provisional breakdown */
+          } else if (!firebaseUser) {
             setShowLogin(true);
             setError('Please log in to register for events');
           }

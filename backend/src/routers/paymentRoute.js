@@ -3,7 +3,8 @@ const router = express.Router();
 const { authenticateToken, optionalAuthenticateToken } = require('../middleware/authmiddleware');
 const { createOrder, getPaymentQuote, verifyPayment, createTrekOrder, verifyTrekPayment, createSportsOrder, verifySportsPayment, validateCoupon } = require('../controllers/paymentController');
 
-router.post('/quote', authenticateToken, getPaymentQuote);
+// Quote is display-only pricing (coupon preview); auth optional so fee/coupon UI can render before login.
+router.post('/quote', optionalAuthenticateToken, getPaymentQuote);
 router.post('/order', authenticateToken, createOrder);
 router.post('/verify', authenticateToken, verifyPayment);
 router.post('/coupon-validate', optionalAuthenticateToken, validateCoupon);
