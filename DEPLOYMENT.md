@@ -26,16 +26,36 @@
 ```env
 NODE_ENV=production
 MONGODB_URI=
-JWT_SECRET=                    # min 32 chars
+JWT_SECRET=                    # min 32 chars — validated on boot
 ADMIN_EMAIL=
 ADMIN_PASSWORD_HASH=
 CASHFREE_CLIENT_ID=
 CASHFREE_CLIENT_SECRET=
-CASHFREE_ENV=production
-CASHFREE_WEBHOOK_SECRET=       # or use CLIENT_SECRET per Cashfree docs
+CASHFREE_ENV=production        # must be "production" or "sandbox"
+CASHFREE_WEBHOOK_SECRET=       # required for HMAC verification; falls back to CLIENT_SECRET when unset (warned)
 FRONTEND_URL=https://www.crwdctrl.in
 FIREBASE_SERVICE_ACCOUNT_KEY=  # JSON string
 ```
+
+### Required when Campus Hunt is enabled
+
+```env
+CAMPUS_HUNT_ENABLED=true
+OFFLINE_BUNDLE_KEY=            # rotate independently of JWT_SECRET; boot fails if equal
+CAMPUS_HUNT_CREDENTIAL_KEY=    # used by credentialCipher for team access packs
+```
+
+### Required for bot protection
+
+```env
+RECAPTCHA_SECRET_KEY=          # reCAPTCHA v3 backend key — pairs with VITE_RECAPTCHA_SITE_KEY
+RECAPTCHA_MIN_SCORE=0.5        # optional; anything below returns 429
+```
+
+Note: `verifyRecaptcha` fails closed in production when `RECAPTCHA_SECRET_KEY`
+is set and the client sends no token. Set `VITE_RECAPTCHA_SITE_KEY` on the
+frontend before enabling the backend secret, otherwise real users start seeing
+`CAPTCHA_TOKEN_REQUIRED`.
 
 ### Recommended
 
@@ -54,12 +74,13 @@ CORS_EXTRA_ORIGINS=            # preview URLs if needed
    npm run verify-deploy -- https://crwdctrl-production-9c58.up.railway.app
    ```
 3. Expected responses:
-   - `GET /api/health` → 200, `database: connected`
-   - `GET /api/ready` → 200, `ready: true`
+   - `GET /api/health` → 200, `{ ok: true, status: 'OK', timestamp }` (public-safe)
+   - `GET /api/ready` → 200, `checks: { database, env, firebaseAdmin }` all `true`
 4. Cashfree webhook URL:
    ```
    https://crwdctrl-production-9c58.up.railway.app/api/payment/webhook
    ```
+5. Pre-deploy sanity: `npm run lint:env` (fails fast on missing production env vars).
 
 ### Post-deploy logs to confirm
 
@@ -167,13 +188,27 @@ In Android Studio: **Run** on device/emulator.
 
 ### Build release AAB (Play Store)
 
-1. Generate upload keystore (store securely — never commit):
+Signing is wired in `android/app/build.gradle`, which reads credentials from
+`android/keystore.properties` (gitignored). One-command build:
+
+1. Create the upload keystore once (store securely — never commit):
    ```bash
-   keytool -genkey -v -keystore crwdctrl-release.keystore -alias crwdctrl -keyalg RSA -keysize 2048 -validity 10000
+   cd frontend/android
+   keytool -genkeypair -v -keystore crwdctrl-upload.keystore -alias crwdctrl -keyalg RSA -keysize 2048 -validity 10000
    ```
-2. Configure signing in `android/app/build.gradle` or Android Studio → Generate Signed Bundle
-3. **Build → Generate Signed Bundle / APK → Android App Bundle**
-4. Upload `.aab` to Play Console → Internal testing track first
+2. Copy `keystore.properties.example` → `keystore.properties` and fill in the
+   store/key passwords and alias.
+3. Build the signed AAB:
+   ```bash
+   cd frontend
+   npm run android:aab
+   ```
+   Output: `frontend/android/app/build/outputs/bundle/release/app-release.aab`
+   (Equivalent manual path: Android Studio → **Build → Generate Signed Bundle / APK → Android App Bundle**.)
+4. Upload `.aab` to Play Console → Internal testing track first.
+5. After enrolling in **Play App Signing**, copy the **App signing key** SHA-1/SHA-256
+   from Play Console → Setup → App signing into Firebase (Android app) and into
+   `frontend/public/.well-known/assetlinks.json`, then redeploy + rebuild.
 
 ### Android scripts
 

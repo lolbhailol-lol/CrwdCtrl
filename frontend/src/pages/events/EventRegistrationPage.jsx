@@ -1,0 +1,1915 @@
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
+import { ArrowLeft, Loader, CheckCircle, Check } from 'lucide-react';
+import { useDarkMode } from '../../context/DarkModeContext';
+import { useAuth } from '../../context/AuthContext';
+import { useNotifications } from '../../context/NotificationsContext';
+import CrwdCtrlLogin from '../auth/login';
+import CrwdCtrlRegister from '../auth/register';
+import { openCashfreeCheckout, classifyCheckoutError } from '../../utils/useCashfree';
+import PaymentErrorModal from '../../components/PaymentErrorModal';
+import DetailPageLoader from '../../components/DetailPageLoader';
+import { RegistrationStatusVisual } from '../../components/RegistrationStatusVisual';
+import { getPendingPayment, clearPendingPayment, shouldResumePendingPayment } from '../../utils/deepLinks';
+import { verifyPaymentWithRetry, pollPaymentUntilVerified, goToBookings, classifyVerifyError, PAYMENT_BACKGROUND_MAX_WAIT_MS } from '../../utils/paymentNavigation';
+import {
+    saveEventRegistrationDraft,
+    loadEventRegistrationDraft,
+    clearEventRegistrationDraft,
+    saveEventPayDraft,
+    clearEventPaymentArtifacts,
+    completeEventPayAndRegister,
+} from '../../utils/eventPaymentRecovery';
+import { buildEventPriceBreakdown } from '../../utils/platformFee';
+import { resolveTrekPlatformFeePercent } from '../../utils/trekRegistrationFee';
+import { API_BASE_URL, publicFetchJSONRetry } from '../../services/api/client';
+import { resolveAuthToken, getBearerAuthHeaders, hasUsableAuthToken } from '../../utils/authToken';
+import { useBookingSuccessPopup } from '../../hooks/useSuccessPopup';
+import { eventShowPath } from '../../utils/slugRoutes';
+import { openLoginSheet, currentAppPath } from '../../utils/loginFlow';
+import { openExternalUrl } from '../../utils/externalLink';
+import {
+    getEventShowTiers,
+    findEventShowTier,
+    resolveEventShowFee,
+    resolveTierParticipantCount,
+    sanitizeEventShowAddOns,
+    formatInr,
+} from '../../utils/eventShowTiers';
+import { getSuggestedCouponCode, getSuggestedCouponLabel } from '../../utils/suggestedCoupon';
+import RunCheckoutPanel from '../../components/sports/RunCheckoutPanel';
+import { useInAppBack } from '../../hooks/useInAppBack';
+
+const API = API_BASE_URL;
+
+function getDiscordInviteFromEvent(event) {
+    const fromMeeting = (Array.isArray(event?.meetingPoints) ? event.meetingPoints : [])
+        .map((p) => p?.mapUrl || p?.url || '')
+        .find((u) => /discord\.(gg|com)/i.test(u));
+    if (fromMeeting) return fromMeeting;
+    const fromDesc = String(
+        (Array.isArray(event?.registration?.steps) ? event.registration.steps : [])
+            .map((s) => s?.stepDescription || '')
+            .join(' '),
+    ).match(/https?:\/\/discord\.(?:gg|com)\/[^\s]+/i);
+    return fromDesc?.[0] || '';
+}
+
+const FILE_TYPES = ['file', 'image'];
+const BLOOD_OPTIONS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Prefer not to say'];
+const DRIVE_FIELD_NAMES = new Set(['join_drive', 'join_independence_day_drive', 'independence_day_drive']);
+const DRIVE_ONLY_OPTION = 'Drive only (Free)';
+const DRIVE_AND_TRACKDAY_OPTION = 'Drive + Trackday';
+const TRACKDAY_ONLY_OPTION = 'Trackday only';
+const SPECTATOR_OPTION = 'Spectators (Free)';
+
+function getInitialEventRegistrationUi(eventId, search) {
+    if (!eventId) return { paying: false, step: 0 };
+    const returnPath = `/events/${eventId}/register`;
+    const resuming = shouldResumePendingPayment(getPendingPayment(), returnPath, search);
+    if (resuming) return { paying: true, step: Number.MAX_SAFE_INTEGER };
+    return { paying: false, step: 0 };
+}
+
+function isDriveOnlyTier(tier) {
+    if (!tier) return false;
+    if (String(tier.id || '') === 'tier_drive_only') return true;
+    const blob = `${tier.name || ''} ${tier.description || ''}`.toLowerCase();
+    return /drive only|no trackday/.test(blob);
+}
+
+function isSpectatorTier(tier) {
+    if (!tier) return false;
+    if (String(tier.id || '') === 'tier_spectator') return true;
+    const blob = `${tier.name || ''} ${tier.description || ''}`.toLowerCase();
+    return /\bspectator/.test(blob);
+}
+
+function normalizeDriveChoice(raw) {
+    const v = String(raw || '').trim();
+    if (!v) return '';
+    if (/spectator/i.test(v)) return SPECTATOR_OPTION;
+    if (/drive only/i.test(v) || (/^yes/i.test(v) && /free/i.test(v) && !/trackday/i.test(v))) {
+        return DRIVE_ONLY_OPTION;
+    }
+    if (/drive\s*\+\s*trackday|both/i.test(v)) return DRIVE_AND_TRACKDAY_OPTION;
+    if (/trackday only|^no/i.test(v)) return TRACKDAY_ONLY_OPTION;
+    if (/^yes/i.test(v)) return DRIVE_AND_TRACKDAY_OPTION;
+    return v;
+}
+
+function isDriveOnlyChoice(choice) {
+    return normalizeDriveChoice(choice) === DRIVE_ONLY_OPTION;
+}
+
+function isTrackdayOnlyChoice(choice) {
+    return normalizeDriveChoice(choice) === TRACKDAY_ONLY_OPTION;
+}
+
+function isSpectatorChoice(choice) {
+    return normalizeDriveChoice(choice) === SPECTATOR_OPTION;
+}
+
+function pickCustomer(values) {
+    const find = (keys) => {
+        for (const k of Object.keys(values)) {
+            if (keys.some((needle) => k.toLowerCase().includes(needle))) {
+                const v = values[k];
+                if (v && typeof v === 'string') return v;
+            }
+        }
+        return '';
+    };
+    return {
+        name: String(values.name || values.leader_name || find(['name']) || '').trim(),
+        email: String(values.email || find(['email', 'e_mail']) || '').trim(),
+        phone: String(values.phone || find(['phone', 'contact', 'mobile']) || '').trim(),
+    };
+}
+
+export default function EventRegistrationPage() {
+    const navigate = useNavigate();
+    const goBack = useInAppBack();
+    const location = useLocation();
+    const { eventId } = useParams();
+    const initialUi = getInitialEventRegistrationUi(eventId, location.search);
+    const { isDark } = useDarkMode();
+    const {
+        user,
+        isAuthenticated,
+        isLoading: authLoading,
+        token: authToken,
+        isAuthProcessing,
+        isRedirectProcessing,
+    } = useAuth();
+    const { refreshNotifications } = useNotifications();
+
+    const [showLogin, setShowLogin] = useState(false);
+    const [showRegister, setShowRegister] = useState(false);
+    const [event, setEvent] = useState(location.state?.event || null);
+    const [loading, setLoading] = useState(!location.state?.event);
+    const [step, setStep] = useState(initialUi.step === Number.MAX_SAFE_INTEGER ? 0 : initialUi.step);
+    const [values, setValues] = useState({});
+    const [files, setFiles] = useState({});
+    const [error, setError] = useState('');
+    const [paying, setPaying] = useState(initialUi.paying);
+    const [awaitingPaymentOrderId, setAwaitingPaymentOrderId] = useState('');
+    const [paymentResumeError, setPaymentResumeError] = useState('');
+    const [done, setDone] = useState(false);
+    const [registrationId, setRegistrationId] = useState('');
+    const [addedToExisting, setAddedToExisting] = useState(false);
+    const [couponCode, setCouponCode] = useState(() =>
+        getSuggestedCouponCode(location.state?.event, {
+            suggestedCoupon: location.state?.suggestedCoupon,
+            search: location.search,
+        }),
+    );
+    const [couponInfo, setCouponInfo] = useState(null);
+    const [couponLoading, setCouponLoading] = useState(false);
+    const [couponError, setCouponError] = useState('');
+    const [showCouponField, setShowCouponField] = useState(true);
+    const autoAppliedCouponRef = useRef('');
+    const [paymentModal, setPaymentModal] = useState({ open: false, message: '', orderId: '' });
+    const [paymentScreenshotUrl, setPaymentScreenshotUrl] = useState('');
+    const [transactionId, setTransactionId] = useState('');
+    const [uploadingProof, setUploadingProof] = useState(false);
+    const [upiCopied, setUpiCopied] = useState(false);
+    const [selectedTierId, setSelectedTierId] = useState(() => {
+        try {
+            return new URLSearchParams(window.location.search).get('tier') || location.state?.tierId || '';
+        } catch {
+            return location.state?.tierId || '';
+        }
+    });
+    const [selectedAddOnIds, setSelectedAddOnIds] = useState([]);
+    const retryRef = useRef(null);
+    const resumeRef = useRef(false);
+
+    const isAuthed = useCallback(
+        () => isAuthenticated || hasUsableAuthToken(authToken),
+        [isAuthenticated, authToken],
+    );
+
+    const getAuthToken = useCallback(
+        () => resolveAuthToken(authToken),
+        [authToken],
+    );
+
+    const openLogin = useCallback(() => {
+        const returnPath = event
+            ? `${eventShowPath(event)}/register${window.location.search || ''}`
+            : currentAppPath();
+        openLoginSheet({ returnPath });
+        setShowLogin(true);
+    }, [event]);
+
+    const loginPromptedRef = useRef(false);
+
+    useEffect(() => {
+        if (isAuthenticated && showLogin) setShowLogin(false);
+        if (isAuthenticated && showRegister) setShowRegister(false);
+    }, [isAuthenticated, showLogin, showRegister]);
+
+    // After Register Now: open Google sheet if not signed in (user can tap Sign in with Google)
+    useEffect(() => {
+        if (authLoading || isAuthProcessing || isRedirectProcessing) return;
+        if (loading && !event) return;
+        if (isAuthed() || loginPromptedRef.current) return;
+        if (done || paying) return;
+        loginPromptedRef.current = true;
+        openLogin();
+    }, [
+        authLoading,
+        isAuthProcessing,
+        isRedirectProcessing,
+        loading,
+        event,
+        isAuthenticated,
+        authToken,
+        done,
+        paying,
+        openLogin,
+        isAuthed,
+    ]);
+
+    useEffect(() => {
+        if (!eventId) { setLoading(false); return; }
+        let cancelled = false;
+        (async () => {
+            try {
+                const r = await fetch(`${API}/events/${eventId}?t=${Date.now()}`);
+                const d = await r.json();
+                if (!cancelled && d.show) setEvent(d.show);
+            } catch {
+                /* keep state event if present */
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [eventId]);
+
+    useEffect(() => {
+        if (couponCode.trim()) return;
+        const code = getSuggestedCouponCode(event, {
+            suggestedCoupon: location.state?.suggestedCoupon,
+            search: location.search,
+        });
+        if (code) setCouponCode(code);
+    }, [event, location.state?.suggestedCoupon, location.search, couponCode]);
+
+    useEffect(() => {
+        if (!event) return;
+        const canonical = `${eventShowPath(event)}/register`;
+        if (window.location.pathname !== canonical) {
+            navigate(`${canonical}${window.location.search || ''}`, { replace: true, state: location.state });
+        }
+    }, [event, navigate, location.state]);
+
+    const reg = event?.registration || {};
+    const couponsEnabled = reg.allowCoupons !== false;
+    const isOrganizerQr = reg.mode === 'organizer_qr';
+    const packages = useMemo(() => {
+        if (!event) return [];
+        // Prefer explicit tiers mode; also accept docs that have tiers[] even if mode was lost in client state
+        if (event.pricingMode === 'tiers' || (Array.isArray(event.tiers) && event.tiers.length > 0)) {
+            return getEventShowTiers({ ...event, pricingMode: 'tiers' });
+        }
+        return [];
+    }, [event]);
+    const tiersMode = packages.length > 0;
+    const pricedEvent = useMemo(
+        () => (tiersMode ? { ...event, pricingMode: 'tiers', tiers: event?.tiers || packages } : event),
+        [event, tiersMode, packages],
+    );
+    const selectedTier = findEventShowTier(pricedEvent, selectedTierId);
+    const driverCount = resolveTierParticipantCount(selectedTier);
+    const priced = resolveEventShowFee(pricedEvent, selectedTierId);
+    const packagePrice = priced.fee;
+    const addOns = useMemo(() => sanitizeEventShowAddOns(event?.addOns), [event?.addOns]);
+    const selectedAddOns = useMemo(
+        () => addOns.filter((addOn) => selectedAddOnIds.includes(addOn.id)),
+        [addOns, selectedAddOnIds],
+    );
+    const joinDriveRaw = String(
+        values.join_drive || values.join_independence_day_drive || values.independence_day_drive || '',
+    ).trim();
+    const driveChoice = normalizeDriveChoice(joinDriveRaw);
+    const driveOnlyPath = isDriveOnlyChoice(driveChoice);
+    const skippingDrive = isTrackdayOnlyChoice(driveChoice);
+    const spectatorPath = isSpectatorChoice(driveChoice);
+    const addOnTotal = spectatorPath
+        ? 0
+        : selectedAddOns.reduce((sum, addOn) => sum + addOn.fee, 0);
+    const ticketPrice = packagePrice + addOnTotal;
+    const platformFeePercent = isOrganizerQr ? 0 : resolveTrekPlatformFeePercent(event?.platformFeePercent, 2.5);
+    const breakdown = useMemo(
+        () => buildEventPriceBreakdown(ticketPrice, platformFeePercent),
+        [ticketPrice, platformFeePercent],
+    );
+    const payableAmount = couponInfo?.amountAfterDiscount != null
+        ? Number(couponInfo.amountAfterDiscount)
+        : breakdown.totalAmount;
+    const title = event?.displayName || event?.title || 'Event';
+    const driveOnlyTier = useMemo(
+        () => packages.find((t) => isDriveOnlyTier(t)) || null,
+        [packages],
+    );
+    const spectatorTier = useMemo(
+        () => packages.find((t) => isSpectatorTier(t)) || null,
+        [packages],
+    );
+
+    const visiblePackages = useMemo(() => {
+        // Free first-step options skip the package picker
+        return packages.filter((tier) => !isDriveOnlyTier(tier) && !isSpectatorTier(tier));
+    }, [packages]);
+
+    // Auto-select free Drive-only / Spectators so they can register without a Trackday package
+    useEffect(() => {
+        if (driveOnlyPath && driveOnlyTier && selectedTierId !== driveOnlyTier.id) {
+            setSelectedTierId(driveOnlyTier.id);
+            setSelectedAddOnIds([]);
+            return;
+        }
+        if (spectatorPath && spectatorTier && selectedTierId !== spectatorTier.id) {
+            setSelectedTierId(spectatorTier.id);
+            setSelectedAddOnIds([]);
+        }
+    }, [driveOnlyPath, spectatorPath, driveOnlyTier, spectatorTier, selectedTierId]);
+
+    // If they leave a free first-step path, clear that package so they must pick Trackday
+    useEffect(() => {
+        if (driveOnlyPath || spectatorPath) return;
+        if (selectedTierId && (isDriveOnlyTier(selectedTier) || isSpectatorTier(selectedTier))) {
+            setSelectedTierId('');
+        }
+    }, [driveOnlyPath, spectatorPath, selectedTierId, selectedTier]);
+
+    useBookingSuccessPopup(done, {
+        name: title,
+        paid: ticketPrice > 0,
+        bookingId: registrationId,
+        ticketType: 'event',
+    });
+
+    const formSteps = useMemo(() => {
+        const configuredSteps = (() => {
+        if (reg.formType === 'MULTI_STEP' && Array.isArray(reg.steps) && reg.steps.length > 0) {
+            return reg.steps.map((s, i) => ({
+                title: s.stepTitle || `Step ${i + 1}`,
+                description: s.stepDescription || '',
+                fields: (s.fields || []).filter((f) => f.label && f.fieldName),
+            }));
+        }
+        const fields = (reg.formSchema || []).filter((f) => f.label && f.fieldName);
+            return fields.length ? [{ title: 'Your Details', description: '', fields }] : [];
+        })();
+
+        const driveFields = [];
+        const detailFields = [];
+        configuredSteps.forEach((s) => {
+            (s.fields || []).forEach((f) => {
+                if (DRIVE_FIELD_NAMES.has(String(f.fieldName || ''))) driveFields.push(f);
+                else detailFields.push(f);
+            });
+        });
+
+        const steps = [];
+        if (driveFields.length) {
+            steps.push({
+                title: 'What are you joining?',
+                description: 'Independence Day Drive and Spectators are free. Pick either to register instantly, or add a Trackday package.',
+                fields: driveFields.map((f) => {
+                    if (!DRIVE_FIELD_NAMES.has(String(f.fieldName || ''))) return f;
+                    return {
+                        ...f,
+                        label: 'Choose your registration',
+                        options: [DRIVE_ONLY_OPTION, DRIVE_AND_TRACKDAY_OPTION, TRACKDAY_ONLY_OPTION, SPECTATOR_OPTION],
+                    };
+                }),
+            });
+        }
+
+        // Trackday packages only when they want Trackday (skip for Drive-only / Spectators)
+        if (tiersMode && !driveOnlyPath && !spectatorPath) {
+            steps.push({
+                title: 'Trackday package',
+                description: skippingDrive
+                    ? 'Select a Trackday package.'
+                    : 'Select your Trackday package (Drive is already included free).',
+                packageSelect: true,
+                fields: [],
+            });
+        }
+
+        if (addOns.length > 0 && !spectatorPath) {
+            steps.push({
+                title: 'Add experiences',
+                description: 'Optional — choose any experiences you want to add to this booking.',
+                addOnSelect: true,
+                fields: [],
+            });
+        }
+
+        const count = Math.max(1, spectatorPath ? 1 : (driverCount || 1));
+        const isGroupPackage = count > 1 && !driveOnlyPath && !spectatorPath;
+
+        const defaultDetailFields = [
+            { id: 'f_name', label: 'Full Name', fieldName: 'name', type: 'text', required: true, placeholder: 'Your full name', options: [] },
+            { id: 'f_email', label: 'Email', fieldName: 'email', type: 'email', required: true, placeholder: 'you@email.com', options: [] },
+            { id: 'f_phone', label: 'Phone', fieldName: 'phone', type: 'tel', required: true, placeholder: '10-digit mobile', options: [] },
+            { id: 'f_blood', label: 'Blood Group', fieldName: 'blood_group', type: 'select', required: true, placeholder: '', options: BLOOD_OPTIONS },
+            { id: 'f_vehicle', label: 'Vehicle details', fieldName: 'vehicle_details', type: 'text', required: false, placeholder: 'Make / model (optional)', options: [] },
+        ];
+        const isSpectatorContactField = (f) => {
+            const key = String(f.fieldName || '').toLowerCase();
+            if (f.type === 'section' || /^driver_/.test(key)) return false;
+            return key === 'name' || key === 'full_name' || key === 'leader_name'
+                || key === 'email'
+                || key === 'phone' || key === 'contact_no' || key === 'mobile';
+        };
+        const baseDetailFields = (spectatorPath
+            ? (detailFields.filter(isSpectatorContactField).length
+                ? detailFields.filter(isSpectatorContactField)
+                : defaultDetailFields.filter(isSpectatorContactField))
+            : (detailFields.length ? detailFields : defaultDetailFields)
+        ).map((f) => {
+            const key = String(f.fieldName || '').toLowerCase();
+            if (driveOnlyPath && key === 'blood_group') {
+                return { ...f, required: false };
+            }
+            return f;
+        });
+
+        let labeledDetailFields = baseDetailFields;
+
+        if (isGroupPackage) {
+            // Group packages (trio / quattro / penta): name, phone, email & blood for EVERY driver
+            const contactKeys = new Set(['name', 'full_name', 'leader_name', 'email', 'phone', 'blood_group', 'contact_no', 'mobile']);
+            const primaryContacts = baseDetailFields.filter((f) => {
+                const key = String(f.fieldName || '').toLowerCase();
+                return contactKeys.has(key) || key.includes('blood');
+            });
+            const extras = baseDetailFields.filter((f) => {
+                const key = String(f.fieldName || '').toLowerCase();
+                return !contactKeys.has(key) && !key.includes('blood');
+            });
+
+            const pickPrimary = (candidates, fallback) => {
+                const found = primaryContacts.find((f) => candidates.includes(String(f.fieldName || '').toLowerCase()));
+                return found || fallback;
+            };
+            const nameTpl = pickPrimary(
+                ['name', 'full_name', 'leader_name'],
+                { label: 'Full Name', fieldName: 'name', type: 'text', required: true, placeholder: 'Full name', options: [] },
+            );
+            const emailTpl = pickPrimary(
+                ['email'],
+                { label: 'Email', fieldName: 'email', type: 'email', required: true, placeholder: 'you@email.com', options: [] },
+            );
+            const phoneTpl = pickPrimary(
+                ['phone', 'contact_no', 'mobile'],
+                { label: 'Phone', fieldName: 'phone', type: 'tel', required: true, placeholder: '10-digit mobile', options: [] },
+            );
+            const bloodTpl = pickPrimary(
+                ['blood_group'],
+                { label: 'Blood Group', fieldName: 'blood_group', type: 'select', required: true, placeholder: '', options: BLOOD_OPTIONS },
+            );
+
+            const fields = [];
+            for (let i = 1; i <= count; i += 1) {
+                const isFirst = i === 1;
+                fields.push({
+                    id: `sec_driver_${i}`,
+                    type: 'section',
+                    fieldName: `section_driver_${i}`,
+                    label: `Driver ${i}${isFirst ? ' (registering)' : ''}`,
+                    required: false,
+                });
+                const nameKey = isFirst
+                    ? (String(nameTpl.fieldName || 'name').toLowerCase() === 'leader_name' ? 'leader_name' : 'name')
+                    : `driver_${i}_name`;
+                const emailKey = isFirst ? 'email' : `driver_${i}_email`;
+                const phoneKey = isFirst ? String(phoneTpl.fieldName || 'phone') : `driver_${i}_phone`;
+                const bloodKey = isFirst ? 'blood_group' : `driver_${i}_blood_group`;
+
+                fields.push({
+                    ...nameTpl,
+                    id: `f_driver_${i}_name`,
+                    fieldName: nameKey,
+                    label: 'Full Name',
+                    placeholder: `Driver ${i} full name`,
+                    required: true,
+                });
+                fields.push({
+                    ...emailTpl,
+                    id: `f_driver_${i}_email`,
+                    fieldName: emailKey,
+                    label: 'Email',
+                    placeholder: `Driver ${i} email`,
+                    required: true,
+                });
+                fields.push({
+                    ...phoneTpl,
+                    id: `f_driver_${i}_phone`,
+                    fieldName: phoneKey,
+                    label: 'Phone',
+                    placeholder: `Driver ${i} 10-digit mobile`,
+                    required: true,
+                });
+                fields.push({
+                    ...bloodTpl,
+                    id: `f_driver_${i}_blood`,
+                    fieldName: bloodKey,
+                    label: 'Blood Group',
+                    type: 'select',
+                    options: bloodTpl.options?.length ? bloodTpl.options : BLOOD_OPTIONS,
+                    required: true,
+                });
+            }
+            labeledDetailFields = [...fields, ...extras];
+        }
+
+        steps.push({
+            title: driveOnlyPath || spectatorPath ? 'Your details' : (isGroupPackage ? 'Driver details' : 'Your Details'),
+            description: driveOnlyPath
+                ? 'Free Independence Day Drive registration — no Trackday fee.'
+                : spectatorPath
+                    ? 'Just your name and contact — then register free.'
+                    : (isGroupPackage
+                        ? `Group package for ${count} drivers — name, phone, email & blood group are required for all ${count} drivers.`
+                        : ''),
+            fields: labeledDetailFields,
+        });
+
+        return steps;
+    }, [reg.formType, reg.steps, reg.formSchema, tiersMode, driverCount, driveOnlyPath, spectatorPath, skippingDrive, addOns.length]);
+
+    // Sync tier from query; clear drive-only if they answered No
+    useEffect(() => {
+        if (!event || !tiersMode) return;
+        try {
+            const fromQuery = new URLSearchParams(window.location.search).get('tier') || '';
+            if (fromQuery && findEventShowTier(pricedEvent, fromQuery) && fromQuery !== selectedTierId) {
+                setSelectedTierId(fromQuery);
+                const queriedTier = findEventShowTier(pricedEvent, fromQuery);
+                if (isSpectatorTier(queriedTier)) {
+                    setValues((prev) => (
+                        prev.join_drive === SPECTATOR_OPTION ? prev : { ...prev, join_drive: SPECTATOR_OPTION }
+                    ));
+                }
+                return;
+            }
+        } catch { /* ignore */ }
+        if (selectedTierId && findEventShowTier(pricedEvent, selectedTierId)) {
+            if (skippingDrive && isDriveOnlyTier(selectedTier)) {
+                setSelectedTierId('');
+            }
+            return;
+        }
+    }, [event, tiersMode, selectedTierId, skippingDrive, selectedTier, pricedEvent]);
+
+    useEffect(() => {
+        if (couponsEnabled) return;
+        setCouponCode('');
+        setCouponInfo(null);
+        setCouponError('');
+        setShowCouponField(false);
+        autoAppliedCouponRef.current = '';
+    }, [couponsEnabled]);
+
+    useEffect(() => {
+        setCouponInfo(null);
+        autoAppliedCouponRef.current = '';
+    }, [selectedTierId, selectedAddOnIds]);
+
+    const allSteps = useMemo(
+        () => (spectatorPath
+            ? formSteps
+            : [...formSteps, {
+                title: ticketPrice > 0 ? 'Confirm & Pay' : 'Confirm registration',
+                payment: true,
+            }]),
+        [formSteps, ticketPrice, spectatorPath],
+    );
+    const allFields = useMemo(() => formSteps.flatMap((s) => s.fields || []), [formSteps]);
+
+    useEffect(() => {
+        if (step > allSteps.length - 1) setStep(Math.max(0, allSteps.length - 1));
+    }, [allSteps.length, step]);
+
+    // Prefill name / email / phone from logged-in user (incl. Google sign-in)
+    useEffect(() => {
+        if (!user || !allFields.length) return;
+        const userName = String(user.name || user.fullName || user.displayName || '').trim();
+        const userEmail = String(user.email || '').trim();
+        const userPhone = String(user.phone || user.mobile || user.phoneNumber || '').trim();
+        if (!userName && !userEmail && !userPhone) return;
+
+        setValues((prev) => {
+            const next = { ...prev };
+            let changed = false;
+            allFields.forEach((f) => {
+                const key = f.fieldName;
+                const name = String(key || '').toLowerCase();
+                const current = String(next[key] ?? '').trim();
+                if (current) return;
+
+                // Only prefill the registering driver's primary fields — never co-drivers
+                if (/^driver_[2-9]_/.test(name) || /^driver_1[0-9]_/.test(name)) return;
+
+                const isNameField = (name === 'name' || name === 'full_name' || name === 'leader_name')
+                    && !name.includes('user')
+                    && !name.includes('org')
+                    && !name.includes('college')
+                    && !name.includes('team');
+                const isEmailField = name === 'email' || name === 'e_mail' || name === 'e_mail_id';
+                const isPhoneField = name === 'phone' || name === 'mobile' || name === 'contact_no' || name === 'whatsapp';
+
+                if (isNameField && userName) {
+                    next[key] = userName;
+                    changed = true;
+                } else if (isEmailField && userEmail) {
+                    next[key] = userEmail;
+                    changed = true;
+                } else if (isPhoneField && userPhone) {
+                    next[key] = userPhone;
+                    changed = true;
+                }
+            });
+            return changed ? next : prev;
+        });
+    }, [user, allFields]);
+
+    const inp = `w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'}`;
+
+    const setVal = (name, v) => setValues((f) => ({ ...f, [name]: v }));
+
+    const renderField = (field) => {
+        if (field.type === 'section') {
+            return (
+                <p className={`text-sm font-semibold pt-1 ${isDark ? 'text-[#0ECCEE]' : 'text-[#0891b2]'}`}>
+                    {field.label}
+                </p>
+            );
+        }
+        const val = values[field.fieldName] ?? '';
+        if (field.type === 'textarea') {
+            return <textarea rows={3} placeholder={field.placeholder || ''} value={val} onChange={(e) => setVal(field.fieldName, e.target.value)} className={`${inp} resize-none`} />;
+        }
+        if (field.type === 'select') {
+            return (
+                <select value={val} onChange={(e) => setVal(field.fieldName, e.target.value)} className={inp}>
+                    <option value="">Select...</option>
+                    {(field.options || []).map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+            );
+        }
+        if (field.type === 'radio') {
+            return (
+                <div className="space-y-2">
+                    {(field.options || []).map((o) => (
+                        <label key={o} className="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name={field.fieldName} value={o} checked={val === o} onChange={() => setVal(field.fieldName, o)} className="accent-[#0ECCEE]" />
+                            <span className={`text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{o}</span>
+                        </label>
+                    ))}
+                </div>
+            );
+        }
+        if (field.type === 'checkbox') {
+            const arr = Array.isArray(val) ? val : [];
+            const toggle = (o) => setVal(field.fieldName, arr.includes(o) ? arr.filter((x) => x !== o) : [...arr, o]);
+            return (
+                <div className="space-y-2">
+                    {(field.options || []).map((o) => (
+                        <label key={o} className="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" checked={arr.includes(o)} onChange={() => toggle(o)} className="accent-[#0ECCEE]" />
+                            <span className={`text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{o}</span>
+                        </label>
+                    ))}
+                </div>
+            );
+        }
+        if (FILE_TYPES.includes(field.type)) {
+            const raw = files[field.fieldName];
+            const selected = Array.isArray(raw) ? raw : (raw ? [raw] : []);
+            const removeFile = (i) => setFiles((prev) => {
+                const arr = (Array.isArray(prev[field.fieldName]) ? prev[field.fieldName] : (prev[field.fieldName] ? [prev[field.fieldName]] : [])).filter((_, j) => j !== i);
+                const next = { ...prev };
+                if (arr.length) next[field.fieldName] = arr; else delete next[field.fieldName];
+                return next;
+            });
+            return (
+                <div className="space-y-2">
+                    <label className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 border-dashed cursor-pointer ${isDark ? 'border-gray-600 bg-[#1D1E20]' : 'border-gray-300 bg-white'}`}>
+                        <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{field.placeholder || (field.type === 'image' ? 'Add image(s)' : 'Add file(s)')}</span>
+                        <input
+                            type="file"
+                            multiple
+                            accept={field.type === 'image' ? 'image/*' : 'image/*,.pdf,.doc,.docx'}
+                            className="hidden"
+                            onChange={(e) => {
+                                const picked = Array.from(e.target.files || []);
+                                if (picked.length) {
+                                    setFiles((prev) => {
+                                        const existing = Array.isArray(prev[field.fieldName]) ? prev[field.fieldName] : (prev[field.fieldName] ? [prev[field.fieldName]] : []);
+                                        return { ...prev, [field.fieldName]: [...existing, ...picked] };
+                                    });
+                                }
+                                e.target.value = '';
+                            }}
+                        />
+                    </label>
+                    {selected.length > 0 && (
+                        <ul className="space-y-1">
+                            {selected.map((file, i) => (
+                                <li key={`${file.name}-${i}`} className={`flex items-center justify-between gap-2 text-xs px-2.5 py-1.5 rounded-md ${isDark ? 'bg-[#1D1E20] text-gray-300' : 'bg-gray-100 text-gray-700'}`}>
+                                    <span className="truncate">{file.name}</span>
+                                    <button type="button" onClick={() => removeFile(i)} className="shrink-0 text-red-400 hover:text-red-500">Remove</button>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
+            );
+        }
+        return (
+            <input
+                type={field.type === 'date' ? 'date' : field.type || 'text'}
+                placeholder={field.placeholder || ''}
+                value={val}
+                onChange={(e) => setVal(field.fieldName, e.target.value)}
+                className={inp}
+                style={field.type === 'date' ? { colorScheme: isDark ? 'dark' : 'light' } : undefined}
+            />
+        );
+    };
+
+    const validateStep = (idx) => {
+        const s = allSteps[idx];
+        if (!s || s.payment) return true;
+        if (s.packageSelect) {
+            if (tiersMode && !findEventShowTier(pricedEvent, selectedTierId)) {
+                setError('Please select a Trackday package.');
+                return false;
+            }
+            if (isDriveOnlyTier(selectedTier)) {
+                setError('Please select a Trackday package.');
+                return false;
+            }
+            return true;
+        }
+        if (s.addOnSelect) return true;
+        // Drive-only path must have free package selected (auto-set)
+        if (driveOnlyPath && !findEventShowTier(pricedEvent, selectedTierId)) {
+            if (driveOnlyTier?.id) setSelectedTierId(driveOnlyTier.id);
+        }
+        const missing = s.fields.filter((f) => {
+            if (!f.required || f.type === 'section') return false;
+            if (FILE_TYPES.includes(f.type)) {
+                const v = files[f.fieldName];
+                return Array.isArray(v) ? v.length === 0 : !v;
+            }
+            const v = values[f.fieldName];
+            if (Array.isArray(v)) return v.length === 0;
+            return !String(v ?? '').trim();
+        });
+        if (missing.length > 0) {
+            setError(`Please fill: ${missing.map((f) => f.label).join(', ')}`);
+            return false;
+        }
+        return true;
+    };
+
+    const submitRegistration = useCallback(async ({
+        paymentOrderId,
+        paymentId,
+        amountPaid,
+        valuesOverride,
+        filesOverride,
+        tierIdOverride,
+        selectedAddOnIdsOverride,
+    } = {}) => {
+        const token = getAuthToken();
+        if (!token) { openLogin(); throw new Error('Please log in to register.'); }
+
+        const submissionValues = { ...(valuesOverride ?? values) };
+        const submissionFiles = filesOverride ?? files;
+        const tierIdToUse = tierIdOverride || selectedTierId;
+        const addOnIdsToUse = selectedAddOnIdsOverride ?? selectedAddOnIds;
+        const tierToUse = findEventShowTier(pricedEvent, tierIdToUse) || selectedTier;
+
+        // Normalize drive answer for storage / dashboard
+        const driveRaw = String(
+            submissionValues.join_drive
+            || submissionValues.join_independence_day_drive
+            || submissionValues.independence_day_drive
+            || '',
+        ).trim();
+        const choice = normalizeDriveChoice(driveRaw);
+        if (choice === DRIVE_ONLY_OPTION || choice === DRIVE_AND_TRACKDAY_OPTION) {
+            submissionValues.join_drive = 'Yes';
+            submissionValues.registration_type = choice === DRIVE_ONLY_OPTION ? 'drive_only' : 'drive_and_trackday';
+        } else if (choice === TRACKDAY_ONLY_OPTION) {
+            submissionValues.join_drive = 'No';
+            submissionValues.registration_type = 'trackday_only';
+        } else if (choice === SPECTATOR_OPTION || isSpectatorTier(tierToUse)) {
+            submissionValues.join_drive = 'No';
+            submissionValues.registration_type = 'spectator';
+        } else if (driveRaw) {
+            submissionValues.join_drive = driveRaw;
+        }
+
+        if (driverCount > 1 && !isDriveOnlyTier(tierToUse) && !isSpectatorTier(tierToUse)) {
+            submissionValues.driver_count = String(driverCount);
+            submissionValues.leader_name = submissionValues.name || submissionValues.leader_name || '';
+        }
+        if (tierToUse?.name) {
+            submissionValues.package_name = tierToUse.name;
+        }
+
+        const fd = new FormData();
+        const textResponses = {};
+        allFields.forEach((f) => {
+            if (f.type === 'section') return;
+            if (FILE_TYPES.includes(f.type)) {
+                const v = submissionFiles[f.fieldName];
+                const arr = Array.isArray(v) ? v : (v ? [v] : []);
+                arr.forEach((file) => fd.append(f.fieldName, file));
+            } else if (submissionValues[f.fieldName] !== undefined) {
+                textResponses[f.fieldName] = submissionValues[f.fieldName];
+            }
+        });
+        ['name', 'email', 'phone', 'blood_group', 'vehicle_details', 'join_drive', 'driver_count', 'leader_name', 'package_name', 'registration_type', 'payment_screenshot_url', 'transaction_id'].forEach((key) => {
+            if (submissionValues[key] !== undefined && textResponses[key] === undefined) {
+                textResponses[key] = submissionValues[key];
+            }
+        });
+
+        fd.append('responses', JSON.stringify(textResponses));
+        if (paymentOrderId) fd.append('payment_order_id', paymentOrderId);
+        if (paymentId) fd.append('payment_id', paymentId);
+        if (tierIdToUse) fd.append('tierId', tierIdToUse);
+        fd.append('selectedAddOnIds', JSON.stringify(addOnIdsToUse));
+        if (submissionValues.payment_screenshot_url) fd.append('paymentScreenshotUrl', String(submissionValues.payment_screenshot_url));
+        if (submissionValues.transaction_id) fd.append('transactionId', String(submissionValues.transaction_id));
+        if (couponsEnabled && couponCode.trim()) fd.append('couponCode', couponCode.trim().toUpperCase());
+
+        const res = await fetch(`${API}/registrations/events/${eventId}/custom`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+            body: fd,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || data.message || 'Registration failed');
+        clearEventRegistrationDraft(eventId);
+        refreshNotifications?.();
+        const regId = data.registrationId || data._id || data.registration?._id || data.registration?.id;
+        if (regId) setRegistrationId(String(regId));
+        setAddedToExisting(Boolean(data.addedToExisting));
+        void amountPaid;
+        return data;
+    }, [allFields, files, values, eventId, refreshNotifications, selectedTierId, selectedAddOnIds, getAuthToken, driverCount, selectedTier, pricedEvent, couponCode, couponsEnabled]);
+
+    const finishPaidRegistration = useCallback(async ({
+        orderId,
+        draftValues,
+        tierId,
+        selectedAddOnIds: draftAddOnIds,
+        coupon,
+    }) => {
+        const token = getAuthToken();
+        if (!token) {
+            openLogin();
+            throw new Error('Please log in to complete registration after payment.');
+        }
+        const verifyResult = await pollPaymentUntilVerified(
+          API,
+          orderId,
+          { token, kind: 'fest', search: location.search },
+          { maxWaitMs: PAYMENT_BACKGROUND_MAX_WAIT_MS },
+        );
+        if (verifyResult.status === 'cancelled') {
+            throw new Error('Payment was cancelled. Tap Pay to try again.');
+        }
+        if (!verifyResult.ok || !verifyResult.verified) {
+            const { kind, message } = classifyVerifyError(verifyResult);
+            throw new Error(
+                kind === 'pending'
+                    ? 'Payment is still confirming. Check My Bookings — do not pay again.'
+                    : (message || 'Payment could not be verified.'),
+            );
+        }
+        const data = await completeEventPayAndRegister({
+            apiBase: API,
+            token,
+            eventShowId: eventId,
+            orderId,
+            responses: draftValues || {},
+            tierId: tierId || selectedTierId || '',
+            selectedAddOnIds: draftAddOnIds || selectedAddOnIds,
+            couponCode: couponsEnabled ? (coupon || couponCode.trim() || '') : '',
+        });
+        clearPendingPayment();
+        clearEventPaymentArtifacts(eventId, orderId);
+        const regId = data.registrationId || data._id;
+        if (regId) setRegistrationId(String(regId));
+        setAddedToExisting(Boolean(data.addedToExisting));
+        refreshNotifications?.();
+        return data;
+    }, [eventId, getAuthToken, selectedTierId, selectedAddOnIds, couponCode, couponsEnabled, refreshNotifications]);
+
+    // Resume after Cashfree redirect
+    useEffect(() => {
+        if (!eventId || loading || resumeRef.current) return;
+        const pending = getPendingPayment();
+        const returnPath = `/events/${eventId}/register`;
+        if (!shouldResumePendingPayment(pending, returnPath, location.search)) return;
+
+        resumeRef.current = true;
+        setPaying(true);
+        setPaymentResumeError('');
+        setError('');
+
+        const draft = loadEventRegistrationDraft(eventId) || {};
+        const draftValues = draft.values || {};
+        if (Object.keys(draftValues).length > 0) setValues((prev) => ({ ...prev, ...draftValues }));
+        if (draft.tierId) setSelectedTierId(draft.tierId);
+        if (Array.isArray(draft.selectedAddOnIds)) setSelectedAddOnIds(draft.selectedAddOnIds);
+
+        (async () => {
+            try {
+                await finishPaidRegistration({
+                    orderId: pending.orderId,
+                    draftValues,
+                    tierId: draft.tierId || selectedTierId,
+                    selectedAddOnIds: draft.selectedAddOnIds || selectedAddOnIds,
+                    coupon: draft.couponCode || couponCode,
+                });
+                const params = new URLSearchParams(location.search);
+                ['order_id', 'order_token', 'cf_payment_id', 'payment_id'].forEach((key) => params.delete(key));
+                const nextSearch = params.toString();
+                navigate(
+                    { pathname: location.pathname, search: nextSearch ? `?${nextSearch}` : '' },
+                    { replace: true },
+                );
+                setDone(true);
+            } catch (e) {
+                clearPendingPayment();
+                setPaymentResumeError(e.message || 'Could not complete registration after payment');
+            } finally {
+                setPaying(false);
+            }
+        })();
+    }, [eventId, loading, location.search, location.pathname, navigate, finishPaidRegistration, selectedTierId, selectedAddOnIds, couponCode]);
+
+    // After Google Pay / redirect checkout: poll until payment lands even if return URL never fires
+    useEffect(() => {
+        if (!awaitingPaymentOrderId || !eventId || done) return;
+        let cancelled = false;
+        let attempts = 0;
+        const maxAttempts = 90; // ~3 minutes at 2s
+
+        const tryComplete = async () => {
+            if (cancelled || resumeRef.current) return;
+            attempts += 1;
+            try {
+                const draft = loadEventRegistrationDraft(eventId) || {};
+                await finishPaidRegistration({
+                    orderId: awaitingPaymentOrderId,
+                    draftValues: draft.values || values,
+                    tierId: draft.tierId || selectedTierId,
+                    selectedAddOnIds: draft.selectedAddOnIds || selectedAddOnIds,
+                    coupon: draft.couponCode || couponCode,
+                });
+                if (cancelled) return;
+                resumeRef.current = true;
+                setAwaitingPaymentOrderId('');
+                setDone(true);
+                setPaying(false);
+            } catch {
+                if (attempts >= maxAttempts) {
+                    setPaying(false);
+                    setPaymentResumeError(
+                        'Payment is taking longer than expected. Open My Bookings — your registration will appear once confirmed.',
+                    );
+                    setAwaitingPaymentOrderId('');
+                }
+            }
+        };
+
+        setPaying(true);
+        tryComplete();
+        const interval = window.setInterval(tryComplete, 2000);
+
+        const onVisible = () => {
+            if (!document.hidden) tryComplete();
+        };
+        const onPageShow = () => tryComplete();
+        document.addEventListener('visibilitychange', onVisible);
+        window.addEventListener('pageshow', onPageShow);
+
+        return () => {
+            cancelled = true;
+            window.clearInterval(interval);
+            document.removeEventListener('visibilitychange', onVisible);
+            window.removeEventListener('pageshow', onPageShow);
+        };
+    }, [
+        awaitingPaymentOrderId,
+        eventId,
+        done,
+        finishPaidRegistration,
+        values,
+        selectedTierId,
+        selectedAddOnIds,
+        couponCode,
+    ]);
+
+    const handleFinalSubmit = async () => {
+        setError('');
+        if (!isAuthed()) { openLogin(); setError('Please log in to register.'); return; }
+
+        const showId = event?._id || event?.id || eventId;
+
+        if (tiersMode && !findEventShowTier(pricedEvent, selectedTierId)) {
+            if (driveOnlyPath && driveOnlyTier?.id) {
+                setSelectedTierId(driveOnlyTier.id);
+            } else if (spectatorPath && spectatorTier?.id) {
+                setSelectedTierId(spectatorTier.id);
+            } else {
+                setError(
+                    driveOnlyPath || spectatorPath
+                        ? 'Free package is missing. Please refresh.'
+                        : 'Please select a Trackday package.',
+                );
+                const pkgIdx = allSteps.findIndex((s) => s.packageSelect);
+                if (pkgIdx >= 0) setStep(pkgIdx);
+                return;
+            }
+        }
+
+        // Drive-only / Spectators / free package — submit directly (no Cashfree)
+        const feeNow = Math.max(0, Number(resolveEventShowFee(
+            pricedEvent,
+            selectedTierId || (spectatorPath ? spectatorTier?.id : driveOnlyTier?.id),
+        ).fee) || 0)
+            + (spectatorPath ? 0 : addOnTotal);
+        if (feeNow <= 0) {
+            setPaying(true);
+            try {
+                const tierForSubmit = selectedTierId || (spectatorPath ? spectatorTier?.id : driveOnlyTier?.id) || '';
+                if (tierForSubmit && tierForSubmit !== selectedTierId) setSelectedTierId(tierForSubmit);
+                await submitRegistration({
+                    amountPaid: 0,
+                    tierIdOverride: tierForSubmit,
+                    selectedAddOnIdsOverride: spectatorPath ? [] : undefined,
+                });
+                setDone(true);
+            } catch (e) {
+                setError(e.message || 'Registration failed');
+            } finally {
+                setPaying(false);
+            }
+            return;
+        }
+
+        if (isOrganizerQr) {
+            if (payableAmount > 0) {
+                if (!paymentScreenshotUrl) {
+                    setError('Please upload your payment screenshot.');
+                    return;
+                }
+                if (String(transactionId || '').trim().length < 4) {
+                    setError('Please enter your UPI / transaction ID (at least 4 characters).');
+                    return;
+                }
+            }
+            setPaying(true);
+            try {
+                await submitRegistration({
+                    amountPaid: payableAmount,
+                    valuesOverride: {
+                        ...values,
+                        payment_screenshot_url: payableAmount > 0 ? paymentScreenshotUrl : '',
+                        transaction_id: payableAmount > 0 ? transactionId.trim() : '',
+                    },
+                });
+                setDone(true);
+            } catch (e) {
+                setError(e.message || 'Registration failed');
+            } finally {
+                setPaying(false);
+            }
+            return;
+        }
+
+        const customer = pickCustomer(values);
+        if (!customer.email) { setError('An email field is required to complete payment.'); return; }
+
+        const draftPayload = {
+            values,
+            tierId: selectedTierId,
+            selectedAddOnIds,
+            couponCode: couponsEnabled ? couponCode.trim() : '',
+            eventShowId: String(showId || eventId),
+        };
+        saveEventRegistrationDraft(eventId, draftPayload);
+        setPaying(true);
+        try {
+            const token = getAuthToken();
+            if (!token) {
+                openLogin();
+                setError('Please log in to register.');
+                setPaying(false);
+                return;
+            }
+            const showIdStr = String(showId || '').trim();
+            const orderRes = await fetch(`${API}/payment/order`, {
+                method: 'POST',
+                headers: getBearerAuthHeaders(token),
+                body: JSON.stringify({
+                    eventShowId: showIdStr,
+                    tierId: String(selectedTierId || '').trim() || undefined,
+                    selectedAddOnIds,
+                    customerName: customer.name || user?.name || 'Customer',
+                    customerEmail: customer.email || user?.email || '',
+                    customerPhone: customer.phone || user?.phone || user?.phoneNumber || '',
+                    couponCode: couponsEnabled ? (couponCode.trim() || undefined) : undefined,
+                    registrationDraft: draftPayload,
+                }),
+            });
+            const order = await orderRes.json().catch(() => ({}));
+
+            // Backend may report free package even if UI thought it was paid
+            if (order?.free || /does not require payment/i.test(order?.message || '')) {
+                await submitRegistration({ amountPaid: 0 });
+                setDone(true);
+                setPaying(false);
+                return;
+            }
+
+            if (!orderRes.ok || !order.paymentSessionId) {
+                const msg = order.message || order.error || `Payment failed (${orderRes.status})`;
+                if (/select a registration tier|invalid registration tier|package/i.test(msg)) {
+                    const pkgIdx = allSteps.findIndex((s) => s.packageSelect);
+                    if (pkgIdx >= 0) setStep(pkgIdx);
+                }
+                setError(msg);
+                setPaying(false);
+                return;
+            }
+
+            if (order.orderId) {
+                saveEventPayDraft(order.orderId, draftPayload);
+            }
+
+            let checkout;
+            try {
+                checkout = await openCashfreeCheckout({
+                    paymentSessionId: order.paymentSessionId,
+                    orderId: order.orderId,
+                    returnPath: `/events/${eventId}/register`,
+                    entityType: 'event',
+                    cashfreeMode: order.cashfreeMode,
+                });
+            } catch (checkoutErr) {
+                const { kind, message } = classifyCheckoutError(checkoutErr);
+                setPaying(false);
+                if (kind !== 'cancelled') {
+                    retryRef.current = () => handleFinalSubmit();
+                    setPaymentModal({ open: true, message, orderId: order.orderId });
+                }
+                return;
+            }
+
+            if (checkout?.redirectDeferred) {
+                setStep(allSteps.length - 1);
+                setPaying(true);
+                setAwaitingPaymentOrderId(order.orderId);
+                setPaymentResumeError('');
+                setError('');
+                return;
+            }
+
+            const checkoutPaymentId = checkout?.paymentDetails?.paymentId || checkout?.paymentDetails?.cf_payment_id || '';
+            const vRes = await fetch(`${API}/payment/verify`, {
+                method: 'POST',
+                headers: getBearerAuthHeaders(token),
+                body: JSON.stringify({ payment_order_id: order.orderId, payment_id: checkoutPaymentId }),
+            });
+            const v = await vRes.json();
+            if (v.verified) {
+                await finishPaidRegistration({
+                    orderId: order.orderId,
+                    draftValues: values,
+                    tierId: selectedTierId,
+                    selectedAddOnIds,
+                    coupon: couponCode.trim(),
+                });
+                setDone(true);
+                setPaying(false);
+            } else {
+                setError(v.message || 'Payment verification failed. Contact support.');
+                setPaying(false);
+            }
+        } catch (e) {
+            setError('Payment error: ' + e.message);
+            setPaying(false);
+        }
+    };
+
+    const uploadPaymentProof = async (file) => {
+        if (!file) return;
+        setUploadingProof(true);
+        setError('');
+        try {
+            const token = getAuthToken();
+            if (!token) {
+                openLogin();
+                throw new Error('Please log in to upload payment screenshot.');
+            }
+            const fd = new FormData();
+            fd.append('image', file);
+            const uploadRes = await fetch(`${API}/users/upload/image`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` },
+                body: fd,
+            });
+            const data = await uploadRes.json().catch(() => ({}));
+            if (!uploadRes.ok) throw new Error(data.message || 'Upload failed');
+            setPaymentScreenshotUrl(data.url || '');
+        } catch (e) {
+            setError(e.message || 'Could not upload screenshot');
+        } finally {
+            setUploadingProof(false);
+        }
+    };
+
+    const applyCoupon = async (overrideCode) => {
+        if (!couponsEnabled) return;
+        setCouponError('');
+        const code = String(overrideCode ?? couponCode).trim().toUpperCase();
+        if (!code) {
+            setCouponInfo(null);
+            return;
+        }
+        setCouponCode(code);
+        setCouponLoading(true);
+        try {
+            const { data } = await publicFetchJSONRetry('/payment/coupon-validate', {
+                method: 'POST',
+                body: {
+                    eventShowId: eventId,
+                    tierId: selectedTierId || undefined,
+                    selectedAddOnIds,
+                    couponCode: code,
+                },
+                retries: 4,
+                timeout: 25000,
+            });
+            setCouponInfo(data);
+            setShowCouponField(true);
+        } catch (e) {
+            setCouponInfo(null);
+            const msg = e?.message || 'Invalid coupon';
+            const network = e?.isNetworkError || e?.code === 'ERR_NETWORK' || /failed to fetch|network error|timeout/i.test(msg);
+            setCouponError(
+                network
+                    ? 'Could not reach the server. Tap Apply again — or open in Chrome/Safari if you are in Instagram.'
+                    : msg,
+            );
+        } finally {
+            setCouponLoading(false);
+        }
+    };
+
+    const next = () => {
+        setError('');
+        if (!isAuthed()) { openLogin(); setError('Please log in to register.'); return; }
+        if (!validateStep(step)) return;
+        if (step < allSteps.length - 1) setStep((s) => s + 1);
+    };
+    const back = () => (step === 0 ? goBack() : setStep((s) => s - 1));
+
+    const isPaymentStepPreview = !!allSteps[step]?.payment;
+    const suggestedCoupon = getSuggestedCouponCode(event, {
+        suggestedCoupon: location.state?.suggestedCoupon || couponCode,
+        search: location.search,
+    });
+    const suggestedCouponLabel = getSuggestedCouponLabel(suggestedCoupon);
+
+    useEffect(() => {
+        if (!isPaymentStepPreview || !suggestedCoupon) return;
+        if (couponInfo?.couponApplied) return;
+        if (autoAppliedCouponRef.current === suggestedCoupon) return;
+        autoAppliedCouponRef.current = suggestedCoupon;
+        setCouponCode(suggestedCoupon);
+        applyCoupon(suggestedCoupon);
+    }, [isPaymentStepPreview, suggestedCoupon]);
+
+    if (loading && !done && !paying) {
+        return <DetailPageLoader label="Loading event" variant="event" />;
+    }
+
+    if (paying && !done) {
+        return (
+            <div className="crwdctrl-page crwdctrl-page--flat min-h-dvh flex flex-col items-center justify-center px-4">
+                {paymentResumeError ? (
+                    <div className="text-center max-w-md">
+                        <p className={`text-sm mb-6 ${isDark ? 'text-red-300' : 'text-red-600'}`}>{paymentResumeError}</p>
+                        <button
+                            type="button"
+                            onClick={() => { setPaymentResumeError(''); setStep(allSteps.length - 1); }}
+                            className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition"
+                        >
+                            Back to registration
+                        </button>
+                    </div>
+                ) : (
+                    <RegistrationStatusVisual
+                        mode="payment"
+                        isDark={isDark}
+                        subtitle={
+                            awaitingPaymentOrderId
+                                ? 'Complete payment in Google Pay. You can return here anytime — we will confirm automatically.'
+                                : 'Verifying payment and completing your registration...'
+                        }
+                        showProgress={false}
+                    />
+                )}
+            </div>
+        );
+    }
+
+    if (!event && !done) {
+        return (
+            <div className="crwdctrl-page crwdctrl-page--flat min-h-dvh flex flex-col items-center justify-center gap-3 px-6">
+                <p className={`text-sm text-center ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Event not found.</p>
+                <button type="button" onClick={() => navigate('/events')} className="text-[#0ECCEE] text-sm font-semibold">Browse events</button>
+            </div>
+        );
+    }
+
+    const regStatus = String(reg.status || '').trim().toLowerCase();
+    const regMode = String(reg.mode || '').toLowerCase();
+    const hasInAppForm = (reg.formType === 'MULTI_STEP' && Array.isArray(reg.steps) && reg.steps.length > 0)
+        || (Array.isArray(reg.formSchema) && reg.formSchema.length > 0);
+    const registrationModeOk = ['internal_form', 'organizer_qr'].includes(regMode) || hasInAppForm;
+    if (regStatus === 'closed' || !registrationModeOk) {
+        return (
+            <div className="crwdctrl-page crwdctrl-page--flat min-h-dvh flex flex-col items-center justify-center gap-3 px-6">
+                <p className={`text-sm text-center ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Registration is not open for this event.</p>
+                <button type="button" onClick={() => navigate(`/events/${eventId}`)} className="text-[#0ECCEE] text-sm font-semibold">Back to event</button>
+            </div>
+        );
+    }
+
+    if (done) {
+        return (
+            <div className="crwdctrl-page crwdctrl-page--flat min-h-screen flex items-center justify-center px-4">
+                <div className="text-center max-w-md mx-auto p-8 w-full">
+                    <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-6" />
+                    <h1 className={`text-3xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {addedToExisting
+                            ? 'Added to Your Booking!'
+                            : ticketPrice > 0
+                                ? (isOrganizerQr
+                                    ? (reg.qrAutoConfirm ? 'Registration Confirmed!' : 'Payment Proof Submitted!')
+                                    : 'Payment Successful!')
+                                : 'Registration Confirmed!'}
+                    </h1>
+                    <p className={`mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {addedToExisting ? (
+                            <>
+                                Another package was added to your existing booking for{' '}
+                                <span className="text-[#0ECCEE] font-semibold">{title}</span>.
+                            </>
+                        ) : ticketPrice > 0 && !isOrganizerQr ? (
+                            <>
+                                Your payment went through and you're registered for{' '}
+                                <span className="text-[#0ECCEE] font-semibold">{title}</span>.
+                            </>
+                        ) : (
+                            <>
+                        You're registered for <span className="text-[#0ECCEE] font-semibold">{title}</span>.
+                            </>
+                        )}
+                    </p>
+                    <p className={`text-sm mb-6 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                        {isOrganizerQr && ticketPrice > 0 && !reg.qrAutoConfirm
+                            ? 'Your registration is pending organizer approval. You can track status in My Bookings.'
+                            : 'Download your ticket or view all bookings whenever you&apos;re ready.'}
+                    </p>
+                    <div className="flex flex-col gap-3">
+                        {registrationId && (
+                            <button type="button" onClick={() => navigate(`/qr-ticket/${registrationId}?type=event`, { state: { refreshBookings: true } })} className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition">
+                                Download Ticket
+                            </button>
+                        )}
+                        <button type="button" onClick={() => goToBookings(navigate)} className={`w-full py-3.5 rounded-xl font-semibold transition ${registrationId ? (isDark ? 'border border-gray-600 text-gray-200 hover:bg-gray-800' : 'border border-gray-300 text-gray-800 hover:bg-gray-100') : 'text-black bg-[#0ECCEE] hover:opacity-90'}`}>
+                            View My Bookings
+                        </button>
+                        <button type="button" onClick={() => navigate('/events')} className={`w-full py-2.5 rounded-xl text-sm font-medium transition ${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'}`}>
+                            Browse more events
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    const current = allSteps[step];
+    const isPaymentStep = !!current?.payment;
+
+    return (
+        <div className="crwdctrl-page crwdctrl-page--content min-h-dvh pt-[calc(var(--safe-top)+0.5rem)] pb-[max(6rem,var(--safe-bottom)+5rem)]">
+            <PaymentErrorModal
+                open={paymentModal.open}
+                message={paymentModal.message}
+                orderId={paymentModal.orderId}
+                onClose={() => setPaymentModal({ open: false, message: '', orderId: '' })}
+                onRetry={() => { setPaymentModal({ open: false, message: '', orderId: '' }); retryRef.current?.(); }}
+            />
+            <div className="max-w-lg mx-auto px-4 sm:px-6">
+                <div className="flex items-start gap-3 mb-4 pt-10">
+                    <button onClick={back} className={`p-2 rounded-lg shrink-0 mt-1 ${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-200'}`}>
+                        <ArrowLeft className={`w-5 h-5 ${isDark ? 'text-white' : 'text-gray-900'}`} />
+                    </button>
+                    <div className="min-w-0 flex-1">
+                        <h1 className={`text-lg sm:text-xl font-bold leading-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>Register: {title}</h1>
+                        <p className={`text-sm mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{current?.title}</p>
+                        {suggestedCoupon && !isPaymentStep ? (
+                            <p className={`mt-1.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                                isDark ? 'bg-emerald-500/15 text-emerald-300' : 'bg-emerald-50 text-emerald-700'
+                            }`}>
+                                Coupon {suggestedCoupon}
+                                {suggestedCouponLabel ? ` · ${suggestedCouponLabel}` : ''}
+                            </p>
+                        ) : null}
+                    </div>
+                </div>
+
+                {error && (
+                    <div className={`rounded-lg p-3 mb-4 text-sm border ${isDark ? 'bg-red-900/20 border-red-800 text-red-400' : 'bg-red-50 border-red-300 text-red-600'}`}>{error}</div>
+                )}
+
+                {!isAuthed() && (
+                    <div className={`rounded-2xl p-4 mb-4 border text-center ${isDark ? 'bg-[#111213] border-gray-700' : 'bg-white border-gray-100 shadow-md'}`}>
+                        <p className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                            Sign in with Google to continue registration.
+                        </p>
+                        <button type="button" onClick={() => openLogin()} className="px-5 py-2.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition">
+                            Sign in with Google
+                        </button>
+                    </div>
+                )}
+
+                <div className={`space-y-4 ${!isAuthed() ? 'opacity-50 pointer-events-none' : ''}`}>
+                    {/* Progress (trek-style stepper) */}
+                    <div className={`rounded-2xl p-4 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-100 shadow-md'}`}>
+                        <div className="flex items-center justify-between mb-3">
+                            <h3 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Progress</h3>
+                            <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Step {step + 1} of {allSteps.length}</span>
+                        </div>
+                        <div className={`w-full rounded-full h-2 mb-3 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                            <div className="bg-[#0ECCEE] h-2 rounded-full transition-all duration-300" style={{ width: `${((step + 1) / allSteps.length) * 100}%` }} />
+                        </div>
+                        <div className="flex justify-between">
+                            {allSteps.map((s, i) => (
+                                <div key={s.title + i} className="flex flex-col items-center">
+                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
+                                        i === step ? 'bg-[#0ECCEE] text-black'
+                                        : i < step ? 'bg-green-600 text-white'
+                                        : isDark ? 'bg-gray-600 text-gray-300'
+                                        : 'bg-gray-300 text-gray-600'
+                                    }`}>
+                                        {i < step ? '✓' : i + 1}
+                                    </div>
+                                    <span className={`text-xs mt-1 text-center max-w-20 truncate ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{s.title}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Selected package summary — run-club style, shown on every step once chosen */}
+                    {selectedTier && !current?.packageSelect && (
+                        <div className={`rounded-2xl border overflow-hidden ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-100 shadow-md'}`}>
+                            <div className={`px-4 py-3 border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
+                                <p className={`text-[11px] font-semibold uppercase tracking-wider ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                    Registration
+                                </p>
+                                <p className={`text-sm font-semibold mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                    {title}
+                                </p>
+                            </div>
+                            <div className="px-4 py-3 space-y-2.5">
+                                <div className="min-w-0">
+                                    <p className={`text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Package</p>
+                                    <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                        {selectedTier.name}
+                                    </p>
+                                    {selectedTier.description ? (
+                                        <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                            {selectedTier.description}
+                                        </p>
+                                    ) : null}
+                                </div>
+                                {tiersMode && !spectatorPath ? (
+                                <div className={`flex justify-between text-sm py-2 border-t ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
+                                    <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Drivers</span>
+                                    <span className={`font-semibold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                                        {driverCount} {driverCount === 1 ? 'driver' : 'drivers'}
+                                    </span>
+                                </div>
+                                ) : null}
+                                <div className="flex justify-between text-sm">
+                                    <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>{tiersMode ? 'Package fee' : 'Entry fee'}</span>
+                                    <span className={`font-semibold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                                        {packagePrice > 0 ? formatInr(packagePrice) : 'Free'}
+                                    </span>
+                                </div>
+                                {selectedAddOns.map((addOn) => (
+                                    <div key={addOn.id} className="flex justify-between gap-3 text-sm">
+                                        <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>{addOn.name}</span>
+                                        <span className={`font-semibold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                                            +{formatInr(addOn.fee)}
+                                        </span>
+                                    </div>
+                                ))}
+                                {ticketPrice > 0 && breakdown.platformFee > 0 ? (
+                                    <div className="flex justify-between text-sm">
+                                        <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>
+                                            CrwdCtrl platform fee ({platformFeePercent}%)
+                                        </span>
+                                        <span className={`font-semibold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                                            {formatInr(breakdown.platformFee)}
+                                        </span>
+                                    </div>
+                                ) : null}
+                                {ticketPrice > 0 ? (
+                                    <div className={`flex justify-between text-sm pt-2 border-t font-bold text-[#0ECCEE] ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
+                                        <span>Total</span>
+                                        <span>₹{payableAmount.toLocaleString('en-IN')}</span>
+                                    </div>
+                                ) : null}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Package / form step */}
+                    {!isPaymentStep && current?.packageSelect && (
+                        <div className={`rounded-2xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-100 shadow-md'}`}>
+                            <p className={`text-xs mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                {skippingDrive
+                                    ? 'Select a Trackday package.'
+                                    : 'Select your Trackday package. Independence Day Drive is included free.'}
+                                {platformFeePercent > 0 ? ' A CrwdCtrl platform fee is added at checkout for this show.' : ''}
+                            </p>
+                            <div className="space-y-4">
+                                {(() => {
+                                    const groups = [
+                                        {
+                                            key: 'solo',
+                                            title: 'Solo Participant Package',
+                                            note: null,
+                                            tiers: visiblePackages.filter((t) => /solo/i.test(t.name)),
+                                        },
+                                        {
+                                            key: 'trio',
+                                            title: 'Trio Participant Package',
+                                            note: 'Group package — name, phone, email & blood group required for all 3 drivers.',
+                                            tiers: visiblePackages.filter((t) => /trio/i.test(t.name)),
+                                        },
+                                        {
+                                            key: 'quattro',
+                                            title: 'Quattro Participant Package',
+                                            note: 'Group package — name, phone, email & blood group required for all 4 drivers.',
+                                            tiers: visiblePackages.filter((t) => /quattro/i.test(t.name)),
+                                        },
+                                        {
+                                            key: 'penta',
+                                            title: 'Penta Participant Package',
+                                            note: 'Group package — name, phone, email & blood group required for all 5 drivers.',
+                                            tiers: visiblePackages.filter((t) => /penta/i.test(t.name)),
+                                        },
+                                    ];
+                                    const groupedIds = new Set(groups.flatMap((g) => g.tiers.map((t) => t.id)));
+                                    const other = visiblePackages.filter((t) => !groupedIds.has(t.id));
+                                    if (other.length) {
+                                        groups.push({ key: 'other', title: 'Other packages', note: null, tiers: other });
+                                    }
+                                    return groups.filter((g) => g.tiers.length > 0).map((group) => (
+                                        <div key={group.key} className="space-y-2">
+                                            <div>
+                                                <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                    {group.title}
+                                                </p>
+                                                {group.note ? (
+                                                    <p className={`text-[11px] mt-0.5 leading-relaxed ${isDark ? 'text-amber-300/90' : 'text-amber-700'}`}>
+                                                        {group.note}
+                                                    </p>
+                                                ) : null}
+                                            </div>
+                                            {group.tiers.map((tier) => {
+                                                const selected = selectedTierId === tier.id;
+                                                const count = resolveTierParticipantCount(tier);
+                                                const feeLabel = Number(tier.fee) > 0 ? formatInr(tier.fee) : 'Free';
+                                                return (
+                                                    <button
+                                                        key={tier.id}
+                                                        type="button"
+                                                        onClick={() => setSelectedTierId(tier.id)}
+                                                        className={`w-full text-left rounded-xl border px-4 py-3 transition-colors ${
+                                                            selected
+                                                                ? 'border-[#0ECCEE] bg-[#0ECCEE]/10'
+                                                                : isDark
+                                                                    ? 'border-gray-700 bg-[#1D1E20] hover:border-gray-500'
+                                                                    : 'border-gray-200 bg-white hover:border-gray-300'
+                                                        }`}
+                                                    >
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <div className="min-w-0">
+                                                                <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{tier.name}</p>
+                                                                {tier.description ? (
+                                                                    <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                                        {tier.description}
+                                                                    </p>
+                                                                ) : null}
+                                                                {count > 1 ? (
+                                                                    <p className={`text-[11px] mt-1 font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                                                        {count} drivers · details for all required
+                                                                    </p>
+                                                                ) : null}
+                                                            </div>
+                                                            <span className={`shrink-0 text-sm font-bold ${Number(tier.fee) > 0 ? 'text-[#0ECCEE]' : 'text-green-500'}`}>
+                                                                {feeLabel}
+                                                            </span>
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    ));
+                                })()}
+                            </div>
+                        </div>
+                    )}
+
+                    {!isPaymentStep && current?.addOnSelect && (
+                        <div className={`rounded-2xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-100 shadow-md'}`}>
+                            <div className="mb-4">
+                                <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Make your Trackday memorable</p>
+                                <p className={`mt-1 text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    Pick one, both, or skip. Add-on prices are charged once for this booking.
+                                </p>
+                            </div>
+                            <div className="space-y-3">
+                                {addOns.map((addOn) => {
+                                    const selected = selectedAddOnIds.includes(addOn.id);
+                                    return (
+                                        <button
+                                            key={addOn.id}
+                                            type="button"
+                                            aria-pressed={selected}
+                                            onClick={() => {
+                                                setSelectedAddOnIds((currentIds) => selected
+                                                    ? currentIds.filter((id) => id !== addOn.id)
+                                                    : [...currentIds, addOn.id]);
+                                                setCouponInfo(null);
+                                            }}
+                                            className={`w-full rounded-2xl border p-4 text-left transition-all active:scale-[0.99] ${
+                                                selected
+                                                    ? 'border-[#0ECCEE] bg-[#0ECCEE]/10 shadow-[0_0_0_1px_rgba(14,204,238,0.18)]'
+                                                    : isDark
+                                                        ? 'border-gray-700 bg-[#1D1E20] hover:border-gray-500'
+                                                        : 'border-gray-200 bg-gray-50 hover:border-gray-300'
+                                            }`}
+                                        >
+                                            <span className="flex items-start gap-3">
+                                                <span className={`mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md border-2 ${
+                                                    selected
+                                                        ? 'border-[#0ECCEE] bg-[#0ECCEE] text-black'
+                                                        : isDark ? 'border-gray-600' : 'border-gray-300 bg-white'
+                                                }`}>
+                                                    {selected ? <Check size={13} strokeWidth={3} /> : null}
+                                                </span>
+                                                <span className="min-w-0 flex-1">
+                                                    <span className="flex items-start justify-between gap-3">
+                                                        <span className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{addOn.name}</span>
+                                                        <span className="shrink-0 text-sm font-bold text-[#0ECCEE]">+{formatInr(addOn.fee)}</span>
+                                                    </span>
+                                                    {addOn.vehicles ? (
+                                                        <span className={`mt-1 block text-xs font-semibold ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
+                                                            Cars: {addOn.vehicles}
+                                                        </span>
+                                                    ) : null}
+                                                    {addOn.description ? (
+                                                        <span className={`mt-1.5 block text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                                            {addOn.description}
+                                                        </span>
+                                                    ) : null}
+                                                </span>
+                                            </span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            <p className={`mt-4 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                {selectedAddOns.length
+                                    ? `${selectedAddOns.length} selected · ${formatInr(addOnTotal)} added`
+                                    : 'No add-ons selected'}
+                            </p>
+                        </div>
+                    )}
+
+                    {!isPaymentStep && !current?.packageSelect && !current?.addOnSelect && (
+                        <div className={`rounded-2xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-100 shadow-md'}`}>
+                            {current?.description && <p className={`text-xs mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{current.description}</p>}
+                            {(() => {
+                                const discordInvite = getDiscordInviteFromEvent(event);
+                                const hasJoinedDiscordField = (current?.fields || []).some(
+                                    (f) => f.fieldName === 'joined_discord' || /joined.*discord/i.test(f.label || ''),
+                                );
+                                if (!discordInvite || !hasJoinedDiscordField) return null;
+                                return (
+                                    <button
+                                        type="button"
+                                        onClick={() => openExternalUrl(discordInvite)}
+                                        className={`mb-4 w-full flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 border ${
+                                            isDark ? 'bg-[#1D1E20] border-[#5865F2]/40' : 'bg-indigo-50 border-indigo-200'
+                                        }`}
+                                    >
+                                        <span className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                            Join CrwdCtrl Discord
+                                        </span>
+                                        <span className="text-xs font-bold text-[#5865F2]">Open</span>
+                                    </button>
+                                );
+                            })()}
+                            <div className="space-y-4">
+                                {(current?.fields || []).map((field) => (
+                                    <div key={field.id || field.fieldName}>
+                                        {field.type === 'section' ? (
+                                            renderField(field)
+                                        ) : (
+                                            <>
+                                        <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                            {field.label}{field.required && <span className="text-red-400 ml-1">*</span>}
+                                        </label>
+                                        {renderField(field)}
+                                            </>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Payment / confirm step */}
+                    {isPaymentStep && (
+                        ticketPrice > 0 ? (
+                            <RunCheckoutPanel
+                                mode={isOrganizerQr ? 'organizer_qr' : 'cashfree'}
+                                isDark={isDark}
+                                payableAmount={payableAmount}
+                                baseFee={breakdown.totalAmount}
+                                chargePerPerson={ticketPrice}
+                                feePerPerson={packagePrice}
+                                people={1}
+                                feeLabel={tiersMode && selectedTier ? 'Package fee' : 'Entry fee'}
+                                amountHint={
+                                    couponInfo?.couponApplied
+                                        ? `Was ₹${Number(couponInfo.amountBeforeDiscount ?? breakdown.totalAmount).toLocaleString('en-IN')}`
+                                        : selectedTier?.name || 'Registration fee'
+                                }
+                                extraLineItems={[
+                                    selectedTier ? { label: 'Package', value: selectedTier.name } : null,
+                                    tiersMode && selectedTier
+                                        ? { label: 'Drivers', value: `${driverCount} ${driverCount === 1 ? 'driver' : 'drivers'}` }
+                                        : null,
+                                    ...selectedAddOns.map((addOn) => ({
+                                        label: addOn.name,
+                                        value: `₹${addOn.fee.toLocaleString('en-IN')}`,
+                                    })),
+                                    breakdown.platformFee > 0
+                                        ? {
+                                            label: `CrwdCtrl platform fee (${platformFeePercent}%)`,
+                                            value: `₹${breakdown.platformFee}`,
+                                            tone: 'muted',
+                                        }
+                                        : null,
+                                ].filter(Boolean)}
+                                showCoupon={couponsEnabled}
+                                couponInfo={couponInfo}
+                                couponCode={couponCode}
+                                couponLoading={couponLoading}
+                                couponError={couponError}
+                                suggestedCoupon={suggestedCoupon}
+                                suggestedCouponLabel={suggestedCouponLabel}
+                                onCouponCodeChange={(v) => {
+                                    setCouponCode(v);
+                                    setCouponInfo(null);
+                                    setCouponError('');
+                                }}
+                                onApplyCoupon={(code) => applyCoupon(code)}
+                                onClearCoupon={() => {
+                                    setCouponInfo(null);
+                                    setCouponCode(suggestedCoupon || '');
+                                    setCouponError('');
+                                    autoAppliedCouponRef.current = '';
+                                }}
+                                paymentQR={reg.paymentQR}
+                                paymentUpiId={reg.paymentUpiId}
+                                paymentQRMessage={reg.paymentQRMessage}
+                                qrAutoConfirm={Boolean(reg.qrAutoConfirm)}
+                                approverLabel="organizer"
+                                upiCopied={upiCopied}
+                                onCopyUpi={async () => {
+                                    if (!reg.paymentUpiId) return;
+                                    try {
+                                        await navigator.clipboard.writeText(reg.paymentUpiId);
+                                        setUpiCopied(true);
+                                        window.setTimeout(() => setUpiCopied(false), 2000);
+                                    } catch { /* ignore */ }
+                                }}
+                                paymentScreenshotUrl={paymentScreenshotUrl}
+                                uploadingProof={uploadingProof}
+                                onUploadScreenshot={uploadPaymentProof}
+                                onRemoveScreenshot={() => setPaymentScreenshotUrl('')}
+                                transactionId={transactionId}
+                                onTransactionIdChange={(v) => setTransactionId(String(v || '').toUpperCase().replace(/\s+/g, ''))}
+                                txnHint="Paste the UTR from GPay / PhonePe / Paytm so the organizer can match it."
+                            />
+                        ) : (
+                        <div className={`rounded-2xl overflow-hidden border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-100 shadow-md'}`}>
+                            <div className={`px-4 py-3.5 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
+                                <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Confirm Registration</p>
+                                    </div>
+                            <div className={`px-4 py-4 border-t ${isDark ? 'border-gray-700/60' : 'border-gray-200'}`}>
+                                <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                    {driveOnlyPath
+                                        ? 'Independence Day Drive only — free. Confirm to finish registration (no payment).'
+                                        : 'This registration is free. Click confirm to complete.'}
+                                </p>
+                                        </div>
+                                </div>
+                        )
+                    )}
+
+                    {/* Nav buttons */}
+                    <div className={`flex flex-col sm:flex-row gap-3 p-4 rounded-2xl border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-100 shadow-md'}`}>
+                        <button type="button" onClick={back} disabled={paying} className={`px-4 sm:px-6 py-3 rounded-xl border font-medium text-sm ${isDark ? 'border-gray-700 text-white hover:bg-gray-800/60' : 'border-gray-300 text-gray-900 hover:bg-gray-100'}`}>
+                            {step === 0 ? 'Cancel' : 'Previous'}
+                        </button>
+                        {isPaymentStep || (spectatorPath && step === allSteps.length - 1) ? (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (spectatorPath && !isPaymentStep) {
+                                        setError('');
+                                        if (!isAuthed()) { openLogin(); setError('Please log in to register.'); return; }
+                                        if (!validateStep(step)) return;
+                                    }
+                                    handleFinalSubmit();
+                                }}
+                                disabled={paying}
+                                className="flex-1 px-4 sm:px-6 py-3 rounded-xl bg-[#0ECCEE] text-black font-bold hover:opacity-90 active:scale-[0.98] transition-all text-sm flex items-center justify-center gap-2 disabled:opacity-60"
+                            >
+                                {paying ? (<><Loader className="w-4 h-4 animate-spin" /> Processing...</>) : ticketPrice > 0
+                                    ? (isOrganizerQr
+                                        ? (payableAmount <= 0
+                                            ? 'Confirm Registration'
+                                            : (reg.qrAutoConfirm ? 'Submit Payment Proof & Register' : 'Submit Proof for Approval'))
+                                        : `Pay ₹${payableAmount.toLocaleString('en-IN')} & Register`)
+                                    : 'Register'}
+                            </button>
+                        ) : (
+                            <button type="button" onClick={next} disabled={paying} className="flex-1 px-4 sm:px-6 py-3 rounded-xl bg-[#0ECCEE] text-black font-bold hover:opacity-90 active:scale-[0.98] transition-all text-sm">
+                                Next Step
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {showLogin && (
+                <div className="fixed inset-0 z-50">
+                    <CrwdCtrlLogin
+                        googleOnly
+                        title="Sign in to register"
+                        subtitle="Tap Sign in with Google — then pick your package"
+                        onClose={() => setShowLogin(false)}
+                    />
+                </div>
+            )}
+            {showRegister && (
+                <div className="fixed inset-0 z-50">
+                    <CrwdCtrlRegister onClose={() => setShowRegister(false)} onSwitchToLogin={() => { setShowRegister(false); openLogin(); }} />
+                </div>
+            )}
+        </div>
+    );
+}

@@ -7,6 +7,7 @@ import {
 import { getCardSizeProps, getCardSizeShortLabel } from '../../utils/homeCardSize';
 import { TARGET_PAGE_OPTIONS, groupSectionsByPage } from '../../utils/pageSections';
 import { buildPageCarouselItems } from '../../utils/homeCarouselItems';
+import FeaturedEntityPicker, { buildFeaturedEntityOptions, resolveFeaturedEntityLabel } from './FeaturedEntityPicker';
 
 const PAGE_TAB_ICONS = {
     home: '🏠',
@@ -67,6 +68,7 @@ function getAssignTab(targetPage) {
     if (targetPage === 'home') return 'fests';
     if (targetPage === 'treks') return 'treks';
     if (targetPage === 'sports') return 'runs';
+    if (targetPage === 'events') return 'eventcomms';
     return 'fests';
 }
 
@@ -77,13 +79,30 @@ export default function SectionListByPage({
     comms,
     sports,
     runClubs,
+    eventShows = [],
     saving,
     onUpdate,
     onTitleDraft,
     onDelete,
     onReorder,
 }) {
+    const entityCatalogs = useMemo(
+        () => ({ fests, eventShows, treks, communities: comms, sports, runClubs }),
+        [fests, eventShows, treks, comms, sports, runClubs],
+    );
+
+    const sectionFeaturedGroups = useMemo(
+        () => buildFeaturedEntityOptions(entityCatalogs),
+        [entityCatalogs],
+    );
+
+    const heroFeaturedGroups = useMemo(
+        () => buildFeaturedEntityOptions({ ...entityCatalogs, allowedTypes: ['fest', 'events'] }),
+        [entityCatalogs],
+    );
+
     const grouped = groupSectionsByPage(sections);
+
     const pagesWithSections = useMemo(
         () => TARGET_PAGE_OPTIONS.filter((p) => (grouped[p.value] || []).length > 0),
         [grouped],
@@ -115,7 +134,7 @@ export default function SectionListByPage({
 
     const totalCards = sections.reduce((sum, section) => {
         const count = buildPageCarouselItems(
-            fests, treks, comms, section.targetPage || 'home', section.slug, sports, runClubs,
+            fests, treks, comms, section.targetPage || 'home', section.slug, sports, runClubs, eventShows,
         ).length;
         return sum + count;
     }, 0);
@@ -165,13 +184,15 @@ export default function SectionListByPage({
             <div className="space-y-2.5">
                 {pageSections.map((section, index) => {
                     const items = buildPageCarouselItems(
-                        fests, treks, comms, section.targetPage || 'home', section.slug, sports, runClubs,
+                        fests, treks, comms, section.targetPage || 'home', section.slug, sports, runClubs, eventShows,
                     );
                     const isDragging = dnd.draggedIndex === index;
                     const isOver = dnd.overIndex === index && dnd.draggedIndex !== index;
                     const pageOpt = TARGET_PAGE_OPTIONS.find((p) => p.value === section.targetPage);
                     const isHidden = section.enabled === false;
-                    const needsContent = items.length === 0;
+                    const needsContent = items.length === 0 && !section.featuredItem?.entityId;
+                    const supportsFeaturedPick = section.cardSize === 'hero' || section.cardSize === 'trending';
+                    const featuredLabel = resolveFeaturedEntityLabel(section.featuredItem, entityCatalogs);
 
                     return (
                         <div
@@ -231,6 +252,21 @@ export default function SectionListByPage({
                                             </button>
                                             <SaveDot state={saving[`section-${section._id}`]} />
                                         </div>
+
+                                        {supportsFeaturedPick && (
+                                            <div className="max-w-md">
+                                                <label className="block text-[10px] text-gray-500 mb-1">
+                                                    {section.cardSize === 'hero' ? 'Featured hero item' : 'Featured lead item'}
+                                                    {featuredLabel ? ` · ${featuredLabel}` : ''}
+                                                </label>
+                                                <FeaturedEntityPicker
+                                                    value={section.featuredItem}
+                                                    onChange={(featuredItem) => onUpdate(section._id, { featuredItem })}
+                                                    groups={section.cardSize === 'hero' ? heroFeaturedGroups : sectionFeaturedGroups}
+                                                    placeholder="— Pick one item —"
+                                                />
+                                            </div>
+                                        )}
 
                                         <div className="flex flex-wrap gap-2">
                                             <Link

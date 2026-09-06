@@ -4,9 +4,25 @@
   "outputDirectory": "dist",
   "env": {
     "VITE_API_BASE_URL": "https://crwdctrl-production-9c58.up.railway.app/api",
+    "VITE_PUBLIC_WEB_URL": "https://www.crwdctrl.in",
     "VITE_API_TIMEOUT": "45000",
+    "VITE_APP_NAME": "CrwdCtrl",
+    "VITE_APP_VERSION": "1.1.2",
     "VITE_APP_ENVIRONMENT": "production",
-    "VITE_CASHFREE_MODE": "production",
+    "VITE_JWT_TOKEN_KEY": "crwdctrl_token",
+    "VITE_SESSION_TIMEOUT": "86400000",
+    "VITE_ENABLE_NOTIFICATIONS": "true",
+    "VITE_ENABLE_DARK_MODE": "true",
+    "VITE_ENABLE_FAVORITES": "true",
+    "VITE_ENABLE_CAMPUS_HUNT": "true",
+    "VITE_MAX_FILE_SIZE": "5242880",
+    "VITE_ALLOWED_FILE_TYPES": "image/jpeg,image/png,image/gif,application/pdf",
+    "VITE_DEFAULT_PAGE_SIZE": "10",
+    "VITE_MAX_PAGE_SIZE": "50",
+    "VITE_MIN_SEARCH_LENGTH": "3",
+    "VITE_SEARCH_DEBOUNCE_TIME": "300",
+    "VITE_DEFAULT_LATITUDE": "28.6139",
+    "VITE_DEFAULT_LONGITUDE": "77.2090",
     "VITE_FIREBASE_API_KEY": "AIzaSyDoyaNIB6GPi4mfn9Wi1YT5rL3o_A-3N9A",
     "VITE_FIREBASE_AUTH_DOMAIN": "crwdctrl.firebaseapp.com",
     "VITE_FIREBASE_PROJECT_ID": "crwdctrl",
@@ -14,14 +30,37 @@
     "VITE_FIREBASE_MESSAGING_SENDER_ID": "420309062914",
     "VITE_FIREBASE_APP_ID": "1:420309062914:web:73bb8e49df575f90dd9e1b",
     "VITE_FIREBASE_MEASUREMENT_ID": "G-V080C13RPJ",
-    "VITE_FIREBASE_VAPID_KEY": "BM9MVSbTORq4oGhfCR8wvd5PAYZd_rORlqPGinjRTsbnyHE2FHy7rfMFSYpcOs_x4igmITWvKn0Iwdkv0KjFTkA"
+    "VITE_FIREBASE_VAPID_KEY": "BM9MVSbTORq4oGhfCR8wvd5PAYZd_rORlqPGinjRTsbnyHE2FHy7rfMFSYpcOs_x4igmITWvKn0Iwdkv0KjFTkA",
+    "VITE_GOOGLE_CLIENT_ID": "420309062914-j6dbv1ktutqut1som8b7dfr733v67ib5.apps.googleusercontent.com",
+    "VITE_GOOGLE_ANALYTICS_ID": "G-V080C13RPJ",
+    "VITE_SENTRY_DSN": "https://1116f9b504d334b0afb79338678aaf4c@o4511535166062592.ingest.us.sentry.io/4511535172222976",
+    "VITE_RECAPTCHA_SITE_KEY": "6Ld9rDgtAAAAAGn68BVsVWDp-c5yxqPJkMHz3d_K",
+    "VITE_CACHE_DURATION": "600000",
+    "VITE_IMAGE_CACHE_DURATION": "7200000",
+    "VITE_CASHFREE_MODE": "production"
   },
   "build": {
     "env": {
       "VITE_API_BASE_URL": "https://crwdctrl-production-9c58.up.railway.app/api",
+      "VITE_PUBLIC_WEB_URL": "https://www.crwdctrl.in",
       "VITE_API_TIMEOUT": "45000",
+      "VITE_APP_NAME": "CrwdCtrl",
+      "VITE_APP_VERSION": "1.1.2",
       "VITE_APP_ENVIRONMENT": "production",
-      "VITE_CASHFREE_MODE": "production",
+      "VITE_JWT_TOKEN_KEY": "crwdctrl_token",
+      "VITE_SESSION_TIMEOUT": "86400000",
+      "VITE_ENABLE_NOTIFICATIONS": "true",
+      "VITE_ENABLE_DARK_MODE": "true",
+      "VITE_ENABLE_FAVORITES": "true",
+      "VITE_ENABLE_CAMPUS_HUNT": "true",
+      "VITE_MAX_FILE_SIZE": "5242880",
+      "VITE_ALLOWED_FILE_TYPES": "image/jpeg,image/png,image/gif,application/pdf",
+      "VITE_DEFAULT_PAGE_SIZE": "10",
+      "VITE_MAX_PAGE_SIZE": "50",
+      "VITE_MIN_SEARCH_LENGTH": "3",
+      "VITE_SEARCH_DEBOUNCE_TIME": "300",
+      "VITE_DEFAULT_LATITUDE": "28.6139",
+      "VITE_DEFAULT_LONGITUDE": "77.2090",
       "VITE_FIREBASE_API_KEY": "AIzaSyDoyaNIB6GPi4mfn9Wi1YT5rL3o_A-3N9A",
       "VITE_FIREBASE_AUTH_DOMAIN": "crwdctrl.firebaseapp.com",
       "VITE_FIREBASE_PROJECT_ID": "crwdctrl",
@@ -29,13 +68,78 @@
       "VITE_FIREBASE_MESSAGING_SENDER_ID": "420309062914",
       "VITE_FIREBASE_APP_ID": "1:420309062914:web:73bb8e49df575f90dd9e1b",
       "VITE_FIREBASE_MEASUREMENT_ID": "G-V080C13RPJ",
-      "VITE_FIREBASE_VAPID_KEY": "BM9MVSbTORq4oGhfCR8wvd5PAYZd_rORlqPGinjRTsbnyHE2FHy7rfMFSYpcOs_x4igmITWvKn0Iwdkv0KjFTkA"
+      "VITE_FIREBASE_VAPID_KEY": "BM9MVSbTORq4oGhfCR8wvd5PAYZd_rORlqPGinjRTsbnyHE2FHy7rfMFSYpcOs_x4igmITWvKn0Iwdkv0KjFTkA",
+      "VITE_GOOGLE_CLIENT_ID": "420309062914-j6dbv1ktutqut1som8b7dfr733v67ib5.apps.googleusercontent.com",
+      "VITE_GOOGLE_ANALYTICS_ID": "G-V080C13RPJ",
+      "VITE_SENTRY_DSN": "https://1116f9b504d334b0afb79338678aaf4c@o4511535166062592.ingest.us.sentry.io/4511535172222976",
+      "VITE_RECAPTCHA_SITE_KEY": "6Ld9rDgtAAAAAGn68BVsVWDp-c5yxqPJkMHz3d_K",
+      "VITE_CACHE_DURATION": "600000",
+      "VITE_IMAGE_CACHE_DURATION": "7200000",
+      "VITE_CASHFREE_MODE": "production"
     }
   },
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" },
+        { "key": "Cross-Origin-Resource-Policy", "value": "cross-origin" }
+      ]
+    },
+    {
+      "source": "/favicon.ico",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400" },
+        { "key": "Content-Type", "value": "image/x-icon" }
+      ]
+    },
+    {
+      "source": "/favicon.png",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400" }
+      ]
+    },
+    {
+      "source": "/favicon-48x48.png",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400" }
+      ]
+    },
+    {
+      "source": "/icon-192x192.png",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400" }
+      ]
+    },
+    {
+      "source": "/icon-512x512.png",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400" }
+      ]
+    }
+  ],
   "rewrites": [
     {
-      "source": "/((?!assets/).*)",
+      "source": "/api/:path*",
+      "destination": "https://crwdctrl-production-9c58.up.railway.app/api/:path*"
+    },
+    {
+      "source": "/((?!api/|assets/|favicon\\.ico|favicon\\.png|favicon-48x48\\.png|icon-192x192\\.png|icon-512x512\\.png|logo-crwdctrl\\.png|crwdctrl-mark\\.png|robots\\.txt|sitemap\\.xml|llms\\.txt|manifest\\.webmanifest|offline-hunt\\.webmanifest|firebase-messaging-sw\\.js).*)",
       "destination": "/index.html"
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/run-club-organizer/login",
+      "has": [{ "type": "query", "key": "hub", "value": "events" }],
+      "destination": "/event-community-organizer/login",
+      "permanent": false
+    },
+    {
+      "source": "/run-club-organizer/signup",
+      "has": [{ "type": "query", "key": "hub", "value": "events" }],
+      "destination": "/event-community-organizer/signup",
+      "permanent": false
     }
   ]
 }

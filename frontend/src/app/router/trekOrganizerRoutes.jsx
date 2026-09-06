@@ -1,0 +1,41 @@
+import { Route, Navigate, useParams } from 'react-router-dom';
+import {
+    TrekOrganizerLoginPage,
+    TrekOrganizerSignupPage,
+    TrekOrganizerLayout,
+    TrekOrganizerProtectedRoute,
+    TrekOrganizerHomePage,
+    TrekOrganizerCustomersPage,
+    TrekOrganizerDashboardPage,
+    TrekOrganizerParticipantsPage,
+    TrekOrganizerScanPage,
+    TrekOrganizerNotificationsPage,
+} from './lazyPages';
+
+function TrekScopedCustomersRedirect() {
+    const { trekId } = useParams();
+    return <Navigate to={`/trek-organizer/treks/${trekId}/participants`} replace />;
+}
+
+export const trekOrganizerRoutes = (
+    <>
+        <Route path="/trek-organizer/login" element={<TrekOrganizerLoginPage />} />
+        <Route path="/trek-organizer/signup" element={<TrekOrganizerSignupPage />} />
+        <Route
+            path="/trek-organizer"
+            element={
+                <TrekOrganizerProtectedRoute>
+                    <TrekOrganizerLayout />
+                </TrekOrganizerProtectedRoute>
+            }
+        >
+            <Route index element={<TrekOrganizerHomePage />} />
+            <Route path="customers" element={<TrekOrganizerCustomersPage />} />
+            <Route path="treks/:trekId" element={<TrekOrganizerDashboardPage />} />
+            <Route path="treks/:trekId/customers" element={<TrekScopedCustomersRedirect />} />
+            <Route path="treks/:trekId/participants" element={<TrekOrganizerParticipantsPage />} />
+            <Route path="treks/:trekId/scan" element={<TrekOrganizerScanPage />} />
+            <Route path="treks/:trekId/notifications" element={<TrekOrganizerNotificationsPage />} />
+        </Route>
+    </>
+);

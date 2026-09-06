@@ -7,6 +7,11 @@ import { authService } from '../../services/authService';
 import { signInWithGoogle, signInWithFacebook } from '../../firebase';
 import { processSocialAuthUser } from '../../utils/socialAuth';
 import { withFirebaseIdToken } from '../../utils/firebaseIdToken';
+import OpenInBrowserModal from '../../components/OpenInBrowserModal';
+import {
+    detectInAppBrowserName,
+    isLikelyInAppBrowser,
+} from '../../utils/openInExternalBrowser';
 
 export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
     const [showPassword, setShowPassword] = useState(false);
@@ -20,6 +25,8 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
     const [showSocialFields, setShowSocialFields] = useState(false);
     const [socialAuthData, setSocialAuthData] = useState(null);
     const [authProvider, setAuthProvider] = useState('');
+    const [showOpenBrowserSheet, setShowOpenBrowserSheet] = useState(false);
+    const [inAppBrowserName, setInAppBrowserName] = useState('this app');
     const { login, isAuthenticated, user } = useAuth();
     const { isDark } = useDarkMode();
     const navigate = useNavigate();
@@ -173,6 +180,13 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
 
     // Google Social Auth Handler (for registration)
     const handleGoogleAuth = async () => {
+        if (isLikelyInAppBrowser()) {
+            setInAppBrowserName(detectInAppBrowserName());
+            setShowOpenBrowserSheet(true);
+            setErrors({});
+            return;
+        }
+
         setIsLoading(true);
         setErrors({});
 
@@ -192,6 +206,13 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
             }
 
             if (!result.success || !result.user) {
+                if (result.showOpenInBrowser || result.isInAppBrowser) {
+                    setInAppBrowserName(result.appName || detectInAppBrowserName());
+                    setShowOpenBrowserSheet(true);
+                    setErrors({});
+                    setIsLoading(false);
+                    return;
+                }
                 setErrors({ general: result.error || 'Google authentication failed. Please try again.' });
                 setIsLoading(false);
                 return;
@@ -211,43 +232,19 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
 
         } catch (error) {
             console.error('❌ [REGISTER] Google auth error:', error);
-            console.error('❌ [REGISTER] Error details:', {
-                message: error?.message,
-                isInAppBrowser: error?.isInAppBrowser,
-                showOpenInBrowser: error?.showOpenInBrowser
-            });
-            
             const errorStr = error?.message || '';
             
-            // Check for in-app browser error (Instagram, Facebook, TikTok, etc.)
             if (error?.isInAppBrowser || error?.showOpenInBrowser || errorStr.includes('in-app-browser') || errorStr.includes('Open in Chrome') || errorStr.includes('Open in Safari')) {
-                setErrors({ 
-                    general: errorStr || 'Google Sign-In is blocked in this browser. Please open in Chrome or Safari.',
-                    showOpenInBrowser: true,
-                    errorDetails: error?.errorDetails || {
-                        icon: '📱',
-                        title: 'Browser Limitation',
-                        suggestion: 'Google Sign-In requires a full browser',
-                        instructions: 'Tap the ⋮ or ⋯ menu and select "Open in Browser" or "Open in Chrome/Safari"'
-                    },
-                    openInBrowser: error?.openInBrowserUrl || window.location.href
-                });
+                setInAppBrowserName(error?.appName || detectInAppBrowserName());
+                setShowOpenBrowserSheet(true);
+                setErrors({});
             } else if (!errorStr || errorStr === '[object Object]') {
-                // Empty error - likely in-app browser blocking silently
                 const ua = navigator.userAgent || '';
                 const isInApp = /Instagram|FBAN|FBAV|TikTok|WhatsApp/i.test(ua);
                 if (isInApp) {
-                    setErrors({ 
-                        general: 'Google Sign-In is blocked in this browser. Please tap the ⋯ menu and select "Open in Chrome" or "Open in Safari".',
-                        showOpenInBrowser: true,
-                        errorDetails: {
-                            icon: '📱',
-                            title: 'Browser Limitation',
-                            suggestion: 'Google Sign-In requires a full browser',
-                            instructions: 'Tap the ⋮ or ⋯ menu and select "Open in Browser"'
-                        },
-                        openInBrowser: window.location.href
-                    });
+                    setInAppBrowserName(detectInAppBrowserName());
+                    setShowOpenBrowserSheet(true);
+                    setErrors({});
                 } else {
                     setErrors({ general: errorStr || 'Google sign-in failed. Please try again.' });
                 }
@@ -314,6 +311,12 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
 
     return (
         <>
+            <OpenInBrowserModal
+                open={showOpenBrowserSheet}
+                onClose={() => setShowOpenBrowserSheet(false)}
+                appName={inAppBrowserName}
+                isDark={isDark}
+            />
             {/* Background overlay with blur - only show for modal */}
             {isModal && (
                 <div className={`fixed inset-0 backdrop-blur-sm ${isDark ? 'bg-black/85' : 'bg-white/85'}`} onClick={handleClose}></div>

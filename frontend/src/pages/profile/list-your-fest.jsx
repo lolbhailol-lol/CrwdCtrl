@@ -1,16 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import Sidebar from '../../components/Sidebar';
-import Navbar from '../../components/Navbar';
-import ProfileSidebar from '../../components/ProfileSidebar';
+import Sidebar from '../../components/layout/Sidebar';
+import Navbar from '../../components/layout/Navbar';
+import ProfileSidebar from '../../components/layout/ProfileSidebar';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { ArrowLeft, CheckCircle } from 'lucide-react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
+import { useInAppBack } from '../../hooks/useInAppBack';
 import CrwdCtrlLogin from '../auth/login';
 import CrwdCtrlRegister from '../auth/register';
+import Seo from '../../components/Seo';
+import { breadcrumbSchema, webPageSchema } from '../../utils/seo';
+
+const LIST_FEST_DESCRIPTION =
+    'List your college fest, competition, trek or event on CrwdCtrl. Reach thousands of students, manage registrations, and grow your audience for free.';
 
 function ListYourFest() {
     const { isDark } = useDarkMode();
-    const navigate = useNavigate();
+    const goBack = useInAppBack();
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [showLogin, setShowLogin] = useState(false);
     const [showRegister, setShowRegister] = useState(false);
@@ -178,13 +184,26 @@ function ListYourFest() {
 
     return (
         <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex transition-colors duration-300">
+            <Seo
+                title="List Your Fest or Event"
+                description={LIST_FEST_DESCRIPTION}
+                canonical="/list-your-fest"
+                keywords="list your fest, list event, organizer, host fest, promote college fest"
+                jsonLd={[
+                    webPageSchema({ name: 'List Your Fest on CrwdCtrl', description: LIST_FEST_DESCRIPTION, url: '/list-your-fest' }),
+                    breadcrumbSchema([
+                        { name: 'Home', path: '/' },
+                        { name: 'List Your Fest', path: '/list-your-fest' },
+                    ]),
+                ]}
+            />
             <div className={`flex flex-1 flex-col transition-all duration-300 ${isProfileOpen ? 'blur-sm' : ''}`}>
 
                 {/* Back Navigation */}
                 <main className="flex-1">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-4">
                         <button
-                            onClick={() => navigate(-1)}
+                            onClick={goBack}
                             className={`flex items-center space-x-2 ${isDark ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'} transition mb-4`}
                         >
                             <ArrowLeft className="w-5 h-5" />

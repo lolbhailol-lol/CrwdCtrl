@@ -1,12 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Loader, RefreshCw, Search } from 'lucide-react';
+import { QrCode, RefreshCw, Search, Upload } from 'lucide-react';
 import CompetitionModal from '../../components/admin/Competition_Modal';
-import { adminFetchJSON } from '../../utils/adminApi';
+import CompetitionBulkImport from '../../components/admin/CompetitionBulkImport';
+import CompetitionCheckinQrPrint from '../../components/admin/CompetitionCheckinQrPrint';
+import { adminFetchJSON } from '../../services/api/admin.api.js';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 
 export default function CompetitionsPage() {
   const [fests, setFests] = useState([]);
   const [selectedFest, setSelectedFest] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [showBulkImport, setShowBulkImport] = useState(false);
+  const [showQrPrint, setShowQrPrint] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
@@ -44,7 +49,7 @@ export default function CompetitionsPage() {
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-3xl font-bold mb-2">Competition Management</h1>
-          <p className="text-gray-400">Manage competitions across all fests</p>
+          <p className="text-gray-400">Manage competitions, then print check-in QRs to hand to organizers</p>
         </div>
         <button
           type="button"
@@ -82,9 +87,7 @@ export default function CompetitionsPage() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-16 text-gray-400">
-            <Loader className="w-6 h-6 animate-spin text-[#0ECCEE]" />
-          </div>
+          <InlinePageLoader label="Loading fests…" variant="fest" minHeight={false} />
         ) : filteredFests.length === 0 ? (
           <div className="text-center py-12 text-gray-400">
             {fests.length === 0
@@ -94,24 +97,52 @@ export default function CompetitionsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredFests.map((fest) => (
-              <button
+              <div
                 key={fest._id}
-                type="button"
-                className="text-left bg-[#1D1E20] p-4 rounded-lg border border-gray-700 hover:border-[#0ECCEE] transition-colors"
-                onClick={() => {
-                  setSelectedFest(fest);
-                  setShowModal(true);
-                }}
+                className="bg-[#1D1E20] p-4 rounded-lg border border-gray-700 hover:border-[#0ECCEE] transition-colors"
               >
-                <h3 className="font-semibold text-lg mb-2">{fest.festName}</h3>
-                <p className="text-gray-400 text-sm">{fest.collegeName}</p>
-                <div className="flex items-center justify-between mt-2">
-                  <p className="text-gray-500 text-xs capitalize">{fest.festType}</p>
-                  <p className="text-xs text-[#0ECCEE]">
-                    {fest.competitions?.length || 0} competition{(fest.competitions?.length || 0) === 1 ? '' : 's'}
-                  </p>
+                <button
+                  type="button"
+                  className="text-left w-full"
+                  onClick={() => {
+                    setSelectedFest(fest);
+                    setShowModal(true);
+                  }}
+                >
+                  <h3 className="font-semibold text-lg mb-2">{fest.festName}</h3>
+                  <p className="text-gray-400 text-sm">{fest.collegeName}</p>
+                  <div className="flex items-center justify-between mt-2">
+                    <p className="text-gray-500 text-xs capitalize">{fest.festType}</p>
+                    <p className="text-xs text-[#0ECCEE]">
+                      {fest.competitions?.length || 0} competition{(fest.competitions?.length || 0) === 1 ? '' : 's'}
+                    </p>
+                  </div>
+                </button>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedFest(fest);
+                      setShowQrPrint(true);
+                    }}
+                    className="flex items-center justify-center gap-1.5 rounded-lg border border-gray-700 px-3 py-2 text-xs text-gray-300 hover:border-[#0ECCEE] hover:text-[#0ECCEE] transition-colors"
+                  >
+                    <QrCode size={14} />
+                    Print QRs
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedFest(fest);
+                      setShowBulkImport(true);
+                    }}
+                    className="flex items-center justify-center gap-1.5 rounded-lg border border-gray-700 px-3 py-2 text-xs text-gray-300 hover:border-[#0ECCEE] hover:text-[#0ECCEE] transition-colors"
+                  >
+                    <Upload size={14} />
+                    Import
+                  </button>
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         )}
@@ -122,6 +153,29 @@ export default function CompetitionsPage() {
           fest={selectedFest}
           onClose={() => {
             setShowModal(false);
+            setSelectedFest(null);
+          }}
+        />
+      )}
+
+      {showBulkImport && selectedFest && (
+        <CompetitionBulkImport
+          fest={selectedFest}
+          onClose={() => {
+            setShowBulkImport(false);
+            setSelectedFest(null);
+          }}
+          onImported={() => {
+            fetchFests();
+          }}
+        />
+      )}
+
+      {showQrPrint && selectedFest && (
+        <CompetitionCheckinQrPrint
+          fest={selectedFest}
+          onClose={() => {
+            setShowQrPrint(false);
             setSelectedFest(null);
           }}
         />

@@ -2,8 +2,12 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Upload, Loader, CheckCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { openCashfreeCheckout, buildVerifiedPaymentFields } from '../../utils/useCashfree';
+import { openCashfreeCheckout, buildVerifiedPaymentFields, classifyCheckoutError } from '../../utils/useCashfree';
+import PaymentErrorModal from '../../components/PaymentErrorModal';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
+import { RegistrationStatusVisual } from '../../components/RegistrationStatusVisual';
 import {
+    discardStalePaymentRecovery,
     getPendingPayment,
     clearPendingPayment,
     isTrekPaymentPending,
@@ -12,6 +16,8 @@ import {
 import {
     goToBookings,
     verifyPaymentWithRetry,
+    classifyVerifyError,
+    clearCashfreeReturnAndPending,
 } from '../../utils/paymentNavigation';
 import {
     applyRegistrationDraft,
@@ -26,12 +32,17 @@ import {
     hasUsableAuthToken,
     resolveAuthToken,
 } from '../../utils/authToken';
+import { useRegistrationSuccessPopup } from '../../hooks/useSuccessPopup';
+import { finalizeCompetitionAfterPayment } from '../../utils/competitionPaymentComplete';
 
 // Configure API base URL - HARDCODED FOR PRODUCTION FIX
 import { fetchPaymentQuote } from '../../services/api/payment.api';
 import { API_BASE_URL } from '../../services/api/client';
+import { useInAppBack } from '../../hooks/useInAppBack';
+import { competitionRegistrationPath } from '../../utils/slugRoutes';
 
-function getInitialCompetitionRegistrationUi(pathname, search) {
+function getInitialCompetitionRegistrationUi(pathname, search, navigationState = null) {
+    discardStalePaymentRecovery({ pathname, search, navigationState });
     const currentPath = `${pathname}${search}`;
     const resumingPayment = shouldResumePendingPayment(
         getPendingPayment(),
@@ -44,11 +55,24 @@ function getInitialCompetitionRegistrationUi(pathname, search) {
 export default function CompetitionRegistration() {
     const { competitionId } = useParams();
     const navigate = useNavigate();
+    const goBack = useInAppBack();
     const location = useLocation();
     const paymentResumeRef = useRef(false);
     const handleSubmitRef = useRef(null);
+    const retryCheckoutRef = useRef(null);
     const draftKey = competitionRegDraftKey(competitionId);
-    const initialUi = getInitialCompetitionRegistrationUi(location.pathname, location.search);
+
+    const restoreRegistrationDraft = () => {
+        const draft = loadRegistrationDraft(draftKey);
+        if (!draft) return;
+        applyRegistrationDraft(draft, {
+            setFormData,
+            setStepData,
+            setCurrentStep,
+            setCompletedSteps,
+        });
+    };
+    const initialUi = getInitialCompetitionRegistrationUi(location.pathname, location.search, location.state);
     const {
         isAuthenticated,
         isLoading: authLoading,
@@ -78,9 +102,10 @@ export default function CompetitionRegistration() {
     const [paymentFields, setPaymentFields] = useState(null);
     const [paymentReceiptUrl] = useState('');
     const [transactionId] = useState('');
-    const [pendingAutoSubmit, setPendingAutoSubmit] = useState(false);
+    const [paymentResumeError, setPaymentResumeError] = useState('');
     // True once we've waited long enough for Firebase -> backend JWT sync to finish
     const [authSyncExpired, setAuthSyncExpired] = useState(false);
+    const [paymentModal, setPaymentModal] = useState({ open: false, message: '', orderId: '' });
 
     useEffect(() => {
         if (!firebaseUser || resolveAuthToken(token)) {
@@ -90,6 +115,12 @@ export default function CompetitionRegistration() {
         const timer = setTimeout(() => setAuthSyncExpired(true), 5000);
         return () => clearTimeout(timer);
     }, [firebaseUser, token]);
+
+    useRegistrationSuccessPopup(success, {
+        name: competition?.name,
+        link: registrationId ? `/qr-ticket/${registrationId}` : '/booking',
+        paid: Boolean(paymentFields),
+    });
 
     // Helper function to generate consistent field IDs
     const generateFieldId = (field) => {
@@ -259,6 +290,14 @@ export default function CompetitionRegistration() {
     }, [competitionId, authLoading, token, firebaseUser, authSyncExpired, isAuthProcessing, isRedirectProcessing, navigate, fetchCompetitionDetails]);
 
     useEffect(() => {
+        if (!competition) return;
+        const canonical = competitionRegistrationPath(competition);
+        if (window.location.pathname !== canonical) {
+            navigate(`${canonical}${location.search || ''}`, { replace: true });
+        }
+    }, [competition, navigate, location.search]);
+
+    useEffect(() => {
         if (loading || !competition) return;
 
         const fee = parseTicketPrice(competition.feeAmount) || parseTicketPrice(competition.registrationFee);
@@ -287,7 +326,8 @@ export default function CompetitionRegistration() {
     }, [competition, competitionId, token, loading, isAuthProcessing, fetchPaymentQuoteForRegistration]);
 
     const completePayOnlyRegistration = useCallback(async (verifiedFields, submitToken) => {
-        const regRes = await fetch(`${API_BASE_URL}/registrations/competitions/${competitionId}/pay-and-register`, {
+        const resolvedId = competition?._id || competition?.id || competitionId;
+        const regRes = await fetch(`${API_BASE_URL}/registrations/competitions/${resolvedId}/pay-and-register`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -307,11 +347,12 @@ export default function CompetitionRegistration() {
         if (regId) setRegistrationId(regId);
         clearRegistrationDraft(draftKey);
         setSuccess(true);
-    }, [competitionId, draftKey]);
+    }, [competition, competitionId, draftKey]);
 
     // Resume after Cashfree redirect — verify payment, then auto-complete registration
     useEffect(() => {
         if (paymentResumeRef.current || authLoading || isAuthProcessing || isRedirectProcessing) return;
+        if (loading || !competition) return;
 
         const pending = getPendingPayment();
         if (!pending?.orderId || isTrekPaymentPending(pending)) return;
@@ -321,33 +362,40 @@ export default function CompetitionRegistration() {
 
         paymentResumeRef.current = true;
         setCompletingPayment(true);
+        setPaymentResumeError('');
         setSubmissionProgress('Verifying payment...');
         setError('');
         setNotice('');
 
         (async () => {
-            let scheduledAutoSubmit = false;
             try {
                 const submitToken = resolveAuthToken(token) || localStorage.getItem('crwdctrl_token');
                 if (!submitToken) {
+                    throw new Error('Please log in to complete your registration.');
+                }
+
+                const verifyResult = await verifyPaymentWithRetry(
+                    API_BASE_URL,
+                    pending.orderId,
+                    { token: submitToken, search: location.search },
+                );
+
+                if (verifyResult.status === 'cancelled') {
+                    restoreRegistrationDraft();
+                    clearCashfreeReturnAndPending(navigate, location);
                     setCompletingPayment(false);
-                    setLoading(false);
-                    setError('Please log in to complete your registration.');
+                    setError('Payment cancelled.');
                     return;
                 }
 
-                const { ok, data: verifyData } = await verifyPaymentWithRetry(
-                    API_BASE_URL,
-                    pending.orderId,
-                    { token: submitToken },
-                );
-                if (!ok || !verifyData?.verified) {
-                    throw new Error(verifyData?.message || 'Payment could not be verified.');
+                if (!verifyResult.ok || !verifyResult.verified) {
+                    const { message } = classifyVerifyError(verifyResult);
+                    throw new Error(message);
                 }
 
+                const verifyData = verifyResult.data;
                 const verifiedFields = buildVerifiedPaymentFields(verifyData, pending.orderId);
                 setPaymentFields(verifiedFields);
-                clearPendingPayment();
 
                 const draft = loadRegistrationDraft(draftKey);
                 const hasDraftAnswers = draft && (
@@ -362,52 +410,67 @@ export default function CompetitionRegistration() {
                         setCurrentStep,
                         setCompletedSteps,
                     });
-                    setSubmissionProgress('Submitting your registration...');
-                    scheduledAutoSubmit = true;
-                    setPendingAutoSubmit(true);
-                    return;
                 }
 
-                setSubmissionProgress('Completing registration...');
-                await completePayOnlyRegistration(verifiedFields, submitToken);
-                setCompletingPayment(false);
-            } catch (err) {
+                setSubmissionProgress(hasDraftAnswers
+                    ? 'Submitting your registration...'
+                    : 'Completing registration...');
+
+                const { regId } = await finalizeCompetitionAfterPayment({
+                    competitionId,
+                    verifiedFields,
+                    token: submitToken,
+                    draft,
+                    tryFormSubmit: hasDraftAnswers
+                        ? async () => {
+                            const result = await handleSubmitRef.current?.(
+                                { preventDefault: () => {} },
+                                { paidResume: true, verifiedPaymentOverride: verifiedFields, draft },
+                            );
+                            return result?.regId || null;
+                        }
+                        : null,
+                });
+
+                if (regId) setRegistrationId(regId);
+                clearRegistrationDraft(draftKey);
                 clearPendingPayment();
+                clearCashfreeReturnAndPending(navigate, location);
                 setCompletingPayment(false);
+                setSuccess(true);
+            } catch (err) {
+                setPaymentResumeError(err.message || 'Could not complete registration after payment.');
                 setError(err.message || 'Could not complete registration after payment.');
             } finally {
-                if (!scheduledAutoSubmit) {
-                    setSubmissionProgress('');
-                }
+                setSubmissionProgress('');
             }
         })();
     }, [
         authLoading,
         isAuthProcessing,
         isRedirectProcessing,
+        loading,
+        competition,
         location.pathname,
         location.search,
         token,
         competitionId,
         draftKey,
-        completePayOnlyRegistration,
     ]);
 
-    // Auto-submit form after redirect payment when draft answers were restored
-    useEffect(() => {
-        if (!pendingAutoSubmit || !paymentFields || !competition || submitting) return;
-
-        setPendingAutoSubmit(false);
-        setNotice('');
-        setCompletingPayment(true);
-        setSubmissionProgress('Submitting your registration...');
-
-        const timer = setTimeout(() => {
-            handleSubmitRef.current?.({ preventDefault: () => {} });
-        }, 100);
-
-        return () => clearTimeout(timer);
-    }, [pendingAutoSubmit, paymentFields, competition, submitting]);
+    const clearCashfreeReturnParams = () => {
+        try {
+            const params = new URLSearchParams(location.search);
+            ['order_id', 'order_token', 'cf_payment_id', 'payment_id'].forEach((key) => params.delete(key));
+            const nextSearch = params.toString();
+            navigate(
+                { pathname: location.pathname, search: nextSearch ? `?${nextSearch}` : '' },
+                { replace: true },
+            );
+        } catch {
+            /* ignore */
+        }
+    };
 
     useEffect(() => {
         if (error) {
@@ -543,6 +606,19 @@ export default function CompetitionRegistration() {
         Object.assign(allData, currentStepData);
         
         return allData;
+    };
+
+    const buildFormDataFromDraft = (draft) => {
+        if (!draft) return null;
+        const merged = { ...(draft.formData || {}) };
+        if (draft.stepData && typeof draft.stepData === 'object') {
+            Object.values(draft.stepData).forEach((fields) => {
+                if (fields && typeof fields === 'object') {
+                    Object.assign(merged, fields);
+                }
+            });
+        }
+        return merged;
     };
 
     const handleInputChange = (fieldId, value, fieldType = 'text') => {
@@ -918,8 +994,13 @@ export default function CompetitionRegistration() {
         }
     };
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
+    const handleSubmit = async (e, options = {}) => {
+        e?.preventDefault?.();
+        const {
+            paidResume = false,
+            verifiedPaymentOverride = null,
+            draft = null,
+        } = options;
         console.log('🚀 Starting competition registration submission...');
         
         // ✅ PERFORMANCE: Prevent double submission
@@ -929,7 +1010,7 @@ export default function CompetitionRegistration() {
         }
 
         // ✅ NEW: For multi-step forms, validate current step first and move to next
-        if (isMultiStepFormActive()) {
+        if (!paidResume && isMultiStepFormActive()) {
             const currentFields = getCurrentStepFields();
             const currentData = getCurrentStepData();
             
@@ -966,9 +1047,9 @@ export default function CompetitionRegistration() {
             const formSchema = getFormSchema(competition.registration);
             console.log(`📝 Validation schema: ${formSchema.length} fields (${isMultiStepForm(competition.registration) ? 'multi-step' : 'single-step'})`);
             
-            // Get all form data (combine all steps if multi-step)
-            const allFormData = getAllFormData();
+            const allFormData = draft ? buildFormDataFromDraft(draft) : getAllFormData();
             
+            if (!paidResume) {
             // Validate required fields
             const requiredFields = formSchema.filter(field => field.required) || [];
             console.log('🔍 Validating required fields:', requiredFields.map(f => ({ label: f.label, id: generateFieldId(f) })));
@@ -990,12 +1071,13 @@ export default function CompetitionRegistration() {
                     throw new Error(`${field.label} is required`);
                 }
             }
+            }
 
             // Cashfree: If competition has a fee, open checkout now
             const feeAmount = priceBreakdown?.ticketPrice || parseTicketPrice(competition.feeAmount) || parseTicketPrice(competition.registrationFee);
-            let verifiedPaymentFields = paymentFields; // may already be set from a prior attempt
+            let verifiedPaymentFields = verifiedPaymentOverride || paymentFields; // may already be set from a prior attempt
 
-            if (feeAmount > 0 && !verifiedPaymentFields) {
+            if (feeAmount > 0 && !verifiedPaymentFields && !paidResume) {
                 setSubmissionProgress('Opening payment gateway...');
 
                 const submitToken = token || localStorage.getItem('crwdctrl_token');
@@ -1008,6 +1090,14 @@ export default function CompetitionRegistration() {
                     },
                     body: JSON.stringify({
                         competitionId: competition._id,
+                        registrationDraft: {
+                            formData: getAllFormData(),
+                            stepData,
+                            currentStep,
+                            festId: fest?._id || competition?.fest?._id,
+                            competitionId: competition._id,
+                            couponCode: appliedCouponCode || '',
+                        },
                     }),
                 });
 
@@ -1018,12 +1108,25 @@ export default function CompetitionRegistration() {
 
                 const orderData = await orderRes.json();
 
-                const checkoutResult = await openCashfreeCheckout({
-                    paymentSessionId: orderData.paymentSessionId,
-                    orderId: orderData.orderId,
-                    returnPath: window.location.pathname + window.location.search,
-                    cashfreeMode: orderData.cashfreeMode,
-                });
+                let checkoutResult;
+                try {
+                    checkoutResult = await openCashfreeCheckout({
+                        paymentSessionId: orderData.paymentSessionId,
+                        orderId: orderData.orderId,
+                        returnPath: window.location.pathname + window.location.search,
+                        cashfreeMode: orderData.cashfreeMode,
+                    });
+                } catch (checkoutErr) {
+                    const { kind, message } = classifyCheckoutError(checkoutErr);
+                    setCompletingPayment(false);
+                    setSubmitting(false);
+                    setSubmissionProgress('');
+                    if (kind !== 'cancelled') {
+                        retryCheckoutRef.current = () => handleSubmit();
+                        setPaymentModal({ open: true, message, orderId: orderData.orderId });
+                    }
+                    return;
+                }
 
                 if (checkoutResult?.redirectDeferred) {
                     saveRegistrationDraft(draftKey, {
@@ -1033,22 +1136,33 @@ export default function CompetitionRegistration() {
                         completedSteps,
                     });
                     setSubmitting(false);
+                    setCompletingPayment(true);
+                    setSubmissionProgress('Complete payment in the gateway. You will return here automatically.');
                     return;
                 }
 
                 setCompletingPayment(true);
                 setSubmissionProgress('Verifying payment...');
 
-                const { ok, data: verifyData } = await verifyPaymentWithRetry(
+                const verifyResult = await verifyPaymentWithRetry(
                     API_BASE_URL,
                     orderData.orderId,
-                    { token: submitToken },
+                    { token: submitToken, search: location.search },
                 );
-                if (!ok || !verifyData?.verified) {
-                    throw new Error(verifyData?.message || 'Payment verification failed. Please contact support.');
+                if (verifyResult.status === 'cancelled') {
+                    restoreRegistrationDraft();
+                    clearCashfreeReturnAndPending(navigate, location);
+                    setCompletingPayment(false);
+                    setSubmitting(false);
+                    setSubmissionProgress('');
+                    return;
+                }
+                if (!verifyResult.ok || !verifyResult.verified) {
+                    const { message } = classifyVerifyError(verifyResult);
+                    throw new Error(message);
                 }
 
-                verifiedPaymentFields = buildVerifiedPaymentFields(verifyData, orderData.orderId);
+                verifiedPaymentFields = buildVerifiedPaymentFields(verifyResult.data, orderData.orderId);
                 setPaymentFields(verifiedPaymentFields);
                 console.log('✅ Cashfree payment verified, proceeding with registration');
             } else if (feeAmount === 0) {
@@ -1192,7 +1306,8 @@ export default function CompetitionRegistration() {
             }, baseTimeout);
 
             console.log(`⏱️ Request timeout: ${(baseTimeout / 1000).toFixed(0)}s`);
-            console.log('🌐 Making fetch request to:', `${API_BASE_URL}/registrations/competitions/${competitionId}/custom`);
+            const resolvedId = competition?._id || competition?.id || competitionId;
+            console.log('🌐 Making fetch request to:', `${API_BASE_URL}/registrations/competitions/${resolvedId}/custom`);
 
             // ✅ FIX: Ensure we have a valid token before submission
             const submitToken = token || localStorage.getItem('crwdctrl_token');
@@ -1207,7 +1322,7 @@ export default function CompetitionRegistration() {
                 throw new Error('Authentication required. Please log in again to submit your registration.');
             }
 
-            const response = await fetch(`${API_BASE_URL}/registrations/competitions/${competitionId}/custom`, {
+            const response = await fetch(`${API_BASE_URL}/registrations/competitions/${resolvedId}/custom`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${submitToken}`,
@@ -1252,18 +1367,28 @@ export default function CompetitionRegistration() {
             const result = await response.json();
             console.log('✅ Registration successful:', result);
 
-            const regId = result._id || result.registration?._id;
+            const regId = result._id || result.registration?._id || result.registrationId;
             if (regId) setRegistrationId(regId);
             setCompletingPayment(false);
             setSuccess(true);
             clearRegistrationDraft(draftKey);
+            if (paidResume) {
+                clearPendingPayment();
+                setPaymentResumeError('');
+                clearCashfreeReturnAndPending(navigate, location);
+            }
+
+            return { success: true, regId };
 
         } catch (err) {
+            if (paidResume) {
+                throw err;
+            }
             setCompletingPayment(false);
             console.error('❌ Registration error:', err);
             
             // Enhanced error handling
-            if (err.message.includes('Authentication') || err.message.includes('401')) {
+            if (!paidResume && (err.message.includes('Authentication') || err.message.includes('401'))) {
                 setError('Your session has expired. Please log in again.');
                 // Clear invalid tokens
                 localStorage.removeItem('crwdctrl_token');
@@ -1271,22 +1396,20 @@ export default function CompetitionRegistration() {
                 // Save current URL for redirect after login
                 sessionStorage.setItem('auth_redirect_url', window.location.pathname + window.location.search);
                 setTimeout(() => navigate('/login', { replace: true }), 2000);
-            } else if (err.message.includes('not configured') || err.message.includes('form field')) {
+            } else if (!paidResume && (err.message.includes('not configured') || err.message.includes('form field'))) {
                 setError('❌ This competition\'s registration form is not properly configured. Please contact the organizer to set up the registration form.');
-            } else if (err.message.includes('required')) {
+            } else if (!paidResume && err.message.includes('required')) {
                 setError(err.message); // Field validation errors
-            } else if (err.message.includes('Failed to fetch') || err.message.includes('Network')) {
+            } else if (!paidResume && (err.message.includes('Failed to fetch') || err.message.includes('Network'))) {
                 setError('Network error. Please check your internet connection and try again.');
-            } else if (err.name === 'AbortError') {
+            } else if (!paidResume && err.name === 'AbortError') {
                 setError('Request timeout. Please check your internet connection and try again.');
-            } else {
+            } else if (!paidResume) {
                 setError(err.message || 'An unexpected error occurred. Please try again.');
             }
         } finally {
             setSubmitting(false);
-            if (!pendingAutoSubmit) {
-                setSubmissionProgress('');
-            }
+            setSubmissionProgress('');
         }
     };
 
@@ -1295,10 +1418,34 @@ export default function CompetitionRegistration() {
     if (completingPayment && !success) {
         return (
             <div className="min-h-screen bg-[#111213] flex flex-col items-center justify-center px-4">
-                <Loader className="w-8 h-8 animate-spin text-[#0ECCEE] mb-4" />
-                <p className="text-sm text-gray-300 text-center">
-                    {submissionProgress || 'Completing your registration...'}
-                </p>
+                {paymentResumeError ? (
+                    <div className="text-center max-w-md">
+                        <p className="text-sm text-red-300 mb-2">Payment received, but registration could not be completed.</p>
+                        <p className="text-sm text-gray-400 mb-6">{paymentResumeError}</p>
+                        <div className="flex flex-col gap-3">
+                            <button
+                                type="button"
+                                onClick={() => goToBookings(navigate)}
+                                className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition"
+                            >
+                                View My Bookings
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => { setPaymentResumeError(''); setCompletingPayment(false); }}
+                                className="w-full py-3.5 rounded-xl font-semibold text-gray-300 border border-gray-600 hover:bg-gray-800 transition"
+                            >
+                                Return to form
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <RegistrationStatusVisual
+                        mode="processing"
+                        title="Completing registration"
+                        progressMessage={submissionProgress || 'Completing your registration...'}
+                    />
+                )}
             </div>
         );
     }
@@ -1370,9 +1517,11 @@ export default function CompetitionRegistration() {
 
     if ((loading || waitingOnAuth) && !success && !completingPayment) {
         return (
-            <div className="min-h-screen bg-[#111213] flex items-center justify-center">
-                <Loader className="w-6 h-6 animate-spin text-[#0ECCEE]" />
-            </div>
+            <InlinePageLoader
+                label="Loading competition"
+                variant="competition"
+                fullScreen
+            />
         );
     }
 
@@ -1383,7 +1532,7 @@ export default function CompetitionRegistration() {
                     <h1 className="text-xl font-bold text-white mb-3">Competition Not Found</h1>
                     <p className="text-gray-400 mb-4">{error}</p>
                     <button
-                        onClick={() => navigate(-1)}
+                        onClick={goBack}
                         className="px-4 py-2 bg-[#0ECCEE] text-black rounded-lg hover:bg-[#0ECCEE]/80"
                     >
                         Go Back
@@ -1396,10 +1545,20 @@ export default function CompetitionRegistration() {
     // Main registration form
     return (
         <div className="min-h-screen bg-[#111213] px-4 py-6 pb-24 sm:pb-8">
+            <PaymentErrorModal
+                open={paymentModal.open}
+                message={paymentModal.message}
+                orderId={paymentModal.orderId}
+                onClose={() => setPaymentModal({ open: false, message: '', orderId: '' })}
+                onRetry={() => {
+                    setPaymentModal({ open: false, message: '', orderId: '' });
+                    retryCheckoutRef.current?.();
+                }}
+            />
             <div className="max-w-3xl mx-auto">
                 {/* Header */}
                 <div className="flex items-center gap-3 mb-6">
-                    <button onClick={() => navigate(-1)} className="text-gray-400 hover:text-white transition-colors">
+                    <button onClick={goBack} className="text-gray-400 hover:text-white transition-colors">
                         <ArrowLeft className="w-5 h-5" />
                     </button>
                     <div>
@@ -1501,21 +1660,21 @@ export default function CompetitionRegistration() {
                 {!paymentFields && priceBreakdown && (
                     <div className="rounded-xl p-4 border bg-[#111213] border-[#0ECCEE]/30 mb-4">
                         <p className="text-sm font-semibold text-white mb-2">Payment Breakdown</p>
-                        <div className="space-y-1 text-sm text-gray-300">
+                        <div className="space-y-1.5 text-sm text-gray-300">
                             <div className="flex justify-between gap-4">
                                 <span>Ticket Price</span>
                                 <span>₹{priceBreakdown.ticketPrice}</span>
                             </div>
-                            <div className="flex justify-between gap-4">
+                            <div className="flex justify-between gap-4 text-gray-400">
                                 <span>Platform Fee</span>
                                 <span>₹{priceBreakdown.platformFee}</span>
                             </div>
-                            <div className="flex justify-between gap-4 pt-2 mt-2 border-t border-gray-700 font-bold text-[#0ECCEE]">
-                                <span>Total</span>
+                            <div className="flex justify-between gap-4 pt-2.5 mt-1 border-t border-gray-700 font-bold text-base text-[#0ECCEE]">
+                                <span>Amount Payable</span>
                                 <span>₹{priceBreakdown.totalAmount}</span>
                             </div>
                         </div>
-                        <p className="text-xs text-gray-400 mt-1">Cashfree secure payment — tap Pay to book.</p>
+                        <p className="text-xs text-gray-400 mt-2">Includes all charges · Secure payment via Cashfree</p>
                     </div>
                 )}
 
@@ -1557,7 +1716,7 @@ export default function CompetitionRegistration() {
                         <div className="flex gap-3 pt-2 pb-8 md:pb-4">
                             <button
                                 type="button"
-                                onClick={isMultiStepFormActive() && currentStep > 1 ? handleStepBack : () => navigate(-1)}
+                                onClick={isMultiStepFormActive() && currentStep > 1 ? handleStepBack : goBack}
                                 className="px-4 sm:px-6 py-3 rounded-xl border border-gray-700 text-white hover:bg-gray-800/60 transition-colors text-sm sm:text-base font-medium"
                                 disabled={submitting}
                             >

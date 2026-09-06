@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminStats from '../../components/admin/AdminStatsCard';
-import { adminFetchJSON } from '../../utils/adminApi';
+import { adminFetchJSON } from '../../services/api/admin.api.js';
 
 const QUICK_LINKS = [
   { label: 'Manage Fests', path: '/admin/fests', description: 'Create, edit, and manage fests' },
@@ -11,8 +11,12 @@ const QUICK_LINKS = [
   { label: 'Events', path: '/admin/events', description: 'Events and show ticketing' },
   { label: 'Home & Sections', path: '/admin/sections', description: 'Carousels, page placement, priorities' },
   { label: 'Page Sections', path: '/admin/page-sections', description: 'Create custom scrolling sections for any page' },
-  { label: 'Registrations', path: '/admin/registrations', description: 'Fest, trek, and run sign-ups' },
+  { label: 'App Copy', path: '/admin/app-copy', description: 'Section titles, announcement banner, empty-state text' },
+  { label: 'Registrations', path: '/admin/registrations', description: 'Fest, trek, run, and event sign-ups' },
+  { label: 'User Logins', path: '/admin/user-logins', description: 'User accounts and login activity' },
+  { label: 'User Activity', path: '/admin/user-activity', description: 'Page views, engagement time, and daily stats by email' },
   { label: 'Scanner Access', path: '/admin/scanner-access', description: 'Volunteer scanner codes for events' },
+  { label: 'Payments', path: '/admin/payments', description: 'Cashfree collections, 1.6% fee, settlements, and payouts' },
   { label: 'Analytics', path: '/admin/analytics', description: 'Revenue, commissions, and sign-ups' },
 ];
 

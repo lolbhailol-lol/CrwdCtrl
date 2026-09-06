@@ -1,3 +1,5 @@
+import { mindsparkPlugin } from '../features/fests/plugins';
+
 const DRAFT_MAX_AGE_MS = 30 * 60 * 1000;
 
 export function festRegDraftKey(festId, competitionId) {
@@ -78,6 +80,27 @@ export function clearRegistrationDraft(key) {
   sessionStorage.removeItem(key);
 }
 
+/** Flatten draft text answers for pay-and-register fallback after redirect checkout. */
+export function extractDraftTextResponses(draft) {
+  if (!draft) return {};
+  const merged = { ...(draft.formData || {}) };
+  if (draft.stepData && typeof draft.stepData === 'object') {
+    Object.values(draft.stepData).forEach((fields) => {
+      if (fields && typeof fields === 'object') Object.assign(merged, fields);
+    });
+  }
+  const responses = {};
+  for (const [key, value] of Object.entries(merged)) {
+    if (key.endsWith('_file')) continue;
+    if (value === null || value === undefined) continue;
+    if (typeof value === 'object' && (value.ready || value.uploaded || value.url)) continue;
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' || Array.isArray(value)) {
+      responses[key] = value;
+    }
+  }
+  return responses;
+}
+
 export function applyRegistrationDraft(draft, { setFormData, setStepData, setCurrentStep, setCompletedSteps }) {
   if (!draft) return false;
   if (draft.formData && Object.keys(draft.formData).length > 0) {
@@ -106,4 +129,143 @@ export function scrollFieldIntoView(e) {
   window.setTimeout(() => {
     el.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }, 280);
+}
+
+const FEST_REG_SUCCESS_KEY = 'crwdctrl_fest_reg_success';
+const FEST_REG_SUCCESS_MAX_AGE_MS = 30 * 60 * 1000;
+const OBJECT_ID_RE = /^[a-f\d]{24}$/i;
+
+/** Named-fest recovery alias (MindSpark slug ↔ ObjectId). */
+const RECOVERY_FEST_ID = mindsparkPlugin.recoveryFestId;
+
+function isMongoObjectId(value) {
+  return OBJECT_ID_RE.test(String(value || '').trim());
+}
+
+/** Build every known route key for a fest so slug ↔ ObjectId remounts still restore success. */
+function buildFestSuccessAliases({ festId, festMongoId, festAliases } = {}) {
+  const aliases = new Set();
+  const add = (v) => {
+    const s = String(v || '').trim();
+    if (s) aliases.add(s);
+  };
+  add(festId);
+  add(festMongoId);
+  if (Array.isArray(festAliases)) festAliases.forEach(add);
+
+  const all = [...aliases];
+  const touchesMindSpark = all.some(
+    (a) => a === RECOVERY_FEST_ID || a.toLowerCase().includes('mindspark'),
+  );
+  if (touchesMindSpark) {
+    add(RECOVERY_FEST_ID);
+    add('mindspark');
+  }
+  // If only one ObjectId was provided, keep it under both fields via aliases set
+  return [...aliases];
+}
+
+/**
+ * Persist post-payment success so Cashfree return / slug remount still shows
+ * WhatsApp + View bookings instead of dropping back to the form.
+ */
+export function saveFestRegistrationSuccess({
+  festId,
+  festMongoId,
+  competitionId,
+  registrationId,
+  festAliases,
+}) {
+  if (!festId && !festMongoId && !competitionId) return;
+
+  const routeKey = festId ? String(festId).trim() : '';
+  let mongo = festMongoId ? String(festMongoId).trim() : '';
+  if (!mongo && isMongoObjectId(routeKey)) mongo = routeKey;
+  // Prefer an ObjectId from aliases when route key is a slug
+  if (!mongo && Array.isArray(festAliases)) {
+    const found = festAliases.map(String).find((a) => isMongoObjectId(a));
+    if (found) mongo = found;
+  }
+
+  const aliases = buildFestSuccessAliases({
+    festId: routeKey,
+    festMongoId: mongo,
+    festAliases,
+  });
+
+  try {
+    const payload = JSON.stringify({
+      festId: routeKey || mongo || '',
+      festMongoId: mongo || (isMongoObjectId(routeKey) ? routeKey : ''),
+      festAliases: aliases,
+      competitionId: competitionId ? String(competitionId) : '',
+      registrationId: registrationId ? String(registrationId) : '',
+      ts: Date.now(),
+    });
+    sessionStorage.setItem(FEST_REG_SUCCESS_KEY, payload);
+    try {
+      localStorage.setItem(FEST_REG_SUCCESS_KEY, payload);
+    } catch {
+      /* quota */
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+function readFestRegistrationSuccessRaw() {
+  try {
+    return sessionStorage.getItem(FEST_REG_SUCCESS_KEY)
+      || localStorage.getItem(FEST_REG_SUCCESS_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function loadFestRegistrationSuccess(festId, competitionId = null) {
+  try {
+    const raw = readFestRegistrationSuccessRaw();
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.ts || Date.now() - parsed.ts > FEST_REG_SUCCESS_MAX_AGE_MS) {
+      sessionStorage.removeItem(FEST_REG_SUCCESS_KEY);
+      try { localStorage.removeItem(FEST_REG_SUCCESS_KEY); } catch { /* ignore */ }
+      return null;
+    }
+
+    const wantComp = competitionId ? String(competitionId) : '';
+    const gotComp = parsed.competitionId ? String(parsed.competitionId) : '';
+
+    // Competition registration: match on competition id (URL may use fest slug or ObjectId)
+    if (wantComp) {
+      if (gotComp && wantComp === gotComp) return parsed;
+      return null;
+    }
+
+    // Fest-only registration — reject if stored entry was for a competition
+    if (gotComp) return null;
+
+    const routeKey = festId ? String(festId).trim() : '';
+    if (!routeKey) return parsed;
+
+    const aliases = buildFestSuccessAliases({
+      festId: parsed.festId,
+      festMongoId: parsed.festMongoId,
+      festAliases: parsed.festAliases,
+    });
+
+    if (aliases.includes(routeKey)) return parsed;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function clearFestRegistrationSuccess() {
+  try {
+    sessionStorage.removeItem(FEST_REG_SUCCESS_KEY);
+    localStorage.removeItem(FEST_REG_SUCCESS_KEY);
+  } catch {
+    /* ignore */
+  }
 }

@@ -143,16 +143,18 @@ const competitionRegistrationSchema = new mongoose.Schema(
     },
     {
         timestamps: true,
-        // Add indexes for better performance
-        indexes: [
-            { registrationId: 1 },
-            { email: 1 },
-            { competitionName: 1 },
-            { status: 1 },
-            { submittedAt: -1 }
-        ]
     }
 );
+
+// Indexes for query hot paths.
+// The `indexes: [...]` schema option Mongoose historically had here is silently
+// ignored — indexes must be declared via `schema.index(...)` calls.
+competitionRegistrationSchema.index({ email: 1 });
+competitionRegistrationSchema.index({ competitionName: 1 });
+competitionRegistrationSchema.index({ status: 1 });
+competitionRegistrationSchema.index({ submittedAt: -1 });
+competitionRegistrationSchema.index({ competition: 1, status: 1 });
+competitionRegistrationSchema.index({ user: 1, submittedAt: -1 });
 
 // Pre-save middleware to generate registration ID if not provided
 competitionRegistrationSchema.pre('save', function (next) {

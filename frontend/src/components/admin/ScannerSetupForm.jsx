@@ -11,7 +11,7 @@ import {
   EyeOff,
   Share2,
 } from 'lucide-react';
-import { adminFetch } from '../../utils/adminApi';
+import { adminFetch } from '../../services/api/admin.api.js';
 
 const VARIANT = {
   fest: {
@@ -90,6 +90,7 @@ export default function ScannerSetupForm({ variant = 'fest', eventId, eventName,
   const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
   const [savedPassword, setSavedPassword] = useState('');
+  const [hasPassword, setHasPassword] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [label, setLabel] = useState('');
   const [googleSheetsUrl, setGoogleSheetsUrl] = useState('');
@@ -119,8 +120,9 @@ export default function ScannerSetupForm({ variant = 'fest', eventId, eventName,
           setLabel(data.label || '');
           setGoogleSheetsUrl(data.googleSheetsUrl || '');
           setEnabled(data.enabled !== false);
-          setPassword(data.password || '');
-          setSavedPassword(data.password || '');
+          setHasPassword(!!data.hasPassword);
+          setPassword('');
+          setSavedPassword('');
         }
       })
       .catch(() => {})
@@ -150,6 +152,9 @@ export default function ScannerSetupForm({ variant = 'fest', eventId, eventName,
       if (data.password) {
         setPassword(data.password);
         setSavedPassword(data.password);
+        setHasPassword(true);
+      } else if (data.hasPassword !== undefined) {
+        setHasPassword(!!data.hasPassword);
       }
     } catch (err) {
       setMessage(err.message || 'Could not save');
@@ -249,9 +254,9 @@ export default function ScannerSetupForm({ variant = 'fest', eventId, eventName,
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder={savedPassword ? 'Saved — edit to change' : 'Set password'}
+                placeholder={hasPassword ? 'Saved — edit to change' : 'Set password'}
                 className={`${inputClass} pr-10`}
-                required={!savedPassword}
+                required={!hasPassword && !savedPassword}
               />
               <button
                 type="button"
@@ -345,7 +350,13 @@ export default function ScannerSetupForm({ variant = 'fest', eventId, eventName,
             <CopyRow label="Login link" value={loginUrl} mono={false} />
             <CopyRow label="Code" value={code} />
             <CopyRow label="Password" value={savedPassword} hidden={!showPassword} />
-            {!savedPassword && (
+            {hasPassword && !savedPassword && (
+              <p className="text-[11px] text-gray-500 flex items-center gap-1.5">
+                <Link2 size={11} />
+                Password is set. Enter a new one above only if you want to change it.
+              </p>
+            )}
+            {!hasPassword && !savedPassword && (
               <p className="text-[11px] text-amber-400/80 flex items-center gap-1.5">
                 <Link2 size={11} />
                 Save a password above to include it in the share text.

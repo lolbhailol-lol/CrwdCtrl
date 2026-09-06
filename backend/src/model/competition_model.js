@@ -75,6 +75,13 @@ const competitionSchema = new mongoose.Schema(
     default: 'OTHER',
   },
 
+  /** MindSpark module heading (CODIFICA, HACKATHON, …). Empty = infer from name. */
+  module: {
+    type: String,
+    trim: true,
+    default: '',
+  },
+
   description: {
     type: String,
     required: true,
@@ -115,6 +122,12 @@ const competitionSchema = new mongoose.Schema(
       title: String,
       description: String,
       rules: [String],
+      offline: {
+        rules: [String],
+      },
+      online: {
+        rules: [String],
+      },
       roundRulesMessage: {
         type: String,
         trim: true,
@@ -131,6 +144,45 @@ const competitionSchema = new mongoose.Schema(
   feeAmount: {
     type: Number,
     default: 0, // numeric INR amount for online payment; 0 means free
+  },
+
+  /** Multiple fees on one event (e.g. Under 18 / UG / PG). When set, checkout requires a selected tier. */
+  feeTiers: [{
+    id: { type: String, trim: true },
+    label: { type: String, trim: true },
+    amount: { type: Number, default: 0, min: 0 },
+  }],
+
+  /** Organizer-allotted seats for this competition (0 = not set / open). Default 50 — edit later. */
+  slotsAllotted: {
+    type: Number,
+    default: 50,
+    min: 0,
+  },
+
+  /** When false, public competition page hides “X slots remain” (capacity still tracked). */
+  showSlotsPublic: {
+    type: Boolean,
+    default: true,
+  },
+
+  /** Structured team size for public chips + registration gate */
+  teamSizeMin: {
+    type: Number,
+    default: 1,
+    min: 1,
+    max: 20,
+  },
+  teamSizeMax: {
+    type: Number,
+    default: 1,
+    min: 1,
+    max: 20,
+  },
+  teamSizeLabel: {
+    type: String,
+    trim: true,
+    default: 'Solo',
   },
 
   registrationLink: {
@@ -160,6 +212,17 @@ const competitionSchema = new mongoose.Schema(
       type: String,
       default: ''
     },
+    /** Extra links for this competition (shown after registration) */
+    resourceLinks: [{
+      label: { type: String, trim: true },
+      url: { type: String, trim: true },
+    }],
+    /** Participant-facing sheet link (public; separate from googleSheetsUrl append) */
+    shareSheetUrl: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     formType: {
       type: String,
       enum: ['SINGLE_STEP', 'MULTI_STEP'],
@@ -182,6 +245,27 @@ const competitionSchema = new mongoose.Schema(
         pattern: String,
         message: String
       }
+    }],
+    /** Per-person roster fields (team size → Person 1…N). Editable in Competition_Modal. */
+    personFields: [{
+      id: String,
+      key: String,
+      label: String,
+      type: {
+        type: String,
+        enum: ['text', 'email', 'tel', 'select', 'radio'],
+        default: 'text',
+      },
+      scope: {
+        type: String,
+        enum: ['person', 'team'],
+        default: 'person',
+      },
+      /** Optional: leader | member. Empty = all roster slots (MindSpark default). */
+      roles: [{ type: String, enum: ['leader', 'member'] }],
+      options: [String],
+      placeholder: String,
+      required: { type: Boolean, default: true },
     }],
     steps: [{
       stepNumber: Number,
@@ -208,9 +292,7 @@ const competitionSchema = new mongoose.Schema(
     }],
     googleSheetsUrl: {
       type: String,
-      required: function() {
-        return this.registrationType === 'custom' && this.registration?.status === 'internal_form';
-      }
+      default: '',
     },
     qrCode: {
       type: String, // URL to QR code image

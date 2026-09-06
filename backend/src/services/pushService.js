@@ -6,7 +6,7 @@ const { getFirebaseAdmin, admin } = require('../config/firebaseAdmin');
  * @param {object} notification - { title, body, link?, icon? }
  * @returns {Promise<object>} - Result of push send
  */
-const sendPushNotification = async (userId, notification) => {
+const sendPushNotification = async (userId, notification, options = {}) => {
   try {
     if (!getFirebaseAdmin()) {
       console.log('⚠️ Firebase Admin not initialized — skipping push notification');
@@ -14,11 +14,18 @@ const sendPushNotification = async (userId, notification) => {
     }
 
     const User = require('../model/usermodel');
-    const user = await User.findById(userId).select('fcmTokens');
+    const user = await User.findById(userId).select('fcmTokens notificationPreferences');
 
     if (!user || !user.fcmTokens || user.fcmTokens.length === 0) {
       console.log(`📱 No FCM tokens for user ${userId} — skipping push`);
       return { success: false, reason: 'no_tokens' };
+    }
+
+    if (options.preferenceKey) {
+      const prefs = user.notificationPreferences || {};
+      if (prefs[options.preferenceKey] === false) {
+        return { success: false, reason: 'preference_disabled' };
+      }
     }
 
     const tokens = user.fcmTokens.map(t => t.token);

@@ -4,6 +4,8 @@ const TrekBooking = require('../model/trek_booking_model');
 const CategoryRegistration = require('../model/category_registration_model');
 const SportsEvent = require('../model/sports_model');
 const { performCheckinFromRaw } = require('../services/checkinService');
+const { resolveTrekGroupLink } = require('../utils/resolveTrekGroupLink');
+const { captureFlowEvent } = require('../config/sentry');
 
 // ===== GET: Generate QR code for a registration =====
 const generateQR = async (req, res) => {
@@ -49,21 +51,54 @@ const generateQR = async (req, res) => {
 
 const generateTrekQR = async (req, res) => {
   try {
-    const userId = req.user.userId;
     const { bookingId } = req.params;
+    const { getTrekBookingAccessFromRequest } = require('../utils/bookingAccess');
+    const access = getTrekBookingAccessFromRequest(req);
+    const userId = req.user?.userId || null;
 
-    const booking = await TrekBooking.findOne({ _id: bookingId, userId })
-      .populate('trekId', 'trekName trekDate city')
-      .populate('userId', 'name');
+    let booking = null;
+    if (userId) {
+      booking = await TrekBooking.findOne({ _id: bookingId, userId })
+        .populate({
+          path: 'trekId',
+          select: 'trekName trekDate city groupLink communityId',
+          populate: { path: 'communityId', select: 'name groupLink' },
+        })
+        .populate('userId', 'name');
+    }
+    if (!booking && access && String(access.bookingId) === String(bookingId)) {
+      booking = await TrekBooking.findOne({ _id: bookingId })
+        .populate({
+          path: 'trekId',
+          select: 'trekName trekDate city groupLink communityId',
+          populate: { path: 'communityId', select: 'name groupLink' },
+        })
+        .populate('userId', 'name');
+    }
 
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Trek booking not found' });
+    }
+
+    if (booking.status === 'pending') {
+      return res.status(400).json({
+        success: false,
+        message: 'Ticket available after the trek organizer approves your payment.',
+      });
+    }
+    if (booking.status !== 'confirmed') {
+      return res.status(400).json({
+        success: false,
+        message: 'This booking is not active. Ticket unavailable.',
+      });
     }
 
     if (!booking.qrCodeData) {
       booking.qrCodeData = crypto.randomBytes(16).toString('hex');
       await booking.save();
     }
+
+    const { groupLink } = resolveTrekGroupLink(booking.trekId);
 
     res.json({
       success: true,
@@ -79,6 +114,7 @@ const generateTrekQR = async (req, res) => {
         trekTime: booking.bookingDetails?.time || null,
         venue: booking.trekId?.city || null,
         people: booking.bookingDetails?.people || 1,
+        groupLink,
         checkedIn: booking.checkedIn || false,
         checkedInAt: booking.checkedInAt || null,
       },
@@ -98,16 +134,34 @@ const generateSportsQR = async (req, res) => {
       _id: registrationId,
       user: userId,
       category: 'sports',
-      status: { $ne: 'cancelled' },
+      status: 'confirmed',
     }).populate('user', 'name');
 
     if (!registration) {
+      const pending = await CategoryRegistration.findOne({
+        _id: registrationId,
+        user: userId,
+        category: 'sports',
+        status: 'pending',
+      }).lean();
+      if (pending) {
+        return res.status(400).json({
+          success: false,
+          message: 'Ticket available after the run club approves your payment',
+        });
+      }
       return res.status(404).json({ success: false, message: 'Sports registration not found' });
     }
 
-    const event = await SportsEvent.findById(registration.eventId).select(
-      'title eventDate venue city sportType images',
-    );
+    const event = await SportsEvent.findById(registration.eventId)
+      .select('title eventDate venue city sportType images runClubId')
+      .lean();
+
+    let listingHub = 'sports';
+    if (event?.runClubId || registration.runClubId) {
+      const { listingHubForRunClubId } = require('../utils/listingHubCopy');
+      listingHub = await listingHubForRunClubId(event?.runClubId || registration.runClubId);
+    }
 
     if (!registration.qrCodeData) {
       registration.qrCodeData = crypto.randomBytes(16).toString('hex');
@@ -118,11 +172,12 @@ const generateSportsQR = async (req, res) => {
       success: true,
       data: {
         registrationId: registration._id,
-        ticketType: 'sports',
+        ticketType: listingHub === 'events' ? 'event_community' : 'sports',
+        listingHub,
         qrHash: registration.qrCodeData,
         userName: registration.user?.name || null,
-        eventTitle: event?.title || 'Sports Event',
-        festName: event?.title || 'Sports Event',
+        eventTitle: event?.title || (listingHub === 'events' ? 'Event' : 'Sports Event'),
+        festName: event?.title || (listingHub === 'events' ? 'Event' : 'Sports Event'),
         festDate: event?.eventDate || null,
         venue: event?.venue || event?.city || null,
         sportType: event?.sportType || null,
@@ -136,13 +191,67 @@ const generateSportsQR = async (req, res) => {
   }
 };
 
+const generateEventShowQR = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { registrationId } = req.params;
+    const EventShowRegistration = require('../model/event_show_registration_model');
+
+    const registration = await EventShowRegistration.findOne({
+      _id: registrationId,
+      user: userId,
+    })
+      .populate('eventShow', 'title displayName venue city showTimings')
+      .populate('user', 'name');
+
+    if (!registration) {
+      return res.status(404).json({ success: false, message: 'Event registration not found' });
+    }
+
+    if (!registration.qrCodeData) {
+      registration.qrCodeData = crypto.randomBytes(16).toString('hex');
+      await registration.save();
+    }
+
+    const show = registration.eventShow || {};
+    const eventDate = show.showTimings?.[0]?.date || null;
+
+    res.json({
+      success: true,
+      data: {
+        registrationId: registration._id,
+        ticketType: 'event',
+        qrHash: registration.qrCodeData,
+        userName: registration.user?.name || null,
+        eventTitle: show.displayName || show.title || 'Event',
+        festName: show.displayName || show.title || 'Event',
+        festDate: eventDate,
+        venue: show.venue || show.city || null,
+        checkedIn: registration.checkedIn || false,
+        checkedInAt: registration.checkedInAt || null,
+      },
+    });
+  } catch (error) {
+    console.error('❌ Event QR generation error:', error);
+    res.status(500).json({ success: false, message: 'Failed to generate event QR code' });
+  }
+};
+
 const verifyQR = async (req, res) => {
   try {
     const raw = req.params.hash || '';
     const result = await performCheckinFromRaw(raw, { scannedBy: 'Admin', logToSheets: true });
+    if (result.status >= 400) {
+      captureFlowEvent('qr_checkin', 'miss', {
+        status: result.status,
+        reason: result.body?.message,
+        source: 'hash_param',
+      });
+    }
     return res.status(result.status).json(result.body);
   } catch (error) {
     console.error('❌ QR verify error:', error);
+    captureFlowEvent('qr_checkin', 'error', { source: 'hash_param' });
     res.status(500).json({ success: false, status: 'error', message: 'Failed to verify QR code' });
   }
 };
@@ -151,9 +260,17 @@ const verifyQRFromPayload = async (req, res) => {
   try {
     const raw = req.body.qrData || req.body.payload || req.body.hash;
     const result = await performCheckinFromRaw(raw, { scannedBy: 'Admin', logToSheets: true });
+    if (result.status >= 400) {
+      captureFlowEvent('qr_checkin', 'miss', {
+        status: result.status,
+        reason: result.body?.message,
+        source: 'payload',
+      });
+    }
     return res.status(result.status).json(result.body);
   } catch (error) {
     console.error('❌ QR verify payload error:', error);
+    captureFlowEvent('qr_checkin', 'error', { source: 'payload' });
     res.status(500).json({ success: false, status: 'error', message: 'Failed to verify QR code' });
   }
 };
@@ -186,6 +303,7 @@ module.exports = {
   generateQR,
   generateTrekQR,
   generateSportsQR,
+  generateEventShowQR,
   verifyQR,
   verifyQRFromPayload,
   getCheckinStats,

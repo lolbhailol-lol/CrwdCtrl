@@ -125,7 +125,8 @@ const registerForCompetition = async (req, res) => {
             await sendRegistrationThankYouEmail(
                 registrationData.email,
                 registrationData.name,
-                'Competition Registration' // Generic fest name for competitions
+                registrationData.competitionName,
+                { type: 'competition' },
             );
             console.log('✅ Thank you email sent successfully');
 
@@ -147,11 +148,11 @@ const registerForCompetition = async (req, res) => {
                     await sendRegistrationConfirmationEmail(
                         registrationData.email,
                         registrationData.name,
-                        'Competition Registration', // Generic fest name
-                        registrationData.competitionName, // Competition name
+                        registrationData.competitionName,
+                        registrationData.competitionName,
                         registrationData.registrationId,
                         submissionDate,
-                        { status: 'pending', method: 'manual' }
+                        { status: 'pending', method: 'manual', type: 'competition' },
                     );
                     
                     console.log('✅ Confirmation email sent successfully');

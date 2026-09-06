@@ -1,5 +1,16 @@
 apply plugin: 'com.android.application'
 
+// Load release signing credentials from keystore.properties (gitignored, never committed).
+// See keystore.properties.example. If absent, release builds are left unsigned so the
+// project still configures/builds for debug and CI.
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+def keystoreProperties = new Properties()
+def hasReleaseSigning = false
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+    hasReleaseSigning = keystoreProperties['storeFile'] != null
+}
+
 android {
     namespace = "in.crwdctrl.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +18,8 @@ android {
         applicationId "in.crwdctrl.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode 16
+        versionName "1.1.2"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,10 +27,35 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        if (hasReleaseSigning) {
+            release {
+                storeFile rootProject.file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }
     buildTypes {
         release {
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // Packages native symbols into the AAB for Play to symbolize crashes/ANRs.
+            // Currently extracts nothing: all 16 bundled .so files come from third-party
+            // AARs (ML Kit, Firebase, Cashfree) that ship pre-stripped, and this app has
+            // no native code of its own. Kept so symbols appear if that ever changes.
+            ndk {
+                debugSymbolLevel = 'SYMBOL_TABLE'
+            }
+        }
+    }
+    packaging {
+        resources {
+            excludes += 'build-data.properties'
         }
     }
 }

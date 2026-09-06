@@ -52,6 +52,12 @@ const festOrganizerSchema = new mongoose.Schema(
     default: 0, // numeric INR amount for online payment; 0 = free
   },
 
+  /** CrwdCtrl platform fee % on fest/competition checkout (0 = Cashfree only, no platform fee). */
+  platformFeePercent: {
+    type: Number,
+    default: 3,
+  },
+
   description: {
     type: String,
     required: true,
@@ -101,6 +107,17 @@ const festOrganizerSchema = new mongoose.Schema(
       type: String,
       default: ''
     },
+    /** MindSpark / fest-wide: master sheet covering all competitions */
+    overallSheetUrl: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    /** Extra links shown after registration (rulebook, schedule, etc.) */
+    resourceLinks: [{
+      label: { type: String, trim: true },
+      url: { type: String, trim: true },
+    }],
     // ✅ NEW: Form type configuration
     formType: {
       type: String,
@@ -250,6 +267,15 @@ const festOrganizerSchema = new mongoose.Schema(
     default: 'upcoming',
   },
 
+  /** Public URL slug — e.g. aarohan-2027 for /stall/aarohan-2027 and /view-details/... */
+  slug: {
+    type: String,
+    trim: true,
+    sparse: true,
+    index: true,
+  },
+  previousSlugs: [{ type: String, trim: true }],
+
   priority: {
     type: Number,
     default: 999, // New fests appear last until admin sets priority
@@ -271,6 +297,36 @@ const festOrganizerSchema = new mongoose.Schema(
     type: String,
     default: "Artists You'll Love",
     trim: true,
+  },
+
+  /**
+   * Pro Show / Pro Night ticket ops (separate from competitions).
+   * Lineup stays in artists[]; this is capacity, tiers, and gate.
+   */
+  proShow: {
+    enabled: { type: Boolean, default: false },
+    title: { type: String, trim: true, default: 'Pro Show' },
+    venue: { type: String, trim: true, default: '' },
+    showAt: { type: Date, default: null },
+    capacity: { type: Number, default: 0, min: 0 },
+    salesOpen: { type: Boolean, default: true },
+    notes: { type: String, trim: true, default: '' },
+    tiers: [{
+      id: { type: String, trim: true, default: '' },
+      name: { type: String, trim: true, default: '' },
+      kind: {
+        type: String,
+        enum: ['early_bird', 'ga', 'vip', 'other'],
+        default: 'ga',
+      },
+      price: { type: Number, default: 0, min: 0 },
+      /** Soft cap for this tier (0 = unlimited within venue capacity) */
+      quota: { type: Number, default: 0, min: 0 },
+      /** Early bird ends at this time (optional) */
+      endsAt: { type: Date, default: null },
+      order: { type: Number, default: 0 },
+      active: { type: Boolean, default: true },
+    }],
   },
 
   contacts: [
@@ -313,13 +369,20 @@ const festOrganizerSchema = new mongoose.Schema(
     enabled: { type: Boolean, default: false },
     code: { type: String, trim: true, uppercase: true },
     passwordHash: { type: String, default: '' },
-    // Admin-retrievable copy so the credential can be re-shared with volunteers
-    password: { type: String, default: '' },
     label: { type: String, default: '', trim: true },
   },
 },
 { timestamps: true }
 );
+
+festOrganizerSchema.pre('save', function stripLegacyScannerPassword(next) {
+  if (this.scannerAccess?.password) {
+    this.scannerAccess.password = undefined;
+    this.markModified('scannerAccess');
+    this.$unset('scannerAccess.password');
+  }
+  next();
+});
 
 festOrganizerSchema.index({ 'scannerAccess.code': 1 }, { unique: true, sparse: true });
 

@@ -2,17 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { ChevronLeft } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDarkMode } from '../../context/DarkModeContext';
-import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
-import { getImageUrl } from '../../utils/imageImports';
+import DetailPageLoader from '../../components/DetailPageLoader';
+import CompetitionCoverImage from '../../components/CompetitionCoverImage';
 import {
   transformFestPublicData,
   buildCompetitionNavPayload,
 } from '../../utils/festPublicTransform';
 import { publicFetchJSONRetry as fetchJSON } from '../../services/api/client';
+import { competitionPath } from '../../utils/slugRoutes';
+import { saveCompetitionDetailCache } from '../../utils/detailPageCache';
+import { useInAppBack } from '../../hooks/useInAppBack';
 
 const CompetitionListPage = () => {
     const { isDark } = useDarkMode();
     const navigate = useNavigate();
+    const goBack = useInAppBack();
     const { eventId } = useParams();
     
     const [eventData, setEventData] = useState(null);
@@ -118,13 +122,16 @@ const CompetitionListPage = () => {
     const availableTabs = Object.keys(competitions || {});
 
     const handleBackClick = () => {
-        navigate(-1);
+        goBack();
     };
 
     const handleCompetitionClick = (competition) => {
-        navigate(`/competitions-view-details/${competition.id}`, {
+        const payload = buildCompetitionNavPayload(competition, eventData);
+        const compId = competition?.id || competition?._id;
+        if (compId && payload) saveCompetitionDetailCache(compId, payload);
+        navigate(competitionPath(competition), {
             state: {
-                competition: buildCompetitionNavPayload(competition, eventData),
+                competition: payload,
                 eventData,
             },
         });
@@ -132,14 +139,7 @@ const CompetitionListPage = () => {
 
     // Loading state
     if (loading) {
-        return (
-            <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500 mx-auto mb-4"></div>
-                    <h2 className="text-xl font-semibold">Loading competitions...</h2>
-                </div>
-            </div>
-        );
+        return <DetailPageLoader variant="competition" label="Loading competitions" />;
     }
 
     // Error state
@@ -205,7 +205,9 @@ const CompetitionListPage = () => {
                             : isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-600 hover:text-gray-900'
                             }`}
                     >
-                        {tab}
+                        {tab === tab.toUpperCase() || tab.includes(' ') || tab.includes('-')
+                            ? tab
+                            : (tab.charAt(0) + tab.slice(1).toLowerCase())}
                     </button>
                 ))}
             </div>
@@ -230,12 +232,13 @@ const CompetitionListPage = () => {
                         >
                             <div className="flex gap-4 p-3">
                                 {/* Image */}
-                                <div className="w-32 h-32 shrink-0">
-                                    <img
-                                        src={getImageUrl(comp.image, { preset: 'cardSm' })}
-                                        alt={comp.name}
-                                        className="w-full h-full object-cover rounded-xl"
-                                        onError={(e) => handleImageErrorWithFallback(e, 128, 128, '#0ea5e9', comp.name || 'Competition')}
+                                <div className="w-32 h-32 shrink-0 rounded-xl overflow-hidden">
+                                    <CompetitionCoverImage
+                                        src={comp.image}
+                                        alt={typeof comp.name === 'string' ? comp.name : 'Competition'}
+                                        preset="cardSm"
+                                        containerClassName="w-full h-full"
+                                        loaderSize="compact"
                                     />
                                 </div>
 

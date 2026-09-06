@@ -10,7 +10,9 @@ import {
   storePendingPayment,
   markPaymentReturnExpected,
   isTrekPaymentPending,
+  hasCashfreeReturnParams,
 } from './deepLinks';
+import { classifyVerifyResponse, clearCashfreeReturnAndPending, classifyCheckoutError } from './paymentNavigation';
 
 let cashfreeInstance = null;
 let cashfreeMode = null;
@@ -63,7 +65,7 @@ async function openInAppWebSdkCheckout({ paymentSessionId, cashfreeMode }) {
   }
 
   if (!result.paymentDetails) {
-    throw new Error('Payment was not completed');
+    throw new Error('Payment was cancelled');
   }
 
   return {
@@ -83,27 +85,22 @@ function formatCashfreeCheckoutError(message, cashfreeMode, suffix = '') {
 }
 
 async function openCapacitorCashfreeCheckout(opts) {
-  const { cashfreeMode } = opts;
-  // Production native SDK requires Play Store install (Cashfree Integrity).
-  // Sideloaded APKs: in-app JS modal inside the WebView works without Play Store.
-  if (getCashfreeMode(cashfreeMode) === 'production') {
-    try {
-      return await openInAppWebSdkCheckout(opts);
-    } catch (webErr) {
-      console.warn('[Cashfree] In-app web checkout failed, trying native SDK:', webErr.message);
-      try {
-        return await openNativeCashfreeSdkCheckout(opts);
-      } catch (nativeErr) {
-        throw webErr;
-      }
-    }
-  }
-
+  // The native Cashfree SDK is authorized via the app package whitelisting
+  // (in.crwdctrl.app, approved in the Cashfree dashboard) and works on Play Store
+  // installs for both sandbox and production. Prefer it so we don't depend on
+  // whitelisting https://localhost (which Cashfree does not allow as a domain).
+  //
+  // The in-app web modal (origin https://localhost) is only a fallback for
+  // sideloaded/dev builds where the native SDK fails Cashfree's integrity check.
   try {
     return await openNativeCashfreeSdkCheckout(opts);
   } catch (nativeErr) {
     const errMessage = nativeErr?.message || '';
     if (shouldUseInAppWebSdkFallback(errMessage)) {
+      console.warn(
+        '[Cashfree] Native SDK unavailable, falling back to in-app web modal:',
+        errMessage,
+      );
       return openInAppWebSdkCheckout(opts);
     }
     throw nativeErr;
@@ -119,6 +116,7 @@ export async function openCashfreeCheckout({
   returnPath,
   entityType,
   cashfreeMode,
+  customerEmail = '',
 }) {
   if (!paymentSessionId || typeof paymentSessionId !== 'string') {
     throw new Error('Payment session missing. Restart the payment and try again.');
@@ -139,6 +137,7 @@ export async function openCashfreeCheckout({
         paymentSessionId,
         returnPath: resolvedReturnPath,
         entityType,
+        customerEmail,
       });
     }
 
@@ -177,7 +176,10 @@ export async function openCashfreeCheckout({
       paymentSessionId,
       returnPath: resolvedReturnPath,
       entityType,
+      customerEmail,
     });
+    // Must run before checkout — on redirect the page unloads and this line never runs after await
+    markPaymentReturnExpected();
 
     const result = await cashfree.checkout({
       paymentSessionId,
@@ -196,8 +198,7 @@ export async function openCashfreeCheckout({
       return result;
     }
 
-    // Redirect checkout: page navigates away; TrekBookingPage / FestRegistration resume after return
-    markPaymentReturnExpected();
+    // Redirect checkout: page navigates away; booking pages resume after return
     return { redirectDeferred: true };
   }
 
@@ -213,11 +214,21 @@ export async function openCashfreeCheckout({
   }
 
   if (!result.paymentDetails) {
-    throw new Error('Payment was not completed');
+    // Modal closed / dismissed — treat as cancel so UI does not keep “Finishing…”
+    throw new Error('Payment was cancelled');
   }
 
   return result;
 }
+
+export { classifyCheckoutError } from './paymentNavigation';
+
+/**
+ * Classify a checkout error into a coarse kind + a user-friendly message so the
+ * UI can show a styled fallback (retry / contact support) instead of a raw error.
+ * Returns { kind: 'cancelled' | 'network' | 'failed', message }.
+ * @deprecated import from paymentNavigation — re-exported here for existing call sites.
+ */
 
 export function buildVerifiedPaymentFields(verifyData, orderId) {
   return {
@@ -230,13 +241,16 @@ export function buildVerifiedPaymentFields(verifyData, orderId) {
  * After redirect checkout, verify fest/competition orders with backend.
  * Trek orders use /payment/trek-verify and are resumed on TrekBookingPage.
  */
-export async function verifyPendingCashfreePayment(apiBase, token) {
+export async function verifyPendingCashfreePayment(apiBase, token, { search = '' } = {}) {
   const pending = getPendingPayment();
   if (!pending?.orderId) return null;
 
   if (isTrekPaymentPending(pending)) {
     return null;
   }
+
+  const params = new URLSearchParams(search || (typeof window !== 'undefined' ? window.location.search : ''));
+  const paymentId = params.get('cf_payment_id') || params.get('payment_id') || null;
 
   const res = await fetch(`${apiBase}/payment/verify`, {
     method: 'POST',
@@ -245,14 +259,32 @@ export async function verifyPendingCashfreePayment(apiBase, token) {
       Accept: 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ orderId: pending.orderId }),
+    body: JSON.stringify({
+      payment_order_id: pending.orderId,
+      ...(paymentId ? { payment_id: paymentId } : {}),
+    }),
     credentials: 'include',
   });
 
-  if (!res.ok) return null;
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
+  const classified = classifyVerifyResponse(data, res.status);
+
+  if (classified.status === 'cancelled') {
+    clearCashfreeReturnAndPending();
+    return { cancelled: true, verifyData: data, meta: pending, classified };
+  }
+
+  if (!classified.verified) {
+    if (classified.status === 'pending') {
+      return { pending: true, verifyData: data, meta: pending, classified };
+    }
+    return null;
+  }
+
   clearPendingPayment();
-  return { verifyData: data, meta: pending };
+  return { verifyData: data, meta: pending, classified };
 }
+
+export { clearCashfreeReturnAndPending };
 
 export { isNativeCashfreeAvailable };

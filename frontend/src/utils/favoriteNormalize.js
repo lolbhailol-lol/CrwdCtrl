@@ -3,6 +3,8 @@
  * regardless of which page added the favorite (home carousel, fest list, view-details, etc.).
  */
 
+import { competitionPath, communityPath, festPath, runClubPath, sportRunPath, trekPath } from './slugRoutes';
+
 function pickString(...values) {
   for (const value of values) {
     if (typeof value === 'string' && value.trim()) return value.trim();
@@ -22,15 +24,23 @@ function inferType(data = {}) {
   return 'fest';
 }
 
-export function favoriteDetailPath(id, type) {
+export function favoriteDetailPath(id, type, data = {}) {
   if (!id) return '/';
   const t = (type || 'fest').toLowerCase();
-  if (t === 'trek') return `/trek/${id}`;
-  if (t === 'community') return `/treks/community/${id}`;
-  if (t === 'runclub' || t === 'run club') return `/sports/run-club/${id}`;
-  if (t === 'sport' || t === 'sports' || t === 'run') return `/sports/run/${id}`;
-  if (t === 'competition') return `/competitions-view-details/${id}`;
-  return `/view-details/${id}`;
+  if (t === 'trek') return trekPath({ _id: id, id, trekName: data.title || data.trekName });
+  if (t === 'community') return communityPath({ _id: id, id, name: data.title || data.name });
+  if (t === 'runclub' || t === 'run club') return runClubPath({ _id: id, id, name: data.title || data.name });
+  if (t === 'sport' || t === 'sports' || t === 'run') {
+    return sportRunPath({
+      _id: id,
+      id,
+      title: data.title || data.name,
+      slug: data.slug,
+      previousSlugs: data.previousSlugs,
+    });
+  }
+  if (t === 'competition') return competitionPath({ _id: id, id, name: data.title || data.name });
+  return festPath({ _id: id, id, festName: data.title || data.festName, title: data.title });
 }
 
 export function normalizeFavoriteEntry(eventId, eventData = {}) {
@@ -95,7 +105,7 @@ export function normalizeFavoriteEntry(eventId, eventData = {}) {
     location: venue,
     dateTime,
     ticketPrice: eventData.ticketPrice ?? eventData.feeAmount ?? null,
-    detailPath: favoriteDetailPath(id, type),
+    detailPath: favoriteDetailPath(id, type, eventData),
     addedAt: eventData.addedAt || new Date().toISOString(),
   };
 }

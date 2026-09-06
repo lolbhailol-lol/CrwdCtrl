@@ -1,11 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { Phone, Instagram, Check, Moon, Sun, Mail, User, ArrowLeft, Trophy, Ticket, Zap } from 'lucide-react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { Phone, Instagram, Check, Mail, ArrowLeft, Ticket, Share2, Users, FileText, ExternalLink } from 'lucide-react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import Sidebar from '../../components/Sidebar';
-import Navbar from '../../components/Navbar';
-import ProfileSidebar from '../../components/ProfileSidebar';
 import { useDarkMode } from '../../context/DarkModeContext';
-import { useRegisteredEvents } from '../../context/RegisteredEventsContext';
+import { useDialog } from '../../context/DialogContext';
 import { useAuth } from '../../context/AuthContext';
 import CalendarIcon from '../../assets/calendar.svg';
 import LocationIcon from '../../assets/location-.svg';
@@ -14,6 +12,145 @@ import { getImageUrl } from '../../utils/imageImports.js';
 import CrwdCtrlLogin from '../auth/login';
 import CrwdCtrlRegister from '../auth/register';
 import { publicFetchJSONRetry as fetchJSON, resolveUrl } from '../../services/api/client';
+import Seo from '../../components/Seo';
+import { breadcrumbSchema, eventSchema } from '../../utils/seo';
+import { openExternalUrl, shareContent } from '../../utils/externalLink';
+import { competitionPath, competitionRegistrationPath, festRegisterPath, festPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
+import { resolveCompetitionFee, buildRegistrationPrefetch, saveRegistrationPrefetch } from '../../utils/festPublicTransform';
+import { minCompetitionFeeAmount } from '../../utils/competitionFeeTiers';
+import { trackBookNowClick } from '../../services/analyticsService';
+import PrizePoolPodium from '../../components/PrizePoolPodium';
+import DetailPageLoader from '../../components/DetailPageLoader';
+import CompetitionCoverImage from '../../components/CompetitionCoverImage';
+import { signalDetailPageReady } from '../../utils/bootSplash';
+import { COMPETITION_DEMO_LOAD_MS } from '../../constants/skeletonLoading';
+import { formatSlotsLabel, buildTeamSizeLabel, isCompetitionSoldOut, isCompetitionRegistrationClosed } from '../../utils/teamSize';
+import { useInAppBack } from '../../hooks/useInAppBack';
+import { isMindSparkFest } from '../../features/fests/mindspark/isMindSparkFest';
+import { isTechfestFest } from '../../features/fests/techfest/isTechfestFest';
+import {
+    loadCompetitionDetailCache,
+    saveCompetitionDetailCache,
+    isBuiltCompetitionDetail,
+} from '../../utils/detailPageCache';
+
+/** Compact slots + team chips — sits above Register Now inside the bar */
+function RegisterMetaChips({ slotsLabel, teamLabel, isDark }) {
+    // Keep full wording: "49 slots remain" (not just "49 remain")
+    const slotsShort = (() => {
+        const raw = String(slotsLabel || '').trim();
+        if (!raw) return '';
+        const remainMatch = raw.match(/^(\d+)\s+slots?\s+remains?$/i);
+        if (remainMatch) {
+            const n = Number(remainMatch[1]);
+            return n === 1 ? '1 slot remains' : `${n} slots remain`;
+        }
+        const allottedMatch = raw.match(/^(\d+)\s+slots?$/i);
+        if (allottedMatch) {
+            const n = Number(allottedMatch[1]);
+            return n === 1 ? '1 slot remains' : `${n} slots remain`;
+        }
+        return raw;
+    })();
+    const teamShort = String(teamLabel || '')
+        .replace(/participants?/gi, 'people')
+        .replace(/\s*per\s*team/gi, '')
+        .replace(/^team\s+/i, '')
+        .replace(/\s+/g, ' ')
+        .trim() || 'Solo';
+
+    return (
+        <div className="flex w-full items-center gap-1.5">
+            {slotsShort ? (
+                <span
+                    className={`inline-flex flex-1 min-w-0 items-center justify-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                        isDark
+                            ? 'bg-[#0ECCEE]/15 text-[#7DE8F7]'
+                            : 'bg-cyan-50 text-cyan-700'
+                    }`}
+                >
+                    <Ticket className="w-2.5 h-2.5 shrink-0 opacity-70" strokeWidth={2.25} />
+                    <span className="truncate tabular-nums">{slotsShort}</span>
+                </span>
+            ) : null}
+            <span
+                className={`inline-flex flex-1 min-w-0 items-center justify-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                    isDark
+                        ? 'bg-amber-400/15 text-amber-200'
+                        : 'bg-amber-50 text-amber-700'
+                }`}
+            >
+                <Users className="w-2.5 h-2.5 shrink-0 opacity-70" strokeWidth={2.25} />
+                <span className="truncate">{teamShort}</span>
+            </span>
+        </div>
+    );
+}
+
+function registerBarFeeAmount(feeTiers, feeAmount) {
+    const list = Array.isArray(feeTiers) ? feeTiers.filter((t) => t && (t.label || t.amount >= 0)) : [];
+    if (list.length) return minCompetitionFeeAmount(list);
+    const n = Number(feeAmount);
+    return Number.isFinite(n) ? Math.max(0, n) : null;
+}
+
+function RegisterFeeLabel({ feeLabel, feeIsFree, isDark, feeTiers, feeAmount, large = false }) {
+    const list = Array.isArray(feeTiers) ? feeTiers.filter((t) => t && (t.label || t.amount >= 0)) : [];
+    const multiTier = list.length > 1;
+    const amount = registerBarFeeAmount(feeTiers, feeAmount);
+    const display = amount != null ? `₹${amount.toLocaleString('en-IN')}` : feeLabel;
+    const labelClass = large ? 'text-sm' : 'text-[11px]';
+    const priceClass = large ? 'text-2xl' : 'text-lg sm:text-xl';
+
+    return (
+        <div className={`shrink-0 flex flex-col justify-center min-h-14 ${large ? 'min-w-0 flex-1' : 'max-w-[44%]'} pr-0.5`}>
+            {!feeIsFree ? (
+                <p className={`${labelClass} font-semibold leading-none ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {multiTier ? 'From' : 'Fee'}
+                </p>
+            ) : null}
+            {feeIsFree ? (
+                <p className={`${priceClass} font-bold leading-none text-green-500`}>Free</p>
+            ) : (
+                <p className={`mt-0.5 ${priceClass} font-bold leading-none tabular-nums ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {display}
+                </p>
+            )}
+        </div>
+    );
+}
+
+function RegistrationFeeLines({ tiers, feeLabel, feeIsFree, isDark }) {
+    const list = Array.isArray(tiers) ? tiers.filter((t) => t && (t.label || t.amount >= 0)) : [];
+    if (list.length > 1) {
+        return (
+            <div className={`text-sm space-y-1.5 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                <p className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Registration fees</p>
+                {list.map((tier) => (
+                    <p key={tier.id || tier.label} className="flex items-baseline justify-between gap-3">
+                        <span className="min-w-0">{tier.label}</span>
+                        <span className={`font-bold tabular-nums shrink-0 ${feeIsFree ? 'text-green-500' : 'text-[#0ECCEE]'}`}>
+                            {Number(tier.amount) > 0
+                                ? `₹${Number(tier.amount).toLocaleString('en-IN')}/-`
+                                : 'Free'}
+                        </span>
+                    </p>
+                ))}
+            </div>
+        );
+    }
+    if (!feeLabel) return null;
+    return (
+        <div className={`text-sm space-y-1 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+            <p>
+                <span className="font-semibold">Registration fee: </span>
+                <span className={`font-bold ${feeIsFree ? 'text-green-500' : 'text-[#0ECCEE]'}`}>
+                    {feeLabel}
+                </span>
+            </p>
+        </div>
+    );
+}
 
 /**
  * Sanitize round description to remove duplicated content blocks.
@@ -26,6 +163,13 @@ const sanitizeRoundDescription = (rawDesc) => {
 
     // Normalize line breaks
     let desc = rawDesc.replace(/\r\n/g, '\n').replace(/<br\s*\/?\s*>/gi, '\n');
+
+    // Drop standalone Offline / Online / Final Round headings (shown as extra labels in UI)
+    desc = desc
+        .split('\n')
+        .filter((line) => !/^\s*(offline|online|final)\s*rounds?\s*:?\s*$/i.test(line))
+        .join('\n');
+
 
     // Remove the known duplicated metadata paragraph that can appear between
     // "Submission Deadline" and the "Rules" heading.
@@ -196,25 +340,114 @@ const sanitizeRulesArray = (rules) => {
         .filter((rule) => rule.length > 0);
 };
 
+const stripRulePrefix = (line) =>
+    String(line || '')
+        .replace(/^[\s•●◦▪\-–—*]+/, '')
+        .replace(/^\d+\.\s*/, '')
+        .trim();
+
+/** Turn rule strings (incl. multi-line blobs) into clean one-line bullet items */
+const flattenRulesForDisplay = (rules) => {
+    if (!Array.isArray(rules)) return [];
+
+    const flat = [];
+    for (const rule of rules) {
+        const text = typeof rule === 'string' ? sanitizeRoundDescription(rule).trim() : '';
+        if (!text) continue;
+
+        const lines = text
+            .split(/\n+/)
+            .map(stripRulePrefix)
+            .filter((line) => line.length > 0);
+
+        if (lines.length <= 1) {
+            const single = stripRulePrefix(text);
+            if (single) flat.push(single);
+            continue;
+        }
+
+        for (const line of lines) {
+            if (line.length >= 4) flat.push(line);
+        }
+    }
+
+    return flat;
+};
+
+/** True when a round has rules / mode sections worth showing (skip empty placeholders) */
+const roundHasDisplayableContent = (round) => {
+    if (!round) return false;
+    const offline = sanitizeRulesArray(round.offline?.rules || []);
+    const online = sanitizeRulesArray(round.online?.rules || []);
+    const general = sanitizeRulesArray(round.rules || []);
+    const msg = String(round.roundRulesMessage || '').trim();
+    if (offline.length || online.length || general.length || msg) return true;
+
+    const desc = String(round.description || '').trim();
+    const title = String(round.title || '').trim();
+    const genericTitle = !title
+        || /^(offline|online)\s*rounds?$/i.test(title)
+        || /^final\s*rounds?$/i.test(title)
+        || /^rounds?\s*\d+$/i.test(title);
+    // Custom-named round with a real description (no empty Offline/Online shells)
+    return !genericTitle && desc.length >= 20;
+};
+
 const buildCompetitionData = (compData, options = {}) => {
     if (!compData) return null;
 
-    const useFestRegistrationFallback = options.useFestRegistrationFallback ?? true;
     const roundsSource = Array.isArray(compData.rounds) ? compData.rounds : [];
     const roundsObject = !Array.isArray(compData.rounds) && compData.rounds ? compData.rounds : null;
     const roundsListSource = Array.isArray(roundsObject?.roundsList) ? roundsObject.roundsList : roundsSource;
 
+    const fee = resolveCompetitionFee(compData);
+
+    const mappedRounds = (roundsListSource || []).map((round, i) => ({
+        title: round?.title || `Round ${i + 1}`,
+        rules: sanitizeRulesArray(round?.rules || []),
+        roundRulesMessage: sanitizeRoundDescription(round?.roundRulesMessage || ''),
+        description: sanitizeRoundDescription(round?.description || ''),
+        dateTime: round?.dateTime || '',
+        venue: round?.venue || '',
+        offline: round?.offline
+            ? {
+                ...round.offline,
+                rules: sanitizeRulesArray(round.offline.rules || [])
+            }
+            : null,
+        online: round?.online
+            ? {
+                ...round.online,
+                rules: sanitizeRulesArray(round.online.rules || [])
+            }
+            : null
+    }));
+
+    // Drop empty placeholder rounds so MindSpark comps without content don't show empty boxes
+    const roundsList = mappedRounds.filter(roundHasDisplayableContent);
+    // Only use an explicit rounds.description — never Round 1's blurb (that duplicated under the heading)
+    const roundsDescription = sanitizeRoundDescription(roundsObject?.description || '');
+
     return {
         id: compData._id || compData.id,
-        title: compData.name || compData.title || 'Competition',
-        subtitle: sanitizeRoundDescription(compData.subtitle || compData.description || ''),
+        title: compData.name || compData.title || '',
+        subtitle: sanitizeRoundDescription(compData.subtitle || ''),
         date: compData.dateTime || compData.date || '',
         time: compData.time || '',
-        venue: compData.venue || 'TBD',
-        entryFee: compData.registrationFee || compData.entryFee || 'Free',
-        feeAmount: compData.feeAmount || 0,
-        prize: compData.prizePool || compData.prize || 'TBD',
-        image: compData.coverImage || compData.image,
+        venue: compData.venue && String(compData.venue).trim().toUpperCase() !== 'TBD'
+            ? compData.venue
+            : '',
+        entryFee: fee.known ? fee.label : (compData.registrationFee || compData.entryFee || ''),
+        feeAmount: fee.amount ?? 0,
+        feeLabel: fee.known ? fee.label : '',
+        feeIsFree: fee.isFree,
+        feeKnown: fee.known,
+        feeTiers: fee.tiers || [],
+        prize: (() => {
+            const raw = String(compData.prizePool || compData.prize || '').trim();
+            return !raw || /^(tbd|tba|n\/a|na|-|subject to change)$/i.test(raw) ? '' : raw;
+        })(),
+        image: compData.coverImage || compData.image || compData.fest?.coverImage || null,
         contact: compData.contact || { phone: '', instagram: '', email: '' },
         description: sanitizeRoundDescription(compData.description || ''),
         commonRules: sanitizeRulesArray(compData.commonRules || compData.rules || []),
@@ -222,120 +455,175 @@ const buildCompetitionData = (compData, options = {}) => {
         registrationLink: compData.registrationLink || '',
 
         registrationType: compData.registrationType || 'fest',
-        registration: useFestRegistrationFallback && (compData.registrationType === 'fest' || !compData.registrationType)
-            ? (compData.fest?.registration || compData.registration || { mode: 'NOT_STARTED' })
-            : (compData.registration || { status: 'not_started' }),
+        // Keep competition-level status; never overwrite with fest.registration (that drops not_started)
+        registration: compData.registration || { status: 'not_started' },
         legacyRegistration: compData.legacyRegistration || { status: 'NOT_STARTED' },
 
         fest: compData.fest || null,
         festId: compData.fest?._id || compData.festId || null,
+        slotsAllotted: Math.max(0, Number(compData.slotsAllotted) || 0),
+        slotsFilled: Math.max(0, Number(compData.slotsFilled) || 0),
+        showSlotsPublic: compData.showSlotsPublic !== false,
+        slotsLeft: (() => {
+            if (compData.showSlotsPublic === false) return null;
+            const allotted = Math.max(0, Number(compData.slotsAllotted) || 0);
+            if (compData.slotsLeft != null && Number.isFinite(Number(compData.slotsLeft))) {
+                return Math.max(0, Math.floor(Number(compData.slotsLeft)));
+            }
+            if (allotted > 0) {
+                const filled = Math.max(0, Number(compData.slotsFilled) || 0);
+                return Math.max(0, allotted - filled);
+            }
+            return null;
+        })(),
+        teamSizeMin: Math.max(1, Number(compData.teamSizeMin) || 1),
+        teamSizeMax: Math.max(1, Number(compData.teamSizeMax) || Number(compData.teamSizeMin) || 1),
+        teamSizeLabel: compData.teamSizeLabel || '',
+        resourceLinks: Array.isArray(compData.registration?.resourceLinks)
+            ? compData.registration.resourceLinks
+                .filter((l) => l && l.url)
+                .map((l) => ({ label: String(l.label || 'Resource').trim(), url: String(l.url).trim() }))
+            : Array.isArray(compData.resourceLinks)
+                ? compData.resourceLinks
+                    .filter((l) => l && l.url)
+                    .map((l) => ({ label: String(l.label || 'Resource').trim(), url: String(l.url).trim() }))
+                : [],
 
         rounds: {
-            description: sanitizeRoundDescription(roundsObject?.description || roundsSource?.[0]?.description || ''),
+            description: roundsDescription,
             list: Array.isArray(roundsObject?.list)
                 ? roundsObject.list
                 : roundsSource.map((round) => round?.title || round?.description).filter(Boolean),
-            roundsList: (roundsListSource || []).map((round, i) => ({
-                title: round?.title || `Round ${i + 1}`,
-                rules: sanitizeRulesArray(round?.rules || []),
-                roundRulesMessage: sanitizeRoundDescription(round?.roundRulesMessage || ''),
-                description: sanitizeRoundDescription(round?.description || ''),
-                dateTime: round?.dateTime || '',
-                venue: round?.venue || '',
-                offline: round?.offline
-                    ? {
-                        ...round.offline,
-                        rules: sanitizeRulesArray(round.offline.rules || [])
-                    }
-                    : null,
-                online: round?.online
-                    ? {
-                        ...round.online,
-                        rules: sanitizeRulesArray(round.online.rules || [])
-                    }
-                    : null
-            }))
+            roundsList,
         }
     };
 };
 
+/** Full paint package for this competition id only (never another comp’s hero). */
+function resolvePaintPackage(competitionId, location) {
+    const cached = competitionId ? loadCompetitionDetailCache(competitionId) : null;
+    if (cached && entityMatchesRouteParam(cached, competitionId, ['name', 'title'])) {
+        return isBuiltCompetitionDetail(cached)
+            ? cached
+            : buildCompetitionData(cached, { useFestRegistrationFallback: true });
+    }
+    // List-card seed is incomplete (often no cover/slots) — wait for live fetch so the page
+    // appears as one composition instead of empty hero + faded body.
+    const fromState = location?.state?.competition;
+    if (
+        fromState
+        && competitionId
+        && entityMatchesRouteParam(fromState, competitionId, ['name', 'title'])
+        && (fromState.coverImage || fromState.image)
+    ) {
+        return buildCompetitionData(fromState, { useFestRegistrationFallback: true });
+    }
+    return null;
+}
+
 function EventPage() {
     const { competitionId } = useParams();
     const navigate = useNavigate();
+    const goBack = useInAppBack();
     const location = useLocation();
     const [activeRound, setActiveRound] = useState(0);
     const [showRegistrationSuccess] = useState(false);
     const [showShareMenu, setShowShareMenu] = useState(false);
+    const [showFullAbout, setShowFullAbout] = useState(false);
+    const [showFullRoundDesc, setShowFullRoundDesc] = useState(false);
     const [expandedRules, setExpandedRules] = useState({});
-    const [competitionData, setCompetitionData] = useState(null);
+    const [competitionData, setCompetitionData] = useState(() =>
+        resolvePaintPackage(competitionId, location),
+    );
     const [showLogin, setShowLogin] = useState(false);
     const [showRegister, setShowRegister] = useState(false);
-    const [loading, setLoading] = useState(true);
+    const [fetchDone, setFetchDone] = useState(false);
     const [error, setError] = useState(null);
+    // Single gate: hero + body + chips paint together (no empty banner then fade-in)
+    const [pageReady, setPageReady] = useState(() =>
+        Boolean(resolvePaintPackage(competitionId, location)),
+    );
+    const [holdLoader, setHoldLoader] = useState(() => {
+        if (location.state?.skipDemoLoad) return false;
+        return !resolvePaintPackage(competitionId, location);
+    });
+    const [openingRegister, setOpeningRegister] = useState(false);
+    const openingRegisterRef = useRef(false);
     const { isDark } = useDarkMode();
-    const { registeredEvents } = useRegisteredEvents();
+    const { alert: showAlert, toast } = useDialog();
     const { isAuthenticated } = useAuth();
+    const fetchGenRef = useRef(0);
+
+    // Switching comps reuses this page — swap to a complete package or hold on loader
+    useLayoutEffect(() => {
+        const pack = resolvePaintPackage(competitionId, location);
+        fetchGenRef.current += 1;
+        setCompetitionData(pack);
+        setPageReady(Boolean(pack));
+        setHoldLoader(!location.state?.skipDemoLoad && !pack);
+        setOpeningRegister(false);
+        openingRegisterRef.current = false;
+        setFetchDone(false);
+        setError(null);
+        setActiveRound(0);
+        setExpandedRules({});
+        setShowFullAbout(false);
+        setShowShareMenu(false);
+        return undefined;
+    }, [competitionId]);
+
+    useEffect(() => {
+        if (location.state?.skipDemoLoad || resolvePaintPackage(competitionId, location)) {
+            setHoldLoader(false);
+            return undefined;
+        }
+        const timer = window.setTimeout(() => setHoldLoader(false), COMPETITION_DEMO_LOAD_MS);
+        return () => window.clearTimeout(timer);
+    }, [competitionId, location.state?.skipDemoLoad]);
 
     // Fetch competition data from backend API
     useEffect(() => {
+        const gen = fetchGenRef.current;
+        const applyPackage = (built) => {
+            if (gen !== fetchGenRef.current) return;
+            setCompetitionData(built);
+            setPageReady(true);
+            setFetchDone(true);
+        };
+
         const fetchCompetitionData = async () => {
             if (!competitionId) {
-                // If no competitionId in URL, check if data was passed via navigation state
                 const stateCompetition = location.state?.competition;
                 if (stateCompetition) {
-                    console.log('Using competition data from navigation state:', stateCompetition);
-                    setCompetitionData(buildCompetitionData(stateCompetition));
-                    setLoading(false);
+                    const built = buildCompetitionData(stateCompetition, { useFestRegistrationFallback: true });
+                    applyPackage(built);
                     return;
                 }
-                
-                console.log('No competitionId and no state data, redirecting to dashboard');
                 navigate('/');
                 return;
             }
 
             try {
-                setLoading(true);
                 setError(null);
-                
-                console.log('ViewDetails - Fetching competition data for ID:', competitionId);
-                console.log('ViewDetails - API URL:', resolveUrl(`/fests/competitions/${competitionId}/public`));
-                
-                // Try to fetch competition data from backend
-                // Force fresh data by bypassing browser cache and PWA service worker cache
-                const timestamp = Date.now();
-                const response = await fetchJSON(`/fests/competitions/${competitionId}/public?t=${timestamp}`, {
-                    headers: {
-                        'Cache-Control': 'no-cache, no-store, must-revalidate',
-                        'Pragma': 'no-cache',
-                        'Expires': '0'
-                    }
+                const response = await fetchJSON(`/fests/competitions/${competitionId}/public`, {
+                    cacheBust: false,
                 });
-                console.log('ViewDetails - API Response Status: OK');
-                console.log('ViewDetails - API Response Data:', response.data);
+                if (gen !== fetchGenRef.current) return;
                 
                 const compData = response.data;
-                console.log('🔍 Raw competition data from API:', compData);
-                console.log('🔍 Registration type:', compData.registrationType);
-                console.log('🔍 Registration status:', compData.registration?.status);
-                console.log('🔍 Full registration object:', compData.registration);
-
                 if (compData) {
-                    setCompetitionData(buildCompetitionData(compData, { useFestRegistrationFallback: true }));
+                    const built = buildCompetitionData(compData, { useFestRegistrationFallback: true });
+                    saveCompetitionDetailCache(competitionId, built);
+                    applyPackage(built);
                 } else {
                     setError('Competition not found');
+                    setFetchDone(true);
                 }
             } catch (err) {
+                if (gen !== fetchGenRef.current) return;
                 console.error('Error fetching competition data:', err);
-                console.error('Error details:', {
-                    message: err.message,
-                    status: err.response?.status,
-                    statusText: err.response?.statusText,
-                    data: err.response?.data
-                });
                 
                 let errorMessage = 'Competition not found';
-                
                 if (err.response?.status === 404) {
                     errorMessage = 'Competition not found or not available';
                 } else if (err.response?.status === 400) {
@@ -346,29 +634,51 @@ function EventPage() {
                     errorMessage = 'Network error. Please check your connection.';
                 }
                 
-                // Fallback to navigation state if API fails
                 const stateCompetition = location.state?.competition;
-                if (stateCompetition) {
-                    console.log('API failed, using competition data from navigation state:', stateCompetition);
-                    setCompetitionData(buildCompetitionData(stateCompetition));
+                if (stateCompetition && entityMatchesRouteParam(stateCompetition, competitionId, ['name', 'title'])) {
+                    const built = buildCompetitionData(stateCompetition, { useFestRegistrationFallback: true });
+                    saveCompetitionDetailCache(competitionId, built);
+                    applyPackage(built);
                 } else {
+                    const cached = competitionId ? loadCompetitionDetailCache(competitionId) : null;
+                    if (cached && entityMatchesRouteParam(cached, competitionId, ['name', 'title'])) {
+                        const built = isBuiltCompetitionDetail(cached)
+                            ? cached
+                            : buildCompetitionData(cached, { useFestRegistrationFallback: true });
+                        applyPackage(built);
+                    } else if (!resolvePaintPackage(competitionId, location)) {
                     setError(errorMessage);
-                    console.log('No fallback data available, showing error:', errorMessage);
+                        setFetchDone(true);
+                    } else {
+                        // Keep whatever package is already on screen
+                        setFetchDone(true);
                 }
-            } finally {
-                setLoading(false);
+                }
             }
         };
 
         fetchCompetitionData();
     }, [competitionId, navigate, location.state]);
 
+    // Keep tab index valid when empty placeholder rounds are filtered out
+    useEffect(() => {
+        const total = competitionData?.rounds?.roundsList?.length || 0;
+        if (total <= 0) {
+            if (activeRound !== 0) setActiveRound(0);
+            return;
+        }
+        if (activeRound >= total) setActiveRound(0);
+    }, [competitionData?.id, competitionData?.rounds?.roundsList?.length, activeRound]);
+
+    useEffect(() => {
+        setShowFullRoundDesc(false);
+    }, [activeRound, competitionData?.id]);
+
     // 🔄 Listen for admin updates and refetch data
     useEffect(() => {
         const handleAdminUpdate = () => {
             // Only refetch if we have a competitionId
             if (competitionId) {
-                console.log('🔄 Admin update detected - refetching competition details');
                 // Refetch the competition data with cache busting
                 const fetchUpdatedData = async () => {
                     try {
@@ -377,8 +687,9 @@ function EventPage() {
                         const compData = response.data;
 
                         if (compData) {
-                            setCompetitionData(buildCompetitionData(compData, { useFestRegistrationFallback: true }));
-                            console.log('Competition data updated from admin changes');
+                            const built = buildCompetitionData(compData, { useFestRegistrationFallback: true });
+                            setCompetitionData(built);
+                            saveCompetitionDetailCache(competitionId, built);
                         }
                     } catch (err) {
                         console.error('Error refetching updated competition data:', err);
@@ -394,7 +705,6 @@ function EventPage() {
         // Also listen for storage events (cross-tab updates)
         const handleStorageChange = (e) => {
             if (e.key === 'admin_data_updated') {
-                console.log('🔄 Admin update detected (cross-tab) - refetching competition details');
                 handleAdminUpdate({ detail: {} });
             }
         };
@@ -405,6 +715,14 @@ function EventPage() {
             window.removeEventListener('storage', handleStorageChange);
         };
     }, [competitionId]);
+
+    useEffect(() => {
+        if (!competitionData) return;
+        const canonical = competitionPath(competitionData);
+        if (canonical && window.location.pathname !== canonical) {
+            navigate(`${canonical}${window.location.search || ''}`, { replace: true, state: location.state });
+        }
+    }, [competitionData, navigate, location.state]);
 
     // Check for login modal parameter
     useEffect(() => {
@@ -417,10 +735,7 @@ function EventPage() {
     // ✅ CRITICAL FIX: Auto-close login/register modal when user becomes authenticated
     // This is essential for phone login which uses redirect-based authentication
     useEffect(() => {
-        console.log('🔄 [VIEW-DETAILS] Auth state check:', { isAuthenticated, showLogin, showRegister });
-        
         if (isAuthenticated && showLogin) {
-            console.log('✅ [VIEW-DETAILS] User authenticated, closing login modal');
             setShowLogin(false);
             // Clear URL parameters
             const url = new URL(window.location);
@@ -428,25 +743,26 @@ function EventPage() {
             window.history.replaceState({}, '', url);
         }
         if (isAuthenticated && showRegister) {
-            console.log('✅ [VIEW-DETAILS] User authenticated, closing register modal');
             setShowRegister(false);
         }
     }, [isAuthenticated, showLogin, showRegister]);
 
-    // Loading state
-    if (loading) {
+    useEffect(() => {
+        if ((pageReady || (fetchDone && error)) && !holdLoader) {
+            signalDetailPageReady();
+        }
+    }, [pageReady, fetchDone, error, holdLoader]);
+
+    if (openingRegister || ((!pageReady || holdLoader) && !error)) {
         return (
-            <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500 mx-auto mb-4"></div>
-                    <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Loading competition...</h2>
-                </div>
-            </div>
+            <DetailPageLoader
+                variant="competition"
+                label={openingRegister ? 'Opening registration' : 'Loading competition'}
+            />
         );
     }
 
-    // Error state
-    if (error || !competitionData) {
+    if (error && !competitionData) {
         return (
             <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
                 <div className="text-center max-w-md mx-auto p-6">
@@ -492,6 +808,13 @@ function EventPage() {
     }
 
     const eventData = competitionData;
+    const showHeroImage = Boolean(eventData?.image);
+    const isMindSparkCompetition = isMindSparkFest(eventData?.fest || eventData?.festId, eventData?.fest);
+    const isTechfestCompetition = isTechfestFest(eventData?.fest || eventData?.festId, eventData?.fest);
+
+    if (!eventData?.title) {
+        return <DetailPageLoader variant="competition" label="Loading competition" />;
+    }
 
     // Get fest name from location state or URL params
     const festName = location.state?.eventData?.festival_name || location.state?.eventData?.title || '';
@@ -508,23 +831,360 @@ function EventPage() {
         return sanitizeRulesArray(eventData?.commonRules || []);
     };
 
-    // Function to get round rules
+    // Function to get round rules (flat list — used when no offline/online split)
     const getRoundRules = (roundData) => {
         if (!roundData) return [];
         
-        // Display priority: show message field if present, otherwise show individual rules
         if (roundData.roundRulesMessage && roundData.roundRulesMessage.trim()) {
-            // Return message field content as a single item for display
             return [sanitizeRoundDescription(roundData.roundRulesMessage)];
         }
         
-        // Use rules array
         return sanitizeRulesArray(roundData.rules || []);
     };
 
-    const commonRules = getCommonRules();
+    const isGenericModeFillerRule = (rule = '') =>
+        /this stage is (conducted|held)\s+(online|on-ground|offline)/i.test(String(rule || ''))
+        || /via remote submission as per the official/i.test(String(rule || ''))
+        || /as per the official (problem statement|schedule)/i.test(String(rule || ''));
 
-    const isRegistered = registeredEvents.some(event => event.id === eventData?.id);
+    const getRoundModeSections = (roundData, { hideGenericFillers = false } = {}) => {
+        if (!roundData) return { offline: [], online: [], general: [] };
+
+        const filterFiller = (list) =>
+            hideGenericFillers
+                ? list.filter((r) => !isGenericModeFillerRule(r))
+                : list;
+
+        const offline = filterFiller(sanitizeRulesArray(roundData.offline?.rules || []));
+        const online = filterFiller(sanitizeRulesArray(roundData.online?.rules || []));
+        const general = filterFiller(getRoundRules(roundData));
+
+        if (offline.length || online.length) {
+            return { offline, online, general: [] };
+        }
+
+        return { offline: [], online: [], general };
+    };
+
+    const RoundRulesContent = ({ round, roundIndex, variant = 'mobile', hideGenericFillers = false }) => {
+        const { offline, online, general } = getRoundModeSections(round, { hideGenericFillers });
+        const boxClass = `${isDark ? (variant === 'mobile' ? 'bg-[#1D1E20]' : 'bg-[#111213]') : 'bg-gray-50'} rounded-lg p-4`;
+        const labelClass = `text-sm font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`;
+
+        const renderRulesBox = (rules, modeLabel, keySuffix) => (
+            <div className={boxClass}>
+                {/* Only label Offline/Online when both modes exist for this round */}
+                {modeLabel ? <h4 className={labelClass}>{modeLabel}</h4> : null}
+                <RulesList
+                    rules={rules}
+                    ruleKey={`${variant}-round${roundIndex}-${keySuffix}-${eventData?.id}`}
+                    maxItems={variant === 'mobile' ? 3 : 5}
+                />
+            </div>
+        );
+
+        if (offline.length && online.length) {
+            return (
+                <div className="space-y-3">
+                    {renderRulesBox(offline, 'Offline', 'offline')}
+                    {renderRulesBox(online, 'Online', 'online')}
+                </div>
+            );
+        }
+
+        if (offline.length) return renderRulesBox(offline, null, 'offline');
+        if (online.length) return renderRulesBox(online, null, 'online');
+
+        if (general.length > 0) {
+            return renderRulesBox(general, null, 'general');
+        }
+
+        return null;
+    };
+
+    /** Strip venue/mode suffixes so long Techfest titles fit on tabs */
+    const stripRoundModeSuffix = (name = '') =>
+        String(name || '')
+            .replace(/\s*\((?:online|offline|hybrid|iit\s*bombay(?:\s*campus)?|zonal[^)]*)\)\s*$/i, '')
+            .replace(/\s*[-–—]\s*(?:online|offline|hybrid)\s*$/i, '')
+            .trim();
+
+    /** Short tab labels — prefer Round N / Final when the real name is long */
+    const shortenRoundTitle = (rawTitle, idx, totalRounds = 0) => {
+        const title = String(rawTitle || '').trim();
+        const fallback = totalRounds > 1 && idx === totalRounds - 1 ? 'Final' : `Round ${idx + 1}`;
+        if (!title) return fallback;
+
+        if (/^(offline|online)\s*rounds?$/i.test(title)) return fallback;
+        if (/^final\s*rounds?$/i.test(title)) return 'Final';
+        if (/^rounds?\s*\d+$/i.test(title)) return `Round ${idx + 1}`;
+
+        const headed = title.match(/^(round\s*\d+|stage\s*\d+)\s*:\s*(.+)$/i);
+        const candidate = headed
+            ? stripRoundModeSuffix(headed[2].split(/:\s*/)[0].trim())
+            : stripRoundModeSuffix(title);
+
+        // 3+ round grids are narrow on mobile — keep chips as Round N / Final
+        if (totalRounds >= 3) return fallback;
+
+        // 2-round: only keep a short real name that fits without "…"
+        if (!candidate || candidate.length > 18) return fallback;
+        return candidate;
+    };
+
+    const extractRoundBlurb = (round) => {
+        const desc = sanitizeRoundDescription(round?.description || '').trim();
+        if (desc) return desc;
+        const title = String(round?.title || '').trim();
+        const parts = title.split(/:\s*/);
+        if (parts.length >= 3) return parts.slice(2).join(': ').trim();
+        if (parts.length === 2 && parts[1].length > 70) return parts[1].trim();
+        return '';
+    };
+
+    /** Full readable name under the tabs (not truncated like tab chips) */
+    const getRoundDisplayTitle = (round, idx, totalRounds = 0) => {
+        const title = String(round?.title || '').trim();
+        if (!title) return '';
+        if (/^(offline|online)\s*rounds?$/i.test(title)) return '';
+        if (/^final\s*rounds?$/i.test(title)) return '';
+        if (/^rounds?\s*\d+$/i.test(title)) return '';
+        if (title.toLowerCase() === `round ${idx + 1}`.toLowerCase()) return '';
+
+        const headed = title.match(/^(round\s*\d+|stage\s*\d+)\s*:\s*(.+)$/i);
+        if (headed) {
+            const shortName = stripRoundModeSuffix(headed[2].split(/:\s*/)[0].trim());
+            return shortName || '';
+        }
+        return stripRoundModeSuffix(title);
+    };
+
+    const getRoundTabLabel = (round, idx, totalRounds) =>
+        shortenRoundTitle(round?.title, idx, totalRounds);
+
+    /** Title → short blurb → rules (no duplicate title / Online-Offline noise) */
+    const renderActiveRoundBody = (variant = 'mobile') => {
+        const round = roundsList[activeRound];
+        if (!round) return null;
+
+        const cleanedRoundDescription = extractRoundBlurb(round);
+        const cleanedOverviewDescription = sanitizeRoundDescription(eventData?.rounds?.description || '');
+        const normalizedRoundDescription = cleanedRoundDescription.toLowerCase().replace(/\s+/g, ' ').trim();
+        const normalizedOverviewDescription = cleanedOverviewDescription.toLowerCase().replace(/\s+/g, ' ').trim();
+        const isDuplicateOfOverview =
+            normalizedRoundDescription.length > 40 &&
+            normalizedOverviewDescription.length > 40 &&
+            (normalizedOverviewDescription.includes(normalizedRoundDescription) ||
+                normalizedRoundDescription.includes(normalizedOverviewDescription));
+
+        const tabLabel = getRoundTabLabel(round, activeRound, roundsList.length);
+        let displayTitle = getRoundDisplayTitle(round, activeRound, roundsList.length);
+        // Tab already shows the full short name — don't repeat above the blurb
+        if (
+            displayTitle
+            && displayTitle.toLowerCase() === tabLabel.toLowerCase()
+            && !/^round\s*\d+$/i.test(tabLabel)
+            && !/^final$/i.test(tabLabel)
+        ) {
+            displayTitle = '';
+        }
+        // When tabs are Round N / Final, always surface the real stage name in the body
+        if (!displayTitle && /^(round\s*\d+|final)$/i.test(tabLabel)) {
+            displayTitle = getRoundDisplayTitle(round, activeRound, roundsList.length) || '';
+        }
+
+        const showDescription = Boolean(cleanedRoundDescription && !isDuplicateOfOverview);
+        const { offline, online, general } = getRoundModeSections(round, {
+            hideGenericFillers: showDescription,
+        });
+        const hasRoundContent = offline.length + online.length + general.length > 0;
+        const needsReadMore =
+            cleanedRoundDescription.length > 160 || cleanedRoundDescription.split(/\n/).length > 2;
+
+        return (
+            <div className="space-y-3">
+                {displayTitle ? (
+                    <h3 className={`font-bold text-base leading-snug line-clamp-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {displayTitle}
+                    </h3>
+                ) : null}
+
+                {showDescription ? (
+                    <div>
+                        <p
+                            className={`text-sm leading-relaxed ${
+                                showFullRoundDesc ? 'whitespace-pre-line' : 'line-clamp-3'
+                            } ${isDark ? 'text-gray-300' : 'text-gray-600'}`}
+                        >
+                            {cleanedRoundDescription}
+                        </p>
+                        {needsReadMore ? (
+                            <button
+                                type="button"
+                                onClick={() => setShowFullRoundDesc((v) => !v)}
+                                className={`mt-1.5 text-sm font-semibold ${
+                                    isDark ? 'text-[#0ECCEE]' : 'text-[#0099B8]'
+                                }`}
+                            >
+                                {showFullRoundDesc ? 'read less' : 'read more'}
+                            </button>
+                        ) : null}
+                    </div>
+                ) : null}
+
+                {hasRoundContent ? (
+                    <RoundRulesContent
+                        round={round}
+                        roundIndex={activeRound}
+                        variant={variant}
+                        hideGenericFillers={showDescription}
+                    />
+                ) : null}
+            </div>
+        );
+    };
+
+    const commonRules = getCommonRules();
+    // Re-filter at render (covers stale detail cache with empty placeholder rounds)
+    const roundsList = (eventData?.rounds?.roundsList || []).filter(roundHasDisplayableContent);
+    // Hide entire Competition Rounds card when MindSpark (or any) comp has no real round content
+    const showCompetitionRounds = roundsList.length > 0;
+
+    const contactList = (() => {
+        const c = eventData?.contact;
+        if (!c) return [];
+        const hasAny = Boolean(c.name || c.email || c.phone || c.instagram || c.instagramId);
+        if (!hasAny) return [];
+
+        let instagramId = c.instagram || c.instagramId || '';
+        if (instagramId.startsWith('http')) {
+            try {
+                const path = new URL(instagramId).pathname.replace(/^\/+|\/+$/g, '');
+                instagramId = path || instagramId;
+            } catch {
+                /* keep as-is */
+            }
+        }
+        instagramId = instagramId.replace(/^@/, '');
+
+        const names = String(c.name || '')
+            .split(/\s*(?:\/|&|,| and )\s*/i)
+            .map((n) => n.replace(/^event\s*heads?\s*:?\s*/i, '').trim())
+            .filter((n) => n.length > 1);
+        const phones = String(c.phone || '')
+            .split(/\s*(?:,|\/|;)\s*/)
+            .map((p) => p.trim())
+            .filter(Boolean);
+
+        // Pair each event head with their number (MindSpark stores "A / B" + "ph1, ph2")
+        if (names.length > 1 || phones.length > 1) {
+            const count = Math.max(names.length, phones.length, 1);
+            return Array.from({ length: count }, (_, i) => ({
+                name: names[i] || names[0] || 'Event Head',
+                role: c.role || 'Event Head',
+                email: i === 0 ? (c.email || '') : '',
+                phone: phones[i] || phones[0] || '',
+                instagramId: i === 0 ? instagramId : '',
+            })).filter((row) => row.name || row.phone || row.email || row.instagramId);
+        }
+
+        return [{
+            name: names[0] || c.name || '',
+            role: c.role || 'Event Head',
+            email: c.email || '',
+            phone: phones[0] || c.phone || '',
+            instagramId,
+        }];
+    })();
+
+    const ContactPersonCard = ({ contact }) => (
+        <div className="space-y-3">
+            <div>
+                <p className={`text-base font-bold leading-snug ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {contact.name || 'Event Head'}
+                </p>
+                {contact.role ? (
+                    <p className={`mt-0.5 text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{contact.role}</p>
+                ) : null}
+            </div>
+
+            <div className="space-y-2.5">
+                {contact.phone
+                    ? contact.phone.split(/\s*(?:,|\/)\s*/).filter(Boolean).map((entry, pi) => {
+                        const nameMatch = entry.match(/\(([^)]+)\)/);
+                        const label = nameMatch ? nameMatch[1].trim() : null;
+                        const rawNumber = entry.replace(/\s*\([^)]*\)/, '').trim();
+                        const tel = rawNumber.replace(/[\s-]/g, '');
+                        return (
+                            <a
+                                key={pi}
+                                href={`tel:${tel}`}
+                                className="flex items-center gap-2.5"
+                            >
+                                <span className="size-9 shrink-0 rounded-full bg-[#0060DF] flex items-center justify-center">
+                                    <Phone size={16} className="text-white" />
+                                </span>
+                                <span className="min-w-0">
+                                    {label ? (
+                                        <span className={`block text-[11px] leading-tight ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{label}</span>
+                                    ) : null}
+                                    <span className={`block text-sm font-semibold tabular-nums tracking-wide ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
+                                        {rawNumber}
+                                    </span>
+                                </span>
+                            </a>
+                        );
+                    })
+                    : null}
+
+                {contact.email ? (
+                    <a
+                        href={`mailto:${contact.email}`}
+                        className="flex items-center gap-2.5"
+                    >
+                        <span className="size-9 shrink-0 rounded-full bg-emerald-600 flex items-center justify-center">
+                            <Mail size={16} className="text-white" />
+                        </span>
+                        <span className={`text-sm font-semibold truncate ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>{contact.email}</span>
+                    </a>
+                ) : null}
+
+                {contact.instagramId ? (
+                    <a
+                        href={`https://instagram.com/${contact.instagramId.replace('@', '')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2.5"
+                    >
+                        <span className="size-9 shrink-0 rounded-full bg-linear-to-br from-[#f58529] via-[#dd2a7b] to-[#8134af] flex items-center justify-center">
+                            <Instagram size={16} className="text-white" />
+                        </span>
+                        <span className={`text-sm font-semibold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
+                            {contact.instagramId.startsWith('@') ? contact.instagramId : `@${contact.instagramId}`}
+                        </span>
+                    </a>
+                ) : null}
+            </div>
+        </div>
+    );
+
+    const ContactDetailsBox = () => (
+        <div
+            className={`contact-details-box rounded-2xl p-4 sm:p-5 border shadow-sm ${
+                isDark
+                    ? 'bg-[#111213] border-white/10 shadow-[0_8px_24px_rgba(0,0,0,0.28)]'
+                    : 'bg-gray-50 border-gray-200'
+            }`}
+        >
+            <div className={`space-y-5 divide-y ${isDark ? 'divide-white/10' : 'divide-gray-200'}`}>
+                {contactList.map((contact, index) => (
+                    <div key={index} className={index === 0 ? '' : 'pt-5'}>
+                        <ContactPersonCard contact={contact} />
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
 
     // Helper function to check if custom internal form is properly configured
     const isCustomFormConfigured = () => {
@@ -545,160 +1205,235 @@ function EventPage() {
             hasFormFields = steps.length > 0 && steps.some(step => step.fields && step.fields.length > 0);
         }
         
-        console.log('🔍 Form configuration check:', {
-            formType,
-            isCustomForm: true,
-            hasFormFields,
-            singleStepLength: eventData?.registration?.formSchema?.length || 0,
-            multiStepCount: eventData?.registration?.steps?.length || 0,
-            multiStepFields: eventData?.registration?.steps?.map(s => ({ 
-                stepNumber: s.stepNumber, 
-                fieldsCount: s.fields?.length || 0 
-            }))
-        });
-        
         return hasFormFields;
     };
 
     // Helper function to determine registration availability
     const getRegistrationStatus = () => {
         const registrationType = eventData?.registrationType || 'fest';
-        const registrationStatus = eventData?.registration?.status || 'not_started';
-        
-        // ✅ CRITICAL: Also check registration from passedEventData (from navigation state)
-        const festRegistrationFromState = passedEventData?.registration || eventData?.registration;
-        const festRegistrationMode = eventData?.fest?.registration?.mode || 
-                                     festRegistrationFromState?.mode || 
-                                     eventData?.registration?.mode;
-        
-        console.log('🔍 Registration check:', { 
-            registrationType, 
-            registrationStatus,
-            festRegistrationMode,
-            eventData: eventData,
-            festData: eventData?.fest,
-            festRegistration: eventData?.fest?.registration,
-            passedEventData: passedEventData
+        const registrationStatus = String(eventData?.registration?.status || 'not_started').toLowerCase();
+        const festMode = String(
+            eventData?.fest?.registration?.mode
+            || passedEventData?.registration?.mode
+            || 'NOT_STARTED'
+        ).toUpperCase();
+        const legacyStatus = String(
+            eventData?.legacyRegistration?.status || ''
+        ).toUpperCase();
+
+        const closedResult = (buttonText) => ({
+            isAvailable: false,
+            buttonText,
+            isDisabled: true,
         });
-        
+
+        if (isCompetitionSoldOut(eventData)) {
+            return closedResult('Sold out');
+        }
+
+        if (isCompetitionRegistrationClosed(eventData)) {
+            return closedResult('Registration Closed');
+        }
+
+        // Fest-linked competitions follow the parent fest registration mode.
+        // Competition-level "not_started" must NOT block these — otherwise admins
+        // open the fest as Internal Form but every competition still looks closed.
         if (registrationType === 'fest') {
-            // ✅ Use mode from multiple sources
-            const mode = festRegistrationMode || 'NOT_STARTED';
-            console.log('🎯 Fest registration mode:', mode);
-            
+            if (festMode === 'NOT_STARTED') {
+                return closedResult('Registration Not Open Yet');
+            }
+            if (festMode === 'CLOSED') {
+                return closedResult('Registration Closed');
+            }
             return {
-                isAvailable: mode === 'EXTERNAL_LINK' || mode === 'INTERNAL_FORM',
-                buttonText: mode === 'NOT_STARTED' ? 'Registrations Not Started' : 
-                           mode === 'CLOSED' ? 'Registration Closed' : 'Register Now',
-                isDisabled: mode === 'NOT_STARTED' || mode === 'CLOSED'
+                isAvailable: festMode === 'EXTERNAL_LINK' || festMode === 'INTERNAL_FORM',
+                buttonText: festMode === 'NOT_STARTED' ? 'Registration Not Open Yet'
+                    : festMode === 'CLOSED' ? 'Registration Closed' : 'Register Now',
+                isDisabled: festMode === 'NOT_STARTED' || festMode === 'CLOSED',
             };
-        } else if (registrationType === 'custom') {
-            // Check if form is properly configured
+        }
+
+        // Custom competitions: competition registration.status controls availability
+        if (registrationStatus === 'not_started') {
+            return closedResult('Registration Not Open Yet');
+        }
+        if (registrationStatus === 'registration_closed') {
+            return closedResult('Registration Closed');
+        }
+        if (legacyStatus === 'NOT_STARTED') {
+            if (!['external_link', 'internal_form', 'started'].includes(registrationStatus)) {
+                return closedResult('Registration Not Open Yet');
+            }
+        }
+        if (legacyStatus === 'CLOSED') {
+            return closedResult('Registration Closed');
+        }
+
+        // Parent fest still not open → keep custom comps closed too
+        if (festMode === 'NOT_STARTED') {
+            return closedResult('Registration Not Open Yet');
+        }
+        if (festMode === 'CLOSED') {
+            return closedResult('Registration Closed');
+        }
+
+        if (registrationType === 'custom') {
             const isConfigured = isCustomFormConfigured();
-            
-            if (!isConfigured) {
+            if (!isConfigured && registrationStatus === 'internal_form') {
                 return {
                     isAvailable: false,
                     buttonText: 'Form Not Configured',
                     isDisabled: true,
-                    notConfigured: true
+                    notConfigured: true,
                 };
             }
-            
             return {
                 isAvailable: registrationStatus === 'external_link' || registrationStatus === 'internal_form',
-                buttonText: registrationStatus === 'not_started' ? 'Registrations Not Started' : 
-                           registrationStatus === 'registration_closed' ? 'Registration Closed' : 'Register Now',
-                isDisabled: registrationStatus === 'not_started' || registrationStatus === 'registration_closed'
-            };
-        } else {
-            // Legacy compatibility - check both new and old status fields
-            const legacyStatus = eventData?.legacyRegistration?.status || eventData?.registration?.status || 'NOT_STARTED';
-            return {
-                isAvailable: legacyStatus === 'STARTED' || legacyStatus === 'internal_form' || legacyStatus === 'external_link',
-                buttonText: legacyStatus === 'NOT_STARTED' || legacyStatus === 'not_started' ? 'Registrations Not Started' : 
-                           legacyStatus === 'CLOSED' || legacyStatus === 'registration_closed' ? 'Registration Closed' : 'Register Now',
-                isDisabled: legacyStatus === 'NOT_STARTED' || legacyStatus === 'CLOSED' || legacyStatus === 'not_started' || legacyStatus === 'registration_closed'
+                buttonText: registrationStatus === 'not_started' ? 'Registration Not Open Yet'
+                    : registrationStatus === 'registration_closed' ? 'Registration Closed' : 'Register Now',
+                isDisabled: registrationStatus === 'not_started' || registrationStatus === 'registration_closed',
             };
         }
+
+            return {
+            isAvailable: legacyStatus === 'STARTED' || registrationStatus === 'internal_form' || registrationStatus === 'external_link',
+            buttonText: 'Register Now',
+            isDisabled: false,
+        };
     };
 
     const registrationInfo = getRegistrationStatus();
 
+    const goToRegistration = (path, state = {}) => {
+        if (openingRegisterRef.current) return;
+        openingRegisterRef.current = true;
+        setOpeningRegister(true);
+        navigate(path, {
+            state: {
+                ...state,
+                skipDemoLoad: true,
+            },
+        });
+    };
+
     const handleRegister = async () => {
-        if (!isAuthenticated) {
-            setShowLogin(true);
+        const statusInfo = getRegistrationStatus();
+        if (statusInfo.isDisabled) {
+            if (statusInfo.notConfigured) {
+                showAlert({
+                    title: 'Registration unavailable',
+                    message: 'Registration is not available. Please contact the organizers.',
+                });
+                return;
+            }
+            showAlert({
+                title: statusInfo.buttonText === 'Sold out'
+                    ? 'Sold out'
+                    : statusInfo.buttonText === 'Registration Closed' ? 'Registration closed' : 'Registration not open yet',
+                message: statusInfo.buttonText === 'Sold out'
+                    ? 'All slots for this competition are filled.'
+                    : statusInfo.buttonText === 'Registration Closed'
+                    ? 'Registration for this competition is closed.'
+                    : 'Registration has not opened yet for this competition.',
+            });
             return;
         }
 
         const registrationType = eventData?.registrationType || 'fest';
-        const registrationStatus = eventData?.registration?.status || 'not_started';
-        const festRegistrationFromState = passedEventData?.registration || eventData?.registration;
-        const festRegistrationMode = eventData?.fest?.registration?.mode ||
-                                     festRegistrationFromState?.mode ||
-                                     eventData?.registration?.mode;
+        const registrationStatus = String(eventData?.registration?.status || 'not_started').toLowerCase();
+        const festRegistrationMode = String(
+            eventData?.fest?.registration?.mode
+            || passedEventData?.registration?.mode
+            || 'NOT_STARTED'
+        ).toUpperCase();
 
         if (registrationType === 'fest') {
             const mode = festRegistrationMode || 'NOT_STARTED';
             if (mode === 'EXTERNAL_LINK') {
-                const externalLink = eventData?.fest?.registration?.externalLink ||
-                                     festRegistrationFromState?.externalLink ||
-                                     eventData?.registration?.externalLink;
-                externalLink?.trim()
-                    ? window.open(externalLink, '_blank')
-                    : alert('Registration link is not available. Please contact the organizers.');
+                const link = eventData?.fest?.registration?.externalLink || eventData?.registrationLink;
+                if (link) openExternalUrl(link);
+                else showAlert({ title: 'Registration unavailable', message: 'Registration link is not available. Please contact the organizers.' });
             } else if (mode === 'INTERNAL_FORM') {
-                const festId = eventData?.fest?._id || passedEventData?.id || eventData?.festId || eventData?.fest?.id;
-                const compId = eventData?.id;
-                festId
-                    ? navigate(`/fest/${festId}/register?competition=${compId}`)
-                    : alert('Registration is not available. Please contact the organizers.');
+                const festRef = eventData?.fest || { _id: eventData?.festId };
+                const compId = eventData?.id || eventData?._id || '';
+                const path = festRegisterPath(festRef, {
+                    _id: compId,
+                    name: eventData?.title || eventData?.name,
+                    slug: eventData?.slug,
+                });
+                const prefetch = buildRegistrationPrefetch({
+                    fest: {
+                        _id: eventData?.festId || eventData?.fest?._id,
+                        festName: eventData?.fest?.festName || passedEventData?.festival_name || passedEventData?.title,
+                        collegeName: eventData?.fest?.collegeName || passedEventData?.collegeName || passedEventData?.subtitle,
+                        slug: eventData?.fest?.slug || '',
+                        feeAmount: eventData?.fest?.feeAmount ?? 0,
+                        platformFeePercent: eventData?.fest?.platformFeePercent ?? 0,
+                        registration: eventData?.fest?.registration,
+                    },
+                    competition: {
+                        _id: compId,
+                        id: compId,
+                        name: eventData?.title,
+                        feeAmount: eventData?.feeAmount,
+                        registrationFee: eventData?.entryFee,
+                        registrationType: eventData?.registrationType,
+                        registration: eventData?.registration,
+                        teamSizeMin: eventData?.teamSizeMin,
+                        teamSizeMax: eventData?.teamSizeMax,
+                        teamSizeLabel: eventData?.teamSizeLabel,
+                    },
+                });
+                const festRefId = eventData?.festId || eventData?.fest?._id;
+                if (festRefId && prefetch) {
+                    saveRegistrationPrefetch(festRefId, compId, prefetch);
+                }
+                goToRegistration(path, {
+                    freshRegistration: true,
+                    festId: eventData?.festId || eventData?.fest?._id,
+                    competitionId: compId,
+                    prefetch,
+                });
             } else if (mode === 'NOT_STARTED') {
-                alert('Registration has not started yet for this competition.');
+                showAlert({ title: 'Registration not open yet', message: 'Registration has not opened yet for this competition.' });
             } else if (mode === 'CLOSED') {
-                alert('Registration for this competition is closed.');
+                showAlert({ title: 'Registration closed', message: 'Registration for this competition is closed.' });
             } else {
-                alert('Registration configuration is not set up properly. Please contact the organizers.');
+                showAlert({ title: 'Registration unavailable', message: 'Registration configuration is not set up properly. Please contact the organizers.' });
             }
-        } else if (registrationType === 'custom') {
-            if (registrationStatus === 'internal_form') {
-                navigate(`/competition-registration/${eventData?.id || eventData?._id}`);
-            } else if (registrationStatus === 'external_link') {
-                const externalUrl = eventData?.registration?.externalUrl;
-                externalUrl?.trim()
-                    ? window.open(externalUrl, '_blank')
-                    : alert('External registration link not available. Please contact the organizers.');
-            } else if (registrationStatus === 'not_started') {
-                alert('Registration has not started yet for this competition.');
-            } else if (registrationStatus === 'registration_closed') {
-                alert('Registration for this competition is closed.');
-            } else {
-                alert('Registration configuration is not set up properly. Please contact the organizers.');
-            }
-        } else {
-            alert('Registration has not started yet for this competition.');
+            return;
         }
+
+        if (registrationType === 'custom') {
+            if (registrationStatus === 'external_link') {
+                const link = eventData?.registration?.externalUrl || eventData?.registrationLink;
+                if (link) openExternalUrl(link);
+                else showAlert({ title: 'Registration unavailable', message: 'External registration link not available. Please contact the organizers.' });
+            } else if (registrationStatus === 'internal_form') {
+                goToRegistration(competitionRegistrationPath(eventData || { id: competitionId }), {
+                    freshRegistration: true,
+                });
+            } else if (registrationStatus === 'not_started') {
+                showAlert({ title: 'Registration not open yet', message: 'Registration has not opened yet for this competition.' });
+            } else if (registrationStatus === 'registration_closed') {
+                showAlert({ title: 'Registration closed', message: 'Registration for this competition is closed.' });
+            } else {
+                showAlert({ title: 'Registration unavailable', message: 'Registration configuration is not set up properly. Please contact the organizers.' });
+            }
+            return;
+        }
+
+        showAlert({ title: 'Registration not open yet', message: 'Registration has not opened yet for this competition.' });
     };
 
     // Component for rendering rules with read more functionality
     const RulesList = ({ rules, ruleKey, maxItems = 5 }) => {
         const isExpanded = expandedRules[ruleKey];
-        const normalizedRules = (rules || [])
-            .map((rule) => (typeof rule === 'string' ? sanitizeRoundDescription(rule).trim() : ''))
-            .filter((rule) => rule.length > 0);
-        
-        // Check if this is a message field (single item with line breaks)
-        const isMessageField = normalizedRules.length === 1 && normalizedRules[0].includes('\n');
-        
-        // For message fields, check character length; for rule arrays, check item count
-        const shouldTruncate = isMessageField 
-            ? normalizedRules[0].length > 300  // Truncate if message is longer than 300 characters
-            : normalizedRules.length > maxItems;
-            
+        const normalizedRules = flattenRulesForDisplay(rules);
+
+        const shouldTruncate = normalizedRules.length > maxItems;
         const displayRules = shouldTruncate && !isExpanded 
-            ? (isMessageField 
-                ? [normalizedRules[0].substring(0, 300) + '...'] 
-                : normalizedRules.slice(0, maxItems))
+            ? normalizedRules.slice(0, maxItems)
             : normalizedRules;
 
         const toggleExpanded = () => {
@@ -710,30 +1445,21 @@ function EventPage() {
 
         return (
             <div>
-                <div className={`space-y-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                    {displayRules?.map((rule, index) => {
-                        // Check if this is a message field (single item with formatting)
-                        const isCurrentMessageField = displayRules.length === 1 && rule.includes('\n');
-                        
-                        if (isCurrentMessageField) {
-                            return (
-                                <div 
-                                    key={index} 
-                                    className="leading-relaxed whitespace-pre-wrap"
-                                    style={{ whiteSpace: 'pre-wrap' }}
-                                >
+                <ul className="space-y-3 text-sm list-none p-0 m-0">
+                    {displayRules.length > 0 ? (
+                        displayRules.map((rule, index) => (
+                            <li key={index} className="flex items-start gap-2.5">
+                                <span
+                                    className="mt-[0.45rem] size-1.5 shrink-0 rounded-full bg-[#0ECCEE]"
+                                    aria-hidden
+                                />
+                                <span className={`flex-1 min-w-0 leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                                     {rule}
-                                </div>
-                            );
-                        } else {
-                            return (
-                                <div key={index} className="leading-relaxed">
-                                    • {rule}
-                                </div>
-                            );
-                        }
-                    }) || <div>Rules will be updated soon</div>}
-                </div>
+                                </span>
+                            </li>
+                        ))
+                    ) : null}
+                </ul>
                 {shouldTruncate && (
                     <button
                         onClick={toggleExpanded}
@@ -742,9 +1468,7 @@ function EventPage() {
                     >
                         {isExpanded 
                             ? 'Read Less' 
-                            : (isMessageField 
-                                ? 'Read More' 
-                                : `Show More (${normalizedRules.length - maxItems} more rules)`)}
+                            : `Show More (${normalizedRules.length - maxItems} more rules)`}
                     </button>
                 )}
             </div>
@@ -757,17 +1481,20 @@ function EventPage() {
 
         switch (platform) {
             case 'whatsapp':
-                window.open(`https://wa.me/?text=${encodeURIComponent(text + ' ' + url)}`, '_blank');
+                openExternalUrl(`https://wa.me/?text=${encodeURIComponent(text + ' ' + url)}`);
                 break;
             case 'facebook':
-                window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank');
+                openExternalUrl(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`);
                 break;
             case 'twitter':
-                window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, '_blank');
+                openExternalUrl(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`);
                 break;
             case 'copy':
-                navigator.clipboard.writeText(url);
-                alert('Link copied to clipboard!');
+                navigator.clipboard?.writeText(url);
+                toast('Link copied to clipboard!');
+                break;
+            case 'native':
+                shareContent({ title: eventData?.title || 'CrwdCtrl', text, url });
                 break;
             default:
                 break;
@@ -798,299 +1525,277 @@ function EventPage() {
         setShowLogin(true);
     };
 
-    return (
-        <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex flex-col transition-colors">
+    const canonicalPath = competitionPath(competitionData || { id: competitionId, name: eventData?.title });
+    const competitionDescription =
+        eventData.description || eventData.subtitle || `${eventData.title} — a competition on CrwdCtrl.`;
 
-            <main className="flex-1 pb-8">
-                    <div className="max-w-7xl mx-auto">
-                        {/* Mobile/Narrow Layout - Only visible below 768px */}
-                        <div className="block md:hidden">
-                            {/* Mobile Back Button */}
-                            <div className="px-4 pt-4 pb-2">
-                                <button
-                                    onClick={() => navigate(-1)}
-                                    className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
-                                        isDark 
-                                            ? 'bg-[#111213] text-gray-300 hover:bg-[#1D1E20] hover:text-white' 
-                                            : 'bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-900'
-                                    } shadow-sm border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
+    const aboutText = (() => {
+        const raw = (
+            eventData?.description
+            || ''
+        ).trim();
+        if (!raw) return '';
+        // About = short overview only — drop Team size opener + structure/rules dumps
+        let text = raw
+            .replace(/^Team size:[^.!\n]*[.!]?\s*/i, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+        const cut = text.search(
+            /\bEVENT\s+ST[RU]*CTURE\b|\bCATEGORIES\s*:|\bRULES\s*:|\bRound\s*\d+\s*:/i,
+        );
+        if (cut > 40) text = text.slice(0, cut).trim();
+        return text;
+    })();
+
+    const renderAboutBlock = ({ headingClass, bodyClass, className = '' } = {}) => {
+        if (!aboutText) return null;
+        return (
+            <div className={className}>
+                <h2 className={headingClass}>About</h2>
+                <p className={`${bodyClass} ${showFullAbout ? '' : 'line-clamp-3'}`}>
+                    {aboutText}
+                </p>
+                {aboutText.length > 120 ? (
+                    <button
+                        type="button"
+                        onClick={() => setShowFullAbout((v) => !v)}
+                        className="mt-1 text-sm font-semibold text-[#0060DF]"
+                    >
+                        {showFullAbout ? 'read less' : 'read more'}
+                    </button>
+                ) : null}
+            </div>
+        );
+    };
+
+    const resourceLinks = Array.isArray(eventData?.resourceLinks) ? eventData.resourceLinks : [];
+    const problemStatementLink = resourceLinks.find((l) =>
+        /problem\s*statement|\.pdf$/i.test(`${l.label || ''} ${l.url || ''}`)
+    );
+    const officialPageLink = resourceLinks.find((l) =>
+        /official|techfest\.org\/competitions/i.test(`${l.label || ''} ${l.url || ''}`)
+        && l !== problemStatementLink
+    );
+
+    const renderProblemStatementLink = ({ className = '' } = {}) => {
+        if (!problemStatementLink) return null;
+        const pdfBtnClass = isDark
+            ? 'w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition bg-zinc-900 text-white border border-white/10 hover:border-cyan-400'
+            : 'w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition bg-white text-gray-900 border border-gray-200 hover:border-cyan-400';
+        return (
+            <div className={className || undefined}>
+                <button
+                    type="button"
+                    onClick={() => openExternalUrl(problemStatementLink.url)}
+                    className={pdfBtnClass}
+                >
+                    <FileText size={16} className="text-cyan-400" />
+                    Problem Statement (PDF)
+                </button>
+            </div>
+        );
+    };
+
+    const renderOfficialWebsiteLink = ({ className = '' } = {}) => {
+        if (!officialPageLink?.url) return null;
+        const linkBtnClass = isDark
+            ? 'w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition bg-zinc-900 text-white border border-white/10 hover:border-cyan-400'
+            : 'w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition bg-white text-gray-900 border border-gray-200 hover:border-cyan-400';
+        return (
+            <div className={className || undefined}>
+                <button
+                    type="button"
+                    onClick={() => openExternalUrl(officialPageLink.url)}
+                    className={linkBtnClass}
+                >
+                    <ExternalLink size={15} className="text-cyan-400" />
+                    {officialPageLink.label || 'Official Techfest website'}
+                </button>
+            </div>
+        );
+    };
+
+    return (
+        <div className={`crwdctrl-page flex flex-col min-h-screen pb-28 md:pb-8 ${isDark ? 'bg-black' : 'bg-white'}`}>
+            <Seo
+                title={eventData.title}
+                description={competitionDescription}
+                canonical={canonicalPath}
+                image={eventData.image}
+                type="article"
+                jsonLd={[
+                    breadcrumbSchema([
+                        { name: 'Home', path: '/' },
+                        ...(festName ? [{ name: festName, path: '/fests' }] : [{ name: 'Fests', path: '/fests' }]),
+                        { name: eventData.title, path: canonicalPath },
+                    ]),
+                    eventSchema({
+                        name: eventData.title,
+                        description: competitionDescription,
+                        url: canonicalPath,
+                        image: eventData.image,
+                        location: eventData.venue && eventData.venue !== 'TBD' ? eventData.venue : undefined,
+                        price: eventData.entryFee,
+                        organizerName: festName || undefined,
+                        availabilityUrl: canonicalPath,
+                    }),
+                ]}
+            />
+
+            <main
+                key={competitionId || eventData?.id || 'competition'}
+                className="flex-1 w-full animate-detail-enter"
+            >
+                    {/* Mobile — full-bleed hero when cover exists; compact chrome otherwise (no empty black box) */}
+                    <div className="block md:hidden w-full">
+                            <div className="mx-auto w-full flex flex-col flex-1 overflow-x-clip">
+                                <div
+                                    className={`relative w-full shrink-0 overflow-hidden bg-[#1A1B1D] ${
+                                        showHeroImage ? 'h-[396px]' : 'h-52'
+                                    }`}
                                 >
-                                    <ArrowLeft className="w-4 h-4" />
-                                    <span className="text-sm font-medium">Back</span>
+                                    <CompetitionCoverImage
+                                        key={`${competitionId}-${eventData.image || 'placeholder'}`}
+                                        src={showHeroImage ? eventData.image : null}
+                                        alt={eventData.title || 'Competition'}
+                                        preset="hero"
+                                        containerClassName="absolute inset-0 w-full h-full"
+                                        loaderSize="hero"
+                                        eager={showHeroImage}
+                                    />
+                                    {showHeroImage ? (
+                                    <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-black/30 pointer-events-none" />
+                                    ) : null}
+                                    <div
+                                        className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 z-10"
+                                        style={{ paddingTop: 'calc(max(var(--safe-top), 0px) + 2.5rem)' }}
+                                    >
+                                <button
+                                            type="button"
+                                            onClick={goBack}
+                                            aria-label="Go back"
+                                            className="size-11 rounded-full bg-black/40 flex items-center justify-center"
+                                        >
+                                            <ArrowLeft size={22} strokeWidth={2.25} className="text-white" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleShare('native')}
+                                            aria-label="Share"
+                                            className="size-11 rounded-full bg-black/40 flex items-center justify-center"
+                                        >
+                                            <Share2 size={20} strokeWidth={2.25} className="text-white" />
                                 </button>
+                                </div>
                             </div>
 
-                            {/* Mobile Event Image */}
-                            <div className="px-4 pt-4">
-                                <div className="bg-[#EDEDF2] dark:bg-[#111213] rounded-lg overflow-hidden shadow-sm">
-                                    <img
-                                        src={getImageUrl(eventData?.image, { preset: 'hero' }) || '/default-image.jpg'}
-                                        alt={eventData?.title || 'Competition'}
-                                        className="w-full h-48 object-cover"
-                                        onError={(e) => {
-                                            console.log('Image load error for:', eventData?.image);
-                                            console.log('Resolved URL:', getImageUrl(eventData?.image));
-                                            e.target.src = '/default-image.jpg';
-                                        }}
+                                <div
+                                    className={`relative ${showHeroImage ? '-mt-10' : ''} flex-1 rounded-t-3xl z-10 pb-4 overflow-hidden ${
+                                        isDark ? 'bg-[#161718]' : 'bg-white'
+                                    }`}
+                                >
+                            {/* Mobile Event Header */}
+                            <div className="px-4 pt-5 pb-3">
+                                <h1 className={`text-[26px] font-bold leading-8 wrap-break-word mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                    {eventData.title}
+                                </h1>
+                                {eventData?.subtitle ? (
+                                    <p className={`text-sm font-semibold mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                        {eventData.subtitle}
+                                    </p>
+                                ) : null}
+                                {renderAboutBlock({
+                                    className: aboutText ? 'mb-3' : '',
+                                    headingClass: `text-base font-bold mb-1.5 ${isDark ? 'text-white' : 'text-gray-900'}`,
+                                    bodyClass: `text-sm leading-relaxed text-left ${isDark ? 'text-gray-400' : 'text-gray-600'}`,
+                                })}
+                                {eventData.feeKnown && !isMindSparkCompetition ? (
+                                <div className="mb-1">
+                                    <RegistrationFeeLines
+                                        tiers={eventData.feeTiers}
+                                        feeLabel={eventData.feeLabel}
+                                        feeIsFree={eventData.feeIsFree}
+                                        isDark={isDark}
                                     />
                                 </div>
-                            </div>
-
-                            {/* Mobile Event Header */}
-                            <div className="px-4 py-4">
-                                <h1 className={`text-2xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                    {eventData?.title || 'Competition Title'}
-                                </h1>
-                                <p className={`text-lg mb-3 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                    {eventData?.subtitle || 'Competition Subtitle'}
-                                </p>
-                                <div className={`text-sm space-y-1 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                                    <p>
-                                        <span className="font-semibold">Entry fee: </span>
-                                        <span className="font-bold text-[#0ECCEE]">
-                                            {eventData?.feeAmount > 0 ? `₹${eventData.feeAmount}` : 'Free'}
-                                        </span>
-                                    </p>
-                                </div>
+                                ) : null}
                             </div>
 
                             {/* Mobile Event Details */}
                             <div className="px-4 py-2">
+                                {(eventData.date || eventData.venue) && (
                                 <div className="space-y-2 mb-4">
+                                    {eventData.date ? (
                                     <div className="flex items-center gap-2 text-blue-600">
                                         <img src={CalendarIcon} alt="Calendar" className={`w-4 h-4 ${isDark ? 'filter invert' : ''}`} />
-                                        <span className="text-sm">{eventData?.date || 'TBD'} {eventData?.time && `| ${eventData.time}`}</span>
+                                        <span className="text-sm">{eventData.date}{eventData.time ? ` | ${eventData.time}` : ''}</span>
                                     </div>
+                                    ) : null}
+                                    {eventData.venue && eventData.venue !== 'TBD' ? (
                                     <div className="flex items-center gap-2 text-blue-600">
                                         <img src={LocationIcon} alt="Location" className={`w-4 h-4 ${isDark ? 'filter invert' : ''}`} />
-                                        <span className="text-sm">{eventData?.venue || 'TBD'}</span>
+                                        <span className="text-sm">{eventData.venue}</span>
                                     </div>
+                                    ) : null}
                                 </div>
-                            </div>
-
-                            {/* Mobile Registration Button - Hidden, using fixed footer instead */}
-                            <div className="hidden px-4 py-4">
-                                <div className="flex gap-2 relative">
-                                    <button
-                                        onClick={handleRegister}
-                                        disabled={isRegistered || registrationInfo.isDisabled}
-                                        className={`flex-1 py-3 px-4 rounded-full font-semibold transition ${isRegistered
-                                            ? 'bg-green-500 text-white cursor-not-allowed'
-                                            : registrationInfo.isDisabled
-                                            ? 'bg-gray-500 text-white cursor-not-allowed opacity-60'
-                                            : 'bg-linear-to-r from-[#0060DF] to-[#00C2CB] text-white hover:opacity-90'
-                                            }`}
-                                        title={registrationInfo.isDisabled ? registrationInfo.buttonText : ''}
-                                    >
-                                        {isRegistered ? (
-                                            <span className="flex items-center justify-center gap-2">
-                                                <Check className="w-4 h-4" />
-                                                Registered
-                                            </span>
-                                        ) : (
-                                            registrationInfo.buttonText
-                                        )}
-                                    </button>
-                                    <div className="relative">
-                                        <button
-                                            onClick={() => setShowShareMenu(!showShareMenu)}
-                                            className={`w-12 h-12 rounded-full flex items-center justify-center transition ${isDark ? 'bg-dark-700 hover:bg-dark-600' : 'bg-gray-100 hover:bg-gray-200'
-                                                }`}
-                                        >
-                                            <img src={ShareIcon} alt="Share" className="w-5 h-5" />
-                                        </button>
-
-                                        {showShareMenu && (
-                                            <div className={`absolute right-0 mt-2 w-48 rounded-lg shadow-lg z-20 ${isDark ? 'bg-dark-700' : 'bg-white'
-                                                } border ${isDark ? 'border-dark-600' : 'border-gray-200'}`}>
-                                                <div className="py-2">
-                                                    <button
-                                                        onClick={() => handleShare('whatsapp')}
-                                                        className={`w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 hover:bg-blue-500 ${isDark ? 'text-gray-200' : 'text-gray-700'
-                                                            }`}
-                                                    >
-                                                        Share on WhatsApp
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleShare('facebook')}
-                                                        className={`w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 hover:bg-blue-500 ${isDark ? 'text-gray-200' : 'text-gray-700'
-                                                            }`}
-                                                    >
-                                                        Share on Facebook
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleShare('twitter')}
-                                                        className={`w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 hover:bg-blue-500 ${isDark ? 'text-gray-200' : 'text-gray-700'
-                                                            }`}
-                                                    >
-                                                        Share on Twitter
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleShare('copy')}
-                                                        className={`w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 hover:bg-blue-500 ${isDark ? 'text-gray-200' : 'text-gray-700'
-                                                            }`}
-                                                    >
-                                                        Copy Link
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
+                                )}
                                 </div>
 
-                                {/* Warning: Form Not Configured */}
-                                {registrationInfo.notConfigured && (
-                                    <div className={`mt-4 p-4 rounded-lg border ${isDark ? 'bg-yellow-900/20 border-yellow-800' : 'bg-yellow-50 border-yellow-200'}`}>
-                                        <div className="flex items-start gap-3">
-                                            <span className="text-yellow-500 text-lg">⚠️</span>
-                                            <div>
-                                                <p className={`font-semibold ${isDark ? 'text-yellow-300' : 'text-yellow-800'}`}>Registration Form Not Ready</p>
-                                                <p className={`text-sm mt-1 ${isDark ? 'text-yellow-200/80' : 'text-yellow-700'}`}>
-                                                    This competition's registration form hasn't been set up yet. Please contact the organizers to complete the configuration.
-                                                </p>
-                                            </div>
-                                        </div>
+                            {/* Prize pool — classic medal podium (all fest competitions) */}
+                            {eventData?.prize && !/^(tbd|tba|n\/a|na|-|subject to change)$/i.test(String(eventData.prize).trim()) && (
+                                <div className="px-4 pb-2">
+                                    <PrizePoolPodium
+                                      prizeText={eventData.prize}
+                                      isDark={isDark}
+                                      compact
+                                      showTitle={isTechfestCompetition}
+                                    />
                                     </div>
                                 )}
-                            </div>
-                            
-                            {/* Mobile Prize Pool Highlight Card */}
-                            {eventData?.prize && (
-                                <div className="px-4 py-4">
-                                    <div className={`relative overflow-hidden rounded-2xl border ${isDark ? 'bg-[#111213] border-[#00C2CB]/20' : 'bg-white border-[#0060DF]/20'}`}>
-                                        <div className="absolute inset-0 bg-linear-to-br from-[#0060DF]/6 via-[#00C2CB]/4 to-transparent pointer-events-none" />
-                                        <div className="relative p-4">
-                                            <div className="flex items-center gap-2.5 mb-3">
-                                                <div className="w-8 h-8 rounded-xl bg-linear-to-br from-[#0060DF] to-[#00C2CB] flex items-center justify-center shadow-md shadow-[#00C2CB]/30">
-                                                    <Trophy className="w-4 h-4 text-white" />
-                                                </div>
-                                                <h2 className="text-xs font-bold uppercase tracking-widest text-[#00C2CB]">Prize Pool</h2>
-                                            </div>
-                                            <div
-                                                className={`text-sm leading-relaxed whitespace-pre-wrap ${isDark ? 'text-gray-200' : 'text-gray-800'}`}
-                                                style={{ whiteSpace: 'pre-wrap' }}
-                                            >
-                                                {eventData.prize}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                            {/* Mobile Competition Rounds - Only show if rounds exist */}
-                            {eventData?.rounds?.roundsList?.length > 0 && (
-                            <div className="px-4 py-4">
-                                <div className={`${isDark ? 'bg-[#111213]' : 'bg-white'} rounded-lg p-4 shadow-sm`}>
-                                    <h2 className={`text-xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Competition Rounds</h2>
-                                    {eventData?.rounds?.description && (() => {
-                                        const desc = sanitizeRoundDescription(eventData.rounds.description);
 
-                                        return (
-                                            <div className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                                                <div 
-                                                    className="whitespace-pre-wrap"
-                                                    style={{ whiteSpace: 'pre-wrap' }}
-                                                >
-                                                    {desc}
-                                                </div>
-                                            </div>
-                                        );
-                                    })()}
+                            {problemStatementLink ? (
+                            <div className="px-4 pb-2">
+                                {renderProblemStatementLink()}
+                            </div>
+                            ) : null}
+
+                            {/* Mobile Competition Rounds — hidden when no real round content */}
+                            {showCompetitionRounds && (
+                            <div className="px-4 py-5">
+                                <div className={`${isDark ? 'bg-[#111213]' : 'bg-white'} rounded-xl p-4 sm:p-5 shadow-sm`}>
+                                    <h2 className={`text-xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Competition Rounds</h2>
 
                                     {/* Mobile Round Tabs - Dynamic based on available rounds */}
-                                    {eventData.rounds.roundsList.length > 1 && !festName?.toLowerCase().includes('symbi') && (
-                                        <div className={`grid gap-2 mb-4 mt-4`} style={{ gridTemplateColumns: `repeat(${Math.min(eventData.rounds.roundsList.length, 5)}, 1fr)` }}>
-                                            {eventData.rounds.roundsList.map((round, idx) => (
+                                    {roundsList.length > 1 && !festName?.toLowerCase().includes('symbi') && (
+                                        <div className={`grid gap-2 mb-4 mt-4`} style={{ gridTemplateColumns: `repeat(${Math.min(roundsList.length, 5)}, 1fr)` }}>
+                                            {roundsList.map((round, idx) => (
                                                 <button
                                                     key={idx}
                                                     onClick={() => setActiveRound(idx)}
-                                                    className={`py-3 px-3 rounded-lg font-medium transition text-sm ${activeRound === idx
-                                                        ? `border-2 border-[#00C2CB] ${isDark ? 'bg-dark-700 text-white' : 'bg-blue-50 text-black'}`
-                                                        : `${isDark ? 'bg-dark-700 text-gray-300' : 'bg-gray-100 text-black'}`
+                                                    className={`py-2.5 px-2 rounded-lg font-medium transition text-xs sm:text-sm ${activeRound === idx
+                                                        ? `border-2 border-[#00C2CB] ${isDark ? 'bg-[#1D1E20] text-white' : 'bg-blue-50 text-black'}`
+                                                        : `${isDark ? 'bg-[#1D1E20] text-gray-300' : 'bg-gray-100 text-black'}`
                                                         }`}
                                                 >
-                                                    Round {idx + 1}
+                                                    <span className="block truncate text-center leading-tight">{getRoundTabLabel(round, idx, roundsList.length)}</span>
                                                 </button>
                                             ))}
                                         </div>
                                     )}
 
                                     {/* Mobile Round Content */}
-                                    <div className="space-y-4">
-                                        {(() => {
-                                            const round = eventData.rounds.roundsList[activeRound];
-                                            if (!round) return null;
-
-                                            const cleanedRoundDescription = sanitizeRoundDescription(round.description || '');
-                                            const cleanedOverviewDescription = sanitizeRoundDescription(eventData?.rounds?.description || '');
-                                            const normalizedRoundDescription = cleanedRoundDescription.toLowerCase().replace(/\s+/g, ' ').trim();
-                                            const normalizedOverviewDescription = cleanedOverviewDescription.toLowerCase().replace(/\s+/g, ' ').trim();
-                                            const isDuplicateOfOverview =
-                                                normalizedRoundDescription.length > 40 &&
-                                                normalizedOverviewDescription.length > 40 &&
-                                                (normalizedOverviewDescription.includes(normalizedRoundDescription) ||
-                                                    normalizedRoundDescription.includes(normalizedOverviewDescription));
-
-                                            return (
-                                                <>
-                                                    {cleanedRoundDescription && !isDuplicateOfOverview && (
-                                                        <p className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                                                            {cleanedRoundDescription}
-                                                        </p>
-                                                    )}
-
-                                                    {round.title && (
-                                                        <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                            {round.title}
-                                                        </h3>
-                                                    )}
-
-                                                    {round.offline && (
-                                                        <div className={`${isDark ? 'bg-dark-700' : 'bg-gray-50'} rounded-lg p-4`}>
-                                                            <p className={`font-semibold mb-2 text-sm ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
-                                                                {round.offline.title || 'Offline Round'}
-                                                            </p>
-                                                            <RulesList
-                                                                rules={round.offline.rules}
-                                                                ruleKey={`mobile-round${activeRound}-offline-${eventData?.id}`}
-                                                                maxItems={5}
-                                                            />
+                                    <div className="mt-4">
+                                        {renderActiveRoundBody('mobile')}
                                                         </div>
-                                                    )}
-
-                                                    {round.online && (
-                                                        <div className={`${isDark ? 'bg-dark-700' : 'bg-gray-50'} rounded-lg p-4`}>
-                                                            <p className={`font-semibold mb-2 text-sm ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
-                                                                {round.online.title || 'Online Round'}
-                                                            </p>
-                                                            <RulesList
-                                                                rules={round.online.rules}
-                                                                ruleKey={`mobile-round${activeRound}-online-${eventData?.id}`}
-                                                                maxItems={5}
-                                                            />
-                                                        </div>
-                                                    )}
-
-                                                    {!round.offline && !round.online && round.rules && (
-                                                        <div className={`${isDark ? 'bg-dark-700' : 'bg-gray-50'} rounded-lg p-4`}>
-                                                            <RulesList
-                                                                rules={getRoundRules(round)}
-                                                                ruleKey={`mobile-round${activeRound}-${eventData?.id}`}
-                                                                maxItems={5}
-                                                            />
-                                                        </div>
-                                                    )}
-                                                </>
-                                            );
-                                        })()}
-                                    </div>
                                 </div>
                             </div>
                             )}
 
                             {/* Mobile Common Rules */}
-                            <div className="px-4 py-4">
-                                <div className={`${isDark ? 'bg-[#111213]' : 'bg-white'} rounded-lg p-4 shadow-sm`}>
-                                    <h2 className={`text-xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Rules and Guidelines</h2>
+                            {commonRules.length > 0 ? (
+                            <div className="px-4 py-5">
+                                <div className={`${isDark ? 'bg-[#111213]' : 'bg-white'} rounded-xl p-4 sm:p-5 shadow-sm`}>
+                                    <h2 className={`text-xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Rules and Guidelines</h2>
                                     <RulesList
                                         rules={commonRules}
                                         ruleKey={`mobile-common-rules-${eventData?.id}`}
@@ -1098,158 +1803,66 @@ function EventPage() {
                                     />
                                 </div>
                             </div>
+                            ) : null}
 
                             {/* Mobile Contact Details */}
-                            <div className="px-4 py-4 mb-6">
-                                <div className={`${isDark ? 'bg-[#111213]' : 'bg-white'} rounded-lg p-4 shadow-sm`}>
-                                    <h2 className={`text-xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Details</h2>
-
-                                    {/* Contact Name */}
-                                    {eventData?.contact?.name && (
-                                        <div className="mb-3">
-                                            <div className="flex items-center space-x-2 mb-2">
-                                                <div className={`p-1 ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'} rounded-full`}>
-                                                    <User className="w-4 h-4" />
+                            {(contactList.length > 0 || officialPageLink) ? (
+                            <section className="px-4 mb-8">
+                                {contactList.length > 0 ? (
+                                    <>
+                                        <h2 className={`text-base font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Details</h2>
+                                        <ContactDetailsBox />
+                                    </>
+                                ) : null}
+                                {renderOfficialWebsiteLink({ className: contactList.length > 0 ? 'mt-3' : '' })}
+                            </section>
+                            ) : null}
                                                 </div>
-                                                <p className={`font-medium text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Person</p>
-                                            </div>
-                                            <p className={`text-sm pl-7 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{eventData.contact.name}</p>
-                                        </div>
-                                    )}
-
-                                    {/* Email Display */}
-                                    {eventData?.contact?.email && (
-                                        <div className="mb-4">
-                                            <div className="flex items-center space-x-2 mb-2">
-                                                <div className={`p-1 ${isDark ? 'bg-red-900 text-red-400' : 'bg-red-100 text-red-600'} rounded-full`}>
-                                                    <Mail className="w-4 h-4" />
-                                                </div>
-                                                <p className={`font-medium text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>Email</p>
-                                            </div>
-                                            <a
-                                                href={`mailto:${eventData.contact.email}`}
-                                                className={`text-sm break-all pl-7 ${isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'} transition-colors`}
-                                            >
-                                                {eventData.contact.email}
-                                            </a>
-                                        </div>
-                                    )}
-
-                                    {/* Phone Numbers Section */}
-                                    {eventData?.contact?.phone && (
-                                        <div className="mb-4">
-                                            <div className="flex items-center space-x-2 mb-3">
-                                                <div className={`p-1 ${isDark ? 'bg-blue-900 text-blue-400' : 'bg-blue-100 text-blue-600'} rounded-full`}>
-                                                    <Phone className="w-4 h-4" />
-                                                </div>
-                                                <p className={`font-medium text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>Phone</p>
-                                            </div>
-                                            <div className="space-y-2 pl-7">
-                                                {eventData.contact.phone
-                                                    .split(/\s*(?:,|\/)\s*/)
-                                                    .map(s => s.trim())
-                                                    .filter(Boolean)
-                                                    .map((entry, index) => {
-                                                        const nameMatch = entry.match(/\(([^)]+)\)/);
-                                                        const name = nameMatch ? nameMatch[1].trim() : null;
-                                                        const rawNumber = entry.replace(/\s*\([^)]*\)/, '').trim();
-                                                        const telHref = `tel:${rawNumber.replace(/[\s-]/g, '')}`;
-                                                        return (
-                                                            <a
-                                                                key={index}
-                                                                href={telHref}
-                                                                className={`flex items-center gap-2.5 group py-2 px-3 rounded-lg transition-colors ${isDark ? 'hover:bg-gray-700/50' : 'hover:bg-blue-50'}`}
-                                                            >
-                                                                <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-bold ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
-                                                                    {name ? name.charAt(0).toUpperCase() : '#'}
-                                                                </div>
-                                                                <div className="min-w-0">
-                                                                    {name && (
-                                                                        <p className={`text-xs font-medium leading-none mb-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{name}</p>
-                                                                    )}
-                                                                    <p className={`text-sm font-medium ${isDark ? 'text-blue-400 group-hover:text-blue-300' : 'text-blue-600 group-hover:text-blue-800'} transition-colors`}>{rawNumber}</p>
-                                                                </div>
-                                                            </a>
-                                                        );
-                                                    })
-                                                }
                                             </div>
                                         </div>
-                                    )}
 
-                                    {/* Instagram */}
-                                    {eventData?.contact?.instagram && (
-                                        <div className="mb-4">
-                                            <div className="flex items-center space-x-2 mb-2">
-                                                <div className={`p-1 bg-linear-to-br from-purple-500 to-pink-500 rounded-full`}>
-                                                    <Instagram className="w-4 h-4 text-white" />
-                                                </div>
-                                                <p className={`font-medium text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>Instagram</p>
-                                            </div>
-                                            <a
-                                                href={eventData.contact.instagram.startsWith('http') 
-                                                    ? eventData.contact.instagram 
-                                                    : `https://instagram.com/${eventData.contact.instagram.replace('@', '')}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className={`text-sm pl-7 ${isDark ? 'text-purple-400 hover:text-purple-300' : 'text-purple-600 hover:text-purple-800'} transition-colors`}
-                                            >
-                                                {eventData.contact.instagram}
-                                            </a>
-                                        </div>
-                                    )}
-
-                                    {/* Show message if no contact details */}
-                                    {!eventData?.contact?.name && !eventData?.contact?.email && !eventData?.contact?.phone && !eventData?.contact?.instagram && (
-                                        <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                            Contact details will be updated soon.
-                                        </p>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Desktop/Laptop Layout - Visible at 768px and above */}
-                        <div className="hidden md:flex md:flex-row gap-8 p-6">
+                        {/* Desktop/Laptop Layout */}
+                        <div className="hidden md:block max-w-7xl mx-auto px-6 lg:px-8 pt-3 pb-6">
+                            <div className="grid grid-cols-1 md:grid-cols-12 gap-6 lg:gap-8 items-start">
                             {/* Left Column - Image and Rules */}
-                            <div className="w-1/2 shrink-0 space-y-6">
-                                {/* Event Image Card */}
-                                <div className="bg-[#EDEDF2] rounded-2xl overflow-hidden">
-                                    <img
-                                        src={getImageUrl(eventData?.image, { preset: 'hero' }) || '/default-image.jpg'}
-                                        alt={eventData?.title || 'Competition'}
-                                        className="w-full h-80 object-cover"
-                                        onError={(e) => {
-                                            console.log('Image load error for:', eventData?.image);
-                                            console.log('Resolved URL:', getImageUrl(eventData?.image));
-                                            e.target.src = '/default-image.jpg';
-                                        }}
+                            <div className="md:col-span-5 space-y-6 min-w-0">
+                                {/* Event Image Card — 3D trophy when cover missing or loading */}
+                                <div className={`relative rounded-3xl overflow-hidden shadow-sm ${isDark ? 'bg-[#111213]' : 'bg-white'} p-2`}>
+                                    <button
+                                        type="button"
+                                        onClick={goBack}
+                                        aria-label="Go back"
+                                        className="absolute top-5 left-5 z-10 inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-black/70 backdrop-blur-sm text-white text-sm font-medium hover:bg-black/80 transition"
+                                    >
+                                        <ArrowLeft size={15} />
+                                        Back
+                                    </button>
+                                    <div className={`rounded-2xl overflow-hidden bg-[#1A1B1D] ${isMindSparkCompetition ? 'h-80 lg:h-[24rem] xl:h-[26rem]' : 'h-72 lg:h-[20rem] xl:h-[22rem]'}`}>
+                                    <CompetitionCoverImage
+                                        key={`${competitionId}-${eventData.image || 'placeholder'}`}
+                                        src={showHeroImage ? eventData.image : null}
+                                        alt={eventData.title || 'Competition'}
+                                        preset="hero"
+                                        containerClassName="w-full h-full"
+                                        className="w-full h-full object-cover animate-detail-enter"
+                                        loaderSize="hero"
+                                        eager={showHeroImage}
                                     />
+                                        </div>
                                 </div>
 
                                 <div className="space-y-6">
-                                    {/* Desktop Prize Pool Highlight Card */}
-                                    {eventData?.prize && (
-                                        <div className={`relative overflow-hidden rounded-2xl border ${isDark ? 'bg-[#111213] border-[#00C2CB]/20' : 'bg-white border-[#0060DF]/20'}`}>
-                                            <div className="absolute inset-0 bg-linear-to-br from-[#0060DF]/6 via-[#00C2CB]/4 to-transparent pointer-events-none" />
-                                            <div className="relative p-6">
-                                                <div className="flex items-center gap-3 mb-4">
-                                                    <div className="w-10 h-10 rounded-xl bg-linear-to-br from-[#0060DF] to-[#00C2CB] flex items-center justify-center shadow-lg shadow-[#00C2CB]/30">
-                                                        <Trophy className="w-5 h-5 text-white" />
-                                                    </div>
-                                                    <h2 className="text-xs font-bold uppercase tracking-widest text-[#00C2CB]">Prize Pool</h2>
-                                                </div>
-                                                <div
-                                                    className={`leading-relaxed whitespace-pre-wrap text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}
-                                                    style={{ whiteSpace: 'pre-wrap' }}
-                                                >
-                                                    {eventData.prize}
-                                                </div>
-                                            </div>
-                                        </div>
+                                    {/* Desktop Prize Pool — classic medal podium (all fest competitions) */}
+                                    {eventData?.prize && !/^(tbd|tba|n\/a|na|-|subject to change)$/i.test(String(eventData.prize).trim()) && (
+                                        <PrizePoolPodium
+                                          prizeText={eventData.prize}
+                                          isDark={isDark}
+                                          showTitle={isTechfestCompetition}
+                                        />
                                     )}
 
                                     {/* Common Rules */}
+                                    {commonRules.length > 0 ? (
                                     <div className={`${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'} rounded-2xl p-6`}>
                                         <h2 className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Rules and Guidelines</h2>
                                         <RulesList
@@ -1258,117 +1871,25 @@ function EventPage() {
                                             maxItems={5}
                                         />
                                     </div>
+                                    ) : null}
                                 </div>
 
                                 {/* Contact Details */}
-                                <div className={`${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'} rounded-2xl p-6`}>
-                                    <h2 className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact details</h2>
-
-                                    {/* Contact Name */}
-                                    {eventData?.contact?.name && (
-                                        <div className="mb-4">
-                                            <div className="flex items-center space-x-3 mb-2">
-                                                <div className={`p-2 ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'} rounded-full`}>
-                                                    <User className="w-5 h-5" />
-                                                </div>
-                                                <p className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Person</p>
-                                            </div>
-                                            <p className={`text-sm pl-12 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{eventData.contact.name}</p>
-                                        </div>
-                                    )}
-
-                                    {/* Email Display */}
-                                    {eventData?.contact?.email && (
-                                        <div className="mb-6">
-                                            <div className="flex items-center space-x-3 mb-2">
-                                                <div className={`p-2 ${isDark ? 'bg-red-900 text-red-400' : 'bg-red-100 text-red-600'} rounded-full`}>
-                                                    <Mail className="w-5 h-5" />
-                                                </div>
-                                                <p className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Email</p>
-                                            </div>
-                                            <a
-                                                href={`mailto:${eventData.contact.email}`}
-                                                className={`text-sm break-all pl-12 ${isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'} transition-colors`}
-                                            >
-                                                {eventData.contact.email}
-                                            </a>
-                                        </div>
-                                    )}
-
-                                    {/* Phone Numbers Section */}
-                                    {eventData?.contact?.phone && (
-                                        <div className="mb-6">
-                                            <div className="flex items-center space-x-3 mb-3">
-                                                <div className={`p-2 ${isDark ? 'bg-blue-900 text-blue-400' : 'bg-blue-100 text-blue-600'} rounded-full`}>
-                                                    <Phone className="w-5 h-5" />
-                                                </div>
-                                                <p className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Phone Numbers</p>
-                                            </div>
-                                            <div className="space-y-1 pl-12">
-                                                {eventData.contact.phone
-                                                    .split(/\s*(?:,|\/)\s*/)
-                                                    .map(s => s.trim())
-                                                    .filter(Boolean)
-                                                    .map((entry, index) => {
-                                                        const nameMatch = entry.match(/\(([^)]+)\)/);
-                                                        const name = nameMatch ? nameMatch[1].trim() : null;
-                                                        const rawNumber = entry.replace(/\s*\([^)]*\)/, '').trim();
-                                                        return (
-                                                            <a
-                                                                key={index}
-                                                                href={`tel:${rawNumber.replace(/[\s-]/g, '')}`}
-                                                                className={`flex items-center gap-2.5 group py-2 px-3 rounded-lg transition-colors ${isDark ? 'hover:bg-gray-700/50' : 'hover:bg-blue-50'}`}
-                                                            >
-                                                                <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-bold ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
-                                                                    {name ? name.charAt(0).toUpperCase() : '#'}
-                                                                </div>
+                                {contactList.length > 0 ? (
                                                                 <div>
-                                                                    {name && <p className={`text-xs font-medium leading-none mb-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{name}</p>}
-                                                                    <p className={`text-sm font-medium ${isDark ? 'text-blue-400 group-hover:text-blue-300' : 'text-blue-600 group-hover:text-blue-800'} transition-colors`}>{rawNumber}</p>
+                                    <h3 className={`text-lg font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Details</h3>
+                                    <ContactDetailsBox />
+                                    {renderOfficialWebsiteLink({ className: 'mt-3' })}
                                                                 </div>
-                                                            </a>
-                                                        );
-                                                    })
-                                                }
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Instagram */}
-                                    {eventData?.contact?.instagram && (
-                                        <div className="mb-6">
-                                            <div className="flex items-center space-x-3 mb-2">
-                                                <div className={`p-2 bg-linear-to-br from-purple-500 to-pink-500 rounded-full`}>
-                                                    <Instagram className="w-5 h-5 text-white" />
-                                                </div>
-                                                <p className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Instagram</p>
-                                            </div>
-                                            <a
-                                                href={eventData.contact.instagram.startsWith('http') 
-                                                    ? eventData.contact.instagram 
-                                                    : `https://instagram.com/${eventData.contact.instagram.replace('@', '')}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className={`text-sm pl-12 ${isDark ? 'text-purple-400 hover:text-purple-300' : 'text-purple-600 hover:text-purple-800'} transition-colors`}
-                                            >
-                                                {eventData.contact.instagram}
-                                            </a>
-                                        </div>
-                                    )}
-
-                                    {/* Show message if no contact details */}
-                                    {!eventData?.contact?.name && !eventData?.contact?.email && !eventData?.contact?.phone && !eventData?.contact?.instagram && (
-                                        <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                            Contact details will be updated soon.
-                                        </p>
-                                    )}
-                                </div>
+                                ) : (
+                                    renderOfficialWebsiteLink()
+                                )}
                             </div>
 
                             {/* Right Column - Event Details */}
-                            <div className="w-1/2 shrink-0 space-y-6">
+                            <div className="md:col-span-7 min-w-0 space-y-5">
                                 {/* Event Header Card */}
-                                <div className={`${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'} rounded-2xl p-6 relative`}>
+                                <div className={`${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'} rounded-2xl p-5 lg:p-6 relative md:sticky md:top-[calc(var(--desktop-navbar-h)+0.75rem)] z-10`}>
                                     {showRegistrationSuccess && (
                                         <div className="absolute top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 animate-fade-in z-10">
                                             <Check className="w-4 h-4" />
@@ -1376,99 +1897,105 @@ function EventPage() {
                                         </div>
                                     )}
 
-                                    <h1 className={`text-3xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>{eventData?.title || 'Competition Title'}</h1>
-                                    <p className={`mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{eventData?.subtitle || 'Competition Subtitle'}</p>
+                                    <h1 className={`text-2xl font-bold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>{eventData.title}</h1>
+                                    {eventData.subtitle ? (
+                                    <p className={`mb-3 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{eventData.subtitle}</p>
+                                    ) : null}
 
-                                    <div className="space-y-2 mb-4">
+                                    {(eventData.date || (eventData.venue && eventData.venue !== 'TBD')) && (
+                                    <div className="space-y-2 mb-3">
+                                        {eventData.date ? (
                                         <div className="flex items-center gap-2 text-blue-600">
                                             <img src={CalendarIcon} alt="Calendar" className={`w-4 h-4 ${isDark ? 'filter invert' : ''}`} />
-                                            <span className="text-sm">{eventData?.date || 'TBD'} {eventData?.time && `| ${eventData.time}`}</span>
+                                            <span className="text-sm">{eventData.date}{eventData.time ? ` | ${eventData.time}` : ''}</span>
                                         </div>
+                                        ) : null}
+                                        {eventData.venue && eventData.venue !== 'TBD' ? (
                                         <div className="flex items-center gap-2 text-blue-600">
                                             <img src={LocationIcon} alt="Location" className={`w-4 h-4 ${isDark ? 'filter invert' : ''}`} />
-                                            <span className="text-sm">{eventData?.venue || 'TBD'}</span>
+                                            <span className="text-sm">{eventData.venue}</span>
                                         </div>
+                                        ) : null}
                                     </div>
+                                    )}
 
-                                    <div className="flex items-center gap-3 mb-4">
-                                        {/* Fee pill */}
-                                        <div className="flex items-center gap-2.5 px-4 py-3 rounded-full border bg-linear-to-r from-[#0060DF]/10 to-[#00C2CB]/10 border-[#00C2CB]/30">
-                                            <div className="w-7 h-7 rounded-full flex items-center justify-center bg-linear-to-br from-[#0060DF]/25 to-[#00C2CB]/25">
-                                                {eventData?.feeAmount > 0
-                                                    ? <Ticket className="w-3.5 h-3.5 text-[#00C2CB]" />
-                                                    : <Zap className="w-3.5 h-3.5 text-[#00C2CB]" />
-                                                }
+                                    <div className="mb-3">
+                                        <RegisterMetaChips
+                                            isDark={isDark}
+                                            slotsLabel={formatSlotsLabel(
+                                                eventData.slotsAllotted,
+                                                eventData.slotsLeft,
+                                                { showSlotsPublic: eventData.showSlotsPublic },
+                                            )}
+                                            teamLabel={buildTeamSizeLabel(eventData.teamSizeMin, eventData.teamSizeMax)}
+                                        />
                                             </div>
-                                            <div>
-                                                <span className="text-base font-bold leading-tight block text-[#00C2CB]">
-                                                    {eventData?.feeAmount > 0 ? `₹${eventData.feeAmount}` : 'Free'}
-                                                </span>
-                                                <span className={`text-[10px] leading-none ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                                    {eventData?.feeAmount > 0 ? 'Entry Fee' : 'No Entry Fee'}
-                                                </span>
-                                            </div>
-                                        </div>
 
-                                        {/* Register button */}
+                                    {eventData.feeKnown && !isMindSparkCompetition && Array.isArray(eventData.feeTiers) && eventData.feeTiers.filter((t) => t && (t.label || t.amount >= 0)).length > 1 ? (
+                                        <div className="mb-3">
+                                            <RegistrationFeeLines
+                                                tiers={eventData.feeTiers}
+                                                feeLabel={eventData.feeLabel}
+                                                feeIsFree={eventData.feeIsFree}
+                                                isDark={isDark}
+                                            />
+                                            </div>
+                                    ) : null}
+
+                                    <div className="flex flex-col sm:flex-row sm:items-end gap-3 mb-2">
+                                        <RegisterFeeLabel
+                                            large
+                                            isDark={isDark}
+                                            feeLabel={eventData.feeKnown ? eventData.feeLabel : 'TBA'}
+                                            feeIsFree={eventData.feeKnown && eventData.feeIsFree}
+                                            feeTiers={eventData.feeTiers}
+                                            feeAmount={eventData.feeAmount}
+                                        />
+
                                         <button
+                                            type="button"
                                             onClick={handleRegister}
-                                            disabled={isRegistered || registrationInfo.isDisabled}
-                                            className={`flex-1 py-3 px-4 rounded-full font-semibold transition ${isRegistered
-                                                ? 'bg-green-500 text-white cursor-not-allowed'
-                                                : registrationInfo.isDisabled
-                                                ? 'bg-gray-500 text-white cursor-not-allowed opacity-60'
-                                                : 'bg-linear-to-r from-[#0060DF] to-[#00C2CB] text-white hover:opacity-90'
+                                            disabled={registrationInfo.isDisabled || openingRegister}
+                                            className={`w-full sm:w-auto sm:min-w-[14rem] flex items-center justify-center gap-2 h-12 px-6 rounded-2xl text-base font-semibold shadow-md transition ${
+                                                registrationInfo.isDisabled
+                                                    ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
+                                                    : 'bg-[#0ECCEE] text-black hover:bg-[#0ECCEE]/90 active:opacity-90'
                                                 }`}
                                             title={registrationInfo.isDisabled ? registrationInfo.buttonText : ''}
                                         >
-                                            {isRegistered ? (
-                                                <span className="flex items-center justify-center gap-2">
-                                                    <Check className="w-4 h-4" />
-                                                    Registered
-                                                </span>
-                                            ) : (
-                                                registrationInfo.buttonText
-                                            )}
+                                            <>
+                                                {registrationInfo.buttonText}
+                                                {!registrationInfo.isDisabled ? (
+                                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                        <path d="m9 18 6-6-6-6" />
+                                                    </svg>
+                                                ) : null}
+                                            </>
                                         </button>
-                                        <div className="relative">
+
+                                        <div className="relative shrink-0 self-end">
                                             <button
+                                                type="button"
                                                 onClick={() => setShowShareMenu(!showShareMenu)}
-                                                className={`w-12 h-12 rounded-full flex items-center justify-center transition ${isDark ? 'bg-dark-700 hover:bg-dark-600' : 'bg-gray-100 hover:bg-gray-200'
+                                                className={`h-12 w-11 rounded-full flex items-center justify-center transition ${
+                                                    isDark ? 'bg-[#1D1E20] hover:bg-white/10' : 'bg-gray-100 hover:bg-gray-200'
                                                     }`}
                                             >
                                                 <img src={ShareIcon} alt="Share" className="w-5 h-5" />
                                             </button>
-
                                             {showShareMenu && (
-                                                <div className={`absolute right-0 mt-2 w-48 rounded-lg shadow-lg z-20 ${isDark ? 'bg-dark-700' : 'bg-white'
-                                                    } border ${isDark ? 'border-dark-600' : 'border-gray-200'}`}>
+                                                <div className={`absolute right-0 bottom-full mb-2 w-48 rounded-lg shadow-lg z-20 ${isDark ? 'bg-[#1D1E20] border-white/10' : 'bg-white border-gray-200'} border`}>
                                                     <div className="py-2">
-                                                        <button
-                                                            onClick={() => handleShare('whatsapp')}
-                                                            className={`w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 hover:bg-blue-500 ${isDark ? 'text-gray-200' : 'text-gray-700'
-                                                                }`}
-                                                        >
+                                                        <button type="button" onClick={() => handleShare('whatsapp')} className={`w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 hover:bg-blue-500 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
                                                             Share on WhatsApp
                                                         </button>
-                                                        <button
-                                                            onClick={() => handleShare('facebook')}
-                                                            className={`w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 hover:bg-blue-500 ${isDark ? 'text-gray-200' : 'text-gray-700'
-                                                                }`}
-                                                        >
+                                                        <button type="button" onClick={() => handleShare('facebook')} className={`w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 hover:bg-blue-500 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
                                                             Share on Facebook
                                                         </button>
-                                                        <button
-                                                            onClick={() => handleShare('twitter')}
-                                                            className={`w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 hover:bg-blue-500 ${isDark ? 'text-gray-200' : 'text-gray-700'
-                                                                }`}
-                                                        >
+                                                        <button type="button" onClick={() => handleShare('twitter')} className={`w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 hover:bg-blue-500 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
                                                             Share on Twitter
                                                         </button>
-                                                        <button
-                                                            onClick={() => handleShare('copy')}
-                                                            className={`w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 hover:bg-blue-500 ${isDark ? 'text-gray-200' : 'text-gray-700'
-                                                                }`}
-                                                        >
+                                                        <button type="button" onClick={() => handleShare('copy')} className={`w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 hover:bg-blue-500 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
                                                             Copy Link
                                                         </button>
                                                     </div>
@@ -1493,154 +2020,125 @@ function EventPage() {
                                     )}
                                 </div>
 
-                                {/* Competition Rounds - Only show if rounds exist */}
-                                {eventData?.rounds?.roundsList?.length > 0 && (
+                                {aboutText ? (
+                                <div className={`${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'} rounded-2xl p-5 lg:p-6 space-y-4`}>
+                                    {renderAboutBlock({
+                                        headingClass: `text-lg font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`,
+                                        bodyClass: `text-sm leading-relaxed text-left ${isDark ? 'text-gray-300' : 'text-gray-600'}`,
+                                    })}
+                                </div>
+                                ) : null}
+
+                                {problemStatementLink ? (
+                                <div>
+                                    {renderProblemStatementLink()}
+                                </div>
+                                ) : null}
+
+                                {/* Competition Rounds — hidden when no real round content */}
+                                {showCompetitionRounds && (
                                 <div className={`${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'} rounded-2xl p-6`}>
                                     <h2 className={`text-2xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>{eventData?.title || 'Competition'} Rounds</h2>
-                                    {eventData?.rounds?.description && (() => {
-                                        const desc = sanitizeRoundDescription(eventData.rounds.description);
-
-                                        return (
-                                            <div className={`text-sm mb-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                                                <div 
-                                                    className="whitespace-pre-wrap"
-                                                    style={{ whiteSpace: 'pre-wrap' }}
-                                                >
-                                                    {desc}
-                                                </div>
-                                            </div>
-                                        );
-                                    })()}
 
                                     {/* Desktop Round Tabs - Dynamic based on available rounds */}
-                                    {eventData.rounds.roundsList.length > 1 && !festName?.toLowerCase().includes('symbi') && (
-                                        <div className="grid gap-2 mb-6" style={{ gridTemplateColumns: `repeat(${Math.min(eventData.rounds.roundsList.length, 5)}, 1fr)` }}>
-                                            {eventData.rounds.roundsList.map((round, idx) => (
+                                    {roundsList.length > 1 && !festName?.toLowerCase().includes('symbi') && (
+                                        <div className="grid gap-2 mb-6" style={{ gridTemplateColumns: `repeat(${Math.min(roundsList.length, 5)}, 1fr)` }}>
+                                            {roundsList.map((round, idx) => (
                                                 <button
                                                     key={idx}
                                                     onClick={() => setActiveRound(idx)}
-                                                    className={`flex-1 py-2 px-4 rounded-2xl font-medium transition ${activeRound === idx
-                                                        ? `border-2 border-[#00C2CB] ${isDark ? 'bg-dark-700 text-white' : 'bg-[#EDEDF2] text-black'}`
-                                                        : `shadow-md ${isDark ? 'bg-dark-700 text-gray-300' : 'bg-[#EDEDF2] text-black'}`
+                                                    className={`flex-1 min-w-0 py-2 px-3 rounded-2xl font-medium transition text-sm ${activeRound === idx
+                                                        ? `border-2 border-[#00C2CB] ${isDark ? 'bg-[#1D1E20] text-white' : 'bg-blue-50 text-black'}`
+                                                        : `shadow-md ${isDark ? 'bg-[#1D1E20] text-gray-300' : 'bg-[#EDEDF2] text-black'}`
                                                         }`}
                                                 >
-                                                    Round {idx + 1}
+                                                    <span className="block truncate text-center leading-tight">{getRoundTabLabel(round, idx, roundsList.length)}</span>
                                                 </button>
                                             ))}
                                         </div>
                                     )}
 
-                                    <div className="space-y-4">
-                                        {(() => {
-                                            const round = eventData.rounds.roundsList[activeRound];
-                                            if (!round) return null;
-
-                                            const cleanedRoundDescription = sanitizeRoundDescription(round.description || '');
-                                            const cleanedOverviewDescription = sanitizeRoundDescription(eventData?.rounds?.description || '');
-                                            const normalizedRoundDescription = cleanedRoundDescription.toLowerCase().replace(/\s+/g, ' ').trim();
-                                            const normalizedOverviewDescription = cleanedOverviewDescription.toLowerCase().replace(/\s+/g, ' ').trim();
-                                            const isDuplicateOfOverview =
-                                                normalizedRoundDescription.length > 40 &&
-                                                normalizedOverviewDescription.length > 40 &&
-                                                (normalizedOverviewDescription.includes(normalizedRoundDescription) ||
-                                                    normalizedRoundDescription.includes(normalizedOverviewDescription));
-
-                                            return (
-                                                <>
-                                                    {cleanedRoundDescription && !isDuplicateOfOverview && (
-                                                        <p className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                                                            {cleanedRoundDescription}
-                                                        </p>
-                                                    )}
-
-                                                    {round.title && (
-                                                        <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                            {round.title}
-                                                        </h3>
-                                                    )}
-
-                                                    {round.offline && (
-                                                        <div className="mb-4">
-                                                            <p className={`font-semibold mb-2 ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
-                                                                {round.offline.title || 'Offline Round'}
-                                                            </p>
-                                                            <RulesList
-                                                                rules={round.offline.rules}
-                                                                ruleKey={`desktop-round${activeRound}-offline-${eventData?.id}`}
-                                                                maxItems={5}
-                                                            />
+                                    <div className="mt-2">
+                                        {renderActiveRoundBody('desktop')}
+                                                        </div>
                                                         </div>
                                                     )}
-
-                                                    {round.online && (
-                                                        <div className="mb-4">
-                                                            <p className={`font-semibold mb-2 ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
-                                                                {round.online.title || 'Online Round'}
-                                                            </p>
-                                                            <RulesList
-                                                                rules={round.online.rules}
-                                                                ruleKey={`desktop-round${activeRound}-online-${eventData?.id}`}
-                                                                maxItems={5}
-                                                            />
-                                                        </div>
-                                                    )}
-
-                                                    {!round.offline && !round.online && round.rules && (
-                                                        <RulesList
-                                                            rules={getRoundRules(round)}
-                                                            ruleKey={`desktop-round${activeRound}-${eventData?.id}`}
-                                                            maxItems={5}
-                                                        />
-                                                    )}
-                                                </>
-                                            );
-                                        })()}
-                                    </div>
-                                </div>
-                                )}
                             </div>
                         </div>
                     </div>
                 </main>
 
-                {/* Spacer for fixed mobile footer */}
-                <div className="md:hidden h-20"></div>
+                <div className="md:hidden h-32" aria-hidden="true" />
 
-
-            {/* Fixed Mobile/Tablet Register Button Footer */}
-            <div className={`fixed bottom-0 left-0 right-0 z-40 md:hidden px-4 py-3 flex items-center gap-3 ${isDark ? 'bg-[#0F1014] border-t border-gray-700' : 'bg-white border-t border-gray-200'}`}>
-                {/* Fee display */}
-                <div className="shrink-0">
-                    <span className={`text-lg font-bold leading-tight block ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {eventData?.feeAmount > 0 ? `₹${eventData.feeAmount}/-` : 'Free'}
-                    </span>
-                    <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {eventData?.feeAmount > 0 ? 'Fee' : 'No Fee'}
-                    </span>
+            {typeof document !== 'undefined' && createPortal(
+            <div
+                className="fixed inset-x-0 bottom-0 z-100040 md:hidden px-2 pointer-events-none"
+                style={{ paddingBottom: 'max(var(--safe-bottom), 6px)' }}
+            >
+                <div className={`pointer-events-auto mx-auto w-full max-w-md rounded-[28px] px-4 py-3 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'}`}>
+                    <div className="mb-2">
+                        <RegisterMetaChips
+                            isDark={isDark}
+                            slotsLabel={formatSlotsLabel(
+                                eventData.slotsAllotted,
+                                eventData.slotsLeft,
+                                { showSlotsPublic: eventData.showSlotsPublic },
+                            )}
+                            teamLabel={buildTeamSizeLabel(eventData.teamSizeMin, eventData.teamSizeMax)}
+                        />
                 </div>
 
-                {/* Register button */}
+                    <div className="flex items-center gap-3">
+                        <RegisterFeeLabel
+                            isDark={isDark}
+                            feeLabel={eventData.feeKnown ? eventData.feeLabel : 'TBA'}
+                            feeIsFree={eventData.feeKnown && eventData.feeIsFree}
+                            feeTiers={eventData.feeTiers}
+                            feeAmount={eventData.feeAmount}
+                        />
+
                 <button
-                    onClick={handleRegister}
-                    disabled={isRegistered || registrationInfo.isDisabled}
-                    className={`flex-1 font-semibold py-3 rounded-xl transition ${
+                            type="button"
+                            onClick={() => {
+                                trackBookNowClick({
+                                    entityType: 'competition',
+                                    entityId: eventData?.id || '',
+                                    mode: eventData?.registrationType || 'fest',
+                                    destination: 'competition_register',
+                                });
+                                handleRegister();
+                            }}
+                            disabled={registrationInfo.isDisabled || openingRegister}
+                            className={`flex-1 min-w-0 flex items-center justify-center gap-1.5 h-14 px-3 rounded-2xl text-base font-semibold shadow-md transition ${
                         registrationInfo.isDisabled
-                            ? 'bg-gray-500 text-white cursor-not-allowed'
-                            : isRegistered
-                            ? 'bg-green-600 text-white'
-                            : 'bg-linear-to-r from-[#0060DF] to-[#00C2CB] hover:opacity-90 text-white'
-                    }`}
-                >
-                    {isRegistered ? (
-                        <><span className="mr-1">✓</span> Registered</>
-                    ) : registrationInfo.buttonText}
+                                    ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
+                                    : 'bg-[#0ECCEE] text-black active:opacity-90'
+                            }`}
+                        >
+                            <>
+                                {registrationInfo.buttonText}
+                                {!registrationInfo.isDisabled ? (
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="m9 18 6-6-6-6" />
+                                    </svg>
+                                ) : null}
+                            </>
                 </button>
             </div>
+                </div>
+            </div>,
+            document.body,
+            )}
 
             {/* Login Modal */}
             {showLogin && (
                 <div className="fixed inset-0 z-50">
-                    <CrwdCtrlLogin onClose={handleCloseLogin} onSwitchToRegister={handleSwitchToRegister} />
+                    <CrwdCtrlLogin
+                        googleOnly
+                        title="Sign in to register"
+                        subtitle="One tap with Google — then finish registration"
+                        onClose={handleCloseLogin}
+                    />
                 </div>
             )}
 

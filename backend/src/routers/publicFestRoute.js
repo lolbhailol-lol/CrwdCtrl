@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const festOrganizerController = require('../controllers/festOrganizerController');
 const devOnly = require('../middleware/devOnly');
+const { sanitizePublicCompetition } = require('../utils/publicEntitySanitize');
 
 /**
  * Server-side sanitization: remove duplicated content blocks from descriptions.
@@ -154,27 +155,25 @@ router.get('/search', festOrganizerController.searchFests);
 // ✅ Get upcoming fests
 router.get('/upcoming', festOrganizerController.getUpcomingFests);
 
-// ✅ Get single fest details (public view)
-router.get('/:id/public', festOrganizerController.getFestById);
-
-// ✅ Get single competition details (public view)
+// ✅ Get single competition details (public view) — before /:id/public
 router.get('/competitions/:competitionId/public', async (req, res) => {
     try {
         const { competitionId } = req.params;
+        const { findByIdOrSlug } = require('../utils/slug');
+        const Competition = require('../model/competition_model');
 
-        // Validate ObjectId
-        if (!require('mongoose').Types.ObjectId.isValid(competitionId)) {
-            return res.status(400).json({
-                error: 'Invalid competition ID format',
-                message: 'The provided ID is not a valid MongoDB ObjectId'
-            });
+        const found = await findByIdOrSlug(Competition, competitionId, {
+            pickName: (row) => row.name,
+        });
+
+        if (!found) {
+            return res.status(404).json({ message: 'Competition not found' });
         }
 
-        const Competition = require('../model/competition_model');
-        const competition = await Competition.findById(competitionId)
+        const competition = await Competition.findById(found._id)
             .populate({
                 path: 'fest',
-                select: 'festName collegeName isApproved registration',
+                select: 'festName collegeName isApproved registration coverImage',
                 options: { strictPopulate: false }
             })
             .lean();
@@ -191,18 +190,21 @@ router.get('/competitions/:competitionId/public', async (req, res) => {
         // Ensure competition has proper registration configuration
         const competitionData = competition;
         
-        // ✅ CRITICAL FIX: Ensure fest registration data is always complete
+        // ✅ CRITICAL FIX: Ensure fest registration data is always complete (keep participant-facing links)
         if (competitionData.fest && competitionData.fest.registration) {
-            // Make sure fest registration has all required fields with proper defaults
+            const fr = competitionData.fest.registration;
             competitionData.fest.registration = {
-                mode: competitionData.fest.registration.mode || 'NOT_STARTED',
-                externalLink: competitionData.fest.registration.externalLink || '',
-                paymentQR: competitionData.fest.registration.paymentQR || '',
-                paymentQRMessage: competitionData.fest.registration.paymentQRMessage || '',
-                googleSheetsUrl: competitionData.fest.registration.googleSheetsUrl || '',
-                formInstructions: competitionData.fest.registration.formInstructions || '',
-                organizerEmail: competitionData.fest.registration.organizerEmail || '',
-                formSchema: competitionData.fest.registration.formSchema || []
+                mode: fr.mode || 'NOT_STARTED',
+                externalLink: fr.externalLink || '',
+                paymentQR: fr.paymentQR || '',
+                paymentQRMessage: fr.paymentQRMessage || '',
+                formInstructions: fr.formInstructions || '',
+                formSchema: fr.formSchema || [],
+                formType: fr.formType || 'SINGLE_STEP',
+                steps: fr.steps || [],
+                whatsappCommunityLink: fr.whatsappCommunityLink || '',
+                overallSheetUrl: fr.overallSheetUrl || '',
+                resourceLinks: Array.isArray(fr.resourceLinks) ? fr.resourceLinks : [],
             };
         } else if (competitionData.fest) {
             // If fest exists but registration is missing, create default registration object
@@ -212,10 +214,11 @@ router.get('/competitions/:competitionId/public', async (req, res) => {
                 externalLink: '',
                 paymentQR: '',
                 paymentQRMessage: '',
-                googleSheetsUrl: '',
                 formInstructions: '',
-                organizerEmail: '',
-                formSchema: []
+                formSchema: [],
+                whatsappCommunityLink: '',
+                overallSheetUrl: '',
+                resourceLinks: [],
             };
         }
         
@@ -227,26 +230,38 @@ router.get('/competitions/:competitionId/public', async (req, res) => {
             competitionData.legacyRegistration = { status: 'STARTED' }; // For backward compatibility
         }
         
-        // Ensure registration object has proper structure
+        // Ensure registration object has proper structure (preserve WhatsApp / share links)
         if (competitionData.registrationType === 'custom' && competitionData.registration) {
-            // Make sure custom registration has all required fields
+            const cr = competitionData.registration;
             competitionData.registration = {
-                status: competitionData.registration.status || 'not_started',
-                externalUrl: competitionData.registration.externalUrl || '',
-                googleSheetsUrl: competitionData.registration.googleSheetsUrl || '',
-                formSchema: competitionData.registration.formSchema || [],
-                formType: competitionData.registration.formType || 'SINGLE_STEP',
-                steps: competitionData.registration.steps || [],
-                qrCode: competitionData.registration.qrCode || '',
-                qrCodeMessage: competitionData.registration.qrCodeMessage || '',
-                confirmationEmail: competitionData.registration.confirmationEmail || '',
-                settings: competitionData.registration.settings || {
+                status: cr.status || 'not_started',
+                externalUrl: cr.externalUrl || '',
+                formSchema: cr.formSchema || [],
+                formType: cr.formType || 'SINGLE_STEP',
+                steps: cr.steps || [],
+                personFields: cr.personFields || [],
+                whatsappGroupLink: cr.whatsappGroupLink || '',
+                shareSheetUrl: cr.shareSheetUrl || '',
+                resourceLinks: Array.isArray(cr.resourceLinks) ? cr.resourceLinks : [],
+                qrCode: cr.qrCode || '',
+                qrCodeMessage: cr.qrCodeMessage || '',
+                settings: cr.settings || {
                     allowMultipleRegistrations: true,
                     requireEmailVerification: false,
                     autoConfirmation: true,
                     maxRegistrations: null,
                     registrationDeadline: null
                 }
+            };
+        } else if (competitionData.registration) {
+            // fest registrationType — still expose participant links on the competition
+            competitionData.registration = {
+                ...competitionData.registration,
+                whatsappGroupLink: competitionData.registration.whatsappGroupLink || '',
+                shareSheetUrl: competitionData.registration.shareSheetUrl || '',
+                resourceLinks: Array.isArray(competitionData.registration.resourceLinks)
+                  ? competitionData.registration.resourceLinks
+                  : [],
             };
         }
 
@@ -268,6 +283,31 @@ router.get('/competitions/:competitionId/public', async (req, res) => {
             }));
         }
 
+        // Live slots remaining for public chips (approved registrations)
+        try {
+            const allotted = Math.max(0, Number(competitionData.slotsAllotted) || 0);
+            const showSlotsPublic = competitionData.showSlotsPublic !== false;
+            competitionData.showSlotsPublic = showSlotsPublic;
+            if (allotted > 0) {
+                const Registration = require('../model/registration_model');
+                const filled = await Registration.countDocuments({
+                    competitionId: competitionData._id,
+                    status: 'approved',
+                });
+                competitionData.slotsFilled = filled;
+                competitionData.slotsLeft = showSlotsPublic ? Math.max(0, allotted - filled) : null;
+            } else {
+                competitionData.slotsFilled = 0;
+                competitionData.slotsLeft = null;
+            }
+        } catch (slotsErr) {
+            console.warn('Could not compute public slots remaining', slotsErr?.message || slotsErr);
+        }
+
+        // Always expose feeTiers (empty = flat fee). Omitting the key breaks client coupon/quote UI.
+        const { sanitizeCompetitionFeeTiers } = require('../utils/competitionFeeTiers');
+        competitionData.feeTiers = sanitizeCompetitionFeeTiers(competitionData.feeTiers);
+
         console.log('🔍 Competition API Response:', {
             competitionId: competitionData._id,
             festId: competitionData.fest?._id,
@@ -275,12 +315,26 @@ router.get('/competitions/:competitionId/public', async (req, res) => {
             registrationType: competitionData.registrationType
         });
 
-        res.status(200).json(competitionData);
+        res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+        res.status(200).json(sanitizePublicCompetition(competitionData));
     } catch (err) {
         console.error('Error in public competition fetch:', err);
-        res.status(500).json({ error: 'Server error', details: err.message });
+        res.status(500).json({ error: 'Server error' });
     }
 });
+
+// ✅ Get single fest details (public view)
+router.get('/:id/public', festOrganizerController.getPublicFestById);
+
+// Fest-day live updates (student feed — UI later)
+const liveUpdateCtrl = require('../controllers/festLiveUpdateController');
+router.get('/:id/live-updates', liveUpdateCtrl.listPublicLiveUpdates);
+
+// Shubharam / stall interest capture (no auth)
+const stallLeadCtrl = require('../controllers/festStallLeadController');
+const { stallLeadLimiter } = require('../middleware/rateLimiter');
+router.get('/:id/stall', stallLeadCtrl.getPublicStallMeta);
+router.post('/:id/stall-leads', stallLeadLimiter, stallLeadCtrl.createPublicStallLead);
 
 // Debug route — development only
 router.get('/:id/debug', devOnly, async (req, res) => {
@@ -322,7 +376,8 @@ router.get('/:id/debug', devOnly, async (req, res) => {
             });
         }
     } catch (err) {
-        res.json({ error: err.message, status: 'Database error' });
+        console.error('publicFest debug error:', err.message);
+        res.status(500).json({ error: 'Server error', status: 'Database error' });
     }
 });
 

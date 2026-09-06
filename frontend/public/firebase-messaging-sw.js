@@ -1,24 +1,28 @@
 // Firebase Cloud Messaging Service Worker
-// This runs in the background to receive push notifications even when the app is closed
+// Values injected at build/dev time from VITE_FIREBASE_* (never commit real keys here).
 
 importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js');
 
 firebase.initializeApp({
-  apiKey: 'AIzaSyDoyaNIB6GPi4mfn9Wi1YT5rL3o_A-3N9A',
-  authDomain: 'crwdctrl.firebaseapp.com',
-  projectId: 'crwdctrl',
-  storageBucket: 'crwdctrl.firebasestorage.app',
-  messagingSenderId: '420309062914',
-  appId: '1:420309062914:web:73bb8e49df575f90dd9e1b',
+  apiKey: '__VITE_FIREBASE_API_KEY__',
+  authDomain: '__VITE_FIREBASE_AUTH_DOMAIN__',
+  projectId: '__VITE_FIREBASE_PROJECT_ID__',
+  storageBucket: '__VITE_FIREBASE_STORAGE_BUCKET__',
+  messagingSenderId: '__VITE_FIREBASE_MESSAGING_SENDER_ID__',
+  appId: '__VITE_FIREBASE_APP_ID__',
 });
 
 const messaging = firebase.messaging();
 
+function redact(value) {
+  return String(value || '')
+    .replace(/AIza[0-9A-Za-z_-]{20,}/g, '[REDACTED]')
+    .replace(/apiKey=([^&\s"']+)/gi, 'apiKey=[REDACTED]');
+}
+
 // Handle background messages
 messaging.onBackgroundMessage((payload) => {
-  console.log('[firebase-messaging-sw.js] Received background message:', payload);
-
   const notificationTitle = payload.notification?.title || 'CrwdCtrl';
   const notificationOptions = {
     body: payload.notification?.body || 'You have a new notification',
@@ -35,6 +39,12 @@ messaging.onBackgroundMessage((payload) => {
   };
 
   self.registration.showNotification(notificationTitle, notificationOptions);
+
+  return clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+    for (const client of clientList) {
+      client.postMessage({ type: 'crwdctrl:refresh-notifications' });
+    }
+  });
 });
 
 // Handle notification click
@@ -45,7 +55,6 @@ self.addEventListener('notificationclick', (event) => {
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // If a window is already open, focus it and navigate
       for (const client of clientList) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
           client.focus();
@@ -53,10 +62,16 @@ self.addEventListener('notificationclick', (event) => {
           return;
         }
       }
-      // Otherwise open a new window
       if (clients.openWindow) {
         return clients.openWindow(link);
       }
     })
   );
+});
+
+// Silence unhandled SW errors that may include Firebase URLs with apiKey=
+self.addEventListener('error', (event) => {
+  event.preventDefault();
+  // eslint-disable-next-line no-console
+  console.error('[firebase-messaging-sw]', redact(event.message || 'error'));
 });

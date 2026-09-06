@@ -5,6 +5,24 @@
     },
     "huggingface-skills": {
       "enabled": true
+    },
+    "sentry": {
+      "enabled": true
+    },
+    "firebase": {
+      "enabled": true
+    },
+    "higgsfield": {
+      "enabled": true
+    },
+    "browse": {
+      "enabled": true
+    },
+    "mongodb": {
+      "enabled": true
+    },
+    "resend": {
+      "enabled": true
     }
   }
 }

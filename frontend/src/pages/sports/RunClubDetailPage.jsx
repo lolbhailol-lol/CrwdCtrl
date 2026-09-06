@@ -1,27 +1,41 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { ArrowLeft, Share2, Heart, Phone, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Share2, X, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import CardFavoriteButton from '../../components/CardFavoriteButton';
+import FollowCommunityBar from '../../components/FollowCommunityBar';
+import CrwdCtrlLogin from '../auth/login';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
 import { getImageUrl } from '../../utils/imageImports';
+import { getCoverImageUrl, resolveCoverImage } from '../../utils/coverImages';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { normalizeImageList, normalizeImageUrl } from '../../utils/uploadUrls';
-import { CompactPortraitCardsRowSkeleton } from '../../components/HomeEventCardSkeleton';
+import { shareContent, openExternalUrl } from '../../utils/externalLink';
+import { useInAppBack } from '../../hooks/useInAppBack';
+import DetailPageLoader, { DetailLoader3DIcon } from '../../components/DetailPageLoader';
 import { normalizeRunCategory } from '../../constants/runClubCategories';
 import {
     AnimatedCard,
     AnimatedCounter,
     ScrollProgress,
     ScrollReveal,
-    StickyCta,
 } from '../../motion';
+import Seo from '../../components/Seo';
+import { breadcrumbSchema, itemListSchema } from '../../utils/seo';
 
-const GALLERY_PREVIEW_COUNT = 4;
 import {
     fetchRunClub,
     fetchSportsByRunClub,
 } from '../../services/api/public.api';
+import { runClubPath, sportRunPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
+import {
+    classifyDetailLoadError,
+    isTransientDetailError,
+    createDetailCache,
+} from '../../utils/detailPageLoad';
+
+const runClubDetailCache = createDetailCache('crwdctrl_run_club_v1_');
 
 const resolveGallerySrc = (url, preset = 'thumb') =>
     getImageUrl(url, { preset }) || normalizeImageUrl(url) || url;
@@ -37,28 +51,38 @@ const buildHeroImages = (club) => {
             out.push(normalized);
         }
     };
+    const hero = resolveCoverImage(club, 'hero');
+    if (hero) add(hero);
     add(club.coverImage);
-    add(club.image);
+    const covers = club.coverImages;
+    if (covers && typeof covers === 'object') {
+        Object.values(covers).forEach(add);
+    }
     normalizeImageList(club.galleryImages).forEach(add);
     return out.length ? out : [null];
 };
 
-const buildGalleryImages = (club) => {
-    if (!club) return [];
-    const seen = new Set();
-    const out = [];
-    const add = (url) => {
-        const normalized = normalizeImageUrl(url);
-        if (normalized && !seen.has(normalized)) {
-            seen.add(normalized);
-            out.push(normalized);
-        }
-    };
-    add(club.coverImage);
-    add(club.image);
-    normalizeImageList(club.galleryImages).forEach(add);
-    return out;
-};
+const buildGalleryImages = (club) => normalizeImageList(club?.galleryImages);
+
+function buildReadableParagraphs(text = '') {
+    const cleaned = String(text || '').trim().replace(/\s+/g, ' ');
+    if (!cleaned) return [];
+
+    // Keep manual paragraph breaks when present.
+    const manual = String(text)
+        .split(/\n{2,}/)
+        .map((p) => p.trim())
+        .filter(Boolean);
+    if (manual.length > 1) return manual;
+
+    // Auto-group long single blocks into short readable paragraphs.
+    const sentences = cleaned.match(/[^.!?]+[.!?]?/g)?.map((s) => s.trim()).filter(Boolean) || [cleaned];
+    const chunks = [];
+    for (let i = 0; i < sentences.length; i += 2) {
+        chunks.push(sentences.slice(i, i + 2).join(' ').trim());
+    }
+    return chunks;
+}
 
 const normalizeRunClub = (raw) => {
     if (!raw) return null;
@@ -66,9 +90,13 @@ const normalizeRunClub = (raw) => {
     const galleryImages = normalizeImageList(raw.galleryImages);
     return {
         id: raw.id || raw._id,
-        title: raw.title || raw.name || 'Run Club Name',
-        subtitle: raw.subtitle || raw.basedIn || 'Based In',
+        slug: raw.slug || '',
+        listingHub: raw.listingHub === 'events' ? 'events' : 'sports',
+        name: raw.name || raw.title || '',
+        title: raw.title || raw.name || '',
+        subtitle: raw.subtitle || raw.basedIn || '',
         coverImage,
+        coverImages: raw.coverImages || null,
         image: normalizeImageUrl(raw.image) || coverImage || galleryImages[0] || null,
         aboutUs: raw.aboutUs || '',
         runCategories: raw.runCategories || [],
@@ -76,6 +104,7 @@ const normalizeRunClub = (raw) => {
         contactPhone: raw.contactPhone || '',
         contactInstagram: raw.contactInstagram || '',
         registrationLink: raw.registrationLink || '',
+        registration: raw.registration && typeof raw.registration === 'object' ? raw.registration : {},
     };
 };
 
@@ -91,7 +120,7 @@ function GalleryLightbox({ images, index, name, onClose, onIndexChange }) {
             aria-modal="true"
             aria-label="Gallery viewer"
         >
-            <div className="flex items-center justify-between px-4 pt-[max(env(safe-area-inset-top),1rem)] pb-3">
+            <div className="flex items-center justify-between px-4 pt-[max(var(--safe-top),1rem)] pb-3">
                 <p className="text-white text-sm font-medium">
                     {index + 1} / {images.length}
                 </p>
@@ -121,7 +150,7 @@ function GalleryLightbox({ images, index, name, onClose, onIndexChange }) {
                         src={resolveGallerySrc(current, 'detail')}
                         alt={`${name} gallery ${index + 1}`}
                         className="max-h-full max-w-full object-contain rounded-xl"
-                        onError={(e) => handleImageErrorWithFallback(e, 360, 360, '#14532d', name)}
+                        onError={(e) => handleImageErrorWithFallback(e, 360, 360, '#2A2B2E', name)}
                     />
                 )}
                 {hasNext && (
@@ -142,21 +171,22 @@ function GalleryLightbox({ images, index, name, onClose, onIndexChange }) {
 function RunCard({ run, isDark, isFav, onFav, onClick }) {
     return (
         <AnimatedCard
-            className="card-surface card-portrait flex flex-col rounded-2xl overflow-hidden cursor-pointer"
+            enableHover={false}
+            className="card-surface card-portrait flex flex-col rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition-transform"
             onClick={onClick}
         >
             <div className="card-portrait-image">
-                {run.image ? (
+                {getCoverImageUrl(run, 'cardPortrait') ? (
                     <img
-                        src={getImageUrl(run.image, { preset: 'cardLg' })}
+                        src={getCoverImageUrl(run, 'cardPortrait')}
                         alt={run.title}
                         className="w-full h-full object-cover"
-                        onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#14532d', run.title)}
+                        loading="lazy"
+                        decoding="async"
+                        onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#2A2B2E', run.title)}
                     />
                 ) : (
-                    <div className="w-full h-full bg-linear-to-br from-green-800 to-emerald-600 flex items-center justify-center">
-                        <span className="text-4xl">🏃</span>
-                    </div>
+                    <div className="w-full h-full bg-[#1A1B1D]" />
                 )}
                 <CardFavoriteButton isFavorite={isFav} onClick={onFav} />
             </div>
@@ -176,72 +206,168 @@ function RunCard({ run, isDark, isFav, onFav, onClick }) {
 
 export default function RunClubDetailPage() {
     const navigate = useNavigate();
+    const goBack = useInAppBack();
     const location = useLocation();
     const { id } = useParams();
     const { isDark } = useDarkMode();
     const { toggleFavorite, isFavorite } = useFavorites();
 
-    const [club, setClub] = useState(() => normalizeRunClub(location.state?.club || null));
+    const [club, setClub] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState('');
     const [runs, setRuns] = useState([]);
+    const [pastRuns, setPastRuns] = useState([]);
     const [loadingRuns, setLoadingRuns] = useState(true);
+    const [runsError, setRunsError] = useState('');
     const [activeCategory, setActiveCategory] = useState(null);
     const [expanded, setExpanded] = useState(false);
+    const [showPast, setShowPast] = useState(false);
     const [imgPg, setImgPg] = useState(0);
-    const [liked, setLiked] = useState(false);
     const [galleryOpen, setGalleryOpen] = useState(false);
     const [galleryIndex, setGalleryIndex] = useState(0);
+    const [heroLoaded, setHeroLoaded] = useState(false);
+    const [showLogin, setShowLogin] = useState(false);
     const imgRef = useRef(null);
 
     const clubId = club?.id || id || null;
 
     const categoryOptions = useMemo(() => {
-        return (club?.runCategories || [])
+        const fromClub = (club?.runCategories || [])
             .map((label) => ({ label, value: normalizeRunCategory(label) }))
             .filter((option) => option.value);
+        if (!fromClub.length) return [];
+        return [{ label: 'All', value: 'all' }, ...fromClub];
     }, [club]);
 
     const heroImages = useMemo(() => buildHeroImages(club), [club]);
     const galleryImages = useMemo(() => buildGalleryImages(club), [club]);
+    const firstHeroSrc = heroImages[0] || '';
 
     useEffect(() => {
-        if (!id) return;
+        setHeroLoaded(!firstHeroSrc);
+    }, [firstHeroSrc]);
+
+    useEffect(() => {
+        if (!id) {
+            setClub(null);
+            setLoadError('');
+            setLoading(false);
+            return undefined;
+        }
+
+        const seeded = normalizeRunClub(location.state?.club || null);
+        const ok = entityMatchesRouteParam(seeded, id, ['name', 'title']);
+        const cached = runClubDetailCache.read(id);
+        const cacheOk = entityMatchesRouteParam(cached, id, ['name', 'title']);
+        const fallback = ok ? seeded : (cacheOk ? normalizeRunClub(cached) : null);
+        setRuns([]);
+        setPastRuns([]);
+        setLoadingRuns(true);
+        setLoadError('');
+
+        if (fallback) {
+            setClub(fallback);
+            setLoading(false);
+        } else {
+            setClub(null);
+            setLoading(true);
+        }
+
         const controller = new AbortController();
         fetchRunClub(id, controller.signal)
             .then((data) => {
-                if (data.club) setClub(normalizeRunClub(data.club));
+                if (controller.signal.aborted) return;
+                if (data.club) {
+                    const normalized = normalizeRunClub(data.club);
+                    setClub(normalized);
+                    runClubDetailCache.write(id, data.club);
+                    if (data.club._id) runClubDetailCache.write(String(data.club._id), data.club);
+                    if (data.club.slug) runClubDetailCache.write(String(data.club.slug), data.club);
+                    setLoadError('');
+                } else if (fallback) {
+                    setClub(fallback);
+                    setLoadError('');
+                } else {
+                    setClub(null);
+                    setLoadError('not_found');
+                }
             })
-            .catch(() => {});
+            .catch((err) => {
+                if (controller.signal.aborted) return;
+                if (fallback) {
+                    setClub(fallback);
+                    setLoadError('');
+                } else {
+                    setClub(null);
+                    setLoadError(classifyDetailLoadError(err));
+                }
+            })
+            .finally(() => {
+                if (!controller.signal.aborted) setLoading(false);
+            });
         return () => controller.abort();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id]);
 
     useEffect(() => {
-        if (!clubId) return;
+        if (!club || !id) return;
+        const canonical = runClubPath(club);
+        if (canonical && window.location.pathname !== canonical) {
+            navigate(`${canonical}${window.location.search || ''}`, { replace: true, state: location.state });
+        }
+    }, [club, id, navigate, location.state]);
+
+    const mapRunCard = (e) => ({
+        id: e._id,
+        slug: e.slug || '',
+        title: e.title,
+        date: e.eventDate
+            ? new Date(e.eventDate).toLocaleDateString('en-IN', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+              })
+            : null,
+        image: e.coverImage || e.images?.[0] || null,
+        runCategory: normalizeRunCategory(e.runCategory),
+        registrationLink: e.registrationLink || '',
+        status: e.status || null,
+        // Keep list payload for detail seed (avoids Free/demo fee flash)
+        detail: e,
+    });
+
+    useEffect(() => {
+        if (!clubId || loading) return;
         const controller = new AbortController();
         setLoadingRuns(true);
-        fetchSportsByRunClub(clubId, controller.signal)
+        setShowPast(false);
+        setRunsError('');
+        fetchSportsByRunClub(clubId, controller.signal, { timeframe: 'upcoming' })
             .then((data) => {
+                if (controller.signal.aborted) return;
                 const list = Array.isArray(data?.events) ? data.events : [];
-                setRuns(
-                    list.map((e) => ({
-                        id: e._id,
-                        title: e.title,
-                        date: e.eventDate
-                            ? new Date(e.eventDate).toLocaleDateString('en-IN', {
-                                  day: 'numeric',
-                                  month: 'short',
-                                  year: 'numeric',
-                              })
-                            : null,
-                        image: e.images?.[0] || null,
-                        runCategory: normalizeRunCategory(e.runCategory),
-                        registrationLink: e.registrationLink || '',
-                    })),
-                );
+                setRuns(list.map(mapRunCard));
             })
-            .catch(() => setRuns([]))
-            .finally(() => setLoadingRuns(false));
+            .catch((err) => {
+                if (controller.signal.aborted) return;
+                setRuns([]);
+                setRunsError(err?.message || 'Could not load runs');
+            })
+            .finally(() => {
+                if (!controller.signal.aborted) setLoadingRuns(false);
+            });
+        fetchSportsByRunClub(clubId, controller.signal, { timeframe: 'past' })
+            .then((data) => {
+                if (controller.signal.aborted) return;
+                const list = Array.isArray(data?.events) ? data.events : [];
+                setPastRuns(list.map(mapRunCard));
+            })
+            .catch(() => {
+                if (controller.signal.aborted) return;
+                setPastRuns([]);
+            });
         return () => controller.abort();
-    }, [clubId]);
+    }, [clubId, loading]);
 
     useEffect(() => {
         if (!categoryOptions.length) {
@@ -249,21 +375,59 @@ export default function RunClubDetailPage() {
             return;
         }
         if (!activeCategory || !categoryOptions.some((option) => option.value === activeCategory)) {
-            setActiveCategory(categoryOptions[0].value);
+            setActiveCategory('all');
         }
     }, [categoryOptions, activeCategory]);
 
-    const name = club?.title || 'Run Club Name';
-    const basedIn = club?.subtitle || 'Based In';
+    const showPageLoader = loading || (club && id && !entityMatchesRouteParam(club, id, ['name', 'title']));
+    const isEventHub = false;
 
-    const description =
-        club?.aboutUs?.trim() ||
-        'Run Club is a platform designed for fitness enthusiasts to connect, share experiences, and inspire each other.';
-    const shortDesc = description.slice(0, 130);
+    const name = club?.title || '';
+    const basedIn = club?.subtitle || '';
+    const description = club?.aboutUs?.trim() || '';
+    const paragraphs = useMemo(() => buildReadableParagraphs(description), [description]);
+    const previewParagraphs = paragraphs.slice(0, 2);
+    const hasMoreText = paragraphs.length > 2;
 
-    const filteredRuns = activeCategory
-        ? runs.filter((run) => run.runCategory === activeCategory)
-        : runs;
+    const filteredRuns = !activeCategory || activeCategory === 'all'
+        ? runs
+        : runs.filter((run) => run.runCategory === activeCategory);
+
+    if (showPageLoader) {
+        return <DetailPageLoader label={isEventHub ? 'Loading community' : 'Loading run club'} variant={isEventHub ? 'brand' : 'run'} />;
+    }
+
+    if (!club) {
+        const isNetwork = isTransientDetailError(loadError);
+        return (
+            <div className="crwdctrl-page crwdctrl-page--content flex flex-col items-center justify-center min-h-screen gap-3 px-6">
+                <p className={`text-sm text-center font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {isNetwork ? "Couldn't load this community" : (isEventHub ? 'Community not found' : 'Run club not found')}
+                </p>
+                <p className="text-gray-500 text-sm text-center max-w-xs">
+                    {isNetwork
+                        ? 'Slow network or server waking up — tap Retry.'
+                        : 'This club may have been removed or the link is outdated.'}
+                </p>
+                {isNetwork ? (
+                    <button
+                        type="button"
+                        onClick={() => window.location.reload()}
+                        className="px-5 py-2.5 rounded-xl bg-[#0ECCEE] text-black text-sm font-bold"
+                    >
+                        Retry
+                    </button>
+                ) : null}
+                <button
+                    type="button"
+                    onClick={() => (isNetwork ? navigate(isEventHub ? '/events' : '/sports') : goBack())}
+                    className="text-[#0ECCEE] text-sm font-semibold"
+                >
+                    {isNetwork ? 'Browse events' : '← Go back'}
+                </button>
+            </div>
+        );
+    }
 
     const openGallery = (index = 0) => {
         setGalleryIndex(index);
@@ -271,48 +435,112 @@ export default function RunClubDetailPage() {
     };
 
     const handleShare = () => {
-        if (navigator.share) navigator.share({ title: name, url: window.location.href }).catch(() => {});
+        shareContent({ title: name, url: window.location.href });
     };
 
     const handleRunClick = (run) => {
-        navigate(`/sports/run/${run.id}`, {
+        const eventSeed = run.detail && typeof run.detail === 'object'
+            ? run.detail
+            : {
+                _id: run.id,
+                slug: run.slug || '',
+                title: run.title,
+                images: run.image ? [run.image] : [],
+                coverImage: run.image || '',
+            };
+        navigate(sportRunPath(eventSeed), {
             state: {
                 event: {
-                    _id: run.id,
-                    title: run.title,
-                    images: run.image ? [run.image] : [],
+                    ...eventSeed,
                     runClub: club
-                        ? { _id: club.id, name: club.title, basedIn: club.subtitle, contactPhone: club.contactPhone, contactInstagram: club.contactInstagram }
-                        : null,
+                        ? {
+                            _id: club.id,
+                            name: club.title,
+                            basedIn: club.subtitle,
+                            contactPhone: club.contactPhone,
+                            contactInstagram: club.contactInstagram,
+                        }
+                        : eventSeed.runClub || null,
                 },
                 runClub: club,
             },
         });
     };
 
+    const canonicalPath = runClubPath(club || { id });
+
     return (
-        <div className="crwdctrl-page crwdctrl-mobile-page flex flex-col min-h-screen pb-24">
+        <div className="crwdctrl-page flex flex-col min-h-screen pb-24" style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}>
+            <Seo
+                title={`${name} — Running Club`}
+                description={description}
+                canonical={canonicalPath}
+                image={club?.coverImage || club?.image}
+                jsonLd={[
+                    breadcrumbSchema([
+                        { name: 'Home', path: '/' },
+                        { name: 'Sports', path: '/sports' },
+                        { name, path: canonicalPath },
+                    ]),
+                    itemListSchema({
+                        name: `Runs by ${name}`,
+                        description,
+                        url: canonicalPath,
+                        items: runs
+                            .filter((r) => r?.id && r?.title)
+                            .map((r) => ({ name: r.title, url: sportRunPath(r) })),
+                    }),
+                ]}
+            />
             <ScrollProgress />
+            <div className="mx-auto w-full md:max-w-2xl flex flex-col flex-1">
             {/* ── Cover image carousel (full width, 396px tall — matches trek community page) ── */}
             <div className="relative w-full h-[396px] shrink-0 overflow-hidden">
                 <div
                     ref={imgRef}
                     className="overflow-x-auto scrollbar-hide snap-x snap-mandatory w-full h-full"
-                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-                    onScroll={(e) => setImgPg(Math.round(e.target.scrollLeft / e.target.clientWidth))}
+                    style={{
+                        scrollbarWidth: 'none',
+                        msOverflowStyle: 'none',
+                        WebkitOverflowScrolling: 'touch',
+                        touchAction: 'pan-x',
+                        overscrollBehaviorX: 'contain',
+                    }}
+                    onScroll={(e) => {
+                        const p = Math.round(e.target.scrollLeft / e.target.clientWidth);
+                        setImgPg((prev) => (prev === p ? prev : p));
+                    }}
                 >
                     <div className="flex h-full">
                         {heroImages.map((img, i) => (
-                            <div key={i} className="shrink-0 w-full h-full snap-start">
+                            <div key={i} className="shrink-0 w-full h-full snap-start relative">
                                 {img ? (
-                                    <img
-                                        src={getImageUrl(img, { preset: 'hero' })}
-                                        alt={name}
-                                        className="w-full h-full object-cover"
-                                        onError={(e) => handleImageErrorWithFallback(e, 393, 396, '#14532d', name)}
-                                    />
+                                    <>
+                                        {i === 0 && !heroLoaded && (
+                                            <div aria-hidden className="absolute inset-0 bg-[#1A1B1D]" />
+                                        )}
+                                        <img
+                                            src={getImageUrl(img, { preset: 'hero' })}
+                                            alt={name}
+                                            className={`w-full h-full object-cover pointer-events-none select-none ${
+                                                i === 0 && !heroLoaded ? 'opacity-0' : 'opacity-100'
+                                            }`}
+                                            draggable={false}
+                                            loading={i === 0 ? 'eager' : 'lazy'}
+                                            fetchPriority={i === 0 ? 'high' : 'auto'}
+                                            decoding="async"
+                                            onLoad={(e) => {
+                                                if (i === 0) setHeroLoaded(true);
+                                                if (e.currentTarget.complete) setHeroLoaded(true);
+                                            }}
+                                            onError={(e) => {
+                                                if (i === 0) setHeroLoaded(true);
+                                                handleImageErrorWithFallback(e, 393, 396, '#2A2B2E', name);
+                                            }}
+                                        />
+                                    </>
                                 ) : (
-                                    <div className="w-full h-full bg-linear-to-br from-green-900 via-emerald-800 to-teal-700" />
+                                    <div className="w-full h-full bg-[#1A1B1D]" />
                                 )}
                             </div>
                         ))}
@@ -323,12 +551,12 @@ export default function RunClubDetailPage() {
                 {/* Floating stats — Nike Run Club feel */}
                 <div className="absolute bottom-20 left-4 right-4 flex gap-2 pointer-events-none z-10">
                     {[
-                        { label: 'Upcoming Runs', value: runs.length },
-                        { label: 'Categories', value: categoryOptions.length },
+                        { label: isEventHub ? 'Upcoming Events' : 'Upcoming Runs', value: runs.length },
+                        { label: 'Categories', value: Math.max(0, categoryOptions.filter((o) => o.value !== 'all').length) },
                     ].map((stat) => (
                         <div
                             key={stat.label}
-                            className="rounded-2xl bg-black/45 backdrop-blur-md px-3 py-2 border border-white/10"
+                            className="rounded-2xl bg-black/50 px-3 py-2 border border-white/10"
                         >
                             <p className="text-white text-lg font-bold leading-none">
                                 <AnimatedCounter value={stat.value} />
@@ -340,13 +568,13 @@ export default function RunClubDetailPage() {
 
                 <div
                     className="absolute top-0 left-0 right-0 flex items-center justify-between px-4"
-                    style={{ paddingTop: 'calc(max(env(safe-area-inset-top), 0px) + 2.5rem)' }}
+                    style={{ paddingTop: 'calc(max(var(--safe-top), 0px) + 2.5rem)' }}
                 >
                     <button
                         type="button"
-                        onClick={() => navigate(-1)}
+                        onClick={goBack}
                         aria-label="Go back"
-                        className="size-11 rounded-full bg-stone-900/20 backdrop-blur-sm flex items-center justify-center"
+                        className="size-11 rounded-full bg-black/40 flex items-center justify-center"
                     >
                         <ArrowLeft size={22} strokeWidth={2.25} className="text-white" />
                     </button>
@@ -355,21 +583,9 @@ export default function RunClubDetailPage() {
                             type="button"
                             onClick={handleShare}
                             aria-label="Share"
-                            className="size-11 rounded-full bg-stone-900/20 backdrop-blur-sm flex items-center justify-center"
+                            className="size-11 rounded-full bg-black/40 flex items-center justify-center"
                         >
                             <Share2 size={20} strokeWidth={2.25} className="text-white" />
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setLiked((l) => !l)}
-                            aria-label="Favourite"
-                            className="size-11 rounded-full bg-stone-900/20 backdrop-blur-sm flex items-center justify-center"
-                        >
-                            <Heart
-                                size={20}
-                                strokeWidth={2.25}
-                                className={liked ? 'fill-red-500 text-red-500' : 'text-white'}
-                            />
                         </button>
                     </div>
                 </div>
@@ -393,10 +609,10 @@ export default function RunClubDetailPage() {
 
             <div
                 className={`relative -mt-10 flex-1 rounded-t-3xl px-4 pt-8 pb-8
-                ${isDark ? 'bg-[#161718]' : 'bg-slate-100'}`}
+                ${isDark ? 'bg-[#161718]' : 'bg-white'}`}
             >
-                <div className="flex items-start justify-between mb-1">
-                    <div className="flex-1 min-w-0 pr-3">
+                <div className="mb-1">
+                    <div className="flex-1 min-w-0">
                         <h1
                             className={`text-3xl font-medium font-inter leading-9 ${isDark ? 'text-white' : 'text-gray-900'}`}
                         >
@@ -406,21 +622,18 @@ export default function RunClubDetailPage() {
                             {basedIn}
                         </p>
                     </div>
-                    <button
-                        type="button"
-                        onClick={() => {
-                            if (club?.contactPhone) {
-                                window.location.href = `tel:${club.contactPhone}`;
-                            }
-                        }}
-                        disabled={!club?.contactPhone}
-                        aria-label="Call run club"
-                        className={`size-8 shrink-0 rounded-full flex items-center justify-center mt-1 transition-opacity
-                            ${isDark ? 'bg-gray-800' : 'bg-white shadow-sm'}
-                            ${!club?.contactPhone ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'}`}
-                    >
-                        <Phone size={18} strokeWidth={2.25} className="text-[#0ECCEE]" />
-                    </button>
+                    {clubId ? (
+                        <div className="mt-4">
+                            <FollowCommunityBar
+                                entityType="run_club"
+                                entityId={clubId}
+                                followLabel="Follow"
+                                followingLabel="Following"
+                                membersTitle={`${name || 'Club'} members`}
+                                onRequireLogin={() => setShowLogin(true)}
+                            />
+                        </div>
+                    ) : null}
                 </div>
 
                 <ScrollReveal className="mt-5 mb-5">
@@ -430,16 +643,26 @@ export default function RunClubDetailPage() {
                     >
                         About Us
                     </h2>
-                    <p
-                        className={`text-sm font-medium leading-5 tracking-tight ${isDark ? 'text-gray-300' : 'text-gray-700'}`}
-                    >
-                        {expanded ? description : shortDesc}
-                        {!expanded && description.length > 130 && (
-                            <button onClick={() => setExpanded(true)} className="text-[#0ECCEE] font-medium ml-1">
-                                read more
-                            </button>
-                        )}
-                    </p>
+                    <div className="space-y-3">
+                        {(expanded ? paragraphs : previewParagraphs).map((para, idx) => (
+                            <p
+                                key={`${idx}-${para.slice(0, 24)}`}
+                                className={`text-[14px] sm:text-[15px] font-medium leading-7 tracking-normal text-left ${
+                                    isDark ? 'text-gray-200' : 'text-gray-700'
+                                }`}
+                            >
+                                {para}
+                            </p>
+                        ))}
+                    </div>
+                    {hasMoreText && (
+                        <button
+                            onClick={() => setExpanded((prev) => !prev)}
+                            className="mt-3 text-[#0ECCEE] text-sm font-semibold hover:opacity-90"
+                        >
+                            {expanded ? 'Read less' : 'Read more'}
+                        </button>
+                    )}
                 </ScrollReveal>
 
                 <ScrollReveal className="mb-5" delay={0.05}>
@@ -447,7 +670,7 @@ export default function RunClubDetailPage() {
                         className={`text-lg font-medium font-inter leading-7 tracking-wide mb-3
                         ${isDark ? 'text-white' : 'text-gray-900'}`}
                     >
-                        Upcoming Runs
+                        {isEventHub ? 'Upcoming Events' : 'Upcoming Runs'}
                     </h2>
                     {categoryOptions.length > 0 ? (
                         <div className="overflow-x-auto scrollbar-hide -mx-4 px-4" style={{ scrollbarWidth: 'none' }}>
@@ -485,12 +708,16 @@ export default function RunClubDetailPage() {
                         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
                     >
                         {loadingRuns ? (
-                            <CompactPortraitCardsRowSkeleton count={3} className="px-0" />
+                            <div className="flex justify-center py-10">
+                                <DetailLoader3DIcon size="compact" />
+                            </div>
                         ) : filteredRuns.length === 0 ? (
                             <div
                                 className={`card-surface mx-4 rounded-2xl px-4 py-6 text-sm text-center ${isDark ? 'text-gray-400' : 'text-gray-600'}`}
                             >
-                                No upcoming runs in this category yet.
+                                {runsError
+                                    ? `${runsError}. Pull to refresh or try again.`
+                                    : (isEventHub ? 'No upcoming events yet.' : 'No upcoming runs in this category yet.')}
                             </div>
                         ) : (
                             <div className="flex gap-4 pb-2">
@@ -508,6 +735,43 @@ export default function RunClubDetailPage() {
                         )}
                     </div>
                 </ScrollReveal>
+
+                {pastRuns.length > 0 && (
+                    <div className="mb-5">
+                        <button
+                            type="button"
+                            onClick={() => setShowPast((v) => !v)}
+                            className={`flex items-center gap-1.5 text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+                        >
+                            Check out past events
+                            <ChevronDown
+                                size={16}
+                                className={`transition-transform ${showPast ? 'rotate-180' : ''}`}
+                            />
+                        </button>
+                        {showPast && (
+                            <ul className="mt-2 space-y-1.5">
+                                {pastRuns.map((run) => (
+                                    <li key={run.id}>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleRunClick(run)}
+                                            className={`w-full text-left flex items-baseline justify-between gap-3 py-1.5 text-sm
+                                                ${isDark ? 'text-gray-300' : 'text-gray-700'}`}
+                                        >
+                                            <span className="truncate">{run.title}</span>
+                                            {run.date ? (
+                                                <span className={`shrink-0 text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                                    {run.date}
+                                                </span>
+                                            ) : null}
+                                        </button>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                )}
 
                 <ScrollReveal className="mb-5" delay={0.08}>
                     <h2
@@ -563,73 +827,101 @@ export default function RunClubDetailPage() {
                 </ScrollReveal>
 
                 <ScrollReveal className="mb-2" delay={0.1}>
-                    <h2
-                        className={`text-lg font-medium font-inter leading-7 tracking-wide mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}
-                    >
-                        Gallery
-                    </h2>
+                    <div className="flex items-end justify-between gap-3 mb-3 px-0.5">
+                        <h2
+                            className={`text-lg font-medium font-inter leading-7 tracking-wide ${isDark ? 'text-white' : 'text-gray-900'}`}
+                        >
+                            Gallery
+                        </h2>
+                        {galleryImages.length > 1 ? (
+                            <p className={`text-xs shrink-0 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                Swipe · {galleryImages.length} photos
+                            </p>
+                        ) : null}
+                    </div>
                     {galleryImages.length > 0 ? (
-                        <div className="grid grid-cols-4 gap-2.5">
-                            {galleryImages.slice(0, GALLERY_PREVIEW_COUNT).map((img, i) => {
-                                const isOverflowTile =
-                                    galleryImages.length > GALLERY_PREVIEW_COUNT && i === GALLERY_PREVIEW_COUNT - 1;
-                                const remainingCount = galleryImages.length - GALLERY_PREVIEW_COUNT;
-                                return (
-                                    <button
-                                        key={`${img}-${i}`}
-                                        type="button"
-                                        onClick={() => openGallery(i)}
-                                        aria-label={
-                                            isOverflowTile
-                                                ? `View all ${galleryImages.length} gallery images`
-                                                : `View gallery image ${i + 1}`
-                                        }
-                                        className={`relative w-full aspect-square rounded-2xl overflow-hidden active:scale-[0.98] transition-transform ${isDark ? 'bg-[#111213]' : 'bg-white shadow-sm'}`}
-                                    >
-                                        <img
-                                            src={resolveGallerySrc(img, 'cardSm')}
-                                            alt={`${name} gallery ${i + 1}`}
-                                            className="absolute inset-0 w-full h-full object-cover"
-                                            loading="lazy"
-                                            decoding="async"
-                                            onError={(e) => handleImageErrorWithFallback(e, 120, 120, '#14532d', name)}
-                                        />
-                                        {isOverflowTile && (
-                                            <div className="absolute inset-0 flex items-center justify-center bg-black/55">
-                                                <span className="text-white text-base font-semibold tracking-wide">
-                                                    {remainingCount}+
-                                                </span>
-                                            </div>
-                                        )}
-                                    </button>
-                                );
-                            })}
+                        <div className="-mx-4 sm:-mx-6">
+                            <div
+                                className="flex gap-3 overflow-x-auto px-4 sm:px-6 pb-2 snap-x snap-mandatory scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+                                style={{ WebkitOverflowScrolling: 'touch' }}
+                            >
+                                {galleryImages.map((img, i) => {
+                                    const src = resolveGallerySrc(img, 'detail');
+                                    return (
+                                        <button
+                                            key={`${img}-${i}`}
+                                            type="button"
+                                            onClick={() => openGallery(i)}
+                                            aria-label={`View gallery image ${i + 1} of ${galleryImages.length}`}
+                                            className={`relative shrink-0 snap-center w-[78vw] max-w-[340px] sm:w-[320px] h-[220px] sm:h-[260px] rounded-3xl overflow-hidden border active:scale-[0.985] transition-transform ${
+                                                isDark ? 'border-white/10 bg-[#111213]' : 'border-gray-100 bg-white shadow-sm'
+                                            }`}
+                                            style={{
+                                                backgroundImage: src ? `url(${src})` : undefined,
+                                                backgroundSize: 'cover',
+                                                backgroundPosition: 'center',
+                                            }}
+                                        >
+                                            <span className="absolute inset-0 bg-linear-to-t from-black/45 via-transparent to-transparent pointer-events-none" />
+                                            <span className="absolute bottom-3 right-3 px-2.5 py-1 rounded-full bg-black/45 text-white text-[11px] font-medium tabular-nums backdrop-blur-sm">
+                                                {i + 1}/{galleryImages.length}
+                                            </span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         </div>
                     ) : (
                         <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>No gallery images yet.</p>
                     )}
                 </ScrollReveal>
             </div>
+            </div>
 
-            <StickyCta>
-                <div className={`px-4 py-3 border-t ${isDark ? 'bg-[#111213] border-gray-800' : 'bg-white border-gray-100'}`}>
-                    <button
-                        type="button"
-                        onClick={() => {
-                            if (club?.registrationLink) {
-                                window.open(club.registrationLink, '_blank', 'noopener,noreferrer');
-                            } else if (filteredRuns[0]) {
-                                handleRunClick(filteredRuns[0]);
-                            } else if (club?.contactPhone) {
-                                window.location.href = `tel:${club.contactPhone}`;
-                            }
-                        }}
-                        className="w-full py-3 rounded-xl bg-[#0ECCEE] text-black font-bold text-sm shadow-md shadow-[#0ECCEE]/20 active:scale-[0.98] transition-transform"
-                    >
-                        Join Run Club
-                    </button>
+            {typeof document !== 'undefined' && createPortal(
+            <div
+                className="fixed inset-x-0 bottom-0 z-100040 px-2 pointer-events-none"
+                style={{ paddingBottom: 'max(var(--safe-bottom), 6px)' }}
+            >
+                <div className={`pointer-events-auto mx-auto w-full max-w-md md:max-w-2xl rounded-[30px] px-3 py-3 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'}`}>
+                    {(() => {
+                        const closed = club?.registration?.status === 'closed';
+                        const extLink = club?.registration?.mode === 'external_link'
+                            ? club?.registrationLink
+                            : null;
+                        if (closed) {
+                            return (
+                                <button
+                                    type="button"
+                                    disabled
+                                    className="w-full flex items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-gray-600 text-gray-300 cursor-not-allowed"
+                                >
+                                    Registration Closed
+                                </button>
+                            );
+                        }
+                        return (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (extLink) {
+                                        openExternalUrl(extLink);
+                                    } else if (filteredRuns[0]) {
+                                        handleRunClick(filteredRuns[0]);
+                                    } else if (club?.contactPhone) {
+                                        window.location.href = `tel:${club.contactPhone}`;
+                                    }
+                                }}
+                                className="w-full flex items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-[#0ECCEE] text-black active:opacity-90 transition"
+                            >
+                                {extLink ? 'Join Community' : 'Join Run Club'}
+                            </button>
+                        );
+                    })()}
                 </div>
-            </StickyCta>
+            </div>,
+            document.body,
+            )}
 
             {galleryOpen && galleryImages.length > 0 && (
                 <GalleryLightbox
@@ -640,6 +932,15 @@ export default function RunClubDetailPage() {
                     onIndexChange={setGalleryIndex}
                 />
             )}
+
+            {showLogin ? (
+                <CrwdCtrlLogin
+                    googleOnly
+                    title="Sign in to follow"
+                    subtitle="One tap with Google — then you’re in"
+                    onClose={() => setShowLogin(false)}
+                />
+            ) : null}
         </div>
     );
 }

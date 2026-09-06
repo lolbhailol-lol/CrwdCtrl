@@ -1,11 +1,59 @@
 const PENDING_PAYMENT_KEY = 'crwdctrl_pending_payment';
 const PAYMENT_RETURN_EXPECTED_KEY = 'crwdctrl_payment_return_expected';
 const PENDING_MAX_AGE_MS = 30 * 60 * 1000;
+/** Redirect checkout should finish within this window; stale flags must not auto-resume later. */
+const RETURN_EXPECTED_MAX_AGE_MS = 10 * 60 * 1000;
+
+function writeBoth(key, value) {
+  try {
+    sessionStorage.setItem(key, value);
+  } catch {
+    /* private mode */
+  }
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* quota */
+  }
+}
+
+function readEither(key) {
+  try {
+    const fromSession = sessionStorage.getItem(key);
+    if (fromSession) return fromSession;
+  } catch {
+    /* ignore */
+  }
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function removeBoth(key) {
+  try {
+    sessionStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+}
 
 export function resolvePaymentEntityType(returnPath, entityType) {
-  if (entityType === 'trek' || entityType === 'fest') return entityType;
+  const known = String(entityType || '').toLowerCase();
+  if (['trek', 'fest', 'event', 'sports', 'competition', 'event_show'].includes(known)) {
+    return known === 'event_show' ? 'event' : known;
+  }
   const path = returnPath || (typeof window !== 'undefined' ? window.location.pathname : '');
   if (path.includes('/trek/') && path.includes('/book')) return 'trek';
+  if (/\/sports\/run\/[^/]+(?:\/book)?/.test(path)) return 'sports';
+  if (/\/events\/community-event\/[^/]+(?:\/book)?/.test(path)) return 'sports';
+  if (path.includes('/events/') && path.includes('/register')) return 'event';
   return 'fest';
 }
 
@@ -14,47 +62,172 @@ export function isTrekPaymentPending(pending) {
   return resolvePaymentEntityType(pending.returnPath, pending.entityType) === 'trek';
 }
 
-export function storePendingPayment({ orderId, paymentSessionId, returnPath, entityType }) {
+/** Dual-write so Google Pay / new-tab return still finds pending payment. */
+export function storePendingPayment({ orderId, paymentSessionId, returnPath, entityType, customerEmail = '' }) {
   const path = returnPath || window.location.pathname;
-  sessionStorage.setItem(
+  writeBoth(
     PENDING_PAYMENT_KEY,
     JSON.stringify({
       orderId,
       paymentSessionId,
       returnPath: path,
       entityType: resolvePaymentEntityType(path, entityType),
+      customerEmail: String(customerEmail || '').trim().toLowerCase(),
       ts: Date.now(),
-    })
+    }),
   );
+  // Order-scoped copy — survives when the generic pending key is cleared/lost
+  if (orderId) {
+    let festId = '';
+    let competitionId = '';
+    try {
+      const [p, q = ''] = String(path).split('?');
+      const festMatch = p.match(/^\/fest\/([^/]+)\/register\/?$/);
+      if (festMatch) festId = festMatch[1];
+      competitionId = new URLSearchParams(q).get('competition') || '';
+    } catch {
+      /* ignore */
+    }
+    storeOrderReturnContext(orderId, {
+      returnPath: path,
+      entityType: resolvePaymentEntityType(path, entityType),
+      festId,
+      competitionId,
+    });
+  }
+}
+
+const ORDER_RETURN_PREFIX = 'crwdctrl_order_return:';
+
+export function storeOrderReturnContext(orderId, ctx = {}) {
+  if (!orderId) return;
+  try {
+    writeBoth(
+      `${ORDER_RETURN_PREFIX}${orderId}`,
+      JSON.stringify({
+        returnPath: ctx.returnPath || '',
+        entityType: ctx.entityType || 'fest',
+        festId: ctx.festId || '',
+        competitionId: ctx.competitionId || '',
+        ts: Date.now(),
+      }),
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
+export function loadOrderReturnContext(orderId) {
+  if (!orderId) return null;
+  const raw = readEither(`${ORDER_RETURN_PREFIX}${orderId}`);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed?.ts || Date.now() - parsed.ts > PENDING_MAX_AGE_MS) {
+      removeBoth(`${ORDER_RETURN_PREFIX}${orderId}`);
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function clearOrderReturnContext(orderId) {
+  if (!orderId) return;
+  removeBoth(`${ORDER_RETURN_PREFIX}${orderId}`);
 }
 
 export function getPendingPayment() {
-  const raw = sessionStorage.getItem(PENDING_PAYMENT_KEY);
+  const raw = readEither(PENDING_PAYMENT_KEY);
   if (!raw) return null;
   try {
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    if (isStalePendingPayment(parsed)) {
+      clearPendingPayment();
+      return null;
+    }
+    return parsed;
   } catch {
     return null;
   }
 }
 
 export function clearPendingPayment() {
-  sessionStorage.removeItem(PENDING_PAYMENT_KEY);
-  sessionStorage.removeItem(PAYMENT_RETURN_EXPECTED_KEY);
+  removeBoth(PENDING_PAYMENT_KEY);
+  removeBoth(PAYMENT_RETURN_EXPECTED_KEY);
 }
 
 /** Set when redirect checkout is initiated — resume only after Cashfree return. */
 export function markPaymentReturnExpected() {
-  sessionStorage.setItem(PAYMENT_RETURN_EXPECTED_KEY, '1');
+  writeBoth(PAYMENT_RETURN_EXPECTED_KEY, JSON.stringify({ ts: Date.now() }));
 }
 
 export function hasPaymentReturnExpected() {
-  return sessionStorage.getItem(PAYMENT_RETURN_EXPECTED_KEY) === '1';
+  const raw = readEither(PAYMENT_RETURN_EXPECTED_KEY);
+  if (!raw) return false;
+  if (raw === '1') {
+    removeBoth(PAYMENT_RETURN_EXPECTED_KEY);
+    return false;
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed?.ts || Date.now() - parsed.ts > RETURN_EXPECTED_MAX_AGE_MS) {
+      removeBoth(PAYMENT_RETURN_EXPECTED_KEY);
+      return false;
+    }
+    return true;
+  } catch {
+    removeBoth(PAYMENT_RETURN_EXPECTED_KEY);
+    return false;
+  }
+}
+
+/**
+ * Drop abandoned checkout recovery when the user is intentionally opening registration
+ * (Register Now) — not returning from Cashfree with return query params.
+ */
+export function discardStalePaymentRecovery({ pathname, search = '', navigationState = null } = {}) {
+  if (hasCashfreeReturnParams(search)) return;
+  if (navigationState?.fromPaymentReturn) return;
+
+  if (navigationState?.paymentCancelled) {
+    clearPendingPayment();
+    return;
+  }
+
+  const freshStart =
+    navigationState?.freshRegistration
+    || navigationState?.prefetch
+    || navigationState?.festId
+    || navigationState?.competitionId;
+
+  if (freshStart) {
+    clearPendingPayment();
+    return;
+  }
+
+  // Cold revisit without a Cashfree return signal — never auto-resume an old checkout.
+  if (getPendingPayment() || hasPaymentReturnExpected()) {
+    clearPendingPayment();
+  }
 }
 
 export function pathsMatchPendingReturn(pendingPath, currentPath) {
   if (!pendingPath || !currentPath) return false;
-  return pendingPath.split('?')[0] === currentPath.split('?')[0];
+  const pendingBase = pendingPath.split('?')[0].replace(/\/$/, '') || '/';
+  const currentBase = currentPath.split('?')[0].replace(/\/$/, '') || '/';
+  if (pendingBase === currentBase) return true;
+
+  // Fest register: ObjectId ↔ slug and ?competition= ↔ /register/:slug must still resume payment
+  const festReg = /^\/fest\/[^/]+\/register(?:\/[^/]+)?$/;
+  if (festReg.test(pendingBase) && festReg.test(currentBase)) return true;
+
+  // Legacy competition registration routes (id ↔ slug)
+  const compReg = /^\/competition-registration\/[^/]+$/;
+  if (compReg.test(pendingBase) && compReg.test(currentBase)) return true;
+
+  return false;
 }
 
 export function hasCashfreeReturnParams(search = '') {
@@ -73,7 +246,13 @@ export function isStalePendingPayment(pending) {
 }
 
 /**
- * Only auto-resume payment when user likely returned from Cashfree (not stale abandoned checkout).
+ * Auto-resume only when the user actually returned from Cashfree for THIS page.
+ *
+ * We require a real return signal (Cashfree query params like order_id, or the
+ * return-expected flag set just before redirect checkout). Without this guard a
+ * lingering pending order — e.g. an abandoned/failed payment that only clears on
+ * success — would make every normal visit to the page fire a payment verify,
+ * causing spurious errors, refetches and lag.
  */
 export function shouldResumePendingPayment(pending, currentPath, search = '') {
   if (!pending?.orderId) return false;
@@ -82,7 +261,7 @@ export function shouldResumePendingPayment(pending, currentPath, search = '') {
     clearPendingPayment();
     return false;
   }
-  return hasPaymentReturnExpected() || hasCashfreeReturnParams(search);
+  return hasCashfreeReturnParams(search) || hasPaymentReturnExpected();
 }
 
 /**

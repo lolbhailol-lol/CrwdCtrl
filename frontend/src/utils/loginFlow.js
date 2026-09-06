@@ -1,15 +1,51 @@
 const LOGIN_CONTEXT_KEY = 'crwdctrl_login_context';
+const LOGIN_MODAL_OPEN_KEY = 'crwdctrl_login_modal_open';
 
 /** Save intent before opening the login modal. */
-export function prepareLogin({ fromProfile = false } = {}) {
-    const returnPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+export function prepareLogin({
+    fromProfile = false,
+    stayInProfile = false,
+    returnPath: explicitReturnPath,
+} = {}) {
+    const returnPath =
+        explicitReturnPath
+        || `${window.location.pathname}${window.location.search}${window.location.hash}`;
     try {
         sessionStorage.setItem(
             LOGIN_CONTEXT_KEY,
-            JSON.stringify({ fromProfile: Boolean(fromProfile), returnPath }),
+            JSON.stringify({
+                fromProfile: Boolean(fromProfile),
+                stayInProfile: Boolean(stayInProfile),
+                returnPath,
+            }),
         );
     } catch {
         /* storage unavailable */
+    }
+}
+
+/** Call before setShowLogin(true) on booking/register pages. */
+export function openLoginSheet({ returnPath, fromProfile = false } = {}) {
+    prepareLogin({
+        fromProfile,
+        returnPath: returnPath || currentAppPath(),
+    });
+}
+
+export function markLoginModalOpen(isOpen) {
+    try {
+        if (isOpen) sessionStorage.setItem(LOGIN_MODAL_OPEN_KEY, '1');
+        else sessionStorage.removeItem(LOGIN_MODAL_OPEN_KEY);
+    } catch {
+        /* ignore */
+    }
+}
+
+export function isLoginModalOpen() {
+    try {
+        return sessionStorage.getItem(LOGIN_MODAL_OPEN_KEY) === '1';
+    } catch {
+        return false;
     }
 }
 
@@ -31,6 +67,8 @@ export function resolvePostLoginRedirect() {
         const oauthReturn = sessionStorage.getItem('auth_redirect_url');
         if (oauthReturn) {
             sessionStorage.removeItem('auth_redirect_url');
+            // App already peeked login context for fromProfile before calling this
+            sessionStorage.removeItem(LOGIN_CONTEXT_KEY);
             return pathFromUrl(oauthReturn);
         }
     } catch {
@@ -42,7 +80,8 @@ export function resolvePostLoginRedirect() {
         sessionStorage.removeItem(LOGIN_CONTEXT_KEY);
         if (!raw) return null;
 
-        const { returnPath } = JSON.parse(raw);
+        const { returnPath, stayInProfile } = JSON.parse(raw);
+        if (stayInProfile) return null;
         if (!returnPath || returnPath === '/profile') return '/';
         return returnPath;
     } catch {

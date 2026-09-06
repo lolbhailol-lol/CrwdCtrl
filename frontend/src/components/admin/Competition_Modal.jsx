@@ -1,7 +1,25 @@
 import { useEffect, useState, useCallback } from 'react';
-import { X, Plus, Edit2, Trash2, ChevronRight, ChevronLeft, Upload, Loader } from 'lucide-react';
+import { X, Plus, Edit2, Trash2, ChevronRight, ChevronLeft, Upload, Loader, Printer } from 'lucide-react';
+import CompetitionCheckinQrPrint, { printCompetitionCheckinSheets } from './CompetitionCheckinQrPrint';
 import { buildPriceBreakdown, parseTicketPrice } from '../../utils/platformFee';
-import { adminFetch, adminFetchJSON } from '../../utils/adminApi';
+import {
+  sanitizeCompetitionFeeTiers,
+  formatCompetitionFeeTiersLabel,
+  minCompetitionFeeAmount,
+  organizerCompetitionFeeLabel,
+  getCompetitionFeeTiers,
+} from '../../utils/competitionFeeTiers';
+import CompetitionFeeTiersEditor from './CompetitionFeeTiersEditor';
+import { adminFetch, adminFetchJSON } from '../../services/api/admin.api.js';
+import { useDialog } from '../../context/DialogContext';
+import {
+  RosterFieldsEditor,
+  DEFAULT_PERSON_FIELDS,
+  normalizePersonFields,
+  MINDSPARK_MODULE_ORDER,
+  resolveMindSparkModule,
+} from '../../features/fests/mindspark';
+import { getFestPlugin } from '../../features/fests/plugins';
 
 // Individual Form Field Component
 const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpdateOption, onRemoveOption }) => {
@@ -221,21 +239,39 @@ const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onA
   );
 };
 
-export default function CompetitionModal({ fest, onClose, onSaved }) {
+export default function CompetitionModal({
+  fest,
+  onClose,
+  onSaved,
+  api,
+  initialCompetitionId,
+  initialCompetition,
+  startInCreate,
+}) {
   const [competitions, setCompetitions] = useState([]);
-  const [showForm, setShowForm] = useState(false);
-  const [selectedCompetition, setSelectedCompetition] = useState(null);
+  const [showForm, setShowForm] = useState(
+    Boolean(startInCreate) || Boolean(initialCompetition),
+  );
+  const [showQrPrint, setShowQrPrint] = useState(false);
+  const [selectedCompetition, setSelectedCompetition] = useState(initialCompetition || null);
   const [error, setError] = useState('');
+  const [openedInitial, setOpenedInitial] = useState(Boolean(initialCompetition) || Boolean(startInCreate));
+  const { confirm, alert: showAlert } = useDialog();
 
   const fetchCompetitions = useCallback(async () => {
     try {
+      if (api?.listCompetitions) {
+        const data = await api.listCompetitions(fest._id);
+        setCompetitions(data.competitions || []);
+        return;
+      }
       const data = await adminFetchJSON(`/admin/fests/${fest._id}/competitions`);
       setCompetitions(data.competitions || []);
     } catch (err) {
       console.error('Error fetching competitions:', err);
       setError(err.message || 'Failed to fetch competitions');
     }
-  }, [fest._id]);
+  }, [fest._id, api]);
 
   useEffect(() => {
     if (fest?._id) {
@@ -243,15 +279,31 @@ export default function CompetitionModal({ fest, onClose, onSaved }) {
     }
   }, [fest, fetchCompetitions]);
 
+  useEffect(() => {
+    if (openedInitial || !initialCompetitionId || !competitions.length) return;
+    const match = competitions.find(
+      (c) => String(c._id || c.id) === String(initialCompetitionId),
+    );
+    if (match) {
+      setSelectedCompetition(match);
+      setShowForm(true);
+      setOpenedInitial(true);
+    }
+  }, [competitions, initialCompetitionId, openedInitial]);
+
   const deleteCompetition = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this competition?')) return;
+    if (!(await confirm({ title: 'Delete competition?', message: 'Are you sure you want to delete this competition?', confirmText: 'Delete', tone: 'danger' }))) return;
 
     try {
-      await adminFetchJSON(`/admin/competitions/${id}`, { method: 'DELETE' });
+      if (api?.deleteCompetition) {
+        await api.deleteCompetition(id);
+      } else {
+        await adminFetchJSON(`/admin/competitions/${id}`, { method: 'DELETE' });
+      }
       fetchCompetitions();
     } catch (err) {
       console.error('Error deleting competition:', err);
-      alert('Failed to delete competition');
+      showAlert({ title: 'Delete failed', message: 'Failed to delete competition' });
     }
   };
 
@@ -260,6 +312,7 @@ export default function CompetitionModal({ fest, onClose, onSaved }) {
       <CompetitionForm
         fest={fest}
         competition={selectedCompetition}
+        api={api}
         onClose={() => {
           setShowForm(false);
           setSelectedCompetition(null);
@@ -278,7 +331,7 @@ export default function CompetitionModal({ fest, onClose, onSaved }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[200] p-4">
       <div className="bg-[#111213] rounded-xl w-full max-w-5xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="sticky top-0 bg-[#111213] border-b border-gray-800 p-6 flex items-center justify-between">
@@ -287,6 +340,16 @@ export default function CompetitionModal({ fest, onClose, onSaved }) {
             <p className="text-sm text-gray-400 mt-1">Manage competitions for this fest</p>
           </div>
           <div className="flex gap-3">
+            {competitions.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowQrPrint(true)}
+                className="px-4 py-2 border border-gray-700 text-gray-200 rounded-lg font-semibold hover:border-[#0ECCEE] hover:text-[#0ECCEE] transition-colors flex items-center gap-2"
+              >
+                <Printer size={18} />
+                Print QRs
+              </button>
+            )}
             <button
               onClick={() => {
                 setSelectedCompetition(null);
@@ -333,13 +396,16 @@ export default function CompetitionModal({ fest, onClose, onSaved }) {
                         <span>Type: <span className="text-white capitalize">{comp.competitionType}</span></span>
                         <span>Venue: <span className="text-white">{comp.venue}</span></span>
                         {(() => {
-                          const breakdown = buildPriceBreakdown(comp.feeAmount || comp.registrationFee);
+                          const feeLabel = organizerCompetitionFeeLabel(comp);
+                          const feeNum = Number(comp.feeAmount) || 0;
                           return (
                             <span>
-                              Fee: <span className="text-white">₹{breakdown.ticketPrice}</span>
-                              {breakdown.ticketPrice > 0 && (
-                                <span className="text-gray-500"> · Payable ₹{breakdown.totalAmount}</span>
-                              )}
+                              Fee: <span className="text-white">{feeLabel}</span>
+                              {!api && feeNum > 0 && !getCompetitionFeeTiers(comp).length ? (
+                                <span className="text-gray-500">
+                                  {' '}· Payable ₹{buildPriceBreakdown(comp.feeAmount || comp.registrationFee).totalAmount}
+                                </span>
+                              ) : null}
                             </span>
                           );
                         })()}
@@ -349,6 +415,18 @@ export default function CompetitionModal({ fest, onClose, onSaved }) {
                       </div>
                     </div>
                     <div className="flex gap-2 ml-4">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          printCompetitionCheckinSheets({ fest, competitions: [comp] }).catch((err) => {
+                            showAlert({ title: 'Print failed', message: err.message || 'Allow popups to print this QR' });
+                          });
+                        }}
+                        className="p-2 bg-[#1D1E20] border border-gray-600 hover:border-[#0ECCEE] rounded transition-colors"
+                        title="Print check-in QR"
+                      >
+                        <Printer size={18} />
+                      </button>
                       <button
                         onClick={() => {
                           setSelectedCompetition(comp);
@@ -374,12 +452,21 @@ export default function CompetitionModal({ fest, onClose, onSaved }) {
           )}
         </div>
       </div>
+      {showQrPrint && (
+        <CompetitionCheckinQrPrint
+          fest={fest}
+          onClose={() => setShowQrPrint(false)}
+        />
+      )}
     </div>
   );
 }
 
 // Competition Form Component with Multi-Step Wizard
-function CompetitionForm({ fest, competition, onClose, onSaved }) {
+function CompetitionForm({ fest, competition, onClose, onSaved, api }) {
+  const plugin = getFestPlugin(fest);
+  const mindSpark = plugin.hasRosterPersonStep;
+  const ResourceLinksEditor = plugin.ResourceLinksEditor;
   const [currentStep, setCurrentStep] = useState(1);
   const [form, setForm] = useState({
     name: '',
@@ -387,9 +474,15 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
     description: '',
     competitionType: 'other',
     category: 'OTHER',
+    module: '',
     prizePool: '',
     registrationFee: '',
     feeAmount: 0,
+    feeTiers: [],
+    slotsAllotted: 50,
+    teamSizeMin: 1,
+    teamSizeMax: 1,
+    teamSizeLabel: 'Solo',
     registrationLink: '',
     registrationType: 'fest', // 'fest' or 'custom'
     registration: {
@@ -397,8 +490,11 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
       externalUrl: '',
       googleSheetsUrl: '',
       whatsappGroupLink: '',
+      shareSheetUrl: '',
+      resourceLinks: [],
       formType: 'SINGLE_STEP', // SINGLE_STEP | MULTI_STEP
       formSchema: [], // For single step forms
+      personFields: DEFAULT_PERSON_FIELDS.map((f) => ({ ...f })),
       steps: [], // For multi-step forms
       qrCode: '',
       qrCodeMessage: '',
@@ -468,41 +564,63 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
   }, [error]);
 
   useEffect(() => {
+    let cancelled = false;
+    (async () => {
     try {
       if (competition) {
-        console.log('Competition_Modal - Editing competition:', competition);
-        console.log('Competition_Modal - commonRulesMessage from competition:', competition.commonRulesMessage);
-        console.log('Competition_Modal - rounds from competition:', competition.rounds);
-        console.log('Competition_Modal - rounds detailed:', competition.rounds?.map(r => ({
-          title: r.title,
-          roundRulesMessage: r.roundRulesMessage,
-          hasRoundRulesMessage: Object.prototype.hasOwnProperty.call(r, 'roundRulesMessage')
-        })));
-        
-        // Safely extract form data with proper fallbacks
+        let source = competition;
+        const competitionId = competition._id || competition.id;
+        if (api?.getCompetition && competitionId) {
+          try {
+            const data = await api.getCompetition(competitionId);
+            if (data?.competition) source = { ...competition, ...data.competition };
+          } catch (_) {
+            /* list payload is enough to edit; details fetch is best-effort */
+          }
+        }
+        if (cancelled) return;
+
         const formData = {
-          name: competition.name || '',
-          subtitle: competition.subtitle || '',
-          description: competition.description || '',
-          competitionType: competition.competitionType || 'other',
-          category: competition.category || 'OTHER',
-          prizePool: competition.prizePool ? competition.prizePool.toString() : '',
-          registrationFee: competition.registrationFee || '',
-          feeAmount: parseTicketPrice(competition.feeAmount) || parseTicketPrice(competition.registrationFee),
-          registrationLink: competition.registrationLink || '',
-          registrationType: competition.registrationType || 'fest',
+          name: source.name || '',
+          subtitle: source.subtitle || '',
+          description: source.description || '',
+          competitionType: source.competitionType || 'other',
+          category: source.category || 'OTHER',
+          module: source.module || (mindSpark ? resolveMindSparkModule(source) : ''),
+          prizePool: source.prizePool ? source.prizePool.toString() : '',
+          registrationFee: source.registrationFee || '',
+          feeAmount: parseTicketPrice(source.feeAmount) || parseTicketPrice(source.registrationFee),
+          feeTiers: sanitizeCompetitionFeeTiers(source.feeTiers),
+          slotsAllotted: Math.max(0, Number(source.slotsAllotted) || 0),
+          teamSizeMin: Math.max(1, Number(source.teamSizeMin) || 1),
+          teamSizeMax: Math.max(1, Number(source.teamSizeMax) || Number(source.teamSizeMin) || 1),
+          teamSizeLabel: source.teamSizeLabel || 'Solo',
+          registrationLink: source.registrationLink || '',
+          registrationType: source.registrationType || 'fest',
           registration: {
-            status: competition.registration?.status || 'not_started',
-            externalUrl: competition.registration?.externalUrl || '',
-            googleSheetsUrl: competition.registration?.googleSheetsUrl || '',
-            whatsappGroupLink: competition.registration?.whatsappGroupLink || '',
-            formType: competition.registration?.formType || 'SINGLE_STEP',
-            formSchema: Array.isArray(competition.registration?.formSchema) ? competition.registration.formSchema.map(field => ({
+            status: source.registration?.status || 'not_started',
+            externalUrl: source.registration?.externalUrl || '',
+            googleSheetsUrl: source.registration?.googleSheetsUrl || '',
+            whatsappGroupLink: source.registration?.whatsappGroupLink || '',
+            shareSheetUrl: source.registration?.shareSheetUrl || '',
+            resourceLinks: Array.isArray(source.registration?.resourceLinks)
+              ? source.registration.resourceLinks.map((l) => ({
+                  label: l?.label || '',
+                  url: l?.url || '',
+                }))
+              : [],
+            formType: source.registration?.formType || 'SINGLE_STEP',
+            formSchema: Array.isArray(source.registration?.formSchema) ? source.registration.formSchema.map(field => ({
               ...field,
               id: field.id || crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
               fieldName: field.fieldName || `field_${(field.id || crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`).slice(0, 8)}`
             })) : [],
-            steps: competition.registration?.steps?.map(step => ({
+            personFields: mindSpark
+              ? normalizePersonFields(source.registration?.personFields)
+              : (Array.isArray(source.registration?.personFields)
+                ? source.registration.personFields
+                : []),
+            steps: source.registration?.steps?.map(step => ({
               ...step,
               fields: (step.fields || []).map(field => ({
                 ...field,
@@ -510,66 +628,58 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                 fieldName: field.fieldName || `field_${(field.id || crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`).slice(0, 8)}`
               }))
             })) || [],
-            qrCode: competition.registration?.qrCode || '',
-            qrCodeMessage: competition.registration?.qrCodeMessage || '',
-            confirmationEmail: competition.registration?.confirmationEmail || '',
+            qrCode: source.registration?.qrCode || '',
+            qrCodeMessage: source.registration?.qrCodeMessage || '',
+            confirmationEmail: source.registration?.confirmationEmail || '',
             settings: {
-              allowMultipleRegistrations: competition.registration?.settings?.allowMultipleRegistrations ?? true,
-              requireEmailVerification: competition.registration?.settings?.requireEmailVerification ?? false,
-              autoConfirmation: competition.registration?.settings?.autoConfirmation ?? true,
-              maxRegistrations: competition.registration?.settings?.maxRegistrations || null,
-              registrationDeadline: competition.registration?.settings?.registrationDeadline || null
+              allowMultipleRegistrations: source.registration?.settings?.allowMultipleRegistrations ?? true,
+              requireEmailVerification: source.registration?.settings?.requireEmailVerification ?? false,
+              autoConfirmation: source.registration?.settings?.autoConfirmation ?? true,
+              maxRegistrations: source.registration?.settings?.maxRegistrations || null,
+              registrationDeadline: source.registration?.settings?.registrationDeadline || null
             }
           },
-          // Legacy registration for backward compatibility
           legacyRegistration: {
-            status: competition.legacyRegistration?.status || competition.registration?.status || 'NOT_STARTED'
+            status: source.legacyRegistration?.status || source.registration?.status || 'NOT_STARTED'
           },
-          dateTime: competition.dateTime || '',
-          venue: competition.venue || '',
-          commonRules: Array.isArray(competition.commonRules) ? competition.commonRules : 
-                      Array.isArray(competition.rules) ? competition.rules : [],
-          commonRulesMessage: competition.commonRulesMessage || '',
-          competitionPhotos: Array.isArray(competition.gallery) ? competition.gallery : 
-                           competition.coverImage ? [competition.coverImage] : [],
-          rounds: Array.isArray(competition.rounds) ? competition.rounds.map(round => ({
+          dateTime: source.dateTime || '',
+          venue: source.venue || '',
+          commonRules: Array.isArray(source.commonRules) ? source.commonRules :
+                      Array.isArray(source.rules) ? source.rules : [],
+          commonRulesMessage: source.commonRulesMessage || '',
+          competitionPhotos: Array.isArray(source.gallery) ? source.gallery :
+                           source.coverImage ? [source.coverImage] : [],
+          rounds: Array.isArray(source.rounds) ? source.rounds.map(round => ({
             roundNumber: round.roundNumber || 1,
             roundName: round.title || round.roundName || '',
             message: round.description || round.message || '',
-            roundRules: Array.isArray(round.rules) ? round.rules : 
+            roundRules: Array.isArray(round.rules) ? round.rules :
                        Array.isArray(round.roundRules) ? round.roundRules : [],
             roundRulesMessage: round.roundRulesMessage || '',
           })) : [],
           contact: {
-            name: competition.contact?.name || '',
-            phone: competition.contact?.phone || '',
-            email: competition.contact?.email || '',
-            instagram: competition.contact?.instagram || ''
+            name: source.contact?.name || '',
+            phone: source.contact?.phone || '',
+            email: source.contact?.email || '',
+            instagram: source.contact?.instagram || ''
           }
         };
-        
-        console.log('Competition_Modal - Form populated with data:', {
-          commonRulesMessage: formData.commonRulesMessage,
-          rounds: formData.rounds.map(r => ({
-            roundName: r.roundName,
-            roundRulesMessage: r.roundRulesMessage
-          }))
-        });
-        
+
         setForm(formData);
-        console.log('Competition_Modal - Form populated successfully with data:', formData);
       }
     } catch (err) {
       console.error('Error populating competition form:', err);
       setError('Failed to load competition data');
       setHasError(true);
     }
-  }, [competition]);
+    })();
+    return () => { cancelled = true; };
+  }, [competition, api, mindSpark]);
 
   // Error boundary fallback
   if (hasError) {
     return (
-      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[200] p-4">
         <div className="bg-[#111213] rounded-xl p-6 max-w-md">
           <h3 className="text-xl font-bold text-red-400 mb-4">Error Loading Competition</h3>
           <p className="text-gray-300 mb-4">There was an error loading the competition form. Please try again.</p>
@@ -606,11 +716,13 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
       });
       formData.append('folder', 'crwdctrl/competitions');
 
-      const response = await adminFetch('/admin/upload/images', {
-        method: 'POST',
-        body: formData,
-        credentials: 'include',
-      });
+      const response = api?.uploadImages
+        ? await api.uploadImages(formData)
+        : await adminFetch('/admin/upload/images', {
+            method: 'POST',
+            body: formData,
+            credentials: 'include',
+          });
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -1147,7 +1259,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
       });
 
       // ✅ ENHANCED: Add validation for dateTime and competitionType
-      if (!form.name || !form.description || !form.prizePool || !form.registrationFee) {
+      if (!form.name || !form.description || !form.prizePool || (!form.registrationFee && !sanitizeCompetitionFeeTiers(form.feeTiers).length)) {
         setError('Please fill Competition Name, Description, Prize Pool and Registration Fee');
         setLoading(false);
         return;
@@ -1167,6 +1279,29 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
         return;
       }
 
+      if (mindSpark && !form.module) {
+        setError('Please select a module (CODIFICA, HACKATHON, …)');
+        setLoading(false);
+        return;
+      }
+
+      // MindSpark: person fields required for solo and teams (fest or custom registration)
+      if (mindSpark) {
+        const personFields = normalizePersonFields(form.registration?.personFields);
+        if (!personFields.length) {
+          setError('Add at least one per-person form field');
+          setLoading(false);
+          return;
+        }
+        for (let i = 0; i < personFields.length; i++) {
+          if (!personFields[i].label || !personFields[i].key) {
+            setError(`Complete per-person field ${i + 1} (label and key required)`);
+            setLoading(false);
+            return;
+          }
+        }
+      }
+
       // Validate custom registration fields
       if (form.registrationType === 'custom') {
         if (form.registration.status === 'external_link' && !form.registration.externalUrl) {
@@ -1176,21 +1311,20 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
         }
         
         if (form.registration.status === 'internal_form') {
-          if (!form.registration.googleSheetsUrl) {
+          if (!mindSpark && !form.registration.googleSheetsUrl) {
             setError('Please provide Google Sheets URL for internal form');
             setLoading(false);
             return;
           }
-          
-          // Validate form fields based on form type
-          if (form.registration.formType === 'SINGLE_STEP') {
+
+          if (mindSpark) {
+            // person fields already validated above
+          } else if (form.registration.formType === 'SINGLE_STEP') {
             if (!form.registration.formSchema || form.registration.formSchema.length === 0) {
               setError('Please add at least one form field for internal form');
               setLoading(false);
               return;
             }
-            
-            // Validate form fields
             for (let i = 0; i < form.registration.formSchema.length; i++) {
               const field = form.registration.formSchema[i];
               if (!field.label || !field.type) {
@@ -1205,8 +1339,6 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
               setLoading(false);
               return;
             }
-            
-            // Validate each step
             for (let stepIndex = 0; stepIndex < form.registration.steps.length; stepIndex++) {
               const step = form.registration.steps[stepIndex];
               if (!step.stepTitle) {
@@ -1214,14 +1346,11 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                 setLoading(false);
                 return;
               }
-              
               if (!step.fields || step.fields.length === 0) {
                 setError(`Please add at least one field to step ${stepIndex + 1}`);
                 setLoading(false);
                 return;
               }
-              
-              // Validate fields in this step
               for (let fieldIndex = 0; fieldIndex < step.fields.length; fieldIndex++) {
                 const field = step.fields[fieldIndex];
                 if (!field.label || !field.type) {
@@ -1235,18 +1364,42 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
         }
       }
 
+      const feeTiers = sanitizeCompetitionFeeTiers(form.feeTiers);
       const payload = {
         name: form.name,
         subtitle: form.subtitle,
         description: form.description,
         competitionType: form.competitionType,
-        category: form.category,
+        category: mindSpark ? (form.category || 'TECHNICAL') : form.category,
+        module: form.module || '',
         prizePool: form.prizePool,
-        registrationFee: form.registrationFee,
-        feeAmount: parseTicketPrice(form.feeAmount) || parseTicketPrice(form.registrationFee),
+        registrationFee: feeTiers.length
+          ? formatCompetitionFeeTiersLabel(feeTiers)
+          : form.registrationFee,
+        feeAmount: feeTiers.length
+          ? minCompetitionFeeAmount(feeTiers)
+          : (parseTicketPrice(form.feeAmount) || parseTicketPrice(form.registrationFee)),
+        feeTiers,
+        slotsAllotted: Math.max(0, Number(form.slotsAllotted) || 0),
+        teamSizeMin: Math.max(1, Number(form.teamSizeMin) || 1),
+        teamSizeMax: Math.max(1, Number(form.teamSizeMax) || Number(form.teamSizeMin) || 1),
+        teamSizeLabel: form.teamSizeLabel || '',
         registrationLink: form.registrationLink,
         registrationType: form.registrationType,
-        registration: form.registration,
+        registration: mindSpark
+          ? {
+              ...form.registration,
+              personFields: normalizePersonFields(form.registration?.personFields),
+              resourceLinks: (form.registration?.resourceLinks || [])
+                .map((l) => ({
+                  label: String(l?.label || '').trim(),
+                  url: String(l?.url || '').trim(),
+                }))
+                .filter((l) => l.url),
+              shareSheetUrl: String(form.registration?.shareSheetUrl || '').trim(),
+              whatsappGroupLink: String(form.registration?.whatsappGroupLink || '').trim(),
+            }
+          : form.registration,
         // Legacy registration for backward compatibility
         legacyRegistration: form.legacyRegistration,
         dateTime: form.dateTime,
@@ -1293,11 +1446,17 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
         ? `/admin/competitions/${competition._id}`
         : `/admin/fests/${fest._id}/competitions`;
 
-      const result = await adminFetchJSON(path, {
-        method: competition ? 'PUT' : 'POST',
-        body: JSON.stringify(payload),
-        credentials: 'include',
-      });
+      const result = api?.saveCompetition
+        ? await api.saveCompetition({
+            festId: fest._id,
+            competitionId: competition?._id || competition?.id || null,
+            payload,
+          })
+        : await adminFetchJSON(path, {
+            method: competition ? 'PUT' : 'POST',
+            body: JSON.stringify(payload),
+            credentials: 'include',
+          });
       console.log('Frontend - Success response:', result);
 
       // ✅ CRITICAL: Clear caches to update website immediately
@@ -1339,10 +1498,14 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
 
       // 5. Clear server-side cache so production website updates instantly
       try {
-        await adminFetch('/admin/clear-cache', {
-          method: 'POST',
-          credentials: 'include',
-        });
+        if (api?.clearCache) {
+          await api.clearCache();
+        } else {
+          await adminFetch('/admin/clear-cache', {
+            method: 'POST',
+            credentials: 'include',
+          });
+        }
         console.log('✅ Server cache cleared');
       } catch (cacheErr) {
         console.warn('⚠️ Could not clear server cache:', cacheErr);
@@ -1365,7 +1528,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
   ];
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[200] p-4">
       <div className="bg-[#111213] rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="sticky top-0 bg-[#111213] border-b border-gray-800 p-6 flex items-center justify-between z-10">
@@ -1463,30 +1626,49 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Category</label>
-                  <select
-                    className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
-                    value={form.category || 'OTHER'}
-                    onChange={(e) => setForm({ ...form, category: e.target.value })}
-                  >
-                    <option value="DANCE">DANCE</option>
-                    <option value="MUSIC">MUSIC</option>
-                    <option value="THEATRE">THEATRE</option>
-                    <option value="ART">ART</option>
-                    <option value="SPORTS">SPORTS</option>
-                    <option value="ACADEMIC">ACADEMIC</option>
-                    <option value="GAMING">GAMING</option>
-                    <option value="QUIZ">QUIZ</option>
-                    <option value="CULTURAL">CULTURAL</option>
-                    <option value="TECHNICAL">TECHNICAL</option>
-                    <option value="PHOTOGRAPHY">PHOTOGRAPHY</option>
-                    <option value="GIRLS">GIRLS</option>
-                    <option value="BOYS">BOYS</option>
-                    <option value="MIXED">MIXED</option>
-                    <option value="OTHER">OTHER</option>
-                  </select>
-                </div>
+                {mindSpark ? (
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Module *</label>
+                    <select
+                      className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                      value={form.module && form.module !== 'OTHER' ? form.module : ''}
+                      onChange={(e) => setForm({ ...form, module: e.target.value })}
+                    >
+                      <option value="">Select module</option>
+                      {MINDSPARK_MODULE_ORDER.map((mod) => (
+                        <option key={mod} value={mod}>{mod}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Public page heading this event sits under
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Category</label>
+                    <select
+                      className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                      value={form.category || 'OTHER'}
+                      onChange={(e) => setForm({ ...form, category: e.target.value })}
+                    >
+                      <option value="DANCE">DANCE</option>
+                      <option value="MUSIC">MUSIC</option>
+                      <option value="THEATRE">THEATRE</option>
+                      <option value="ART">ART</option>
+                      <option value="SPORTS">SPORTS</option>
+                      <option value="ACADEMIC">ACADEMIC</option>
+                      <option value="GAMING">GAMING</option>
+                      <option value="QUIZ">QUIZ</option>
+                      <option value="CULTURAL">CULTURAL</option>
+                      <option value="TECHNICAL">TECHNICAL</option>
+                      <option value="PHOTOGRAPHY">PHOTOGRAPHY</option>
+                      <option value="GIRLS">GIRLS</option>
+                      <option value="BOYS">BOYS</option>
+                      <option value="MIXED">MIXED</option>
+                      <option value="OTHER">OTHER</option>
+                    </select>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium mb-2">Competition Type *</label>
@@ -1552,14 +1734,20 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                   />
                 </div>
 
-                {/* Entry fee amount and automatic platform fee preview */}
+                {/* Entry fee amount */}
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
                     Online Fee Amount (₹) <span className="text-gray-500 font-normal">— for online payment</span>
                   </label>
-                  <p className="text-xs text-gray-500 mb-2">
-                    Enter the base entry fee. The 3% platform fee is added automatically at payment.
-                  </p>
+                  {!api ? (
+                    <p className="text-xs text-gray-500 mb-2">
+                      Enter the base entry fee. The platform fee is added automatically at payment.
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-500 mb-2">
+                      Enter the competition entry fee participants see (e.g. 299).
+                    </p>
+                  )}
                   <input
                     type="number"
                     min="0"
@@ -1569,14 +1757,14 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                     value={form.feeAmount || 0}
                     onChange={(e) => updateNumericEntryFee(e.target.value)}
                   />
-                  {priceBreakdown.ticketPrice > 0 ? (
+                  {!api && priceBreakdown.ticketPrice > 0 ? (
                     <div className="mt-2 rounded-lg border border-[#0ECCEE]/30 bg-[#0ECCEE]/10 p-3 text-xs text-gray-300">
                       <div className="flex justify-between gap-4">
                         <span>Ticket Price</span>
                         <span>₹{priceBreakdown.ticketPrice}</span>
                       </div>
                       <div className="flex justify-between gap-4 mt-1">
-                        <span>Platform Fee (3%)</span>
+                        <span>Platform Fee</span>
                         <span>₹{priceBreakdown.platformFee}</span>
                       </div>
                       <div className="flex justify-between gap-4 mt-2 pt-2 border-t border-[#0ECCEE]/20 font-semibold text-[#0ECCEE]">
@@ -1591,11 +1779,224 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                   )}
                 </div>
 
+                <CompetitionFeeTiersEditor
+                  value={form.feeTiers}
+                  onChange={(feeTiers) => setForm((prev) => ({ ...prev, feeTiers }))}
+                />
+
+                <div className="rounded-xl border border-gray-700 bg-[#151617] p-4 space-y-3">
+                  <p className="text-sm font-medium text-[#0ECCEE]">Capacity &amp; team</p>
+                  <p className="text-xs text-gray-500">
+                    Shown above Register Now on the competition page. Team min/max control how many people can register. Group comps (max 2+) also ask for a team name.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Max slots</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        className="w-full px-3 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                        value={form.slotsAllotted ?? 0}
+                        onChange={(e) => setForm({ ...form, slotsAllotted: Math.max(0, Number(e.target.value) || 0) })}
+                        placeholder="50 default · 0 = unlimited"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Team min</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="20"
+                        step="1"
+                        className="w-full px-3 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                        value={form.teamSizeMin ?? 1}
+                        onChange={(e) => {
+                          const teamSizeMin = Math.min(20, Math.max(1, Number(e.target.value) || 1));
+                          const teamSizeMax = Math.max(teamSizeMin, Number(form.teamSizeMax) || teamSizeMin);
+                          setForm({
+                            ...form,
+                            teamSizeMin,
+                            teamSizeMax,
+                            teamSizeLabel: teamSizeMin === 1 && teamSizeMax === 1
+                              ? 'Solo'
+                              : teamSizeMin === teamSizeMax
+                                ? `${teamSizeMin} people`
+                                : teamSizeMin === 1
+                                  ? `Max ${teamSizeMax} people`
+                                  : `${teamSizeMin}–${teamSizeMax} people`,
+                          });
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Team max</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="20"
+                        step="1"
+                        className="w-full px-3 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                        value={form.teamSizeMax ?? 1}
+                        onChange={(e) => {
+                          const teamSizeMax = Math.min(20, Math.max(1, Number(e.target.value) || 1));
+                          const teamSizeMin = Math.min(Number(form.teamSizeMin) || 1, teamSizeMax);
+                          setForm({
+                            ...form,
+                            teamSizeMin,
+                            teamSizeMax,
+                            teamSizeLabel: teamSizeMin === 1 && teamSizeMax === 1
+                              ? 'Solo'
+                              : teamSizeMin === teamSizeMax
+                                ? `${teamSizeMin} people`
+                                : teamSizeMin === 1
+                                  ? `Max ${teamSizeMax} people`
+                                  : `${teamSizeMin}–${teamSizeMax} people`,
+                          });
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    Preview: <span className="text-white font-medium">{form.teamSizeLabel || 'Solo'}</span>
+                    {' · '}
+                    Slots: <span className="text-white font-medium">{Number(form.slotsAllotted) > 0 ? form.slotsAllotted : 'Slots remain'}</span>
+                  </p>
+                </div>
+
+                {mindSpark ? (
+                  <>
+                    <CompetitionFeeTiersEditor
+                      value={form.feeTiers}
+                      onChange={(feeTiers) => setForm((prev) => ({ ...prev, feeTiers }))}
+                    />
+                    <RosterFieldsEditor
+                      personFields={form.registration?.personFields}
+                      teamSizeMin={form.teamSizeMin}
+                      teamSizeMax={form.teamSizeMax}
+                      onChange={(personFields) =>
+                        setForm({
+                          ...form,
+                          registration: {
+                            ...form.registration,
+                            personFields,
+                          },
+                        })
+                      }
+                    />
+                  </>
+                ) : null}
+
+                {/* MindSpark: participant WhatsApp / sheet / links — always editable */}
+                {mindSpark ? (
+                  <div className="col-span-2 rounded-xl border border-[#25D366]/35 bg-[#25D366]/5 p-4 space-y-4">
+                    <div>
+                      <h5 className="text-md font-semibold text-[#25D366]">After registration (participants)</h5>
+                      <p className="text-xs text-gray-400 mt-1">
+                        Join WhatsApp is the main CTA on the success screen. Sheet &amp; links appear below ticket / bookings.
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        WhatsApp group link <span className="text-[#25D366]">*</span>
+                      </label>
+                      <input
+                        type="url"
+                        placeholder="https://chat.whatsapp.com/..."
+                        className="w-full px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#25D366] focus:outline-none text-sm"
+                        value={form.registration?.whatsappGroupLink || ''}
+                        onChange={(e) => setForm({
+                          ...form,
+                          registration: {
+                            ...form.registration,
+                            whatsappGroupLink: e.target.value,
+                          },
+                        })}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Share sheet URL <span className="text-gray-400 font-normal">(optional)</span>
+                      </label>
+                      <input
+                        type="url"
+                        placeholder="https://docs.google.com/spreadsheets/d/... (shown to participants)"
+                        className="w-full px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                        value={form.registration?.shareSheetUrl || ''}
+                        onChange={(e) => setForm({
+                          ...form,
+                          registration: {
+                            ...form.registration,
+                            shareSheetUrl: e.target.value,
+                          },
+                        })}
+                      />
+                      <p className="text-xs text-gray-400 mt-1">
+                        Public link for this competition. Fest-level overall sheet is set on the fest registration tab.
+                      </p>
+                    </div>
+                    {ResourceLinksEditor ? (
+                    <ResourceLinksEditor
+                      links={form.registration?.resourceLinks}
+                      onChange={(resourceLinks) => setForm({
+                        ...form,
+                        registration: { ...form.registration, resourceLinks },
+                      })}
+                      title="Extra links for this competition"
+                      hint="Optional — rulebook, Discord, brief, etc."
+                    />
+                    ) : null}
+                  </div>
+                ) : null}
+
                 {/* Registration Configuration */}
                 <div className="col-span-2">
                   <h5 className="text-md font-semibold mb-4 border-b border-gray-700 pb-2">Registration Configuration</h5>
                   
                   {/* Registration Type Selection */}
+                  {mindSpark ? (
+                    <div className="mb-6">
+                      <label className="block text-sm font-medium mb-3">Registrations</label>
+                      <div className="flex flex-wrap gap-4">
+                        <label className="inline-flex items-center gap-2 text-sm">
+                          <input
+                            type="radio"
+                            name="mindSparkRegistrationsOpen"
+                            checked={form.registration?.status !== 'registration_closed'}
+                            onChange={() => setForm({
+                              ...form,
+                              registration: {
+                                ...form.registration,
+                                status: form.registrationType === 'custom' ? 'internal_form' : 'not_started',
+                              },
+                            })}
+                            className="w-4 h-4 text-[#0ECCEE] bg-[#1D1E20] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
+                          />
+                          Open
+                        </label>
+                        <label className="inline-flex items-center gap-2 text-sm">
+                          <input
+                            type="radio"
+                            name="mindSparkRegistrationsOpen"
+                            checked={form.registration?.status === 'registration_closed'}
+                            onChange={() => setForm({
+                              ...form,
+                              registration: {
+                                ...form.registration,
+                                status: 'registration_closed',
+                              },
+                            })}
+                            className="w-4 h-4 text-[#0ECCEE] bg-[#1D1E20] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
+                          />
+                          Closed
+                        </label>
+                      </div>
+                      <p className="text-xs text-gray-400 mt-2">
+                        Close this event the same way as Fox Hunt — slots stay as they are
+                      </p>
+                    </div>
+                  ) : null}
+
                   <div className="mb-6">
                     <label className="block text-sm font-medium mb-3">Registration Type *</label>
                     <div className="space-y-3">
@@ -1624,7 +2025,7 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                     </div>
                     <p className="text-xs text-gray-400 mt-2">
                       {form.registrationType === 'fest' 
-                        ? 'Competition will use the parent fest\'s registration system' 
+                        ? 'Uses the fest’s common registration form and Cashfree checkout (configure in Fest → Registration). Entry fee is set on this competition.' 
                         : 'Competition will have its own independent registration system'
                       }
                     </p>
@@ -1731,7 +2132,9 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                   {form.registrationType === 'custom' && form.registration?.status === 'internal_form' && (
                     <div className="mt-4 space-y-4">
                       <div>
-                        <label className="block text-sm font-medium mb-2">Google Sheets URL *</label>
+                        <label className="block text-sm font-medium mb-2">
+                          Google Sheets URL {mindSpark ? <span className="text-gray-400 font-normal">(optional — auto-append)</span> : '*'}
+                        </label>
                         <input
                           type="url"
                           placeholder="https://docs.google.com/spreadsheets/..."
@@ -1746,10 +2149,46 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                           })}
                         />
                         <p className="text-xs text-gray-400 mt-1">
-                          Registration data will be automatically sent to this Google Sheet
+                          {mindSpark
+                            ? 'Internal: registration rows append here. For participant-facing sheets use Share sheet / fest Overall sheet above.'
+                            : 'Registration data will be automatically sent to this Google Sheet'}
                         </p>
                       </div>
 
+                      {mindSpark ? (
+                        <>
+                      <div className="rounded-lg border border-[#0ECCEE]/30 bg-[#0ECCEE]/5 p-4">
+                        <p className="text-sm font-medium text-[#0ECCEE]">MindSpark registration form</p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          Participants fill: people count
+                          {Number(form.teamSizeMax) >= 2 ? ' + team name (if 2+ people)' : ''}
+                          , then the fields above once per person.
+                          {` Currently ${normalizePersonFields(form.registration?.personFields).length} field(s) per person.`}
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Confirmation Email (Optional)</label>
+                        <input
+                          type="email"
+                          placeholder="organizer@example.com"
+                          className="w-full px-4 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                          value={form.registration?.confirmationEmail || ''}
+                          onChange={(e) => setForm({
+                            ...form,
+                            registration: {
+                              ...form.registration,
+                              confirmationEmail: e.target.value
+                            }
+                          })}
+                        />
+                        <p className="text-xs text-gray-400 mt-1">
+                          Registration confirmation emails will be sent to this address
+                        </p>
+                      </div>
+                        </>
+                      ) : (
+                        <>
                       {/* Form Type Selection */}
                       <div>
                         <label className="block text-sm font-medium mb-3">Form Type</label>
@@ -1982,6 +2421,8 @@ function CompetitionForm({ fest, competition, onClose, onSaved }) {
                           Registration confirmation emails will be sent to this address
                         </p>
                       </div>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>

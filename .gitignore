@@ -4,12 +4,15 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Environment variables
+# Environment variables (never commit secrets — use .env.example as template)
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
+!.env.example
+!.env.*.example
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.*.example
 
 # Build outputs
 dist/
@@ -42,9 +45,31 @@ backend/uploads/payment-screenshots/*
 # Temporary files
 tmp/
 temp/
+_tmp_*/
+_tmp_*.js
+drive-download*.zip
+
+# Local generated reports / Generation Explores exports — never push
+reports/
+~$*
 
 # Claude Code local session data
 .claude/
 
 # Local MCP / IDE config
 mcp.json
+
+# Campus Hunt generated team password sheets (secrets)
+backend/unique-team-passwords.tsv
+**/unique-team-passwords.tsv
+
+# Local-only media / renders / videos — never push
+local/
+media/
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+*.wav
+.vercel

@@ -15,7 +15,19 @@ import {
   LayoutGrid,
   Trophy,
   QrCode,
+  Users,
+  Users2,
+  UserCog,
+  Footprints,
+  PartyPopper,
+  TicketPercent,
+  Bell,
+  MapPinned,
+  Type,
+  Activity,
+  IndianRupee,
 } from 'lucide-react';
+import { isCampusHuntAdminEnabled } from '../../features/campus-hunt/config';
 
 export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(() =>
@@ -43,13 +55,27 @@ export default function AdminLayout() {
     { icon: LayoutDashboard, label: 'Dashboard', path: '/admin', exact: true },
     { icon: Calendar, label: 'Fests', path: '/admin/fests' },
     { icon: Trophy, label: 'Competitions', path: '/admin/competitions' },
+    ...(isCampusHuntAdminEnabled()
+      ? [{ icon: MapPinned, label: 'Campus Hunt', path: '/admin/campus-hunt' }]
+      : []),
     { icon: Dumbbell, label: 'Run Clubs', path: '/admin/sports' },
     { icon: Mountain, label: 'Treks', path: '/admin/treks' },
+    { icon: UserCog, label: 'Trek Organizers', path: '/admin/trek-organizers' },
+    { icon: PartyPopper, label: 'Fest Organizers', path: '/admin/fest-organizers' },
+    { icon: Footprints, label: 'Run Club Organizers', path: '/admin/run-club-organizers' },
     { icon: Theater, label: 'Events', path: '/admin/events' },
+    { icon: Users2, label: 'Event Community Organizers', path: '/admin/event-community-organizers' },
+    { icon: Users, label: 'Event Show Organizers', path: '/admin/event-organizers' },
     { icon: Layers, label: 'Home & Sections', path: '/admin/sections' },
     { icon: LayoutGrid, label: 'Page Sections', path: '/admin/page-sections' },
+    { icon: Type, label: 'App Copy', path: '/admin/app-copy' },
+    { icon: TicketPercent, label: 'Coupons', path: '/admin/coupons' },
+    { icon: Bell, label: 'Notifications', path: '/admin/notifications' },
     { icon: FileText, label: 'Registrations', path: '/admin/registrations' },
+    { icon: Users, label: 'User Logins', path: '/admin/user-logins' },
+    { icon: Activity, label: 'User Activity', path: '/admin/user-activity' },
     { icon: QrCode, label: 'Scanner Access', path: '/admin/scanner-access', exact: true },
+    { icon: IndianRupee, label: 'Payments', path: '/admin/payments' },
     { icon: BarChart3, label: 'Analytics', path: '/admin/analytics' },
   ];
 
@@ -123,7 +149,7 @@ export default function AdminLayout() {
       </aside>
 
       {/* Main Content */}
-      <div className={`flex-1 transition-all duration-300 ml-0 ${sidebarOpen ? 'lg:ml-64' : 'lg:ml-20'}`}>
+      <div className={`flex-1 min-w-0 transition-all duration-300 ml-0 ${sidebarOpen ? 'lg:ml-64' : 'lg:ml-20'}`}>
         {/* Top Navbar */}
         <header className="bg-[#111213] border-b border-gray-800 px-4 sm:px-6 py-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
@@ -157,7 +183,7 @@ export default function AdminLayout() {
         </header>
 
         {/* Page Content */}
-        <main className="p-3 sm:p-6">
+        <main className="p-3 sm:p-6 min-w-0 overflow-x-hidden">
           <Outlet />
         </main>
       </div>

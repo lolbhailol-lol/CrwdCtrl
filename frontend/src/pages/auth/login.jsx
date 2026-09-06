@@ -1,37 +1,131 @@
-import { useState, useEffect } from 'react';
-import { Eye, EyeOff, X } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { Eye, EyeOff, X, ArrowLeft, ExternalLink } from 'lucide-react';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { authService } from '../../services/authService';
 import { storage } from '../../utils/storage';
-import { prepareLogin, resolvePostLoginRedirect } from '../../utils/loginFlow';
+import {
+    prepareLogin,
+    resolvePostLoginRedirect,
+    markLoginModalOpen,
+} from '../../utils/loginFlow';
+import { useInAppBack } from '../../hooks/useInAppBack';
+import OpenInBrowserModal from '../../components/OpenInBrowserModal';
+import {
+    detectInAppBrowserName,
+    isLikelyInAppBrowser,
+    openInExternalBrowser,
+    getExternalBrowserTargetUrl,
+    copyPageLink,
+} from '../../utils/openInExternalBrowser';
 
-export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
+function GoogleIcon({ className = 'w-5 h-5 sm:w-6 sm:h-6' }) {
+    return (
+        <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+        </svg>
+    );
+}
+
+export default function CrwdCtrlLogin({
+    onClose,
+    onSwitchToRegister,
+    googleOnly = false,
+    title = 'Continue with Google',
+    subtitle = 'Sign in once — you stay signed in on this device',
+    initialEmail = '',
+    loginWithEmail,
+    passwordOnly = false,
+}) {
     const [showPassword, setShowPassword] = useState(false);
-    const [emailOrPhone, setEmailOrPhone] = useState('');
+    const [emailOrPhone, setEmailOrPhone] = useState(initialEmail);
     const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [errors, setErrors] = useState({});
+    const [showOpenBrowserSheet, setShowOpenBrowserSheet] = useState(false);
+    const [inAppBrowserName, setInAppBrowserName] = useState('this app');
+    const [inAppBrowserBlocked, setInAppBrowserBlocked] = useState(false);
     const { login, isAuthenticated, user } = useAuth();
     const { isDark } = useDarkMode();
     const navigate = useNavigate();
+    const goBack = useInAppBack('/');
     const location = useLocation();
+    const reduceMotion = useReducedMotion();
+    const isIOSDevice = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/i.test(navigator.userAgent);
+    const isAndroidDevice = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
+    const preferredBrowserName = isIOSDevice ? 'Safari' : 'Chrome';
+    const handoffGoal = /register/i.test(title)
+        ? 'register'
+        : /book/i.test(title)
+            ? 'book'
+            : 'continue';
+
+    useEffect(() => {
+        if (initialEmail) setEmailOrPhone(initialEmail);
+    }, [initialEmail]);
+
+    // Instagram / FB / WhatsApp: Google OAuth is blocked — show Open in Chrome (tap only; auto-open bounces Instagram back)
+    useEffect(() => {
+        if (!isLikelyInAppBrowser()) return;
+        setInAppBrowserName(detectInAppBrowserName());
+        setInAppBrowserBlocked(true);
+    }, []);
+
+    const handoffToExternalBrowser = async () => {
+        const url = getExternalBrowserTargetUrl(window.location.href);
+        try {
+            sessionStorage.setItem('auth_redirect_url', url);
+        } catch {
+            /* ignore */
+        }
+        const result = openInExternalBrowser(url);
+        if (!result.ok && isIOSDevice) {
+            await copyPageLink(url);
+        }
+    };
 
     // Determine if this is being used as a modal or a page
     const isModal = !!onClose;
     const isAdminLogin = location.pathname === '/admin/login';
 
+    const googleAuthInFlightRef = useRef(false);
+
     useEffect(() => {
-        if (!isModal) return;
+        if (!isModal) return undefined;
+        markLoginModalOpen(true);
+        try {
+            window.google?.accounts?.id?.cancel?.();
+        } catch {
+            /* ignore */
+        }
+        return () => markLoginModalOpen(false);
+    }, [isModal]);
+
+    useEffect(() => {
+        // Honor ?redirect= when opened as a page (e.g. Campus Hunt deep links)
+        const redirectParam = new URLSearchParams(location.search).get('redirect');
+        const returnPath = redirectParam?.startsWith('/') ? redirectParam : undefined;
+
+        if (!isModal) {
+            if (returnPath) {
+                prepareLogin({ fromProfile: false, returnPath });
+            }
+            return;
+        }
         try {
             if (!sessionStorage.getItem('crwdctrl_login_context')) {
-                prepareLogin({ fromProfile: false });
+                prepareLogin({ fromProfile: false, returnPath });
             }
         } catch {
-            prepareLogin({ fromProfile: false });
+            prepareLogin({ fromProfile: false, returnPath });
         }
-    }, [isModal]);
+    }, [isModal, location.search]);
 
     // ✅ FIX: Redirect if user is already logged in (regular user)
     useEffect(() => {
@@ -86,7 +180,11 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
         try {
             console.log('🔐 [LOGIN] Starting email/password login...');
             
-            const result = await authService.loginWithEmail(emailOrPhone.trim(), password);
+            const result = loginWithEmail
+                ? await loginWithEmail(emailOrPhone.trim(), password)
+                : await authService.loginWithEmail(emailOrPhone.trim(), password, {
+                    adminProbe: isAdminLogin,
+                });
 
             if (result.success) {
                 if (result.isAdmin) {
@@ -103,10 +201,6 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                         ...result.user,
                         token: result.token
                     });
-                    
-                    if (isModal && onClose) {
-                        onClose();
-                    }
                 }
             } else {
                 setErrors({ general: 'Login failed. Please try again.' });
@@ -123,13 +217,31 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
         if (isModal && onClose) {
             onClose();
         } else {
-            // If not a modal, navigate back to home
             navigate('/');
+        }
+    };
+
+    const handleBack = () => {
+        if (isModal && onClose) {
+            onClose();
+        } else {
+            goBack();
         }
     };
 
     // Google Social Login Handler
     const handleGoogleAuth = async () => {
+        if (googleAuthInFlightRef.current || isLoading) return;
+
+        // Instagram / FB / WhatsApp: show “Open in Chrome” sheet (don't start Google OAuth here)
+        if (isLikelyInAppBrowser()) {
+            setInAppBrowserName(detectInAppBrowserName());
+            setShowOpenBrowserSheet(true);
+            setErrors({});
+            return;
+        }
+
+        googleAuthInFlightRef.current = true;
         setIsLoading(true);
         setErrors({});
 
@@ -157,10 +269,6 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                     ...result.user,
                     token: result.token
                 }, result.firebaseUser);
-
-                if (isModal && onClose) {
-                    onClose();
-                }
             } else {
                 setErrors({ general: result.error || 'Google sign-in failed. Please try again.' });
             }
@@ -178,17 +286,9 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
             
             // Check for in-app browser error (Instagram, Facebook, TikTok, etc.)
             if (error?.isInAppBrowser || error?.showOpenInBrowser || errorStr.includes('in-app-browser') || errorStr.includes('Open in Chrome') || errorStr.includes('Open in Safari')) {
-                setErrors({ 
-                    general: errorStr || 'Google Sign-In is blocked in this browser. Please open in Chrome or Safari.',
-                    showOpenInBrowser: true,
-                    errorDetails: error?.errorDetails || {
-                        icon: '📱',
-                        title: 'Browser Limitation',
-                        suggestion: 'Google Sign-In requires a full browser',
-                        instructions: 'Tap the ⋮ or ⋯ menu and select "Open in Browser" or "Open in Chrome/Safari"'
-                    },
-                    openInBrowser: error?.openInBrowserUrl || window.location.href
-                });
+                setInAppBrowserName(error?.appName || detectInAppBrowserName());
+                setShowOpenBrowserSheet(true);
+                setErrors({});
             } else if (errorStr.includes('unauthorized-domain')) {
                 errorMessage = 'This domain is not authorized for Google Sign-In. Please contact support.';
                 setErrors({ general: errorMessage });
@@ -197,17 +297,9 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                 const ua = navigator.userAgent || '';
                 const isInApp = /Instagram|FBAN|FBAV|TikTok|WhatsApp/i.test(ua);
                 if (isInApp) {
-                    setErrors({ 
-                        general: 'Google Sign-In is blocked in this browser. Please tap the ⋯ menu and select "Open in Chrome" or "Open in Safari".',
-                        showOpenInBrowser: true,
-                        errorDetails: {
-                            icon: '📱',
-                            title: 'Browser Limitation',
-                            suggestion: 'Google Sign-In requires a full browser',
-                            instructions: 'Tap the ⋮ or ⋯ menu and select "Open in Browser"'
-                        },
-                        openInBrowser: window.location.href
-                    });
+                    setInAppBrowserName(detectInAppBrowserName());
+                    setShowOpenBrowserSheet(true);
+                    setErrors({});
                 } else {
                     setErrors({ general: errorMessage });
                 }
@@ -215,6 +307,7 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                 setErrors({ general: errorStr || errorMessage });
             }
         } finally {
+            googleAuthInFlightRef.current = false;
             setIsLoading(false);
         }
     };
@@ -273,20 +366,200 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
         }
     };
 
+    const googleOnlySheet = googleOnly && isModal ? (
+                <AnimatePresence>
+                    <motion.div
+                        key="google-login-overlay"
+                        className="fixed inset-0 z-[100050] flex items-end md:items-center justify-center"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: reduceMotion ? 0 : 0.2 }}
+                    >
+                        <motion.button
+                            type="button"
+                            aria-label="Close"
+                            className={`absolute inset-0 ${isDark ? 'bg-black/50' : 'bg-black/30'}`}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={handleClose}
+                        />
+                        <motion.div
+                            role="dialog"
+                            aria-modal="true"
+                            aria-label={title}
+                            initial={reduceMotion ? { opacity: 1 } : { y: '100%', opacity: 0.96 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            exit={reduceMotion ? { opacity: 0 } : { y: '100%', opacity: 0.96 }}
+                            transition={{ type: 'spring', stiffness: 380, damping: 34, mass: 0.85 }}
+                            className={`relative w-full md:w-[28rem] max-w-md mx-0 md:mx-4 rounded-t-[28px] md:rounded-[28px] border shadow-2xl px-5 pt-3 pb-[max(1.5rem,calc(var(--safe-bottom)+0.75rem))] md:pb-8 ${
+                                isDark ? 'bg-[#111213] border-white/10 text-white' : 'bg-white border-gray-100 text-gray-900'
+                            }`}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="flex justify-center pt-1 pb-3 md:hidden">
+                                <span className={`h-1 w-10 rounded-full ${isDark ? 'bg-white/20' : 'bg-gray-300'}`} />
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={handleClose}
+                                className={`absolute top-4 right-4 p-2 rounded-full transition-colors ${
+                                    isDark ? 'text-gray-400 hover:bg-white/5 hover:text-white' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'
+                                }`}
+                                aria-label="Close"
+                            >
+                                <X size={18} />
+                            </button>
+
+                            <div className="text-center mb-5 px-2">
+                                <h1 className="text-xl font-extrabold bg-clip-text text-transparent bg-linear-to-r from-[#053780] to-[#0ECCEE]">
+                                    CRWDCTRL
+                                </h1>
+                                <p className={`mt-2 text-base font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                    {inAppBrowserBlocked ? `Open in ${preferredBrowserName} to ${handoffGoal}` : title}
+                                </p>
+                                <p className={`mt-1 text-sm leading-snug ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    {inAppBrowserBlocked
+                                        ? `Google sign-in doesn't work inside ${inAppBrowserName}. Tap below to open ${preferredBrowserName}, then ${handoffGoal}.`
+                                        : subtitle}
+                                </p>
+                            </div>
+
+                            {errors.general ? (
+                                <div className={`mb-3 p-3 rounded-xl text-sm ${
+                                    errors.general.includes('Redirecting')
+                                        ? 'bg-blue-500/15 text-blue-300 border border-blue-400/30'
+                                        : 'bg-red-500/15 text-red-300 border border-red-400/30'
+                                }`}>
+                                    {errors.general}
+                                </div>
+                            ) : null}
+
+                            {inAppBrowserBlocked ? (
+                                <div className="space-y-2.5">
+                                    <div className={`rounded-xl px-3.5 py-3 text-left text-sm leading-snug border ${
+                                        isDark
+                                            ? 'bg-amber-500/10 border-amber-400/30 text-amber-100'
+                                            : 'bg-amber-50 border-amber-200 text-amber-900'
+                                    }`}>
+                                        {isIOSDevice ? (
+                                            <>
+                                                Google sign-in is blocked in {inAppBrowserName}. Tap{' '}
+                                                <strong>⋯</strong> (top right) → <strong>Open in {preferredBrowserName}</strong>,
+                                                then {handoffGoal}.
+                                            </>
+                                        ) : (
+                                            <>
+                                                Instagram / in-app browsers block Google. Tap{' '}
+                                                <strong>Open in {preferredBrowserName}</strong> — same page opens there so you can {handoffGoal}.
+                                            </>
+                                        )}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={handoffToExternalBrowser}
+                                        className="w-full min-h-12 flex items-center justify-center gap-2 rounded-2xl bg-[#0ECCEE] text-black font-extrabold text-sm tracking-wide hover:opacity-90"
+                                    >
+                                        <ExternalLink size={18} />
+                                        OPEN IN {preferredBrowserName.toUpperCase()}
+                                    </button>
+                                    <p className={`pt-1 text-center text-[11px] ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
+                                        {isAndroidDevice
+                                            ? `Same ${handoffGoal} page opens in Chrome`
+                                            : `${inAppBrowserName} blocks Google sign-in — browser works`}
+                                    </p>
+                                </div>
+                            ) : (
+                                <>
+                                    {errors.showOpenInBrowser ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                if (typeof errors.openInBrowser === 'function') errors.openInBrowser();
+                                                else openInExternalBrowser(window.location.href);
+                                            }}
+                                            className="w-full mb-3 bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-xl font-medium"
+                                        >
+                                            Open in Browser
+                                        </button>
+                                    ) : null}
+
+                                    <motion.button
+                                        type="button"
+                                        onClick={handleGoogleAuth}
+                                        disabled={isLoading}
+                                        whileTap={reduceMotion ? undefined : { scale: 0.98 }}
+                                        className={`w-full min-h-12 flex items-center justify-center gap-2.5 rounded-2xl font-semibold text-sm transition-colors disabled:opacity-60 ${
+                                            isDark
+                                                ? 'bg-[#1D1E20] text-white hover:bg-[#2A2B2D] border border-white/10'
+                                                : 'bg-gray-50 text-gray-900 hover:bg-gray-100 border border-gray-200'
+                                        }`}
+                                    >
+                                        <GoogleIcon />
+                                        {isLoading ? 'Opening Google…' : 'Sign in with Google'}
+                                    </motion.button>
+
+                                    <p className={`mt-3 mb-1 text-center text-[11px] ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
+                                        Fast · secure · no password needed
+                                    </p>
+                                </>
+                            )}
+                        </motion.div>
+                    </motion.div>
+                </AnimatePresence>
+    ) : null;
+
+    if (googleOnly && isModal) {
+        const sheet = typeof document !== 'undefined'
+            ? createPortal(googleOnlySheet, document.body)
+            : googleOnlySheet;
+        return (
+            <>
+                {sheet}
+                <OpenInBrowserModal
+                    open={showOpenBrowserSheet}
+                    onClose={() => setShowOpenBrowserSheet(false)}
+                    appName={inAppBrowserName}
+                    isDark={isDark}
+                />
+            </>
+        );
+    }
+
     return (
         <>
+            <OpenInBrowserModal
+                open={showOpenBrowserSheet}
+                onClose={() => setShowOpenBrowserSheet(false)}
+                appName={inAppBrowserName}
+                isDark={isDark}
+            />
             {/* Background overlay with blur - only show for modal */}
             {isModal && (
-                <div className={`fixed inset-0 backdrop-blur-sm ${isDark ? 'bg-black/85' : 'bg-white/85'}`} onClick={handleClose}></div>
+                <div className={`fixed inset-0 ${isDark ? 'bg-black/50' : 'bg-black/30'}`} onClick={handleClose}></div>
             )}
 
             {/* Login Modal Container */}
             <div className={`${isModal ? 'fixed inset-0 flex items-center justify-center p-4 z-50 overflow-y-auto' : 'min-h-screen flex items-center justify-center p-4'}`}>
                 <div
-                    className={`relative rounded-2xl shadow-2xl w-full max-w-xs sm:max-w-sm p-4 sm:p-6 transition-colors duration-300 my-8
+                    className={`relative rounded-2xl shadow-2xl w-full max-w-sm md:max-w-md p-5 sm:p-6 transition-colors duration-300 my-8
         ${isDark ? 'bg-[#111213] text-white' : 'bg-white text-gray-900'}`}
                     onClick={(e) => e.stopPropagation()}
                 >
+                    {/* Back Button - top left */}
+                    {(isModal || !isAdminLogin) && (
+                        <button
+                            onClick={handleBack}
+                            aria-label="Go back"
+                            className={`absolute top-4 left-4 transition-colors ${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-800'
+                                }`}
+                        >
+                            <ArrowLeft size={22} />
+                        </button>
+                    )}
+
                     {/* Close Button - only show for modal or if not admin login */}
                     {(isModal || !isAdminLogin) && (
                         <button
@@ -305,6 +578,7 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                         </h1>
                     </div>
 
+                    <>
                     {/* Form */}
                     <form onSubmit={handleLogin} className="space-y-4">
                         {/* Error Message - Toast Style */}
@@ -416,23 +690,23 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                                     name="password"
                                     type={showPassword ? "text" : "password"}
                                     autoComplete="current-password"
-                                    placeholder="Password"
+                                    placeholder="Enter your Password"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    className={`w-full px-3 py-2 sm:py-2.5 rounded-lg border text-sm transition-colors
-                            ${errors.password ? 'border-red-500' : ''}
-                            ${isDark
+                                    className={`w-full px-3 py-2 sm:py-2.5 rounded-lg border text-sm transition-colors pr-10
+                        ${errors.password ? 'border-red-500' : ''}
+                        ${isDark
                                             ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white focus:ring-blue-500'
                                             : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900 focus:ring-blue-500'
                                         } focus:outline-none focus:ring-2`}
                                 />
                                 <button
-                                    onClick={() => setShowPassword(!showPassword)}
                                     type="button"
-                                    className={`absolute right-3 top-1/2 -translate-y-1/2 transition-colors ${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'
-                                        }`}
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className={`absolute right-3 top-1/2 -translate-y-1/2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+                                    aria-label={showPassword ? 'Hide password' : 'Show password'}
                                 >
-                                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                 </button>
                             </div>
                             {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password}</p>}
@@ -451,6 +725,8 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                         </button>
                     </form>
 
+                    {!passwordOnly && (
+                    <>
                     {/* Divider */}
                     <div className="relative my-3 sm:my-4">
                         <div className="absolute inset-0 flex items-center">
@@ -465,6 +741,25 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
 
                     {/* Social Buttons */}
                     <div className="flex flex-col gap-3">
+                        {inAppBrowserBlocked ? (
+                            <>
+                                <div className={`rounded-lg px-3 py-2.5 text-sm border ${
+                                    isDark
+                                        ? 'bg-amber-500/10 border-amber-400/30 text-amber-100'
+                                        : 'bg-amber-50 border-amber-200 text-amber-900'
+                                }`}>
+                                    Google login is blocked in {inAppBrowserName}. Open {preferredBrowserName} to continue.
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => openInExternalBrowser(window.location.href)}
+                                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg font-semibold text-sm bg-[#0ECCEE] text-black hover:opacity-90"
+                                >
+                                    <ExternalLink size={18} />
+                                    Open in {preferredBrowserName}
+                                </button>
+                            </>
+                        ) : null}
                         {/* Google */}
                         <button
                             type="button"
@@ -518,14 +813,18 @@ export default function CrwdCtrlLogin({ onClose, onSwitchToRegister }) {
                                         navigate('/register');
                                     }
                                 }}
-                                className="text-blue-600 hover:text-blue-700 font-medium hover:underline"
+                                className="text-[#0ECCEE] font-semibold hover:underline"
                             >
-                                Sign Up
+                                Sign up
                             </button>
                         </p>
                     </div>
+                    </>
+                    )}
+                    </>
                 </div>
             </div>
         </>
     );
 }
+

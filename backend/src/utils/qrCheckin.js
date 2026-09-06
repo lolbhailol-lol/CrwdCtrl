@@ -27,27 +27,45 @@ function extractHashFromQrPayload(raw) {
   return parseQrPayload(raw)?.hash || null;
 }
 
-async function resolveCheckinRecord({ Registration, TrekBooking, CategoryRegistration, payload }) {
+async function resolveCheckinRecord({ Registration, TrekBooking, CategoryRegistration, EventShowRegistration, payload }) {
   const hash = payload?.hash || null;
   const candidateId = payload?.bookingId || payload?.registrationId || null;
 
   if (hash) {
-    const registration = await Registration.findOne({ qrCodeData: hash });
+    // Run indexed lookups in parallel — only one collection holds a match.
+    // Null-safe so scoped callers can omit unused models without crashing the gate.
+    const [registration, trekBooking, sportsReg, eventReg] = await Promise.all([
+      Registration ? Registration.findOne({ qrCodeData: hash }) : Promise.resolve(null),
+      TrekBooking ? TrekBooking.findOne({ qrCodeData: hash }) : Promise.resolve(null),
+      CategoryRegistration
+        ? CategoryRegistration.findOne({ qrCodeData: hash, category: 'sports' })
+        : Promise.resolve(null),
+      EventShowRegistration
+        ? EventShowRegistration.findOne({ qrCodeData: hash })
+        : Promise.resolve(null),
+    ]);
+
     if (registration) return { kind: 'registration', record: registration };
-
-    const trekBooking = await TrekBooking.findOne({ qrCodeData: hash });
     if (trekBooking) return { kind: 'trek', record: trekBooking };
-
-    if (CategoryRegistration) {
-      const sportsReg = await CategoryRegistration.findOne({
-        qrCodeData: hash,
-        category: 'sports',
-      });
-      if (sportsReg) return { kind: 'sports', record: sportsReg };
-    }
+    if (sportsReg) return { kind: 'sports', record: sportsReg };
+    if (eventReg) return { kind: 'event', record: eventReg };
   }
 
   if (candidateId) {
+    if (EventShowRegistration) {
+      const eventReg = await EventShowRegistration.findById(candidateId);
+      if (eventReg) {
+        if (!eventReg.qrCodeData && hash) {
+          eventReg.qrCodeData = hash;
+          await eventReg.save();
+        }
+        if (eventReg.qrCodeData) {
+          if (hash && eventReg.qrCodeData !== hash) return null;
+          return { kind: 'event', record: eventReg };
+        }
+      }
+    }
+
     if (CategoryRegistration) {
       const sportsReg = await CategoryRegistration.findById(candidateId);
       if (sportsReg?.category === 'sports') {
@@ -62,27 +80,31 @@ async function resolveCheckinRecord({ Registration, TrekBooking, CategoryRegistr
       }
     }
 
-    const registration = await Registration.findById(candidateId);
-    if (registration) {
-      if (!registration.qrCodeData && hash) {
-        registration.qrCodeData = hash;
-        await registration.save();
-      }
-      if (registration.qrCodeData) {
-        if (hash && registration.qrCodeData !== hash) return null;
-        return { kind: 'registration', record: registration };
+    if (Registration) {
+      const registration = await Registration.findById(candidateId);
+      if (registration) {
+        if (!registration.qrCodeData && hash) {
+          registration.qrCodeData = hash;
+          await registration.save();
+        }
+        if (registration.qrCodeData) {
+          if (hash && registration.qrCodeData !== hash) return null;
+          return { kind: 'registration', record: registration };
+        }
       }
     }
 
-    const trekBooking = await TrekBooking.findById(candidateId);
-    if (trekBooking) {
-      if (!trekBooking.qrCodeData && hash) {
-        trekBooking.qrCodeData = hash;
-        await trekBooking.save();
-      }
-      if (trekBooking.qrCodeData) {
-        if (hash && trekBooking.qrCodeData !== hash) return null;
-        return { kind: 'trek', record: trekBooking };
+    if (TrekBooking) {
+      const trekBooking = await TrekBooking.findById(candidateId);
+      if (trekBooking) {
+        if (!trekBooking.qrCodeData && hash) {
+          trekBooking.qrCodeData = hash;
+          await trekBooking.save();
+        }
+        if (trekBooking.qrCodeData) {
+          if (hash && trekBooking.qrCodeData !== hash) return null;
+          return { kind: 'trek', record: trekBooking };
+        }
       }
     }
   }

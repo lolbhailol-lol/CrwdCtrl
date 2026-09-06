@@ -1,0 +1,441 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  fetchMyTeam,
+  fetchTeamProgress,
+  openTeamProgressStream,
+} from '../services/campusHunt.api';
+
+function isActivelyPlaying(data) {
+  const stage = String(data?.team?.currentStage || '');
+  if (!stage || stage === 'SCORE_LOCKED') return false;
+  return (
+    stage.includes('ACTIVE')
+    || stage.includes('COMPLETED')
+    || stage.includes('FAILED')
+    || stage.includes('TIMEOUT')
+  );
+}
+
+function isPendingScan(data) {
+  const cp = data?.checkpointStatus;
+  return Boolean(
+    cp
+    && cp.checkpointId
+    && Number(cp.verifiedCount || 0) < Number(cp.requiredCount || data?.team?.teamSize || 4),
+  );
+}
+
+function awaitingRoundOpen(data) {
+  return (data?.rounds || []).some((card) => (
+    (card.id === 'round1' && !card.open && !card.comingSoon)
+    || (card.id === 'finale' && card.eligible && !card.open)
+  ));
+}
+
+function activeTimedClue(data) {
+  const stage = String(data?.team?.currentStage || '');
+  const match = stage.match(/^CLUE_(\d)_ACTIVE$/);
+  if (!match) return null;
+  const n = Number(match[1]);
+  if (![2, 4, 5].includes(n)) return null;
+  const ch = (data?.challenges || []).find((c) => Number(c.challengeNumber) === n);
+  if (!ch?.expiresAt || ch.instructionPhase) return null;
+  return ch;
+}
+
+function timedClueRemainingMs(challenge, serverTime) {
+  if (!challenge?.expiresAt) return null;
+  const end = new Date(challenge.expiresAt).getTime();
+  const serverMs = serverTime ? new Date(serverTime).getTime() : Date.now();
+  const skew = serverMs - Date.now();
+  return Math.max(0, end - (Date.now() + skew));
+}
+
+function pollIntervalMs(data, burstUntil) {
+  if (burstUntil && Date.now() < burstUntil) return 500;
+
+  const timed = activeTimedClue(data);
+  if (timed) {
+    if (timed.timeExpired) return 500;
+    const remaining = timedClueRemainingMs(timed, data?.serverTime);
+    if (remaining != null) {
+      if (remaining <= 0) return 500;
+      if (remaining <= 10000) return 500;
+      if (remaining <= 60000) return 1000;
+    }
+    return 1500;
+  }
+
+  const stage = String(data?.team?.currentStage || '');
+  const waiting = ['WAITING', 'READY'].includes(data?.team?.startStatus);
+  const awaitingClaim = Boolean(data?.checkpointStatus?.awaitingTeamCodeConfirm);
+
+  if (awaitingRoundOpen(data)) return 2000;
+  // Fast while waiting so admin release / start shows without a manual refresh
+  if (waiting || stage === 'WAITING') return 2000;
+  // Fast only while teammates may still be scanning / claiming
+  if (isPendingScan(data) || awaitingClaim) return 1000;
+  // Safety net while playing (SSE is primary)
+  if (isActivelyPlaying(data)) return 3000;
+  if (stage === 'SCORE_LOCKED') return 15000;
+  // Between clues / next step mounting — never sit 15s needing Refresh
+  return 2000;
+}
+
+function progressFingerprint(data) {
+  if (!data?.team) return '';
+  const cp = data.checkpointStatus;
+  const challenges = Array.isArray(data.challenges) ? data.challenges : [];
+  return [
+    data.team.id,
+    data.team.currentStage,
+    data.team.startStatus,
+    data.team.currentScore,
+    data.team.leaderboardRank,
+    data.team.leaderboardSize,
+    data.team.scheduledStartAt,
+    data.team.actualStartAt,
+    data.team.releasePaused ? 1 : 0,
+    data.team.competitionPhase || '',
+    data.team.finaleEntryId || '',
+    data.team.playerRoundLocks?.round1 ? 1 : 0,
+    data.team.playerRoundLocks?.finale ? 1 : 0,
+    ...(Array.isArray(data.rounds)
+      ? data.rounds.map((r) => `${r.id}:${r.open ? 1 : 0}:${r.statusHint || ''}:${r.eligible ? 1 : 0}`)
+      : []),
+    cp?.checkpointId || '',
+    cp?.verifiedCount ?? '',
+    cp?.requiredCount ?? '',
+    cp?.awaitingTeamCodeConfirm ? 1 : 0,
+    cp?.youScanned ? 1 : 0,
+    cp?.status || '',
+    data.serverTime || '',
+    ...challenges.map((c) => [
+      c.challengeNumber ?? c.number,
+      c.state,
+      c.failureReason || '',
+      c.timeExpired ? 1 : 0,
+      c.revealedAnswer || '',
+      c.revealedLocation || '',
+      c.attemptsLeft ?? c.attempts ?? '',
+    ].join(':')),
+  ].join('|');
+}
+
+function stageNeedsCheckpoint(stage) {
+  const s = String(stage || '');
+  if (!s || s === 'SCORE_LOCKED' || s === 'FINISH_COMPLETED') return false;
+  if (s.includes('CLUE_5_')) return false;
+  return s.includes('COMPLETED') || s.includes('FAILED') || s.includes('TIMEOUT');
+}
+
+/** Keep last checkpoint panel if soft poll briefly returns null on same stage. */
+function mergeProgress(prev, next) {
+  if (!next?.team) return prev;
+  let { checkpointStatus } = next;
+  if (
+    checkpointStatus == null
+    && prev?.checkpointStatus?.checkpointId
+    && String(prev?.team?.currentStage || '') === String(next.team.currentStage || '')
+    && stageNeedsCheckpoint(next.team.currentStage)
+  ) {
+    checkpointStatus = prev.checkpointStatus;
+  }
+  return {
+    ...next,
+    checkpointStatus: checkpointStatus ?? null,
+    rounds: next.rounds || prev?.rounds,
+    event: next.event || prev?.event,
+  };
+}
+
+/** Normalize mutation / progress payloads into play-screen state. */
+export function progressFromActionData(payload) {
+  if (!payload?.team || !Array.isArray(payload.challenges)) return null;
+  return {
+    team: payload.team,
+    challenges: payload.challenges,
+    checkpointStatus: payload.checkpointStatus ?? null,
+    serverTime: payload.serverTime || new Date().toISOString(),
+  };
+}
+
+/**
+ * @param {string|null} eventId
+ * @param {{ enabled?: boolean, initialData?: object|null }} [options]
+ */
+export function useHuntTeam(eventId, { enabled = true, initialData = null } = {}) {
+  const [data, setData] = useState(() => (
+    initialData?.team && Array.isArray(initialData?.rounds) ? initialData : null
+  ));
+  const [loading, setLoading] = useState(
+    Boolean(eventId) && enabled && !(initialData?.team && Array.isArray(initialData?.rounds)),
+  );
+  const [error, setError] = useState(null);
+  const [pollError, setPollError] = useState(null);
+  const [burstUntil, setBurstUntil] = useState(0);
+  const teamIdRef = useRef(initialData?.team?.id || null);
+  /** Full /me/team loads — soft progress must not invalidate these. */
+  const hardGenRef = useRef(0);
+  /** Lightweight /progress polls only. */
+  const softGenRef = useRef(0);
+  const pausePollUntilRef = useRef(0);
+  const dataRef = useRef(
+    initialData?.team && Array.isArray(initialData?.rounds) ? initialData : null,
+  );
+  const fingerprintRef = useRef('');
+  const bootstrappedRef = useRef(
+    Boolean(initialData?.team?.id && Array.isArray(initialData?.rounds)),
+  );
+
+  useEffect(() => {
+    dataRef.current = data;
+    fingerprintRef.current = progressFingerprint(data);
+    if (data?.team?.id && Array.isArray(data?.rounds)) {
+      bootstrappedRef.current = true;
+    }
+  }, [data]);
+
+  const applyMerged = useCallback((incoming, { soft = false } = {}) => {
+    // Never let a progress poll become the first board — it has no rounds/event.
+    if (soft && !bootstrappedRef.current && !dataRef.current?.rounds) {
+      return;
+    }
+    const merged = soft
+      ? mergeProgress(dataRef.current, incoming)
+      : {
+        ...incoming,
+        rounds: incoming?.rounds || dataRef.current?.rounds,
+        event: incoming?.event || dataRef.current?.event,
+      };
+    const nextFp = progressFingerprint(merged);
+    if (nextFp && nextFp === fingerprintRef.current) return;
+    fingerprintRef.current = nextFp;
+    setData(merged);
+  }, []);
+
+  const refresh = useCallback(async ({ soft = false } = {}) => {
+    if (!eventId || !enabled) {
+      setLoading(false);
+      return;
+    }
+    const gen = ++hardGenRef.current;
+    if (!soft) setError(null);
+    try {
+      const res = await fetchMyTeam(eventId);
+      if (gen !== hardGenRef.current) return;
+      applyMerged(res.data, { soft: false });
+      teamIdRef.current = res.data?.team?.id || null;
+      bootstrappedRef.current = Boolean(res.data?.team?.id && Array.isArray(res.data?.rounds));
+      setError(null);
+      setPollError(null);
+    } catch (err) {
+      if (gen !== hardGenRef.current) return;
+      if (err?.code === 'AUTH_401' || err?.status === 401) {
+        // Soft mid-play: keep board; hard first-load can clear
+        if (soft && dataRef.current) {
+          setPollError('Session issue — tap Refresh if the board looks stuck');
+        } else {
+          setError('Session expired — open your team link again');
+          setData(null);
+          teamIdRef.current = null;
+          fingerprintRef.current = '';
+          bootstrappedRef.current = false;
+        }
+      } else if (soft) {
+        setPollError(err.message || 'Failed to refresh');
+      } else {
+        setError(err.message || 'Failed to load team');
+      }
+    } finally {
+      // Only the latest hard request may clear the spinner — never a stale one.
+      if (gen === hardGenRef.current) {
+        setLoading(false);
+      }
+    }
+  }, [eventId, enabled, applyMerged]);
+
+  /**
+   * Soft progress poll. Interval calls skip during pausePollUntil;
+   * manual Refresh passes `{ force: true }` and always runs.
+   * Uses softGenRef so it never cancels the initial /me/team bootstrap.
+   */
+  const refreshProgress = useCallback(async ({ force = false, burst = false } = {}) => {
+    if (!enabled) return null;
+    if (burst) setBurstUntil(Date.now() + 15000);
+    if (!force && Date.now() < pausePollUntilRef.current) return null;
+    if (force) pausePollUntilRef.current = 0;
+    const teamId = teamIdRef.current;
+    // Don't race another /me/team while the enter bootstrap is still loading.
+    if (!bootstrappedRef.current) {
+      if (force) return refresh({ soft: false });
+      return null;
+    }
+    if (!teamId) {
+      await refresh({ soft: true });
+      return dataRef.current;
+    }
+    const gen = ++softGenRef.current;
+    try {
+      const res = await fetchTeamProgress(teamId);
+      if (gen !== softGenRef.current) return null;
+      applyMerged(res.data, { soft: !force });
+      teamIdRef.current = res.data?.team?.id || teamId;
+      setError(null);
+      setPollError(null);
+      return res.data;
+    } catch (err) {
+      if (gen !== softGenRef.current) return null;
+      if (err?.code === 'AUTH_401' || err?.status === 401) {
+        if (dataRef.current) {
+          setPollError('Session issue — tap Refresh if the board looks stuck');
+        } else {
+          setError('Session expired — open your team link again');
+        }
+      } else {
+        setPollError(err.message || 'Failed to refresh');
+      }
+      return null;
+    }
+  }, [refresh, enabled, applyMerged]);
+
+  /** Instant UI update from submit/scan response — no extra wait. */
+  const applyActionData = useCallback((payload) => {
+    const next = progressFromActionData(payload);
+    if (!next) return false;
+    softGenRef.current += 1;
+    const cp = next.checkpointStatus;
+    const pendingScan = Boolean(
+      cp?.checkpointId
+      && Number(cp.verifiedCount || 0) < Number(cp.requiredCount || next.team?.teamSize || 4),
+    );
+    pausePollUntilRef.current = Date.now() + (pendingScan ? 350 : 800);
+    applyMerged({
+      ...next,
+      rounds: dataRef.current?.rounds,
+      event: dataRef.current?.event,
+    }, { soft: false });
+    teamIdRef.current = next.team?.id || teamIdRef.current;
+    setBurstUntil(Date.now() + (pendingScan ? 8000 : 5000));
+    setError(null);
+    setPollError(null);
+    return true;
+  }, [applyMerged]);
+
+  useEffect(() => {
+    if (!eventId || !enabled) {
+      setLoading(false);
+      return undefined;
+    }
+    // Silent revalidate when board already exists — no full-page loading flash
+    if (!dataRef.current) {
+      bootstrappedRef.current = false;
+      setLoading(true);
+    }
+    refresh();
+    return undefined;
+  }, [refresh, eventId, enabled]);
+
+  useEffect(() => {
+    if (!eventId || !enabled) return undefined;
+    const pollMs = pollIntervalMs(data, burstUntil);
+    const id = setInterval(() => {
+      if (Date.now() < pausePollUntilRef.current) return;
+      refreshProgress();
+    }, pollMs);
+    return () => clearInterval(id);
+  }, [
+    enabled,
+    eventId,
+    data?.team?.scheduledStartAt,
+    data?.team?.startStatus,
+    data?.team?.currentStage,
+    data?.team?.finaleEntryId,
+    data?.rounds,
+    data?.checkpointStatus?.verifiedCount,
+    data?.checkpointStatus?.requiredCount,
+    data?.checkpointStatus?.checkpointId,
+    data?.checkpointStatus?.awaitingTeamCodeConfirm,
+    data?.challenges,
+    data?.serverTime,
+    burstUntil,
+    refreshProgress,
+  ]);
+
+  // Live SSE — admin/teammate mutations push a ping → force progress pull
+  useEffect(() => {
+    if (!enabled || !eventId) return undefined;
+    const teamId = data?.team?.id || teamIdRef.current;
+    if (!teamId) return undefined;
+
+    const ac = new AbortController();
+    let cancelled = false;
+    let retryTimer = null;
+
+    const connect = async () => {
+      while (!cancelled && !ac.signal.aborted) {
+        try {
+          await openTeamProgressStream(teamId, {
+            signal: ac.signal,
+            onEvent: (evt) => {
+              if (evt?.type === 'progress') {
+                pausePollUntilRef.current = 0;
+                void refreshProgress({ force: true });
+              }
+            },
+          });
+        } catch (err) {
+          if (cancelled || ac.signal.aborted || err?.name === 'AbortError') return;
+        }
+        if (cancelled || ac.signal.aborted) return;
+        await new Promise((resolve) => {
+          retryTimer = setTimeout(resolve, 2500);
+        });
+      }
+    };
+
+    void connect();
+    return () => {
+      cancelled = true;
+      ac.abort();
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [enabled, eventId, data?.team?.id, refreshProgress]);
+
+  // Focus / visibility — always pull while Round 1 is open
+  useEffect(() => {
+    if (!eventId || !enabled) return undefined;
+    const kick = () => {
+      const current = dataRef.current;
+      const stage = String(current?.team?.currentStage || '');
+      const waiting = ['WAITING', 'READY'].includes(current?.team?.startStatus);
+      const open = waiting || isActivelyPlaying(current) || stage === 'SCORE_LOCKED';
+      if (!open && !current?.checkpointStatus?.checkpointId) return;
+      pausePollUntilRef.current = 0;
+      void refreshProgress({ force: true });
+    };
+    const onVis = () => {
+      if (document.visibilityState === 'visible') kick();
+    };
+    window.addEventListener('focus', kick);
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      window.removeEventListener('focus', kick);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, [eventId, enabled, refreshProgress]);
+
+  return {
+    data,
+    loading,
+    error,
+    pollError,
+    refresh: (opts) => {
+      const hard = Boolean(opts && typeof opts === 'object' && (opts.force || opts.soft === false));
+      return refresh({ soft: !hard });
+    },
+    refreshProgress,
+    applyActionData,
+    setData,
+  };
+}

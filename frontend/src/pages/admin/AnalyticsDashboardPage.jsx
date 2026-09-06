@@ -1,14 +1,24 @@
-import { createElement, useState, useEffect } from 'react';
+import { createElement, useCallback, useState, useEffect } from 'react';
 import {
-  Users, FileText, Eye, Activity,
+  Users, FileText, Eye,
   TrendingUp, TrendingDown, Minus,
   Monitor, Smartphone, Tablet,
   BarChart3, RefreshCw, IndianRupee, Flag, Mountain, Footprints, Trophy,
+  LineChart, UserPlus, MousePointerClick, Clock, Globe, FileBarChart,
+  Radio, Settings, ExternalLink, CalendarRange,
 } from 'lucide-react';
-import { adminFetchJSON as adminFetch } from '../../utils/adminApi';
+import { adminFetchJSON as adminFetch } from '../../services/api/admin.api.js';
+import { InlinePageLoader, DetailLoader3DIcon } from '../../components/DetailPageLoader';
 
 function formatINR(amount) {
   return `₹${(amount ?? 0).toLocaleString('en-IN')}`;
+}
+
+function formatDayLabel(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
 function StatCard({ icon, label, value, change, color, sublabel }) {
@@ -140,10 +150,323 @@ function RevenueCategoryCard({ label, icon, data, accent }) {
   );
 }
 
+function RankedList({ items, labelKey, emptyText = 'No data yet', color = '#0ECCEE' }) {
+  if (!items || items.length === 0) {
+    return <div className="text-gray-500 text-sm text-center py-6">{emptyText}</div>;
+  }
+  const maxVal = Math.max(...items.map((d) => d.value || 0), 1);
+  return (
+    <div className="space-y-2.5">
+      {items.map((item, i) => (
+        <div key={i} className="flex items-center gap-3">
+          <div className="text-xs text-gray-300 w-32 truncate" title={item[labelKey]}>
+            {item[labelKey] || '—'}
+          </div>
+          <div className="flex-1 bg-gray-800 rounded-full h-2.5 overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-500"
+              style={{ width: `${Math.max((item.value / maxVal) * 100, 2)}%`, backgroundColor: color }}
+            />
+          </div>
+          <div className="text-xs text-white font-medium w-12 text-right">
+            {item.value.toLocaleString('en-IN')}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function GASetupCard({ steps, error }) {
+  return (
+    <div className="bg-[#111213] rounded-xl border border-gray-800 p-5">
+      <div className="flex items-center gap-2 mb-3">
+        <div className="p-2 rounded-lg bg-amber-500/20 text-amber-400">
+          <Settings size={18} />
+        </div>
+        <h3 className="font-semibold text-white">
+          {error ? 'Google Analytics needs attention' : 'Connect Google Analytics'}
+        </h3>
+      </div>
+      {error && (
+        <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mb-3">
+          {error}
+        </p>
+      )}
+      <p className="text-sm text-gray-400 mb-3">
+        Follow these steps to show live GA4 traffic metrics here:
+      </p>
+      <ol className="space-y-2 text-sm text-gray-300 list-decimal list-inside">
+        {(steps || []).map((step, i) => (
+          <li key={i} className="pl-1">{step}</li>
+        ))}
+      </ol>
+      <a
+        href="https://analytics.google.com/"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1.5 mt-4 text-sm text-[#0ECCEE] hover:underline"
+      >
+        Open Google Analytics <ExternalLink size={13} />
+      </a>
+    </div>
+  );
+}
+
+const todayIso = () => new Date().toISOString().slice(0, 10);
+const isoDaysAgo = (n) => {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
+};
+
+function GoogleAnalyticsSection() {
+  const [ga, setGa] = useState(null);
+  const [gaRealtime, setGaRealtime] = useState(0);
+  const [days, setDays] = useState(28);
+  const [mode, setMode] = useState('preset'); // 'preset' | 'custom'
+  const [startDate, setStartDate] = useState(isoDaysAgo(28));
+  const [endDate, setEndDate] = useState(todayIso());
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const fetchGa = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const query = mode === 'custom' && startDate && endDate
+        ? `startDate=${startDate}&endDate=${endDate}`
+        : `days=${days}`;
+      const res = await adminFetch(`/analytics/google?${query}`);
+      setGa(res);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [days, mode, startDate, endDate]);
+
+  useEffect(() => {
+    if (mode === 'preset') fetchGa();
+    // In custom mode we wait for the user to click "Apply".
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [days, mode]);
+
+  useEffect(() => {
+    let active = true;
+    const poll = async () => {
+      try {
+        const rt = await adminFetch('/analytics/google/realtime');
+        if (active) setGaRealtime(rt?.activeUsers || 0);
+      } catch (_) { /* silent */ }
+    };
+    poll();
+    const interval = setInterval(poll, 30000);
+    return () => { active = false; clearInterval(interval); };
+  }, []);
+
+  const configured = ga?.configured !== false && !ga?.error;
+  // Chart wants oldest→newest; the daily table shows newest→oldest.
+  const daily = ga?.daily || [];
+  const byDateChart = [...daily].reverse().map((d) => ({
+    date: d.date,
+    count: d.activeUsers,
+  }));
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <LineChart size={20} className="text-[#0ECCEE]" />
+          <h2 className="text-lg font-semibold text-white">Google Analytics</h2>
+          <span className="text-xs text-gray-500">(GA4 — website traffic)</span>
+        </div>
+        {configured && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1 bg-[#17181A] p-1 rounded-lg border border-white/8">
+              {[7, 28, 90].map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => { setMode('preset'); setDays(d); }}
+                  className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
+                    mode === 'preset' && days === d ? 'bg-[#0ECCEE] text-black' : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  {d}d
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setMode('custom')}
+                className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
+                  mode === 'custom' ? 'bg-[#0ECCEE] text-black' : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                Custom
+              </button>
+            </div>
+
+            {mode === 'custom' && (
+              <div className="flex items-center gap-1.5 bg-[#17181A] p-1.5 rounded-lg border border-white/8">
+                <input
+                  type="date"
+                  value={startDate}
+                  max={endDate || todayIso()}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="bg-[#0D0E10] border border-white/8 rounded-md px-2 py-1 text-xs text-white focus:outline-none focus:border-[#0ECCEE]/40 scheme-dark"
+                />
+                <span className="text-gray-500 text-xs">to</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  min={startDate}
+                  max={todayIso()}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="bg-[#0D0E10] border border-white/8 rounded-md px-2 py-1 text-xs text-white focus:outline-none focus:border-[#0ECCEE]/40 scheme-dark"
+                />
+                <button
+                  type="button"
+                  onClick={fetchGa}
+                  disabled={!startDate || !endDate || startDate > endDate}
+                  className="px-3 py-1 rounded-md text-xs font-semibold bg-[#0ECCEE] text-black disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Apply
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {loading && !ga ? (
+        <div className="bg-[#111213] rounded-xl border border-gray-800 p-8 flex items-center justify-center">
+          <DetailLoader3DIcon size="compact" />
+        </div>
+      ) : error ? (
+        <GASetupCard error={error} steps={ga?.setupSteps} />
+      ) : !configured ? (
+        <GASetupCard error={ga?.error} steps={ga?.setupSteps} />
+      ) : (
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+            <StatCard icon={Radio} label="Active right now" value={gaRealtime}
+              sublabel="Last 30 min" color="bg-rose-500/20 text-rose-400" />
+            <StatCard icon={Users} label="Active users" value={(ga.totals.activeUsers).toLocaleString('en-IN')}
+              color="bg-blue-500/20 text-blue-400" />
+            <StatCard icon={UserPlus} label="New users" value={(ga.totals.newUsers).toLocaleString('en-IN')}
+              color="bg-emerald-500/20 text-emerald-400" />
+            <StatCard icon={MousePointerClick} label="Sessions" value={(ga.totals.sessions).toLocaleString('en-IN')}
+              color="bg-violet-500/20 text-violet-400" />
+            <StatCard icon={Eye} label="Page views" value={(ga.totals.pageViews).toLocaleString('en-IN')}
+              color="bg-purple-500/20 text-purple-400" />
+            <StatCard icon={Clock} label="Avg. session" value={ga.totals.avgSessionDuration}
+              sublabel={`Bounce ${ga.totals.bounceRate}`} color="bg-amber-500/20 text-amber-400" />
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-[#111213] rounded-xl border border-gray-800 p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <BarChart3 size={18} className="text-[#0ECCEE]" />
+                <h3 className="font-semibold text-white">Active users by day</h3>
+              </div>
+              <SimpleBarChart data={byDateChart} labelKey="date" valueKey="count" color="#0ECCEE" />
+            </div>
+
+            <div className="bg-[#111213] rounded-xl border border-gray-800 p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <FileBarChart size={18} className="text-[#0ECCEE]" />
+                <h3 className="font-semibold text-white">Top pages</h3>
+              </div>
+              <RankedList items={ga.topPages} labelKey="page" color="#007BFF" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="bg-[#111213] rounded-xl border border-gray-800 p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Globe size={18} className="text-[#0ECCEE]" />
+                <h3 className="font-semibold text-white">Top countries</h3>
+              </div>
+              <RankedList items={ga.topCountries} labelKey="country" color="#00C9A7" />
+            </div>
+
+            <div className="bg-[#111213] rounded-xl border border-gray-800 p-5">
+              <h3 className="font-semibold text-white mb-4">Device breakdown</h3>
+              <DeviceBreakdown devices={ga.devices} />
+            </div>
+
+            <div className="bg-[#111213] rounded-xl border border-gray-800 p-5">
+              <h3 className="font-semibold text-white mb-4">Traffic sources</h3>
+              <RankedList items={ga.trafficSources} labelKey="source" color="#A78BFA" />
+            </div>
+          </div>
+
+          {/* Top events */}
+          <div className="bg-[#111213] rounded-xl border border-gray-800 p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <MousePointerClick size={18} className="text-[#0ECCEE]" />
+              <h3 className="font-semibold text-white">Events (what people do)</h3>
+            </div>
+            <RankedList items={ga.topEvents} labelKey="event" color="#F472B6" emptyText="No events tracked yet" />
+          </div>
+
+          {/* Detailed day-by-day breakdown */}
+          <div className="bg-[#111213] rounded-xl border border-gray-800 overflow-hidden">
+            <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-800">
+              <CalendarRange size={18} className="text-[#0ECCEE]" />
+              <h3 className="font-semibold text-white">Day-by-day breakdown</h3>
+              <span className="text-xs text-gray-500">({daily.length} days)</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[720px]">
+                <thead>
+                  <tr className="text-left text-gray-500 border-b border-gray-800 text-xs uppercase tracking-wider">
+                    <th className="px-4 py-2.5 font-semibold sticky left-0 bg-[#111213]">Date</th>
+                    <th className="px-4 py-2.5 font-semibold text-right">Active users</th>
+                    <th className="px-4 py-2.5 font-semibold text-right">New users</th>
+                    <th className="px-4 py-2.5 font-semibold text-right">Sessions</th>
+                    <th className="px-4 py-2.5 font-semibold text-right">Page views</th>
+                    <th className="px-4 py-2.5 font-semibold text-right">Events</th>
+                    <th className="px-4 py-2.5 font-semibold text-right">Avg. session</th>
+                    <th className="px-4 py-2.5 font-semibold text-right">Engagement</th>
+                    <th className="px-4 py-2.5 font-semibold text-right">Bounce</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {daily.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="px-4 py-8 text-center text-gray-500">No daily data yet</td>
+                    </tr>
+                  ) : (
+                    daily.map((d) => (
+                      <tr key={d.date} className="border-b border-gray-800/60 hover:bg-white/2">
+                        <td className="px-4 py-2.5 text-white font-medium whitespace-nowrap sticky left-0 bg-[#111213]">
+                          {formatDayLabel(d.date)}
+                        </td>
+                        <td className="px-4 py-2.5 text-right text-gray-200">{d.activeUsers.toLocaleString('en-IN')}</td>
+                        <td className="px-4 py-2.5 text-right text-gray-400">{d.newUsers.toLocaleString('en-IN')}</td>
+                        <td className="px-4 py-2.5 text-right text-gray-200">{d.sessions.toLocaleString('en-IN')}</td>
+                        <td className="px-4 py-2.5 text-right text-gray-200">{d.pageViews.toLocaleString('en-IN')}</td>
+                        <td className="px-4 py-2.5 text-right text-gray-400">{d.events.toLocaleString('en-IN')}</td>
+                        <td className="px-4 py-2.5 text-right text-gray-400 whitespace-nowrap">{d.avgSessionDuration}</td>
+                        <td className="px-4 py-2.5 text-right text-emerald-400">{d.engagementRate}</td>
+                        <td className="px-4 py-2.5 text-right text-amber-400">{d.bounceRate}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AnalyticsDashboardPage() {
-  const [data, setData] = useState(null);
   const [revenue, setRevenue] = useState(null);
-  const [realtime, setRealtime] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -151,14 +474,8 @@ export default function AnalyticsDashboardPage() {
     try {
       setLoading(true);
       setError(null);
-      const [analyticsRes, revenueRes, realtimeRes] = await Promise.all([
-        adminFetch('/analytics/dashboard'),
-        adminFetch('/analytics/revenue-summary').catch(() => null),
-        adminFetch('/analytics/realtime').catch(() => ({ success: true, activeUsers: 0 })),
-      ]);
-      setData(analyticsRes);
+      const revenueRes = await adminFetch('/analytics/revenue-summary').catch(() => null);
       setRevenue(revenueRes);
-      setRealtime(realtimeRes);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -168,21 +485,10 @@ export default function AnalyticsDashboardPage() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(async () => {
-      try {
-        const rt = await adminFetch('/analytics/realtime');
-        setRealtime(rt);
-      } catch (_) { /* silent */ }
-    }, 30000);
-    return () => clearInterval(interval);
   }, []);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <RefreshCw className="animate-spin text-[#0ECCEE]" size={32} />
-      </div>
-    );
+    return <InlinePageLoader label="Loading analytics…" minHeight={false} className="min-h-64" />;
   }
 
   if (error) {
@@ -196,7 +502,6 @@ export default function AnalyticsDashboardPage() {
     );
   }
 
-  const { stats, charts, recentRegistrations } = data || {};
   const totals = revenue?.totals;
   const last30 = revenue?.last30Days;
   const categories = revenue?.categories;
@@ -207,7 +512,7 @@ export default function AnalyticsDashboardPage() {
         <div>
           <h1 className="text-2xl font-bold text-white">Analytics</h1>
           <p className="text-sm text-gray-400 mt-1">
-            Revenue, registrations, and platform performance from saved records
+            Website traffic (Google Analytics) and revenue performance
           </p>
         </div>
         <button
@@ -218,6 +523,9 @@ export default function AnalyticsDashboardPage() {
           Refresh
         </button>
       </div>
+
+      {/* Google Analytics (GA4) */}
+      <GoogleAnalyticsSection />
 
       {/* Revenue overview */}
       {totals && (
@@ -292,107 +600,6 @@ export default function AnalyticsDashboardPage() {
           )}
         </div>
       )}
-
-      {/* Platform stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          icon={Users}
-          label="Total users"
-          value={stats?.totalUsers}
-          change={stats?.userGrowth}
-          color="bg-blue-500/20 text-blue-400"
-        />
-        <StatCard
-          icon={FileText}
-          label="Total registrations"
-          value={stats?.totalRegistrations}
-          change={stats?.registrationGrowth}
-          sublabel={`${stats?.festRegistrations ?? 0} fests · ${stats?.trekBookings ?? 0} treks · ${stats?.categoryRegistrations ?? 0} runs/other`}
-          color="bg-green-500/20 text-green-400"
-        />
-        <StatCard
-          icon={Eye}
-          label="Page views (7d)"
-          value={stats?.pageViews7d}
-          color="bg-purple-500/20 text-purple-400"
-        />
-        <StatCard
-          icon={Activity}
-          label="Active now"
-          value={realtime?.activeUsers || 0}
-          color="bg-cyan-500/20 text-cyan-400"
-        />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-[#111213] rounded-xl border border-gray-800 p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <BarChart3 size={18} className="text-[#0ECCEE]" />
-            <h3 className="font-semibold text-white">Fest registrations (last 30 days)</h3>
-          </div>
-          <SimpleBarChart
-            data={charts?.registrationsByDay}
-            valueKey="count"
-            color="#007BFF"
-          />
-        </div>
-
-        <div className="bg-[#111213] rounded-xl border border-gray-800 p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <Eye size={18} className="text-[#0ECCEE]" />
-            <h3 className="font-semibold text-white">Top fests by views</h3>
-          </div>
-          <SimpleBarChart
-            data={charts?.topFests}
-            labelKey="name"
-            valueKey="views"
-            color="#0ECCEE"
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-[#111213] rounded-xl border border-gray-800 p-5">
-          <h3 className="font-semibold text-white mb-4">User signups (30d)</h3>
-          <SimpleBarChart
-            data={charts?.userSignupsByDay}
-            valueKey="count"
-            color="#00C9A7"
-          />
-        </div>
-
-        <div className="bg-[#111213] rounded-xl border border-gray-800 p-5">
-          <h3 className="font-semibold text-white mb-4">Device breakdown</h3>
-          <DeviceBreakdown devices={stats?.devices} />
-        </div>
-
-        <div className="bg-[#111213] rounded-xl border border-gray-800 p-5">
-          <h3 className="font-semibold text-white mb-4">Recent fest registrations</h3>
-          <div className="space-y-3 max-h-64 overflow-y-auto">
-            {recentRegistrations?.length > 0 ? (
-              recentRegistrations.map((reg) => (
-                <div key={reg.id} className="flex items-center justify-between text-sm gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="text-white truncate">{reg.userName}</div>
-                    <div className="text-gray-500 text-xs truncate">
-                      {reg.festName}{reg.competitionName ? ` → ${reg.competitionName}` : ''}
-                    </div>
-                  </div>
-                  <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 capitalize ${
-                    reg.status === 'approved' ? 'bg-green-500/20 text-green-400' :
-                    reg.status === 'rejected' ? 'bg-red-500/20 text-red-400' :
-                    'bg-yellow-500/20 text-yellow-400'
-                  }`}>
-                    {reg.status}
-                  </span>
-                </div>
-              ))
-            ) : (
-              <div className="text-gray-500 text-sm text-center py-4">No registrations yet</div>
-            )}
-          </div>
-        </div>
-      </div>
 
       {revenue?.note && (
         <p className="text-[11px] text-gray-600 text-center">{revenue.note}</p>

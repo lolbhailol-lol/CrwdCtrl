@@ -19,11 +19,12 @@ import {
   EmailVerification,
   CompetitionsViewDetails,
   CompetitionListPage,
-  CompetitionRegisterPage,
   TermsAndConditions,
   PrivacyPolicy,
   ContactUs,
   RefundsAndCancellations,
+  ShippingPolicy,
+  DeleteAccount,
   ProductsAndServices,
   About,
   FestsPage,
@@ -36,12 +37,18 @@ import {
   PaymentInvoicePage,
   PublicTreksPage,
   PublicEventsPage,
+  EventDetailsPage,
+  EventRegistrationPage,
   CommunityDetailPage,
+  EventCommunityDetailPage,
+  EventCommunityEventPage,
+  EventCommunityBookingPage,
   RunClubDetailPage,
   RunEventDetailPage,
   RunEventBookingPage,
   TrekCategoryPage,
   PaymentCheckoutPage,
+  FestStallInterestPage,
 } from './lazyPages';
 import {
   paymentReturnRedirect,
@@ -52,6 +59,8 @@ import {
 
 export const publicRoutes = (
   <>
+      <Route path="/stall/:festSlugOrId" element={<FestStallInterestPage />} />
+      <Route path="/s/:festSlugOrId" element={<FestStallInterestPage />} />
       <Route path="/payment/checkout" element={<PaymentCheckoutPage />} />
       {paymentReturnRedirect}
       <Route path="/" element={<Dashboard />} />
@@ -67,6 +76,11 @@ export const publicRoutes = (
       <Route path="/sports-fest" element={<SportsFestPage />} />
       <Route path="/treks" element={<PublicTreksPage />} />
       <Route path="/events" element={<PublicEventsPage />} />
+      <Route path="/events/community/:id" element={<EventCommunityDetailPage />} />
+      <Route path="/events/community-event/:id/book" element={<EventCommunityBookingPage />} />
+      <Route path="/events/community-event/:id" element={<EventCommunityEventPage />} />
+      <Route path="/events/:eventId" element={<EventDetailsPage />} />
+      <Route path="/events/:eventId/register" element={<EventRegistrationPage />} />
       {theatreRedirect}
       <Route path="/treks/community/:id" element={<CommunityDetailPage />} />
       <Route path="/sports/run-club/:id" element={<RunClubDetailPage />} />
@@ -81,7 +95,7 @@ export const publicRoutes = (
       <Route path="/competitions-view-details/:competitionId" element={<CompetitionsViewDetails />} />
       <Route path="/competitions-view-details" element={<CompetitionsViewDetails />} />
       <Route path="/competition-list/:eventId" element={<CompetitionListPage />} />
-      <Route path="/competition-register" element={<CompetitionRegisterPage />} />
+      <Route path="/competition-register" element={<CompetitionRegistration />} />
       <Route path="/profile" element={<ProfilePage />} />
       <Route path="/edit-profile" element={<EditProfile />} />
       <Route path="/booking" element={<Booking />} />
@@ -94,8 +108,11 @@ export const publicRoutes = (
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       <Route path="/contact-us" element={<ContactUs />} />
       <Route path="/refunds-and-cancellations" element={<RefundsAndCancellations />} />
+      <Route path="/shipping-policy" element={<ShippingPolicy />} />
+      <Route path="/delete-account" element={<DeleteAccount />} />
       <Route path="/products-and-services" element={<ProductsAndServices />} />
       <Route path="/about" element={<About />} />
+      <Route path="/fest/:festId/register/:competitionSlug" element={<FestRegistration />} />
       <Route path="/fest/:festId/register" element={<FestRegistration />} />
       <Route path="/competition-registration/:competitionId" element={<CompetitionRegistration />} />
       <Route path="/registration-details/:registrationId" element={<RegistrationDetails />} />

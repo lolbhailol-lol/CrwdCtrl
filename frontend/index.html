@@ -4,11 +4,20 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <!-- Meta / Facebook domain verification (Business Manager) — must stay in static HTML head -->
+  <meta name="facebook-domain-verification" content="weewk6xhrjcl5tly1wv3gl8cgjxajo" />
 
   <!-- Theme before paint — same logic as DarkModeProvider -->
   <script>
     (function () {
       try {
+        var p = location.pathname || '';
+        var forceOrganizerDark = /^\/(event-community-organizer|run-club-organizer|trek-organizer|fest-organizer|event-organizer|mindspark-payments)(\/|$)/.test(p);
+        if (forceOrganizerDark) {
+          document.documentElement.classList.add('dark');
+          document.documentElement.dataset.organizerDark = '1';
+          return;
+        }
         var saved = localStorage.getItem('crwdctrl-theme');
         var dark = saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches);
         if (dark) document.documentElement.classList.add('dark');
@@ -16,17 +25,133 @@
     })();
   </script>
 
+  <!-- Shared trek/fest/club links: hide logo splash before paint (no lag on open).
+       Full refresh still shows the logo (see performance.navigation / Navigation Timing). -->
+  <script>
+    (function () {
+      try {
+        var p = location.pathname || '';
+        var ua = navigator.userAgent || '';
+        var hunt = /^\/campus-hunt(\/|$)/.test(p) || /^\/campus-hunt-volunteer(\/|$)/.test(p);
+        var offlineHunt = /^\/campus-hunt\/offline(\/|$)/.test(p);
+        if (offlineHunt) {
+          function swapHuntManifest() {
+            var links = document.querySelectorAll('link[rel="manifest"]');
+            for (var i = 0; i < links.length; i++) {
+              links[i].setAttribute('href', '/offline-hunt.webmanifest');
+            }
+            return links.length > 0;
+          }
+          if (!swapHuntManifest()) {
+            var obs = new MutationObserver(function () {
+              if (swapHuntManifest()) obs.disconnect();
+            });
+            obs.observe(document.documentElement, { childList: true, subtree: true });
+          }
+        }
+        var deep = /^\/trek(\/|$)/.test(p)
+          || /^\/treks\/community(\/|$)/.test(p)
+          || /^\/view-details(\/|$)/.test(p)
+          || /^\/competitions-view-details(\/|$)/.test(p)
+          || /^\/competition(\/|$)/.test(p)
+          || /^\/stall(\/|$)/.test(p)
+          || /^\/s(\/|$)/.test(p)
+          || /^\/sports\/run(\/|$)/.test(p)
+          || /^\/sports\/run-club(\/|$)/.test(p)
+          || /^\/events\/[^/]+/.test(p)
+          || /^\/events\/community-event(\/|$)/.test(p)
+          || /^\/event-community-organizer(\/|$)/.test(p)
+          || /^\/run-club-organizer(\/|$)/.test(p)
+          || hunt;
+        var isReload = false;
+        try {
+          var nav = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
+          isReload = (nav && nav.type === 'reload') || (performance.navigation && performance.navigation.type === 1);
+        } catch (e) {}
+        // Instagram / FB: never show boot splash — it commonly sticks as a black screen
+        var stuckSplash = /Instagram|FBAN|FBAV|FB_IAB|Messenger/i.test(ua);
+        if (stuckSplash || hunt) {
+          document.documentElement.classList.add('skip-boot-splash');
+        } else if (deep && !isReload) {
+          // WhatsApp / shared fest links: tiny logo, then the page — no black spinner
+          document.documentElement.classList.add('short-boot-splash');
+        }
+        if (p === '/' || p === '/dashboard') {
+          document.documentElement.dataset.homeHubLoading = '1';
+          document.body.classList.add('page-content-loading');
+        }
+      } catch (e) {}
+    })();
+  </script>
+
+  <!-- Google Analytics 4 (gtag.js) — activates only when VITE_GOOGLE_ANALYTICS_ID is set.
+       SPA page_view events are sent on route change from RouteTracker (send_page_view=false). -->
+  <script>
+    (function () {
+      var GA_ID = '%VITE_GOOGLE_ANALYTICS_ID%';
+      if (!GA_ID || GA_ID.indexOf('%VITE_') === 0) return;
+      window.dataLayer = window.dataLayer || [];
+      window.gtag = function () { window.dataLayer.push(arguments); };
+      window.gtag('js', new Date());
+      window.gtag('config', GA_ID, { send_page_view: false });
+      var s = document.createElement('script');
+      s.async = true;
+      s.src = 'https://www.googletagmanager.com/gtag/js?id=' + GA_ID;
+      document.head.appendChild(s);
+    })();
+  </script>
+
   <!-- Primary SEO -->
   <title>CrwdCtrl — Discover fests, clubs &amp; events</title>
+  <script>
+    (function () {
+      try {
+        var p = location.pathname || '';
+        var pageTitle = '';
+        var pageDesc = '';
+        if (p === '/event-community-organizer/login') {
+          pageTitle = 'Community Organizer Login';
+          pageDesc = 'Sign in to manage your event community — guests, check-ins and notifications.';
+        } else if (p === '/event-community-organizer/signup') {
+          pageTitle = 'Community Organizer Signup';
+          pageDesc = 'Create your event community organizer account on CrwdCtrl.';
+        } else if (/^\/event-community-organizer(\/|$)/.test(p)) {
+          pageTitle = 'Community Organizer';
+          pageDesc = 'Manage your event community dashboard on CrwdCtrl.';
+        } else if (p === '/run-club-organizer/login') {
+          pageTitle = 'Club Manager Login';
+          pageDesc = 'Sign in to manage your run club — participants, check-ins and updates.';
+        } else if (p === '/run-club-organizer/signup') {
+          pageTitle = 'Club Manager Signup';
+          pageDesc = 'Create your run club manager account on CrwdCtrl.';
+        } else if (/^\/run-club-organizer(\/|$)/.test(p)) {
+          pageTitle = 'Club Manager';
+          pageDesc = 'Manage your run club dashboard on CrwdCtrl.';
+        }
+        if (!pageTitle) return;
+        var full = pageTitle + ' | CrwdCtrl';
+        document.title = full;
+        function setMeta(sel, content) {
+          var el = document.querySelector(sel);
+          if (el && content) el.setAttribute('content', content);
+        }
+        setMeta('meta[property="og:title"]', full);
+        setMeta('meta[name="twitter:title"]', full);
+        setMeta('meta[name="description"]', pageDesc);
+        setMeta('meta[property="og:description"]', pageDesc);
+        setMeta('meta[name="twitter:description"]', pageDesc);
+        setMeta('meta[name="apple-mobile-web-app-title"]', pageTitle);
+      } catch (e) {}
+    })();
+  </script>
   <meta name="description" content="CrwdCtrl helps you find college fests, tech and sports events, running clubs, gym communities, and meetups near you." />
   <meta name="application-name" content="CrwdCtrl" />
   <meta name="color-scheme" content="light dark" />
   <link rel="canonical" href="https://www.crwdctrl.in/" />
 
-  <!-- Favicon / site icon (shown in Google Search results) -->
-  <link rel="icon" type="image/png" href="/favicon.png" sizes="48x48" />
-  <link rel="icon" type="image/png" href="/icon-192x192.png" sizes="192x192" />
-  <link rel="icon" type="image/png" href="/icon-512x512.png" sizes="512x512" />
+  <!-- Favicon: PNG first (reliable), ICO for browsers/crawlers that request /favicon.ico -->
+  <link rel="icon" type="image/png" sizes="192x192" href="/favicon.png" />
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
   <link rel="apple-touch-icon" href="/icon-192x192.png" />
 
   <!-- Open Graph / social -->
@@ -59,21 +184,47 @@
         "@type": "Organization",
         "@id": "https://www.crwdctrl.in/#organization",
         "name": "CrwdCtrl",
+        "legalName": "KARAN BAPURAO JADHAV",
         "alternateName": ["crwdctrl", "Crwd Ctrl"],
         "url": "https://www.crwdctrl.in",
         "logo": {
           "@type": "ImageObject",
-          "url": "https://www.crwdctrl.in/logo-crwdctrl.png",
+          "url": "https://www.crwdctrl.in/icon-512x512.png",
           "width": 512,
           "height": 512
-        }
+        },
+        "description": "CrwdCtrl is an Indian community and event discovery platform to find and register for college fests, competitions, tech and sports events, running clubs, gym communities, treks and local meetups.",
+        "slogan": "Discover fests, clubs & events near you",
+        "email": "crwdctrl.work@gmail.com",
+        "telephone": "+91-7006225981",
+        "areaServed": { "@type": "Country", "name": "India" },
+        "knowsAbout": [
+          "College fests",
+          "Cultural festivals",
+          "Technical festivals",
+          "Sports events",
+          "Running clubs",
+          "Gym communities",
+          "Treks and adventure",
+          "Student events and meetups"
+        ],
+        "contactPoint": {
+          "@type": "ContactPoint",
+          "email": "crwdctrl.work@gmail.com",
+          "telephone": "+91-7006225981",
+          "contactType": "customer support",
+          "areaServed": "IN",
+          "availableLanguage": ["English", "Hindi"]
+        },
+        "sameAs": ["https://www.instagram.com/crwdctrl.in"]
       },
       {
         "@type": "WebSite",
         "@id": "https://www.crwdctrl.in/#website",
         "url": "https://www.crwdctrl.in",
         "name": "CrwdCtrl",
-        "description": "Discover college fests, sports events, running clubs, and student communities.",
+        "description": "Discover college fests, sports events, running clubs, treks and student communities near you.",
+        "inLanguage": "en-IN",
         "publisher": { "@id": "https://www.crwdctrl.in/#organization" }
       }
     ]
@@ -85,16 +236,6 @@
   <meta http-equiv="Cross-Origin-Embedder-Policy" content="unsafe-none" />
   <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
   <meta http-equiv="X-Content-Type-Options" content="nosniff" />
-
-  <!-- Category nav icons — tiny WebP (~50 KB total); fetch during boot splash -->
-  <link rel="preload" as="image" type="image/webp" href="/category-icons/fests-light.webp" />
-  <link rel="preload" as="image" type="image/webp" href="/category-icons/sports-light.webp" />
-  <link rel="preload" as="image" type="image/webp" href="/category-icons/treks-light.webp" />
-  <link rel="preload" as="image" type="image/webp" href="/category-icons/events-light.webp" />
-  <link rel="preload" as="image" type="image/webp" href="/category-icons/fests-dark.webp" />
-  <link rel="preload" as="image" type="image/webp" href="/category-icons/sports-dark.webp" />
-  <link rel="preload" as="image" type="image/webp" href="/category-icons/treks-dark.webp" />
-  <link rel="preload" as="image" type="image/webp" href="/category-icons/events-dark.webp" />
 
   <!-- Poppins — app-wide font -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -113,21 +254,26 @@
       min-height: 100dvh;
     }
     html.dark, html.dark body { background: #161718; }
+    html[data-organizer-dark="1"],
+    html[data-organizer-dark="1"] body { background: #0f1011; color-scheme: dark; }
+    html[data-organizer-dark="1"] #boot-splash { background: #161718; }
 
-    /* Boot logo — five vertical slices converge (classy) */
-    @keyframes bootSliceMerge {
-      from {
-        opacity: 0;
-        transform: translate3d(var(--boot-slice-x, 0), var(--boot-slice-y, 8%), 0);
-      }
-      to {
-        opacity: 1;
-        transform: translate3d(0, 0, 0);
-      }
+    /* Crawlable no-JS content lives in #root for SEO/answer engines.
+       Hidden for real (JS) users — React replaces #root and the boot splash
+       covers it meanwhile. Revealed only when JS is disabled (see <noscript>). */
+    #seo-fallback { display: none; }
+
+    /* Boot logo — compact 3D ctrl. mark */
+    @keyframes bootLoaderYaw {
+      0%, 100% { transform: rotateX(16deg) rotateY(-32deg) translateY(0); }
+      50% { transform: rotateX(10deg) rotateY(32deg) translateY(-7px); }
     }
-    @keyframes bootLogoSettle {
-      from { transform: scale(1.02); opacity: 0.96; }
-      to { transform: scale(1); opacity: 1; }
+    @keyframes bootLoaderPulse {
+      0%, 100% { opacity: 0.45; transform: scale(0.92); }
+      50% { opacity: 0.9; transform: scale(1.05); }
+    }
+    @keyframes bootLoaderOrbit {
+      to { transform: rotateX(68deg) rotateZ(360deg); }
     }
     #boot-splash {
       position: fixed;
@@ -142,6 +288,12 @@
     html.dark #boot-splash {
       background: #161718;
     }
+    html.skip-boot-splash #boot-splash {
+      display: none !important;
+    }
+    html.skip-boot-splash #boot-fallback {
+      display: none !important;
+    }
     .boot-splash-inner {
       display: flex;
       align-items: center;
@@ -149,63 +301,82 @@
       position: relative;
       z-index: 1;
     }
-    .boot-logo-assemble {
-      --boot-slice-count: 5;
-      --boot-logo-size: clamp(9.5rem, 54vw, 13rem);
-      display: flex;
-      width: var(--boot-logo-size);
-      height: var(--boot-logo-size);
-      animation: bootLogoSettle 0.28s cubic-bezier(0.22, 1, 0.36, 1) 0.36s both;
+    .boot-3d-stage {
+      position: relative;
+      width: 7.85rem;
+      height: 7.85rem;
+      perspective: 960px;
     }
-    .boot-logo-slice {
-      flex: 1 1 0;
-      min-width: 0;
-      height: 100%;
-      overflow: hidden;
-      opacity: 0;
-      animation: bootSliceMerge 0.5s cubic-bezier(0.22, 1, 0.36, 1) var(--boot-slice-delay, 0s) forwards;
+    .boot-3d-orb {
+      position: absolute;
+      inset: 8%;
+      border-radius: 9999px;
+      background: radial-gradient(circle at 35% 30%, rgba(14, 204, 238, 0.35), transparent 65%);
+      filter: blur(6px);
+      animation: bootLoaderPulse 2.2s ease-in-out infinite;
     }
-    .boot-logo-slice img {
-      display: block;
-      width: calc(var(--boot-slice-count) * 100%);
+    .boot-3d-ring {
+      position: absolute;
+      inset: 14%;
+      border-radius: 9999px;
+      border: 1.5px solid rgba(14, 204, 238, 0.12);
+      border-top-color: rgba(14, 204, 238, 0.9);
+      border-right-color: rgba(124, 92, 255, 0.35);
+      transform: rotateX(68deg);
+      animation: bootLoaderOrbit 2.6s linear infinite;
+    }
+    .boot-3d-extrude {
+      position: absolute;
+      inset: 0;
+      margin: auto;
+      width: 5rem;
+      height: 5rem;
+      transform-style: preserve-3d;
+      animation: bootLoaderYaw 4.4s ease-in-out infinite;
+    }
+    .boot-3d-glass {
+      position: absolute;
+      inset: 6%;
+      border-radius: 1.05rem;
+      background: linear-gradient(145deg, rgba(28, 30, 34, 0.92) 0%, rgba(10, 11, 14, 0.96) 100%);
+      border: 1px solid rgba(14, 204, 238, 0.32);
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4), 0 0 22px rgba(14, 204, 238, 0.12);
+      transform: translateZ(-10px);
+    }
+    .boot-3d-layer {
+      position: absolute;
+      inset: 0;
+      width: 100%;
       height: 100%;
-      max-width: none;
       object-fit: contain;
-      image-rendering: -webkit-optimize-contrast;
       pointer-events: none;
-      -webkit-user-select: none;
-      user-select: none;
-      margin-left: calc(var(--boot-slice-index) * -100%);
+      mix-blend-mode: screen;
+      transform: translateZ(calc(var(--layer, 0) * -1.4px)) scale(1.08);
     }
-    .boot-logo-slice:nth-child(1) {
-      --boot-slice-index: 0;
-      --boot-slice-x: -16%;
-      --boot-slice-y: 3%;
-      --boot-slice-delay: 0s;
+    .boot-3d-layer--front {
+      mix-blend-mode: screen;
+      filter: drop-shadow(0 0 10px rgba(14, 204, 238, 0.4));
+      transform: translateZ(2px) scale(1.08);
     }
-    .boot-logo-slice:nth-child(2) {
-      --boot-slice-index: 1;
-      --boot-slice-x: -9%;
-      --boot-slice-y: -2%;
-      --boot-slice-delay: 0.03s;
+    /* Light: white plate + one crisp mark layer (hide depth stack that muddies ctrl.) */
+    html:not(.dark) .boot-3d-glass {
+      background: #ffffff;
+      border: 1.5px solid rgba(14, 204, 238, 0.55);
+      box-shadow: 0 12px 28px rgba(14, 204, 238, 0.12), 0 4px 14px rgba(0, 0, 0, 0.06);
     }
-    .boot-logo-slice:nth-child(3) {
-      --boot-slice-index: 2;
-      --boot-slice-x: 0%;
-      --boot-slice-y: 7%;
-      --boot-slice-delay: 0.06s;
+    html:not(.dark) .boot-3d-layer {
+      display: none;
     }
-    .boot-logo-slice:nth-child(4) {
-      --boot-slice-index: 3;
-      --boot-slice-x: 9%;
-      --boot-slice-y: -2%;
-      --boot-slice-delay: 0.09s;
+    html:not(.dark) .boot-3d-layer--front {
+      display: block;
+      mix-blend-mode: normal;
+      opacity: 1;
+      filter: drop-shadow(0 2px 8px rgba(14, 204, 238, 0.28));
+      transform: translateZ(2px) scale(1.08);
+      image-rendering: -webkit-optimize-contrast;
     }
-    .boot-logo-slice:nth-child(5) {
-      --boot-slice-index: 4;
-      --boot-slice-x: 16%;
-      --boot-slice-y: 3%;
-      --boot-slice-delay: 0.12s;
+    html:not(.dark) .boot-3d-orb {
+      background: radial-gradient(circle at 35% 30%, rgba(14, 204, 238, 0.16), transparent 65%);
     }
     #boot-fallback {
       position: fixed;
@@ -219,7 +390,7 @@
       padding: 1.5rem;
       text-align: center;
       font-family: Poppins, system-ui, sans-serif;
-      background: #fff;
+      background: #ffffff;
       color: #111;
     }
     #boot-fallback[hidden] {
@@ -249,36 +420,95 @@
       pointer-events: none;
     }
     @media (prefers-reduced-motion: reduce) {
-      .boot-logo-assemble { animation: none; transform: none; opacity: 1; }
-      .boot-logo-slice { animation: none; opacity: 1; transform: none; }
+      .boot-3d-extrude, .boot-3d-orb, .boot-3d-ring { animation: none; }
+      .boot-3d-extrude { transform: rotateX(12deg) rotateY(-18deg); }
+      .boot-3d-ring { transform: rotateX(68deg); }
     }
   </style>
+
+  <!-- When JS is disabled, hide the splash and show the crawlable fallback. -->
+  <noscript>
+    <style>
+      #boot-splash, #boot-fallback { display: none !important; }
+      #seo-fallback {
+        display: block !important;
+        max-width: 48rem;
+        margin: 0 auto;
+        padding: 2rem 1.25rem;
+        font-family: Poppins, system-ui, -apple-system, sans-serif;
+        line-height: 1.6;
+      }
+      #seo-fallback h1 { font-size: 1.6rem; }
+      #seo-fallback a { color: #0a9fb8; }
+    </style>
+  </noscript>
 </head>
 
 <body>
   <div id="boot-splash" aria-hidden="true">
     <div class="boot-splash-inner">
-      <div class="boot-logo-assemble">
-        <div class="boot-logo-slice">
-          <img src="/crwdctrl-mark.png" alt="" width="500" height="500" decoding="sync" />
-        </div>
-        <div class="boot-logo-slice">
-          <img src="/crwdctrl-mark.png" alt="" width="500" height="500" decoding="sync" />
-        </div>
-        <div class="boot-logo-slice">
-          <img src="/crwdctrl-mark.png" alt="" width="500" height="500" decoding="sync" />
-        </div>
-        <div class="boot-logo-slice">
-          <img src="/crwdctrl-mark.png" alt="" width="500" height="500" decoding="sync" />
-        </div>
-        <div class="boot-logo-slice">
-          <img src="/crwdctrl-mark.png" alt="" width="500" height="500" decoding="sync" />
+      <div class="boot-3d-stage">
+        <div class="boot-3d-orb"></div>
+        <div class="boot-3d-ring"></div>
+        <div class="boot-3d-extrude">
+          <div class="boot-3d-glass"></div>
+          <img class="boot-3d-layer boot-3d-layer--front" src="/crwdctrl-mark.png" data-mark-dark="/crwdctrl-mark.png" data-mark-light="/crwdctrl-mark-light.png" alt="" width="500" height="500" decoding="sync" style="--layer:0" />
+          <img class="boot-3d-layer" src="/crwdctrl-mark.png" data-mark-dark="/crwdctrl-mark.png" data-mark-light="/crwdctrl-mark-light.png" alt="" width="500" height="500" decoding="sync" style="--layer:1" />
+          <img class="boot-3d-layer" src="/crwdctrl-mark.png" data-mark-dark="/crwdctrl-mark.png" data-mark-light="/crwdctrl-mark-light.png" alt="" width="500" height="500" decoding="sync" style="--layer:2" />
+          <img class="boot-3d-layer" src="/crwdctrl-mark.png" data-mark-dark="/crwdctrl-mark.png" data-mark-light="/crwdctrl-mark-light.png" alt="" width="500" height="500" decoding="sync" style="--layer:3" />
+          <img class="boot-3d-layer" src="/crwdctrl-mark.png" data-mark-dark="/crwdctrl-mark.png" data-mark-light="/crwdctrl-mark-light.png" alt="" width="500" height="500" decoding="sync" style="--layer:4" />
+          <img class="boot-3d-layer" src="/crwdctrl-mark.png" data-mark-dark="/crwdctrl-mark.png" data-mark-light="/crwdctrl-mark-light.png" alt="" width="500" height="500" decoding="sync" style="--layer:5" />
+          <img class="boot-3d-layer" src="/crwdctrl-mark.png" data-mark-dark="/crwdctrl-mark.png" data-mark-light="/crwdctrl-mark-light.png" alt="" width="500" height="500" decoding="sync" style="--layer:6" />
         </div>
       </div>
     </div>
   </div>
-  <div id="root"></div>
-  <div id="boot-fallback" hidden aria-live="polite">
+  <div id="root"><!--seo-fallback--><div id="seo-fallback">
+    <h1>CrwdCtrl — Discover college fests, clubs &amp; events near you</h1>
+    <p>CrwdCtrl is an Indian community and event discovery platform where you can find and register for college fests, competitions, tech and sports events, running clubs, gym communities, treks, and local meetups near you. Browsing is free — some events charge their own registration or ticket fee, always shown before you register.</p>
+    <section>
+      <h2>College Fests</h2>
+      <p>Discover and register for college fests across India — cultural fests (music, dance, drama, fashion and art), technical fests (hackathons, coding and robotics competitions) and sports fests (tournaments and athletic meets).</p>
+      <p><a href="/fests">Browse college fests</a></p>
+    </section>
+    <section>
+      <h2>Treks &amp; Adventure Communities</h2>
+      <p>Find day hikes, weekend treks, backpacking trips and camping outings run by verified trekking communities, with difficulty level and duration shown on every listing.</p>
+      <p><a href="/treks">Browse treks &amp; communities</a></p>
+    </section>
+    <section>
+      <h2>Sports, Running Clubs &amp; Gym Communities</h2>
+      <p>Join running clubs, runs and marathons, gym communities and sports events near you. Many running clubs are beginner friendly and list their upcoming sessions.</p>
+      <p><a href="/sports">Browse sports &amp; clubs</a></p>
+    </section>
+    <section>
+      <h2>Events, Shows &amp; Meetups</h2>
+      <p>Browse concerts, stand-up comedy, workshops and community meetups happening near you, and book tickets in a tap.</p>
+      <p><a href="/events">Browse events &amp; shows</a></p>
+    </section>
+    <nav aria-label="Explore CrwdCtrl">
+      <h2>Explore CrwdCtrl</h2>
+      <ul>
+        <li><a href="/fests">College Fests — cultural, technical &amp; sports</a></li>
+        <li><a href="/treks">Treks &amp; Adventure Communities</a></li>
+        <li><a href="/sports">Sports, Running Clubs &amp; Gym Communities</a></li>
+        <li><a href="/events">Events, Shows &amp; Meetups</a></li>
+        <li><a href="/list-your-fest">List your fest or event</a></li>
+        <li><a href="/about">About CrwdCtrl</a></li>
+        <li><a href="/contact-us">Contact us</a></li>
+      </ul>
+    </nav>
+    <section>
+      <h2>Frequently asked questions</h2>
+      <h3>What is CrwdCtrl?</h3>
+      <p>CrwdCtrl is a community and event discovery platform to find and register for college fests, tech and sports events, running clubs, gym communities, treks, and local meetups near you.</p>
+      <h3>Is CrwdCtrl free to use?</h3>
+      <p>Yes. Browsing and discovering events on CrwdCtrl is free. Some individual events or fests may charge their own registration or ticket fee, which is shown on each event page.</p>
+      <h3>How do I register for a college fest on CrwdCtrl?</h3>
+      <p>Open the fest you are interested in, review the details and competitions, then tap Register and complete the form. You receive a confirmation and a QR ticket where applicable.</p>
+    </section>
+  </div><!--/seo-fallback--></div>
+  <div id="boot-fallback" hidden aria-hidden="true" aria-live="polite">
     <p>CrwdCtrl is loading…</p>
     <button type="button" id="boot-fallback-reload">Reload app</button>
   </div>
@@ -290,6 +520,19 @@
       var RECOVER_KEY = 'crwdctrl_boot_recover';
       var fallback = document.getElementById('boot-fallback');
       var reloadBtn = document.getElementById('boot-fallback-reload');
+      var skipSplash = document.documentElement.classList.contains('skip-boot-splash');
+      var shortSplash = document.documentElement.classList.contains('short-boot-splash');
+
+      (function syncBootMarks() {
+        var dark = document.documentElement.classList.contains('dark');
+        var layers = document.querySelectorAll('#boot-splash img.boot-3d-layer[data-mark-light]');
+        for (var i = 0; i < layers.length; i++) {
+          var el = layers[i];
+          el.src = dark
+            ? (el.getAttribute('data-mark-dark') || '/crwdctrl-mark.png')
+            : (el.getAttribute('data-mark-light') || '/crwdctrl-mark-light.png');
+        }
+      })();
 
       function showFallback() {
         if (!fallback || fallback.hidden === false) return;
@@ -297,27 +540,61 @@
         fallback.style.background = dark ? '#161718' : '#ffffff';
         fallback.style.color = dark ? '#ffffff' : '#111111';
         fallback.hidden = false;
+        fallback.setAttribute('aria-hidden', 'false');
       }
 
       function hideFallback() {
-        if (fallback) fallback.hidden = true;
+        if (fallback) {
+          fallback.hidden = true;
+          fallback.setAttribute('aria-hidden', 'true');
+        }
       }
 
       if (reloadBtn) {
         reloadBtn.addEventListener('click', function () {
-          try { sessionStorage.removeItem(RECOVER_KEY); } catch (e) {}
-          window.location.reload();
+          try {
+            sessionStorage.removeItem(RECOVER_KEY);
+            sessionStorage.removeItem('crwdctrl_chunk_reload');
+            sessionStorage.removeItem('crwdctrl_stale_recover_at');
+          } catch (e) {}
+          var cleanup = ('caches' in window)
+            ? caches.keys().then(function (keys) {
+                return Promise.all(keys.map(function (key) { return caches.delete(key); }));
+              })
+            : Promise.resolve();
+          cleanup.finally(function () {
+            if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.getRegistrations()
+                .then(function (regs) {
+                  return Promise.all(regs.map(function (reg) { return reg.unregister(); }));
+                })
+                .finally(reloadFresh);
+            } else {
+              reloadFresh();
+            }
+          });
         });
       }
 
       function dismissBootSplash() {
         var el = document.getElementById('boot-splash');
-        if (!el || el.dataset.removing === '1') return;
+        if (!el) return;
+        if (skipSplash) {
+          el.remove();
+          return;
+        }
+        if (el.dataset.removing === '1') return;
         el.dataset.removing = '1';
         el.classList.add('boot-splash-out');
         var remove = function () { el.remove(); };
         el.addEventListener('transitionend', remove, { once: true });
         setTimeout(remove, FADE_MS + 80);
+      }
+
+      if (skipSplash) {
+        dismissBootSplash();
+      } else if (shortSplash) {
+        setTimeout(dismissBootSplash, 1100);
       }
 
       function reloadFresh() {
@@ -328,7 +605,20 @@
 
       function recoverStaleDeploy() {
         try {
+          if (!navigator.onLine) {
+            showFallback();
+            return;
+          }
+          if (/^\/campus-hunt\/offline(\/|$)/.test(location.pathname || '')) {
+            return;
+          }
+          if (window.__crwdctrlAppReady) {
+            sessionStorage.removeItem(RECOVER_KEY);
+            hideFallback();
+            return;
+          }
           if (sessionStorage.getItem(RECOVER_KEY)) {
+            // Already retried once — show reload UI instead of looping forever (Safari PWA).
             showFallback();
             return;
           }
@@ -366,18 +656,29 @@
 
       setTimeout(function () {
         var root = document.getElementById('root');
+        if (window.__crwdctrlAppReady || (root && root.querySelector('[data-crwdctrl-app]'))) {
+          hideFallback();
+          dismissBootSplash();
+          return;
+        }
         if (root && root.childNodes.length) {
           hideFallback();
           return;
         }
+        if (skipSplash) return;
         showFallback();
         recoverStaleDeploy();
       }, 3200);
 
       new MutationObserver(function () {
         var root = document.getElementById('root');
-        if (root && root.childNodes.length) hideFallback();
-      }).observe(document.getElementById('root'), { childList: true });
+        if (window.__crwdctrlAppReady || (root && root.querySelector('[data-crwdctrl-app]'))) {
+          hideFallback();
+          dismissBootSplash();
+        } else if (root && root.childNodes.length) {
+          hideFallback();
+        }
+      }).observe(document.getElementById('root'), { childList: true, subtree: true });
     })();
   </script>
   <script type="module" src="/src/main.jsx"></script>

@@ -6,16 +6,84 @@ const { createNotification } = require('./notificationController');
 const { sendPushNotification } = require('../services/pushService');
 const { getJwtSecret } = require('../config/jwtSecret');
 const { resolveFirebaseIdentity } = require('../utils/firebaseIdentity');
+const { scheduleWelcomeWhatsApp } = require('../utils/welcomeWhatsApp');
 
-// Generate JWT Token
-const generateToken = (userId) => {
-    return jwt.sign({ userId }, getJwtSecret(), {
-        expiresIn: '7d',
+// Generate JWT Token (optional hunt claims survive refresh for stay-logged-in)
+const generateToken = (userId, extraClaims = {}) => {
+    const claims = { userId };
+    if (extraClaims.huntTeamId) {
+        claims.huntTeamId = String(extraClaims.huntTeamId);
+        if (extraClaims.huntEventId) claims.huntEventId = String(extraClaims.huntEventId);
+        if (extraClaims.huntRole) claims.huntRole = String(extraClaims.huntRole);
+    }
+    return jwt.sign(claims, getJwtSecret(), {
+        expiresIn: process.env.USER_JWT_EXPIRES_IN || process.env.JWT_EXPIRES_IN || '30d',
     });
+};
+
+// Use Express-trusted IP (respects trust proxy setting)
+const getClientIp = (req) => req.ip || req.socket?.remoteAddress || '';
+
+const { recordUserLoginLog } = require('../services/userActivityService');
+
+const LOGIN_NOTIFY_COOLDOWN_MS = 5 * 60 * 1000;
+const lastLoginNotifyAt = new Map();
+
+// Persist login metadata without blocking the auth response
+const recordLogin = (userId, req, method, userHint = null) => {
+    User.updateOne(
+        { _id: userId },
+        {
+            $set: {
+                lastLoginAt: new Date(),
+                lastLoginIp: getClientIp(req),
+                lastLoginUserAgent: (req.headers['user-agent'] || '').slice(0, 300),
+                lastLoginMethod: method,
+            },
+            $inc: { loginCount: 1 },
+        },
+    ).catch((error) => {
+        console.error('❌ Failed to record login metadata:', error.message);
+    });
+
+    const email = userHint?.email || '';
+    const name = userHint?.name || '';
+    if (email || name) {
+        recordUserLoginLog({
+            userId,
+            email,
+            name,
+            method,
+            req,
+            sessionId: req.body?.sessionId || null,
+        });
+        return;
+    }
+
+    User.findById(userId).select('email name').lean()
+        .then((user) => {
+            if (!user) return;
+            return recordUserLoginLog({
+                userId,
+                email: user.email,
+                name: user.name,
+                method,
+                req,
+                sessionId: req.body?.sessionId || null,
+            });
+        })
+        .catch((error) => {
+            console.error('❌ Failed to record login log:', error.message);
+        });
 };
 
 const notifyLoginSuccess = async (user) => {
     if (!user || !user._id) return;
+
+    const userKey = String(user._id);
+    const last = lastLoginNotifyAt.get(userKey) || 0;
+    if (Date.now() - last < LOGIN_NOTIFY_COOLDOWN_MS) return;
+    lastLoginNotifyAt.set(userKey, Date.now());
 
     try {
         await createNotification({
@@ -42,7 +110,17 @@ const notifyLoginSuccess = async (user) => {
 // Register function
 const register = async (req, res) => {
     try {
-        const { name, email, phoneNumber, password, role, college, firebaseUid, isVerified, idToken } = req.body;
+        const body = req.body && typeof req.body === 'object' ? req.body : {};
+        const name = typeof body.name === 'string' ? body.name.trim() : '';
+        const email = typeof body.email === 'string' ? body.email.trim() : '';
+        const phoneNumber = typeof body.phoneNumber === 'string' ? body.phoneNumber.trim() : '';
+        const password = typeof body.password === 'string' ? body.password : '';
+        const college = typeof body.college === 'string' ? body.college.trim() : '';
+        const firebaseUid = typeof body.firebaseUid === 'string' ? body.firebaseUid.trim() : '';
+        const idToken = typeof body.idToken === 'string' ? body.idToken : '';
+        const isVerified = Boolean(body.isVerified);
+        // Never trust client role — public signup is always student
+        const role = 'student';
 
         let verifiedFirebaseUid = null;
         let verifiedFromFirebase = false;
@@ -139,9 +217,10 @@ const register = async (req, res) => {
         const userData = {
             name,
             password,
-            role: role || 'student',
+            role,
             // Security: isVerified only from Firebase token when linked, not client body
             isVerified: verifiedFirebaseUid ? verifiedFromFirebase : Boolean(isVerified),
+            signupMethod: verifiedFirebaseUid ? 'firebase' : 'password',
         };
 
         // Add college if provided
@@ -154,13 +233,13 @@ const register = async (req, res) => {
         }
 
         // Add email only if provided and not empty
-        if (email && email.trim()) {
-            userData.email = email.trim();
+        if (email) {
+            userData.email = email;
         }
 
         // Add phone number only if provided and not empty
-        if (phoneNumber && phoneNumber.trim()) {
-            userData.phoneNumber = phoneNumber.trim();
+        if (phoneNumber) {
+            userData.phoneNumber = phoneNumber;
         }
 
         const user = new User(userData);
@@ -169,6 +248,8 @@ const register = async (req, res) => {
 
         // Generate JWT token
         const token = generateToken(user._id);
+
+        recordLogin(user._id, req, verifiedFirebaseUid ? 'firebase' : 'password', user);
 
         // Remove password from response
         const userResponse = user.toObject();
@@ -193,6 +274,8 @@ const register = async (req, res) => {
             });
         }
 
+        scheduleWelcomeWhatsApp(user);
+
         res.status(201).json({
             success: true,
             message: 'User registered successfully',
@@ -214,11 +297,16 @@ const register = async (req, res) => {
 // Login function
 const login = async (req, res) => {
     try {
-        const { email, phoneNumber, password, firebaseUid, idToken } = req.body;
+        const body = req.body && typeof req.body === 'object' ? req.body : {};
+        const email = typeof body.email === 'string' ? body.email.trim() : '';
+        const phoneNumber = typeof body.phoneNumber === 'string' ? body.phoneNumber.trim() : '';
+        const password = typeof body.password === 'string' ? body.password : '';
+        const firebaseUid = typeof body.firebaseUid === 'string' ? body.firebaseUid.trim() : '';
+        const idToken = typeof body.idToken === 'string' ? body.idToken : '';
 
-        if (firebaseUid?.trim()) {
+        if (firebaseUid) {
             try {
-                await resolveFirebaseIdentity({ idToken, clientUid: firebaseUid.trim() });
+                await resolveFirebaseIdentity({ idToken, clientUid: firebaseUid });
             } catch (identityErr) {
                 return res.status(identityErr.status || 401).json({
                     success: false,
@@ -237,14 +325,14 @@ const login = async (req, res) => {
 
         // Create query to find user by email, phone number, or Firebase UID
         const userQueryOptions = [];
-        if (email && email.trim()) {
-            userQueryOptions.push({ email: email.trim() });
+        if (email) {
+            userQueryOptions.push({ email });
         }
-        if (phoneNumber && phoneNumber.trim()) {
-            userQueryOptions.push({ phoneNumber: phoneNumber.trim() });
+        if (phoneNumber) {
+            userQueryOptions.push({ phoneNumber });
         }
-        if (firebaseUid && firebaseUid.trim()) {
-            userQueryOptions.push({ firebaseUid: firebaseUid.trim() });
+        if (firebaseUid) {
+            userQueryOptions.push({ firebaseUid });
         }
 
         if (userQueryOptions.length === 0) {
@@ -254,14 +342,21 @@ const login = async (req, res) => {
             });
         }
 
-        // Check if user exists
+        // Check if user exists. `password` is select:false — opt in for compare().
         const user = await User.findOne({
             $or: userQueryOptions
-        });
+        }).select('+password');
         if (!user) {
             return res.status(401).json({
                 success: false,
                 message: 'Invalid credentials',
+            });
+        }
+
+        if (user.isDeleted) {
+            return res.status(403).json({
+                success: false,
+                message: 'This account has been deleted. Please create a new account to continue.',
             });
         }
 
@@ -276,6 +371,8 @@ const login = async (req, res) => {
 
         // Generate JWT token
         const token = generateToken(user._id);
+
+        recordLogin(user._id, req, firebaseUid ? 'firebase' : 'password', user);
 
         // Remove password from response
         const userResponse = user.toObject();
@@ -294,6 +391,8 @@ const login = async (req, res) => {
         }
 
         await notifyLoginSuccess(user);
+
+        scheduleWelcomeWhatsApp(user);
 
         res.status(200).json({
             success: true,
@@ -317,7 +416,7 @@ const login = async (req, res) => {
 const getUserProfile = async (req, res) => {
     try {
         const user = await User.findById(req.user.userId).select('-password');
-        if (!user) {
+        if (!user || user.isDeleted) {
             return res.status(404).json({
                 success: false,
                 message: 'User not found',
@@ -380,7 +479,7 @@ const socialAuth = async (req, res) => {
         }
 
         // Validate provider
-        const validProviders = ['google', 'facebook', 'twitter'];
+        const validProviders = ['google', 'facebook', 'twitter', 'apple'];
         if (!validProviders.includes(provider.toLowerCase())) {
             return res.status(400).json({
                 success: false,
@@ -450,15 +549,26 @@ const socialAuth = async (req, res) => {
             'socialAuth.providerId': trustedProviderId,
         });
 
+        if (existingUser && existingUser.isDeleted) {
+            return res.status(403).json({
+                success: false,
+                message: 'This account has been deleted. Please create a new account to continue.',
+            });
+        }
+
         if (existingUser) {
             // User already exists with this social auth, just generate token and login
             const token = generateToken(existingUser._id);
+
+            recordLogin(existingUser._id, req, provider.toLowerCase(), existingUser);
 
             // Remove password from response
             const userResponse = existingUser.toObject();
             delete userResponse.password;
 
             await notifyLoginSuccess(existingUser);
+
+            scheduleWelcomeWhatsApp(existingUser);
 
             return res.status(200).json({
                 success: true,
@@ -483,6 +593,13 @@ const socialAuth = async (req, res) => {
             existingUser = await User.findOne({
                 $or: existingUserQuery
             });
+
+            if (existingUser && existingUser.isDeleted) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'This account has been deleted. Please create a new account to continue.',
+                });
+            }
 
             if (existingUser) {
                 // Link social auth to existing account
@@ -512,11 +629,15 @@ const socialAuth = async (req, res) => {
                 // Generate JWT token
                 const token = generateToken(existingUser._id);
 
+                recordLogin(existingUser._id, req, provider.toLowerCase(), existingUser);
+
                 // Remove password from response
                 const userResponse = existingUser.toObject();
                 delete userResponse.password;
 
                 await notifyLoginSuccess(existingUser);
+
+                scheduleWelcomeWhatsApp(existingUser);
 
                 return res.status(200).json({
                     success: true,
@@ -533,6 +654,7 @@ const socialAuth = async (req, res) => {
         const userData = {
             name: name.trim(),
             role: role || 'student',
+            signupMethod: provider.toLowerCase(),
             socialAuth: {
                 provider: provider.toLowerCase(),
                 providerId: trustedProviderId,
@@ -568,6 +690,8 @@ const socialAuth = async (req, res) => {
         // Generate JWT token
         const token = generateToken(user._id);
 
+        recordLogin(user._id, req, provider.toLowerCase(), user);
+
         // Remove password from response
         const userResponse = user.toObject();
         delete userResponse.password;
@@ -590,6 +714,8 @@ const socialAuth = async (req, res) => {
                 // Log error but don't affect the registration response
             });
         }
+
+        scheduleWelcomeWhatsApp(user);
 
         res.status(201).json({
             success: true,
@@ -705,7 +831,21 @@ const updateUserProfile = async (req, res) => {
             updateData.phoneNumber = phoneNumber;
         }
         if (college !== undefined) updateData.college = college; // Allow empty string
-        if (profilePic) updateData.profilePic = profilePic;
+        if (profilePic !== undefined) {
+            if (!profilePic || profilePic === '') {
+                updateData.profilePic = '';
+            } else if (
+                /^https:\/\/res\.cloudinary\.com\//i.test(profilePic)
+                || /^https:\/\/[a-z0-9.-]+\.(cloudinary\.com|amazonaws\.com)\//i.test(profilePic)
+            ) {
+                updateData.profilePic = profilePic;
+            } else {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Profile photo must be a valid HTTPS image URL',
+                });
+            }
+        }
 
         // Handle date of birth
         if (dateOfBirth !== undefined) {
@@ -795,7 +935,7 @@ const validateToken = async (req, res) => {
         // If we reach here, token is valid
         const user = await User.findById(req.user.userId).select('-password');
         
-        if (!user) {
+        if (!user || user.isDeleted) {
             return res.status(401).json({
                 success: false,
                 message: 'User no longer exists',
@@ -821,6 +961,124 @@ const validateToken = async (req, res) => {
     }
 };
 
+/** Renew JWT for returning users (accepts recently expired tokens). */
+const refreshSession = async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader?.startsWith('Bearer ')) {
+            return res.status(401).json({ success: false, message: 'Access token is required' });
+        }
+
+        const rawToken = authHeader.substring(7);
+        let decoded;
+        try {
+            decoded = jwt.verify(rawToken, getJwtSecret(), { ignoreExpiration: true });
+        } catch {
+            return res.status(401).json({ success: false, message: 'Session expired — please log in again' });
+        }
+
+        if (!decoded.userId) {
+            return res.status(401).json({ success: false, message: 'Session expired — please log in again' });
+        }
+
+        const now = Math.floor(Date.now() / 1000);
+        const maxStaleSec = 90 * 24 * 60 * 60;
+        if (decoded.exp && now - decoded.exp > maxStaleSec) {
+            return res.status(401).json({ success: false, message: 'Session expired — please log in again' });
+        }
+
+        const user = await User.findById(decoded.userId).select('-password');
+        if (!user || user.isDeleted) {
+            return res.status(401).json({ success: false, message: 'User no longer exists' });
+        }
+
+        const newToken = generateToken(user._id, {
+            huntTeamId: decoded.huntTeamId,
+            huntEventId: decoded.huntEventId,
+            huntRole: decoded.huntRole,
+        });
+        res.status(200).json({
+            success: true,
+            message: 'Session refreshed',
+            data: {
+                token: newToken,
+                user: {
+                    id: user._id,
+                    name: user.name,
+                    email: user.email,
+                    phoneNumber: user.phoneNumber,
+                    role: user.role,
+                    profilePic: user.profilePic,
+                    college: user.college,
+                    provider: user.socialAuth?.provider || user.signupMethod || 'email',
+                    socialAuth: user.socialAuth,
+                },
+            },
+        });
+    } catch (error) {
+        console.error('Session refresh error:', error);
+        res.status(500).json({ success: false, message: 'Failed to refresh session' });
+    }
+};
+
+// Soft-delete (deactivate + anonymize) the authenticated user's account.
+// Keeps registrations/bookings intact for records; frees email/phone for reuse.
+const deleteAccount = async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const user = await User.findById(userId);
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found',
+            });
+        }
+
+        if (user.isDeleted) {
+            return res.status(200).json({
+                success: true,
+                message: 'Account already deleted',
+            });
+        }
+
+        const anonymizedEmail = `deleted_${user._id}@deleted.crwdctrl`;
+
+        await User.updateOne(
+            { _id: userId },
+            {
+                $set: {
+                    isDeleted: true,
+                    deletedAt: new Date(),
+                    name: 'Deleted User',
+                    profilePic: '',
+                    fcmTokens: [],
+                    email: anonymizedEmail,
+                    'socialAuth.provider': null,
+                    'socialAuth.providerId': null,
+                    'socialAuth.photoURL': null,
+                },
+                $unset: {
+                    phoneNumber: '',
+                    firebaseUid: '',
+                },
+            },
+        );
+
+        res.status(200).json({
+            success: true,
+            message: 'Account deleted successfully',
+        });
+    } catch (error) {
+        console.error('Delete account error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error',
+            error: error.message,
+        });
+    }
+};
+
 module.exports = {
     register,
     login,
@@ -829,4 +1087,6 @@ module.exports = {
     updateUserProfile,
     checkEmailExists,
     validateToken,
+    refreshSession,
+    deleteAccount,
 };

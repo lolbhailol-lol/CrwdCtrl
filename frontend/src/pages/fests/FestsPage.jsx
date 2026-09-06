@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, Bell } from 'lucide-react';
+import { MapPin, Bell, ArrowLeft } from 'lucide-react';
 import CardFavoriteButton from '../../components/CardFavoriteButton';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
@@ -13,11 +13,12 @@ import CustomPageSectionsRenderer from '../../components/CustomPageSectionsRende
 import { usePageSectionHandlers } from '../../utils/pageSectionHandlers';
 import MobileStickyHeader from '../../components/MobileStickyHeader';
 import CategorySearchRow from '../../components/CategorySearchRow';
-import HeroSearchBar from '../../components/HeroSearchBar';
 import MobileHeroSearchField from '../../components/MobileHeroSearchField';
 import HeroBanner from '../../components/HeroBanner';
 import AppLogo from '../../components/AppLogo';
+import { useInAppBack } from '../../hooks/useInAppBack';
 import CardShareButton from '../../components/CardShareButton';
+import { shareContent } from '../../utils/externalLink';
 import { FestCardsRowSkeleton } from '../../components/HomeEventCardSkeleton';
 import CulturalIcon from '../../assets/mobile-icons/cul.svg';
 import TechIcon from '../../assets/mobile-icons/techhh.svg';
@@ -25,7 +26,19 @@ import SportsIcon from '../../assets/mobile-icons/spor.svg';
 import { buildSearchKeywordsFromCatalog } from '../../utils/buildSearchKeywords';
 import { navigateToSearchResult } from '../../utils/searchNavigation';
 import { usePageContentLoading } from '../../hooks/usePageContentLoading';
-import { fetchRawPublicFests } from '../../services/api/fests.api';
+import { fetchRawPublicFests, prefetchFestDetail } from '../../services/api/fests.api';
+import Seo from '../../components/Seo';
+import FaqSection from '../../components/FaqSection';
+import { breadcrumbSchema, faqSchema, itemListSchema } from '../../utils/seo';
+import { FESTS_FAQ } from '../../constants/faqs';
+import { festPath } from '../../utils/slugRoutes';
+import { buildFestDetailNavState } from '../../utils/detailPageCache';
+import { readFestsCache, writeFestsCache } from '../../utils/festsSessionCache';
+import { usePublicConfig } from '../../hooks/usePublicConfig';
+import AnnouncementBanner from '../../components/AnnouncementBanner';
+
+const FESTS_DESCRIPTION =
+    'Browse and register for college fests near you — cultural, technical and sports festivals. Find upcoming and ongoing fests, competitions and events on CrwdCtrl.';
 
 const SUBCATEGORIES = [
     { id: 'cultural',   label: 'CULTURAL', icon: CulturalIcon, path: '/cultural-fest' },
@@ -40,7 +53,7 @@ const SubcategoryTile = ({ cat, isDark, onClick }) => (
         onClick={onClick}
         aria-label={cat.label}
         style={{ WebkitTapHighlightColor: 'transparent' }}
-        className="flex flex-col items-center justify-center gap-1.5 pt-1 pb-3 lg:pt-2 lg:pb-5 rounded-2xl lg:rounded-3xl transition-opacity duration-150 active:opacity-80"
+        className="flex flex-col items-center justify-center gap-1.5 pt-1 pb-3 lg:pt-1 lg:pb-2 rounded-2xl lg:rounded-3xl transition-opacity duration-150 active:opacity-80"
     >
         <img
             src={cat.icon}
@@ -63,28 +76,27 @@ const FestEventCard = ({ fest, isDark, isFavorite, onToggleFavorite, onViewDetai
 
     const handleShare = (e) => {
         e.stopPropagation();
-        if (navigator.share) {
-            navigator.share({
-                title: fest.festName,
-                text: `Check out ${fest.festName}`,
-                url: `${window.location.origin}/view-details/${fest._id}`,
-            }).catch(() => {});
-        }
+        shareContent({
+            title: fest.festName,
+            text: `Check out ${fest.festName}`,
+            url: `${window.location.origin}${festPath(fest)}`,
+        });
     };
 
     return (
         <div
-            className="card-surface card-carousel-fest lg:w-auto rounded-2xl lg:rounded-3xl overflow-hidden cursor-pointer snap-start shrink-0 transition-all duration-200 active:scale-[0.98]"
+            className="card-surface card-carousel-fest md:w-full rounded-2xl lg:rounded-3xl overflow-hidden cursor-pointer snap-start shrink-0 md:shrink md:max-w-none transition-all duration-200 active:scale-[0.98]"
             onClick={onViewDetails}
+            onPointerDown={() => prefetchFestDetail(fest)}
         >
             {/* Image */}
             <div className="relative aspect-video lg:aspect-8/5 overflow-hidden">
                 <ContentImage
                     src={img}
                     alt={fest.festName}
-                    preset="cardLg"
+                    preset="cardVideo"
                     className="w-full h-full object-cover"
-                    onError={(e) => handleImageErrorWithFallback(e, 320, 190, '#6366f1', fest.festName || 'Fest')}
+                    onError={(e) => handleImageErrorWithFallback(e, 320, 190, '#2A2B2E', fest.festName || 'Fest')}
                 />
                 <CardFavoriteButton isFavorite={isFavorite} onClick={onToggleFavorite} />
             </div>
@@ -125,10 +137,10 @@ const FestSection = ({ title, fests, loading, isDark, isFavorite, toggleFavorite
             </h2>
 
             <div
-                className="carousel-scroll-gutter carousel-scroll-gutter--static-lg overflow-x-auto lg:overflow-visible scrollbar-hide"
+                className="carousel-scroll-gutter overflow-x-auto scrollbar-hide md:overflow-visible"
                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
             >
-                <div className="flex gap-3 lg:grid lg:grid-cols-3 xl:grid-cols-4 lg:gap-6 pb-1 lg:pb-6 lg:snap-none">
+                <div className="flex gap-3 pb-1 md:grid md:grid-cols-2 xl:grid-cols-3 md:gap-4 md:pb-0">
                     {loading
                         ? <FestCardsRowSkeleton count={2} />
                         : fests.map(fest => (
@@ -138,7 +150,13 @@ const FestSection = ({ title, fests, loading, isDark, isFavorite, toggleFavorite
                                 isDark={isDark}
                                 isFavorite={isFavorite(fest._id)}
                                 onToggleFavorite={() => toggleFavorite(fest._id, fest)}
-                                onViewDetails={() => navigate(`/view-details/${fest._id}`)}
+                                onViewDetails={() => {
+                                    prefetchFestDetail(fest);
+                                    const eventData = buildFestDetailNavState(fest);
+                                    navigate(festPath(fest), {
+                                        state: eventData ? { eventData } : undefined,
+                                    });
+                                }}
                             />
                         ))
                     }
@@ -151,44 +169,52 @@ const FestSection = ({ title, fests, loading, isDark, isFavorite, toggleFavorite
 // ── Main Page ────────────────────────────────────────────────────────────────
 export default function FestsPage() {
     const navigate = useNavigate();
+    const goBack = useInAppBack();
     const { isDark } = useDarkMode();
     const { toggleFavorite, isFavorite } = useFavorites();
     const { unreadCount } = useNotifications();
+    const publicConfig = usePublicConfig();
 
-    const [fests, setFests] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [searchQuery, setSearchQuery] = useState('');
+    const cached = readFestsCache();
+    const [fests, setFests] = useState(cached || []);
+    const [loading, setLoading] = useState(!cached?.length);
+    const [loadError, setLoadError] = useState(null);
+    const [reloadKey, setReloadKey] = useState(0);
     usePageContentLoading(loading);
+
+    const retryFests = useCallback(() => {
+        setLoadError(null);
+        setLoading(true);
+        setReloadKey((key) => key + 1);
+    }, []);
 
     // Fetch all fests
     useEffect(() => {
         let cancelled = false;
         const load = async () => {
             try {
-                const list = await fetchRawPublicFests({ cacheBust: false });
-                if (!cancelled) setFests(list);
+                const list = await fetchRawPublicFests({
+                    forceRefresh: reloadKey > 0,
+                });
+                if (cancelled) return;
+                setFests(list);
+                setLoadError(null);
+                writeFestsCache(list);
             } catch (err) {
                 console.error('FestsPage fetch error:', err);
+                if (cancelled) return;
+                const existing = readFestsCache();
+                if (existing?.length) setFests(existing);
+                setLoadError('Could not load fests. Check your connection and try again.');
             } finally {
                 if (!cancelled) setLoading(false);
             }
         };
         load();
         return () => { cancelled = true; };
-    }, []);
+    }, [reloadKey]);
 
-    // Filter by sub-category + search
-    const filtered = useMemo(() => {
-        let list = fests;
-        if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase();
-            list = list.filter(f =>
-                f.festName?.toLowerCase().includes(q) ||
-                f.collegeName?.toLowerCase().includes(q)
-            );
-        }
-        return list;
-    }, [fests, searchQuery]);
+    const filtered = fests;
 
     const sortByPriority = (a, b) => (a.priority || 999) - (b.priority || 999);
 
@@ -234,13 +260,44 @@ export default function FestsPage() {
 
     return (
         <div className="crwdctrl-page crwdctrl-page--hub fests-page min-h-screen">
+            <Seo
+                title="College Fests"
+                description={FESTS_DESCRIPTION}
+                canonical="/fests"
+                keywords="college fests, cultural fest, tech fest, sports fest, fest registration, campus events"
+                jsonLd={[
+                    breadcrumbSchema([
+                        { name: 'Home', path: '/' },
+                        { name: 'Fests', path: '/fests' },
+                    ]),
+                    itemListSchema({
+                        name: 'College Fests on CrwdCtrl',
+                        description: FESTS_DESCRIPTION,
+                        url: '/fests',
+                        items: fests
+                            .filter((fest) => fest?._id && fest?.festName)
+                                .map((fest) => ({ name: fest.festName, url: festPath(fest) })),
+                    }),
+                    faqSchema(FESTS_FAQ),
+                ]}
+            />
 
             <MobileStickyHeader
                 isDark={isDark}
                 shellClassName="fests-page-header"
                 brandingRow={
                     <>
-                        <AppLogo className="cursor-pointer" onClick={() => navigate('/')} />
+                        <div className="flex items-center gap-2 min-w-0">
+                            <button
+                                type="button"
+                                onClick={goBack}
+                                className={`p-2 rounded-xl bg-transparent transition-colors shrink-0 ${isDark ? 'text-white hover:bg-gray-800' : 'text-black hover:bg-black/5'}`}
+                                aria-label="Back to home"
+                            >
+                                <ArrowLeft className="w-5 h-5" />
+                            </button>
+                            <AppLogo className="cursor-pointer" onClick={() => navigate('/')} />
+                        </div>
                         <div className="mobile-header-actions">
                             <button
                                 onClick={() => navigate('/')}
@@ -277,21 +334,6 @@ export default function FestsPage() {
             />
 
             <main className="pb-8 lg:pb-12">
-
-                {/* ── Desktop Search ── */}
-                <div className="hidden lg:block px-(--page-gutter) lg:pt-6 lg:pb-4">
-                    <HeroSearchBar
-                        value={searchQuery}
-                        onChange={e => setSearchQuery(e.target.value)}
-                        onClear={() => setSearchQuery('')}
-                        isDark={isDark}
-                        className="lg:py-[18px]"
-                    />
-                </div>
-
-                <div className="lg:pt-0 crwdctrl-hub-body">
-
-                {/* ── Hero Banner ── */}
                 <HeroBanner
                     events={[...ongoingFests, ...upcomingFests]
                         .filter(f => f.image || f.heroImage)
@@ -303,17 +345,21 @@ export default function FestsPage() {
                             dateTime: f.festDate,
                             status: f.status || 'ongoing',
                         }))}
-                    onEventClick={(id) => navigate(`/view-details/${id}`)}
+                    onEventClick={(id) => {
+                        const selected = [...ongoingFests, ...upcomingFests].find((f) => f._id === id || f.id === id);
+                        navigate(festPath(selected || { _id: id }));
+                    }}
                     isDark={isDark}
                 />
 
+                <AnnouncementBanner announcement={publicConfig.announcement} />
+
+                <div className="crwdctrl-hub-body">
                 {/* ── Sub-category tiles: Cultural / Tech / Sports ── */}
-                <div className="px-(--page-gutter) mt-3 mb-6 lg:mt-3 lg:mb-10">
-                    <div className="flex items-center justify-between">
-                        <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                            Categories
-                        </h2>
-                    </div>
+                <section className="home-section-block mt-3 mb-6 lg:mt-1 lg:mb-5">
+                    <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        Categories
+                    </h2>
                     <div className="grid grid-cols-3 gap-3 lg:gap-6">
                         {SUBCATEGORIES.map(cat => (
                             <SubcategoryTile
@@ -324,11 +370,11 @@ export default function FestsPage() {
                             />
                         ))}
                     </div>
-                </div>
+                </section>
 
                 {/* ── Ongoing Events ── */}
                 <FestSection
-                    title="Ongoing Events"
+                    title={publicConfig.labels.fests.ongoing}
                     fests={ongoingFests}
                     loading={loading}
                     isDark={isDark}
@@ -339,7 +385,7 @@ export default function FestsPage() {
 
                 {/* ── Upcoming Events ── */}
                 <FestSection
-                    title="Upcoming Events"
+                    title={publicConfig.labels.fests.upcoming}
                     fests={upcomingFests}
                     loading={loading}
                     isDark={isDark}
@@ -352,7 +398,7 @@ export default function FestsPage() {
                     targetPage="fests"
                     fests={fests}
                     isDark={isDark}
-                    loading={loading}
+                    loading={false}
                     isFavorite={isFavorite}
                     onToggleFavorite={onSectionFav}
                     onItemClick={onItemClick}
@@ -362,7 +408,7 @@ export default function FestsPage() {
                 {/* ── Last Year Hits ── */}
                 {lastYearFests.length > 0 && (
                     <FestSection
-                        title="Last Year Hits"
+                        title={publicConfig.labels.fests.lastYearHits}
                         fests={lastYearFests}
                         loading={loading}
                         isDark={isDark}
@@ -378,19 +424,31 @@ export default function FestsPage() {
                                    ${isDark ? 'bg-[#111213] text-gray-400' : 'bg-white text-gray-500 shadow-sm'}`}>
                         <div className="text-5xl mb-3">🎪</div>
                         <p className="text-base lg:text-lg font-semibold mb-1">
-                            {searchQuery ? 'No results found' : 'No fests available yet'}
+                            {loadError || publicConfig.emptyStates.fests.none}
                         </p>
-                        {searchQuery && (
+                        <div className="mt-5 flex flex-col sm:flex-row items-center justify-center gap-3">
                             <button
-                                onClick={() => setSearchQuery('')}
-                                className="mt-3 text-sm text-[#0ECCEE] font-medium"
+                                type="button"
+                                onClick={retryFests}
+                                className="h-11 px-5 rounded-xl bg-[#0ECCEE] text-black text-sm font-semibold hover:bg-[#0ECCEE]/90"
                             >
-                                Clear filters
+                                Retry
                             </button>
-                        )}
+                            <button
+                                type="button"
+                                onClick={() => navigate('/view-details/mindspark-2026')}
+                                className={`h-11 px-5 rounded-xl text-sm font-semibold border ${
+                                    isDark ? 'border-white/15 text-white hover:bg-white/5' : 'border-gray-200 text-gray-800 hover:bg-gray-50'
+                                }`}
+                            >
+                                Open MindSpark 2026
+                            </button>
+                        </div>
                     </div>
                 )}
                 </div>{/* end pt-5 wrapper */}
+
+                <FaqSection items={FESTS_FAQ} />
             </main>
         </div>
     );

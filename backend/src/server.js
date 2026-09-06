@@ -10,12 +10,26 @@ const mongoose = require('mongoose');
 const connectDB = require('./config/db');
 const { logger } = require('./utils/logger');
 const { captureException } = require('./config/sentry');
-const { initReminderCron } = require('./services/reminderService');
 const { getFirebaseAdminStatus } = require('./config/firebaseAdmin');
 
 async function startServer() {
   try {
     await connectDB();
+
+    try {
+      const { ensurePageViewPathsMigrated } = require('./services/analyticsPathMigration');
+      ensurePageViewPathsMigrated().catch(() => {});
+    } catch (_) { /* non-critical */ }
+
+    try {
+      const { recoverStuckCampaigns } = require('./controllers/adminNotificationController');
+      const recovered = await recoverStuckCampaigns(30);
+      if (recovered > 0) {
+        logger.warn('Recovered stuck notification campaigns', { count: recovered });
+      }
+    } catch (recoverErr) {
+      logger.warn('Stuck campaign recovery skipped', { error: recoverErr.message });
+    }
 
     const firebaseStatus = getFirebaseAdminStatus();
     if (firebaseStatus.configured) {
@@ -32,13 +46,39 @@ async function startServer() {
     const PORT = process.env.PORT || 8080;
     const HOST = process.env.HOST || '0.0.0.0';
 
-    initReminderCron();
-    logger.info('Event reminder cron initialized');
-
     const server = app.listen(PORT, HOST, () => {
       logger.info(`Server running on ${HOST}:${PORT}`, {
         env: process.env.NODE_ENV || 'development',
       });
+
+      try {
+        const { initReminderCron, initPendingPaymentExpiryCron } = require('./services/reminderService');
+        initReminderCron();
+        initPendingPaymentExpiryCron();
+      } catch (cronErr) {
+        logger.warn('Reminder cron failed to start', { error: cronErr.message });
+      }
+
+      try {
+        const { initTrekWeekendRollCron } = require('./services/trekWeekendRollService');
+        initTrekWeekendRollCron();
+      } catch (rollErr) {
+        logger.warn('TrekkVede weekend roll failed to start', { error: rollErr.message });
+      }
+
+      try {
+        const { initSettlementSyncCron } = require('./services/cashfreeSettlementSync');
+        initSettlementSyncCron();
+      } catch (syncErr) {
+        logger.warn('Cashfree settlement sync cron failed to start', { error: syncErr.message });
+      }
+
+      try {
+        const { initKeepAlive } = require('./services/keepAliveService');
+        initKeepAlive();
+      } catch (keepAliveErr) {
+        logger.warn('Keep-alive failed to start', { error: keepAliveErr.message });
+      }
     });
 
     const gracefulShutdown = (signal) => {

@@ -1,0 +1,21 @@
+{
+  "name": "crwdctrl-treks-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "CrwdCtrl Treks API — live trek status & information (separate from main CrwdCtrl backend)",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^8.6.0",
+    "mongoose": "^9.8.0"
+  }
+}

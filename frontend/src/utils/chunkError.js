@@ -1,4 +1,16 @@
 export const CHUNK_RELOAD_SESSION_KEY = 'crwdctrl_chunk_reload';
+const STALE_RECOVER_AT_KEY = 'crwdctrl_stale_recover_at';
+const CACHE_BUST_DONE_KEY = 'crwdctrl_cache_bust_done';
+const FORCE_RECOVER_DONE_KEY = 'crwdctrl_force_recover_done';
+export const STALE_RECOVER_COOLDOWN_MS = 60_000;
+
+let forceRecoverInFlight = false;
+
+/** gtag.js / Firebase Analytics: config missing, then every fetch throws `undefined.M_ID`. */
+export function isGtagMeasurementIdError(error) {
+    const message = String(error?.message || error || '');
+    return /reading ['"]M_ID['"]/i.test(message);
+}
 
 export function isChunkLoadError(error) {
     if (!error) return false;
@@ -28,12 +40,21 @@ export function isChunkLoadError(error) {
 }
 
 /** Hard recovery after deploy — drop stale service worker caches and reload fresh HTML */
-export async function recoverFromStaleDeploy() {
+export function shouldAttemptStaleRecover(now = Date.now(), lastAt = 0, cooldownMs = STALE_RECOVER_COOLDOWN_MS) {
+    return !lastAt || (now - lastAt) >= cooldownMs;
+}
+
+export async function clearStaleAppCaches() {
+    if (typeof window === 'undefined') return;
     try {
         if ('caches' in window) {
             const keys = await caches.keys();
             await Promise.all(keys.map((key) => caches.delete(key)));
         }
+    } catch {
+        /* ignore cleanup errors */
+    }
+    try {
         if ('serviceWorker' in navigator) {
             const registrations = await navigator.serviceWorker.getRegistrations();
             await Promise.all(registrations.map((registration) => registration.unregister()));
@@ -41,25 +62,86 @@ export async function recoverFromStaleDeploy() {
     } catch {
         /* ignore cleanup errors */
     }
+}
 
+function clearRecoverSessionFlags() {
     try {
         sessionStorage.removeItem(CHUNK_RELOAD_SESSION_KEY);
-        sessionStorage.removeItem('crwdctrl_sw_reload');
+        sessionStorage.removeItem(STALE_RECOVER_AT_KEY);
         sessionStorage.removeItem('crwdctrl_boot_recover');
+        sessionStorage.removeItem('crwdctrl_sw_reload');
     } catch {
-        /* ignore */
+        /* private mode */
+    }
+}
+
+function reloadWithCacheBust({ force = false } = {}) {
+    const url = new URL(window.location.href);
+    const alreadyBusted = url.searchParams.has('_crwd');
+
+    if (!force) {
+        // Automatic recovery: one cache-bust per session; skip if URL already busted.
+        if (alreadyBusted) return false;
+        try {
+            if (sessionStorage.getItem(CACHE_BUST_DONE_KEY)) return false;
+            sessionStorage.setItem(CACHE_BUST_DONE_KEY, '1');
+        } catch {
+            /* private mode */
+        }
+    } else {
+        // User-initiated: allow one force reload even when _crwd is present.
+        try {
+            if (sessionStorage.getItem(FORCE_RECOVER_DONE_KEY)) return false;
+            sessionStorage.setItem(FORCE_RECOVER_DONE_KEY, '1');
+        } catch {
+            /* private mode */
+        }
     }
 
-    const url = new URL(window.location.href);
     url.searchParams.set('_crwd', String(Date.now()));
     window.location.replace(url.toString());
+    return true;
+}
+
+/** User tapped Refresh — clear SW/caches and reload once (guarded against loops). */
+export async function forceRecoverFromStaleDeploy() {
+    if (typeof window === 'undefined') return false;
+    if (forceRecoverInFlight) return false;
+    if (String(window.location?.pathname || '').startsWith('/campus-hunt/offline')) {
+        window.location.reload();
+        return true;
+    }
+    forceRecoverInFlight = true;
+    clearRecoverSessionFlags();
+    await clearStaleAppCaches();
+    return reloadWithCacheBust({ force: true });
+}
+
+export async function recoverFromStaleDeploy() {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+    if (typeof window !== 'undefined' && String(window.location?.pathname || '').startsWith('/campus-hunt/offline')) {
+        return;
+    }
+    try {
+        const lastAt = Number(sessionStorage.getItem(STALE_RECOVER_AT_KEY) || 0);
+        if (!shouldAttemptStaleRecover(Date.now(), lastAt)) return;
+        sessionStorage.setItem(STALE_RECOVER_AT_KEY, String(Date.now()));
+    } catch {
+        /* private mode */
+    }
+    await clearStaleAppCaches();
+    return reloadWithCacheBust({ force: false });
 }
 
 /** Reload once per session when a stale JS chunk fails after deploy */
 export function reloadOnceForChunkError() {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return false;
+    if (typeof window !== 'undefined' && String(window.location?.pathname || '').startsWith('/campus-hunt/offline')) {
+        return false;
+    }
     try {
         if (sessionStorage.getItem(CHUNK_RELOAD_SESSION_KEY)) {
-            void recoverFromStaleDeploy();
+            void forceRecoverFromStaleDeploy();
             return false;
         }
         sessionStorage.setItem(CHUNK_RELOAD_SESSION_KEY, '1');
@@ -76,8 +158,24 @@ export function clearChunkReloadFlag() {
         sessionStorage.removeItem(CHUNK_RELOAD_SESSION_KEY);
         sessionStorage.removeItem('crwdctrl_sw_reload');
         sessionStorage.removeItem('crwdctrl_boot_recover');
+        sessionStorage.removeItem(STALE_RECOVER_AT_KEY);
+        sessionStorage.removeItem(CACHE_BUST_DONE_KEY);
+        sessionStorage.removeItem(FORCE_RECOVER_DONE_KEY);
     } catch {
         // ignore storage errors
+    }
+    forceRecoverInFlight = false;
+}
+
+/** Called as soon as React mounts — Safari can leave boot-fallback covering the page. */
+export function markAppBootSuccess() {
+    clearChunkReloadFlag();
+    try {
+        if (typeof window !== 'undefined') {
+            window.__crwdctrlAppReady = true;
+        }
+    } catch {
+        /* ignore */
     }
 }
 
@@ -94,6 +192,10 @@ export function initGlobalErrorHandlers() {
     if (typeof window === 'undefined') return;
 
     window.addEventListener('unhandledrejection', (event) => {
+        if (isGtagMeasurementIdError(event.reason)) {
+            event.preventDefault();
+            return;
+        }
         if (!isChunkLoadError(event.reason)) return;
         event.preventDefault();
         reloadOnceForChunkError();

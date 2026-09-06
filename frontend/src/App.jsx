@@ -1,32 +1,41 @@
 import React, { useState, useEffect, Suspense, useCallback } from 'react'
 import { BrowserRouter as Router, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { DarkModeProvider } from './context/DarkModeContext'
+import { DialogProvider } from './context/DialogContext'
 import { FavoritesProvider } from './context/FavoritesContext'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { RegisteredEventsProvider } from './context/RegisteredEventsContext'
 import { NotificationsProvider } from './context/NotificationsContext'
-import MobileBottomNav from './components/MobileBottomNav'
-import Footer from './components/Footer'
-import Navbar from './components/Navbar'
-import Sidebar from './components/Sidebar'
-import ProfileSidebar from './components/ProfileSidebar'
-import { removeHtmlBootSplash, BOOT_SPLASH_MS } from './utils/bootSplash'
+import MobileBottomNav from './components/layout/MobileBottomNav'
+import Footer from './components/layout/Footer'
+import Navbar from './components/layout/Navbar'
+import Sidebar from './components/layout/Sidebar'
+import ProfileSidebar from './components/layout/ProfileSidebar'
+import { removeHtmlBootSplash, BOOT_SPLASH_MS, BOOT_SPLASH_SHORT_MAX_MS, shouldShowBootSplash, isShortBootSplash } from './utils/bootSplash'
 import { isCategoryHubRoute } from './utils/categoryHubRoutes'
 import { MobileSearchProvider, useMobileSearchOptional } from './context/MobileSearchContext'
 import MobileSearchHost from './components/MobileSearchHost'
-import { clearChunkReloadFlag } from './utils/chunkError'
+import { clearChunkReloadFlag, markAppBootSuccess } from './utils/chunkError'
+import { dismissBootOverlays } from './utils/dismissBootOverlays'
 import ErrorBoundary from './components/ErrorBoundary'
 import AdSenseLoader from './components/AdSense'
 import PWAInstallPrompt from './components/PWAInstallPrompt'
 import RouteTracker from './components/RouteTracker'
+import OrganizerPortalTheme from './components/OrganizerPortalTheme'
+import GoogleOneTap from './components/GoogleOneTap'
 import CapacitorInit from './components/CapacitorInit'
-import PageTransitionProvider, { PageTransitionContent, usePageTransition } from './components/PageTransition'
-import PageTransitionSkeleton from './components/PageTransitionSkeleton'
+import DeepLinkHistorySeed from './components/DeepLinkHistorySeed'
+import OfflineHuntBootGate from './features/campus-hunt/offline/OfflineHuntBootGate'
+import PageTransitionProvider, { PageTransitionContent, usePageTransition } from './components/layout/PageTransition'
 import { useGlobalSmoothScroll } from './hooks/useGlobalSmoothScroll'
-import LoginSuccessToast from './components/LoginSuccessToast'
 import { prepareLogin, resolvePostLoginRedirect, currentAppPath } from './utils/loginFlow'
+import { showLoginPopup } from './utils/appPopup'
 import { appRoutes, CrwdCtrlLogin, CrwdCtrlRegister } from './app/router'
 import { resolveUrl } from './services/api/client'
+import { RouteLoadingFallback, HomeHubLoadingScreen } from './components/DetailPageLoader'
+import { useBodyHasClass } from './hooks/useBodyHasClass'
+import { useHomeShellReady } from './hooks/useHomeShellReady'
+import { isHomeHubPath } from './utils/homeShellReady'
 
 import './App.css'
 
@@ -35,7 +44,9 @@ function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick
   const location = useLocation();
   const navigate = useNavigate();
   const mobileSearch = useMobileSearchOptional();
-  const { prepareRouteNavigation, startOverlayTransition } = usePageTransition();
+  const { prepareRouteNavigation, startOverlayTransition, hideChrome } = usePageTransition();
+  const pageContentLoading = useBodyHasClass('page-content-loading');
+  const homeShellReady = useHomeShellReady();
 
   const handleNavFromProfile = useCallback((path) => {
     if (path === '/profile') return;
@@ -54,7 +65,10 @@ function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick
     onProfileClose();
   }, [location.pathname, navigate, onProfileClose, prepareRouteNavigation, startOverlayTransition]);
 
-  const shouldHideMobileBottomNav = location.pathname === '/login' ||
+  const shouldHideMobileBottomNav = hideChrome ||
+    pageContentLoading ||
+    !homeShellReady ||
+    location.pathname === '/login' ||
     location.pathname === '/register' ||
     location.pathname === '/verify-email' ||
     location.pathname === '/profile' ||
@@ -63,7 +77,18 @@ function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick
     mobileSearch?.isOpen ||
     location.pathname.startsWith('/admin') ||
     location.pathname.startsWith('/organizer') ||
+    location.pathname.startsWith('/trek-organizer') ||
+    location.pathname.startsWith('/fest-organizer') ||
+    location.pathname.startsWith('/mindspark-payments') ||
+    location.pathname.startsWith('/stall') ||
+    location.pathname.startsWith('/s/') ||
+    location.pathname.startsWith('/run-club-organizer') ||
+    location.pathname.startsWith('/event-community-organizer') ||
+    location.pathname.startsWith('/event-organizer') ||
+    location.pathname.startsWith('/campus-hunt') ||
+    location.pathname.startsWith('/campus-hunt-volunteer') ||
     location.pathname.startsWith('/view-details') ||
+    location.pathname.startsWith('/events/') ||
     location.pathname.startsWith('/trek/') ||
     location.pathname.startsWith('/treks/community/') ||
     location.pathname.startsWith('/sports/run-club/') ||
@@ -91,18 +116,36 @@ function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick
 function ConditionalFooter() {
   const location = useLocation();
   const { hideChrome } = usePageTransition();
+  const pageContentLoading = useBodyHasClass('page-content-loading');
+  const homeShellReady = useHomeShellReady();
 
   const shouldHideFooter =
     hideChrome ||
+    pageContentLoading ||
+    !homeShellReady ||
     location.pathname === '/login' ||
     location.pathname === '/register' ||
     location.pathname === '/verify-email' ||
     location.pathname.startsWith('/admin') ||
     location.pathname.startsWith('/organizer') ||
+    location.pathname.startsWith('/trek-organizer') ||
+    location.pathname.startsWith('/fest-organizer') ||
+    location.pathname.startsWith('/mindspark-payments') ||
+    location.pathname.startsWith('/stall') ||
+    location.pathname.startsWith('/s/') ||
+    location.pathname.startsWith('/run-club-organizer') ||
+    location.pathname.startsWith('/event-community-organizer') ||
+    location.pathname.startsWith('/event-organizer') ||
+    location.pathname.startsWith('/campus-hunt') ||
+    location.pathname.startsWith('/campus-hunt-volunteer') ||
     location.pathname.startsWith('/competition-registration') ||
+    location.pathname.startsWith('/competitions-view-details') ||
+    location.pathname.startsWith('/competition') ||
+    location.pathname.startsWith('/view-details') ||
     location.pathname.startsWith('/qr-ticket') ||
     location.pathname.startsWith('/payment-invoice') ||
     (location.pathname.includes('/fest/') && location.pathname.includes('/register')) ||
+    location.pathname.startsWith('/events/') ||
     location.pathname.startsWith('/trek/') ||
     location.pathname.startsWith('/treks/community/') ||
     location.pathname.startsWith('/sports/run-club/') ||
@@ -116,8 +159,7 @@ function ConditionalFooter() {
 }
 
 function RouteSuspenseFallback() {
-  const location = useLocation();
-  return <PageTransitionSkeleton pathname={location.pathname} />;
+  return <RouteLoadingFallback />;
 }
 
 // Component to conditionally render Navbar and Sidebar
@@ -125,7 +167,7 @@ function ConditionalNavigation({ isProfileOpen, setIsProfileOpen, onOpenProfile,
   const location = useLocation();
 
   // Hide navigation on login, register, and email verification pages
-  const shouldHideNavigation = location.pathname === '/login' || location.pathname === '/register' || location.pathname === '/verify-email'||  location.pathname.startsWith('/admin');
+  const shouldHideNavigation = location.pathname === '/login' || location.pathname === '/register' || location.pathname === '/verify-email'||  location.pathname.startsWith('/admin') || location.pathname.startsWith('/trek-organizer') || location.pathname.startsWith('/fest-organizer') || location.pathname.startsWith('/mindspark-payments') || location.pathname.startsWith('/stall') || location.pathname.startsWith('/s/') || location.pathname.startsWith('/run-club-organizer') || location.pathname.startsWith('/event-community-organizer') || location.pathname.startsWith('/event-organizer') || location.pathname.startsWith('/campus-hunt') || location.pathname.startsWith('/campus-hunt-volunteer');
 
   if (shouldHideNavigation) {
     return null;
@@ -158,7 +200,7 @@ function AppContent({
   setShowRegister,
   handleCloseLogin,
   handleCloseRegister,
-  handleSwitchToRegister,
+  handleSwitchToRegister: _handleSwitchToRegister,
   handleSwitchToLogin,
   openLoginFromProfile,
 }) {
@@ -166,7 +208,17 @@ function AppContent({
   const navigate = useNavigate();
   const { isAuthProcessing, isLoading, isAuthenticated, isRedirectProcessing } = useAuth();
   const isAdminRoute = location.pathname.startsWith('/admin');
-  const [loginSuccessVisible, setLoginSuccessVisible] = useState(false);
+  const isTrekOrganizerRoute = location.pathname.startsWith('/trek-organizer');
+  const isFestOrganizerRoute = location.pathname.startsWith('/fest-organizer');
+  const isMindSparkPaymentsRoute = location.pathname.startsWith('/mindspark-payments');
+  const isStallRoute = location.pathname.startsWith('/stall') || location.pathname.startsWith('/s/');
+  const isRunClubOrganizerRoute = location.pathname.startsWith('/run-club-organizer')
+    || location.pathname.startsWith('/event-community-organizer');
+  const isEventOrganizerRoute = location.pathname.startsWith('/event-organizer');
+  const isCampusHuntRoute = location.pathname.startsWith('/campus-hunt') || location.pathname.startsWith('/campus-hunt-volunteer');
+  const isStandaloneRoute = isAdminRoute || isTrekOrganizerRoute || isFestOrganizerRoute || isMindSparkPaymentsRoute || isStallRoute || isRunClubOrganizerRoute || isEventOrganizerRoute || isCampusHuntRoute;
+  const isHomeHub = isHomeHubPath(location.pathname);
+  const homeShellReady = useHomeShellReady();
 
   useGlobalSmoothScroll();
 
@@ -191,33 +243,49 @@ function AppContent({
   }, [location.pathname, setShowLogin, setShowRegister]);
 
   useEffect(() => {
-    let hideTimer;
-    const handler = () => {
-      if (hideTimer) window.clearTimeout(hideTimer);
+    const onUserLogin = () => {
+      let fromProfile = false;
+      let stayInProfile = false;
+      try {
+        const raw = sessionStorage.getItem('crwdctrl_login_context');
+        if (raw) {
+          const ctx = JSON.parse(raw);
+          fromProfile = Boolean(ctx.fromProfile);
+          stayInProfile = Boolean(ctx.stayInProfile);
+        }
+      } catch {
+        /* ignore */
+      }
+
       setShowLogin(false);
       setShowRegister(false);
-      setIsProfileOpen(false);
 
       const destination = resolvePostLoginRedirect();
       const here = currentAppPath();
+
+      // Profile Google sheet: stay on Profile, toast “Login successful”, then they tap Hunt.
+      if (stayInProfile || fromProfile) {
+        setIsProfileOpen(true);
+        window.requestAnimationFrame(() => showLoginPopup());
+        return;
+      }
+
+      setIsProfileOpen(false);
 
       if (destination && destination !== here) {
         navigate(destination, { replace: true });
       }
 
-      setLoginSuccessVisible(true);
-      hideTimer = window.setTimeout(() => setLoginSuccessVisible(false), 2600);
+      window.requestAnimationFrame(() => showLoginPopup());
     };
 
-    window.addEventListener('crwdctrl:user-login', handler);
-    return () => {
-      window.removeEventListener('crwdctrl:user-login', handler);
-      if (hideTimer) window.clearTimeout(hideTimer);
-    };
+    window.addEventListener('crwdctrl:user-login', onUserLogin);
+    return () => window.removeEventListener('crwdctrl:user-login', onUserLogin);
   }, [navigate, setIsProfileOpen, setShowLogin, setShowRegister]);
 
   return (
-    <div className={`crwdctrl-app-shell relative min-h-screen overflow-x-clip ${!isAdminRoute ? '' : ''}`}>
+    <div className={`crwdctrl-app-shell relative min-h-screen overflow-x-clip ${!isStandaloneRoute ? '' : ''}`} data-crwdctrl-app>
+      {isHomeHub && !homeShellReady ? <HomeHubLoadingScreen /> : null}
       <ConditionalNavigation
         isProfileOpen={isProfileOpen}
         setIsProfileOpen={setIsProfileOpen}
@@ -225,8 +293,8 @@ function AppContent({
         onShowLogin={openLoginFromProfile}
       />
 
-      <div className={isAdminRoute ? '' : 'lg:ml-20'}>
-        <div className={isAdminRoute ? '' : 'lg:pt-20'}>
+        <div className={isStandaloneRoute ? '' : 'lg:ml-20'}>
+        <div className={isStandaloneRoute ? '' : 'desktop-navbar-clearance'}>
           <ErrorBoundary>
             <PageTransitionContent>
               <Suspense fallback={<RouteSuspenseFallback />}>
@@ -236,11 +304,11 @@ function AppContent({
               </Suspense>
             </PageTransitionContent>
           </ErrorBoundary>
-          {!isAdminRoute && <ConditionalFooter />}
+          {!isStandaloneRoute && <ConditionalFooter />}
         </div>
       </div>
 
-      {!isAdminRoute && (
+      {!isStandaloneRoute && (
         <ConditionalMobileBottomNav
           onShowLogin={openLoginFromProfile}
           isProfileOpen={isProfileOpen}
@@ -249,7 +317,7 @@ function AppContent({
         />
       )}
 
-      {!isAdminRoute && location.pathname !== '/profile' && (
+      {!isStandaloneRoute && location.pathname !== '/profile' && (
         <ProfileSidebar
           isOpen={isProfileOpen}
           onClose={() => setIsProfileOpen(false)}
@@ -259,16 +327,17 @@ function AppContent({
         />
       )}
 
-      <LoginSuccessToast visible={loginSuccessVisible} />
-
       {showLogin && !isAuthProcessing && !isLoading && !isRedirectProcessing && (
-        <div className="fixed inset-0 z-50">
-          <CrwdCtrlLogin onClose={handleCloseLogin} onSwitchToRegister={handleSwitchToRegister} />
-        </div>
+        <CrwdCtrlLogin
+          googleOnly
+          title="Continue with Google"
+          subtitle="Sign in — then you can open Campus Hunt from Profile"
+          onClose={handleCloseLogin}
+        />
       )}
 
       {showRegister && !isAuthProcessing && !isLoading && !isRedirectProcessing && (
-        <div className="fixed inset-0 z-50">
+        <div className="fixed inset-0 z-[100050]">
           <CrwdCtrlRegister onClose={handleCloseRegister} onSwitchToLogin={handleSwitchToLogin} />
         </div>
       )}
@@ -281,13 +350,37 @@ function App() {
   const [showLogin, setShowLogin] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
 
-  const openLoginFromProfile = useCallback(() => {
-    prepareLogin({ fromProfile: true });
+  const openLoginFromProfile = useCallback((options = {}) => {
+    prepareLogin({
+      fromProfile: true,
+      stayInProfile: options.stayInProfile !== false,
+      returnPath: options.stayInProfile === false ? options.returnPath : undefined,
+    });
     setShowLogin(true);
   }, []);
 
-  // HTML boot splash covers first paint — never defer mounting Router/Auth behind it
+  // HTML boot splash covers first paint — never defer mounting Router/Auth behind it.
+  // Shared trek/fest/club links skip the logo entirely so content paints immediately.
   useEffect(() => {
+    markAppBootSuccess();
+    dismissBootOverlays();
+    if (!shouldShowBootSplash()) {
+      removeHtmlBootSplash();
+      clearChunkReloadFlag();
+      return undefined;
+    }
+    if (isShortBootSplash()) {
+      const finish = () => {
+        removeHtmlBootSplash();
+        clearChunkReloadFlag();
+      };
+      window.addEventListener('crwdctrl:detail-ready', finish);
+      const maxWait = window.setTimeout(finish, BOOT_SPLASH_SHORT_MAX_MS);
+      return () => {
+        window.removeEventListener('crwdctrl:detail-ready', finish);
+        window.clearTimeout(maxWait);
+      };
+    }
     const delay = Math.max(0, BOOT_SPLASH_MS - performance.now());
     const timer = window.setTimeout(() => {
       removeHtmlBootSplash();
@@ -354,14 +447,19 @@ function App() {
   return (
     <AuthProvider>
       <DarkModeProvider>
+        <DialogProvider>
         <FavoritesProvider>
           <RegisteredEventsProvider>
-            <NotificationsProvider>
               <Router>
+                <NotificationsProvider>
                 <MobileSearchProvider>
                 <PageTransitionProvider>
                   <CapacitorInit />
+                  <DeepLinkHistorySeed />
+                  <OfflineHuntBootGate />
                   <RouteTracker />
+                  <OrganizerPortalTheme />
+                  <GoogleOneTap />
                   <AdSenseLoader />
                   <PWAInstallPrompt />
                   <MobileSearchHost />
@@ -380,10 +478,11 @@ function App() {
                   />
                 </PageTransitionProvider>
                 </MobileSearchProvider>
+                </NotificationsProvider>
               </Router>
-            </NotificationsProvider>
           </RegisteredEventsProvider>
         </FavoritesProvider>
+        </DialogProvider>
       </DarkModeProvider>
     </AuthProvider>
   )

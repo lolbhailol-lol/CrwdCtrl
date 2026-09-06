@@ -9,7 +9,8 @@ export async function withFirebaseIdToken(payload, firebaseUser) {
     const idToken = await firebaseUser.getIdToken();
     return { ...payload, idToken };
   } catch (err) {
-    console.error('[firebaseIdToken] Failed to get ID token:', err.message);
+    console.error('[firebaseIdToken] Failed to get ID token:', err?.message || 'unknown');
+
     return payload;
   }
 }

@@ -70,3 +70,22 @@ export function initNativePushNavigation(navigate) {
     handle?.remove();
   };
 }
+
+/**
+ * Refresh in-app notification list when a push arrives while the app is open.
+ */
+export function initNativePushForegroundRefresh() {
+  if (!isNativeApp()) return () => {};
+
+  let handle = null;
+
+  PushNotifications.addListener('pushNotificationReceived', () => {
+    window.dispatchEvent(new CustomEvent('crwdctrl:refresh-notifications'));
+  }).then((h) => {
+    handle = h;
+  });
+
+  return () => {
+    handle?.remove();
+  };
+}

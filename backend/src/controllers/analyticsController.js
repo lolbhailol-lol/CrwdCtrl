@@ -1,11 +1,13 @@
 const Analytics = require('../model/analytics_model');
 const User = require('../model/usermodel');
+const { recordUserActivity } = require('../services/userActivityService');
 const Registration = require('../model/registration_model');
 const FestOrganizer = require('../model/fest_organizer_model');
 const TrekBooking = require('../model/trek_booking_model');
 const CategoryRegistration = require('../model/category_registration_model');
 const PaymentOrder = require('../model/payment_order_model');
 const { deriveRevenueFromPaidAmount } = require('../utils/platformFee');
+const { migrateStoredPageViewPaths } = require('../services/analyticsPathMigration');
 
 function sumRevenueRows(rows, amountKey, options = {}) {
   return rows.reduce(
@@ -67,6 +69,18 @@ const trackEvent = async (req, res) => {
       sessionId: sessionId || null,
       metadata,
     });
+
+    recordUserActivity({
+      userId,
+      email: metadata?.email || null,
+      sessionId: sessionId || null,
+      eventType,
+      page: metadata?.page || '',
+      previousPage: metadata?.previousPage || '',
+      durationSeconds: metadata?.durationSeconds,
+      metadata,
+      req,
+    }).catch(() => {});
 
     res.status(201).json({ success: true });
   } catch (error) {
@@ -493,4 +507,13 @@ module.exports = {
   getFestAnalytics,
   getRealtimeStats,
   getRevenueSummary,
+  migratePageViewPaths: async (req, res) => {
+    try {
+      const result = await migrateStoredPageViewPaths();
+      res.json({ success: true, ...result });
+    } catch (error) {
+      console.error('❌ Page view path migration error:', error);
+      res.status(500).json({ success: false, message: 'Failed to migrate page view paths' });
+    }
+  },
 };

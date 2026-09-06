@@ -27,6 +27,8 @@ const userSchema = new mongoose.Schema(
     },
     password: {
       type: String,
+      // Never serialize by default; explicit `.select('+password')` required (e.g. login).
+      select: false,
       required: function () {
         // Password is not required for social auth users
         return !this.socialAuth || !this.socialAuth.provider;
@@ -45,9 +47,29 @@ const userSchema = new mongoose.Schema(
       enum: ['Male', 'Female', 'Others'], 
       default: 'Male' 
     },
-    otp: { type: String },
-    otpExpires: { type: Date },
+    otp: { type: String, select: false },
+    otpExpires: { type: Date, select: false },
     isVerified: { type: Boolean, default: false },
+
+    // How the account was originally created (set once at sign-up)
+    signupMethod: {
+      type: String,
+      enum: ['password', 'google', 'facebook', 'twitter', 'firebase'],
+    },
+
+    // Login tracking (populated on each successful sign-in)
+    lastLoginAt: { type: Date },
+    lastLoginIp: { type: String },
+    lastLoginUserAgent: { type: String },
+    lastLoginMethod: {
+      type: String,
+      enum: ['password', 'google', 'facebook', 'twitter', 'firebase'],
+    },
+    loginCount: { type: Number, default: 0 },
+
+    // Soft-delete (account deactivation) — keeps booking/registration history intact
+    isDeleted: { type: Boolean, default: false },
+    deletedAt: { type: Date },
 
     // Firebase Authentication UID (for email verification)
     firebaseUid: { type: String, sparse: true, unique: true },
@@ -65,6 +87,9 @@ const userSchema = new mongoose.Schema(
       pushReminders: { type: Boolean, default: true },
       registrationAlerts: { type: Boolean, default: true },
     },
+
+    // One-time Meta WhatsApp welcome template (login/signup)
+    welcomeWhatsAppSentAt: { type: Date, default: null },
 
     // Social Authentication fields
     socialAuth: {

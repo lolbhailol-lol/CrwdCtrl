@@ -7,6 +7,7 @@ import { useFavorites } from '../../context/FavoritesContext';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
+import { shareContent } from '../../utils/externalLink';
 
 function getCollegeLabel(fest) {
     const raw = fest.collegeName || fest.college || fest.subtitle || fest.basedIn || '';
@@ -24,9 +25,7 @@ function FavoriteGridCard({ fest, onRemove, onViewDetails, isDark }) {
             : fest.id
             ? `${window.location.origin}/view-details/${fest.id}`
             : window.location.href;
-        if (navigator.share) {
-            navigator.share({ title, text: `Check out ${title}`, url }).catch(() => {});
-        }
+        shareContent({ title, text: `Check out ${title}`, url });
     };
 
     return (
@@ -44,11 +43,11 @@ function FavoriteGridCard({ fest, onRemove, onViewDetails, isDark }) {
         >
             <div className="relative aspect-4/5 w-full">
                 <img
-                    src={getImageUrl(fest.heroImage || fest.image, { preset: 'cardLg' })}
+                    src={getImageUrl(fest.heroImage || fest.image, { preset: 'cardPortrait' })}
                     alt={title}
                     className="absolute inset-0 w-full h-full object-cover"
                     onError={(e) => {
-                        handleImageErrorWithFallback(e, 180, 225, '#6366f1', title);
+                        handleImageErrorWithFallback(e, 180, 225, '#2A2B2E', title);
                     }}
                 />
                 <CardFavoriteButton isFavorite onClick={() => onRemove(fest.id)} />
@@ -207,9 +206,7 @@ function FestFavoritesPage() {
 
     const handleShareFavorites = () => {
         const url = `${window.location.origin}/favorites`;
-        if (navigator.share) {
-            navigator.share({ title: 'My Favourites on CrwdCtrl', url }).catch(() => {});
-        }
+        shareContent({ title: 'My Favourites on CrwdCtrl', url });
     };
 
     const renderGrid = (compact = false) => {
@@ -255,7 +252,7 @@ function FestFavoritesPage() {
 
     return (
         <div className="crwdctrl-page crwdctrl-page--content min-h-screen overflow-x-clip pb-24 lg:pb-8 transition-colors">
-            <main className="px-4 pt-4 sm:px-6 lg:px-8">
+            <main className="px-4 pt-[calc(var(--safe-top)+1rem)] sm:px-6 lg:px-8">
                 <div className="mx-auto w-full max-w-md lg:max-w-6xl">
                     <div className="px-4 pt-4">
                         <div className="flex items-start justify-between gap-3 pb-8">

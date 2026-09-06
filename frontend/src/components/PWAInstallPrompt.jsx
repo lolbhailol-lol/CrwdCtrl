@@ -17,6 +17,9 @@ export default function PWAInstallPrompt() {
         }
 
         const handler = (e) => {
+            if (window.location.pathname.startsWith('/campus-hunt')) {
+                return;
+            }
             e.preventDefault();
             setDeferredPrompt(e);
             // Show banner after a short delay (don't interrupt initial load)
@@ -28,6 +31,9 @@ export default function PWAInstallPrompt() {
         // Check if already installed
         if (window.matchMedia('(display-mode: standalone)').matches) {
             setShowBanner(false);
+        }
+        if (window.location.pathname.startsWith('/campus-hunt')) {
+            return undefined;
         }
 
         return () => window.removeEventListener('beforeinstallprompt', handler);

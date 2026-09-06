@@ -3,10 +3,11 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, SlidersHorizontal } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
-import { getImageUrl } from '../../utils/imageImports';
+import { getCoverImageUrl } from '../../utils/coverImages';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import CardFavoriteButton from '../../components/CardFavoriteButton';
 import CardShareButton from '../../components/CardShareButton';
+import { shareContent } from '../../utils/externalLink';
 import { TrekListSkeleton } from '../../components/HomeEventCardSkeleton';
 import { TREK_BROWSE_CATEGORIES } from '../../constants/trekBrowseCategories';
 import {
@@ -15,7 +16,8 @@ import {
     trekMatchesFilters,
 } from '../../constants/trekFilters';
 
-import { API_BASE_URL as API } from '../../services/api/client';
+import { fetchCatalogJSON } from '../../services/api/catalogCache';
+import { useInAppBack } from '../../hooks/useInAppBack';
 
 const TREK_CATEGORIES = TREK_BROWSE_CATEGORIES;
 
@@ -133,6 +135,7 @@ function TrekFilterModal({ isOpen, isDark, draftFilters, onToggle, onClear, onAp
 
 export default function TrekCategoryPage() {
     const navigate        = useNavigate();
+    const goBack = useInAppBack();
     const { category }    = useParams();
     const { isDark }      = useDarkMode();
     const { toggleFavorite, isFavorite } = useFavorites();
@@ -151,13 +154,12 @@ export default function TrekCategoryPage() {
 
     useEffect(() => {
         Promise.all([
-            fetch(`${API}/treks?_cb=${Date.now()}`,             { credentials: 'omit', mode: 'cors', headers: { Accept: 'application/json' } }),
-            fetch(`${API}/trek-communities?_cb=${Date.now()}`,  { credentials: 'omit', mode: 'cors', headers: { Accept: 'application/json' } }),
+            fetchCatalogJSON('/treks', { retries: 1 }),
+            fetchCatalogJSON('/trek-communities', { retries: 1 }),
         ])
-            .then(([r1, r2]) => Promise.all([r1.json(), r2.json()]))
             .then(([t, c]) => {
-                setTreks(Array.isArray(t?.treks) ? t.treks : []);
-                setCommunities(Array.isArray(c?.communities) ? c.communities : []);
+                setTreks(Array.isArray(t?.data?.treks) ? t.data.treks : []);
+                setCommunities(Array.isArray(c?.data?.communities) ? c.data.communities : []);
             })
             .catch(() => {})
             .finally(() => setLoading(false));
@@ -215,13 +217,13 @@ export default function TrekCategoryPage() {
             {/* ── Sticky Header ── */}
             <div
                 className={`crwdctrl-sticky-header sticky top-0 z-40 rounded-b-[16px] px-4 pb-4 ${isDark ? 'bg-black' : 'bg-slate-100'}`}
-                style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}
+                style={{ paddingTop: 'max(var(--safe-top), 12px)' }}
             >
                 {/* Back + Title + Filter */}
                 <div className="flex items-center gap-3 mt-2 mb-5">
                     <button
                         type="button"
-                        onClick={() => navigate(-1)}
+                        onClick={goBack}
                         className={`size-8 rounded-full flex items-center justify-center shrink-0 ${
                             isDark ? 'bg-white/10' : 'bg-white'
                         }`}
@@ -337,7 +339,7 @@ export default function TrekCategoryPage() {
                 ) : (
                     <div className="space-y-4">
                         {filtered.map((trek) => {
-                            const img = trek.coverImage || trek.images?.[0];
+                            const img = getCoverImageUrl(trek, 'cardPortrait');
                             const comm = commName(trek.communityId);
                             return (
                                 <div
@@ -349,7 +351,7 @@ export default function TrekCategoryPage() {
                                     <div className="card-wide-image w-full">
                                         {img ? (
                                             <img
-                                                src={getImageUrl(img, { preset: 'cardLg' })}
+                                                src={img}
                                                 alt={trek.trekName}
                                                 className="w-full h-full object-cover"
                                                 onError={e => handleImageErrorWithFallback(e, 361, 224, '#1a3a2a', trek.trekName)}
@@ -385,7 +387,7 @@ export default function TrekCategoryPage() {
                                             isDark={isDark}
                                             className="ml-3 shrink-0"
                                             onClick={() => {
-                                                if (navigator.share) navigator.share({ title: trek.trekName, url: `${window.location.origin}/trek/${trek._id}` }).catch(() => {});
+                                                shareContent({ title: trek.trekName, url: `${window.location.origin}/trek/${trek._id}` });
                                             }}
                                         />
                                     </div>

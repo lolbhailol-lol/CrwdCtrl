@@ -1,12 +1,15 @@
 const Registration = require('../model/registration_model');
 const TrekBooking = require('../model/trek_booking_model');
 const CategoryRegistration = require('../model/category_registration_model');
+const EventShowRegistration = require('../model/event_show_registration_model');
 const SportsEvent = require('../model/sports_model');
 const FestOrganizer = require('../model/fest_organizer_model');
 const Trek = require('../model/trek_model');
 const Competition = require('../model/competition_model');
 const { parseQrPayload, resolveCheckinRecord } = require('../utils/qrCheckin');
 const { appendCheckinToGoogleSheets } = require('./googleSheetsService');
+const { decryptRegistrationPii } = require('../utils/runClubPiiCrypto');
+const { buildSportsCheckinGuestPayload } = require('../utils/runClubOrganizerFormat');
 
 function matchesFestScope(recordFestId, festId) {
   if (!festId) return true;
@@ -80,6 +83,7 @@ function scheduleCheckinSheetLog({
  * @param {string} [options.festId] - Restrict to this fest (fest organizer scanners)
  * @param {string} [options.trekId] - Restrict to this trek (trek organizer scanners)
  * @param {string} [options.sportEventId] - Restrict to this sports event (sport scanners)
+ * @param {string} [options.eventShowId] - Restrict to this EventShow (event organizers)
  * @param {boolean} [options.allowTrek=true] - Admin can scan treks
  * @param {boolean} [options.allowSports=true] - Admin can scan sports tickets
  * @param {string} [options.scannedBy] - Name/email of scanner for sheet log
@@ -90,6 +94,11 @@ async function performCheckinFromRaw(raw, options = {}) {
     festId = null,
     trekId = null,
     sportEventId = null,
+    eventShowId = null,
+    /** When set with festId, reject tickets for a different competition */
+    competitionId = null,
+    /** When true with festId, only accept Pro Show tickets */
+    proShowOnly = false,
     allowTrek = true,
     allowSports = true,
     scannedBy = 'Admin',
@@ -112,6 +121,7 @@ async function performCheckinFromRaw(raw, options = {}) {
     Registration,
     TrekBooking,
     CategoryRegistration,
+    EventShowRegistration,
     payload,
   });
   if (!resolved) {
@@ -125,7 +135,119 @@ async function performCheckinFromRaw(raw, options = {}) {
     };
   }
 
+  if (resolved.kind === 'event') {
+    if (festId || trekId || sportEventId) {
+      return {
+        status: 403,
+        body: {
+          success: false,
+          status: 'invalid',
+          message: 'This scanner is not for event tickets. Use the event scanner.',
+        },
+      };
+    }
+
+    const EventShow = require('../model/event_show_model');
+    const eventReg = await EventShowRegistration.findById(resolved.record._id)
+      .populate('user', 'name email profilePic');
+
+    if (!eventReg) {
+      return {
+        status: 404,
+        body: { success: false, status: 'invalid', message: 'Event registration not found.' },
+      };
+    }
+
+    if (eventShowId && String(eventReg.eventShow) !== String(eventShowId)) {
+      return {
+        status: 403,
+        body: {
+          success: false,
+          status: 'invalid',
+          message: 'This ticket is for a different event.',
+        },
+      };
+    }
+
+    const show = await EventShow.findById(eventReg.eventShow).select('title displayName');
+    const eventTitle = show?.displayName || show?.title || 'Event';
+
+    if (eventReg.checkedIn) {
+      return {
+        status: 200,
+        body: {
+          success: true,
+          status: 'already_checked_in',
+          message: 'Already checked in',
+          data: {
+            userName: eventReg.user?.name,
+            userPhone: eventReg.user?.phone || eventReg.user?.phoneNumber || '',
+            userEmail: eventReg.user?.email || '',
+            festName: eventTitle,
+            eventTitle,
+            ticketType: 'event',
+            checkedInAt: eventReg.checkedInAt,
+          },
+        },
+      };
+    }
+
+    eventReg.checkedIn = true;
+    eventReg.checkedInAt = new Date();
+    await eventReg.save();
+
+    const { createNotification } = require('../controllers/notificationController');
+    if (eventReg.user?._id) {
+      setImmediate(async () => {
+        try {
+          await createNotification({
+            userId: eventReg.user._id,
+            title: 'Checked In!',
+            message: `You've been checked in for ${eventTitle}.`,
+            type: 'event',
+            metadata: {
+              eventShowId: eventReg.eventShow,
+              registrationId: eventReg._id,
+            },
+          });
+        } catch (err) {
+          console.error('❌ Failed to create event check-in notification:', err.message);
+        }
+      });
+    }
+
+    return {
+      status: 200,
+      body: {
+        success: true,
+        status: 'checked_in',
+        message: 'Check-in successful!',
+        data: {
+          userName: eventReg.user?.name,
+          userPhone: eventReg.user?.phone || eventReg.user?.phoneNumber || '',
+          userEmail: eventReg.user?.email,
+          userProfilePic: eventReg.user?.profilePic,
+          festName: eventTitle,
+          eventTitle,
+          ticketType: 'event',
+          checkedInAt: eventReg.checkedInAt,
+          registrationId: eventReg._id,
+        },
+      },
+    };
+  }
+
   if (resolved.kind === 'sports') {
+    if (eventShowId) {
+      return {
+        status: 403,
+        body: {
+          success: false,
+          status: 'invalid',
+          message: 'This scanner is for event tickets only.',
+        },
+      };
+    }
     if (festId) {
       return {
         status: 403,
@@ -158,9 +280,9 @@ async function performCheckinFromRaw(raw, options = {}) {
     }
 
     const sportsReg = await CategoryRegistration.findById(resolved.record._id)
-      .populate('user', 'name email profilePic');
+      .populate('user', 'name email profilePic phoneNumber phone gender');
 
-    if (sportsReg.category !== 'sports' || sportsReg.status === 'cancelled') {
+    if (!sportsReg || sportsReg.category !== 'sports' || sportsReg.status === 'cancelled') {
       return {
         status: 404,
         body: {
@@ -171,15 +293,30 @@ async function performCheckinFromRaw(raw, options = {}) {
       };
     }
 
+    if (sportsReg.status === 'pending' || sportsReg.paymentStatus === 'pending') {
+      return {
+        status: 400,
+        body: {
+          success: false,
+          status: 'invalid',
+          message: 'Payment is still under review. Approve the screenshot before check-in.',
+        },
+      };
+    }
+
     const event = await SportsEvent.findById(sportsReg.eventId).select(
-      'title city sportType eventDate registration.googleSheetsUrl',
+      'title city sportType eventDate runClubId registration.googleSheetsUrl registration.formSchema',
     );
     const eventId = sportsReg.eventId;
     const eventTitle = event?.title || 'Sports Event';
 
+    const decryptedSports = decryptRegistrationPii(sportsReg, event?.runClubId) || sportsReg;
+    const guestPayload = buildSportsCheckinGuestPayload(decryptedSports, event);
+
     if (sportEventId && !matchesSportScope(eventId, sportEventId)) {
+      // 409 (not 403): organizers must see the ticket message — 403 is often remapped to "session expired" in the scanner UI.
       return {
-        status: 403,
+        status: 409,
         body: {
           success: false,
           status: 'invalid',
@@ -196,19 +333,50 @@ async function performCheckinFromRaw(raw, options = {}) {
           status: 'already_checked_in',
           message: 'Already checked in',
           data: {
-            userName: sportsReg.user?.name,
+            ...guestPayload,
             festName: eventTitle,
             eventTitle,
             ticketType: 'sports',
             checkedInAt: sportsReg.checkedInAt,
+            registrationId: sportsReg._id,
+          },
+        },
+      };
+    }
+
+    // Claim the check-in atomically: at a gate rush the same QR (e.g. a shared screenshot)
+    // can hit two scanners inside one round trip, and a read-then-save would tell both "successful".
+    const claimedAt = new Date();
+    const claimed = await CategoryRegistration.findOneAndUpdate(
+      { _id: sportsReg._id, checkedIn: { $ne: true } },
+      { $set: { checkedIn: true, checkedInAt: claimedAt } },
+      { new: true, projection: { checkedInAt: 1 } },
+    ).lean();
+
+    if (!claimed) {
+      const current = await CategoryRegistration.findById(sportsReg._id)
+        .select('checkedInAt')
+        .lean();
+      return {
+        status: 200,
+        body: {
+          success: true,
+          status: 'already_checked_in',
+          message: 'Already checked in',
+          data: {
+            ...guestPayload,
+            festName: eventTitle,
+            eventTitle,
+            ticketType: 'sports',
+            checkedInAt: current?.checkedInAt || null,
+            registrationId: sportsReg._id,
           },
         },
       };
     }
 
     sportsReg.checkedIn = true;
-    sportsReg.checkedInAt = new Date();
-    await sportsReg.save();
+    sportsReg.checkedInAt = claimedAt;
 
     const { createNotification } = require('../controllers/notificationController');
     if (sportsReg.user?._id) {
@@ -243,8 +411,8 @@ async function performCheckinFromRaw(raw, options = {}) {
         competitionName: null,
         ticketType: 'sports',
         registrationId: sportsReg._id,
-        userName: sportsReg.user?.name,
-        userEmail: sportsReg.user?.email,
+        userName: guestPayload.userName || sportsReg.user?.name,
+        userEmail: guestPayload.userEmail || sportsReg.user?.email,
         checkedInAt: sportsReg.checkedInAt,
         status: 'Completed',
         scannedBy,
@@ -258,9 +426,7 @@ async function performCheckinFromRaw(raw, options = {}) {
         status: 'checked_in',
         message: 'Check-in successful!',
         data: {
-          userName: sportsReg.user?.name,
-          userEmail: sportsReg.user?.email,
-          userProfilePic: sportsReg.user?.profilePic,
+          ...guestPayload,
           festName: eventTitle,
           eventTitle,
           ticketType: 'sports',
@@ -272,6 +438,16 @@ async function performCheckinFromRaw(raw, options = {}) {
   }
 
   if (resolved.kind === 'trek') {
+    if (eventShowId) {
+      return {
+        status: 403,
+        body: {
+          success: false,
+          status: 'invalid',
+          message: 'This scanner is for event tickets only.',
+        },
+      };
+    }
     if (festId || sportEventId) {
       return {
         status: 403,
@@ -313,18 +489,35 @@ async function performCheckinFromRaw(raw, options = {}) {
 
     const trekName = trekBooking.trekId?.trekName || 'Trek';
 
+    if (trekBooking.status && trekBooking.status !== 'confirmed') {
+      return {
+        status: 400,
+        body: {
+          success: false,
+          status: 'invalid',
+          message: 'This booking is not confirmed and cannot be checked in.',
+        },
+      };
+    }
+
     if (trekBooking.checkedIn) {
+      const peopleCount = Math.max(1, Number(trekBooking.bookingDetails?.people) || 1);
       return {
         status: 200,
         body: {
           success: true,
           status: 'already_checked_in',
-          message: 'Already checked in',
+          message: peopleCount > 1
+            ? `Already checked in (${peopleCount} people on this ticket)`
+            : 'Already checked in',
           data: {
             userName: trekBooking.userId?.name || trekBooking.userName,
+            userPhone: trekBooking.userId?.phoneNumber || trekBooking.formData?.contact_no || trekBooking.formData?.phone || '',
+            userEmail: trekBooking.userEmail || trekBooking.userId?.email || '',
             festName: trekBooking.trekId?.trekName,
             trekName: trekBooking.trekId?.trekName,
             ticketType: 'trek',
+            people: peopleCount,
             checkedInAt: trekBooking.checkedInAt,
           },
         },
@@ -336,7 +529,9 @@ async function performCheckinFromRaw(raw, options = {}) {
     await trekBooking.save();
 
     const { createNotification } = require('../controllers/notificationController');
+    const { sendPushNotification } = require('../services/pushService');
     const trekUserId = trekBooking.userId?._id || trekBooking.userId;
+    const checkInLink = `/registration-details/${trekBooking._id}?type=trek`;
     if (trekUserId) {
       setImmediate(async () => {
         try {
@@ -345,10 +540,19 @@ async function performCheckinFromRaw(raw, options = {}) {
             title: 'Checked In!',
             message: `You've been checked in for ${trekName}.`,
             type: 'event',
+            link: checkInLink,
             metadata: {
               trekId: bookingTrekId,
-              bookingId: trekBooking._id,
+              registrationId: trekBooking._id,
             },
+          });
+          sendPushNotification(trekUserId, {
+            title: 'Checked In!',
+            body: `You've been checked in for ${trekName}.`,
+            link: checkInLink,
+            type: 'event',
+          }, { preferenceKey: 'pushReminders' }).catch((err) => {
+            console.error('❌ Trek check-in push failed:', err.message);
           });
         } catch (err) {
           console.error('❌ Failed to create trek check-in notification:', err.message);
@@ -382,14 +586,21 @@ async function performCheckinFromRaw(raw, options = {}) {
       body: {
         success: true,
         status: 'checked_in',
-        message: 'Check-in successful!',
+        message: (() => {
+          const peopleCount = Math.max(1, Number(trekBooking.bookingDetails?.people) || 1);
+          return peopleCount > 1
+            ? `Check-in successful! ${peopleCount} people on this ticket.`
+            : 'Check-in successful!';
+        })(),
         data: {
           userName: trekBooking.userId?.name || trekBooking.userName,
+          userPhone: trekBooking.userId?.phoneNumber || trekBooking.formData?.contact_no || trekBooking.formData?.phone || '',
           userEmail: trekBooking.userId?.email || trekBooking.userEmail,
           userProfilePic: trekBooking.userId?.profilePic,
           festName: trekName,
           trekName,
           ticketType: 'trek',
+          people: Math.max(1, Number(trekBooking.bookingDetails?.people) || 1),
           checkedInAt: trekBooking.checkedInAt,
           bookingId: trekBooking._id,
         },
@@ -397,15 +608,17 @@ async function performCheckinFromRaw(raw, options = {}) {
     };
   }
 
-  if (trekId || sportEventId) {
+  if (trekId || sportEventId || eventShowId) {
     return {
       status: 403,
       body: {
         success: false,
         status: 'invalid',
-        message: sportEventId
-          ? 'This scanner is for sports tickets only. Fest tickets cannot be checked in here.'
-          : 'This scanner is for trek tickets only. Fest tickets cannot be checked in here.',
+        message: eventShowId
+          ? 'This scanner is for event tickets only. Fest tickets cannot be checked in here.'
+          : sportEventId
+            ? 'This scanner is for sports tickets only. Fest tickets cannot be checked in here.'
+            : 'This scanner is for trek tickets only. Fest tickets cannot be checked in here.',
       },
     };
   }
@@ -426,9 +639,51 @@ async function performCheckinFromRaw(raw, options = {}) {
     };
   }
 
-  const ticketType = registration.competitionId ? 'competition' : 'fest';
+  const ticketType = registration.isProShow
+    ? 'pro_show'
+    : (registration.competitionId ? 'competition' : 'fest');
   const festName = registration.fest?.festName || 'Event';
   const competitionName = registration.competitionId?.name || null;
+
+  if (proShowOnly) {
+    if (!registration.isProShow) {
+      return {
+        status: 403,
+        body: {
+          success: false,
+          status: 'invalid',
+          message: competitionName
+            ? `This is a ${competitionName} competition ticket — use the Pro Show gate scanner for night passes.`
+            : 'This ticket is not a Pro Show pass. Use the Pro Show gate scanner.',
+        },
+      };
+    }
+  } else if (competitionId) {
+    if (registration.isProShow) {
+      return {
+        status: 403,
+        body: {
+          success: false,
+          status: 'invalid',
+          message: 'This is a Pro Show pass — use the Pro Show gate scanner.',
+        },
+      };
+    }
+    const expected = String(competitionId);
+    const regCompId = registration.competitionId?._id || registration.competitionId;
+    if (!regCompId || String(regCompId) !== expected) {
+      return {
+        status: 403,
+        body: {
+          success: false,
+          status: 'invalid',
+          message: competitionName
+            ? `This ticket is for ${competitionName}, not this competition room.`
+            : 'This ticket is not for this competition. Use the correct competition scanner.',
+        },
+      };
+    }
+  }
 
   if (registration.checkedIn) {
     return {
@@ -439,6 +694,8 @@ async function performCheckinFromRaw(raw, options = {}) {
         message: 'Already checked in',
         data: {
           userName: registration.user?.name,
+          userPhone: registration.user?.phone || registration.user?.phoneNumber || '',
+          userEmail: registration.user?.email || '',
           festName,
           competitionName,
           ticketType,
@@ -500,6 +757,7 @@ async function performCheckinFromRaw(raw, options = {}) {
       message: 'Check-in successful!',
       data: {
         userName: registration.user?.name,
+        userPhone: registration.user?.phone || registration.user?.phoneNumber || '',
         userEmail: registration.user?.email,
         userProfilePic: registration.user?.profilePic,
         festName,

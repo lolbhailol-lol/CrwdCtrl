@@ -1,12 +1,86 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { ArrowLeft, Share2, Heart, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Share2, Heart, ChevronRight, ChevronDown, Backpack } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { getImageUrl } from '../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
-import { ScrollProgress, ScrollReveal, StickyCta } from '../../motion';
+import { ScrollProgress, ScrollReveal } from '../../motion';
+import { shareContent, openExternalUrl } from '../../utils/externalLink';
+import { useInAppBack } from '../../hooks/useInAppBack';
+import Seo from '../../components/Seo';
+import LazyMap from '../../components/LazyMap';
+import DetailPageLoader from '../../components/DetailPageLoader';
+import { breadcrumbSchema, eventSchema } from '../../utils/seo';
+import { formatBatchDate, normalizeTrekBatches } from '../../utils/trekDateDisplay';
+import { ScheduleMainMarker, ScheduleSubMarker } from '../../components/SchedulePointMarkers';
+import { normalizeItineraryDay, SCHEDULE_SUB_INDENT_PX } from '../../utils/trekItinerary';
+import { normalizeDetailBoxes, resolveTrekMapPin } from '../../utils/trekDetailBoxes';
+import TrekDetailIcon from '../../components/TrekDetailIcon';
+import { fetchTrekCommunity } from '../../services/api/public.api';
+import { publicFetchJSONRetry } from '../../services/api/client';
+import { trackBookNowClick } from '../../services/analyticsService';
+import { trekPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
+import { resolveTrekHeroSlides, resolveTrekGalleryImages } from '../../utils/trekImages';
+import {
+    classifyDetailLoadError,
+    createDetailCache,
+    DETAIL_FETCH_OPTS,
+} from '../../utils/detailPageLoad';
 
-import { API_BASE_URL as API } from '../../services/api/client';
+const trekDetailCache = createDetailCache('crwdctrl_trek_detail_v1_');
+const GALLERY_PREVIEW_COUNT = 4;
+
+function TrekGalleryLightbox({ images, index, name, onClose, onIndexChange }) {
+    const current = images[index];
+    if (!current) return null;
+    return (
+        <div
+            className="fixed inset-0 z-80 bg-black/92 flex flex-col"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Gallery viewer"
+            onClick={onClose}
+        >
+            <div className="flex items-center justify-between px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                <p className="text-white text-sm font-medium truncate">{name}</p>
+                <button type="button" onClick={onClose} className="text-white/80 text-sm px-3 py-1.5 rounded-lg bg-white/10">
+                    Close
+                </button>
+            </div>
+            <div className="flex-1 flex items-center justify-center px-4" onClick={(e) => e.stopPropagation()}>
+                <img
+                    src={getImageUrl(current, { preset: 'detail' })}
+                    alt=""
+                    className="max-h-full max-w-full object-contain rounded-lg"
+                />
+            </div>
+            {images.length > 1 ? (
+                <div className="flex items-center justify-between px-4 py-4" onClick={(e) => e.stopPropagation()}>
+                    <button
+                        type="button"
+                        className="px-4 py-2 rounded-xl bg-white/10 text-white text-sm"
+                        onClick={() => onIndexChange((index - 1 + images.length) % images.length)}
+                    >
+                        Prev
+                    </button>
+                    <span className="text-white/70 text-xs tabular-nums">{index + 1} / {images.length}</span>
+                    <button
+                        type="button"
+                        className="px-4 py-2 rounded-xl bg-white/10 text-white text-sm"
+                        onClick={() => onIndexChange((index + 1) % images.length)}
+                    >
+                        Next
+                    </button>
+                </div>
+            ) : null}
+        </div>
+    );
+}
+
+function trekMatchesRouteParam(trek, routeParam) {
+    return entityMatchesRouteParam(trek, routeParam, ['trekName', 'title']);
+}
 
 // ── Colorful SVG Icons (no background — work on both light & dark) ─────────────
 function InfoRow({ label, value, isDark }) {
@@ -56,6 +130,16 @@ const PersonIcon = ({ size = 20 }) => (
         <path   d="M3 20 Q3 14 9 14 Q15 14 15 20" fill="#0D9488"/>
         <circle cx="17" cy="7"  r="2.5" fill="#5EEAD4" opacity="0.8"/>
         <path   d="M14 20 Q14 15.5 17 15.5 Q21 15.5 21 20" fill="#0D9488" opacity="0.7"/>
+    </svg>
+);
+
+// Calendar — blue for trek date
+const CalendarIcon = ({ size = 20 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <rect x="3" y="5" width="18" height="16" rx="2" fill="#DBEAFE" stroke="#3B82F6" strokeWidth="1.5"/>
+        <path d="M3 9h18" stroke="#3B82F6" strokeWidth="1.5"/>
+        <path d="M8 3v4M16 3v4" stroke="#2563EB" strokeWidth="1.5" strokeLinecap="round"/>
+        <rect x="7" y="12" width="3" height="3" rx="0.5" fill="#3B82F6"/>
     </svg>
 );
 
@@ -126,80 +210,234 @@ const FitnessIcon = ({ size = 20 }) => (
     </svg>
 );
 
+// Clean list items from admin (one per line)
+function cleanListItem(item) {
+    return String(item || '').replace(/^[-*•\s]+/, '').trim();
+}
+
+function TrekInfoList({ items, isDark, dotClass = 'bg-[#0ECCEE]' }) {
+    const rows = (items || []).map(cleanListItem).filter(Boolean);
+    if (!rows.length) return null;
+    return (
+        <div className={`rounded-2xl border p-4 ${isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
+            <ul className="space-y-3">
+                {rows.map((item, i) => (
+                    <li key={i} className={`flex gap-3 text-sm leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        <span className={`mt-2 size-1.5 rounded-full shrink-0 ${dotClass}`} />
+                        <span className="flex-1 min-w-0">{item}</span>
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+}
+
 export default function TrekDetailPage() {
     const navigate  = useNavigate();
+    const goBack = useInAppBack();
     const location  = useLocation();
     const { id }    = useParams();
     const { isDark } = useDarkMode();
 
+    const seedFromNav = (raw) => {
+        if (!raw) return null;
+        return {
+            ...raw,
+            trekName:        raw.trekName || raw.title || 'Trek',
+            trekDuration:    raw.trekDuration || raw.duration,
+            difficultyLevel: raw.difficultyLevel || raw.difficulty,
+            images:          raw.images?.length ? raw.images : raw.image ? [raw.image] : [],
+            coverImage:      raw.coverImage || raw.image || raw.images?.[0] || null,
+        };
+    };
+
     const [trek,      setTrek]      = useState(null);
-    const [community] = useState(location.state?.community || null);
+    const [genderRegistration, setGenderRegistration] = useState(null);
+    const [community, setCommunity] = useState(null);
     const [loading,   setLoading]   = useState(true);
+    const [loadError, setLoadError] = useState('');
     const [liked,     setLiked]     = useState(false);
     const [imgPg,     setImgPg]     = useState(0);
     const [overviewExpanded, setOverviewExpanded] = useState(false);
+    const [galleryOpen, setGalleryOpen] = useState(false);
+    const [galleryIndex, setGalleryIndex] = useState(0);
     const [activeTab, setActiveTab] = useState('Details');
     const [termsOpen, setTermsOpen] = useState(false);
-    const [inclusionOpen, setInclusionOpen] = useState(false);
+    const [carryOpen, setCarryOpen] = useState(false);
+    const [departuresOpen, setDeparturesOpen] = useState(false);
     const imgRef = useRef(null);
+    const departuresRef = useRef(null);
 
     useEffect(() => {
-        // Always fetch full trek data from API so all fields are available
-        const fetchTrek = async () => {
-            const trekId = id || location.state?.trek?.id || location.state?.trek?._id;
-            if (!trekId) {
-                // Fallback: use state data and normalise field names
-                const raw = location.state?.trek;
-                if (raw) {
-                    setTrek({
-                        ...raw,
-                        trekName:       raw.trekName || raw.title || 'Trek',
-                        trekDuration:   raw.trekDuration || raw.duration,
-                        difficultyLevel: raw.difficultyLevel || raw.difficulty,
-                        images:         raw.images?.length ? raw.images : raw.image ? [raw.image] : [],
-                    });
-                }
-                setLoading(false);
-                return;
+        if (!departuresOpen) return undefined;
+        const onDocClick = (e) => {
+            if (departuresRef.current && !departuresRef.current.contains(e.target)) {
+                setDeparturesOpen(false);
             }
-            try {
-                const r = await fetch(`${API}/treks/${trekId}`);
-                const d = await r.json();
-                if (d.trek) {
-                    setTrek(d.trek);
-                } else {
-                    // Fallback to state
-                    const raw = location.state?.trek;
-                    if (raw) setTrek({ ...raw, trekName: raw.trekName || raw.title, trekDuration: raw.trekDuration || raw.duration, difficultyLevel: raw.difficultyLevel || raw.difficulty, images: raw.images?.length ? raw.images : raw.image ? [raw.image] : [] });
-                }
-            } catch {
-                const raw = location.state?.trek;
-                if (raw) setTrek({ ...raw, trekName: raw.trekName || raw.title, trekDuration: raw.trekDuration || raw.duration, difficultyLevel: raw.difficultyLevel || raw.difficulty, images: raw.images?.length ? raw.images : raw.image ? [raw.image] : [] });
-            }
-            setLoading(false);
         };
-        fetchTrek();
+        document.addEventListener('mousedown', onDocClick);
+        return () => document.removeEventListener('mousedown', onDocClick);
+    }, [departuresOpen]);
+
+    useEffect(() => {
+        setDeparturesOpen(false);
+    }, [activeTab]);
+
+    useEffect(() => {
+        const navTrek = location.state?.trek;
+        const trekId = id || navTrek?.id || navTrek?._id;
+        if (!trekId) {
+            setTrek(null);
+            setCommunity(null);
+            setLoadError('');
+            setLoading(false);
+            return undefined;
+        }
+
+        const seeded = trekMatchesRouteParam(navTrek, id) ? seedFromNav(navTrek) : null;
+        const cached = trekDetailCache.read(trekId);
+        const cacheOk = trekMatchesRouteParam(cached, id);
+        const fallback = seeded || (cacheOk ? cached : null);
+
+        setImgPg(0);
+        setOverviewExpanded(false);
+        setActiveTab('Details');
+        setTermsOpen(false);
+        setCarryOpen(false);
+        setGenderRegistration(null);
+        setLoadError('');
+        setTrek(fallback);
+        setCommunity(fallback ? (location.state?.community || null) : null);
+        setLoading(!fallback);
+
+        const controller = new AbortController();
+        publicFetchJSONRetry(`/treks/${encodeURIComponent(trekId)}`, {
+            signal: controller.signal,
+            ...DETAIL_FETCH_OPTS,
+        })
+            .then((res) => {
+                if (controller.signal.aborted) return;
+                const d = res?.data;
+                if (d?.trek) {
+                    setTrek(d.trek);
+                    setGenderRegistration(d.genderRegistration || null);
+                    trekDetailCache.write(trekId, d.trek);
+                    if (d.trek._id) trekDetailCache.write(String(d.trek._id), d.trek);
+                    if (d.trek.slug) trekDetailCache.write(String(d.trek.slug), d.trek);
+                    const populated = d.trek.communityId;
+                    if (populated && typeof populated === 'object' && populated.name) {
+                        setCommunity(populated);
+                    }
+                    setLoadError('');
+                } else if (fallback) {
+                    setTrek(fallback);
+                    setLoadError('');
+                } else {
+                    setTrek(null);
+                    setLoadError('not_found');
+                }
+            })
+            .catch((err) => {
+                if (controller.signal.aborted) return;
+                if (fallback) {
+                    setTrek(fallback);
+                    setLoadError('');
+                    return;
+                }
+                setTrek(null);
+                setLoadError(classifyDetailLoadError(err));
+            })
+            .finally(() => {
+                if (!controller.signal.aborted) setLoading(false);
+            });
+
+        return () => controller.abort();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id]);
 
-    if (loading) return (
-        <div className="crwdctrl-page crwdctrl-page--content flex items-center justify-center min-h-screen">
-            <div className="w-8 h-8 rounded-full border-4 border-[#0ECCEE] border-t-transparent animate-spin" />
-        </div>
-    );
-    if (!trek) return (
-        <div className="crwdctrl-page crwdctrl-page--content flex flex-col items-center justify-center min-h-screen gap-3 px-6">
-            <span className="text-4xl">⛰️</span>
-            <p className="text-gray-500 text-sm text-center">Trek not found</p>
-            <button onClick={() => navigate(-1)} className="text-[#0ECCEE] text-sm font-semibold">← Go back</button>
-        </div>
-    );
+    // Always clear to loader when switching treks (do not paint previous trek under loading=false)
+    const showPageLoader = loading || (trek && id && !trekMatchesRouteParam(trek, id));
 
-    const coverImg  = trek.coverImage || null;
-    const rawImages = trek.images?.filter(Boolean) || [];
-    const allImages = coverImg ? [coverImg, ...rawImages.filter(u => u !== coverImg)] : rawImages;
-    const images    = allImages.length ? allImages : trek.image ? [trek.image] : [null];
-    const communityName = community?.name || community?.title || trek.communityName || trek.trekLeader || null;
-    // Build overview from available trek fields
+    useEffect(() => {
+        if (!trek?.communityId) return undefined;
+        const populated = typeof trek.communityId === 'object' ? trek.communityId : null;
+        if (populated?.name) return undefined;
+
+        const communityId = typeof trek.communityId === 'object'
+            ? trek.communityId._id || trek.communityId.id
+            : trek.communityId;
+        if (!communityId) return undefined;
+
+        const controller = new AbortController();
+        fetchTrekCommunity(communityId, controller.signal)
+            .then((data) => {
+                if (controller.signal.aborted) return;
+                if (data?.community) setCommunity((prev) => prev || data.community);
+            })
+            .catch(() => {});
+        return () => controller.abort();
+    }, [trek?.communityId]);
+
+    useEffect(() => {
+        if (!trek || !id) return;
+        const canonical = trekPath(trek);
+        if (canonical && window.location.pathname !== canonical) {
+            navigate(`${canonical}${window.location.search || ''}`, { replace: true, state: location.state });
+        }
+    }, [trek, id, navigate, location.state]);
+
+    if (showPageLoader) return <DetailPageLoader label="Loading trek" variant="trek" />;
+    if (!trek) {
+        const isNotFound = loadError === 'not_found';
+        const isRetryable = !isNotFound;
+        return (
+            <div className="crwdctrl-page crwdctrl-page--content flex flex-col items-center justify-center min-h-screen gap-3 px-6">
+                <p className={`text-sm text-center font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {isRetryable ? "Couldn't load this trek" : 'This trek is no longer available'}
+                </p>
+                <p className="text-gray-500 text-sm text-center max-w-xs">
+                    {isRetryable
+                        ? 'Slow network or server waking up — tap Retry.'
+                        : 'It may have ended, been unpublished, or the link is outdated.'}
+                </p>
+                {isRetryable ? (
+                    <button
+                        type="button"
+                        onClick={() => window.location.reload()}
+                        className="px-5 py-2.5 rounded-xl bg-[#0ECCEE] text-black text-sm font-bold"
+                    >
+                        Retry
+                    </button>
+                ) : null}
+                <button
+                    type="button"
+                    onClick={() => (isRetryable ? navigate('/treks') : goBack())}
+                    className="text-[#0ECCEE] text-sm font-semibold"
+                >
+                    {isNetwork ? 'Browse treks' : '← Go back'}
+                </button>
+            </div>
+        );
+    }
+
+    const images    = (() => {
+        const slides = resolveTrekHeroSlides(trek);
+        return slides.length ? slides : [null];
+    })();
+    const coverImg  = images[0]
+        || trek.coverImage
+        || trek.coverImages?.hero
+        || trek.coverImages?.portrait
+        || null;
+    const galleryImages = resolveTrekGalleryImages(trek);
+    const communityName =
+        community?.name ||
+        community?.title ||
+        (typeof trek.communityId === 'object' ? trek.communityId?.name : null) ||
+        trek.communityName ||
+        trek.trekLeader ||
+        null;
+    // WhatsApp group link is only shown to registered users (My Bookings → View Details + email).
     const buildOverview = () => {
         if (trek.description) return trek.description;
         const parts = [];
@@ -216,33 +454,73 @@ export default function TrekDetailPage() {
     const shortDesc = desc.slice(0, 150);
 
     const handleShare = () => {
-        if (navigator.share) navigator.share({ title: trek.trekName, url: window.location.href }).catch(() => {});
+        shareContent({ title: trek.trekName, url: window.location.href });
     };
 
+    const trekName = trek.trekName || trek.title || trek.name || 'Trek';
+    const trekLocation = trek.meetingLocation || trek.startingPoint || trek.city || trek.destination || null;
+    const mapPin = resolveTrekMapPin(trek);
+    const canonicalPath = trekPath(trek);
+
     return (
-        <div className="crwdctrl-page crwdctrl-mobile-page flex flex-col min-h-screen pb-28">
+        <div className="crwdctrl-page flex flex-col min-h-screen pb-28">
+            <Seo
+                title={trekName}
+                description={desc}
+                canonical={canonicalPath}
+                image={coverImg || images?.[0]}
+                type="article"
+                jsonLd={[
+                    breadcrumbSchema([
+                        { name: 'Home', path: '/' },
+                        { name: 'Treks', path: '/treks' },
+                        { name: trekName, path: canonicalPath },
+                    ]),
+                    eventSchema({
+                        name: trekName,
+                        description: desc,
+                        url: canonicalPath,
+                        image: coverImg || images?.[0],
+                        location: trekLocation || undefined,
+                        price: trek.registrationFee != null ? trek.registrationFee : undefined,
+                        organizerName: communityName || undefined,
+                        availabilityUrl: `${canonicalPath}/book`,
+                    }),
+                ]}
+            />
             <ScrollProgress />
+
+            <div className="mx-auto w-full md:max-w-2xl flex flex-col flex-1">
 
             {/* ── HERO IMAGE ── */}
             <div className="relative w-full h-[396px] shrink-0 overflow-hidden">
                 <div
                     ref={imgRef}
                     className="overflow-x-auto scrollbar-hide snap-x snap-mandatory w-full h-full"
-                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-                    onScroll={e => setImgPg(Math.round(e.target.scrollLeft / e.target.clientWidth))}
+                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x', overscrollBehaviorX: 'contain' }}
+                    onScroll={e => { const p = Math.round(e.target.scrollLeft / e.target.clientWidth); setImgPg(prev => (prev === p ? prev : p)); }}
                 >
                     <div className="flex h-full">
-                        {images.map((img, i) => (
+                        {images.map((img, i) => {
+                            const raw = typeof img === 'string' ? img : (img?.url || img?.secure_url || '');
+                            const src = getImageUrl(raw, { preset: 'communityBanner' }) || getImageUrl(raw) || raw || null;
+                            return (
                             <div key={i} className="shrink-0 w-full h-full snap-start">
-                                {img
-                                    ? <img src={getImageUrl(img, { preset: 'hero' })} alt={trek.trekName} className="w-full h-full object-cover content-image" loading="lazy" decoding="async"
-                                        onError={e => handleImageErrorWithFallback(e, 393, 396, '#1a3a2a', trek.trekName)} />
-                                    : <div className="w-full h-full bg-linear-to-br from-green-900 via-emerald-800 to-teal-700 flex items-center justify-center">
-                                        <span className="text-7xl opacity-40">⛰️</span>
-                                      </div>
+                                {src
+                                    ? <img src={src} alt={trek.trekName} className="w-full h-full object-cover content-image"
+                                        loading={i === 0 ? 'eager' : 'lazy'} fetchPriority={i === 0 ? 'high' : 'auto'} decoding="async"
+                                        onError={e => {
+                                            if (raw && e.currentTarget.src !== raw) {
+                                                e.currentTarget.src = raw;
+                                                return;
+                                            }
+                                            handleImageErrorWithFallback(e, 393, 396, '#2A2B2E', trek.trekName);
+                                        }} />
+                                    : <div className="w-full h-full bg-[#1A1B1D]" />
                                 }
                             </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
 
@@ -251,22 +529,22 @@ export default function TrekDetailPage() {
                 {/* Back / Share / Heart */}
                 <div
                     className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 z-10"
-                    style={{ paddingTop: 'calc(max(env(safe-area-inset-top), 0px) + 2.5rem)' }}
+                    style={{ paddingTop: 'calc(max(var(--safe-top), 0px) + 2.5rem)' }}
                 >
-                    <button onClick={() => navigate(-1)}
+                    <button onClick={goBack}
                         aria-label="Go back"
-                        className="size-11 rounded-full bg-stone-900/20 backdrop-blur-sm flex items-center justify-center">
+                        className="size-11 rounded-full bg-black/40 flex items-center justify-center">
                         <ArrowLeft size={22} strokeWidth={2.25} className="text-white" />
                     </button>
                     <div className="flex items-center gap-2.5">
                         <button onClick={handleShare}
                             aria-label="Share"
-                            className="size-11 rounded-full bg-stone-900/20 backdrop-blur-sm flex items-center justify-center">
+                            className="size-11 rounded-full bg-black/40 flex items-center justify-center">
                             <Share2 size={20} strokeWidth={2.25} className="text-white" />
                         </button>
                         <button onClick={() => setLiked(l => !l)}
                             aria-label="Favourite"
-                            className="size-11 rounded-full bg-stone-900/20 backdrop-blur-sm flex items-center justify-center">
+                            className="size-11 rounded-full bg-black/40 flex items-center justify-center">
                             <Heart size={20} strokeWidth={2.25} className={liked ? 'fill-red-500 text-red-500' : 'text-white'} />
                         </button>
                     </div>
@@ -275,7 +553,7 @@ export default function TrekDetailPage() {
                 {/* Dots */}
                 {images.length > 1 && (
                     <div className="absolute bottom-16 left-0 right-0 flex justify-center items-center gap-2 z-10">
-                        {images.slice(0, 4).map((_, i) => (
+                        {images.slice(0, 5).map((_, i) => (
                             <div key={i} className={`rounded-2xl transition-all duration-300
                                 ${i === imgPg ? 'h-2.5 w-6 bg-white' : 'size-2.5 bg-transparent border-2 border-white/60'}`} />
                         ))}
@@ -283,58 +561,101 @@ export default function TrekDetailPage() {
                 )}
             </div>
 
-            {/* ── Sticky price + CTA bar ── */}
-        <StickyCta>
-            <div className={`px-4 py-2.5 flex items-center gap-4 border-t
-                ${isDark ? 'bg-[#111213] border-gray-800' : 'bg-white border-gray-100'}`}>
-
-                {/* Price block */}
-                <div className="flex-1 min-w-0 pl-4">
-                    {Number(trek.registrationFee) > 0 ? (
-                        <>
-                            <p className={`text-[10px] font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Starting from</p>
-                            <div className="flex items-baseline gap-0.5">
-                                <span className={`text-base font-bold ${isDark ? 'text-gray-300' : 'text-gray-500'}`}>₹</span>
-                                <span className={`text-3xl font-extrabold leading-none ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                    {Number(trek.registrationFee).toLocaleString('en-IN')}
-                                </span>
-                                <span className={`text-[10px] ml-1 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>/ person</span>
-                            </div>
-                        </>
-                    ) : (
-                        <div className="flex items-center gap-1.5 pl-4">
-                            <span className="text-3xl font-extrabold text-green-500 leading-none">FREE</span>
-                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-100 text-green-600">No charge</span>
-                        </div>
-                    )}
-                </div>
-
-                {/* CTA button */}
-                <button
-                    onClick={() => {
-                        const trekId = id || trek._id || trek.id;
-                        navigate(`/trek/${trekId}/book`, { state: { trek } });
-                    }}
-                    className="flex items-center justify-center gap-2 w-52 py-2.5 rounded-xl bg-[#0ECCEE] text-black font-bold text-sm shadow-md shadow-[#0ECCEE]/20 active:scale-95 transition-all shrink-0"
+            {/* ── Sticky price + CTA bar (portal above bottom nav, same as events) ── */}
+            {typeof document !== 'undefined' && createPortal(
+                <div
+                    className="fixed inset-x-0 bottom-0 z-100040 px-2 pointer-events-none"
+                    style={{ paddingBottom: 'max(var(--safe-bottom), 6px)' }}
                 >
-                    Check Availability
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M5 12h14M12 5l7 7-7 7"/>
-                    </svg>
-                </button>
-            </div>
-        </StickyCta>
+                    <div className={`pointer-events-auto mx-auto w-full max-w-md md:max-w-2xl flex items-center justify-between gap-4 rounded-[30px] px-5 py-3.5 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'}`}>
 
-        <div className={`relative -mt-10 flex-1 rounded-t-3xl z-10 ${isDark ? 'bg-[#161718]' : 'bg-slate-100'}`}>
+                        {/* Price block — don't treat missing fee as Free (seed flash) */}
+                        <div className="min-w-0 shrink-0">
+                            <p className={`text-xs font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Registration Fee</p>
+                            {trek.registrationFee == null ? (
+                                <p className={`mt-0.5 text-2xl font-bold leading-none ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>—</p>
+                            ) : Number(trek.registrationFee) > 0 ? (
+                                <p className={`mt-0.5 text-2xl font-bold leading-none truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                    ₹{Number(trek.registrationFee).toLocaleString('en-IN')}
+                                </p>
+                            ) : (
+                                <p className="mt-0.5 text-2xl font-bold leading-none text-green-500">Free</p>
+                            )}
+                        </div>
+
+                        {/* CTA button — respects registration status, then internal form / external link */}
+                        {(() => {
+                            const regStatus = trek.registration?.status || 'open';
+                            const extLink = trek.registration?.mode === 'external_link'
+                                ? trek.registrationLink
+                                : null;
+                            if (regStatus === 'closed') {
+                                return (
+                                    <button
+                                        disabled
+                                        className="flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-gray-600 text-gray-300 cursor-not-allowed"
+                                    >
+                                        Registration Closed
+                                    </button>
+                                );
+                            }
+                            if (regStatus === 'not_open_yet') {
+                                return (
+                                    <button
+                                        disabled
+                                        className="flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-gray-600 text-gray-300 cursor-not-allowed"
+                                    >
+                                        Registration Not Open Yet
+                                    </button>
+                                );
+                            }
+                            return (
+                                <button
+                                    onClick={() => {
+                                        if (extLink) {
+                                            trackBookNowClick({
+                                                entityType: 'trek',
+                                                entityId: trek._id || trek.id || trek.slug || '',
+                                                mode: 'external_link',
+                                                destination: 'external',
+                                            });
+                                            window.open(extLink, '_blank', 'noopener,noreferrer');
+                                            return;
+                                        }
+                                        trackBookNowClick({
+                                            entityType: 'trek',
+                                            entityId: trek._id || trek.id || trek.slug || '',
+                                            mode: trek.registration?.mode || 'internal_form',
+                                            destination: 'internal_book_page',
+                                        });
+                                        navigate(`${trekPath(trek)}/book`, { state: { trek, genderRegistration, freshBooking: true } });
+                                    }}
+                                    className="flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-[#0ECCEE] text-black active:opacity-90 transition"
+                                >
+                                    Book Now
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="m9 18 6-6-6-6"/>
+                                    </svg>
+                                </button>
+                            );
+                        })()}
+                    </div>
+                </div>,
+                document.body,
+            )}
+
+        <div className={`relative -mt-10 flex-1 rounded-t-3xl z-10 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
 
                 {/* Trek name + community */}
                 <ScrollReveal className="px-4 pt-5 pb-3">
                     <h1 className={`text-[26px] font-bold leading-8 wrap-break-word ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {trek.trekName || trek.title || trek.name || 'Trek Name'}
+                        {trek.trekName || trek.title || trek.name || ''}
                     </h1>
-                    <p className={`text-sm font-semibold mt-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                        {communityName || 'Community Name'}
-                    </p>
+                    {communityName ? (
+                        <p className={`text-sm font-semibold mt-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                            {communityName}
+                        </p>
+                    ) : null}
                 </ScrollReveal>
 
                 {/* Meta: details LEFT, map RIGHT — side by side */}
@@ -345,7 +666,7 @@ export default function TrekDetailPage() {
                         {[
                             { Icon: ClockIcon,  label: 'Trek Duration',   value: trek.trekDuration || trek.duration || '—' },
                             { Icon: ChartIcon,  label: 'Difficulty',      value: (trek.difficultyLevel || trek.difficulty || '—'), extra: 'capitalize' },
-                            { Icon: GridIcon,   label: 'Trek Style',      value: trek.trekCategory || 'Adventure Trek', extra: 'capitalize' },
+                            { Icon: GridIcon,   label: 'Trek Category',      value: trek.trekCategory || '—', extra: 'capitalize' },
                         ].map((row) => (
                             <div key={row.label} className="flex items-center gap-2.5">
                                 <row.Icon size={22} />
@@ -357,37 +678,31 @@ export default function TrekDetailPage() {
                         ))}
                     </div>
 
-                    {/* Right: map + location */}
-                    <div className="flex flex-col shrink-0">
-                        <div className="w-60 h-33 rounded-2xl overflow-hidden relative">
-                            {(trek.city || trek.destination || trek.meetingLocation) ? (
-                                <>
-                                    <div className={`absolute inset-0 animate-pulse ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-200'}`} />
-                                    <iframe
-                                        title="trek-location"
-                                        src={`https://maps.google.com/maps?q=${encodeURIComponent(trek.city || trek.destination || trek.meetingLocation)}&output=embed&zoom=11`}
-                                        width="100%"
-                                        height="100%"
-                                        style={{ border: 0, display: 'block', position: 'relative' }}
-                                        loading="eager"
-                                        referrerPolicy="no-referrer-when-downgrade"
-                                    />
-                                </>
+                    {/* Right: map pinned to meeting point */}
+                    <div className="w-60 shrink-0 flex flex-col">
+                        <div className="w-full h-[132px] rounded-2xl overflow-hidden relative">
+                            {(mapPin.query || mapPin.mapUrl) ? (
+                                <LazyMap
+                                    query={mapPin.query}
+                                    mapUrl={mapPin.mapUrl || undefined}
+                                    isDark={isDark}
+                                    title="trek-meeting-point"
+                                />
                             ) : (
                                 <div className="w-full h-full bg-linear-to-br from-green-50 to-blue-50 flex flex-col items-center justify-center gap-1">
                                     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="1.5">
                                         <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
                                         <circle cx="12" cy="9" r="2.5" fill="#9CA3AF"/>
                                     </svg>
-                                    <span className="text-[10px] text-gray-400">No location</span>
+                                    <span className="text-[10px] text-gray-400">No meeting point</span>
                                 </div>
                             )}
                         </div>
-                        {(trek.city || trek.destination) && (
-                            <p className={`text-[11px] font-semibold text-center mt-1.5 leading-4 tracking-tight w-full ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                                {[trek.city, trek.destination].filter(Boolean).join(', ')}
+                        {mapPin.caption ? (
+                            <p className={`text-[11px] font-semibold text-center mt-1.5 leading-4 tracking-tight w-full line-clamp-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                {mapPin.caption}
                             </p>
-                        )}
+                        ) : null}
                     </div>
                 </ScrollReveal>
 
@@ -408,6 +723,48 @@ export default function TrekDetailPage() {
                     </p>
                 </ScrollReveal>
 
+                {/* ── Gallery (separate from hero slider) ── */}
+                {galleryImages.length > 0 ? (
+                    <ScrollReveal className="px-4 mb-5" delay={0.09}>
+                        <h2 className={`text-lg font-semibold leading-7 tracking-wide mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            Gallery
+                        </h2>
+                        <div className="grid grid-cols-4 gap-2.5">
+                            {galleryImages.slice(0, GALLERY_PREVIEW_COUNT).map((img, i) => {
+                                const isOverflowTile = galleryImages.length > GALLERY_PREVIEW_COUNT && i === GALLERY_PREVIEW_COUNT - 1;
+                                const remainingCount = galleryImages.length - GALLERY_PREVIEW_COUNT;
+                                return (
+                                    <button
+                                        key={`${img}-${i}`}
+                                        type="button"
+                                        onClick={() => {
+                                            setGalleryIndex(i);
+                                            setGalleryOpen(true);
+                                        }}
+                                        aria-label={isOverflowTile ? `View all ${galleryImages.length} gallery images` : `View gallery image ${i + 1}`}
+                                        className={`relative w-full aspect-square rounded-2xl overflow-hidden active:scale-[0.98] transition-transform ${isDark ? 'bg-[#111213]' : 'bg-white shadow-sm'}`}
+                                    >
+                                        <img
+                                            src={getImageUrl(img, { preset: 'square' })}
+                                            alt=""
+                                            className="absolute inset-0 w-full h-full object-cover"
+                                            loading="lazy"
+                                            decoding="async"
+                                            onError={(e) => handleImageErrorWithFallback(e, 120, 120, '#1a3a2a', trek.trekName)}
+                                        />
+                                        {isOverflowTile ? (
+                                            <div className="absolute inset-0 flex items-center justify-center bg-black/55">
+                                                <span className="text-white text-base font-semibold tracking-wide">
+                                                    {remainingCount}+
+                                                </span>
+                                            </div>
+                                        ) : null}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </ScrollReveal>
+                ) : null}
 
                 {/* ── Trek Info Tabs ── */}
                 <ScrollReveal className="px-4 mb-5" delay={0.1}>
@@ -437,83 +794,256 @@ export default function TrekDetailPage() {
                     <div>
                         {activeTab === 'Details' && (
                             <div className="space-y-2">
-                                {/* 2-col grid cards */}
-                                <div className="grid grid-cols-2 gap-2">
-                                    {[
-                                        { show: trek.maxParticipants > 0,    Icon: PersonIcon,  label: 'Max People',    value: trek.maxParticipants },
-                                        { show: !!trek.departureTime,        Icon: SunIcon,     label: 'Trek Timing',   value: trek.departureTime },
-                                        { show: !!trek.returnTime,           Icon: MoonIcon,    label: 'Return Time',   value: trek.returnTime },
-                                        { show: !!trek.meetingLocation,      Icon: MapPinIcon,  label: 'Meeting Point', value: trek.meetingLocation },
-                                        { show: !!trek.ageRestrictions,      Icon: AgeIcon,     label: 'Age Limit',     value: trek.ageRestrictions },
-                                        { show: !!trek.fitnessRequirements,  Icon: FitnessIcon, label: 'Fitness',       value: trek.fitnessRequirements },
-                                    ].filter(r => r.show).map((row) => (
-                                        <div key={row.label} className={`rounded-2xl p-3 border ${isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
-                                            <row.Icon size={22} />
-                                            <p className={`text-xs mt-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{row.label}</p>
-                                            <p className={`text-sm font-semibold mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>{row.value}</p>
-                                        </div>
-                                    ))}
-                                </div>
+                                {(() => {
+                                    const batches = normalizeTrekBatches(trek.trekBatches, trek.trekDate);
+                                    const cardCls = `rounded-2xl p-2.5 pt-2 border ${isDark ? 'bg-[#111213] border-white/5' : 'bg-white border-gray-100 shadow-sm'}`;
+                                    const iconWrapCls = `size-7 rounded-lg flex items-center justify-center shrink-0 ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-50'}`;
+                                    const departuresIconWrapCls = `size-7 rounded-lg flex items-center justify-center shrink-0 ${isDark ? 'bg-[#0ECCEE]/15' : 'bg-[#0ECCEE]/10'}`;
 
-                                {/* Experience Included — full width expandable */}
-                                {trek.inclusions?.length > 0 && (
-                                    <button onClick={() => setInclusionOpen(o => !o)} className={`w-full rounded-2xl p-3 border text-left ${isDark ? 'bg-[#111213] border-white/5' : 'bg-gray-50 border-gray-100'}`}>
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <ListIcon />
-                                                <div>
-                                                    <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Experience Included</p>
-                                                    <p className={`text-sm font-semibold mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                        {inclusionOpen ? trek.inclusions.join(', ') : trek.inclusions.slice(0, 2).join(', ')}
-                                                        {!inclusionOpen && trek.inclusions.length > 2 && '…'}
-                                                    </p>
-                                                </div>
+                                    const batchSub = (batch) => {
+                                        const parts = [];
+                                        if (batch.batchSize > 0) parts.push(`${batch.batchSize} seats`);
+                                        if (batch.timing) parts.push(batch.timing);
+                                        if (batch.note) parts.push(batch.note);
+                                        return parts.join(' · ');
+                                    };
+                                    const batchMeta = batchSub;
+
+                                    const detailRows = normalizeDetailBoxes(trek.detailBoxes, trek).map((box) => ({
+                                        show: true,
+                                        icon: box.icon,
+                                        label: box.label,
+                                        value: box.value,
+                                        id: box.id,
+                                    }));
+
+                                    const renderDetailCard = (row) => (
+                                        <div key={row.id || row.label} className={`${cardCls} h-[84px] overflow-hidden`}>
+                                            <div className={iconWrapCls}>
+                                                <TrekDetailIcon icon={row.icon || 'default'} size={16} />
                                             </div>
-                                            <ChevronRight size={16} className={`shrink-0 transition-transform ${inclusionOpen ? 'rotate-90' : ''} ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+                                            <p className={`text-[11px] font-medium mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{row.label}</p>
+                                            <p
+                                                className={`text-sm font-semibold mt-0 leading-tight line-clamp-2 ${isDark ? 'text-white' : 'text-gray-900'}`}
+                                                title={typeof row.value === 'string' ? row.value : undefined}
+                                            >
+                                                {row.value}
+                                            </p>
                                         </div>
-                                    </button>
-                                )}
+                                    );
+
+                                    const beforeBatches = detailRows.slice(0, 3);
+                                    const afterBatches = detailRows.slice(3);
+
+                                    return (
+                                        <div ref={batches.length > 1 ? departuresRef : undefined} className="grid grid-cols-2 gap-2">
+                                            {beforeBatches.map(renderDetailCard)}
+
+                                            {batches.length > 0 ? (
+                                                batches.length > 1 ? (
+                                                    <>
+                                                        <div className="min-w-0">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setDeparturesOpen((o) => !o)}
+                                                                aria-expanded={departuresOpen}
+                                                                aria-controls="trek-departures-panel"
+                                                                aria-label={departuresOpen ? 'Collapse departures' : 'Expand departures'}
+                                                                className={`w-full text-left ${cardCls} h-[84px] overflow-hidden transition-all duration-300 ease-out ${
+                                                                    departuresOpen
+                                                                        ? isDark
+                                                                            ? 'border-[#0ECCEE]/40 bg-[#0ECCEE]/10'
+                                                                            : 'border-[#0ECCEE]/35 bg-[#0ECCEE]/5'
+                                                                        : isDark
+                                                                            ? 'hover:bg-[#1D1E20] active:scale-[0.99]'
+                                                                            : 'hover:bg-gray-50/90 active:scale-[0.99]'
+                                                                }`}
+                                                            >
+                                                                <div className="flex items-start justify-between gap-2">
+                                                                    <div className={departuresIconWrapCls}>
+                                                                        <CalendarIcon size={16} />
+                                                                    </div>
+                                                                    <ChevronDown
+                                                                        size={16}
+                                                                        className={`shrink-0 mt-0.5 transition-transform duration-300 ease-out ${
+                                                                            departuresOpen
+                                                                                ? 'rotate-180 text-[#0ECCEE]'
+                                                                                : isDark
+                                                                                    ? 'text-gray-500'
+                                                                                    : 'text-gray-400'
+                                                                        }`}
+                                                                    />
+                                                                </div>
+                                                                <p className={`text-[11px] font-medium mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Departures</p>
+                                                                <p className={`text-sm font-semibold mt-0 leading-tight line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                                    {departuresOpen
+                                                                        ? `${batches.length} weekend dates`
+                                                                        : formatBatchDate(batches[0].date) || '—'}
+                                                                </p>
+                                                                <p className={`text-[10px] mt-1 font-medium ${
+                                                                    departuresOpen
+                                                                        ? (isDark ? 'text-gray-500' : 'text-gray-400')
+                                                                        : (isDark ? 'text-[#0ECCEE]/90' : 'text-[#0ECCEE]')
+                                                                }`}>
+                                                                    {departuresOpen ? 'Tap to close' : `Tap for +${batches.length - 1} more`}
+                                                                </p>
+                                                            </button>
+                                                        </div>
+
+                                                        <div
+                                                            id="trek-departures-panel"
+                                                            className="col-span-2 grid transition-[grid-template-rows,margin] duration-300 ease-out"
+                                                            style={{
+                                                                gridTemplateRows: departuresOpen ? '1fr' : '0fr',
+                                                                marginBottom: departuresOpen ? 0 : '-0.5rem',
+                                                            }}
+                                                            aria-hidden={!departuresOpen}
+                                                        >
+                                                            <div className="min-h-0 overflow-hidden">
+                                                                <div
+                                                                    className={`mt-0.5 rounded-2xl border px-3 py-2.5 transition-opacity duration-300 ease-out ${
+                                                                        departuresOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                                                                    } ${isDark ? 'bg-[#111213] border-[#0ECCEE]/20' : 'bg-white border-[#0ECCEE]/15 shadow-sm'}`}
+                                                                >
+                                                                    <p className={`text-[10px] font-semibold uppercase tracking-wide mb-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                                                        All departure dates
+                                                                    </p>
+                                                                    <ul className="max-h-[220px] overflow-y-auto overscroll-contain space-y-1.5 [scrollbar-width:thin]">
+                                                                        {batches.map((batch, i) => {
+                                                                            const meta = batchMeta(batch);
+                                                                            return (
+                                                                                <li
+                                                                                    key={`${batch.date}-${i}`}
+                                                                                    className={`flex items-start gap-2.5 rounded-xl px-2.5 py-2 ${
+                                                                                        isDark ? 'bg-[#1D1E20]/80' : 'bg-gray-50/90'
+                                                                                    }`}
+                                                                                >
+                                                                                    <span className="mt-1 size-1.5 shrink-0 rounded-full bg-[#0ECCEE]" aria-hidden />
+                                                                                    <div className="min-w-0 flex-1">
+                                                                                        <p className={`text-[12px] font-semibold leading-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                                                            {formatBatchDate(batch.date) || '—'}
+                                                                                        </p>
+                                                                                        {meta ? (
+                                                                                            <p className={`text-[10px] mt-0.5 leading-tight ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                                                                                                {meta}
+                                                                                            </p>
+                                                                                        ) : null}
+                                                                                    </div>
+                                                                                </li>
+                                                                            );
+                                                                        })}
+                                                                    </ul>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </>
+                                                ) : (
+                                                    <div className={`${cardCls} h-[84px] overflow-hidden`}>
+                                                        <div className={departuresIconWrapCls}>
+                                                            <CalendarIcon size={16} />
+                                                        </div>
+                                                        <p className={`text-[11px] font-medium mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Departure</p>
+                                                        <p className={`text-sm font-semibold mt-0 leading-tight line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                            {formatBatchDate(batches[0].date) || '—'}
+                                                        </p>
+                                                        {batchSub(batches[0]) ? (
+                                                            <p className={`text-[10px] mt-0.5 leading-tight line-clamp-1 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                                                                {batchSub(batches[0])}
+                                                            </p>
+                                                        ) : null}
+                                                    </div>
+                                                )
+                                            ) : null}
+
+                                            {afterBatches.map(renderDetailCard)}
+                                        </div>
+                                    );
+                                })()}
 
                                 {trek.thingsToCarry?.length > 0 && (
-                                    <div className={`rounded-2xl p-3 border ${isDark ? 'bg-[#111213] border-white/5' : 'bg-gray-50 border-gray-100'}`}>
-                                        <div className="flex items-center gap-2 mb-1.5">
-                                            <UserCardIcon />
-                                            <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Things to Carry</p>
-                                        </div>
-                                        <div className="flex flex-wrap gap-1.5">
-                                            {trek.thingsToCarry.map((t, i) => (
-                                                <span key={i} className={`text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-[#111213] text-gray-300' : 'bg-white text-gray-700 border border-gray-200'}`}>{t}</span>
-                                            ))}
-                                        </div>
+                                    <div>
+                                        <button
+                                            onClick={() => setCarryOpen(o => !o)}
+                                            className={`w-full rounded-2xl border flex items-center justify-between px-4 py-3.5 transition-colors ${isDark ? 'bg-[#111213] border-white/5 hover:bg-[#1D1E20]' : 'bg-white border-gray-100 shadow-sm hover:bg-gray-50'}`}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className={`size-9 rounded-xl flex items-center justify-center shrink-0 ${isDark ? 'bg-[#1D1E20]' : 'bg-emerald-500/10'}`}>
+                                                    <Backpack size={18} className="text-emerald-500" strokeWidth={2.25} />
+                                                </div>
+                                                <div className="text-left">
+                                                    <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Things to Carry</p>
+                                                    <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{trek.thingsToCarry.length} items — tap to {carryOpen ? 'collapse' : 'view'}</p>
+                                                </div>
+                                            </div>
+                                            <ChevronRight size={16} className={`transition-transform duration-200 shrink-0 ${carryOpen ? 'rotate-90' : ''} ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+                                        </button>
+                                        {carryOpen && (
+                                            <div className="mt-2">
+                                                <TrekInfoList items={trek.thingsToCarry} isDark={isDark} dotClass="bg-emerald-500" />
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
                         )}
                         {activeTab === 'Schedule' && (
                             trek.itinerary?.length > 0
-                                ? <div className="space-y-2">{trek.itinerary.map((day, i) => (
-                                                    <div key={i} className={`rounded-xl p-3 ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-50'}`}>
-                                        <p className="text-xs font-bold text-[#0ECCEE] mb-0.5">Day {day.day || i + 1}</p>
-                                        <p className={`text-sm font-semibold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{day.title}</p>
-                                        {day.description && <p className="text-xs text-gray-500 mt-1 leading-relaxed">{day.description}</p>}
-                                    </div>
-                                ))}</div>
+                                ? <div className="space-y-3">{trek.itinerary.map((day, i) => {
+                                    const normalized = normalizeItineraryDay(day, i);
+                                    const points = normalized.points.filter((p) => p.text);
+                                    if (!normalized.title && !points.length) return null;
+                                    return (
+                                        <div key={i} className={`rounded-xl p-3 ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-50'}`}>
+                                            <p className="text-[10px] font-bold uppercase tracking-wide text-[#0ECCEE] mb-0.5">Day {normalized.day || i + 1}</p>
+                                            {normalized.title ? (
+                                                <p className={`text-sm font-semibold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>{normalized.title}</p>
+                                            ) : null}
+                                            {points.length > 0 ? (
+                                                <ul className={`${normalized.title ? 'mt-1.5' : ''}`}>
+                                                    {points.map((point, j) => {
+                                                        const isSub = point.level === 'sub';
+                                                        const prev = j > 0 ? points[j - 1] : null;
+                                                        const isNewMainBlock = !isSub && j > 0 && prev?.level === 'main';
+                                                        const isMainAfterSubs = !isSub && j > 0 && prev?.level === 'sub';
+
+                                                        if (isSub) {
+                                                            return (
+                                                                <li
+                                                                    key={j}
+                                                                    className={`flex gap-2 text-xs leading-relaxed ${isDark ? 'text-gray-500' : 'text-gray-600'}`}
+                                                                    style={{ paddingLeft: `${SCHEDULE_SUB_INDENT_PX}px` }}
+                                                                >
+                                                                    <ScheduleSubMarker isDark={isDark} />
+                                                                    <span>{point.text}</span>
+                                                                </li>
+                                                            );
+                                                        }
+
+                                                        return (
+                                                            <li
+                                                                key={j}
+                                                                className={`flex gap-2 text-xs leading-relaxed ${isNewMainBlock || isMainAfterSubs ? 'mt-2' : ''} ${isDark ? 'text-gray-300' : 'text-gray-700'}`}
+                                                            >
+                                                                <ScheduleMainMarker />
+                                                                <span className="font-medium">{point.text}</span>
+                                                            </li>
+                                                        );
+                                                    })}
+                                                </ul>
+                                            ) : null}
+                                        </div>
+                                    );
+                                })}</div>
                                 : <p className={`text-sm ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>No schedule added yet.</p>
                         )}
                         {activeTab === 'Inclusion' && (
                             trek.inclusions?.length > 0
-                                ? <ul className="space-y-2">{trek.inclusions.map((item, i) => (
-                                    <li key={i} className={`flex items-center gap-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                                        <span className="size-1.5 rounded-full bg-green-400 shrink-0" />{item}
-                                    </li>))}</ul>
+                                ? <TrekInfoList items={trek.inclusions} isDark={isDark} dotClass="bg-green-400" />
                                 : <p className={`text-sm ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>No inclusions listed.</p>
                         )}
                         {activeTab === 'Exclusion' && (
                             trek.exclusions?.length > 0
-                                ? <ul className="space-y-2">{trek.exclusions.map((item, i) => (
-                                    <li key={i} className={`flex items-center gap-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                                        <span className="size-1.5 rounded-full bg-red-400 shrink-0" />{item}
-                                    </li>))}</ul>
+                                ? <TrekInfoList items={trek.exclusions} isDark={isDark} dotClass="bg-red-400" />
                                 : <p className={`text-sm ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>No exclusions listed.</p>
                         )}
                     </div>
@@ -521,14 +1051,8 @@ export default function TrekDetailPage() {
 
                 {/* ── Terms & Conditions ── */}
                 {(() => {
-                    const terms = trek.termsAndConditions?.length ? trek.termsAndConditions : [
-                        'Participants must be medically fit and physically capable for this trek.',
-                        'Follow all safety instructions given by the trek leader at all times.',
-                        'Cancellation policy: 50% refund if cancelled 7+ days before trek date. No refund thereafter.',
-                        'The organiser reserves the right to cancel or modify the trek due to bad weather or safety concerns.',
-                        'Participants are responsible for their own travel insurance and personal belongings.',
-                        'Any damage to nature or property will be the participant\'s responsibility.',
-                    ];
+                    const terms = (trek.termsAndConditions || []).map(cleanListItem).filter(Boolean);
+                    if (!terms.length) return null;
                     return (
                         <div className="px-4 mb-6">
                             <h2 className={`text-lg font-semibold leading-7 tracking-wide mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Terms &amp; Conditions</h2>
@@ -614,9 +1138,39 @@ export default function TrekDetailPage() {
                                 </a>
                             );
                         })()}
+                        {/* People to contact (per-trek) */}
+                        {(Array.isArray(trek.contacts) ? trek.contacts : [])
+                            .filter(c => c && (c.name || c.role || c.phone))
+                            .map((c, i) => (
+                                <a key={`${c.phone || c.name}-${i}`} href={c.phone ? `tel:${c.phone}` : undefined}
+                                    className={`flex items-center gap-3 p-3.5 rounded-2xl border ${isDark ? 'bg-[#111213] border-gray-800' : 'bg-white border-gray-100 shadow-sm'}`}>
+                                    <div className="size-10 rounded-xl bg-[#0ECCEE] flex items-center justify-center shrink-0">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="white" stroke="none">
+                                            <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
+                                        </svg>
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                            {c.name || 'Contact'}{c.role ? ` · ${c.role}` : ''}
+                                        </p>
+                                        <p className={`text-sm font-semibold truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>{c.phone || 'Not set'}</p>
+                                    </div>
+                                </a>
+                            ))}
                     </div>
                 </div>
             </div>
+            </div>
+
+            {galleryOpen && galleryImages.length > 0 ? (
+                <TrekGalleryLightbox
+                    images={galleryImages}
+                    index={galleryIndex}
+                    name={trekName}
+                    onClose={() => setGalleryOpen(false)}
+                    onIndexChange={setGalleryIndex}
+                />
+            ) : null}
         </div>
     );
 }

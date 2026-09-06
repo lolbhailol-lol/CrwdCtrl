@@ -10,16 +10,20 @@ function securityHeaders(req, res, next) {
     } else if (
       (req.path.startsWith('/api/treks')
         || req.path.startsWith('/api/trek-communities')
-        || req.path.startsWith('/api/sports'))
+        || req.path.startsWith('/api/sports')
+        || req.path.startsWith('/api/run-clubs'))
       && !req.path.includes('/admin/')
     ) {
-      res.set('Cache-Control', 'no-store');
+      // Short public cache — cuts repeat mobile/Instagram hits during cold starts
+      res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
     }
   }
 
   res.set('Vary', 'Accept-Encoding');
   res.set('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
   res.set('Cross-Origin-Embedder-Policy', 'unsafe-none');
+  // Allow browser/WebView reads from www.crwdctrl.in → Railway (CORS still gates origins)
+  res.set('Cross-Origin-Resource-Policy', 'cross-origin');
   next();
 }
 

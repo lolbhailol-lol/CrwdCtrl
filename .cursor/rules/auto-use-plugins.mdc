@@ -1,0 +1,40 @@
+---
+description: Automatically use relevant Cursor plugins/MCP for each task
+alwaysApply: true
+---
+
+# Auto-use required plugins
+
+For every task, proactively use the relevant plugins/MCP tools — do not wait for the user to ask. Authenticate with `mcp_auth` if a server is `needsAuth`. Prefer live MCP data over guessing.
+
+## When to use which plugin
+
+| Task / signal | Plugin / MCP |
+|---------------|--------------|
+| Firebase Auth, FCM, Analytics, `firebase.js`, `VITE_FIREBASE_*`, `.firebaserc` | **Firebase** — project/apps/config/rules/docs |
+| MongoDB, Mongoose, collections, Atlas, DB queries | **MongoDB** |
+| Sentry, production errors, `sentry.js`, crash reports | **Sentry** (Seer when debugging issues) |
+| Deploy, hosting, env vars, Next/Vercel | **Vercel** skills / MCP if available |
+| Railway deploy, services, logs, infra | **Railway** (MCP or CLI) |
+| Library/API “how does X work?” docs | **Context7** |
+| UI verify, click flows, screenshots | **Browse** / Cursor Browser |
+| Git, PRs, issues, branches | **GitLens / GitKraken** |
+| Models, datasets, Spaces, HF Hub | **Hugging Face** |
+| Image/video/audio generation | **Higgsfield** |
+| Persistent user/agent memory | **Mem0** (if ready) |
+| Figma designs → code | **Figma** |
+
+## CrwdCtrl defaults
+
+- Auth / push / Firebase config → Firebase first.
+- Backend data → MongoDB when the code or task touches the DB.
+- “Why is prod broken?” → Sentry before guessing.
+- Docs for npm packages → Context7 before outdated training knowledge.
+- “Does this UI work?” → Browser tools.
+
+## Rules of engagement
+
+1. Call only plugins that match the task — not every plugin every time.
+2. If a needed MCP is `error`/`needsAuth`, try auth/reconnect once; then continue with CLI/skills and note the blocker briefly.
+3. Use official plugin skills when present (Firebase, Railway, Sentry, Vercel, etc.).
+4. Never invent project IDs, issue IDs, or deploy status — fetch via MCP/CLI.

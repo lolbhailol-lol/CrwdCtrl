@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link, useSearchParams } from 'react-router-dom';
+import { useParams, Link, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Receipt, Download } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 
 import { API_BASE_URL } from '../../services/api/client';
-const getToken = () => localStorage.getItem('crwdctrl_token');
+import { authenticatedFetchJSON } from '../../services/api/auth.api';
+import { useAuth } from '../../context/AuthContext';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 
 const formatAmount = (amount) =>
   `₹${Number(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -13,27 +15,58 @@ export default function PaymentInvoicePage() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const isTrek = searchParams.get('type') === 'trek';
+  const isEvent = searchParams.get('type') === 'event';
+  const bookingAccess = searchParams.get('access') || '';
   const { isDark } = useDarkMode();
+  const { token: authToken, isAuthenticated, isLoading: authLoading } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [invoice, setInvoice] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    if (authLoading) return;
+
+    const canGuestTrek = isTrek && Boolean(bookingAccess);
+    if (!isAuthenticated && !canGuestTrek) {
+      navigate('/login', { state: { from: location.pathname + location.search }, replace: true });
+      return;
+    }
+
     const fetchInvoice = async () => {
       try {
-        const token = getToken();
+        setLoading(true);
+        setError(null);
+
         const url = isTrek
           ? `${API_BASE_URL}/registrations/trek-booking/${id}/invoice`
-          : `${API_BASE_URL}/registrations/invoice/${id}`;
+          : isEvent
+            ? `${API_BASE_URL}/registrations/event-registration/${id}/invoice`
+            : `${API_BASE_URL}/registrations/invoice/${id}`;
 
-        const res = await fetch(url, {
-          headers: { Authorization: `Bearer ${token}` },
-          credentials: 'include',
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to load payment receipt');
-        setInvoice(data.data);
+        if (canGuestTrek && !isAuthenticated) {
+          const res = await fetch(`${url}?access=${encodeURIComponent(bookingAccess)}`, {
+            headers: {
+              'Content-Type': 'application/json',
+              'x-booking-access': bookingAccess,
+            },
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || data.message || 'Failed to load receipt');
+          setInvoice(data.data);
+        } else {
+          const data = await authenticatedFetchJSON(url, {
+            token: authToken,
+            headers: bookingAccess ? { 'x-booking-access': bookingAccess } : undefined,
+          });
+          setInvoice(data.data);
+        }
       } catch (err) {
+        if (err.code === 'AUTH_401' && !canGuestTrek) {
+          navigate('/login', { state: { from: location.pathname + location.search }, replace: true });
+          return;
+        }
         setError(err.message);
       } finally {
         setLoading(false);
@@ -41,14 +74,14 @@ export default function PaymentInvoicePage() {
     };
 
     fetchInvoice();
-  }, [id, isTrek]);
+  }, [id, isTrek, isEvent, authToken, authLoading, isAuthenticated, navigate, location.pathname, location.search, bookingAccess]);
 
   const handlePrint = () => window.print();
 
   if (loading) {
     return (
-      <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-gray-400">Loading receipt...</div>
+      <div className="crwdctrl-page crwdctrl-page--content min-h-screen">
+        <InlinePageLoader label="Loading receipt..." variant="payment" />
       </div>
     );
   }
@@ -83,7 +116,7 @@ export default function PaymentInvoicePage() {
   ];
 
   return (
-    <div className="crwdctrl-page crwdctrl-page--content min-h-screen py-8 px-4 print:py-0 print:px-0">
+    <div className="crwdctrl-page crwdctrl-page--content min-h-screen pt-[max(2rem,calc(var(--safe-top)+1rem))] pb-8 px-4 print:pt-0 print:pb-0 print:px-0">
       <style>{`
         @media print {
           body * { visibility: hidden; }

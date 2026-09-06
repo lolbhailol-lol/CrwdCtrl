@@ -7,6 +7,10 @@ const THEME_SWITCH_MS = 340;
 
 function applyThemeToDocument(isDarkMode) {
     const root = document.documentElement;
+    if (root.dataset.organizerDark === '1') {
+        root.classList.add('dark');
+        return;
+    }
     root.classList.toggle('dark', isDarkMode);
     localStorage.setItem('crwdctrl-theme', isDarkMode ? 'dark' : 'light');
 }
@@ -32,8 +36,19 @@ export const DarkModeProvider = ({ children }) => {
         applyThemeToDocument(isDark);
     }, [isDark]);
 
+    useEffect(() => {
+        const handler = (event) => {
+            const next = Boolean(event.detail?.isDark);
+            setIsDark(next);
+            applyThemeToDocument(next);
+        };
+        window.addEventListener('crwdctrl:theme-restore', handler);
+        return () => window.removeEventListener('crwdctrl:theme-restore', handler);
+    }, []);
+
     const toggleDarkMode = useCallback(() => {
         const root = document.documentElement;
+        if (root.dataset.organizerDark === '1') return;
         const nextDark = !root.classList.contains('dark');
         const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 

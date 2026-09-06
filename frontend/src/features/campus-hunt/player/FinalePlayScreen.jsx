@@ -1,0 +1,502 @@
+import { useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import CountdownTimer from '../components/CountdownTimer';
+import ScoreChip from '../components/ScoreChip';
+import UnlockHoldingCard from '../components/UnlockHoldingCard';
+import { CAMPUS_HUNT_PATHS } from '../config';
+import {
+  startFinaleMission,
+  submitFinaleMission,
+  abandonFinaleMission,
+  stopFinaleTeam,
+} from '../services/campusHunt.api';
+import IntelHuntMission from './missions/IntelHuntMission';
+import LockboxMission from './missions/LockboxMission';
+import FieldTerminalMission from './missions/FieldTerminalMission';
+import BlackoutMission from './missions/BlackoutMission';
+import { teamPrimaryLabel, teamSecondaryName } from '../utils/teamLabel';
+import { FINALE_MISSIONS, missionCardShell } from '../admin/finaleMissionTheme';
+import CampusHuntBackLink from '../components/CampusHuntBackLink';
+import { finalePlayerMessage } from '../utils/finalePlayerMessage';
+
+const STATUS_LABEL = {
+  available: 'Ready',
+  active: 'Live',
+  completed: 'Done',
+  locked: 'Locked',
+  coming_soon: 'Soon',
+};
+
+const ACCENT = '#F97316';
+
+function MissionCard({ mission, disabled, busy, starting, onStart, isLeader }) {
+  const isDone = mission.status === 'completed';
+  const isSoon = mission.status === 'coming_soon';
+  const canStart = mission.status === 'available' && !disabled && isLeader;
+  const { theme, shell, badge, cta } = missionCardShell(mission.id, { status: mission.status });
+  const shortTitle = (theme.label || mission.title || '')
+    .replace(/^MISSION\s*\d+\s*·\s*/i, '')
+    .trim();
+  const isStarting = Boolean(starting);
+
+  return (
+    <div className={`rounded-2xl border p-3.5 transition-[opacity,transform] duration-150 ${shell} ${isStarting ? 'scale-[0.99] opacity-90' : ''}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span
+              className="h-2 w-2 shrink-0 rounded-full"
+              style={{ background: theme.hex }}
+              aria-hidden
+            />
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/40">
+              {theme.colorName}
+            </p>
+          </div>
+          <h3 className="mt-1.5 text-[15px] font-semibold tracking-tight text-white">
+            {shortTitle}
+          </h3>
+          {theme.short && (
+            <p className="mt-0.5 text-[12px] leading-snug text-white/50">
+              {theme.short}
+            </p>
+          )}
+          {mission.points > 0 && (
+            <p className="mt-1.5 text-xs font-medium" style={{ color: theme.hex }}>
+              +{mission.points} pts
+            </p>
+          )}
+        </div>
+        <span className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badge}`}>
+          {STATUS_LABEL[mission.status] || mission.status}
+        </span>
+      </div>
+
+      {canStart && (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => onStart(mission.id)}
+          className={`mt-3 w-full rounded-xl py-2.5 text-xs font-bold uppercase tracking-wide disabled:opacity-40 active:scale-[0.98] ${cta}`}
+        >
+          {isStarting ? 'Opening…' : 'Start'}
+        </button>
+      )}
+      {mission.status === 'available' && !disabled && !isLeader && (
+        <p className="mt-2.5 text-center text-[11px] text-white/40">
+          Leader starts
+        </p>
+      )}
+      {isDone && (
+        <p className="mt-2.5 text-center text-[11px] font-medium text-emerald-300/85">
+          Cleared
+        </p>
+      )}
+      {isSoon && (
+        <p className="mt-2.5 text-center text-[11px] text-white/35">Not open yet</p>
+      )}
+    </div>
+  );
+}
+
+export default function FinalePlayScreen({
+  data,
+  teamMeta,
+  eventMeta,
+  teamId,
+  onRefresh,
+  onActionResult,
+  eventSlug,
+  onLeaveRound,
+  pollError,
+}) {
+  const [busy, setBusy] = useState(false);
+  const [startingId, setStartingId] = useState('');
+  const [feedback, setFeedback] = useState('');
+  const [feedbackTone, setFeedbackTone] = useState('neutral');
+  const busyRef = useRef(false);
+
+  const entry = data?.entry;
+  const round = data?.round;
+  const missions = data?.missions || [];
+  const activeMission = data?.activeMission;
+  const isLeader = Boolean(data?.isLeader ?? teamMeta?.isLeader);
+  const roundClosed = Boolean(round?.closed || round?.status === 'locked' || round?.status === 'finalized');
+  const waitingForRelease = Boolean(data?.waitingForRelease);
+  const finaleCapacity = Math.max(
+    1,
+    Number(eventMeta?.finaleCapacity || data?.event?.finaleCapacity || round?.qualification?.finaleTeams) || 0,
+  );
+  const finaleLabel = finaleCapacity ? `Finals · ${finaleCapacity} teams` : 'Finals';
+
+  const completedCount = useMemo(() => {
+    const fromMissions = missions.filter((m) => m.status === 'completed').length;
+    const fromEntry = (entry?.completedMissionIds || []).length;
+    return Math.max(fromMissions, fromEntry);
+  }, [missions, entry?.completedMissionIds]);
+
+  const allMissionsDone = completedCount >= FINALE_MISSIONS.length
+    || (missions.length >= FINALE_MISSIONS.length
+      && missions.every((m) => m.status === 'completed'));
+
+  const scoreLocked = Boolean(
+    allMissionsDone
+    || entry?.status === 'locked',
+  );
+
+  const activeView = useMemo(() => {
+    if (activeMission?.playerView) {
+      return {
+        ...activeMission.playerView,
+        missionExpiresAt: activeMission.missionExpiresAt || activeMission.playerView.missionExpiresAt,
+      };
+    }
+    return null;
+  }, [activeMission]);
+
+  const missionExpiresAt = activeMission?.missionExpiresAt
+    || activeMission?.playerView?.missionExpiresAt;
+
+  const runAction = async (fn, { startingMissionId = '' } = {}) => {
+    if (busyRef.current) return { ok: false, busy: true };
+    busyRef.current = true;
+    setBusy(true);
+    if (startingMissionId) setStartingId(startingMissionId);
+    setFeedback('');
+    setFeedbackTone('neutral');
+    try {
+      const res = await fn();
+      const payload = res.data;
+      const applied = onActionResult?.(payload);
+      if (!applied) {
+        void onRefresh?.({ force: true });
+      } else {
+        window.setTimeout(() => {
+          void onRefresh?.({ force: true });
+        }, 300);
+      }
+      const msg = payload?.submitResult?.message
+        || payload?.activeMission?.playerView?.message;
+      if (payload?.submitResult?.complete) {
+        setFeedback(payload.submitResult.message || 'Mission complete!');
+        setFeedbackTone('ok');
+      } else if (msg) {
+        setFeedback(msg);
+        setFeedbackTone('ok');
+      }
+      return { ok: true, payload };
+    } catch (err) {
+      const code = err?.code || err?.data?.code;
+      const status = Number(err?.status || err?.data?.status || 0);
+      setFeedback(finalePlayerMessage(err));
+      setFeedbackTone('err');
+      // Only heal when server state may be ahead of the UI — never on 500/network
+      if (['MISSION_ACTIVE', 'MISSION_COMPLETED', 'NOT_RELEASED', 'WRONG_MISSION', 'NO_ACTIVE_RUN'].includes(code)
+        && status < 500) {
+        void onRefresh?.({ force: true });
+      }
+      return { ok: false, error: err };
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+      setStartingId('');
+    }
+  };
+
+  const handleStart = (missionId) => runAction(
+    () => startFinaleMission(teamId, missionId),
+    { startingMissionId: missionId },
+  );
+
+  const handleSubmit = async (answer) => {
+    const result = await runAction(() =>
+      submitFinaleMission(teamId, activeMission.missionId, answer));
+    return result;
+  };
+
+  const handleAbandon = () => {
+    if (!window.confirm('Leave this mission? You can start it again later.')) return;
+    runAction(() => abandonFinaleMission(teamId));
+  };
+
+  const handleStop = () => {
+    if (!window.confirm('Stop for now? You cannot start new missions until the organizer reopens.')) return;
+    runAction(() => stopFinaleTeam(teamId));
+  };
+
+  const teamLabel = teamMeta ? teamPrimaryLabel(teamMeta) : (entry?.teamCode || 'Team');
+  const teamSub = teamMeta ? teamSecondaryName(teamMeta) : (entry?.teamName || '');
+
+  return (
+    <div className="relative min-h-screen overflow-hidden text-white">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background: `
+            radial-gradient(ellipse 90% 50% at 50% -10%, ${ACCENT}22 0%, transparent 55%),
+            radial-gradient(ellipse 70% 40% at 100% 80%, ${ACCENT}10 0%, transparent 50%),
+            linear-gradient(180deg, #0b0c0d 0%, #0e1012 50%, #0b0c0d 100%)
+          `,
+        }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-[0.035]"
+        style={{
+          backgroundImage: 'radial-gradient(circle at 1px 1px, #fff 1px, transparent 0)',
+          backgroundSize: '22px 22px',
+        }}
+      />
+
+      <div className="relative mx-auto max-w-lg px-4 pb-10 pt-4">
+        <CampusHuntBackLink
+          to={eventSlug ? CAMPUS_HUNT_PATHS.play(eventSlug) : CAMPUS_HUNT_PATHS.leaderboard}
+          label="← All rounds"
+          forceTo
+          onBeforeNavigate={onLeaveRound}
+          className="mb-3"
+        />
+
+        <header className="mb-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#0ECCEE]">
+                {finaleLabel}
+              </p>
+              <h1 className="mt-1 truncate text-[1.35rem] font-semibold tracking-tight text-white">
+                {teamLabel}
+              </h1>
+              <p className="mt-1 truncate text-sm text-white/50">
+                {[
+                  teamSub || null,
+                  isLeader ? 'You · Leader' : 'You · Player',
+                  entry?.meetLocationName ? `Meet · ${entry.meetLocationName}` : null,
+                ].filter(Boolean).join(' · ')}
+              </p>
+            </div>
+            <ScoreChip
+              score={entry?.finaleScore ?? 500}
+              label="Score"
+              rank={entry?.leaderboardRank}
+              fieldSize={entry?.leaderboardSize}
+            />
+          </div>
+        </header>
+
+        <div className="space-y-4">
+          {pollError ? (
+            <p className="rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2.5 text-center text-sm text-amber-100">
+              {typeof pollError === 'string' ? pollError : finalePlayerMessage(pollError)}
+              {' · '}
+              <button
+                type="button"
+                className="underline"
+                onClick={() => onRefresh?.({ force: true })}
+              >
+                Retry
+              </button>
+            </p>
+          ) : null}
+          {waitingForRelease && (
+            <UnlockHoldingCard
+              accentHex={ACCENT}
+              eyebrow={
+                round?.status === 'live'
+                  ? (isLeader ? 'Board unlocks' : 'Your team unlocks')
+                  : 'Finals begins'
+              }
+              unlockAt={entry?.scheduledStartAt}
+              meetLabel={entry?.meetLocationName}
+              meetHint={isLeader ? 'keep the team together' : 'stay with your leader'}
+              steps={[
+                entry?.meetLocationName
+                  ? `Meet at ${entry.meetLocationName}`
+                  : 'Stay at your meet point',
+                'Wait for READY',
+                isLeader
+                  ? 'Tap Start on Mission 1'
+                  : 'Leader starts missions — stay ready',
+              ]}
+              paused={Boolean(round?.releasesPaused)}
+              pausedText="Releases paused — stay at your meet location."
+              emptyText={
+                round?.status === 'live'
+                  ? 'Waiting for organizers to release your wave.'
+                  : 'Finals not live yet. Stay put — your timer appears after Start Finals.'
+              }
+              onReady={() => onRefresh?.({ force: true })}
+              footer={
+                isLeader && round?.status === 'live' ? (
+                  <p className="rounded-xl border border-[#0ECCEE]/35 bg-[#0ECCEE]/10 px-3 py-2 text-xs font-semibold text-[#0ECCEE]">
+                    You’re the leader — Start appears when READY
+                  </p>
+                ) : null
+              }
+            />
+          )}
+
+          {!waitingForRelease && !scoreLocked && round?.endsAt && (
+            <CountdownTimer
+              expiresAt={round.endsAt}
+              label="Finals timer"
+              expiredLabel="TIME'S UP"
+            />
+          )}
+
+          {scoreLocked && !activeView && (
+            <section className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-5 text-center">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-200/80">
+                Finals complete
+              </p>
+              <p className="mt-2 text-lg font-semibold text-white">
+                Score locked · {entry?.finalScore ?? entry?.finaleScore ?? 0} pts
+                {Number(entry?.leaderboardRank) > 0
+                  ? ` · #${entry.leaderboardRank}${Number(entry.leaderboardSize) > 0 ? ` of ${entry.leaderboardSize}` : ''}`
+                  : ''}
+              </p>
+              <p className="mt-2 text-sm text-white/60">
+                {allMissionsDone
+                  ? 'All four missions cleared. Rest up — check the leaderboard for standings.'
+                  : 'Finals are locked. Scores are final for this round.'}
+              </p>
+              <Link
+                to={CAMPUS_HUNT_PATHS.leaderboard}
+                className="mt-4 inline-flex rounded-xl bg-emerald-400 px-5 py-2.5 text-sm font-bold text-black"
+              >
+                View leaderboard →
+              </Link>
+            </section>
+          )}
+
+          {entry?.status === 'stopped' && !scoreLocked && (
+            <p className="rounded-xl border border-white/15 bg-white/[0.04] px-4 py-3 text-center text-sm text-white/70">
+              Your team stopped early. Scores lock when the timer ends.
+            </p>
+          )}
+
+          {roundClosed && !scoreLocked && (
+            <p className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-center text-sm text-amber-100">
+              Finals round is locked. No new missions can be started.
+            </p>
+          )}
+
+          {feedback && (
+            <p
+              className={`rounded-xl px-3 py-2.5 text-center text-sm ${
+                feedbackTone === 'err'
+                  ? 'border border-amber-400/30 bg-amber-500/10 text-amber-100'
+                  : feedbackTone === 'ok'
+                    ? 'border border-emerald-400/25 bg-emerald-500/10 text-emerald-100'
+                    : 'border border-white/[0.08] bg-white/[0.03] text-white/80'
+              }`}
+            >
+              {feedback}
+            </p>
+          )}
+
+          {!waitingForRelease && activeView ? (
+            <div className="space-y-3">
+              {missionExpiresAt && (
+                <CountdownTimer
+                  expiresAt={missionExpiresAt}
+                  label="Mission timer"
+                  expiredLabel="MISSION TIME UP"
+                />
+              )}
+              {activeView.missionId === 'intel_hunt' && (
+                <IntelHuntMission
+                  view={activeView}
+                  isLeader={isLeader}
+                  busy={busy}
+                  onSubmit={handleSubmit}
+                  onAbandon={handleAbandon}
+                />
+              )}
+              {activeView.missionId === 'lockbox' && (
+                <LockboxMission
+                  view={activeView}
+                  isLeader={isLeader}
+                  busy={busy}
+                  onSubmit={handleSubmit}
+                  onAbandon={handleAbandon}
+                />
+              )}
+              {(activeView.missionId === 'field_terminal' || activeView.missionId === 'borrowed_device') && (
+                <FieldTerminalMission
+                  view={activeView}
+                  isLeader={isLeader}
+                  busy={busy}
+                  onSubmit={handleSubmit}
+                  onAbandon={handleAbandon}
+                />
+              )}
+              {activeView.missionId === 'operation_blackout' && (
+                <BlackoutMission
+                  view={activeView}
+                  isLeader={isLeader}
+                  busy={busy}
+                  onSubmit={handleSubmit}
+                  onAbandon={handleAbandon}
+                />
+              )}
+            </div>
+          ) : !waitingForRelease && !scoreLocked ? (
+            <>
+              <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5">
+                {FINALE_MISSIONS.map((m) => (
+                  <span key={m.id} className="inline-flex items-center gap-1.5 text-[11px] text-white/50">
+                    <span
+                      className="h-2 w-2 rounded-full"
+                      style={{ background: m.hex }}
+                      aria-hidden
+                    />
+                    {m.colorName}
+                  </span>
+                ))}
+              </div>
+              <p className="text-center text-xs text-white/40">
+                {completedCount}/{FINALE_MISSIONS.length} missions cleared
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {missions.map((m) => (
+                  <MissionCard
+                    key={m.id}
+                    mission={m}
+                    isLeader={isLeader}
+                    disabled={!data?.canStartMission || roundClosed || entry?.status === 'stopped'}
+                    busy={busy}
+                    starting={startingId === m.id}
+                    onStart={handleStart}
+                  />
+                ))}
+              </div>
+
+              {isLeader && !roundClosed && entry?.status !== 'stopped' && (
+                <button
+                  type="button"
+                  onClick={handleStop}
+                  disabled={busy}
+                  className="w-full rounded-xl border border-white/15 py-3 text-xs font-semibold uppercase tracking-wide text-white/50 hover:border-white/30 hover:text-white/80"
+                >
+                  Stop for now
+                </button>
+              )}
+            </>
+          ) : null}
+
+          {!scoreLocked && (
+            <div className="pt-2 text-center">
+              <Link
+                to={CAMPUS_HUNT_PATHS.leaderboard}
+                className="text-xs text-white/40 underline hover:text-[#0ECCEE]"
+              >
+                View leaderboard
+              </Link>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

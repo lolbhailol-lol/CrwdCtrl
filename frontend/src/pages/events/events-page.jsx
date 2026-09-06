@@ -5,6 +5,7 @@ import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
 import { useNotifications } from '../../context/NotificationsContext';
 import { getImageUrl } from '../../utils/imageImports';
+import { getCoverImageUrl } from '../../utils/coverImages';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import { toCardText } from '../../utils/cardText';
 import HomeCategoryBar from '../../components/HomeCategoryBar';
@@ -12,6 +13,7 @@ import MobileStickyHeader from '../../components/MobileStickyHeader';
 import CategorySearchRow from '../../components/CategorySearchRow';
 import MobileHeroSearchField from '../../components/MobileHeroSearchField';
 import { buildSearchKeywordsFromCatalog } from '../../utils/buildSearchKeywords';
+import { shareContent, openExternalUrl } from '../../utils/externalLink';
 import { navigateToSearchResult } from '../../utils/searchNavigation';
 import { usePageContentLoading } from '../../hooks/usePageContentLoading';
 import AppLogo from '../../components/AppLogo';
@@ -27,8 +29,37 @@ import {
 import CustomPageSectionsRenderer from '../../components/CustomPageSectionsRenderer';
 import { usePageSectionHandlers } from '../../utils/pageSectionHandlers';
 import { mapEventShow } from '../../constants/eventsPage';
+import Seo from '../../components/Seo';
+import FaqSection from '../../components/FaqSection';
+import { breadcrumbSchema, faqSchema, itemListSchema } from '../../utils/seo';
+import { EVENTS_FAQ } from '../../constants/faqs';
+import { eventShowPath, eventCommunityEventPath, runClubPath } from '../../utils/slugRoutes';
+import { usePublicConfig } from '../../hooks/usePublicConfig';
+import AnnouncementBanner from '../../components/AnnouncementBanner';
 
-import { API_BASE_URL as API } from '../../services/api/client';
+const EVENTS_DESCRIPTION =
+    'Discover events, shows and meetups near you — concerts, stand-up comedy, workshops and more. Find and book tickets to events around you on CrwdCtrl.';
+
+import { fetchCatalogJSON } from '../../services/api/catalogCache';
+
+const EVENTS_CACHE_KEY = 'crwdctrl_events_page_v3';
+const readEventsCache = () => {
+    try {
+        const raw = sessionStorage.getItem(EVENTS_CACHE_KEY);
+        const parsed = raw ? JSON.parse(raw) : null;
+        if (!parsed || typeof parsed !== 'object') return null;
+        return parsed;
+    } catch {
+        return null;
+    }
+};
+const writeEventsCache = (payload) => {
+    try {
+        sessionStorage.setItem(EVENTS_CACHE_KEY, JSON.stringify(payload));
+    } catch {
+        /* storage full / unavailable */
+    }
+};
 
 function SpotlightCard({ show, isDark, isFavorite, onToggleFavorite, onClick }) {
     return (
@@ -39,7 +70,7 @@ function SpotlightCard({ show, isDark, isFavorite, onToggleFavorite, onClick }) 
             <div className="card-portrait-image relative overflow-hidden">
                 {show.image ? (
                     <img
-                        src={getImageUrl(show.image, { preset: 'cardLg' })}
+                        src={getCoverImageUrl(show, 'cardPortrait') || getImageUrl(show.image, { preset: 'cardPortrait' })}
                         alt={show.title}
                         className="w-full h-full object-cover"
                         onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#2a1a3a', show.title || 'Event')}
@@ -65,9 +96,7 @@ function SpotlightCard({ show, isDark, isFavorite, onToggleFavorite, onClick }) 
                     className="mt-0.5 shrink-0"
                     onClick={(e) => {
                         e.stopPropagation();
-                        if (navigator.share) {
-                            navigator.share({ title: show.title, url: window.location.origin + '/events' }).catch(() => {});
-                        }
+                        shareContent({ title: show.title, url: window.location.origin + '/events' });
                     }}
                 />
             </div>
@@ -84,7 +113,7 @@ function UpcomingShowCard({ show, isDark, isFavorite, onToggleFavorite, onClick 
             <div className="card-wide-image relative">
                 {show.image ? (
                     <img
-                        src={getImageUrl(show.image, { preset: 'cardLg' })}
+                        src={getCoverImageUrl(show, 'cardWide') || getImageUrl(show.image, { preset: 'cardWide' })}
                         alt={show.title}
                         className="w-full h-full object-cover"
                         onError={(e) => handleImageErrorWithFallback(e, 320, 224, '#2a1a3a', show.title || 'Event')}
@@ -110,9 +139,7 @@ function UpcomingShowCard({ show, isDark, isFavorite, onToggleFavorite, onClick 
                     className="ml-3"
                     onClick={(e) => {
                         e.stopPropagation();
-                        if (navigator.share) {
-                            navigator.share({ title: show.title, url: window.location.origin + '/events' }).catch(() => {});
-                        }
+                        shareContent({ title: show.title, url: window.location.origin + '/events' });
                     }}
                 />
             </div>
@@ -129,7 +156,7 @@ function CommunityEventCard({ show, isDark, isFavorite, onToggleFavorite, onClic
             <div className="card-portrait-image relative overflow-hidden">
                 {show.image ? (
                     <img
-                        src={getImageUrl(show.image, { preset: 'cardLg' })}
+                        src={getCoverImageUrl(show, 'cardPortrait') || getImageUrl(show.image, { preset: 'cardPortrait' })}
                         alt={show.title}
                         className="w-full h-full object-cover"
                         onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#2a1a3a', show.title || 'Event')}
@@ -147,7 +174,7 @@ function CommunityEventCard({ show, isDark, isFavorite, onToggleFavorite, onClic
                         {toCardText(show.title)}
                     </p>
                     <p className={`card-event-subtitle line-clamp-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {toCardText(show.date)}
+                        {toCardText(show.basedIn || show.date || show.subtitle)}
                     </p>
                 </div>
                 <CardShareButton
@@ -155,9 +182,7 @@ function CommunityEventCard({ show, isDark, isFavorite, onToggleFavorite, onClic
                     className="mt-0.5 shrink-0"
                     onClick={(e) => {
                         e.stopPropagation();
-                        if (navigator.share) {
-                            navigator.share({ title: show.title, url: window.location.origin + '/events' }).catch(() => {});
-                        }
+                        shareContent({ title: show.title, url: window.location.origin + '/events' });
                     }}
                 />
             </div>
@@ -170,59 +195,136 @@ export default function EventsPage() {
     const navigate = useNavigate();
     const { toggleFavorite, isFavorite } = useFavorites();
     const { unreadCount } = useNotifications();
+    const publicConfig = usePublicConfig();
 
-    const [shows, setShows] = useState([]);
-    const [carouselFests, setCarouselFests] = useState([]);
-    const [carouselTreks, setCarouselTreks] = useState([]);
-    const [carouselCommunities, setCarouselCommunities] = useState([]);
-    const [carouselSports, setCarouselSports] = useState([]);
-    const [carouselRunClubs, setCarouselRunClubs] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const cached = readEventsCache();
+    const [shows, setShows] = useState(() => (Array.isArray(cached?.shows) ? cached.shows.map(mapEventShow) : []));
+    const [rawShows, setRawShows] = useState(() => (Array.isArray(cached?.shows) ? cached.shows : []));
+    const [carouselFests, setCarouselFests] = useState(() => (Array.isArray(cached?.fests) ? cached.fests : []));
+    const [carouselTreks, setCarouselTreks] = useState(() => (Array.isArray(cached?.treks) ? cached.treks : []));
+    const [carouselCommunities, setCarouselCommunities] = useState(() => (Array.isArray(cached?.communities) ? cached.communities : []));
+    const [carouselSports, setCarouselSports] = useState(() => (Array.isArray(cached?.sports) ? cached.sports : []));
+    const [carouselRunClubs, setCarouselRunClubs] = useState(() => (Array.isArray(cached?.clubs) ? cached.clubs : []));
+    const [eventCommunities, setEventCommunities] = useState(() => (Array.isArray(cached?.eventCommunities) ? cached.eventCommunities : []));
+    const [communityEvents, setCommunityEvents] = useState(() => (Array.isArray(cached?.communityEvents) ? cached.communityEvents : []));
+    const [loading, setLoading] = useState(!cached);
     const [upcomingPg, setUpcomingPg] = useState(0);
     const upcomingScrollRef = useRef(null);
     usePageContentLoading(loading);
 
     const loadData = useCallback(async () => {
+        const hasCache = Boolean(readEventsCache());
         try {
-            const [eventsRes, festsRes, treksRes, commRes, sportsRes, clubsRes] = await Promise.all([
-                fetch(`${API}/events?_cb=${Date.now()}`, { headers: { Accept: 'application/json' }, credentials: 'omit', mode: 'cors' }),
-                fetch(`${API}/fests/all?_cb=${Date.now()}`, { headers: { Accept: 'application/json' }, credentials: 'omit', mode: 'cors' }),
-                fetch(`${API}/treks?_cb=${Date.now()}`, { headers: { Accept: 'application/json' }, credentials: 'omit', mode: 'cors' }),
-                fetch(`${API}/trek-communities?_cb=${Date.now()}`, { headers: { Accept: 'application/json' }, credentials: 'omit', mode: 'cors' }),
-                fetch(`${API}/sports?_cb=${Date.now()}`, { headers: { Accept: 'application/json' }, credentials: 'omit', mode: 'cors' }),
-                fetch(`${API}/run-clubs?_cb=${Date.now()}`, { headers: { Accept: 'application/json' }, credentials: 'omit', mode: 'cors' }),
-            ]);
+            // Phase 1: events hub content only (shows + communities + community events)
+            let nextShows = [];
+            let nextEventCommunities = [];
+            let nextCommunityEvents = [];
+            try {
+                const [eventsRes, eventClubsRes, communityEventsRes] = await Promise.all([
+                    fetchCatalogJSON('/events', { retries: 1 }),
+                    fetchCatalogJSON('/run-clubs?hub=events', { retries: 1 }).catch(() => null),
+                    fetchCatalogJSON('/sports?hub=events', { retries: 1 }).catch(() => null),
+                ]);
+                const data = eventsRes?.data;
+                nextShows = Array.isArray(data?.shows) ? data.shows : [];
+                setRawShows(nextShows);
+                setShows(nextShows.map(mapEventShow));
 
-            if (eventsRes.ok) {
-                const data = await eventsRes.json();
-                const list = Array.isArray(data?.shows) ? data.shows : [];
-                setShows(list.map(mapEventShow));
+                if (eventClubsRes?.data) {
+                    nextEventCommunities = Array.isArray(eventClubsRes.data?.clubs) ? eventClubsRes.data.clubs : [];
+                    setEventCommunities(nextEventCommunities);
+                }
+                if (communityEventsRes?.data) {
+                    nextCommunityEvents = (Array.isArray(communityEventsRes.data?.events) ? communityEventsRes.data.events : [])
+                        .map((ev) => ({ ...ev, listingHub: 'events' }));
+                    setCommunityEvents(nextCommunityEvents);
+                }
+            } catch {
+                if (!hasCache) {
+                    setRawShows([]);
+                    setShows([]);
+                }
+            } finally {
+                setLoading(false);
+            }
+
+            const prevCache = readEventsCache() || {};
+            writeEventsCache({
+                shows: nextShows,
+                fests: prevCache.fests || [],
+                treks: prevCache.treks || [],
+                communities: prevCache.communities || [],
+                sports: prevCache.sports || [],
+                clubs: prevCache.clubs || [],
+                eventCommunities: nextEventCommunities.length
+                    ? nextEventCommunities
+                    : (prevCache.eventCommunities || []),
+                communityEvents: nextCommunityEvents.length
+                    ? nextCommunityEvents
+                    : (prevCache.communityEvents || []),
+            });
+
+            // Phase 2: cross-hub carousels — deferred so they don't block first paint
+            const loadCrossHub = async () => {
+                const [festsRes, treksRes, commRes, sportsRes, clubsRes] = await Promise.all([
+                    fetchCatalogJSON('/fests/all', { retries: 1 }).catch(() => null),
+                    fetchCatalogJSON('/treks', { retries: 1 }).catch(() => null),
+                    fetchCatalogJSON('/trek-communities', { retries: 1 }).catch(() => null),
+                    fetchCatalogJSON('/sports', { retries: 1 }).catch(() => null),
+                    fetchCatalogJSON('/run-clubs', { retries: 1 }).catch(() => null),
+                ]);
+
+                let nextFests = [];
+                let nextTreks = [];
+                let nextCommunities = [];
+                let nextSports = [];
+                let nextClubs = [];
+
+                if (festsRes?.data) {
+                    nextFests = Array.isArray(festsRes.data?.fests) ? festsRes.data.fests : Array.isArray(festsRes.data) ? festsRes.data : [];
+                    setCarouselFests(nextFests);
+                }
+                if (treksRes?.data) {
+                    nextTreks = Array.isArray(treksRes.data?.treks) ? treksRes.data.treks : [];
+                    setCarouselTreks(nextTreks);
+                }
+                if (commRes?.data) {
+                    nextCommunities = Array.isArray(commRes.data?.communities) ? commRes.data.communities : [];
+                    setCarouselCommunities(nextCommunities);
+                }
+                if (sportsRes?.data) {
+                    nextSports = Array.isArray(sportsRes.data?.events) ? sportsRes.data.events : [];
+                    setCarouselSports(nextSports);
+                }
+                if (clubsRes?.data) {
+                    nextClubs = Array.isArray(clubsRes.data?.clubs) ? clubsRes.data.clubs : [];
+                    setCarouselRunClubs(nextClubs);
+                }
+
+                const latest = readEventsCache() || {};
+                writeEventsCache({
+                    ...latest,
+                    shows: nextShows.length ? nextShows : (latest.shows || []),
+                    fests: nextFests,
+                    treks: nextTreks,
+                    communities: nextCommunities,
+                    sports: nextSports,
+                    clubs: nextClubs,
+                    eventCommunities: nextEventCommunities.length
+                        ? nextEventCommunities
+                        : (latest.eventCommunities || []),
+                    communityEvents: nextCommunityEvents.length
+                        ? nextCommunityEvents
+                        : (latest.communityEvents || []),
+                });
+            };
+
+            if (typeof requestIdleCallback === 'function') {
+                requestIdleCallback(() => { loadCrossHub().catch(() => {}); }, { timeout: 2500 });
             } else {
-                setShows([]);
-            }
-            if (festsRes.ok) {
-                const data = await festsRes.json();
-                setCarouselFests(Array.isArray(data?.fests) ? data.fests : Array.isArray(data) ? data : []);
-            }
-            if (treksRes.ok) {
-                const data = await treksRes.json();
-                setCarouselTreks(Array.isArray(data?.treks) ? data.treks : []);
-            }
-            if (commRes.ok) {
-                const data = await commRes.json();
-                setCarouselCommunities(Array.isArray(data?.communities) ? data.communities : []);
-            }
-            if (sportsRes.ok) {
-                const data = await sportsRes.json();
-                setCarouselSports(Array.isArray(data?.events) ? data.events : []);
-            }
-            if (clubsRes.ok) {
-                const data = await clubsRes.json();
-                setCarouselRunClubs(Array.isArray(data?.clubs) ? data.clubs : []);
+                setTimeout(() => { loadCrossHub().catch(() => {}); }, 400);
             }
         } catch {
-            setShows([]);
-        } finally {
             setLoading(false);
         }
     }, []);
@@ -251,11 +353,65 @@ export default function EventsPage() {
     const spotlightShows = useMemo(() => sortByPriority(shows.filter((s) => s.pageSection === 'spotlight')), [shows, sortByPriority]);
     const upcomingShows = useMemo(() => sortByPriority(shows.filter((s) => s.pageSection === 'upcoming')), [shows, sortByPriority]);
     const communityShows = useMemo(() => sortByPriority(shows.filter((s) => s.pageSection === 'community')), [shows, sortByPriority]);
+    const eventCommunityCards = useMemo(
+        () => eventCommunities
+            .filter((c) => c.showOnEventsPage !== false)
+            .map((c) => ({
+                id: c._id,
+                listingHub: 'events',
+                title: c.name,
+                basedIn: c.tagline || c.basedIn || 'Community',
+                image: c.coverImage || c.coverImages?.portrait || null,
+                coverImages: c.coverImages,
+                slug: c.slug,
+                name: c.name,
+                pagePriority: c.runClubPriority ?? c.priority ?? 999,
+                _kind: 'community',
+            }))
+            .sort((a, b) => (a.pagePriority || 999) - (b.pagePriority || 999)),
+        [eventCommunities],
+    );
+    const communityEventCards = useMemo(
+        () => communityEvents
+            // Hub API may omit the flag on older builds; treat missing as visible
+            // (admin can still hide with showOnEventsPage: false).
+            .filter((ev) => ev.showOnEventsPage !== false)
+            .map((ev) => ({
+                id: ev._id,
+                listingHub: 'events',
+                title: ev.title,
+                basedIn: ev.city || ev.displayType || ev.venue || 'Event',
+                image: ev.coverImage || ev.images?.[0] || ev.coverImages?.portrait || null,
+                coverImages: ev.coverImages,
+                slug: ev.slug,
+                pagePriority: ev.priority ?? 999,
+                registrationFee: ev.registrationFee,
+                pricingMode: ev.pricingMode,
+                tiers: ev.tiers,
+                description: ev.description,
+                eventDate: ev.eventDate,
+                registration: ev.registration
+                    ? { status: ev.registration.status, mode: ev.registration.mode }
+                    : undefined,
+                _kind: 'event',
+            }))
+            .sort((a, b) => (a.pagePriority || 999) - (b.pagePriority || 999)),
+        [communityEvents],
+    );
+    const communityRowCards = useMemo(() => {
+        const shows = communityShows.map((show) => ({
+            ...show,
+            pagePriority: show.pagePriority ?? 999,
+            _kind: 'show',
+        }));
+        return [...eventCommunityCards, ...communityEventCards, ...shows]
+            .sort((a, b) => (a.pagePriority || 999) - (b.pagePriority || 999));
+    }, [eventCommunityCards, communityEventCards, communityShows]);
 
     const heroBannerEvents = useMemo(
         () => heroShows.map((show) => ({
             id: show.id,
-            image: show.image,
+            image: getCoverImageUrl(show, 'hero') || show.image,
             title: show.title,
             subtitle: show.basedIn,
             dateTime: show.date,
@@ -264,10 +420,12 @@ export default function EventsPage() {
     );
 
     const handleShowClick = useCallback((show) => {
-        if (show.bookingLink) {
-            window.open(show.bookingLink, '_blank', 'noopener,noreferrer');
+        if (show?.id) {
+            navigate(eventShowPath(show));
+        } else if (show.bookingLink) {
+            openExternalUrl(show.bookingLink);
         }
-    }, []);
+    }, [navigate]);
 
     const handleHeroClick = useCallback(
         (id) => {
@@ -325,6 +483,24 @@ export default function EventsPage() {
 
     return (
         <div className="crwdctrl-page crwdctrl-page--hub min-h-screen transition-colors">
+            <Seo
+                title="Events & Shows"
+                description={EVENTS_DESCRIPTION}
+                canonical="/events"
+                keywords="events, shows, concerts, comedy, workshops, meetups, tickets"
+                jsonLd={[
+                    breadcrumbSchema([
+                        { name: 'Home', path: '/' },
+                        { name: 'Events', path: '/events' },
+                    ]),
+                    itemListSchema({
+                        name: 'Events & Shows on CrwdCtrl',
+                        description: EVENTS_DESCRIPTION,
+                        url: '/events',
+                    }),
+                    faqSchema(EVENTS_FAQ),
+                ]}
+            />
             <MobileStickyHeader
                 isDark={isDark}
                 brandingRow={
@@ -367,20 +543,24 @@ export default function EventsPage() {
             />
 
             <main className="pb-8">
-                <div className="max-w-2xl lg:max-w-7xl mx-auto lg:pt-0 crwdctrl-hub-body">
-                    {!loading && heroBannerEvents.length > 0 && (
-                        <HeroBanner events={heroBannerEvents} onEventClick={handleHeroClick} />
-                    )}
-                    {loading && <HeroBannerSkeleton />}
+                {!loading && heroBannerEvents.length > 0 && (
+                    <HeroBanner events={heroBannerEvents} onEventClick={handleHeroClick} />
+                )}
+                {loading && <HeroBannerSkeleton />}
 
+                <AnnouncementBanner announcement={publicConfig.announcement} />
+
+                <div className="max-w-2xl lg:max-w-none mx-auto lg:mx-0 crwdctrl-hub-body">
                     <section className="home-section-block">
                         <h2 className={`home-section-heading font-inter ${isDark ? 'text-white' : 'text-black'}`}>
-                            In the Spotlight
+                            {publicConfig.labels.events.spotlight}
                         </h2>
                         {loading ? (
-                            <CompactPortraitCardsRowSkeleton count={3} />
+                            <div className="carousel-scroll-gutter overflow-x-auto scrollbar-hide">
+                                <CompactPortraitCardsRowSkeleton count={3} className="" />
+                            </div>
                         ) : spotlightShows.length === 0 ? (
-                            <EmptyState label="No spotlight events yet" />
+                            <EmptyState label={publicConfig.emptyStates.events.spotlight} />
                         ) : (
                             <div
                                 className="carousel-scroll-gutter overflow-x-auto scrollbar-hide"
@@ -405,23 +585,25 @@ export default function EventsPage() {
 
                     <section className="home-section-block">
                         <h2 className={`home-section-heading font-inter ${isDark ? 'text-white' : 'text-black'}`}>
-                            Upcoming Shows
+                            {publicConfig.labels.events.upcoming}
                         </h2>
                         {loading ? (
-                            <WideActivityCardsRowSkeleton count={2} />
+                            <div className="carousel-scroll-gutter overflow-x-auto scrollbar-hide">
+                                <WideActivityCardsRowSkeleton count={2} className="" />
+                            </div>
                         ) : upcomingShows.length === 0 ? (
-                            <EmptyState label="No upcoming shows yet" />
+                            <EmptyState label={publicConfig.emptyStates.events.upcoming} />
                         ) : (
                             <>
                                 <div
                                     ref={upcomingScrollRef}
-                                    className="carousel-scroll-center carousel-scroll-center--wide overflow-x-auto scrollbar-hide"
+                                    className="carousel-scroll-gutter overflow-x-auto scrollbar-hide"
                                     style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
                                     onScroll={(e) => setUpcomingPg(Math.round(e.target.scrollLeft / 328))}
                                 >
                                     <div className="flex gap-4 pb-1">
                                         {upcomingShows.map((show) => (
-                                            <div key={show.id} className="snap-center">
+                                            <div key={show.id} className="shrink-0">
                                                 <UpcomingShowCard
                                                     show={show}
                                                     isDark={isDark}
@@ -440,26 +622,70 @@ export default function EventsPage() {
 
                     <section className="home-section-block">
                         <h2 className={`home-section-heading font-inter ${isDark ? 'text-white' : 'text-black'}`}>
-                            Community Events
+                            {publicConfig.labels.events.community}
                         </h2>
                         {loading ? (
-                            <CompactPortraitCardsRowSkeleton count={3} />
-                        ) : communityShows.length === 0 ? (
-                            <EmptyState label="No community events yet" />
+                            <div className="carousel-scroll-gutter overflow-x-auto scrollbar-hide">
+                                <CompactPortraitCardsRowSkeleton count={3} className="" />
+                            </div>
+                        ) : communityRowCards.length === 0 ? (
+                            <EmptyState label={publicConfig.emptyStates.events.community} />
                         ) : (
                             <div
                                 className="carousel-scroll-gutter overflow-x-auto scrollbar-hide"
                                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
                             >
                                 <div className="flex gap-4 pb-2">
-                                    {communityShows.map((show) => (
-                                        <div key={show.id} className="shrink-0">
+                                    {communityRowCards.map((card) => (
+                                        <div key={`${card._kind}-${card.id}`} className="shrink-0">
                                             <CommunityEventCard
-                                                show={show}
+                                                show={card}
                                                 isDark={isDark}
-                                                isFavorite={isFavorite(show.id)}
-                                                onToggleFavorite={() => handleFav(show)}
-                                                onClick={() => handleShowClick(show)}
+                                                isFavorite={isFavorite(card.id)}
+                                                onToggleFavorite={() => handleFav(card)}
+                                                onClick={() => {
+                                                    if (card._kind === 'community') {
+                                                        navigate(runClubPath(card), {
+                                                            state: {
+                                                                club: {
+                                                                    _id: card.id,
+                                                                    id: card.id,
+                                                                    slug: card.slug,
+                                                                    name: card.name || card.title,
+                                                                    title: card.title,
+                                                                    basedIn: card.basedIn,
+                                                                    coverImage: card.image,
+                                                                    coverImages: card.coverImages,
+                                                                    listingHub: 'events',
+                                                                },
+                                                            },
+                                                        });
+                                                    } else if (card._kind === 'event') {
+                                                        navigate(eventCommunityEventPath(card), {
+                                                            state: {
+                                                                event: {
+                                                                    _id: card.id,
+                                                                    id: card.id,
+                                                                    slug: card.slug,
+                                                                    title: card.title,
+                                                                    coverImage: card.image,
+                                                                    coverImages: card.coverImages,
+                                                                    listingHub: 'events',
+                                                                    city: card.basedIn,
+                                                                    venue: card.basedIn,
+                                                                    registrationFee: card.registrationFee,
+                                                                    pricingMode: card.pricingMode,
+                                                                    tiers: card.tiers,
+                                                                    description: card.description,
+                                                                    eventDate: card.eventDate,
+                                                                    registration: card.registration,
+                                                                },
+                                                            },
+                                                        });
+                                                    } else {
+                                                        handleShowClick(card);
+                                                    }
+                                                }}
                                             />
                                         </div>
                                     ))}
@@ -473,8 +699,9 @@ export default function EventsPage() {
                         fests={carouselFests}
                         treks={carouselTreks}
                         communities={carouselCommunities}
-                        sports={carouselSports}
-                        runClubs={carouselRunClubs}
+                        sports={[...carouselSports, ...communityEvents]}
+                        runClubs={[...carouselRunClubs, ...eventCommunities]}
+                        eventShows={rawShows}
                         isDark={isDark}
                         loading={loading}
                         isFavorite={isFavorite}
@@ -483,6 +710,8 @@ export default function EventsPage() {
                         getShareUrl={getShareUrl}
                     />
                 </div>
+
+                <FaqSection items={EVENTS_FAQ} />
             </main>
         </div>
     );
