@@ -14,11 +14,13 @@ async function maybeSendWelcomeWhatsApp(user) {
     }
 
     if (user.welcomeWhatsAppSentAt) {
+      console.log('[whatsapp] welcome skipped', { reason: 'already_sent', userId: String(user._id) });
       return { success: false, skipped: true, error: 'already_sent' };
     }
 
     const phone = normalizeWhatsAppTo(user.phoneNumber || user.phone);
     if (!phone) {
+      console.log('[whatsapp] welcome skipped', { reason: 'no_phone', userId: String(user._id) });
       return { success: false, skipped: true, error: 'no_phone' };
     }
 
@@ -47,12 +49,26 @@ async function maybeSendWelcomeWhatsApp(user) {
       parameters: [{ type: 'text', text: name }],
     });
 
+    console.log('[whatsapp] welcome attempting', {
+      userId: String(user._id),
+      toLast4: phone.slice(-4),
+      templateName,
+    });
+
     const result = await sendTemplateMessage({
       to: phone,
       templateName,
       languageCode: language,
       components,
     });
+
+    if (result.skipped) {
+      console.log('[whatsapp] welcome skipped', {
+        reason: result.error || 'skipped',
+        userId: String(user._id),
+        toLast4: phone.slice(-4),
+      });
+    }
 
     if (result.success) {
       // Don't permanently mark as sent in mock mode so local retests still fire.
