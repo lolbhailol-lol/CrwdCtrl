@@ -304,6 +304,10 @@ router.get('/competitions/:competitionId/public', async (req, res) => {
             console.warn('Could not compute public slots remaining', slotsErr?.message || slotsErr);
         }
 
+        // Always expose feeTiers (empty = flat fee). Omitting the key breaks client coupon/quote UI.
+        const { sanitizeCompetitionFeeTiers } = require('../utils/competitionFeeTiers');
+        competitionData.feeTiers = sanitizeCompetitionFeeTiers(competitionData.feeTiers);
+
         console.log('🔍 Competition API Response:', {
             competitionId: competitionData._id,
             festId: competitionData.fest?._id,

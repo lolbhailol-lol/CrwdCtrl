@@ -594,12 +594,8 @@ export default function useFestRegistration() {
 
     let pricingPayload = null;
     if (isCompetitionRegistration && competitionBaseFee > 0) {
-      // Prefetch/stubs sometimes omit feeTiers — wait until public competition payload is hydrated
-      if (!Object.prototype.hasOwnProperty.call(competition || {}, 'feeTiers')) {
-        setPriceBreakdown(null);
-        setCouponQuoting(false);
-        return;
-      }
+      // Missing feeTiers on lean Mongo docs means "no tiers" (not "still loading").
+      // Only wait when real tiers exist and the user has not picked one yet.
       if (competitionFeeTiers.length && !String(formData.feeTierId || '').trim()) {
         setPriceBreakdown(null);
         setCouponQuoting(false);
@@ -1189,6 +1185,10 @@ export default function useFestRegistration() {
         throw new Error('Failed to fetch competition details');
       }
       const competitionData = await competitionResponse.json();
+      // Normalize missing feeTiers (older lean docs) so quote/coupon UI never blocks
+      if (!Object.prototype.hasOwnProperty.call(competitionData || {}, 'feeTiers')) {
+        competitionData.feeTiers = [];
+      }
             setCompetition(competitionData);
 
       const cacheBuster = Date.now();

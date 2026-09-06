@@ -351,13 +351,17 @@ export default function FestRegistrationForm({
             )}
 
             {/* Fee box — amount first, coupon secondary.
-                MindSpark roster: show on every person step (not only the last),
-                so coupon codes are visible throughout participant details. */}
+                MindSpark paid comps: show on team-size / team-details / every person step
+                so coupons are not limited to Hackathon (or the last roster step). */}
             {!paymentFields
               && !onFeeTierStep
-              && !onParticipantStep
-              && !onTeamDetailsStep
-              && (onPersonStep || !hasParticipantStep?.() || currentStep === getTotalSteps())
+              && (
+                onPersonStep
+                || onParticipantStep
+                || onTeamDetailsStep
+                || !hasParticipantStep?.()
+                || currentStep === getTotalSteps()
+              )
               ? (() => {
               if (!priceBreakdown) return null;
               const total = Number(priceBreakdown.totalAmount) || 0;
