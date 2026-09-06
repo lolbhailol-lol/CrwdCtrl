@@ -88,6 +88,9 @@ const userSchema = new mongoose.Schema(
       registrationAlerts: { type: Boolean, default: true },
     },
 
+    // One-time Meta WhatsApp welcome template (login/signup)
+    welcomeWhatsAppSentAt: { type: Date, default: null },
+
     // Social Authentication fields
     socialAuth: {
       provider: {

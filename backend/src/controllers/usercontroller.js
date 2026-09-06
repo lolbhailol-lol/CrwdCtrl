@@ -6,6 +6,7 @@ const { createNotification } = require('./notificationController');
 const { sendPushNotification } = require('../services/pushService');
 const { getJwtSecret } = require('../config/jwtSecret');
 const { resolveFirebaseIdentity } = require('../utils/firebaseIdentity');
+const { scheduleWelcomeWhatsApp } = require('../utils/welcomeWhatsApp');
 
 // Generate JWT Token (optional hunt claims survive refresh for stay-logged-in)
 const generateToken = (userId, extraClaims = {}) => {
@@ -273,6 +274,8 @@ const register = async (req, res) => {
             });
         }
 
+        scheduleWelcomeWhatsApp(user);
+
         res.status(201).json({
             success: true,
             message: 'User registered successfully',
@@ -388,6 +391,8 @@ const login = async (req, res) => {
         }
 
         await notifyLoginSuccess(user);
+
+        scheduleWelcomeWhatsApp(user);
 
         res.status(200).json({
             success: true,
@@ -563,6 +568,8 @@ const socialAuth = async (req, res) => {
 
             await notifyLoginSuccess(existingUser);
 
+            scheduleWelcomeWhatsApp(existingUser);
+
             return res.status(200).json({
                 success: true,
                 message: 'Login successful',
@@ -629,6 +636,8 @@ const socialAuth = async (req, res) => {
                 delete userResponse.password;
 
                 await notifyLoginSuccess(existingUser);
+
+                scheduleWelcomeWhatsApp(existingUser);
 
                 return res.status(200).json({
                     success: true,
@@ -705,6 +714,8 @@ const socialAuth = async (req, res) => {
                 // Log error but don't affect the registration response
             });
         }
+
+        scheduleWelcomeWhatsApp(user);
 
         res.status(201).json({
             success: true,
