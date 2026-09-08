@@ -54,17 +54,13 @@ function envApiBase() {
  * CORS often hangs those WebViews on the event “Loading…” screen.
  */
 export function getApiBaseUrl() {
-  if (typeof window !== 'undefined' && isInAppBrowser()) {
-    const sameOrigin = getSameOriginApiBase();
-    if (sameOrigin) return sameOrigin;
-  }
+  const sameOrigin = getSameOriginApiBase();
+  if (sameOrigin) return sameOrigin;
 
   const fromEnv = envApiBase();
   if (fromEnv) return fromEnv;
 
   if (import.meta.env.PROD) {
-    const sameOrigin = getSameOriginApiBase();
-    if (sameOrigin) return sameOrigin;
     return PRODUCTION_API_BASE_URL;
   }
   return LOCAL_DEV_API_BASE_URL;
@@ -72,9 +68,8 @@ export function getApiBaseUrl() {
 
 /**
  * Ordered bases for resilient fetches (login / public / organizer / payments).
- * In-app browsers (WhatsApp / Instagram): same-origin `/api` first — they often
- * hang or block CORS to railway.app and leave detail pages on “Loading…” forever.
- * Normal browsers: Railway env URL first, then same-origin fallback.
+ * www / apex: same-origin `/api` first — Google Chrome and in-app browsers abort
+ * cross-origin Railway calls when a boot reload is in flight.
  */
 export function getApiBaseCandidates() {
   const primary = getApiBaseUrl();
@@ -83,6 +78,16 @@ export function getApiBaseCandidates() {
   const wwwApi = typeof window !== 'undefined' && window.location.hostname === 'www.crwdctrl.in'
     ? `${window.location.origin}/api`
     : null;
+
+  if (siteApi) {
+    return [...new Set([
+      siteApi,
+      wwwApi,
+      fromEnv,
+      primary,
+      PRODUCTION_API_BASE_URL,
+    ].filter(Boolean))];
+  }
 
   if (typeof window !== 'undefined' && isInAppBrowser()) {
     return [...new Set([
@@ -98,7 +103,6 @@ export function getApiBaseCandidates() {
   if (fromEnv) bases.push(fromEnv);
   if (primary && !bases.includes(primary)) bases.push(primary);
   if (!bases.includes(PRODUCTION_API_BASE_URL)) bases.push(PRODUCTION_API_BASE_URL);
-  if (siteApi && !bases.includes(siteApi)) bases.push(siteApi);
   if (wwwApi && !bases.includes(wwwApi)) bases.push(wwwApi);
 
   return [...new Set(bases.filter(Boolean))];

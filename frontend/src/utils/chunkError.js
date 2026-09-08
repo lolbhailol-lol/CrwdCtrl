@@ -139,6 +139,12 @@ export function reloadOnceForChunkError() {
     if (typeof window !== 'undefined' && String(window.location?.pathname || '').startsWith('/campus-hunt/offline')) {
         return false;
     }
+    try {
+        // Google / in-app / home: auto-reload is what made “loading…” loop forever
+        if (document.documentElement.classList.contains('skip-boot-splash')) return false;
+    } catch {
+        /* ignore */
+    }
     // In-app / shared deep links: never hard-reload — it loops with SW updates
     try {
         const ua = navigator.userAgent || '';
@@ -191,11 +197,23 @@ export function markAppBootSuccess() {
     }
 }
 
+function isOwnViteAssetScript(src) {
+    if (!src || typeof src !== 'string') return false;
+    try {
+        const url = new URL(src, typeof window !== 'undefined' ? window.location.href : 'https://www.crwdctrl.in');
+        if (typeof window !== 'undefined' && url.origin !== window.location.origin) return false;
+        return /\/assets\/.+\.m?js$/i.test(url.pathname);
+    } catch {
+        return /\/assets\/.+\.m?js/i.test(src);
+    }
+}
+
 function handleScriptLoadFailure(event) {
     const target = event?.target;
     if (!target || target.tagName !== 'SCRIPT') return false;
     const src = target.src || '';
-    if (!src.includes('/assets/') && !src.endsWith('.js')) return false;
+    // Only our Vite chunks — gtag / Speed Insights / ads failing used to reload the whole site
+    if (!isOwnViteAssetScript(src)) return false;
     reloadOnceForChunkError();
     return true;
 }

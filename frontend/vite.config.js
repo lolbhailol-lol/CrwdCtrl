@@ -95,20 +95,19 @@ export default defineConfig(({ mode }) => ({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff2,webmanifest}'],
         globIgnores: ['**/firebase-messaging-sw.js'],
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
-        // Bump when changing runtime cache strategy so installed devices drop old SW caches
-        cacheId: 'crwdctrl-v11',
-        // Ensure new builds activate quickly and old caches are removed.
+        cacheId: 'crwdctrl-v12',
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,
-        // FCM background handler shares this worker — do not register a second root SW.
         importScripts: ['/firebase-messaging-sw.js'],
-        // Don't precache the firebase messaging sw
+        // Only the offline hunt shell may use cached HTML. Google / Chrome / in-app
+        // navigations must hit the network — SW-cached index.html was reload-looping phones.
         navigateFallback: 'index.html',
-        navigateFallbackAllowlist: [/^\/campus-hunt\/offline(?:\/|$|\?)/, /^\//],
+        navigateFallbackAllowlist: [/^\/campus-hunt\/offline(?:\/|$|\?)/],
         navigateFallbackDenylist: [
           /^\/firebase-messaging-sw\.js$/,
           /^\/api\//,
+          /^\/_vercel\//,
           /^\/favicon\.ico$/,
           /^\/favicon\.png$/,
           /^\/favicon-48x48\.png$/,

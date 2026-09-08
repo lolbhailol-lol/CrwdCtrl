@@ -11,11 +11,9 @@ import { isNativeApp } from './utils/capacitorPlatform'
 import { initCashfreeNativeGateway } from './utils/bootstrapCashfreeNative'
 import { initGlobalErrorHandlers } from './utils/chunkError'
 import { dismissBootOverlays } from './utils/dismissBootOverlays'
-import { isSafariBrowser } from './utils/safariBrowser'
 import { preloadCategoryNavIcons } from './constants/categoryNavIcons'
 import { isInAppBrowser } from './config/apiBase'
 import { isSharedContentDeepLink } from './utils/bootSplash'
-import { SpeedInsights } from '@vercel/speed-insights/react'
 
 initThemeClass()
 initSentry()
@@ -58,10 +56,19 @@ if (import.meta.env.PROD && !isNativeApp() && 'serviceWorker' in navigator) {
       return false;
     }
   })();
+  const homeHub = (() => {
+    try {
+      const p = window.location.pathname || '';
+      return p === '/' || p === '/dashboard';
+    } catch {
+      return false;
+    }
+  })();
   const inApp = isInAppBrowser();
 
-  // Shared / in-app opens: drop controlling SW so stale caches can't block the page
-  if (deepLink || inApp) {
+  // Google / in-app / home / shared links: drop controlling SW so a stale
+  // index.html cannot reload-loop the boot splash
+  if (deepLink || inApp || homeHub) {
     navigator.serviceWorker.getRegistrations?.()
       .then((registrations) => {
         registrations.forEach((registration) => {
@@ -113,7 +120,6 @@ createRoot(document.getElementById('root')).render(
   import.meta.env.PROD ? (
     <ErrorBoundary>
       <App />
-      {!isNativeApp() && !isSafariBrowser() && <SpeedInsights />}
     </ErrorBoundary>
   ) : (
     <StrictMode>

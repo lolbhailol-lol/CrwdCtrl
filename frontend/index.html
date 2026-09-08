@@ -7,7 +7,28 @@
   <!-- Meta / Facebook domain verification (Business Manager) — must stay in static HTML head -->
   <meta name="facebook-domain-verification" content="weewk6xhrjcl5tly1wv3gl8cgjxajo" />
 
-  <!-- Theme before paint — same logic as DarkModeProvider -->
+  <script>
+    (function () {
+      try {
+        var ua = navigator.userAgent || '';
+        var p = location.pathname || '';
+        var phoneOrInApp = /Android|iPhone|iPad|iPod|Mobile|Instagram|FBAN|FBAV|WhatsApp|GSA\/|GoogleApp/i.test(ua);
+        var home = (p === '/' || p === '/dashboard');
+        var fromSearch = /google\.|bing\.com/i.test(document.referrer || '');
+        if (!(phoneOrInApp || home || fromSearch)) return;
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function (regs) {
+            regs.forEach(function (reg) { reg.unregister().catch(function () {}); });
+          }).catch(function () {});
+        }
+        if ('caches' in window) {
+          caches.keys().then(function (keys) {
+            keys.forEach(function (key) { caches.delete(key); });
+          }).catch(function () {});
+        }
+      } catch (e) {}
+    })();
+  </script>
   <script>
     (function () {
       try {
@@ -611,6 +632,22 @@
         window.location.replace(url.toString());
       }
 
+      function isOwnAppChunk(src) {
+        if (!src) return false;
+        try {
+          var u = new URL(src, location.href);
+          if (u.origin !== location.origin) return false;
+          return /\/assets\/.+\.m?js$/i.test(u.pathname);
+        } catch (e) {
+          return false;
+        }
+      }
+
+      function appAlreadyMounted() {
+        var root = document.getElementById('root');
+        return !!(window.__crwdctrlAppReady || (root && root.querySelector('[data-crwdctrl-app]')));
+      }
+
       function recoverStaleDeploy() {
         try {
           if (!navigator.onLine) {
@@ -620,9 +657,20 @@
           if (/^\/campus-hunt\/offline(\/|$)/.test(location.pathname || '')) {
             return;
           }
+          // Google / in-app / already-mounted: never auto-reload (looks like endless loading)
+          if (skipSplash || appAlreadyMounted()) {
+            sessionStorage.removeItem(RECOVER_KEY);
+            hideFallback();
+            dismissBootSplash();
+            return;
+          }
           if (window.__crwdctrlAppReady) {
             sessionStorage.removeItem(RECOVER_KEY);
             hideFallback();
+            return;
+          }
+          if (/(?:^|[?&])_crwd=/.test(location.search || '')) {
+            showFallback();
             return;
           }
           if (sessionStorage.getItem(RECOVER_KEY)) {
@@ -655,20 +703,19 @@
       window.addEventListener('error', function (event) {
         var target = event.target;
         if (!target || target.tagName !== 'SCRIPT') return;
-        var src = target.src || '';
-        if (src.indexOf('/assets/') === -1 && src.indexOf('.js') === -1) return;
+        if (!isOwnAppChunk(target.src || '')) return;
         recoverStaleDeploy();
       }, true);
 
       setTimeout(dismissBootSplash, MAX_MS);
 
       setTimeout(function () {
-        var root = document.getElementById('root');
-        if (window.__crwdctrlAppReady || (root && root.querySelector('[data-crwdctrl-app]'))) {
+        if (appAlreadyMounted()) {
           hideFallback();
           dismissBootSplash();
           return;
         }
+        var root = document.getElementById('root');
         if (root && root.childNodes.length) {
           hideFallback();
           return;
@@ -676,7 +723,7 @@
         if (skipSplash) return;
         showFallback();
         recoverStaleDeploy();
-      }, 3200);
+      }, 12000);
 
       new MutationObserver(function () {
         var root = document.getElementById('root');

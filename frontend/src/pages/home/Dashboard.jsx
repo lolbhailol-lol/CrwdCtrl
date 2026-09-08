@@ -1251,29 +1251,11 @@ const Dashboard = () => {
         [fests, homeTreks, homeCommunities, homeSports],
     );
 
-    // Paint as soon as fests exist (cache or network). Aux feeds hydrate in place.
-    const homeBooting = isFestsLoading && fests.length === 0;
-    const [homeLoadTimedOut, setHomeLoadTimedOut] = useState(false);
-
-    useEffect(() => {
-        if (!homeBooting) {
-            setHomeLoadTimedOut(false);
-            return undefined;
-        }
-        const timeoutMs = 4000;
-        const timer = window.setTimeout(() => setHomeLoadTimedOut(true), timeoutMs);
-        return () => window.clearTimeout(timer);
-    }, [homeBooting]);
-
-    const showHomeContent = !homeBooting || homeLoadTimedOut;
-
+    // Never block first paint on /home — Google / in-app reloads used to sit on the
+    // 3D loader forever while the API (or a recover loop) aborted the fetch.
     useLayoutEffect(() => {
-        setHomeShellReady(showHomeContent);
-    }, [showHomeContent]);
-
-    if (!showHomeContent) {
-        return null;
-    }
+        setHomeShellReady(true);
+    }, []);
 
     return (
         <div className="crwdctrl-page crwdctrl-page--hub flex flex-col min-h-screen transition-colors">

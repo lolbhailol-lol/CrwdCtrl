@@ -80,6 +80,25 @@
   },
   "headers": [
     {
+      "source": "/index.html",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+      ]
+    },
+    {
+      "source": "/",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+      ]
+    },
+    {
+      "source": "/sw.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" },
+        { "key": "Service-Worker-Allowed", "value": "/" }
+      ]
+    },
+    {
       "source": "/api/(.*)",
       "headers": [
         { "key": "Cache-Control", "value": "no-store" },
@@ -124,7 +143,7 @@
       "destination": "https://crwdctrl-production-9c58.up.railway.app/api/:path*"
     },
     {
-      "source": "/((?!api/|assets/|favicon\\.ico|favicon\\.png|favicon-48x48\\.png|icon-192x192\\.png|icon-512x512\\.png|logo-crwdctrl\\.png|crwdctrl-mark\\.png|robots\\.txt|sitemap\\.xml|llms\\.txt|manifest\\.webmanifest|offline-hunt\\.webmanifest|firebase-messaging-sw\\.js).*)",
+      "source": "/((?!api/|_vercel/|assets/|favicon\\.ico|favicon\\.png|favicon-48x48\\.png|icon-192x192\\.png|icon-512x512\\.png|logo-crwdctrl\\.png|crwdctrl-mark\\.png|robots\\.txt|sitemap\\.xml|llms\\.txt|manifest\\.webmanifest|offline-hunt\\.webmanifest|firebase-messaging-sw\\.js|sw\\.js|workbox-.*).*)",
       "destination": "/index.html"
     }
   ],
