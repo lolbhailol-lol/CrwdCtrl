@@ -1,4 +1,4 @@
-import { getApiBaseUrl } from '../../config/apiBase';
+import { getApiBaseCandidates } from '../../config/apiBase';
 import {
     getTrekOrganizerToken,
     clearTrekOrganizerSession,
@@ -8,8 +8,7 @@ import {
     clearTrekOrganizerManualLogout,
 } from '../../utils/trekOrganizerSession';
 import { resolveAuthToken, getBearerAuthHeaders } from '../../utils/authToken';
-
-const API = getApiBaseUrl();
+import { resilientJsonFetch, resolveApiUrl, isProxyMissStatus } from './resilientFetch.js';
 
 function handleOrganizerUnauthorized() {
     clearTrekOrganizerSession();
@@ -22,26 +21,54 @@ function handleOrganizerUnauthorized() {
 
 async function trekOrganizerFetch(path, options = {}) {
     const token = getTrekOrganizerToken();
-    const headers = {
-        'Content-Type': 'application/json',
-        ...(options.headers || {}),
-    };
-    if (token) headers.Authorization = `Bearer ${token}`;
+    const { data, response } = await resilientJsonFetch(path, {
+        ...options,
+        headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...(options.headers || {}),
+        },
+    });
 
-    const res = await fetch(`${API}${path}`, { ...options, headers });
-    const data = await res.json().catch(() => ({}));
-
-    if (res.status === 401) {
+    if (response.status === 401) {
         handleOrganizerUnauthorized();
         throw new Error(data.message || 'Session expired');
     }
-    if (!res.ok) {
+    if (!response.ok) {
         const err = new Error(data.message || 'Request failed');
         err.code = data.code;
-        err.status = res.status;
+        err.status = response.status;
         throw err;
     }
     return data;
+}
+
+async function trekOrganizerBlobFetch(path) {
+    const token = getTrekOrganizerToken();
+    const bases = getApiBaseCandidates();
+    let lastError;
+    for (let i = 0; i < bases.length; i += 1) {
+        const res = await fetch(resolveApiUrl(path, bases[i]), {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            mode: 'cors',
+            credentials: 'omit',
+            cache: 'no-store',
+        });
+        if (res.status === 401) {
+            handleOrganizerUnauthorized();
+            throw new Error('Session expired');
+        }
+        if (isProxyMissStatus(res.status) && i < bases.length - 1) {
+            await res.text().catch(() => '');
+            lastError = new Error(`API host miss (HTTP ${res.status})`);
+            continue;
+        }
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.message || 'Export failed');
+        }
+        return res.blob();
+    }
+    throw lastError || new Error('Export failed');
 }
 
 function applyTrekOrganizerAuthPayload(data) {
@@ -75,13 +102,10 @@ export async function fetchTrekOrganizerSignupCommunities() {
 export async function fetchTrekCommunityProfileEligible(authToken = null) {
     const token = resolveAuthToken(authToken);
     if (!token) return { success: true, eligible: false };
-    const res = await fetch(`${API}/trek-organizer/auth/profile-eligible`, {
+    const { data, response } = await resilientJsonFetch('/trek-organizer/auth/profile-eligible', {
         headers: getBearerAuthHeaders(token),
-        mode: 'cors',
-        credentials: 'omit',
     });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.message || 'Failed to check Trek community access');
+    if (!response.ok) throw new Error(data.message || 'Failed to check Trek community access');
     return data;
 }
 
@@ -97,18 +121,15 @@ export async function tryTrekOrganizerAppSession(authToken = null, { force = fal
 
     if (force) clearTrekOrganizerManualLogout();
 
-    const res = await fetch(`${API}/trek-organizer/auth/app-session`, {
+    const { data, response } = await resilientJsonFetch('/trek-organizer/auth/app-session', {
         method: 'POST',
         headers: getBearerAuthHeaders(token),
-        mode: 'cors',
-        credentials: 'omit',
     });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data?.token) {
+    if (!response.ok || !data?.token) {
         if (data?.code) {
             const err = new Error(data.message || 'Trek community session unavailable');
             err.code = data.code;
-            err.status = res.status;
+            err.status = response.status;
             throw err;
         }
         return null;
@@ -131,24 +152,12 @@ export async function fetchTrekOrganizerCustomers(params = {}) {
 }
 
 export async function exportTrekOrganizerCustomers(params = {}) {
-    const token = getTrekOrganizerToken();
     const qs = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined && value !== null && value !== '') qs.set(key, String(value));
     });
     const query = qs.toString();
-    const res = await fetch(`${API}/trek-organizer/customers/export${query ? `?${query}` : ''}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    if (res.status === 401) {
-        handleOrganizerUnauthorized();
-        throw new Error('Session expired');
-    }
-    if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || 'Export failed');
-    }
-    return res.blob();
+    return trekOrganizerBlobFetch(`/trek-organizer/customers/export${query ? `?${query}` : ''}`);
 }
 
 export async function fetchTrekOrganizerDashboard(trekId) {
@@ -176,16 +185,7 @@ export async function lookupTrekOrganizerParticipant(trekId, q) {
 }
 
 export async function exportTrekOrganizerParticipants(trekId) {
-    const token = getTrekOrganizerToken();
-    const res = await fetch(`${API}/trek-organizer/treks/${trekId}/participants/export`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    if (res.status === 401) {
-        handleOrganizerUnauthorized();
-        throw new Error('Session expired');
-    }
-    if (!res.ok) throw new Error('Export failed');
-    return res.blob();
+    return trekOrganizerBlobFetch(`/trek-organizer/treks/${trekId}/participants/export`);
 }
 
 export async function trekOrganizerCheckin(trekId, payload) {

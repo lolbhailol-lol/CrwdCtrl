@@ -1,4 +1,4 @@
-import { getApiBaseUrl } from '../../config/apiBase';
+import { getApiBaseUrl, getApiBaseCandidates } from '../../config/apiBase';
 import {
     getEventOrganizerToken,
     clearEventOrganizerSession,
@@ -7,8 +7,11 @@ import {
     isEventOrganizerTokenExpired,
 } from '../../utils/eventShowOrganizerSession';
 import { resolveAuthToken, getBearerAuthHeaders } from '../../utils/authToken';
+import { resilientJsonFetch, resolveApiUrl, isProxyMissStatus } from './resilientFetch.js';
 
-const API = getApiBaseUrl();
+function apiBase() {
+    return getApiBaseUrl();
+}
 
 function handleUnauthorized() {
     clearEventOrganizerSession();
@@ -20,26 +23,19 @@ function handleUnauthorized() {
 
 async function eventOrganizerFetch(path, options = {}) {
     const token = getEventOrganizerToken();
-    const headers = {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        ...(options.headers || {}),
-    };
-    if (token) headers.Authorization = `Bearer ${token}`;
-
-    const res = await fetch(`${API}${path}`, {
+    const { data, response } = await resilientJsonFetch(path, {
         ...options,
-        headers,
-        mode: 'cors',
-        credentials: 'omit',
+        headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...(options.headers || {}),
+        },
     });
-    const data = await res.json().catch(() => ({}));
 
-    if (res.status === 401) {
+    if (response.status === 401) {
         handleUnauthorized();
         throw new Error(data.message || 'Session expired — please sign in again');
     }
-    if (!res.ok) {
+    if (!response.ok) {
         throw new Error(data.message || data.error || 'Request failed');
     }
     return data;
@@ -79,18 +75,15 @@ export async function tryEventOrganizerAppSession(authToken = null) {
     const token = resolveAuthToken(authToken);
     if (!token) return null;
 
-    const res = await fetch(`${API}/event-organizer/auth/app-session`, {
+    const { data, response } = await resilientJsonFetch('/event-organizer/auth/app-session', {
         method: 'POST',
         headers: getBearerAuthHeaders(token),
-        mode: 'cors',
-        credentials: 'omit',
     });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data?.token) {
+    if (!response.ok || !data?.token) {
         if (data?.code) {
             const err = new Error(data.message || 'Event organizer session unavailable');
             err.code = data.code;
-            err.status = res.status;
+            err.status = response.status;
             throw err;
         }
         return null;
@@ -114,13 +107,10 @@ export async function fetchEventOrganizerProfileEligible(authToken = null) {
     const token = resolveAuthToken(authToken);
     if (!token) return { success: true, eligible: false };
 
-    const res = await fetch(`${API}/event-organizer/auth/profile-eligible`, {
+    const { data, response } = await resilientJsonFetch('/event-organizer/auth/profile-eligible', {
         headers: getBearerAuthHeaders(token),
-        mode: 'cors',
-        credentials: 'omit',
     });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
+    if (!response.ok) {
         throw new Error(data.message || data.error || 'Failed to check Event organizer access');
     }
     return data;
@@ -193,7 +183,7 @@ export async function createEventOrganizerManualParticipant(eventId, payload) {
 
 export function eventOrganizerExportUrl(eventId, format = 'xlsx') {
     const qs = new URLSearchParams({ format: format === 'csv' ? 'csv' : 'xlsx' });
-    return `${API}/event-organizer/events/${eventId}/participants/export?${qs}`;
+    return `${apiBase()}/event-organizer/events/${eventId}/participants/export?${qs}`;
 }
 
 export async function eventOrganizerCheckin(eventId, body) {
@@ -228,21 +218,36 @@ export async function downloadEventOrganizerExport(eventId, { format = 'xlsx', f
         throw new Error('Session expired');
     }
     const wantsExcel = format !== 'csv';
-    const res = await fetch(eventOrganizerExportUrl(eventId, wantsExcel ? 'xlsx' : 'csv'), {
-        headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: wantsExcel
-                ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                : 'text/csv',
-        },
-        mode: 'cors',
-        credentials: 'omit',
-    });
-    if (res.status === 401) {
-        handleUnauthorized();
-        throw new Error('Session expired');
+    const path = `/event-organizer/events/${eventId}/participants/export?${new URLSearchParams({
+        format: wantsExcel ? 'xlsx' : 'csv',
+    })}`;
+    const bases = getApiBaseCandidates();
+    let lastError;
+    let res;
+    for (let i = 0; i < bases.length; i += 1) {
+        res = await fetch(resolveApiUrl(path, bases[i]), {
+            headers: {
+                Authorization: `Bearer ${token}`,
+                Accept: wantsExcel
+                    ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                    : 'text/csv',
+            },
+            mode: 'cors',
+            credentials: 'omit',
+            cache: 'no-store',
+        });
+        if (res.status === 401) {
+            handleUnauthorized();
+            throw new Error('Session expired');
+        }
+        if (isProxyMissStatus(res.status) && i < bases.length - 1) {
+            await res.text().catch(() => '');
+            lastError = new Error(`API host miss (HTTP ${res.status})`);
+            continue;
+        }
+        break;
     }
-    if (!res.ok) throw new Error('Export failed');
+    if (!res || !res.ok) throw lastError || new Error('Export failed');
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

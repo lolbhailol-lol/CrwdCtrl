@@ -1,7 +1,8 @@
 // Legacy API client — login/register/profile flows still use this module.
 // New code should import from `services/api/*` (auth.api.js, client.js, etc.).
 import { API_CONFIG, AUTH_CONFIG } from '../config/env.js';
-import { getApiBaseUrl } from '../config/apiBase.js';
+import { getApiBaseUrl, getApiBaseCandidates } from '../config/apiBase.js';
+import { isProxyMissStatus, isJsonContentType } from '../services/api/resilientFetch.js';
 
 /**
  * Base API configuration and utilities
@@ -9,11 +10,15 @@ import { getApiBaseUrl } from '../config/apiBase.js';
 class ApiClient {
     constructor() {
         // Use Vite environment variables for API base URL
-        this.baseURL = getApiBaseUrl();
         this.timeout = API_CONFIG.TIMEOUT;
         this.defaultHeaders = {
             'Content-Type': 'application/json',
         };
+    }
+
+    /** Live base — never freeze a stale host after Railway/Caddy cutover. */
+    get baseURL() {
+        return getApiBaseUrl();
     }
 
     /**
@@ -79,14 +84,34 @@ class ApiClient {
                     attempt: attempt + 1
                 });
 
-                // Handle non-JSON responses
-                const contentType = response.headers.get('content-type');
-                let data;
+                // Handle non-JSON / empty bodies (Railway static miss → empty 405)
+                const contentType = response.headers.get('content-type') || '';
+                const rawText = await response.text();
+                let data = {};
 
-                if (contentType && contentType.includes('application/json')) {
-                    data = await response.json();
-                } else {
-                    data = { message: await response.text() };
+                if (isJsonContentType(response) && rawText) {
+                    try {
+                        data = JSON.parse(rawText);
+                    } catch {
+                        const parseErr = new ApiError(
+                            `Invalid JSON from API (HTTP ${response.status})`,
+                            response.status,
+                            { networkError: true, notJson: true, rawText: rawText.slice(0, 200) },
+                        );
+                        parseErr.code = 'ERR_NOT_JSON';
+                        throw parseErr;
+                    }
+                } else if (rawText) {
+                    data = { message: rawText.slice(0, 500) };
+                    if (!contentType.includes('application/json') || isProxyMissStatus(response.status)) {
+                        const missErr = new ApiError(
+                            `API host miss (HTTP ${response.status})`,
+                            response.status,
+                            { networkError: true, notJson: true },
+                        );
+                        missErr.code = 'ERR_NOT_JSON';
+                        throw missErr;
+                    }
                 }
 
                 if (!response.ok) {
@@ -132,6 +157,11 @@ class ApiClient {
 
                 // Handle API errors
                 if (error instanceof ApiError) {
+                    // Proxy miss / empty HTML — let request() flip API host
+                    if (error.code === 'ERR_NOT_JSON' || isProxyMissStatus(error.status)) {
+                        throw error;
+                    }
+
                     // Don't retry most client errors (4xx)
                     if (error.status >= 400 && error.status < 500 &&
                         error.status !== 408 && error.status !== 429) {
@@ -203,11 +233,11 @@ class ApiClient {
 
     /**
      * ✅ ENHANCED REQUEST METHOD WITH MOBILE OPTIMIZATIONS
+     * Tries Railway + same-origin /api so admin/optional login never sticks on HTTP 405.
      */
     async request(endpoint, options = {}) {
-        const url = `${this.baseURL}${endpoint}`;
-        console.log('📍 API URL being called:', url);
-        console.log('📍 Base URL:', this.baseURL);
+        const bases = getApiBaseCandidates();
+        console.log('📍 API bases:', bases);
         console.log('📍 Endpoint:', endpoint);
 
         const config = {
@@ -222,13 +252,41 @@ class ApiClient {
             config.headers.Authorization = `Bearer ${token}`;
         }
 
-        // Handle request body
+        // Handle request body (stringify once — reused across host failover)
         if (config.body && typeof config.body === 'object') {
             config.body = JSON.stringify(config.body);
         }
 
-        // ✅ USE RETRY MECHANISM FOR MOBILE RELIABILITY
-        return this.requestWithRetry(url, config);
+        let lastError;
+        for (let i = 0; i < bases.length; i += 1) {
+            const url = `${bases[i]}${endpoint}`;
+            console.log(`📍 API URL (${i + 1}/${bases.length}):`, url);
+            try {
+                // Fewer per-host retries when we still have another base to try
+                const maxRetries = i < bases.length - 1 ? 1 : 3;
+                return await this.requestWithRetry(url, { ...config }, maxRetries);
+            } catch (error) {
+                lastError = error;
+                const canFlip = i < bases.length - 1 && (
+                    error?.code === 'ERR_NOT_JSON'
+                    || error?.data?.networkError
+                    || error?.data?.notJson
+                    || isProxyMissStatus(error?.status)
+                    || error?.status === 0
+                    || error?.name === 'TypeError'
+                    || /failed to fetch|network error|load failed|timeout|unexpected end of json/i.test(
+                        String(error?.message || ''),
+                    )
+                );
+                if (canFlip) {
+                    console.warn(`🔄 Flipping API host after ${error?.status || error?.code || 'network'}…`);
+                    continue;
+                }
+                throw error;
+            }
+        }
+
+        throw lastError || new ApiError('Could not reach the API. Please try again.', 0, { networkError: true });
     }
 
     /**

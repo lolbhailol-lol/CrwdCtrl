@@ -1,4 +1,4 @@
-import { getApiBaseUrl } from '../../config/apiBase';
+import { getApiBaseCandidates } from '../../config/apiBase';
 import {
     getRunClubOrganizerToken,
     clearRunClubOrganizerSession,
@@ -14,10 +14,9 @@ import {
     organizerLoginPath,
     organizerSignupPath,
 } from '../../utils/organizerPortalPaths';
+import { resilientJsonFetch, resolveApiUrl, isProxyMissStatus } from './resilientFetch.js';
 
 export { organizerLoginPath, organizerSignupPath, organizerHomePath, organizerEventPath, organizerPortalBase } from '../../utils/organizerPortalPaths';
-
-const API = getApiBaseUrl();
 
 export function organizerSessionMatchesHub(session, hub = '') {
     if (!hub) return true;
@@ -32,14 +31,6 @@ function isIOSBrowser() {
     const userAgent = navigator.userAgent || '';
     return /iPhone|iPad|iPod/i.test(userAgent)
         || (/Safari/i.test(userAgent) && !/Chrome/i.test(userAgent));
-}
-
-function isNetworkFetchError(err) {
-    return err?.name === 'AbortError'
-        || err?.name === 'TypeError'
-        || err?.message?.includes('Failed to fetch')
-        || err?.message?.includes('Network')
-        || err?.message?.includes('timeout');
 }
 
 function handleOrganizerUnauthorized() {
@@ -62,78 +53,28 @@ function handleOrganizerUnauthorized() {
 async function runClubOrganizerFetch(path, options = {}) {
     const token = getRunClubOrganizerToken();
     const isFormData = options.body instanceof FormData;
-    const baseHeaders = {
-        ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
-        Accept: 'application/json',
-        ...(options.headers || {}),
-    };
-    if (token) baseHeaders.Authorization = `Bearer ${token}`;
+    const { data, response } = await resilientJsonFetch(path, {
+        ...options,
+        headers: {
+            ...(isFormData ? {} : {}),
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...(options.headers || {}),
+        },
+    });
 
-    const timeout = options.timeout ?? (isIOSBrowser() ? 20000 : 12000);
-    const maxRetries = options.retries ?? (isIOSBrowser() ? 3 : 2);
-    const useRetry = !options.signal && (options.method ?? 'GET').toUpperCase() === 'GET';
-
-    const attempt = async (retryCount = 0) => {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeout);
-        if (options.signal) {
-            options.signal.addEventListener('abort', () => controller.abort(), { once: true });
-        }
-
-        try {
-            const { signal: _ignored, timeout: _t, retries: _r, headers: _h, ...rest } = options;
-            const res = await fetch(`${API}${path}`, {
-                ...rest,
-                headers: baseHeaders,
-                signal: controller.signal,
-                mode: 'cors',
-                credentials: 'omit',
-            });
-            clearTimeout(timeoutId);
-
-            const data = await res.json().catch(() => ({}));
-
-            if (res.status === 401) {
-                handleOrganizerUnauthorized();
-                throw new Error(data.message || 'Session expired — please sign in again');
-            }
-            if (res.status === 403) {
-                const err = new Error(data.message || 'Access denied for this club manager account');
-                err.status = 403;
-                throw err;
-            }
-            if (!res.ok) {
-                throw new Error(data.message || data.error || 'Request failed');
-            }
-            return data;
-        } catch (err) {
-            clearTimeout(timeoutId);
-
-            if (err?.status === 401 || err?.status === 403) throw err;
-            if (err?.message?.includes('Session expired')) throw err;
-
-            if (isNetworkFetchError(err) && useRetry && retryCount < maxRetries) {
-                await new Promise((resolve) => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
-                return attempt(retryCount + 1);
-            }
-
-            if (err?.name === 'AbortError') {
-                throw new Error(
-                    options.signal?.aborted
-                        ? 'Request cancelled'
-                        : 'Connection timed out — check your network and try again',
-                );
-            }
-
-            if (isNetworkFetchError(err)) {
-                throw new Error('Cannot reach server — check your connection and try again');
-            }
-
-            throw err;
-        }
-    };
-
-    return attempt();
+    if (response.status === 401) {
+        handleOrganizerUnauthorized();
+        throw new Error(data.message || 'Session expired — please sign in again');
+    }
+    if (response.status === 403) {
+        const err = new Error(data.message || 'Access denied for this club manager account');
+        err.status = 403;
+        throw err;
+    }
+    if (!response.ok) {
+        throw new Error(data.message || data.error || 'Request failed');
+    }
+    return data;
 }
 
 export function applyRunClubOrganizerAuthPayload(data) {
@@ -166,19 +107,16 @@ export async function tryRunClubOrganizerAppSession(authToken = null, hub = '', 
     if (force) clearRunClubOrganizerManualLogout();
 
     const hubQuery = hub ? `?hub=${encodeURIComponent(hub)}` : '';
-    const res = await fetch(`${API}/run-club-organizer/auth/app-session${hubQuery}`, {
+    const { data, response } = await resilientJsonFetch(`/run-club-organizer/auth/app-session${hubQuery}`, {
         method: 'POST',
         headers: getBearerAuthHeaders(token),
-        mode: 'cors',
-        credentials: 'omit',
     });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data?.token) {
+    if (!response.ok || !data?.token) {
         // Attach code so callers can send invite-only users to signup instead of looping
         if (data?.code) {
             const err = new Error(data.message || 'Club manager session unavailable');
             err.code = data.code;
-            err.status = res.status;
+            err.status = response.status;
             throw err;
         }
         return null;
@@ -211,36 +149,14 @@ export async function fetchClubManagerProfileEligible(authToken = null) {
     const token = resolveAuthToken(authToken);
     if (!token) return { success: true, eligible: false };
 
-    const timeout = isIOSBrowser() ? 20000 : 12000;
-    const maxRetries = isIOSBrowser() ? 3 : 1;
-
-    const attempt = async (retryCount = 0) => {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeout);
-        try {
-            const res = await fetch(`${API}/run-club-organizer/auth/profile-eligible`, {
-                headers: getBearerAuthHeaders(token),
-                signal: controller.signal,
-                mode: 'cors',
-                credentials: 'omit',
-            });
-            clearTimeout(timeoutId);
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) {
-                throw new Error(data.message || data.error || 'Failed to check Club manager access');
-            }
-            return data;
-        } catch (err) {
-            clearTimeout(timeoutId);
-            if (isNetworkFetchError(err) && retryCount < maxRetries) {
-                await new Promise((resolve) => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
-                return attempt(retryCount + 1);
-            }
-            throw err;
-        }
-    };
-
-    return attempt();
+    const { data, response } = await resilientJsonFetch('/run-club-organizer/auth/profile-eligible', {
+        headers: getBearerAuthHeaders(token),
+        timeout: isIOSBrowser() ? 20000 : 12000,
+    });
+    if (!response.ok) {
+        throw new Error(data.message || data.error || 'Failed to check Club manager access');
+    }
+    return data;
 }
 
 export async function fetchRunClubOrganizerMe() {
@@ -336,19 +252,38 @@ export async function exportRunClubOrganizerParticipants(eventId, options = {}) 
     const format = String(options.format || 'csv').toLowerCase();
     const qs = new URLSearchParams();
     if (format) qs.set('format', format);
-    const res = await fetch(`${API}/run-club-organizer/events/${eventId}/participants/export?${qs.toString()}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    if (res.status === 401) {
-        handleOrganizerUnauthorized();
-        throw new Error('Session expired');
+    const path = `/run-club-organizer/events/${eventId}/participants/export?${qs.toString()}`;
+    const bases = getApiBaseCandidates();
+    let lastError;
+    for (let i = 0; i < bases.length; i += 1) {
+        const res = await fetch(resolveApiUrl(path, bases[i]), {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            mode: 'cors',
+            credentials: 'omit',
+            cache: 'no-store',
+        });
+        if (res.status === 401) {
+            handleOrganizerUnauthorized();
+            throw new Error('Session expired');
+        }
+        if (isProxyMissStatus(res.status) && i < bases.length - 1) {
+            await res.text().catch(() => '');
+            lastError = new Error(`API host miss (HTTP ${res.status})`);
+            continue;
+        }
+        if (!res.ok) throw new Error('Export failed');
+        const contentType = String(res.headers.get('content-type') || '');
+        if (contentType.includes('text/html') || contentType.includes('application/json')) {
+            if (i < bases.length - 1) {
+                await res.text().catch(() => '');
+                lastError = new Error('Export failed — unexpected server response');
+                continue;
+            }
+            throw new Error('Export failed — unexpected server response');
+        }
+        return res.blob();
     }
-    if (!res.ok) throw new Error('Export failed');
-    const contentType = String(res.headers.get('content-type') || '');
-    if (contentType.includes('text/html') || contentType.includes('application/json')) {
-        throw new Error('Export failed — unexpected server response');
-    }
-    return res.blob();
+    throw lastError || new Error('Export failed');
 }
 
 export async function runClubOrganizerCheckin(eventId, payload) {
