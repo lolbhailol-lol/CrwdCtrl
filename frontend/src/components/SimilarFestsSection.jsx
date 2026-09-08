@@ -13,6 +13,7 @@ import {
   trackSimilarCompetitionClick,
   trackExploreFestClick,
 } from '../services/analyticsService';
+import { markWarmCompetitionNav } from '../utils/warmCompetitionNav';
 import SimilarCompetitionCard from './SimilarCompetitionCard';
 
 const FEST_TYPE_LABEL = {
@@ -111,6 +112,7 @@ export default function SimilarFestsSection({
                 competitionId: comp._id || comp.id,
                 festId: id,
               });
+              markWarmCompetitionNav();
               navigate(
                 competitionPath({
                   id: comp._id || comp.id,

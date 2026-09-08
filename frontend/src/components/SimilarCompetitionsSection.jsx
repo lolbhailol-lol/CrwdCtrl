@@ -9,6 +9,7 @@ import {
 import { saveCompetitionDetailCache } from '../utils/detailPageCache';
 import { resolveSimilarCompetitionCards } from '../utils/similarCompetitions';
 import { trackSimilarCompetitionClick } from '../services/analyticsService';
+import { markWarmCompetitionNav } from '../utils/warmCompetitionNav';
 import SimilarCompetitionCard from './SimilarCompetitionCard';
 
 function resolveFestRef(competition, festOverride) {
@@ -119,6 +120,7 @@ export default function SimilarCompetitionsSection({
       festId: festRef?._id || festRef?.id,
     });
     prefetchCompAndRegistration(comp, festRef);
+    markWarmCompetitionNav();
     const path = competitionPath({
       id: comp._id || comp.id,
       _id: comp._id || comp.id,

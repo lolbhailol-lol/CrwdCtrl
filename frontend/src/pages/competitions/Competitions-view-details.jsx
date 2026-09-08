@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Phone, Instagram, Check, Mail, ArrowLeft, Ticket, Share2, Users, FileText, ExternalLink } from 'lucide-react';
+import { Phone, Instagram, Check, Mail, ArrowLeft, Ticket, Share2, Users, FileText, ExternalLink, Loader } from 'lucide-react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useDialog } from '../../context/DialogContext';
@@ -20,10 +20,14 @@ import { resolveCompetitionFee, buildRegistrationPrefetch, saveRegistrationPrefe
 import { minCompetitionFeeAmount } from '../../utils/competitionFeeTiers';
 import { trackBookNowClick } from '../../services/analyticsService';
 import PrizePoolPodium from '../../components/PrizePoolPodium';
-import DetailPageLoader from '../../components/DetailPageLoader';
 import CompetitionCoverImage from '../../components/CompetitionCoverImage';
 import { signalDetailPageReady } from '../../utils/bootSplash';
 import { COMPETITION_DEMO_LOAD_MS } from '../../constants/skeletonLoading';
+import {
+    clearWarmCompetitionNav,
+    isWarmCompetitionLocationState,
+    peekWarmCompetitionNav,
+} from '../../utils/warmCompetitionNav';
 import { formatSlotsLabel, buildTeamSizeLabel, isCompetitionSoldOut, isCompetitionRegistrationClosed } from '../../utils/teamSize';
 import { useInAppBack } from '../../hooks/useInAppBack';
 import { canGoBackInApp } from '../../utils/inAppBack';
@@ -512,26 +516,85 @@ const buildCompetitionData = (compData, options = {}) => {
     };
 };
 
+/** Lightweight wait state — no 3D demo card (used for similar/explore warm nav). */
+function CompactCompetitionLoading({ isDark, label = 'Loading competition…' }) {
+    return (
+        <div
+            className={`crwdctrl-page min-h-dvh flex flex-col items-center justify-center gap-3 px-4 ${
+                isDark ? 'bg-[#161718]' : 'bg-white'
+            }`}
+            role="status"
+            aria-live="polite"
+            aria-label={label}
+        >
+            <Loader className={`w-6 h-6 animate-spin ${isDark ? 'text-[#0ECCEE]' : 'text-[#0099B8]'}`} />
+            <p className={`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{label}</p>
+        </div>
+    );
+}
+
+function WarmFetchPill({ isDark }) {
+    return (
+        <div
+            className="pointer-events-none fixed left-1/2 z-100030 -translate-x-1/2"
+            style={{ top: 'calc(max(var(--safe-top), 0px) + 0.75rem)' }}
+            role="status"
+            aria-live="polite"
+            aria-label="Loading competition"
+        >
+            <div
+                className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold shadow-lg backdrop-blur-md ${
+                    isDark
+                        ? 'bg-[#111213]/90 text-gray-200 border border-white/10'
+                        : 'bg-white/95 text-gray-700 border border-gray-200'
+                }`}
+            >
+                <Loader className={`w-3.5 h-3.5 animate-spin ${isDark ? 'text-[#0ECCEE]' : 'text-[#0099B8]'}`} />
+                Loading competition…
+            </div>
+        </div>
+    );
+}
+
 /** Full paint package for this competition id only (never another comp’s hero). */
 function resolvePaintPackage(competitionId, location) {
+    const skipDemo = Boolean(location?.state?.skipDemoLoad);
+    const fromState = location?.state?.competition;
+
     const cached = competitionId ? loadCompetitionDetailCache(competitionId) : null;
     if (cached && entityMatchesRouteParam(cached, competitionId, ['name', 'title'])) {
         return isBuiltCompetitionDetail(cached)
             ? cached
             : buildCompetitionData(cached, { useFestRegistrationFallback: true });
     }
-    // List-card / explore seed is often incomplete (no cover). Cold links wait for fetch;
-    // similar/explore nav sets skipDemoLoad so we paint immediately instead of the demo loader.
-    const fromState = location?.state?.competition;
-    const skipDemo = Boolean(location?.state?.skipDemoLoad);
-    if (
-        fromState
-        && competitionId
-        && entityMatchesRouteParam(fromState, competitionId, ['name', 'title'])
-        && (skipDemo || fromState.coverImage || fromState.image)
-    ) {
-        return buildCompetitionData(fromState, { useFestRegistrationFallback: true });
+
+    if (fromState && competitionId) {
+        const matches = entityMatchesRouteParam(fromState, competitionId, ['name', 'title']);
+        // Similar / explore always sends skipDemoLoad + a competition seed — paint it
+        // immediately (even without cover) so we never flash the demo loader.
+        if (matches || (skipDemo && (fromState.name || fromState.title || fromState._id || fromState.id))) {
+            if (skipDemo || matches || fromState.coverImage || fromState.image) {
+                return buildCompetitionData(fromState, { useFestRegistrationFallback: true });
+            }
+        }
     }
+
+    // Last resort: cache under mongo id when the route param is a slug (or vice versa)
+    if (fromState && skipDemo) {
+        const altId = fromState._id || fromState.id;
+        if (altId) {
+            const altCached = loadCompetitionDetailCache(String(altId));
+            if (altCached) {
+                return isBuiltCompetitionDetail(altCached)
+                    ? altCached
+                    : buildCompetitionData(altCached, { useFestRegistrationFallback: true });
+            }
+        }
+        if (fromState.name || fromState.title || fromState._id || fromState.id) {
+            return buildCompetitionData(fromState, { useFestRegistrationFallback: true });
+        }
+    }
+
     return null;
 }
 
@@ -558,9 +621,20 @@ function EventPage() {
         Boolean(resolvePaintPackage(competitionId, location)),
     );
     const [holdLoader, setHoldLoader] = useState(() => {
-        if (location.state?.skipDemoLoad) return false;
+        if (
+            location.state?.skipDemoLoad
+            || isWarmCompetitionLocationState(location.state)
+            || peekWarmCompetitionNav()
+        ) {
+            return false;
+        }
         return !resolvePaintPackage(competitionId, location);
     });
+    const [warmNav, setWarmNav] = useState(() =>
+        Boolean(
+            isWarmCompetitionLocationState(location.state) || peekWarmCompetitionNav(),
+        ),
+    );
     const [openingRegister, setOpeningRegister] = useState(false);
     const openingRegisterRef = useRef(false);
     const { isDark } = useDarkMode();
@@ -593,11 +667,20 @@ function EventPage() {
     // Depend only on competitionId (not location.key): slug replace:true creates a new
     // key and would re-enter this effect forever.
     useLayoutEffect(() => {
-        const pack = resolvePaintPackage(competitionId, location);
+        const warm =
+            isWarmCompetitionLocationState(location.state) || peekWarmCompetitionNav();
+        if (warm) setWarmNav(true);
+
+        let pack = resolvePaintPackage(competitionId, location);
+        if (!pack && warm && location.state?.competition) {
+            pack = buildCompetitionData(location.state.competition, {
+                useFestRegistrationFallback: true,
+            });
+        }
         fetchGenRef.current += 1;
         setCompetitionData(pack);
-        setPageReady(Boolean(pack));
-        setHoldLoader(!location.state?.skipDemoLoad && !pack);
+        setPageReady(Boolean(pack) || warm);
+        setHoldLoader(!warm && !pack);
         setOpeningRegister(false);
         openingRegisterRef.current = false;
         setFetchDone(false);
@@ -611,13 +694,13 @@ function EventPage() {
     }, [competitionId]);
 
     useEffect(() => {
-        if (location.state?.skipDemoLoad || resolvePaintPackage(competitionId, location)) {
+        if (warmNav || location.state?.skipDemoLoad || resolvePaintPackage(competitionId, location)) {
             setHoldLoader(false);
             return undefined;
         }
         const timer = window.setTimeout(() => setHoldLoader(false), COMPETITION_DEMO_LOAD_MS);
         return () => window.clearTimeout(timer);
-    }, [competitionId, location.state?.skipDemoLoad]);
+    }, [competitionId, location.state?.skipDemoLoad, warmNav]);
 
     // Fetch competition data from backend API
     useEffect(() => {
@@ -627,6 +710,7 @@ function EventPage() {
             setCompetitionData(built);
             setPageReady(true);
             setFetchDone(true);
+            clearWarmCompetitionNav();
         };
 
         const fetchCompetitionData = async () => {
@@ -799,16 +883,33 @@ function EventPage() {
         }
     }, [pageReady, fetchDone, error, holdLoader]);
 
-    if (openingRegister || ((!pageReady || holdLoader) && !error)) {
-        return (
-            <DetailPageLoader
-                variant="competition"
-                label={openingRegister ? 'Opening registration' : 'Loading competition'}
-            />
-        );
+    const warmFromOtherComp =
+        warmNav
+        || isWarmCompetitionLocationState(location.state)
+        || peekWarmCompetitionNav();
+    const paintSeed =
+        competitionData
+        || (warmFromOtherComp ? resolvePaintPackage(competitionId, location) : null);
+
+    // Always use small spinner for discovery → competition — never the 3D demo card
+    const loadingFallback = (label = 'Loading competition…') => (
+        <CompactCompetitionLoading isDark={isDark} label={label} />
+    );
+
+    if (openingRegister) {
+        return loadingFallback('Opening registration…');
     }
 
-    if (error && !competitionData) {
+    if (warmFromOtherComp && !paintSeed && !competitionData && !error) {
+        return loadingFallback();
+    }
+
+    // Any wait state on this page: small spinner only — never the full-page 3D demo icon
+    if ((!pageReady || holdLoader) && !error && !paintSeed) {
+        return loadingFallback();
+    }
+
+    if (error && !competitionData && !paintSeed) {
         return (
             <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
                 <div className="text-center max-w-md mx-auto p-6">
@@ -853,7 +954,37 @@ function EventPage() {
         );
     }
 
-    const eventData = competitionData;
+    const eventDataRaw = competitionData || paintSeed;
+    const displayTitle =
+        eventDataRaw?.title
+        || eventDataRaw?.name
+        || location.state?.competition?.name
+        || location.state?.competition?.title
+        || '';
+
+    if (!displayTitle) {
+        return loadingFallback();
+    }
+
+    // Ensure title is always present for warm explore/similar opens
+    const eventData = eventDataRaw
+        ? { ...eventDataRaw, title: eventDataRaw.title || displayTitle }
+        : displayTitle
+            ? {
+                title: displayTitle,
+                name: displayTitle,
+                image: location.state?.competition?.coverImage || location.state?.competition?.image || null,
+                fest: location.state?.competition?.fest || null,
+                registrationType: location.state?.competition?.registrationType || 'fest',
+                registration: { status: 'not_started' },
+                rounds: { description: '', list: [], roundsList: [] },
+              }
+            : null;
+
+    if (!eventData) {
+        return loadingFallback();
+    }
+
     const showHeroImage = Boolean(eventData?.image);
     const isMindSparkCompetition = isMindSparkFest(eventData?.fest || eventData?.festId, eventData?.fest);
     const isTechfestCompetition = isTechfestFest(eventData?.fest || eventData?.festId, eventData?.fest);
@@ -869,16 +1000,13 @@ function EventPage() {
         relatedFestsForDiscovery[0]?.festType ||
         (isTechfestCompetition || isMindSparkCompetition ? 'technical' : '');
 
-    if (!eventData?.title) {
-        return <DetailPageLoader variant="competition" label="Loading competition" />;
-    }
-
     // Get fest name from competition payload or navigation state
     const festName =
         eventData?.fest?.festName ||
         eventData?.fest?.title ||
         location.state?.eventData?.festival_name ||
         location.state?.eventData?.title ||
+        location.state?.competition?.fest?.festName ||
         '';
     const passedEventData = location.state?.eventData;
     const showDiscovery = Boolean(fetchDone);
@@ -1697,6 +1825,7 @@ function EventPage() {
 
     return (
         <div className={`crwdctrl-page flex flex-col min-h-screen pb-28 md:pb-8 ${isDark ? 'bg-black' : 'bg-white'}`}>
+            {warmFromOtherComp && !fetchDone ? <WarmFetchPill isDark={isDark} /> : null}
             <Seo
                 title={eventData.title}
                 description={competitionDescription}

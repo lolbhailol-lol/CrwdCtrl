@@ -172,7 +172,7 @@ export function eventShowPath(show = {}) {
 
 export function competitionPath(competition = {}) {
     const id = pickId(competition);
-    const slug = toSlug(competition.name || competition.title || '');
+    const slug = toSlug(competition.slug || competition.name || competition.title || '');
     return `/competitions-view-details/${slug || id}`;
 }
 
