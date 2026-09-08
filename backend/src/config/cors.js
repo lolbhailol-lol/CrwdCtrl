@@ -30,6 +30,8 @@ const corsOrigins = [
   'https://frontend-five-tau-70.vercel.app',
   'https://crwdctrl-730576782394.asia-south2.run.app',
   'https://crwdctrl-production-9c58.up.railway.app',
+  // Frontend static service on Railway (separate project from the API)
+  'https://crwdctrl-production-6b47.up.railway.app',
   'https://crwdctrl-mvp-git-main.vercel.app',
   'https://crwdctrl.firebaseapp.com',
   'https://crwdctrl.web.app',
@@ -72,6 +74,14 @@ function isCrwdCtrlVercelPreview(origin) {
   return false;
 }
 
+/** Railway *.up.railway.app hosts for CrwdCtrl frontend/API services. */
+function isCrwdCtrlRailwayHost(origin) {
+  const o = normalizeOrigin(origin);
+  if (!o.startsWith('https://')) return false;
+  return /^https:\/\/crwdctrl(-[a-z0-9]+)*-production-[a-z0-9]+\.up\.railway\.app$/i.test(o)
+    || /^https:\/\/crwdctrl-production-[a-z0-9]+\.up\.railway\.app$/i.test(o);
+}
+
 function corsOptionsDelegate(origin, callback) {
   // Same-origin / curl / server-to-server — no Origin header
   if (!origin) return callback(null, true);
@@ -85,6 +95,9 @@ function corsOptionsDelegate(origin, callback) {
 
   // Allow this project's Vercel preview URLs without editing env every deploy
   if (isCrwdCtrlVercelPreview(normalized)) return callback(null, true);
+
+  // Allow Railway frontend/API service domains without editing env every redeploy
+  if (isCrwdCtrlRailwayHost(normalized)) return callback(null, true);
 
   if (isDev && (normalized.includes('localhost') || normalized.includes('127.0.0.1'))) {
     return callback(null, true);

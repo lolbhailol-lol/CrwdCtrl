@@ -26,16 +26,16 @@ export function forceWwwHost() {
 }
 
 /**
- * Preferred API base for the marketing site.
- * - www → same-origin `/api` (Vercel→Railway rewrite; Instagram-safe)
- * - apex → www `/api` (apex `/api` 307s and drops POST bodies)
+ * Preferred API base for the marketing site (Instagram-safe when Caddy proxies /api).
+ * - www → same-origin `/api` (Caddy → Railway backend)
+ * - apex → www `/api` (avoid apex DNS/TLS gaps dropping POSTs)
  */
 export function getSameOriginApiBase() {
   if (typeof window === 'undefined') return null;
   const { hostname, protocol, origin } = window.location;
   if (!WEB_HOSTS.has(hostname)) return null;
   if (protocol === 'file:' || protocol === 'capacitor:' || protocol === 'ionic:') return null;
-  // Apex POST /api is 307'd to www — never use apex origin for API
+  // Apex may lack a valid cert / DNS — always prefer www for API
   if (hostname === 'crwdctrl.in') return WWW_API_BASE;
   return `${origin}/api`;
 }
@@ -50,27 +50,27 @@ function envApiBase() {
 
 /**
  * Single source of truth for API base URL.
- * On www/apex production web: prefer same-origin `/api` so login never depends on
- * cross-origin Railway (CORS / cold-start "Failed to fetch"). Railway stays as fallback.
+ * Prefer explicit VITE_API_BASE_URL / Railway when set — same-origin `/api` only works
+ * when a reverse proxy exists (Vercel rewrite or frontend Caddyfile). Without it,
+ * POST /api returns empty 405 HTML and payment breaks with "Unexpected end of JSON input".
+ * Same-origin remains first in getApiBaseCandidates() for Instagram-safe retries.
  */
 export function getApiBaseUrl() {
-  if (import.meta.env.PROD) {
-    const sameOrigin = getSameOriginApiBase();
-    if (sameOrigin) return sameOrigin;
-  }
-
   const fromEnv = envApiBase();
   if (fromEnv) return fromEnv;
 
   if (import.meta.env.PROD) {
+    const sameOrigin = getSameOriginApiBase();
+    if (sameOrigin) return sameOrigin;
     return PRODUCTION_API_BASE_URL;
   }
   return LOCAL_DEV_API_BASE_URL;
 }
 
 /**
- * Ordered bases for resilient fetches (login / public / organizer).
- * Prefer www `/api`, then Railway direct.
+ * Ordered bases for resilient fetches (login / public / organizer / payments).
+ * Railway direct first (always works with CORS), then same-origin `/api`
+ * (Instagram-safe once frontend Caddy proxies to the backend).
  */
 export function getApiBaseCandidates() {
   const primary = getApiBaseUrl();
@@ -78,14 +78,15 @@ export function getApiBaseCandidates() {
   const fromEnv = envApiBase();
   const bases = [];
 
-  if (siteApi) bases.push(siteApi);
+  // Direct Railway API first — avoids empty 405 from a missing /api proxy
+  if (fromEnv) bases.push(fromEnv);
   if (primary && !bases.includes(primary)) bases.push(primary);
-  if (fromEnv && !bases.includes(fromEnv)) bases.push(fromEnv);
   if (!bases.includes(PRODUCTION_API_BASE_URL)) bases.push(PRODUCTION_API_BASE_URL);
+  // Same-origin last so Instagram can still succeed when Caddy /api proxy is live
+  if (siteApi && !bases.includes(siteApi)) bases.push(siteApi);
   if (typeof window !== 'undefined' && window.location.hostname === 'www.crwdctrl.in') {
-    if (!bases.includes(`${window.location.origin}/api`)) {
-      bases.unshift(`${window.location.origin}/api`);
-    }
+    const wwwApi = `${window.location.origin}/api`;
+    if (!bases.includes(wwwApi)) bases.push(wwwApi);
   }
 
   return [...new Set(bases.filter(Boolean))];

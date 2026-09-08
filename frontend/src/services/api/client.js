@@ -85,7 +85,9 @@ function isNetworkFetchError(err) {
 }
 
 function shouldRetryStatus(status) {
-  return status === 408 || status === 425 || status === 429 || (status >= 500 && status <= 599);
+  // 404/405 often mean same-origin /api hit the static host (no proxy) — try next base
+  return status === 404 || status === 405 || status === 408 || status === 425 || status === 429
+    || (status >= 500 && status <= 599);
 }
 
 function withCacheBust(path, cacheBust) {
@@ -111,7 +113,7 @@ function retryDelayMs(retryCount) {
   return Math.pow(2, retryCount) * 1000;
 }
 
-/** Prefer same-origin, then Railway — covers Vercel proxy blips and Instagram WebViews. */
+/** Prefer Railway, then same-origin /api — covers missing Caddy proxy and Instagram WebViews. */
 function getFetchBases() {
   return getApiBaseCandidates();
 }

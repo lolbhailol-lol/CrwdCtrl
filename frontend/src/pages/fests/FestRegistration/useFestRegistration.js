@@ -1580,7 +1580,13 @@ export default function useFestRegistration() {
           const orderErr = await orderRes.json().catch(() => ({}));
           throw new Error(orderErr.message || 'Could not create payment order. Please try again.');
         }
-        const orderData = await orderRes.json();
+        const orderRaw = await orderRes.text();
+        let orderData = {};
+        try {
+          orderData = orderRaw ? JSON.parse(orderRaw) : {};
+        } catch {
+          throw new Error('Payment server returned an invalid response. Please try again.');
+        }
 
         let checkoutResult;
         try {
@@ -2012,7 +2018,13 @@ export default function useFestRegistration() {
         const orderErr = await orderRes.json().catch(() => ({}));
         throw new Error(orderErr.message || 'Could not create payment order. Please try again.');
       }
-      const orderData = await orderRes.json();
+      const orderRaw = await orderRes.text();
+      let orderData = {};
+      try {
+        orderData = orderRaw ? JSON.parse(orderRaw) : {};
+      } catch {
+        throw new Error('Payment server returned an invalid response. Please try again.');
+      }
 
       let checkoutResult;
       try {

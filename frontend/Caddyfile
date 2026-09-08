@@ -1,0 +1,52 @@
+# CrwdCtrl frontend — Railpack/Caddy static + /api reverse proxy
+# Same-origin /api was previously provided by Vercel rewrites; Railway needs this.
+
+{
+	admin off
+	persist_config off
+	auto_https off
+
+	log {
+		format json
+	}
+
+	servers {
+		trusted_proxies static private_ranges 100.0.0.0/8
+	}
+}
+
+:{$PORT:80} {
+	log {
+		format json
+	}
+
+	respond /health 200
+
+	header {
+		X-Content-Type-Options "nosniff"
+		-Server
+	}
+
+	# Proxy API to the CrwdCtrl backend (public URL — frontend/backend are separate Railway projects).
+	# Override with API_UPSTREAM if the backend hostname changes.
+	handle /api* {
+		reverse_proxy {$API_UPSTREAM:https://crwdctrl-production-9c58.up.railway.app} {
+			header_up Host {http.reverse_proxy.upstream.hostport}
+			header_up X-Forwarded-Host {host}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+
+	handle {
+		root * /app/dist
+		encode {
+			gzip
+			zstd
+		}
+		try_files {path} {path}.html {path}/index.html /index.html
+		file_server {
+			hide .git
+			hide .env*
+		}
+	}
+}

@@ -99,10 +99,14 @@ async function festOrganizerFetch(path, options = {}) {
                 const err = new Error(data.message || 'Request failed');
                 err.code = data.code;
                 err.status = res.status;
-                // Retry transient gateway / overload
-                if ((res.status === 408 || res.status === 425 || res.status === 429 || res.status >= 500)
+                // Retry transient gateway / overload, or static-host miss (no /api proxy)
+                if ((res.status === 404 || res.status === 405 || res.status === 408 || res.status === 425
+                    || res.status === 429 || res.status >= 500)
                     && retryCount < maxRetries) {
-                    const nextBase = retryCount >= 1 && baseIndex < bases.length - 1 ? baseIndex + 1 : baseIndex;
+                    const nextBase = (res.status === 404 || res.status === 405 || retryCount >= 1)
+                        && baseIndex < bases.length - 1
+                        ? baseIndex + 1
+                        : baseIndex;
                     await new Promise((r) => setTimeout(r, Math.min(400 * (retryCount + 1), 1500)));
                     return attempt(retryCount + 1, nextBase);
                 }

@@ -1107,7 +1107,13 @@ export default function CompetitionRegistration() {
                     throw new Error(orderErr.message || 'Failed to create payment order. Please try again.');
                 }
 
-                const orderData = await orderRes.json();
+                const orderRaw = await orderRes.text();
+                let orderData = {};
+                try {
+                    orderData = orderRaw ? JSON.parse(orderRaw) : {};
+                } catch {
+                    throw new Error('Payment server returned an invalid response. Please try again.');
+                }
 
                 let checkoutResult;
                 try {

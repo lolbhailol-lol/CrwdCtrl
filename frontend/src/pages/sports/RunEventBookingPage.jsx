@@ -1068,7 +1068,17 @@ export default function RunEventBookingPage() {
                         formData: mergedFields,
                     }),
                 });
-                const order = await res.json();
+                const orderText = await res.text();
+                let order = {};
+                try {
+                    order = orderText ? JSON.parse(orderText) : {};
+                } catch {
+                    throw new Error(
+                        res.ok
+                            ? 'Payment server returned an invalid response. Please try again.'
+                            : `Failed to create order (HTTP ${res.status}). Please try again.`,
+                    );
+                }
                 if (order?.skipPayment || Number(order?.totalAmount) === 0) {
                     await submitRunRegistration({
                         amountPaid: 0,

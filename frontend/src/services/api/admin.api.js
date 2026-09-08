@@ -33,9 +33,13 @@ async function fetchAcrossBases(path, buildOptions) {
     const url = resolveUrl(path, bases[i]);
     try {
       const response = await fetch(url, buildOptions());
-      // SPA HTML shell (missing /api rewrite) → try next base
+      // SPA HTML shell or static-host 405 (missing /api proxy) → try next base
       if (response.ok && !isJsonResponse(response) && i < bases.length - 1) {
         lastError = new Error('Non-JSON API response');
+        continue;
+      }
+      if ((response.status === 404 || response.status === 405) && i < bases.length - 1) {
+        lastError = new Error(`API proxy miss (HTTP ${response.status})`);
         continue;
       }
       return response;
