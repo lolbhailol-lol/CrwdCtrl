@@ -10,6 +10,7 @@ const SportsEvent = require('../model/sports_model');
 const { resolveRunClubGroupLink } = require('./resolveRunClubGroupLink');
 const { listingHubForRunClubId } = require('./listingHubCopy');
 const { primaryCoverUrl } = require('./sanitizeCoverImages');
+const { scheduleBookingConfirmedWhatsApp } = require('./bookingWhatsApp');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 
@@ -244,6 +245,34 @@ async function notifyRunClubParticipant({
             registrationId: registration?._id ? String(registration._id) : undefined,
             userId: userId ? String(userId) : null,
             type,
+        });
+    }
+
+    if (type === 'registration' && decrypted.status === 'confirmed') {
+        let bookingDate = decrypted.bookingDate || '';
+        let bookingTime = decrypted.bookingTime || '';
+        try {
+            if (eventId && (!bookingDate || !bookingTime)) {
+                const eventDoc = await SportsEvent.findById(eventId)
+                    .select('eventDate title')
+                    .lean();
+                if (!bookingDate && eventDoc?.eventDate) bookingDate = eventDoc.eventDate;
+            }
+        } catch {
+            /* optional */
+        }
+        scheduleBookingConfirmedWhatsApp({
+            userId,
+            user: decrypted.user,
+            responses: decrypted.responses,
+            formData: decrypted.formData || decrypted.responses,
+            name,
+            eventName: eventTitle,
+            bookingId: decrypted._id,
+            type: 'sports',
+            date: bookingDate,
+            time: bookingTime,
+            amount: decrypted.amountPaid || 0,
         });
     }
 

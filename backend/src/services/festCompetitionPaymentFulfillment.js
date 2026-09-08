@@ -143,6 +143,17 @@ async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides 
             festId: competition.fest?._id,
             registrationId: persistedRegistration._id,
           },
+          whatsapp: {
+            name: user?.name,
+            user,
+            responses: persistedRegistration.responses,
+            eventName: competition.name,
+            bookingId: persistedRegistration._id,
+            type: '',
+            date: competition.fest?.startDate || competition.startDate || '',
+            time: '',
+            amount: competitionTotalAmount,
+          },
         });
         await sendCompetitionRegistrationEmailForRecord({
           user,
@@ -239,6 +250,17 @@ async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides 
         body: `You've registered for ${fest.festName}`,
         link: ticketLink,
         metadata: { festId: fest._id, registrationId: registration._id },
+        whatsapp: {
+          name: user?.name,
+          user,
+          responses: registration.responses,
+          eventName: fest.festName,
+          bookingId: registration._id,
+          type: '',
+          date: fest.startDate || '',
+          time: '',
+          amount: festTotalAmount,
+        },
       });
       await sendRegistrationThankYouEmail(user.email, user.name, fest.festName, {
         type: 'fest',

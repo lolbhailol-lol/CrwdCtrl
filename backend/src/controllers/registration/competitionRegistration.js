@@ -349,6 +349,17 @@ const submitCustomCompetitionRegistration = async (req, res) => {
         festId: competition.fest?._id,
         registrationId: registration._id,
       },
+      whatsapp: {
+        name: user?.name || req.user?.name,
+        user,
+        responses: registration.responses,
+        eventName: competition.name,
+        bookingId: registration._id,
+        type: '',
+        date: competition.fest?.startDate || '',
+        time: '',
+        amount: registration.amountPaid || 0,
+      },
     });
 
     // ✅ PERFORMANCE: Run all async operations in background (don't wait for them)
@@ -785,6 +796,17 @@ const submitCompetitionRegistration = async (req, res) => {
         festId: fest._id,
         competitionId: competition._id,
         registrationId: registration._id,
+      },
+      whatsapp: {
+        name: user?.name,
+        user,
+        responses: registration.responses,
+        eventName: competition.name,
+        bookingId: registration._id,
+        type: '',
+        date: fest.startDate || '',
+        time: '',
+        amount: registration.amountPaid || 0,
       },
     });
 

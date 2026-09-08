@@ -13,6 +13,7 @@ const {
 } = require('../utils/trekParticipantOutreach');
 const { sendTrekRegistrationEmails, sendTrekParticipantEmails } = require('../services/emailService');
 const { resolveTrekGroupLink } = require('../utils/resolveTrekGroupLink');
+const { scheduleBookingConfirmedWhatsApp } = require('../utils/bookingWhatsApp');
 const {
     formatParticipantRow,
     formatParticipantDetail,
@@ -1255,6 +1256,17 @@ exports.reviewPayment = async (req, res) => {
                     communityName,
                 }).catch((err) => console.error('[trekOrganizer.reviewPayment.email]', err.message));
             }
+            scheduleBookingConfirmedWhatsApp({
+                userId: booking.userId,
+                formData: booking.formData,
+                name: userName,
+                eventName: trekName,
+                bookingId: booking._id,
+                type: 'trek',
+                date: booking.bookingDetails?.date || '',
+                time: booking.bookingDetails?.time || '',
+                amount: booking.bookingDetails?.amountPaid || 0,
+            });
         } else {
             notifyTrekParticipant({
                 booking: leanBooking,

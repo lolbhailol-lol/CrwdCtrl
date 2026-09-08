@@ -2,6 +2,7 @@ const multer = require('multer');
 const { createNotification } = require('../notificationController');
 const { sendPushNotification } = require('../../services/pushService');
 const { logger } = require('../../utils/logger');
+const { scheduleBookingConfirmedWhatsApp } = require('../../utils/bookingWhatsApp');
 
 function parseResponsesBody(body = {}) {
   let responses = body.responses;
@@ -81,6 +82,13 @@ function scheduleRegistrationNotification(userId, payload) {
       logger.error('❌ Notification creation error:', notifErr.message);
     }
   });
+
+  if (payload?.whatsapp) {
+    scheduleBookingConfirmedWhatsApp({
+      userId,
+      ...payload.whatsapp,
+    });
+  }
 }
 
 // Configure multer for file uploads
@@ -93,7 +101,7 @@ const upload = multer({
     // Allow common file types for registration forms
     const allowedTypes = [
       'image/jpeg',
-      'image/png', 
+      'image/png',
       'image/jpg',
       'image/gif',
       'image/webp',

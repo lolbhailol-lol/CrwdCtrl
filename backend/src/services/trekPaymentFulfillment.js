@@ -14,6 +14,7 @@ const { signTrekBookingAccess } = require('../utils/bookingAccess');
 const { createNotification } = require('../controllers/notificationController');
 const { sendPushNotification } = require('./pushService');
 const { sendTrekRegistrationEmails } = require('./emailService');
+const { scheduleBookingConfirmedWhatsApp } = require('../utils/bookingWhatsApp');
 const { logger } = require('../utils/logger');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -75,6 +76,17 @@ function dispatchConfirmation({
         groupLink,
         communityName,
         ticketLink,
+      });
+      scheduleBookingConfirmedWhatsApp({
+        userId,
+        name: userName,
+        eventName: trekName,
+        bookingId,
+        type: 'trek',
+        date: bookingDetails.date || '',
+        time: bookingDetails.time || '',
+        amount: amountPaid,
+        accessToken,
       });
       if (!userId) return;
       await createNotification({

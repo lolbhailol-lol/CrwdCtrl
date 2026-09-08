@@ -354,6 +354,17 @@ const submitEventShowRegistration = async (req, res) => {
         : `You've registered for ${eventShow.title}`,
       link: `/registration-details/${registration._id}?type=event`,
       metadata: { eventShowId: eventShow._id, registrationId: registration._id },
+      whatsapp: {
+        name: user?.name,
+        user,
+        responses: registration.responses,
+        eventName: eventShow.title,
+        bookingId: registration._id,
+        type: 'event',
+        date: eventShow.eventDate || eventShow.startDate || '',
+        time: eventShow.eventTime || eventShow.startTime || '',
+        amount: registration.amountPaid || entryAmount || 0,
+      },
     });
 
     setImmediate(async () => {

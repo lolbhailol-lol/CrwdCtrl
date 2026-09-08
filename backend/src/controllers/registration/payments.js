@@ -137,6 +137,17 @@ const payAndRegisterFest = async (req, res) => {
       body: `You've registered for ${fest.festName}`,
       link: festRegistrationLink,
       metadata: { festId: fest._id, registrationId: persistedFest._id },
+      whatsapp: {
+        name: user?.name,
+        user,
+        responses: persistedFest.responses,
+        eventName: fest.festName,
+        bookingId: persistedFest._id,
+        type: '',
+        date: fest.startDate || '',
+        time: '',
+        amount: persistedFest.amountPaid || festTotalAmount,
+      },
     });
 
     setImmediate(async () => {
@@ -297,6 +308,17 @@ const payAndRegister = async (req, res) => {
         competitionId: competition._id,
         festId: competition.fest?._id,
         registrationId: persistedComp._id,
+      },
+      whatsapp: {
+        name: user?.name,
+        user,
+        responses: persistedComp.responses,
+        eventName: competition.name,
+        bookingId: persistedComp._id,
+        type: '',
+        date: competition.fest?.startDate || '',
+        time: '',
+        amount: persistedComp.amountPaid || competitionTotalAmount,
       },
     });
 

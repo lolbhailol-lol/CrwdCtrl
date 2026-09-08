@@ -21,6 +21,7 @@ const { findByIdOrSlug, ensureUniqueSlug } = require('../utils/slug');
 const { isAllowedPaymentScreenshotUrl, normalizeTransactionId } = require('../utils/runClubRegistrationGuards');
 const { notifyTrekParticipant } = require('../utils/trekParticipantOutreach');
 const { signTrekBookingAccess } = require('../utils/bookingAccess');
+const { scheduleBookingConfirmedWhatsApp } = require('../utils/bookingWhatsApp');
 const { registrationLimiter } = require('../middleware/rateLimiter');
 const uploadCtrl = require('../controllers/uploadController');
 const { sanitizePublicTrek } = require('../utils/publicEntitySanitize');
@@ -77,6 +78,8 @@ function dispatchTrekBookingConfirmation({
     communityName = '',
     sendEmailOnly = false,
     accessToken = '',
+    formData = {},
+    phone = '',
 }) {
     const accessQuery = accessToken ? `&access=${encodeURIComponent(accessToken)}` : '';
     const link = `/registration-details/${bookingId}?type=trek${accessQuery}`;
@@ -100,6 +103,20 @@ function dispatchTrekBookingConfirmation({
             if (!emailResult?.success) {
                 console.error('[Trek Register] Confirmation email failed:', emailResult?.error || emailResult);
             }
+
+            scheduleBookingConfirmedWhatsApp({
+                userId,
+                phone,
+                formData,
+                name: userName,
+                eventName: trekName,
+                bookingId,
+                type: 'trek',
+                date: bookingDetails.date || '',
+                time: bookingDetails.time || '',
+                amount: amountPaid,
+                accessToken,
+            });
 
             if (sendEmailOnly || !userId) return;
 
@@ -674,6 +691,7 @@ router.post('/:id/register', registrationLimiter, optionalAuthenticateToken, asy
             groupLink,
             communityName,
             accessToken,
+            formData,
         });
     } catch (err) {
         if (err.code === 11000) {
