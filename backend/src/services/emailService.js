@@ -990,10 +990,13 @@ function generateCompetitionRegistrationEmailHTML({
     const meta = resolveRegistrationMeta('competition');
     const ticketLink = paymentContext.ticketLink || `/qr-ticket/${registrationId}`;
     const ticketHref = resolveTicketHref(ticketLink);
+    const isTechfest = Boolean(paymentContext.isTechfest || paymentContext.omitWhatsApp);
+    const venueLine = String(paymentContext.venue || '').trim();
     const rows = [
         { label: 'Name', value: userName },
         { label: meta.noun, value: festName },
         competitionName ? { label: 'Competition', value: competitionName } : null,
+        venueLine ? { label: 'Venue', value: venueLine } : null,
         { label: 'Booking ID', value: registrationId },
         { label: 'Registered on', value: submissionDate },
         ...(Array.isArray(paymentContext.details) ? paymentContext.details : []),
@@ -1011,18 +1014,31 @@ function generateCompetitionRegistrationEmailHTML({
         })
         : '';
 
+    const intro = isTechfest
+        ? `<p style="margin:0 0 8px;">Your spot for <strong>${escapeHtml(competitionName || festName)}</strong> at <strong>Techfest, IIT Bombay</strong> is confirmed. Save this email and show your QR at check-in on campus.</p>
+            <p style="margin:0 0 8px;font-size:14px;color:#4b5563;">Organizers will share round schedules and updates by email. You can reopen your ticket anytime from My Bookings in CrwdCtrl.</p>`
+        : `<p style="margin:0 0 8px;">Your registration for <strong>${escapeHtml(competitionName || festName)}</strong> is confirmed. Save this email and show your QR at the venue.</p>`;
+
+    const whatsappHtml = (isTechfest || paymentContext.omitWhatsApp)
+        ? ''
+        : buildWhatsAppJoinBlock(paymentContext.groupLink, paymentContext.communityName, { product: 'competition' });
+
     return buildEmailShell({
-        preheader: `You're in — ${competitionName || festName}. Show your QR at check-in.`,
+        preheader: isTechfest
+            ? `You're in for ${competitionName || 'Techfest'} at IIT Bombay — show your QR at check-in.`
+            : `You're in — ${competitionName || festName}. Show your QR at check-in.`,
         eyebrow: `${meta.icon} You're in`,
         title: "You're in",
-        subtitle: competitionName ? `${competitionName} · ${festName}` : festName,
+        subtitle: isTechfest
+            ? (competitionName ? `${competitionName} · Techfest IIT Bombay` : 'Techfest IIT Bombay')
+            : (competitionName ? `${competitionName} · ${festName}` : festName),
         heroImageUrl: resolveEmailHeroImageUrl(coverImageUrl),
         bodyHtml: `
             <p style="margin:0 0 12px;">Hi <strong>${escapeHtml(userName || 'there')}</strong>,</p>
-            <p style="margin:0 0 8px;">Your registration for <strong>${escapeHtml(competitionName || festName)}</strong> is confirmed. Save this email and show your QR at the venue.</p>
+            ${intro}
             ${ticketBlockHtml || buildDetailsTable(rows)}
             ${buildPaymentNotice(paymentContext)}
-            ${buildWhatsAppJoinBlock(paymentContext.groupLink, paymentContext.communityName, { product: 'competition' })}
+            ${whatsappHtml}
             <p style="margin:16px 0 0;font-size:14px;color:#6b7280;">Need your ticket again? Open My Bookings anytime in CrwdCtrl.</p>
         `,
         ctaLabel: qrHash ? '' : 'View ticket & QR',
@@ -1050,10 +1066,13 @@ const sendCompetitionRegistrationEmail = async ({
         }
 
         const meta = resolveRegistrationMeta('competition');
+        const isTechfest = Boolean(paymentContext.isTechfest || paymentContext.omitWhatsApp);
         const mailOptions = {
             from: getDefaultFrom(),
             to: email,
-            subject: `${meta.icon} You're in — ${competitionName || festName}`,
+            subject: isTechfest
+                ? `You're in — ${competitionName || 'Techfest'} · IIT Bombay`
+                : `${meta.icon} You're in — ${competitionName || festName}`,
             html: generateCompetitionRegistrationEmailHTML({
                 userName,
                 festName,
@@ -1085,27 +1104,37 @@ async function sendCompetitionRegistrationEmailForRecord({
         return { success: false, error: 'Missing user email or registration id' };
     }
 
+    const { isTechfestFest, getFestPlugin } = require('../modules/fest/plugins');
+    const isTechfest = isTechfestFest(fest) || getFestPlugin(fest).omitWhatsAppInEmail === true;
     const ticketLink = `/qr-ticket/${registration._id}`;
     const amountPaid = Number(registration.amountPaid) || 0;
     const paymentStatus = registration.paymentStatus || 'free';
+    const festName = fest?.festName || fest?.name || (isTechfest ? 'Techfest IIT Bombay' : 'Fest');
+    const venue = String(fest?.venue || (isTechfest ? 'IIT Bombay, Mumbai' : '')).trim();
 
     return sendCompetitionRegistrationEmail({
         userEmail: user.email,
         userName: user.name,
-        festName: fest?.festName || fest?.name || 'Fest',
+        festName,
         competitionName: competition?.name || '',
         registrationId: String(registration._id),
         qrHash: registration.qrCodeData || '',
-        coverImageUrl: competition?.coverImage || competition?.image || '',
+        coverImageUrl: competition?.coverImage || competition?.image || fest?.coverImage || '',
         submissionDate: formatSubmissionDateIST(registration.submittedAt || new Date()),
         paymentContext: {
             status: paymentStatus,
             method: paymentStatus === 'paid' ? (registration.payment_gateway || 'cashfree') : '',
             type: 'competition',
             ticketLink,
-            groupLink: String(competition?.registration?.whatsappGroupLink || '').trim()
-                || String(fest?.registration?.whatsappCommunityLink || '').trim(),
-            communityName: competition?.name || fest?.festName || '',
+            // Techfest / IIT Bombay — no WhatsApp group in confirmation email
+            groupLink: isTechfest
+                ? ''
+                : (String(competition?.registration?.whatsappGroupLink || '').trim()
+                    || String(fest?.registration?.whatsappCommunityLink || '').trim()),
+            communityName: competition?.name || festName,
+            omitWhatsApp: isTechfest,
+            isTechfest,
+            venue,
             details: amountPaid > 0 ? [{ label: 'Amount paid', value: `₹${amountPaid}` }] : [],
         },
     });

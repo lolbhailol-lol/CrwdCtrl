@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Phone, Instagram, Check, Mail, ArrowLeft, Ticket, Share2, Users, FileText, ExternalLink, Loader } from 'lucide-react';
+import { Phone, Instagram, Check, Mail, ArrowLeft, Ticket, Share2, Users, FileText, ExternalLink } from 'lucide-react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useDialog } from '../../context/DialogContext';
@@ -23,6 +23,7 @@ import PrizePoolPodium from '../../components/PrizePoolPodium';
 import CompetitionCoverImage from '../../components/CompetitionCoverImage';
 import { signalDetailPageReady } from '../../utils/bootSplash';
 import { COMPETITION_DEMO_LOAD_MS } from '../../constants/skeletonLoading';
+import DetailPageLoader from '../../components/DetailPageLoader';
 import {
     clearWarmCompetitionNav,
     isWarmCompetitionLocationState,
@@ -39,7 +40,6 @@ import {
     loadFestDetailCache,
     isBuiltCompetitionDetail,
 } from '../../utils/detailPageCache';
-import SimilarCompetitionsSection from '../../components/SimilarCompetitionsSection';
 import SimilarFestsSection from '../../components/SimilarFestsSection';
 
 /** Compact slots + team chips — sits above Register Now inside the bar */
@@ -518,44 +518,9 @@ const buildCompetitionData = (compData, options = {}) => {
     };
 };
 
-/** Lightweight wait state — no 3D demo card (used for similar/explore warm nav). */
-function CompactCompetitionLoading({ isDark, label = 'Loading competition…' }) {
-    return (
-        <div
-            className={`crwdctrl-page min-h-dvh flex flex-col items-center justify-center gap-3 px-4 ${
-                isDark ? 'bg-[#161718]' : 'bg-white'
-            }`}
-            role="status"
-            aria-live="polite"
-            aria-label={label}
-        >
-            <Loader className={`w-6 h-6 animate-spin ${isDark ? 'text-[#0ECCEE]' : 'text-[#0099B8]'}`} />
-            <p className={`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{label}</p>
-        </div>
-    );
-}
-
-function WarmFetchPill({ isDark }) {
-    return (
-        <div
-            className="pointer-events-none fixed left-1/2 z-100030 -translate-x-1/2"
-            style={{ top: 'calc(max(var(--safe-top), 0px) + 0.75rem)' }}
-            role="status"
-            aria-live="polite"
-            aria-label="Loading competition"
-        >
-            <div
-                className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold shadow-lg backdrop-blur-md ${
-                    isDark
-                        ? 'bg-[#111213]/90 text-gray-200 border border-white/10'
-                        : 'bg-white/95 text-gray-700 border border-gray-200'
-                }`}
-            >
-                <Loader className={`w-3.5 h-3.5 animate-spin ${isDark ? 'text-[#0ECCEE]' : 'text-[#0099B8]'}`} />
-                Loading competition…
-            </div>
-        </div>
-    );
+/** Full-page centered 3D loader — same as fest → competition. */
+function competitionPageLoader(label = 'Loading competition') {
+    return <DetailPageLoader variant="competition" label={label} />;
 }
 
 /** Full paint package for this competition id only (never another comp’s hero). */
@@ -611,24 +576,40 @@ function EventPage() {
     const [showFullAbout, setShowFullAbout] = useState(false);
     const [showFullRoundDesc, setShowFullRoundDesc] = useState(false);
     const [expandedRules, setExpandedRules] = useState({});
-    const [competitionData, setCompetitionData] = useState(() =>
-        resolvePaintPackage(competitionId, location),
-    );
+    const [competitionData, setCompetitionData] = useState(() => {
+        // Explore / warm entry: start empty so centered 3D loader can show
+        if (
+            location.state?.skipDemoLoad
+            || isWarmCompetitionLocationState(location.state)
+            || peekWarmCompetitionNav()
+        ) {
+            return null;
+        }
+        return resolvePaintPackage(competitionId, location);
+    });
     const [showLogin, setShowLogin] = useState(false);
     const [showRegister, setShowRegister] = useState(false);
     const [fetchDone, setFetchDone] = useState(false);
     const [error, setError] = useState(null);
     // Single gate: hero + body + chips paint together (no empty banner then fade-in)
-    const [pageReady, setPageReady] = useState(() =>
-        Boolean(resolvePaintPackage(competitionId, location)),
-    );
-    const [holdLoader, setHoldLoader] = useState(() => {
+    const [pageReady, setPageReady] = useState(() => {
         if (
             location.state?.skipDemoLoad
             || isWarmCompetitionLocationState(location.state)
             || peekWarmCompetitionNav()
         ) {
             return false;
+        }
+        return Boolean(resolvePaintPackage(competitionId, location));
+    });
+    const [holdLoader, setHoldLoader] = useState(() => {
+        // Warm / explore / missing pack → show centered 3D "Loading competition"
+        if (
+            location.state?.skipDemoLoad
+            || isWarmCompetitionLocationState(location.state)
+            || peekWarmCompetitionNav()
+        ) {
+            return true;
         }
         return !resolvePaintPackage(competitionId, location);
     });
@@ -651,6 +632,9 @@ function EventPage() {
     const { isAuthenticated } = useAuth();
     const fetchGenRef = useRef(0);
     const lastSwitchKeyRef = useRef('');
+    const autoRegisterIntentRef = useRef('');
+    const pendingPaintRef = useRef(null);
+    const switchLoaderMinRef = useRef(false);
 
     const goBack = useCallback(() => {
         const backTo = location.state?.backTo;
@@ -673,8 +657,7 @@ function EventPage() {
         inAppBack();
     }, [navigate, location.state, competitionData?.fest, inAppBack]);
 
-    // Switching comps reuses this page — always re-seed when route/seed/nav changes.
-    // (No soft-skip: that kept the previous competition painted on Explore taps.)
+    // Switching comps reuses this page — show centered 3D loader (like fest → competition).
     useLayoutEffect(() => {
         const switchKey = `${competitionId || ''}::${stateCompId || ''}::${navToken || ''}`;
         if (switchKey === lastSwitchKeyRef.current) {
@@ -691,9 +674,14 @@ function EventPage() {
 
         const existing = competitionDataRef.current;
         const existingId = String(existing?.id || '');
+        const switchingAway =
+            Boolean(existingId)
+            && (
+                (stateCompId && stateCompId !== existingId)
+                || (competitionId && !entityMatchesRouteParam(existing, competitionId, ['name', 'title']))
+            );
 
         let pack = resolvePaintPackage(competitionId, location);
-        // Explore / similar: always prefer the tapped card seed when it differs from what's painted
         if (
             location.state?.competition
             && (location.state?.skipDemoLoad || warm)
@@ -710,12 +698,6 @@ function EventPage() {
         }
 
         fetchGenRef.current += 1;
-        setCompetitionData(pack);
-        setPageReady(Boolean(pack) || warm);
-        setHoldLoader((prev) => {
-            const next = !warm && !pack;
-            return prev === next ? prev : next;
-        });
         setOpeningRegister(false);
         openingRegisterRef.current = false;
         setFetchDone(false);
@@ -724,31 +706,123 @@ function EventPage() {
         setExpandedRules({});
         setShowFullAbout(false);
         setShowShareMenu(false);
+
+        // Explore / similar / any real switch: full-page 3D loader first (not seed flash)
+        if (switchingAway || warm || location.state?.skipDemoLoad) {
+            pendingPaintRef.current = pack;
+            switchLoaderMinRef.current = false;
+            setCompetitionData(null);
+            setPageReady(false);
+            setHoldLoader(true);
+        } else {
+            pendingPaintRef.current = null;
+            setCompetitionData(pack);
+            setPageReady(Boolean(pack));
+            setHoldLoader(!pack);
+        }
         return undefined;
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [competitionId, stateCompId, navToken]);
 
+    // Keep centered 3D loader until min time + fetch (or seed) is ready
     useEffect(() => {
-        if (warmNavRef.current || warmNav || location.state?.skipDemoLoad) {
-            setHoldLoader((prev) => (prev === false ? prev : false));
-            return undefined;
-        }
-        if (resolvePaintPackage(competitionId, location)) {
-            setHoldLoader((prev) => (prev === false ? prev : false));
-            return undefined;
-        }
+        if (!holdLoader) return undefined;
+
+        let minDone = switchLoaderMinRef.current;
+        const release = () => {
+            if (!minDone) return;
+            if (!fetchDoneRef.current && !pendingPaintRef.current && !competitionDataRef.current) {
+                return;
+            }
+            if (pendingPaintRef.current && !competitionDataRef.current) {
+                setCompetitionData(pendingPaintRef.current);
+                pendingPaintRef.current = null;
+            }
+            setPageReady(true);
+            setHoldLoader(false);
+        };
+
         const timer = window.setTimeout(() => {
-            setHoldLoader((prev) => (prev === false ? prev : false));
-        }, COMPETITION_DEMO_LOAD_MS);
+            minDone = true;
+            switchLoaderMinRef.current = true;
+            release();
+        }, Math.max(COMPETITION_DEMO_LOAD_MS, 420));
+
+        if (fetchDone) {
+            release();
+        }
+
         return () => window.clearTimeout(timer);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [competitionId, warmNav]);
+    }, [holdLoader, fetchDone, competitionId, stateCompId, navToken]);
+
+    // Deep-link Register from Explore cards (fallback when form mode unknown at tap time)
+    useEffect(() => {
+        if (String(location.state?.intent || '') !== 'register') return undefined;
+        if (!fetchDone || !competitionData?.id || holdLoader) return undefined;
+        const key = `${competitionData.id}:register`;
+        if (autoRegisterIntentRef.current === key) return undefined;
+        autoRegisterIntentRef.current = key;
+
+        const festRef = competitionData.fest || { _id: competitionData.festId };
+        const mode = String(festRef?.registration?.mode || '').toUpperCase();
+        if (mode !== 'INTERNAL_FORM') return undefined;
+
+        const compId = competitionData.id;
+        const path = festRegisterPath(festRef, {
+            _id: compId,
+            name: competitionData.title || competitionData.name,
+            slug: competitionData.slug,
+        });
+        const prefetch = buildRegistrationPrefetch({
+            fest: {
+                _id: competitionData.festId || festRef._id,
+                festName: festRef.festName,
+                collegeName: festRef.collegeName,
+                slug: festRef.slug || '',
+                feeAmount: festRef.feeAmount ?? 0,
+                registration: festRef.registration,
+            },
+            competition: {
+                _id: compId,
+                id: compId,
+                name: competitionData.title,
+                feeAmount: competitionData.feeAmount,
+                registrationFee: competitionData.entryFee,
+                registrationType: competitionData.registrationType,
+                registration: competitionData.registration,
+                teamSizeMin: competitionData.teamSizeMin,
+                teamSizeMax: competitionData.teamSizeMax,
+                teamSizeLabel: competitionData.teamSizeLabel,
+            },
+        });
+        const festRefId = competitionData.festId || festRef._id;
+        if (festRefId && prefetch) {
+            saveRegistrationPrefetch(festRefId, compId, prefetch);
+        }
+        navigate(path, {
+            replace: true,
+            state: {
+                freshRegistration: true,
+                festId: festRefId,
+                competitionId: compId,
+                prefetch,
+                skipDemoLoad: true,
+                from: location.state?.from || 'explore-register',
+                crossFestRegister: true,
+                backTo: location.state?.backTo,
+            },
+        });
+        return undefined;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [fetchDone, holdLoader, competitionData?.id, location.state?.intent, navigate]);
 
     // Fetch competition data from backend API
     useEffect(() => {
         const gen = fetchGenRef.current;
         const applyPackage = (built) => {
             if (gen !== fetchGenRef.current) return;
+            pendingPaintRef.current = null;
             setCompetitionData(built);
             setPageReady(true);
             setFetchDone(true);
@@ -934,21 +1008,23 @@ function EventPage() {
         competitionData
         || (warmFromOtherComp ? resolvePaintPackage(competitionId, location) : null);
 
-    // Always use small spinner for discovery → competition — never the 3D demo card
-    const loadingFallback = (label = 'Loading competition…') => (
-        <CompactCompetitionLoading isDark={isDark} label={label} />
-    );
+    // Always use centered 3D competition loader (same as fest → competition)
+    const loadingFallback = (label = 'Loading competition') => competitionPageLoader(label);
 
     if (openingRegister) {
-        return loadingFallback('Opening registration…');
+        return loadingFallback('Opening registration');
+    }
+
+    if (holdLoader || ((!pageReady || !paintSeed) && !error && !competitionData)) {
+        return loadingFallback();
     }
 
     if (warmFromOtherComp && !paintSeed && !competitionData && !error) {
         return loadingFallback();
     }
 
-    // Any wait state on this page: small spinner only — never the full-page 3D demo icon
-    if ((!pageReady || holdLoader) && !error && !paintSeed) {
+    // Any wait state on this page: centered 3D loader
+    if ((!pageReady) && !error && !paintSeed) {
         return loadingFallback();
     }
 
@@ -1553,6 +1629,12 @@ function EventPage() {
     };
 
     const registrationInfo = getRegistrationStatus();
+    const registerCtaText =
+        !registrationInfo.isDisabled
+        && eventData?.feeKnown
+        && eventData?.feeIsFree
+            ? 'Register free'
+            : registrationInfo.buttonText;
 
     const goToRegistration = (path, state = {}) => {
         if (openingRegisterRef.current) return;
@@ -1868,7 +1950,6 @@ function EventPage() {
 
     return (
         <div className={`crwdctrl-page flex flex-col min-h-screen pb-28 md:pb-8 ${isDark ? 'bg-black' : 'bg-white'}`}>
-            {warmFromOtherComp && !fetchDone ? <WarmFetchPill isDark={isDark} /> : null}
             <Seo
                 title={eventData.title}
                 description={competitionDescription}
@@ -2062,25 +2143,15 @@ function EventPage() {
                             ) : null}
 
                             {showDiscovery ? (
-                                <>
-                                    <SimilarCompetitionsSection
-                                        competition={eventData}
-                                        relatedFromApi={eventData?.relatedCompetitions}
-                                        festTitle={festName}
-                                        isDark={isDark}
-                                        hideFee={false}
-                                        className="px-4 mb-6"
-                                    />
-                                    <SimilarFestsSection
-                                        relatedFests={relatedFestsForDiscovery}
-                                        festType={festTypeForDiscovery}
-                                        isDark={isDark}
-                                        limit={2}
-                                        variant="blocks"
-                                        hideFee={false}
-                                        className="px-4 mb-8"
-                                    />
-                                </>
+                                <SimilarFestsSection
+                                    relatedFests={relatedFestsForDiscovery}
+                                    festType={festTypeForDiscovery}
+                                    isDark={isDark}
+                                    limit={2}
+                                    variant="blocks"
+                                    hideFee={false}
+                                    className="px-4 mb-8"
+                                />
                             ) : null}
                                                 </div>
                                             </div>
@@ -2230,7 +2301,7 @@ function EventPage() {
                                             title={registrationInfo.isDisabled ? registrationInfo.buttonText : ''}
                                         >
                                             <>
-                                                {registrationInfo.buttonText}
+                                                {registerCtaText}
                                                 {!registrationInfo.isDisabled ? (
                                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                                         <path d="m9 18 6-6-6-6" />
@@ -2333,25 +2404,15 @@ function EventPage() {
                         </div>
 
                             {showDiscovery ? (
-                                <>
-                                    <SimilarCompetitionsSection
-                                        competition={eventData}
-                                        relatedFromApi={eventData?.relatedCompetitions}
-                                        festTitle={festName}
-                                        isDark={isDark}
-                                        hideFee={false}
-                                        className="mt-10 md:mt-12"
-                                    />
-                                    <SimilarFestsSection
-                                        relatedFests={relatedFestsForDiscovery}
-                                        festType={festTypeForDiscovery}
-                                        isDark={isDark}
-                                        limit={2}
-                                        variant="blocks"
-                                        hideFee={false}
-                                        className="mt-10 md:mt-14 mb-4"
-                                    />
-                                </>
+                                <SimilarFestsSection
+                                    relatedFests={relatedFestsForDiscovery}
+                                    festType={festTypeForDiscovery}
+                                    isDark={isDark}
+                                    limit={2}
+                                    variant="blocks"
+                                    hideFee={false}
+                                    className="mt-10 md:mt-14 mb-4"
+                                />
                             ) : null}
                     </div>
                 </main>
@@ -2404,7 +2465,7 @@ function EventPage() {
                             }`}
                         >
                             <>
-                                {registrationInfo.buttonText}
+                                {registerCtaText}
                                 {!registrationInfo.isDisabled ? (
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                         <path d="m9 18 6-6-6-6" />

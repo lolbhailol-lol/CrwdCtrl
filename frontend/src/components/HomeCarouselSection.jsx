@@ -11,25 +11,38 @@ import {
     HOME_CARD_GAP,
 } from '../hooks/useHomeCarousel';
 import CarouselDotPagination from './CarouselDotPagination';
-import { getCoverImageUrl } from '../utils/coverImages';
+import { pickBestCardImage, resolveCoverImage } from '../utils/coverImages';
 import { optimizeImageUrl } from '../utils/imageOptimizer';
 import { preloadImages } from '../utils/preloadImages';
 import { getImageUrl } from '../utils/imageImports';
 
 const SKELETON_COUNT = CENTERED_SKELETON_COUNT;
 
-function resolveSlideCoverPreset({ portraitCard, wideCard, heroCard }) {
+function resolveSlideCoverPreset({ portraitCard, wideCard, heroCard, tallCard }) {
     if (heroCard) return 'hero';
     if (wideCard) return 'cardWide';
     if (portraitCard) return 'cardPortrait';
-    return 'cardPortrait';
+    if (tallCard) return 'cardTrending';
+    return 'cardWide';
 }
 
-function resolveSlideImage(item, preset) {
+function layoutFromCardFlags({ portraitCard, wideCard, heroCard, tallCard }) {
+    if (heroCard) return 'hero';
+    if (wideCard) return 'wide';
+    if (portraitCard) return 'portrait';
+    if (tallCard) return 'tall';
+    return 'wide';
+}
+
+function resolveSlideImage(item, preset, layout = 'tall') {
+    const picked = pickBestCardImage(item, layout);
+    if (picked) {
+        return getImageUrl(picked, { preset }) || picked;
+    }
     return (
-        getCoverImageUrl(item, preset)
-        || item.image
+        resolveCoverImage(item, preset)
         || item.coverImage
+        || item.image
         || item._image
         || item.images?.[0]
         || item.poster
@@ -276,7 +289,8 @@ function SlideCard({
 }) {
     const item = slide.item;
     const id = getItemId(item);
-    const preset = resolveSlideCoverPreset({ portraitCard, wideCard, heroCard });
+    const preset = resolveSlideCoverPreset({ portraitCard, wideCard, heroCard, tallCard });
+    const layout = layoutFromCardFlags({ portraitCard, wideCard, heroCard, tallCard });
     // Eager-load active slide and neighbors so center cards don't wait on lazy
     const nearActive = Math.abs(slideIndex - activeIndex) <= 1;
     const imgLoading = nearActive || slideIndex < 2 ? 'eager' : 'lazy';
@@ -289,7 +303,11 @@ function SlideCard({
                     id,
                     title: item.title || item.festName || item.trekName || item.name,
                     subtitle: item.subtitle || item.communityName || item.collegeName || item.basedIn || item.city,
-                    image: resolveSlideImage(item, preset),
+                    image: resolveSlideImage(item, preset, layout),
+                    coverImages: item.coverImages,
+                    coverImage: item.coverImage,
+                    galleryImages: item.galleryImages || item.festImages || item.images,
+                    _type: item._type,
                 }}
                 isDark={isDark}
                 isFavorite={isFavorite?.(id)}
@@ -352,16 +370,16 @@ export default function HomeCarouselSection({
     // Warm cache for the first few visible cards as soon as data arrives
     useEffect(() => {
         if (loading || !items.length) return;
-        const preset = resolveSlideCoverPreset({ portraitCard, wideCard, heroCard });
+        const preset = resolveSlideCoverPreset({ portraitCard, wideCard, heroCard, tallCard });
+        const layout = layoutFromCardFlags({ portraitCard, wideCard, heroCard, tallCard });
         const urls = items.slice(0, 6).map((item) => {
-            const raw = resolveSlideImage(item, preset);
+            const raw = resolveSlideImage(item, preset, layout);
             if (!raw) return null;
-            // getCoverImageUrl already optimizes; still normalize non-cover paths
             if (typeof raw === 'string' && raw.includes('res.cloudinary.com')) return raw;
             return optimizeImageUrl(getImageUrl(raw) || raw, preset);
         });
         preloadImages(urls, { limit: 6 });
-    }, [loading, items, portraitCard, wideCard, heroCard]);
+    }, [loading, items, portraitCard, wideCard, heroCard, tallCard]);
 
     // On mobile (centered loop) keep the track invisible until it has been scrolled
     // onto the correct first slide, so no clone/wrong card is ever painted center.

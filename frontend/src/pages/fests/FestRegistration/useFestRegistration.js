@@ -1745,11 +1745,20 @@ export default function useFestRegistration() {
           textResponses['Student category'] = String(formData.feeTierLabel || formData.feeTierId);
         }
         // Lead (person 1) identity for organizer list / receipts
+        // Techfest fest schema expects mobile + college_name (not phone/college).
         if (members[0]) {
           if (members[0].name) textResponses.full_name = members[0].name;
           if (members[0].email) textResponses.email = members[0].email;
-          if (members[0].phone) textResponses.phone = members[0].phone;
-          if (members[0].college) textResponses.college = members[0].college;
+          const leadPhone = members[0].phone || members[0].mobile || '';
+          if (leadPhone) {
+            textResponses.phone = leadPhone;
+            textResponses.mobile = leadPhone;
+          }
+          const leadCollege = members[0].college || members[0].college_name || '';
+          if (leadCollege) {
+            textResponses.college = leadCollege;
+            textResponses.college_name = leadCollege;
+          }
           if (festPlugin.id === 'techfest') {
             if (members[0].state) textResponses.state = members[0].state;
             if (members[0].pin || members[0].pincode) {

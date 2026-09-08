@@ -59,6 +59,11 @@ function loadTechfestMedia() {
 const TECHFEST_MEDIA = loadTechfestMedia();
 const TECHFEST_THEME_LOGO = TECHFEST_MEDIA.coverImage;
 const TECHFEST_GALLERY = TECHFEST_MEDIA.galleryImages;
+/** Strong crowd/exhibit shot for home Featured / tall cards (not the theme logo). */
+const TECHFEST_FEATURED_CARD =
+  TECHFEST_GALLERY.find((u) => /exhi1|compi1|edm1/i.test(u))
+  || TECHFEST_GALLERY[0]
+  || TECHFEST_THEME_LOGO;
 
 const MODULE_ORDER = [
   'Competitions',
@@ -520,6 +525,15 @@ async function upsertFest(compis) {
     venue: VENUE,
     description,
     coverImage: TECHFEST_THEME_LOGO,
+    coverImages: {
+      portrait: TECHFEST_FEATURED_CARD,
+      page: TECHFEST_FEATURED_CARD,
+      wide: TECHFEST_FEATURED_CARD,
+      hero: TECHFEST_FEATURED_CARD,
+      landscape: TECHFEST_FEATURED_CARD,
+      video: TECHFEST_THEME_LOGO,
+      square: TECHFEST_FEATURED_CARD,
+    },
     galleryImages: TECHFEST_GALLERY,
     slug: SLUG,
     status: 'ongoing',
@@ -608,7 +622,7 @@ async function upsertCompetition(fest, compi) {
     registration: {
       status: 'internal_form',
       externalUrl: '',
-      whatsappGroupLink: compi.walink || '',
+      whatsappGroupLink: '',
       resourceLinks,
       formType: 'SINGLE_STEP',
       formSchema: [],

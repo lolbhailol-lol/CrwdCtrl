@@ -72,14 +72,14 @@ export default function HomeEventCard({
                 className={`card-surface card-wide rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition-all duration-200 min-w-0 ${className}`}
                 onClick={onViewDetails}
             >
-                <div className="card-wide-image relative">
+                <div className={`card-wide-image relative ${isDark ? 'bg-[#0B0C0D]' : 'bg-[#E8EAED]'}`}>
                     <CardCoverImage
                         src={event.image}
                         alt={event.title}
                         preset="cardWide"
                         loading={loading}
                         fetchPriority={fetchPriority}
-                        className="w-full h-full object-cover absolute inset-0"
+                        className="w-full h-full object-cover object-center absolute inset-0"
                         onError={(e) => handleImageErrorWithFallback(
                             e,
                             320,
@@ -126,7 +126,15 @@ export default function HomeEventCard({
         ? 'card-carousel-sm'
         : 'card-carousel';
 
-    const imagePreset = portraitCard ? 'cardPortrait' : wideCard ? 'cardWide' : heroCard ? 'hero' : 'cardPortrait';
+    const imagePreset = portraitCard
+        ? 'cardPortrait'
+        : wideCard
+            ? 'cardWide'
+            : heroCard
+                ? 'hero'
+                : tallImage
+                    ? 'cardTrending'
+                    : 'cardWide';
 
     return (
         <div
@@ -138,13 +146,17 @@ export default function HomeEventCard({
             onClick={onViewDetails}
         >
             <div
-                className={`relative overflow-hidden shrink-0 ${
+                className={`relative overflow-hidden shrink-0 ${isDark ? 'bg-[#0B0C0D]' : 'bg-[#E8EAED]'} ${
                     portraitCard
                         ? 'card-portrait-image w-full'
                         : `w-full ${prominentImage ? '' : 'rounded-2xl'} ${
-                            prominentImage
-                                ? (heroCard ? 'aspect-2/1' : tallImage ? 'aspect-11/10' : 'aspect-3/2')
-                                : (tallImage ? 'aspect-11/10' : 'aspect-4/3')
+                            heroCard
+                                ? 'aspect-2/1'
+                                : tallImage
+                                    ? 'aspect-11/10'
+                                    : prominentImage
+                                        ? 'aspect-3/2'
+                                        : 'aspect-4/3'
                         }`
                 }`}
             >

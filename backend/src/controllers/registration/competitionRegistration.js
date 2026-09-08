@@ -288,7 +288,7 @@ const submitCustomCompetitionRegistration = async (req, res) => {
 
     // Create registration record
     const festIdForReg = competition.fest?._id || competition.fest;
-    const autoConfirm = getFestPlugin(festIdForReg).autoConfirmOnRegister
+    const autoConfirm = getFestPlugin(competition.fest || festIdForReg).autoConfirmOnRegister
       || paymentStatus === 'paid'
       || paymentStatus === 'free';
     const paidAmount = paymentStatus === 'paid' ? competitionTotalAmount : 0;
@@ -666,6 +666,15 @@ const submitCompetitionRegistration = async (req, res) => {
       logger.debug('💳 Added Transaction ID to processed responses:', responses['Transaction ID']);
     }
 
+    // Roster / Techfest / MindSpark: keep team payload + phone/college aliases that
+    // are not on the fest default formSchema field list (schema uses mobile/college_name).
+    for (const [key, value] of Object.entries(responses)) {
+      if (processedResponses[key] === undefined || processedResponses[key] === null || processedResponses[key] === '') {
+        processedResponses[key] = value;
+      }
+    }
+    Object.assign(processedResponses, normalizeLeadIdentityFromRoster(processedResponses));
+
     logger.debug('🔄 Processed responses:', Object.keys(processedResponses));
 
     // Verify Cashfree payment BEFORE field validation so a verified payment can
@@ -741,7 +750,7 @@ const submitCompetitionRegistration = async (req, res) => {
 
     // Create registration with competition reference
     const festIdForReg = competition.fest?._id || competition.fest;
-    const autoConfirm = getFestPlugin(festIdForReg).autoConfirmOnRegister
+    const autoConfirm = getFestPlugin(competition.fest || festIdForReg).autoConfirmOnRegister
       || paymentStatusRoute === 'paid'
       || paymentStatusRoute === 'free';
     const paidAmountRoute = paymentStatusRoute === 'paid' ? competitionTotalAmount : 0;
@@ -954,25 +963,55 @@ const updateTeamMembers = async (req, res) => {
       return res.status(404).json({ error: 'Competition not found' });
     }
 
-    const sizeMin = competition.teamSizeMin || 1;
-    const sizeMax = competition.teamSizeMax || 1;
+    const sizeMin = Number(competition.teamSizeMin) || 1;
+    const sizeMax = Math.max(sizeMin, Number(competition.teamSizeMax) || sizeMin);
 
     // Keep the lead (index 0) from the existing data; additional members come from request
-    const existingMembers = registration.responses?.get
-      ? (registration.responses.get('team_members') || [])
-      : (registration.responses?.team_members || []);
+    const responsesObj = registration.responses?.get
+      ? Object.fromEntries(registration.responses)
+      : (registration.responses || {});
+    const existingMembers = Array.isArray(responsesObj.team_members)
+      ? responsesObj.team_members.filter((m) => m && typeof m === 'object')
+      : [];
 
-    const lead = existingMembers[0] || {};
-    const additionalMembers = team_members.filter((_, i) => i > 0 || team_members.length === 1 ? false : true);
-    // Build the full new roster: lead + submitted additional members (index 1+)
+    const leadFromResponses = {
+      name: String(responsesObj.full_name || responsesObj.name || '').trim(),
+      email: String(responsesObj.email || '').trim(),
+      phone: String(responsesObj.phone || responsesObj.mobile || '').trim(),
+      college: String(responsesObj.college || responsesObj.college_name || '').trim(),
+    };
+    const lead = existingMembers[0] && typeof existingMembers[0] === 'object'
+      ? existingMembers[0]
+      : leadFromResponses;
+
     // Caller may send full array (lead included) or just the additions
     let newMembers;
-    if (team_members[0] && String(team_members[0].email || '').toLowerCase() === String(lead.email || '').toLowerCase()) {
-      // Caller sent full array including lead
+    if (
+      team_members[0]
+      && String(team_members[0].email || '').toLowerCase() === String(lead.email || '').toLowerCase()
+      && (lead.email || team_members.length > 1)
+    ) {
+      // Caller sent full array including lead — preserve original lead object
+      newMembers = [lead, ...team_members.slice(1)];
+    } else if (
+      team_members[0]
+      && String(team_members[0].name || '').trim()
+      && existingMembers.length === 0
+      && team_members.length <= sizeMax
+      && String(team_members[0].name || '').toLowerCase() === String(lead.name || '').toLowerCase()
+    ) {
       newMembers = [lead, ...team_members.slice(1)];
     } else {
-      // Caller sent only additions
-      newMembers = [lead, ...team_members];
+      // Caller sent only additions (or lead email mismatch)
+      newMembers = [lead, ...team_members.filter((m) => m && typeof m === 'object')];
+      // If first submitted row duplicates the lead by email, drop that duplicate
+      if (
+        newMembers.length > 1
+        && lead.email
+        && String(newMembers[1].email || '').toLowerCase() === String(lead.email).toLowerCase()
+      ) {
+        newMembers = [lead, ...newMembers.slice(2)];
+      }
     }
 
     // Validate size
@@ -992,7 +1031,9 @@ const updateTeamMembers = async (req, res) => {
         if (f.required === false || f.scope === 'team') return false;
         const roles = Array.isArray(f.roles) ? f.roles.map(String) : [];
         if (!roles.length) return true;
-        return isLead ? roles.includes('leader') : roles.includes('member');
+        return isLead
+          ? roles.map((r) => String(r).toLowerCase()).includes('leader')
+          : roles.map((r) => String(r).toLowerCase()).includes('member');
       });
       for (const field of requiredFields) {
         const key = field.key || field.id;

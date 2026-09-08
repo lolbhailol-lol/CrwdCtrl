@@ -185,6 +185,12 @@ export default function RegistrationDetails() {
   useEffect(() => {
     if (!autoAddMembers || loading || !registration) return;
     setAddMembersOpen(true);
+    setAddMemberRows((prev) => (
+      prev.length
+        ? prev
+        : [{ name: '', email: '', phone: '', college: '' }]
+    ));
+    setAddMembersError('');
     // Scroll down a bit so the form is visible
     setTimeout(() => {
       window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
@@ -1030,19 +1036,41 @@ export default function RegistrationDetails() {
             registration.status !== 'rejected' &&
             (() => {
               const comp = registration.competitionId;
-              const sizeMax = comp?.teamSizeMax || comp?.registration?.teamSizeMax || 1;
-              const canAdd = rosterTeamMembers.length < sizeMax;
+              const sizeMax = Math.max(
+                1,
+                Number(comp?.teamSizeMax) || Number(comp?.registration?.teamSizeMax) || 1,
+              );
+              // Solo regs may only have top-level identity (no team_members yet) — count as 1
+              const currentCount = rosterTeamMembers.length > 0 ? rosterTeamMembers.length : 1;
+              const canAdd = currentCount < sizeMax;
               if (!canAdd) return null;
-              const slotsLeft = sizeMax - rosterTeamMembers.length;
-              const displayFields = rosterPersonFields.length
-                ? rosterPersonFields.filter(f => f.scope !== 'team')
+              const slotsLeft = sizeMax - currentCount;
+              const personFieldsRaw = Array.isArray(comp?.registration?.personFields)
+                ? comp.registration.personFields
+                : rosterPersonFields;
+              const displayFields = (personFieldsRaw.length
+                ? personFieldsRaw.filter((f) => {
+                    if (f.scope === 'team') return false;
+                    const roles = (Array.isArray(f.roles) ? f.roles : []).map((r) => String(r).toLowerCase());
+                    // New slots are teammates — prefer member-role fields when roles exist
+                    if (!roles.length) return true;
+                    return roles.includes('member');
+                  })
                 : [
                     { key: 'name', label: 'Full Name', required: true },
                     { key: 'email', label: 'Email', required: true },
                     { key: 'phone', label: 'Phone', required: false },
                     { key: 'college', label: 'College / Institution', required: false },
-                  ];
-              const emptyRow = () => Object.fromEntries(displayFields.map(f => [f.key, '']));
+                  ]
+              ).map((f) => ({
+                key: f.key || f.fieldName || f.id,
+                label: f.label || f.key,
+                type: f.type || 'text',
+                required: f.required !== false,
+                placeholder: f.placeholder || '',
+              })).filter((f) => f.key);
+
+              const emptyRow = () => Object.fromEntries(displayFields.map((f) => [f.key, '']));
 
               const handleOpenAddMembers = () => {
                 setAddMemberRows(Array.from({ length: 1 }, emptyRow));
@@ -1051,29 +1079,40 @@ export default function RegistrationDetails() {
               };
               const handleAddRow = () => {
                 if (addMemberRows.length < slotsLeft) {
-                  setAddMemberRows(prev => [...prev, emptyRow()]);
+                  setAddMemberRows((prev) => [...prev, emptyRow()]);
                 }
               };
               const handleRemoveRow = (i) => {
-                setAddMemberRows(prev => prev.filter((_, idx) => idx !== i));
+                setAddMemberRows((prev) => prev.filter((_, idx) => idx !== i));
               };
               const handleFieldChange = (rowIdx, key, value) => {
-                setAddMemberRows(prev => prev.map((row, i) => i === rowIdx ? { ...row, [key]: value } : row));
+                setAddMemberRows((prev) =>
+                  prev.map((row, i) => (i === rowIdx ? { ...row, [key]: value } : row)),
+                );
               };
               const handleSubmitMembers = async () => {
                 setAddMembersBusy(true);
                 setAddMembersError('');
                 try {
-                  // Build full new array: existing + new rows
-                  const newFullList = [...rosterTeamMembers, ...addMemberRows];
-                  const res = await userFetchJSONStrict(`/api/registrations/details/${registration._id}/team-members`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ team_members: newFullList }),
-                  });
+                  for (let i = 0; i < addMemberRows.length; i += 1) {
+                    const row = addMemberRows[i];
+                    for (const field of displayFields) {
+                      if (field.required && !String(row[field.key] || '').trim()) {
+                        throw new Error(`Person ${currentCount + i + 1}: ${field.label} is required`);
+                      }
+                    }
+                  }
+                  // Send additions only — backend keeps the existing lead
+                  const res = await userFetchJSONStrict(
+                    `/registrations/details/${registration._id}/team-members`,
+                    {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ team_members: addMemberRows }),
+                    },
+                  );
                   if (res.success) {
-                    // Update local registration state with new team_members
-                    setRegistration(prev => {
+                    setRegistration((prev) => {
                       const updated = { ...prev };
                       const resp = updated.responses ? { ...updated.responses } : {};
                       resp.team_members = res.team_members;
@@ -1116,7 +1155,7 @@ export default function RegistrationDetails() {
                           >
                             <div className="flex items-center justify-between mb-3">
                               <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                Person {rosterTeamMembers.length + rowIdx + 1}
+                                Person {currentCount + rowIdx + 1}
                               </p>
                               {addMemberRows.length > 1 && (
                                 <button

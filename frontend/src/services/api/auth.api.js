@@ -175,6 +175,7 @@ export async function userFetchJSONStrict(path, options = {}) {
       ...(options.headers || {}),
     },
     signal: options.signal,
+    ...(options.body != null ? { body: options.body } : {}),
   });
 
   let response = await doFetch(token);

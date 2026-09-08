@@ -194,7 +194,7 @@ exports.getAllFests = async (req, res) => {
       .sort({ priority: 1, createdAt: -1 }) // Priority first (1 = highest), then by creation date
       .skip(skip)
       .limit(limit)
-      .select('festName collegeName festType festDate venue description coverImage galleryImages status artists sponsors registration createdAt artistsHeading competitionsHeading contacts priority homeSection homePriority showOnHomeSlide feeAmount platformFeePercent ticketPrice slug relatedFestIds')
+      .select('festName collegeName festType festDate venue description coverImage coverImages galleryImages status artists sponsors registration createdAt artistsHeading competitionsHeading contacts priority homeSection homePriority showOnHomeSlide feeAmount platformFeePercent ticketPrice slug relatedFestIds')
       .lean(); // Use lean() for better performance
 
     // Calculate pagination info

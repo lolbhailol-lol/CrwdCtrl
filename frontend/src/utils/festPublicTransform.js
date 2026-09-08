@@ -207,6 +207,8 @@ export function transformFestPublicData(festData) {
     venue: festData.venue || '',
     location: festData.venue || '',
     image: cover,
+    coverImage: cover,
+    coverImages: festData.coverImages || {},
     heroImage: cover,
     galleryImages: festData.galleryImages || [],
     ticketPrice: formatTicketPrice(festData),

@@ -1,4 +1,6 @@
 const mongoose = require('mongoose');
+const coverImagesSchema = require('./coverImagesSchema');
+
 const festOrganizerSchema = new mongoose.Schema(
 {
   organizer: {
@@ -65,6 +67,12 @@ const festOrganizerSchema = new mongoose.Schema(
 
   coverImage: {
     type: String,
+  },
+
+  /** Per-layout covers — portrait used on home / Featured Experience tall cards */
+  coverImages: {
+    type: coverImagesSchema,
+    default: () => ({}),
   },
 
   galleryImages: [String],

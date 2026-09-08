@@ -409,7 +409,7 @@ exports.getAllFests = async (req, res) => {
         const { page = 1, limit = 200, festType, college, search, sortBy = 'priority' } = req.query;
 
         // Create cache key based on query parameters
-        const cacheKey = JSON.stringify({ page, limit, festType, college, search, sortBy, v: 'comps-1' });
+        const cacheKey = JSON.stringify({ page, limit, festType, college, search, sortBy, v: 'comps-covers-1' });
         
         // Check cache first
         const cachedData = getFromCache('fests', cacheKey);
@@ -452,7 +452,7 @@ exports.getAllFests = async (req, res) => {
         }
 
         const fests = await FestOrganizer.find(filter)
-            .select('festName collegeName festType festDate venue coverImage images festImages description status ticketPrice highlights startDate endDate duration estimatedParticipants registration.mode priority homeSection homePriority showOnHomeSlide')
+            .select('festName collegeName festType festDate venue coverImage coverImages galleryImages images festImages description status ticketPrice highlights startDate endDate duration estimatedParticipants registration.mode priority homeSection homePriority showOnHomeSlide')
             .lean()
             .sort(sortOptions)
             .skip(skip)

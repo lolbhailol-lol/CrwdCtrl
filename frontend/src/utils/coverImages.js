@@ -22,6 +22,7 @@ export const PRESET_ALIASES = {
     cardWide: 'wide',
     cardLandscape: 'landscape',
     cardVideo: 'video',
+    cardTrending: 'portrait',
     cardPanel: 'portrait',
     card: 'portrait',
     cardLg: 'portrait',
@@ -78,13 +79,110 @@ export function excludeCoverUrlsFromGallery(images, entityOrCovers = {}, legacyC
     return normalizeImageList(images).filter((url) => !covers.has(url));
 }
 
-/** Raw URL for a layout — falls back to coverImage / image */
+/** Collect gallery-style photos (not the primary logo/cover when possible). */
+export function collectGalleryCandidateUrls(entity = {}) {
+    const urls = [];
+    const push = (u) => {
+        const n = normalizeImageUrl(u);
+        if (n && !urls.includes(n)) urls.push(n);
+    };
+    const lists = [
+        entity.galleryImages,
+        entity.festImages,
+        entity.images,
+        entity.gallery,
+    ];
+    for (const list of lists) {
+        if (!Array.isArray(list)) continue;
+        list.forEach(push);
+    }
+    return urls;
+}
+
+/**
+ * Best image for a home / featured card layout.
+ * Tall cards: prefer portrait slot or gallery photos (fest logos look crushed in tall frames).
+ * Wide/hero: prefer wide/video/hero slots, then cover.
+ */
+export function pickBestCardImage(entity, layout = 'tall') {
+    if (!entity) return '';
+    const covers = normalizeCoverImages(entity.coverImages);
+    const gallery = collectGalleryCandidateUrls(entity);
+    const legacyCover = normalizeImageUrl(
+        entity.coverImage || entity.image || entity.heroImage || entity.poster || entity.banner || '',
+    );
+
+    if (layout === 'portrait') {
+        return (
+            covers.portrait
+            || covers.page
+            || covers.square
+            || gallery[0]
+            || legacyCover
+            || covers.wide
+            || covers.video
+            || ''
+        );
+    }
+
+    if (layout === 'wide' || layout === 'hero') {
+        return (
+            (layout === 'hero' ? covers.hero : '')
+            || covers.wide
+            || covers.video
+            || covers.landscape
+            || legacyCover
+            || gallery[0]
+            || covers.portrait
+            || ''
+        );
+    }
+
+    // tall / trending (11:10) — gallery photo beats wide fest logo
+    return (
+        covers.portrait
+        || covers.page
+        || covers.square
+        || gallery[0]
+        || gallery[1]
+        || covers.wide
+        || covers.video
+        || covers.landscape
+        || legacyCover
+        || ''
+    );
+}
+
+/** Raw URL for a layout — falls back across related slots then gallery then coverImage */
 export function resolveCoverImage(entity, preset = 'cardPortrait') {
     if (!entity) return '';
     const key = PRESET_ALIASES[preset] || 'portrait';
     const covers = normalizeCoverImages(entity.coverImages);
     if (covers[key]) return covers[key];
-    return normalizeImageUrl(entity.coverImage || entity.image || entity.heroImage || '');
+
+    // Prefer layout-friendly slots before forcing a mismatched crop of the main cover
+    const fallbackKeys = {
+        video: ['wide', 'landscape', 'hero', 'page', 'portrait', 'square'],
+        wide: ['video', 'landscape', 'hero', 'page', 'portrait', 'square'],
+        landscape: ['wide', 'video', 'hero', 'page', 'portrait', 'square'],
+        hero: ['wide', 'video', 'landscape', 'page', 'portrait', 'square'],
+        portrait: ['page', 'square', 'wide', 'video', 'landscape', 'hero'],
+        page: ['portrait', 'wide', 'video', 'hero', 'landscape', 'square'],
+        square: ['portrait', 'page', 'wide', 'video'],
+    };
+    for (const alt of fallbackKeys[key] || []) {
+        if (covers[alt]) return covers[alt];
+    }
+
+    return normalizeImageUrl(
+        entity.coverImage
+        || entity.image
+        || entity.heroImage
+        || entity.poster
+        || entity.banner
+        || entity.images?.[0]
+        || '',
+    );
 }
 
 /** Cloudinary-optimized URL for a layout */

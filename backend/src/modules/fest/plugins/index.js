@@ -3,6 +3,11 @@ const {
     isMindSparkFestId,
     mindsparkPlugin,
 } = require('./mindspark');
+const {
+    TECHFEST_SLUG,
+    isTechfestFest,
+    techfestPlugin,
+} = require('./techfest');
 
 const defaultFestPlugin = {
     id: 'default',
@@ -10,10 +15,15 @@ const defaultFestPlugin = {
     forcePersonFields: false,
     useCashfreeSettlement: false,
     skipReviewQueue: false,
+    omitWhatsAppInEmail: false,
 };
 
-function getFestPlugin(festId) {
-    if (isMindSparkFestId(festId)) return mindsparkPlugin;
+function getFestPlugin(festIdOrFest) {
+    const id = festIdOrFest && typeof festIdOrFest === 'object'
+        ? (festIdOrFest._id || festIdOrFest.id)
+        : festIdOrFest;
+    if (isMindSparkFestId(id)) return mindsparkPlugin;
+    if (isTechfestFest(festIdOrFest)) return techfestPlugin;
     return defaultFestPlugin;
 }
 
@@ -22,5 +32,8 @@ module.exports = {
     MINDSPARK_FEST_ID,
     isMindSparkFestId,
     mindsparkPlugin,
+    TECHFEST_SLUG,
+    isTechfestFest,
+    techfestPlugin,
     defaultFestPlugin,
 };

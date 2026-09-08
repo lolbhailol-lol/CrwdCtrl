@@ -231,7 +231,10 @@ const getRegistrationDetails = async (req, res) => {
       user: userId
     })
       .populate('fest', 'festName collegeName festDate venue status coverImage registration')
-      .populate('competitionId', 'name description coverImage registration registrationType');
+      .populate(
+        'competitionId',
+        'name description coverImage registration registrationType teamSizeMax teamSizeMin',
+      );
 
     if (!registration) {
       return res.status(404).json({ error: 'Registration not found' });

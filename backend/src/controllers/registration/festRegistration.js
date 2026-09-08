@@ -206,6 +206,10 @@ const submitRegistration = async (req, res) => {
 
     logger.debug('📋 Final responses:', Object.keys(responses));
 
+    // Roster lead may send phone/college; fest schema may require mobile/college_name.
+    const { normalizeLeadIdentityFromRoster } = require('../../utils/rosterResponses');
+    Object.assign(responses, normalizeLeadIdentityFromRoster(responses));
+
     // ✅ PERFORMANCE: Validate required fields with consistent field naming
     const requiredFields = formSchema.filter(field => field.required);
     logger.debug('🔍 Validating', requiredFields.length, 'required fields...');

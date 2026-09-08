@@ -1,4 +1,4 @@
-import { getCoverImageUrl, resolveCoverImage } from './coverImages';
+import { pickBestCardImage } from './coverImages';
 
 /** Admin-assigned home section only (no status-based auto placement). */
 export function festHomeSection(fest) {
@@ -81,10 +81,11 @@ export function normalizeHomeCarouselItem(type, raw, { targetPage = 'home', sect
             : type === 'events' ? (raw.title || 'Untitled')
             : (raw.name || 'Untitled'),
         _image: (() => {
-            const preset = type === 'sport' || type === 'events' ? 'cardWide' : 'cardPortrait';
+            const layout = type === 'sport' || type === 'events' ? 'wide'
+                : type === 'runclub' || type === 'community' ? 'portrait'
+                : 'tall';
             return (
-                getCoverImageUrl(raw, preset)
-                || resolveCoverImage(raw, preset)
+                pickBestCardImage(raw, layout)
                 || (type === 'fest' ? raw.coverImage
                     : type === 'trek' ? (raw.coverImage || raw.images?.[0])
                     : type === 'sport' ? (raw.images?.[0] || raw.coverImage)
@@ -92,6 +93,9 @@ export function normalizeHomeCarouselItem(type, raw, { targetPage = 'home', sect
                     : raw.coverImage)
             );
         })(),
+        coverImages: raw.coverImages,
+        coverImage: raw.coverImage,
+        galleryImages: raw.galleryImages || raw.festImages || raw.images,
         // Treks show community name (not city) so section cards identify which community they belong to
         _subtitle: type === 'fest' ? (raw.collegeName || '')
             : type === 'trek' ? (trekCommunityName || raw.city || '')

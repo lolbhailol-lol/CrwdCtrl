@@ -19,8 +19,10 @@ export const IMAGE_PRESETS = {
     cardWide: { width: 720, height: 504, crop: 'fill', quality: 'eco' },
     /** Full-width community row — aspect 5:3 */
     cardLandscape: { width: 720, height: 432, crop: 'fill', quality: 'eco' },
-    /** 16:9 carousel / video-style cards */
-    cardVideo: { width: 640, height: 360, crop: 'fill', quality: 'eco' },
+    /** 16:9 carousel / video-style cards — matches fest listing covers */
+    cardVideo: { width: 720, height: 405, crop: 'fill', quality: 'eco' },
+    /** Home ongoing / featured tall cards — keep 11:10 height */
+    cardTrending: { width: 660, height: 600, crop: 'fill', quality: 'eco' },
     /** 7:5 home artist tiles */
     cardPanel: { width: 560, height: 400, crop: 'fill', quality: 'eco' },
     cardSm: { width: 360, height: 468, crop: 'fill', quality: 'eco' },
@@ -46,6 +48,7 @@ export const IMAGE_PRESET_SIZES = {
     cardWide: '(min-width: 1024px) 360px, 84vw',
     cardLandscape: '100vw',
     cardVideo: '(min-width: 1024px) 320px, 80vw',
+    cardTrending: '(min-width: 1024px) 300px, 78vw',
     cardPanel: '(min-width: 1024px) 280px, 78vw',
     cardSm: '160px',
     card: '(min-width: 1024px) 200px, 50vw',
@@ -69,7 +72,8 @@ const GRAVITY_SAFE_CROPS = ['fill', 'lfill', 'fill_pad', 'crop', 'thumb', 'auto'
 function buildTransform({ width, height, crop, quality = 'eco', dpr = '2.0' }) {
     const parts = [`c_${crop}`, `w_${width}`];
     if (height) parts.push(`h_${height}`);
-    if (GRAVITY_SAFE_CROPS.includes(crop)) parts.push('g_auto');
+    // Center crop — predictable for logos/posters (g_auto was chopping fest covers)
+    if (GRAVITY_SAFE_CROPS.includes(crop)) parts.push('g_center');
     // eco for cards (faster), good for heroes; cap DPR so 3× phones don't download 3× pixels
     parts.push(`q_auto:${quality}`, 'f_auto');
     if (dpr) parts.push(`dpr_${dpr}`);
