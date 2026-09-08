@@ -105,6 +105,7 @@ function metaPlain(metadata) {
 const TRACKABLE_EVENTS = [
     'page_view', 'fest_view', 'competition_view', 'registration',
     'search', 'login', 'signup', 'book_now_click',
+    'similar_competition_click', 'explore_fest_click',
 ];
 
 /**

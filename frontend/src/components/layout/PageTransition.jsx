@@ -256,6 +256,11 @@ export function PageTransitionContent({ children }) {
         // Admin / organizer shells: no slide flash — keep content steady
         // Fest / competition details: soft fade when switching between them
         if (skipMotion) {
+            // REPLACE = canonical slug fix — do not fade / glitch the same page
+            if (navType === 'REPLACE') {
+                isFirst.current = false;
+                return;
+            }
             const isDetailSwitch =
                 location.pathname.endsWith('-fest')
                 || location.pathname.startsWith('/view-details')

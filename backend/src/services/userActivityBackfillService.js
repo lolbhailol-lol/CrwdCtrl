@@ -17,6 +17,8 @@ const TRACKABLE_EVENTS = [
     'login',
     'signup',
     'book_now_click',
+    'similar_competition_click',
+    'explore_fest_click',
 ];
 
 const BATCH_SIZE = 250;

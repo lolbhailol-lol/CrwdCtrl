@@ -637,6 +637,10 @@ function EventPage() {
     );
     const [warmNav, setWarmNav] = useState(() => warmNavRef.current);
     const canonicalFixRef = useRef(''); // path we already tried to replace to (prevents redirect loops)
+    const competitionDataRef = useRef(competitionData);
+    const fetchDoneRef = useRef(fetchDone);
+    competitionDataRef.current = competitionData;
+    fetchDoneRef.current = fetchDone;
     const [openingRegister, setOpeningRegister] = useState(false);
     const openingRegisterRef = useRef(false);
     const { isDark } = useDarkMode();
@@ -675,7 +679,19 @@ function EventPage() {
             warmNavRef.current = true;
             setWarmNav(true);
         }
-        // Allow one fresh canonical fix per route id
+
+        // Same competition, only URL token changed (ObjectId ↔ slug). Keep painted UI —
+        // resetting here caused Explore tap flash / loading glitch / URL ping-pong.
+        const existing = competitionDataRef.current;
+        if (
+            existing
+            && competitionId
+            && entityMatchesRouteParam(existing, competitionId, ['name', 'title'])
+        ) {
+            return undefined;
+        }
+
+        // Allow one fresh canonical fix per real competition switch
         canonicalFixRef.current = '';
 
         let pack = resolvePaintPackage(competitionId, location);
@@ -721,6 +737,17 @@ function EventPage() {
 
     // Fetch competition data from backend API
     useEffect(() => {
+        // Canonical URL rename for the same loaded competition — do not refetch / blank UI
+        const existing = competitionDataRef.current;
+        if (
+            existing
+            && competitionId
+            && fetchDoneRef.current
+            && entityMatchesRouteParam(existing, competitionId, ['name', 'title'])
+        ) {
+            return undefined;
+        }
+
         const gen = fetchGenRef.current;
         const applyPackage = (built) => {
             if (gen !== fetchGenRef.current) return;
@@ -873,13 +900,17 @@ function EventPage() {
         if (!canonical) return;
         if (window.location.pathname === canonical) return;
         if (canonicalFixRef.current === canonical) return;
+        // Skip rewrite while explore/similar warm seed is still loading — avoids URL thrash
+        if (!fetchDone && (warmNavRef.current || location.state?.skipDemoLoad)) {
+            return;
+        }
         canonicalFixRef.current = canonical;
         navigate(`${canonical}${window.location.search || ''}`, {
             replace: true,
             state: location.state,
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [competitionData?.id, competitionData?.title, competitionData?.slug, competitionId, navigate]);
+    }, [competitionData?.id, competitionData?.title, competitionData?.slug, competitionId, fetchDone, navigate]);
 
     // Check for login modal parameter
     useEffect(() => {
