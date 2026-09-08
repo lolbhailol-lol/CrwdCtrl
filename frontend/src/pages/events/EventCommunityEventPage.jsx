@@ -127,7 +127,7 @@ export default function EventCommunityEventPage() {
     const location = useLocation();
     const { id } = useParams();
     const { isDark } = useDarkMode();
-    const { authToken, isAuthenticated } = useAuth();
+    const { token: authToken, isAuthenticated } = useAuth();
 
     const [event, setEvent] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -148,6 +148,7 @@ export default function EventCommunityEventPage() {
     const imgRef = useRef(null);
     const eventRef = useRef(null);
     const fetchGenRef = useRef(0);
+    const authFetchGenRef = useRef(0);
     eventRef.current = event;
 
     useEffect(() => {
@@ -176,13 +177,11 @@ export default function EventCommunityEventPage() {
             ? readRunDetailCache(String(seeded._id || seeded.id))
             : null;
         const cachedEvent = cachedByParam || cachedById;
-        // Keep already-loaded event across id→slug canonicalize (avoids loader remount flash)
         const existing = eventRef.current;
         const existingReady = entityMatchesRouteParam(existing, id, ['title', 'name']) && isHydratedEvent(existing);
         const fallback = existingReady
             ? existing
             : pickRunFallback(seeded, cachedEvent, id, existing);
-        // Only paint fully hydrated cache for this route — listing stubs flash “old” content
         const paintable = existingReady
             ? existing
             : (fallback
@@ -194,7 +193,7 @@ export default function EventCommunityEventPage() {
         if (paintable) {
             setEvent(paintable);
             setLoading(false);
-            setFetchingDetail(true); // soft-refresh in background
+            setFetchingDetail(true);
         } else {
             setEvent(null);
             setLoading(true);
@@ -209,11 +208,10 @@ export default function EventCommunityEventPage() {
         }
 
         const controller = new AbortController();
-        const token = resolveAuthToken(authToken);
         publicFetchJSONRetry(`/sports/${encodeURIComponent(eventId)}`, {
             signal: controller.signal,
             ...DETAIL_FETCH_OPTS,
-            headers: getBearerAuthHeaders(token),
+            headers: getBearerAuthHeaders(resolveAuthToken(authToken)),
         })
             .then((res) => {
                 if (fetchGenRef.current !== gen) return;
@@ -265,7 +263,6 @@ export default function EventCommunityEventPage() {
                 setLoadError(classifyDetailLoadError(err));
             })
             .finally(() => {
-                // Always clear loader for this generation (aborts from id/auth churn must not stick)
                 if (fetchGenRef.current !== gen) return;
                 setLoading(false);
                 setFetchingDetail(false);
@@ -273,8 +270,42 @@ export default function EventCommunityEventPage() {
         return () => {
             controller.abort();
         };
+        // Route id only — auth changes must not wipe the page and spam the loader
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [id, isAuthenticated, authToken]);
+    }, [id]);
+
+    // Soft-refresh registration status after login without remounting the page
+    useEffect(() => {
+        const eventId = id || eventRef.current?._id || eventRef.current?.id;
+        if (!eventId || !eventRef.current) return undefined;
+        const gen = ++authFetchGenRef.current;
+        const controller = new AbortController();
+        publicFetchJSONRetry(`/sports/${encodeURIComponent(eventId)}`, {
+            signal: controller.signal,
+            ...DETAIL_FETCH_OPTS,
+            headers: getBearerAuthHeaders(resolveAuthToken(authToken)),
+        })
+            .then((res) => {
+                if (authFetchGenRef.current !== gen || controller.signal.aborted) return;
+                const d = res?.data;
+                if (d?.event && entityMatchesRouteParam(d.event, id, ['title', 'name'])) {
+                    setEvent(d.event);
+                }
+                const ur = d?.userRegistration;
+                if (ur?.registrationId) {
+                    setUserRegistration({
+                        registrationId: String(ur.registrationId),
+                        status: ur.status || 'confirmed',
+                        paymentStatus: ur.paymentStatus || '',
+                    });
+                } else if (isAuthenticated) {
+                    setUserRegistration(null);
+                }
+            })
+            .catch(() => { /* keep current page */ });
+        return () => controller.abort();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isAuthenticated, authToken]);
 
     useEffect(() => {
         if (!event || !id) return;
@@ -283,16 +314,12 @@ export default function EventCommunityEventPage() {
         navigate(`${canonical}${location.search || ''}`, {
             replace: true,
             state: {
-                ...(location.state && typeof location.state === 'object' ? location.state : {}),
                 event,
-                runClub: event.runClub || location.state?.runClub || null,
+                runClub: event.runClub || null,
             },
         });
-        // Do not depend on location.state — spreading it into navigate would loop
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [event, id, navigate, location.pathname, location.search]);
 
-    // Loader only when we have nothing paintables — never block forever on soft-refresh
     const showPageLoader = (loading && !event)
         || (Boolean(event) && Boolean(id) && !entityMatchesRouteParam(event, id, ['title', 'name']));
     usePageContentLoading(showPageLoader);

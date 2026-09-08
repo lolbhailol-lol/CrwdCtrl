@@ -25,8 +25,13 @@ export function setHomeShellReady(next) {
     }
 }
 
+/** Clear home-hub loading chrome when leaving `/` or `/dashboard`. */
 export function resetHomeShellReady() {
     homeShellReady = false;
+    if (typeof document !== 'undefined') {
+        // Leaving mid-boot used to leave this stuck → whole app looked like endless loading
+        delete document.documentElement.dataset.homeHubLoading;
+    }
 }
 
 export function isHomeHubPath(pathname = '') {

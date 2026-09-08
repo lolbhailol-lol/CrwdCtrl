@@ -92,7 +92,7 @@ export default function RunEventDetailPage() {
     const location = useLocation();
     const { id } = useParams();
     const { isDark } = useDarkMode();
-    const { authToken, isAuthenticated } = useAuth();
+    const { token: authToken, isAuthenticated } = useAuth();
 
     const [event, setEvent] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -198,17 +198,20 @@ export default function RunEventDetailPage() {
             });
         return () => controller.abort();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [id, isAuthenticated, authToken]);
+    }, [id]);
 
     useEffect(() => {
         if (!event || !id) return;
         const canonical = sportRunPath(event);
-        if (canonical && window.location.pathname !== canonical) {
-            navigate(`${canonical}${window.location.search || ''}`, { replace: true, state: location.state });
-        }
-    }, [event, id, navigate, location.state]);
+        if (!canonical || location.pathname === canonical) return;
+        navigate(`${canonical}${location.search || ''}`, {
+            replace: true,
+            state: location.state?.event ? { event: location.state.event } : undefined,
+        });
+    }, [event, id, navigate, location.pathname, location.search]);
 
-    const showPageLoader = loading || (event && id && !entityMatchesRouteParam(event, id, ['title', 'name']));
+    const showPageLoader = (loading && !event)
+        || (Boolean(event) && Boolean(id) && !entityMatchesRouteParam(event, id, ['title', 'name']));
 
     if (showPageLoader) {
         return <DetailPageLoader label="Loading run" variant="run" />;

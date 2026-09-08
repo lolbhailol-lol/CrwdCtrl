@@ -1897,7 +1897,7 @@ function EventPage() {
 
     const renderAboutBlock = ({ headingClass, bodyClass, className = '' } = {}) => {
         if (!aboutText) return null;
-        return (
+    return (
             <div className={className}>
                 <h2 className={headingClass}>About</h2>
                 <p className={`${bodyClass} ${showFullAbout ? '' : 'line-clamp-3'}`}>
@@ -2095,7 +2095,7 @@ function EventPage() {
                             {problemStatementLink ? (
                             <div className="px-4 pb-2">
                                 {renderProblemStatementLink()}
-                            </div>
+                                                </div>
                             ) : null}
 
                             {/* Mobile Competition Rounds — hidden when no real round content */}
@@ -2384,7 +2384,7 @@ function EventPage() {
                                 {problemStatementLink ? (
                                 <div>
                                     {renderProblemStatementLink()}
-                                </div>
+                                                </div>
                                 ) : null}
 
                                 {/* Competition Rounds — hidden when no real round content */}
