@@ -31,7 +31,7 @@ const API_BASE =
   process.env.VITE_API_BASE_URL || 'https://crwdctrl-production-9c58.up.railway.app/api';
 
 const BOT_UA =
-  /(facebookexternalhit|facebot|twitterbot|whatsapp|slackbot|slack-imgproxy|linkedinbot|discordbot|telegrambot|pinterest|redditbot|googlebot|google-inspectiontool|storebot-google|bingbot|duckduckbot|applebot|gptbot|oai-searchbot|chatgpt-user|perplexitybot|claudebot|claude-web|anthropic-ai|bytespider|amazonbot|yandexbot|embedly|quora link preview|vkshare|w3c_validator|iframely|skypeuripreview|nuzzel|bitlybot|developers\.google\.com\/\+\/web\/snippet)/i;
+  /(facebookexternalhit|facebot|twitterbot|^whatsapp\/|slackbot|slack-imgproxy|linkedinbot|discordbot|telegrambot|pinterest|redditbot|googlebot|google-inspectiontool|storebot-google|bingbot|duckduckbot|applebot|gptbot|oai-searchbot|chatgpt-user|perplexitybot|claudebot|claude-web|anthropic-ai|bytespider|amazonbot|yandexbot|embedly|quora link preview|vkshare|w3c_validator|iframely|skypeuripreview|nuzzel|bitlybot|developers\.google\.com\/\+\/web\/snippet)/i;
 
 /** Prefer cover slots over falling back to the CrwdCtrl logo in OG previews. */
 function pickShareImage(entity) {

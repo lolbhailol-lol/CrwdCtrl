@@ -147,6 +147,7 @@ export default function EventCommunityEventPage() {
     const [chromeGateUrl, setChromeGateUrl] = useState('');
     const imgRef = useRef(null);
     const eventRef = useRef(null);
+    const fetchGenRef = useRef(0);
     eventRef.current = event;
 
     useEffect(() => {
@@ -168,6 +169,7 @@ export default function EventCommunityEventPage() {
             return undefined;
         }
 
+        const gen = ++fetchGenRef.current;
         const seeded = seedEventFromNav(location.state?.event);
         const cachedByParam = readRunDetailCache(eventId);
         const cachedById = seeded?._id || seeded?.id
@@ -177,21 +179,26 @@ export default function EventCommunityEventPage() {
         // Keep already-loaded event across id→slug canonicalize (avoids loader remount flash)
         const existing = eventRef.current;
         const existingReady = entityMatchesRouteParam(existing, id, ['title', 'name']) && isHydratedEvent(existing);
-        if (existingReady) {
-            setEvent(existing);
-            setLoading(false);
-            setFetchingDetail(false);
-            // Soft-refresh below for userRegistration + latest fields (don't skip fetch)
-        }
-        // Hydrated cache only — listing stubs / renamed events flash “old” UI if painted early
         const fallback = existingReady
             ? existing
             : pickRunFallback(seeded, cachedEvent, id, existing);
+        // Only paint fully hydrated cache for this route — listing stubs flash “old” content
+        const paintable = existingReady
+            ? existing
+            : (fallback
+                && isHydratedEvent(fallback)
+                && entityMatchesRouteParam(fallback, id, ['title', 'name'])
+                ? fallback
+                : null);
 
-        if (!existingReady) {
-            setFetchingDetail(true);
-            setLoading(true);
+        if (paintable) {
+            setEvent(paintable);
+            setLoading(false);
+            setFetchingDetail(true); // soft-refresh in background
+        } else {
             setEvent(null);
+            setLoading(true);
+            setFetchingDetail(true);
             setImgPg(0);
             setOverviewExpanded(false);
             setActiveRunTab('Details');
@@ -209,7 +216,7 @@ export default function EventCommunityEventPage() {
             headers: getBearerAuthHeaders(token),
         })
             .then((res) => {
-                if (controller.signal.aborted) return;
+                if (fetchGenRef.current !== gen) return;
                 const d = res?.data;
                 if (d?.event) {
                     setEvent(d.event);
@@ -220,7 +227,10 @@ export default function EventCommunityEventPage() {
                         if (s) writeRunDetailCache(String(s), d.event);
                     });
                     setLoadError('');
-                } else if (fallback && isHydratedEvent(fallback)) {
+                } else if (paintable) {
+                    setEvent(paintable);
+                    setLoadError('');
+                } else if (fallback && isHydratedEvent(fallback) && entityMatchesRouteParam(fallback, id, ['title', 'name'])) {
                     setEvent(fallback);
                     setLoadError('');
                 } else {
@@ -239,8 +249,14 @@ export default function EventCommunityEventPage() {
                 }
             })
             .catch((err) => {
+                if (fetchGenRef.current !== gen) return;
                 if (controller.signal.aborted) return;
-                if (fallback && isHydratedEvent(fallback)) {
+                if (paintable) {
+                    setEvent(paintable);
+                    setLoadError('');
+                    return;
+                }
+                if (fallback && isHydratedEvent(fallback) && entityMatchesRouteParam(fallback, id, ['title', 'name'])) {
                     setEvent(fallback);
                     setLoadError('');
                     return;
@@ -249,34 +265,36 @@ export default function EventCommunityEventPage() {
                 setLoadError(classifyDetailLoadError(err));
             })
             .finally(() => {
-                if (!controller.signal.aborted) {
-                    setLoading(false);
-                    setFetchingDetail(false);
-                }
+                // Always clear loader for this generation (aborts from id/auth churn must not stick)
+                if (fetchGenRef.current !== gen) return;
+                setLoading(false);
+                setFetchingDetail(false);
             });
-        return () => controller.abort();
+        return () => {
+            controller.abort();
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id, isAuthenticated, authToken]);
 
     useEffect(() => {
         if (!event || !id) return;
         const canonical = eventCommunityEventPath(event);
-        if (canonical && window.location.pathname !== canonical) {
-            navigate(`${canonical}${window.location.search || ''}`, {
-                replace: true,
-                state: {
-                    ...location.state,
-                    event,
-                    runClub: event.runClub || location.state?.runClub || null,
-                },
-            });
-        }
-    }, [event, id, navigate, location.state]);
+        if (!canonical || location.pathname === canonical) return;
+        navigate(`${canonical}${location.search || ''}`, {
+            replace: true,
+            state: {
+                ...(location.state && typeof location.state === 'object' ? location.state : {}),
+                event,
+                runClub: event.runClub || location.state?.runClub || null,
+            },
+        });
+        // Do not depend on location.state — spreading it into navigate would loop
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [event, id, navigate, location.pathname, location.search]);
 
-    // Show 3D event loader instead of flashing listing stubs / previous event content
-    const showPageLoader = loading
-        || fetchingDetail
-        || (event && id && !entityMatchesRouteParam(event, id, ['title', 'name']));
+    // Loader only when we have nothing paintables — never block forever on soft-refresh
+    const showPageLoader = (loading && !event)
+        || (Boolean(event) && Boolean(id) && !entityMatchesRouteParam(event, id, ['title', 'name']));
     usePageContentLoading(showPageLoader);
 
     if (showPageLoader) {

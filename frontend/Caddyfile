@@ -46,8 +46,10 @@
 	}
 
 	# Social crawlers need Open Graph HTML — SPA index.html only has the site logo.
-	# Route detail-page bots to the backend OG endpoint so WhatsApp gets the event cover.
-	@socialbot header_regexp User-Agent (?i)(facebookexternalhit|facebot|twitterbot|whatsapp|slackbot|slack-imgproxy|linkedinbot|discordbot|telegrambot|pinterest|redditbot|googlebot|bingbot|embedly|skypeuripreview|iframely|nuzzel|bitlybot)
+	# IMPORTANT: WhatsApp in-app browsers also contain "WhatsApp" in the UA but look like
+	# real browsers (Mozilla/…). Only the link-preview bot uses `WhatsApp/2.x.x A|I|N`
+	# without Mozilla — never send those users to the OG-only HTML shell.
+	@socialbot header_regexp User-Agent (?i)(facebookexternalhit|facebot|twitterbot|^WhatsApp/|slackbot|slack-imgproxy|linkedinbot|discordbot|telegrambot|pinterest|redditbot|googlebot|bingbot|embedly|skypeuripreview|iframely|nuzzel|bitlybot)
 	@sharepath path_regexp sharepath ^/(view-details|competitions-view-details|trek|treks/community|sports/run|sports/run-club|events)/
 	handle @socialbot {
 		handle @sharepath {
