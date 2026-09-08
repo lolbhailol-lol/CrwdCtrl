@@ -353,6 +353,14 @@ const festOrganizerSchema = new mongoose.Schema(
     },
   ],
 
+  /** Admin-pinned related fests shown first on the public fest page (same-type auto-fill follows). */
+  relatedFestIds: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'FestOrganizer',
+    },
+  ],
+
   competitionsHeading: {
     type: String,
     default: "Competitions",

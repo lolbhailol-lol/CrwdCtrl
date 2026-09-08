@@ -34,6 +34,7 @@ import {
 } from '../../utils/authToken';
 import { useRegistrationSuccessPopup } from '../../hooks/useSuccessPopup';
 import { finalizeCompetitionAfterPayment } from '../../utils/competitionPaymentComplete';
+import AlsoRegisterForSection from '../../components/AlsoRegisterForSection';
 
 // Configure API base URL - HARDCODED FOR PRODUCTION FIX
 import { fetchPaymentQuote } from '../../services/api/payment.api';
@@ -1452,59 +1453,68 @@ export default function CompetitionRegistration() {
 
     if (success) {
         return (
-            <div className="min-h-screen bg-[#111213] flex items-center justify-center px-4">
-                <div className="text-center max-w-md mx-auto p-6 bg-[#1D1E20] rounded-xl">
-                    <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
-                    <h1 className="text-xl font-bold text-white mb-2">Registration Submitted</h1>
-                    <p className="text-sm text-gray-300 mb-2">
-                        Event:{' '}
-                        <span className="font-semibold text-white">
-                            {competition?.name}
-                        </span>
-                    </p>
-                    {paymentFields ? (
-                        <p className="text-sm text-green-400 mb-3">
-                            Payment confirmed via Cashfree. You are registered!
+            <div className="min-h-screen bg-[#111213] flex items-center justify-center px-4 py-10">
+                <div className="w-full max-w-md mx-auto space-y-6">
+                    <div className="text-center p-6 bg-[#1D1E20] rounded-xl">
+                        <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
+                        <h1 className="text-xl font-bold text-white mb-2">Registration Submitted</h1>
+                        <p className="text-sm text-gray-300 mb-2">
+                            Event:{' '}
+                            <span className="font-semibold text-white">
+                                {competition?.name}
+                            </span>
                         </p>
-                    ) : (
-                        <>
-                            <p className="text-sm text-yellow-300 mb-1">
-                                Status: Verification Pending
+                        {paymentFields ? (
+                            <p className="text-sm text-green-400 mb-3">
+                                Payment confirmed via Cashfree. You are registered!
                             </p>
-                            <p className="text-xs text-gray-400 mb-3">
-                                Our team will verify your payment within 24–48 hours and update your registration status.
-                            </p>
-                        </>
-                    )}
-                    <p className="text-xs text-gray-500 mb-4">
-                        Download your ticket or view all bookings whenever you&apos;re ready.
-                    </p>
-                    {registrationId && (
+                        ) : (
+                            <>
+                                <p className="text-sm text-yellow-300 mb-1">
+                                    Status: Verification Pending
+                                </p>
+                                <p className="text-xs text-gray-400 mb-3">
+                                    Our team will verify your payment within 24–48 hours and update your registration status.
+                                </p>
+                            </>
+                        )}
+                        <p className="text-xs text-gray-500 mb-4">
+                            Download your ticket or view all bookings whenever you&apos;re ready.
+                        </p>
+                        {registrationId && (
+                            <button
+                                type="button"
+                                onClick={() => navigate(`/qr-ticket/${registrationId}`, { state: { refreshBookings: true } })}
+                                className="w-full px-4 py-2 bg-[#0ECCEE] text-black rounded-lg font-semibold hover:bg-[#0ECCEE]/80 transition-colors mb-2"
+                            >
+                                Download Ticket
+                            </button>
+                        )}
                         <button
                             type="button"
-                            onClick={() => navigate(`/qr-ticket/${registrationId}`, { state: { refreshBookings: true } })}
-                            className="w-full px-4 py-2 bg-[#0ECCEE] text-black rounded-lg font-semibold hover:bg-[#0ECCEE]/80 transition-colors mb-2"
+                            onClick={() => goToBookings(navigate)}
+                            className={`w-full px-4 py-2 rounded-lg font-semibold transition-colors mb-2 ${
+                                registrationId
+                                    ? 'bg-transparent border border-gray-700 text-gray-200 hover:bg-gray-800'
+                                    : 'bg-[#0ECCEE] text-black hover:bg-[#0ECCEE]/80'
+                            }`}
                         >
-                            Download Ticket
+                            View My Bookings
                         </button>
-                    )}
-                    <button
-                        type="button"
-                        onClick={() => goToBookings(navigate)}
-                        className={`w-full px-4 py-2 rounded-lg font-semibold transition-colors mb-2 ${
-                            registrationId
-                                ? 'bg-transparent border border-gray-700 text-gray-200 hover:bg-gray-800'
-                                : 'bg-[#0ECCEE] text-black hover:bg-[#0ECCEE]/80'
-                        }`}
-                    >
-                        View My Bookings
-                    </button>
-                    <button
-                        onClick={() => navigate('/')}
-                        className="w-full px-4 py-2 bg-transparent border border-gray-700 text-gray-200 rounded-lg text-sm hover:bg-gray-800"
-                    >
-                        Back to Home
-                    </button>
+                        <button
+                            onClick={() => navigate('/')}
+                            className="w-full px-4 py-2 bg-transparent border border-gray-700 text-gray-200 rounded-lg text-sm hover:bg-gray-800"
+                        >
+                            Back to Home
+                        </button>
+                    </div>
+                    {competition ? (
+                        <AlsoRegisterForSection
+                            competition={competition}
+                            fest={competition?.fest || null}
+                            isDark
+                        />
+                    ) : null}
                 </div>
             </div>
         );

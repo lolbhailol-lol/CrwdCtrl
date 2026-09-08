@@ -184,7 +184,12 @@ export default function FestTable() {
       )}
 
       {showForm && (
-        <FestFormModal fest={selectedFest} onClose={() => setShowForm(false)} onSaved={fetchFests} />
+        <FestFormModal
+          fest={selectedFest}
+          allFests={fests}
+          onClose={() => setShowForm(false)}
+          onSaved={fetchFests}
+        />
       )}
       {showCompetition && (
         <CompetitionModal fest={selectedFest} onClose={() => setShowCompetition(false)} onSaved={fetchFests} />

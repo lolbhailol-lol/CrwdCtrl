@@ -137,3 +137,37 @@ export const trackBookNowClick = ({
     page: page || window.location.pathname || '',
   });
 };
+
+/** Similar / explore competition discovery taps (detail or register CTA). */
+export const trackSimilarCompetitionClick = ({
+  source = '',
+  action = '',
+  competitionId = '',
+  festId = '',
+  page = '',
+} = {}) => {
+  sendEvent('similar_competition_click', {
+    source,
+    action,
+    competitionId,
+    festId,
+    page: page || window.location.pathname || '',
+  });
+};
+
+/** Explore other fest card / view-fest taps. */
+export const trackExploreFestClick = ({
+  source = '',
+  action = '',
+  festId = '',
+  festName = '',
+  page = '',
+} = {}) => {
+  sendEvent('explore_fest_click', {
+    source,
+    action,
+    festId,
+    festName,
+    page: page || window.location.pathname || '',
+  });
+};

@@ -10,6 +10,7 @@ const {
   parseRulebookZip,
   buildCompetitionFromImportRow,
 } = require('../services/rulebookImportService');
+const { normalizeRelatedFestIds } = require('../utils/relatedFests');
 
 // ✅ In-memory cache for fests (same as in festOrganizerController)
 const festsCache = {
@@ -95,7 +96,8 @@ exports.createFest = async (req, res) => {
       contacts,
       sponsors,
       competitionsHeading,
-      registration
+      registration,
+      relatedFestIds,
     } = req.body;
 
     // 1. Validation
@@ -109,6 +111,8 @@ exports.createFest = async (req, res) => {
     if (!finalCoverImage && galleryImages && galleryImages.length > 0) {
       finalCoverImage = galleryImages[0];
     }
+
+    const normalizedRelated = normalizeRelatedFestIds(relatedFestIds);
 
     // 3. Initialize Model
     const fest = new FestOrganizer({
@@ -132,6 +136,7 @@ exports.createFest = async (req, res) => {
       contacts: contacts || [],
       sponsors: sponsors || [],
       competitionsHeading: competitionsHeading !== undefined ? competitionsHeading : "Competitions",
+      relatedFestIds: normalizedRelated,
       registration: registration || {
         mode: 'NOT_STARTED',
         externalLink: '',
@@ -189,7 +194,7 @@ exports.getAllFests = async (req, res) => {
       .sort({ priority: 1, createdAt: -1 }) // Priority first (1 = highest), then by creation date
       .skip(skip)
       .limit(limit)
-      .select('festName collegeName festType festDate venue description coverImage galleryImages status artists sponsors registration createdAt artistsHeading competitionsHeading contacts priority homeSection homePriority showOnHomeSlide feeAmount platformFeePercent ticketPrice')
+      .select('festName collegeName festType festDate venue description coverImage galleryImages status artists sponsors registration createdAt artistsHeading competitionsHeading contacts priority homeSection homePriority showOnHomeSlide feeAmount platformFeePercent ticketPrice slug relatedFestIds')
       .lean(); // Use lean() for better performance
 
     // Calculate pagination info
@@ -250,6 +255,10 @@ exports.updateFest = async (req, res) => {
       if (updateData.homeSection === 'slide') updateData.homeSection = null;
     } else if (updateData.showOnHomeSlide === false) {
       updateData.showOnHomeSlide = false;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(updateData, 'relatedFestIds')) {
+      updateData.relatedFestIds = normalizeRelatedFestIds(updateData.relatedFestIds, id);
     }
 
     // 3. Cover vs gallery: respect explicit clear (coverImage: '').

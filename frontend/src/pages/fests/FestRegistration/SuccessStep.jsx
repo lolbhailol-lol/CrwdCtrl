@@ -1,6 +1,7 @@
 import { goToBookings } from '../../../utils/paymentNavigation';
 import { getFestPluginFromAny } from '../../../features/fests/plugins';
 import { RegistrationStatusVisual, SuccessRevealGate } from '../../../components/RegistrationStatusVisual';
+import AlsoRegisterForSection from '../../../components/AlsoRegisterForSection';
 
 export default function SuccessStep({
   isDark,
@@ -34,6 +35,7 @@ export default function SuccessStep({
   }
 
   const name = isCompetitionRegistration ? competition?.name : fest?.festName;
+  const showAlsoRegister = isCompetitionRegistration && competition;
 
   return (
     <SuccessRevealGate
@@ -41,46 +43,55 @@ export default function SuccessStep({
       title="Registration successful"
       subtitle={`You're booked for ${name || 'this event'}`}
     >
-      <div className={`crwdctrl-page crwdctrl-page--flat min-h-screen flex items-center justify-center px-4 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
-        <div className={`text-center max-w-md mx-auto p-8 rounded-3xl border ${isDark ? 'bg-[#121314] border-white/10' : 'bg-white border-gray-200 shadow-xl'}`}>
-          <RegistrationStatusVisual
-            mode="success"
-            title="Registration successful"
-            subtitle={`You're booked for ${name || 'this event'}`}
-            showProgress={false}
-            isDark={isDark}
-          />
-          <div className="flex flex-col gap-3 mt-8">
-            {registrationId && (
+      <div className={`crwdctrl-page crwdctrl-page--flat min-h-screen flex items-center justify-center px-4 py-10 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
+        <div className="w-full max-w-md mx-auto space-y-6">
+          <div className={`text-center p-8 rounded-3xl border ${isDark ? 'bg-[#121314] border-white/10' : 'bg-white border-gray-200 shadow-xl'}`}>
+            <RegistrationStatusVisual
+              mode="success"
+              title="Registration successful"
+              subtitle={`You're booked for ${name || 'this event'}`}
+              showProgress={false}
+              isDark={isDark}
+            />
+            <div className="flex flex-col gap-3 mt-8">
+              {registrationId && (
+                <button
+                  type="button"
+                  onClick={() => navigate(`/qr-ticket/${registrationId}`, { state: { refreshBookings: true } })}
+                  className="w-full px-6 py-3 bg-[#0ECCEE] text-black rounded-lg font-semibold hover:bg-[#0ECCEE]/80 transition-colors"
+                >
+                  Download Ticket
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => navigate(`/qr-ticket/${registrationId}`, { state: { refreshBookings: true } })}
-                className="w-full px-6 py-3 bg-[#0ECCEE] text-black rounded-lg font-semibold hover:bg-[#0ECCEE]/80 transition-colors"
+                onClick={() => goToBookings(navigate)}
+                className={`w-full px-6 py-3 rounded-lg font-semibold transition-colors ${
+                  registrationId
+                    ? isDark
+                      ? 'border border-gray-600 text-gray-200 hover:bg-gray-800'
+                      : 'border border-gray-300 text-gray-800 hover:bg-gray-100'
+                    : 'bg-[#0ECCEE] text-black hover:bg-[#0ECCEE]/80'
+                }`}
               >
-                Download Ticket
+                View My Bookings
               </button>
-            )}
-            <button
-              type="button"
-              onClick={() => goToBookings(navigate)}
-              className={`w-full px-6 py-3 rounded-lg font-semibold transition-colors ${
-                registrationId
-                  ? isDark
-                    ? 'border border-gray-600 text-gray-200 hover:bg-gray-800'
-                    : 'border border-gray-300 text-gray-800 hover:bg-gray-100'
-                  : 'bg-[#0ECCEE] text-black hover:bg-[#0ECCEE]/80'
-              }`}
-            >
-              View My Bookings
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/')}
-              className={`w-full py-2 text-sm font-medium ${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'}`}
-            >
-              Back to Home
-            </button>
+              <button
+                type="button"
+                onClick={() => navigate('/')}
+                className={`w-full py-2 text-sm font-medium ${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                Back to Home
+              </button>
+            </div>
           </div>
+          {showAlsoRegister ? (
+            <AlsoRegisterForSection
+              competition={competition}
+              fest={fest}
+              isDark={isDark}
+            />
+          ) : null}
         </div>
       </div>
     </SuccessRevealGate>

@@ -221,6 +221,8 @@ export function transformFestPublicData(festData) {
     sponsors: festData.sponsors || [],
     competitions: groupCompetitionsByType(festData.competitions, festData),
     competitionsHeading: festData.competitionsHeading || 'Competitions',
+    relatedFests: Array.isArray(festData.relatedFests) ? festData.relatedFests : [],
+    slug: festData.slug || '',
     theme:
       festData.festType === 'cultural'
         ? 'Cultural Festival'
@@ -331,17 +333,27 @@ export function buildRegistrationPrefetch({ fest, competition } = {}) {
 export function buildCompetitionNavPayload(competition, festContext) {
   if (!competition) return null;
 
+  const fromCompFest = competition.fest && typeof competition.fest === 'object'
+    ? competition.fest
+    : null;
+  const contextFest = festContext
+    ? {
+        _id: festContext.id || festContext._id,
+        festName: festContext.festival_name || festContext.title || festContext.festName,
+        feeAmount: festContext.feeAmount || 0,
+        slug: festContext.slug || '',
+        collegeName: festContext.collegeName || '',
+        festType: festContext.festType || '',
+        ...(festContext.registration && typeof festContext.registration === 'object'
+          ? { registration: festContext.registration }
+          : {}),
+      }
+    : null;
+
+  const fest = fromCompFest || contextFest || null;
+
   return {
     ...competition,
-    fest:
-      competition.fest ||
-      (festContext
-        ? {
-            _id: festContext.id,
-            festName: festContext.festival_name || festContext.title,
-            feeAmount: festContext.feeAmount || 0,
-            registration: festContext.registration || { mode: 'NOT_STARTED' },
-          }
-        : null),
+    fest,
   };
 }

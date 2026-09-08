@@ -7,7 +7,13 @@ import { resolveBrowseBackPath } from './categoryHubRoutes';
 export function canGoBackInApp() {
   if (typeof window === 'undefined') return false;
   const idx = window.history.state?.idx;
-  return Number.isInteger(idx) && idx > 0;
+  if (Number.isInteger(idx) && idx > 0) return true;
+  // Fallback when idx is missing (some WebViews) but we clearly have a prior entry
+  try {
+    return typeof window.history.length === 'number' && window.history.length > 1;
+  } catch {
+    return false;
+  }
 }
 
 export function resolveInAppBackFallback(pathname, explicitFallback) {

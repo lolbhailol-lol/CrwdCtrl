@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Phone, Instagram, Check, Mail, ArrowLeft, Ticket, Share2, Users, FileText, ExternalLink } from 'lucide-react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
@@ -26,13 +26,17 @@ import { signalDetailPageReady } from '../../utils/bootSplash';
 import { COMPETITION_DEMO_LOAD_MS } from '../../constants/skeletonLoading';
 import { formatSlotsLabel, buildTeamSizeLabel, isCompetitionSoldOut, isCompetitionRegistrationClosed } from '../../utils/teamSize';
 import { useInAppBack } from '../../hooks/useInAppBack';
+import { canGoBackInApp } from '../../utils/inAppBack';
 import { isMindSparkFest } from '../../features/fests/mindspark/isMindSparkFest';
 import { isTechfestFest } from '../../features/fests/techfest/isTechfestFest';
 import {
     loadCompetitionDetailCache,
     saveCompetitionDetailCache,
+    loadFestDetailCache,
     isBuiltCompetitionDetail,
 } from '../../utils/detailPageCache';
+import SimilarCompetitionsSection from '../../components/SimilarCompetitionsSection';
+import SimilarFestsSection from '../../components/SimilarFestsSection';
 
 /** Compact slots + team chips — sits above Register Now inside the bar */
 function RegisterMetaChips({ slotsLabel, teamLabel, isDark }) {
@@ -479,6 +483,15 @@ const buildCompetitionData = (compData, options = {}) => {
         teamSizeMin: Math.max(1, Number(compData.teamSizeMin) || 1),
         teamSizeMax: Math.max(1, Number(compData.teamSizeMax) || Number(compData.teamSizeMin) || 1),
         teamSizeLabel: compData.teamSizeLabel || '',
+        module: String(compData.module || '').trim(),
+        competitionType: compData.competitionType || '',
+        category: compData.category || '',
+        relatedCompetitions: Array.isArray(compData.relatedCompetitions)
+            ? compData.relatedCompetitions
+            : [],
+        relatedFests: Array.isArray(compData.relatedFests)
+            ? compData.relatedFests
+            : [],
         resourceLinks: Array.isArray(compData.registration?.resourceLinks)
             ? compData.registration.resourceLinks
                 .filter((l) => l && l.url)
@@ -507,14 +520,15 @@ function resolvePaintPackage(competitionId, location) {
             ? cached
             : buildCompetitionData(cached, { useFestRegistrationFallback: true });
     }
-    // List-card seed is incomplete (often no cover/slots) — wait for live fetch so the page
-    // appears as one composition instead of empty hero + faded body.
+    // List-card / explore seed is often incomplete (no cover). Cold links wait for fetch;
+    // similar/explore nav sets skipDemoLoad so we paint immediately instead of the demo loader.
     const fromState = location?.state?.competition;
+    const skipDemo = Boolean(location?.state?.skipDemoLoad);
     if (
         fromState
         && competitionId
         && entityMatchesRouteParam(fromState, competitionId, ['name', 'title'])
-        && (fromState.coverImage || fromState.image)
+        && (skipDemo || fromState.coverImage || fromState.image)
     ) {
         return buildCompetitionData(fromState, { useFestRegistrationFallback: true });
     }
@@ -524,7 +538,7 @@ function resolvePaintPackage(competitionId, location) {
 function EventPage() {
     const { competitionId } = useParams();
     const navigate = useNavigate();
-    const goBack = useInAppBack();
+    const inAppBack = useInAppBack();
     const location = useLocation();
     const [activeRound, setActiveRound] = useState(0);
     const [showRegistrationSuccess] = useState(false);
@@ -554,6 +568,27 @@ function EventPage() {
     const { isAuthenticated } = useAuth();
     const fetchGenRef = useRef(0);
 
+    const goBack = useCallback(() => {
+        const backTo = location.state?.backTo;
+        if (backTo && typeof backTo === 'string' && backTo.startsWith('/')) {
+            navigate(backTo);
+            return;
+        }
+        if (canGoBackInApp()) {
+            navigate(-1);
+            return;
+        }
+        const festRef =
+            competitionData?.fest ||
+            location.state?.eventData ||
+            location.state?.competition?.fest;
+        if (festRef && (festRef._id || festRef.id || festRef.slug || festRef.festName || festRef.title)) {
+            navigate(festPath(festRef));
+            return;
+        }
+        inAppBack();
+    }, [navigate, location.state, competitionData?.fest, inAppBack]);
+
     // Switching comps reuses this page — swap to a complete package or hold on loader
     useLayoutEffect(() => {
         const pack = resolvePaintPackage(competitionId, location);
@@ -570,7 +605,8 @@ function EventPage() {
         setShowFullAbout(false);
         setShowShareMenu(false);
         return undefined;
-    }, [competitionId]);
+        // location.key covers explore/similar navigations with skipDemoLoad seed
+    }, [competitionId, location.key]);
 
     useEffect(() => {
         if (location.state?.skipDemoLoad || resolvePaintPackage(competitionId, location)) {
@@ -811,14 +847,31 @@ function EventPage() {
     const showHeroImage = Boolean(eventData?.image);
     const isMindSparkCompetition = isMindSparkFest(eventData?.fest || eventData?.festId, eventData?.fest);
     const isTechfestCompetition = isTechfestFest(eventData?.fest || eventData?.festId, eventData?.fest);
+    const festIdForRelated = eventData?.festId || eventData?.fest?._id || eventData?.fest?.id;
+    const relatedFestsForDiscovery = (() => {
+        const fromApi = Array.isArray(eventData?.relatedFests) ? eventData.relatedFests : [];
+        if (fromApi.length) return fromApi;
+        const cached = festIdForRelated ? loadFestDetailCache(festIdForRelated) : null;
+        return Array.isArray(cached?.relatedFests) ? cached.relatedFests : [];
+    })();
+    const festTypeForDiscovery =
+        eventData?.fest?.festType ||
+        relatedFestsForDiscovery[0]?.festType ||
+        (isTechfestCompetition || isMindSparkCompetition ? 'technical' : '');
 
     if (!eventData?.title) {
         return <DetailPageLoader variant="competition" label="Loading competition" />;
     }
 
-    // Get fest name from location state or URL params
-    const festName = location.state?.eventData?.festival_name || location.state?.eventData?.title || '';
+    // Get fest name from competition payload or navigation state
+    const festName =
+        eventData?.fest?.festName ||
+        eventData?.fest?.title ||
+        location.state?.eventData?.festival_name ||
+        location.state?.eventData?.title ||
+        '';
     const passedEventData = location.state?.eventData;
+    const showDiscovery = Boolean(fetchDone);
 
     // Function to get common rules based on fest context
     const getCommonRules = () => {
@@ -1212,20 +1265,36 @@ function EventPage() {
     const getRegistrationStatus = () => {
         const registrationType = eventData?.registrationType || 'fest';
         const registrationStatus = String(eventData?.registration?.status || 'not_started').toLowerCase();
-        const festMode = String(
+        const festModeRaw =
             eventData?.fest?.registration?.mode
             || passedEventData?.registration?.mode
-            || 'NOT_STARTED'
-        ).toUpperCase();
+            || '';
+        const festModeKnown = Boolean(String(festModeRaw).trim());
+        const festMode = String(festModeRaw || 'NOT_STARTED').toUpperCase();
         const legacyStatus = String(
             eventData?.legacyRegistration?.status || ''
         ).toUpperCase();
+        const fromExploreNav = Boolean(location.state?.skipDemoLoad);
 
         const closedResult = (buttonText) => ({
             isAvailable: false,
             buttonText,
             isDisabled: true,
         });
+
+        // Explore/similar seeds often default fest.registration to NOT_STARTED until
+        // the public fetch lands — don't flash a fake "not open" closed state.
+        if (!fetchDone && fromExploreNav && registrationType === 'fest') {
+            const optimisticOpen = ['INTERNAL_FORM', 'EXTERNAL_LINK', 'STARTED'].includes(festMode);
+            if (!festModeKnown || !optimisticOpen) {
+                return {
+                    isAvailable: false,
+                    buttonText: 'Loading…',
+                    isDisabled: true,
+                    pendingFetch: true,
+                };
+            }
+        }
 
         if (isCompetitionSoldOut(eventData)) {
             return closedResult('Sold out');
@@ -1318,6 +1387,7 @@ function EventPage() {
 
     const handleRegister = async () => {
         const statusInfo = getRegistrationStatus();
+        if (statusInfo.pendingFetch) return;
         if (statusInfo.isDisabled) {
             if (statusInfo.notConfigured) {
                 showAlert({
@@ -1662,6 +1732,7 @@ function EventPage() {
                                         containerClassName="absolute inset-0 w-full h-full"
                                         loaderSize="hero"
                                         eager={showHeroImage}
+                                        placeholder={showHeroImage ? 'trophy' : 'muted'}
                                     />
                                     {showHeroImage ? (
                                     <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-black/30 pointer-events-none" />
@@ -1709,16 +1780,6 @@ function EventPage() {
                                     headingClass: `text-base font-bold mb-1.5 ${isDark ? 'text-white' : 'text-gray-900'}`,
                                     bodyClass: `text-sm leading-relaxed text-left ${isDark ? 'text-gray-400' : 'text-gray-600'}`,
                                 })}
-                                {eventData.feeKnown && !isMindSparkCompetition ? (
-                                <div className="mb-1">
-                                    <RegistrationFeeLines
-                                        tiers={eventData.feeTiers}
-                                        feeLabel={eventData.feeLabel}
-                                        feeIsFree={eventData.feeIsFree}
-                                        isDark={isDark}
-                                    />
-                                </div>
-                                ) : null}
                             </div>
 
                             {/* Mobile Event Details */}
@@ -1817,6 +1878,28 @@ function EventPage() {
                                 {renderOfficialWebsiteLink({ className: contactList.length > 0 ? 'mt-3' : '' })}
                             </section>
                             ) : null}
+
+                            {showDiscovery ? (
+                                <>
+                                    <SimilarCompetitionsSection
+                                        competition={eventData}
+                                        relatedFromApi={eventData?.relatedCompetitions}
+                                        festTitle={festName}
+                                        isDark={isDark}
+                                        hideFee={false}
+                                        className="px-4 mb-6"
+                                    />
+                                    <SimilarFestsSection
+                                        relatedFests={relatedFestsForDiscovery}
+                                        festType={festTypeForDiscovery}
+                                        isDark={isDark}
+                                        limit={2}
+                                        variant="blocks"
+                                        hideFee={false}
+                                        className="px-4 mb-8"
+                                    />
+                                </>
+                            ) : null}
                                                 </div>
                                             </div>
                                         </div>
@@ -1847,6 +1930,7 @@ function EventPage() {
                                         className="w-full h-full object-cover animate-detail-enter"
                                         loaderSize="hero"
                                         eager={showHeroImage}
+                                        placeholder={showHeroImage ? 'trophy' : 'muted'}
                                     />
                                         </div>
                                 </div>
@@ -2065,6 +2149,28 @@ function EventPage() {
                                                     )}
                             </div>
                         </div>
+
+                            {showDiscovery ? (
+                                <>
+                                    <SimilarCompetitionsSection
+                                        competition={eventData}
+                                        relatedFromApi={eventData?.relatedCompetitions}
+                                        festTitle={festName}
+                                        isDark={isDark}
+                                        hideFee={false}
+                                        className="mt-8"
+                                    />
+                                    <SimilarFestsSection
+                                        relatedFests={relatedFestsForDiscovery}
+                                        festType={festTypeForDiscovery}
+                                        isDark={isDark}
+                                        limit={2}
+                                        variant="blocks"
+                                        hideFee={false}
+                                        className="mt-8"
+                                    />
+                                </>
+                            ) : null}
                     </div>
                 </main>
 

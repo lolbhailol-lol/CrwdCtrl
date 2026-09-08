@@ -218,6 +218,8 @@ function sanitizePublicFest(fest) {
   const copy = clonePlain(fest);
   delete copy.scannerAccess;
   delete copy.createdBy;
+  // Raw pin IDs are admin-only; public payload uses resolved `relatedFests` instead
+  delete copy.relatedFestIds;
 
   if (copy.registration && typeof copy.registration === 'object') {
     copy.registration = stripRegistrationSecrets(copy.registration);

@@ -173,7 +173,7 @@ router.get('/competitions/:competitionId/public', async (req, res) => {
         const competition = await Competition.findById(found._id)
             .populate({
                 path: 'fest',
-                select: 'festName collegeName isApproved registration coverImage',
+                select: 'festName collegeName isApproved registration coverImage slug festType relatedFestIds',
                 options: { strictPopulate: false }
             })
             .lean();
@@ -307,6 +307,38 @@ router.get('/competitions/:competitionId/public', async (req, res) => {
         // Always expose feeTiers (empty = flat fee). Omitting the key breaks client coupon/quote UI.
         const { sanitizeCompetitionFeeTiers } = require('../utils/competitionFeeTiers');
         competitionData.feeTiers = sanitizeCompetitionFeeTiers(competitionData.feeTiers);
+
+        try {
+            const { resolveRelatedCompetitions } = require('../utils/relatedCompetitions');
+            competitionData.relatedCompetitions = await resolveRelatedCompetitions(competitionData);
+        } catch (relatedErr) {
+            console.warn('resolveRelatedCompetitions failed:', relatedErr?.message || relatedErr);
+            competitionData.relatedCompetitions = [];
+        }
+
+        // Sibling technical/cultural fests (e.g. MindSpark ↔ Techfest) for discovery under the comp
+        try {
+            const { resolveRelatedFests } = require('../utils/relatedFests');
+            const FestOrganizer = require('../model/fest_organizer_model');
+            const festId = competitionData.fest?._id || competitionData.fest;
+            let festDoc = competitionData.fest;
+            if (festId && (!festDoc?.festType || festDoc.relatedFestIds === undefined)) {
+                festDoc = await FestOrganizer.findById(festId)
+                    .select('festName festType relatedFestIds status isApproved')
+                    .lean();
+            }
+            if (festDoc?._id && festDoc.festType) {
+                competitionData.relatedFests = await resolveRelatedFests(festDoc, {
+                    limit: 2,
+                    seedCompetition: competitionData,
+                });
+            } else {
+                competitionData.relatedFests = [];
+            }
+        } catch (relatedFestErr) {
+            console.warn('resolveRelatedFests (competition) failed:', relatedFestErr?.message || relatedFestErr);
+            competitionData.relatedFests = [];
+        }
 
         console.log('🔍 Competition API Response:', {
             competitionId: competitionData._id,

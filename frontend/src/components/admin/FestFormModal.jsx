@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Upload, Plus, Trash2, Loader } from 'lucide-react';
 import { adminFetch, adminFetchJSON, getAdminToken } from '../../services/api/admin.api.js';
+import { publicFetchJSON } from '../../services/api/client.js';
 import GalleryImagesUploadField from './GalleryImagesUploadField';
 import { normalizeImageList } from '../../utils/uploadUrls';
 import { excludeCoverUrlsFromGallery } from '../../utils/coverImages';
@@ -694,7 +695,7 @@ const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onA
   );
 };
 
-export default function FestFormModal({ fest, onClose, onSaved, api }) {
+export default function FestFormModal({ fest, onClose, onSaved, api, allFests = [] }) {
   // STEP STATE: simple multi-step wizard instead of one very long form
   const [step, setStep] = useState(1);
   const plugin = getFestPlugin(fest);
@@ -745,7 +746,13 @@ export default function FestFormModal({ fest, onClose, onSaved, api }) {
     contacts: [],
     // Sponsors
     sponsors: [],
+    // Pinned related fests (shown first on public page; empty = auto by festType)
+    relatedFestIds: [],
   });
+  const [relatedFestSearch, setRelatedFestSearch] = useState('');
+  const [relatedFestOptions, setRelatedFestOptions] = useState(() =>
+    Array.isArray(allFests) ? allFests : []
+  );
   const [highlightInput, setHighlightInput] = useState('');
   const [tagInput, setTagInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -758,6 +765,33 @@ export default function FestFormModal({ fest, onClose, onSaved, api }) {
   useEffect(() => {
     setFormInitialized(false);
   }, [fest?._id]); // Reset when fest ID changes
+
+  // Prefer parent-provided fest list; otherwise load a slim public list for the picker
+  useEffect(() => {
+    if (Array.isArray(allFests) && allFests.length > 0) {
+      setRelatedFestOptions(allFests);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await adminFetchJSON('/admin/fests?limit=500').catch(() => null);
+        const list = Array.isArray(data?.fests) ? data.fests : Array.isArray(data) ? data : [];
+        if (!cancelled && list.length > 0) {
+          setRelatedFestOptions(list);
+          return;
+        }
+      } catch (_) { /* fall through */ }
+      try {
+        const data = await publicFetchJSON('/fests/all?limit=200');
+        const list = Array.isArray(data?.fests) ? data.fests : [];
+        if (!cancelled) setRelatedFestOptions(list);
+      } catch (_) {
+        if (!cancelled) setRelatedFestOptions([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [allFests]);
 
   const applyDefaultRegistrationFields = () => {
     const mk = (id, type, label, fieldName, opts = {}) => ({
@@ -1182,6 +1216,9 @@ export default function FestFormModal({ fest, onClose, onSaved, api }) {
           sponsorName: sponsor.name || '',
         })) : [],
         competitionsHeading: fest.competitionsHeading || "Competitions",
+        relatedFestIds: Array.isArray(fest.relatedFestIds)
+          ? fest.relatedFestIds.map((id) => String(id?._id || id)).filter(Boolean)
+          : [],
       });
       
       console.log('✅ Form state set with values:');
@@ -1459,6 +1496,8 @@ export default function FestFormModal({ fest, onClose, onSaved, api }) {
       })),
       // ✅ FIXED: Direct assignment without fallback to default
       competitionsHeading: form.competitionsHeading,
+
+      relatedFestIds: Array.isArray(form.relatedFestIds) ? form.relatedFestIds : [],
 
       // 📝 Registration Configuration
       registration: {
@@ -1810,6 +1849,104 @@ export default function FestFormModal({ fest, onClose, onSaved, api }) {
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
               />
+            </div>
+
+            <div className="space-y-3 pt-2 border-t border-gray-800">
+              <div>
+                <h4 className="text-sm font-semibold text-white">Related / similar fests</h4>
+                <p className="text-xs text-gray-400 mt-1">
+                  Pinned first on the public fest page. Leave empty to auto-match by fest type
+                  ({form.festType || 'cultural'}).
+                </p>
+              </div>
+              {(() => {
+                const selfId = fest?._id ? String(fest._id) : null;
+                const selected = new Set((form.relatedFestIds || []).map(String));
+                const q = relatedFestSearch.trim().toLowerCase();
+                const candidates = (relatedFestOptions || [])
+                  .filter((f) => f && f._id && String(f._id) !== selfId)
+                  .filter((f) => !form.festType || f.festType === form.festType || selected.has(String(f._id)))
+                  .filter((f) => {
+                    if (!q) return true;
+                    const hay = `${f.festName || ''} ${f.collegeName || ''}`.toLowerCase();
+                    return hay.includes(q);
+                  })
+                  .slice(0, 40);
+
+                const toggleRelated = (id) => {
+                  const key = String(id);
+                  setForm((prev) => {
+                    const cur = Array.isArray(prev.relatedFestIds) ? prev.relatedFestIds.map(String) : [];
+                    const next = cur.includes(key)
+                      ? cur.filter((x) => x !== key)
+                      : [...cur, key];
+                    return { ...prev, relatedFestIds: next };
+                  });
+                };
+
+                return (
+                  <>
+                    <input
+                      type="search"
+                      placeholder="Search fests by name or college…"
+                      className="w-full px-3 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                      value={relatedFestSearch}
+                      onChange={(e) => setRelatedFestSearch(e.target.value)}
+                    />
+                    {selected.size > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {(form.relatedFestIds || []).map((id) => {
+                          const row = (relatedFestOptions || []).find((f) => String(f._id) === String(id));
+                          return (
+                            <button
+                              key={String(id)}
+                              type="button"
+                              onClick={() => toggleRelated(id)}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs bg-[#0ECCEE]/15 text-[#0ECCEE] border border-[#0ECCEE]/40"
+                              title="Click to unpin"
+                            >
+                              {row?.festName || String(id).slice(-6)}
+                              <span aria-hidden>×</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                    <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-700 divide-y divide-gray-800">
+                      {candidates.length === 0 ? (
+                        <p className="px-3 py-4 text-xs text-gray-500">
+                          No other fests of this type yet. Auto-match will still run when more exist.
+                        </p>
+                      ) : (
+                        candidates.map((f) => {
+                          const id = String(f._id);
+                          const checked = selected.has(id);
+                          return (
+                            <label
+                              key={id}
+                              className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-[#1D1E20]"
+                            >
+                              <input
+                                type="checkbox"
+                                className="rounded border-gray-600 text-[#0ECCEE] focus:ring-[#0ECCEE]"
+                                checked={checked}
+                                onChange={() => toggleRelated(id)}
+                              />
+                              <span className="min-w-0 flex-1">
+                                <span className="block text-sm text-white truncate">{f.festName}</span>
+                                <span className="block text-[11px] text-gray-400 truncate">
+                                  {f.collegeName}
+                                  {f.festType ? ` · ${f.festType}` : ''}
+                                </span>
+                              </span>
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
           )}

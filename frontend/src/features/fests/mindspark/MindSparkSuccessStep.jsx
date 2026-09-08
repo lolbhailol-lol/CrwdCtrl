@@ -8,6 +8,7 @@ import CompetitionCoverImage from '../../../components/CompetitionCoverImage';
 import { getApiBaseUrl } from '../../../config/apiBase';
 import { authenticatedFetchJSON } from '../../../services/api/auth.api';
 import { useAuth } from '../../../context/AuthContext';
+import AlsoRegisterForSection from '../../../components/AlsoRegisterForSection';
 
 function normalizeLinks(list) {
   if (!Array.isArray(list)) return [];
@@ -266,6 +267,12 @@ export default function MindSparkSuccessStep({
               </div>
             </div>
           )}
+
+          <AlsoRegisterForSection
+            competition={competition}
+            fest={fest}
+            isDark={isDark}
+          />
 
           <button
             type="button"

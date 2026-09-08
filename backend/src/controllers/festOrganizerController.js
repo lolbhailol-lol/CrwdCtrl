@@ -19,6 +19,7 @@ const Competition = require('../model/competition_model');
 const { parseTicketPrice } = require('../utils/platformFee');
 const { findByIdOrSlug } = require('../utils/slug');
 const { sanitizePublicFest } = require('../utils/publicEntitySanitize');
+const { resolveRelatedFests } = require('../utils/relatedFests');
 
 const getCompetitionBaseFee = (registrationFee, feeAmount) => {
     const numericFeeAmount = parseTicketPrice(feeAmount);
@@ -321,6 +322,12 @@ exports.getPublicFestById = async (req, res) => {
         if (!fest) return res.status(404).json({ message: 'Fest not found' });
 
         const publicFest = sanitizePublicFest(fest);
+        try {
+            publicFest.relatedFests = await resolveRelatedFests(fest);
+        } catch (relatedErr) {
+            console.warn('resolveRelatedFests failed:', relatedErr?.message || relatedErr);
+            publicFest.relatedFests = [];
+        }
 
         publicFest.cached = false;
         publicFest.timestamp = new Date().toISOString();

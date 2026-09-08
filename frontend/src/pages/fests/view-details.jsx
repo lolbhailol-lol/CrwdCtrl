@@ -30,6 +30,7 @@ import { signalDetailPageReady } from '../../utils/bootSplash';
 import DetailPageLoader from '../../components/DetailPageLoader';
 import CompetitionCoverImage from '../../components/CompetitionCoverImage';
 import FestPublicLiveStrip from '../../components/FestPublicLiveStrip';
+import SimilarFestsSection from '../../components/SimilarFestsSection';
 import { getFestPlugin } from '../../features/fests/plugins';
 import { useInAppBack } from '../../hooks/useInAppBack';
 
@@ -103,6 +104,7 @@ function CompetitionScrollCard({
           src={comp.image}
           alt={compName}
           preset="cardSm"
+          placeholder="muted"
           containerClassName="absolute inset-0 w-full h-full"
         />
         <CardFavoriteButton isFavorite={isFavorite} onClick={onToggleFavorite} />
@@ -444,6 +446,7 @@ function EventDetailsPage() {
         competition: buildCompetitionNavPayload(competition, pageEvent),
         eventData: pageEvent,
         skipDemoLoad: true,
+        backTo: `${location.pathname}${location.search || ''}`,
       },
     });
   };
@@ -1031,6 +1034,14 @@ function EventDetailsPage() {
                 )}
               </div>
             </div>
+
+            <SimilarFestsSection
+              relatedFests={pageEvent.relatedFests}
+              festType={pageEvent.type || pageEvent.category}
+              isDark={isDark}
+              limit={4}
+              className="mt-8 mb-4"
+            />
           </div>
         </div>
       </div>
@@ -1401,6 +1412,14 @@ function EventDetailsPage() {
             </div>
           </section>
         )}
+
+        <SimilarFestsSection
+          relatedFests={pageEvent.relatedFests}
+          festType={pageEvent.type || pageEvent.category}
+          isDark={isDark}
+          limit={4}
+          className="mb-8 px-4"
+        />
       </div>
 
       {/* Gallery Lightbox */}
