@@ -433,9 +433,9 @@ export default function EventCommunityEventPage() {
                                             <div aria-hidden className="absolute inset-0 bg-[#1A1B1D]" />
                                         )}
                                         <img
-                                        src={getImageUrl(img, { preset: 'eventHeroFit' })}
+                                        src={getImageUrl(img, { preset: 'hero' })}
                                         alt={event.title}
-                                        className={`absolute inset-0 w-full h-full object-contain content-image pointer-events-none select-none ${
+                                        className={`absolute inset-0 w-full h-full object-cover object-top content-image pointer-events-none select-none ${
                                             i === 0 && !heroLoaded ? 'opacity-0' : 'opacity-100'
                                         }`}
                                         draggable={false}
