@@ -1,5 +1,6 @@
 const { isConfigured, getAnalyticsSummary } = require('./googleAnalyticsService');
 const { rangeToGaDates } = require('./userActivityService');
+const { describeGaError } = require('../utils/gaErrorMessage');
 
 async function fetchGaActivityForRange(range) {
     if (!isConfigured()) {
@@ -24,10 +25,11 @@ async function fetchGaActivityForRange(range) {
             topEvents: summary.topEvents || [],
         };
     } catch (error) {
-        console.error('User activity GA fetch error:', error?.message || error);
+        const safeMessage = describeGaError(error);
+        console.error('User activity GA fetch error:', safeMessage);
         return {
             configured: true,
-            error: error?.message || 'Failed to fetch Google Analytics data',
+            error: safeMessage,
             range: { startDate, endDate },
             totals: null,
             daily: [],

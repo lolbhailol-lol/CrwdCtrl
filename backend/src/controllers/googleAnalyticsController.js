@@ -3,6 +3,7 @@ const {
   getAnalyticsSummary,
   getRealtimeActiveUsers,
 } = require('../services/googleAnalyticsService');
+const { describeGaError } = require('../utils/gaErrorMessage');
 
 // Friendly hint shown in the admin panel when GA4 isn't wired up yet.
 const SETUP_STEPS = [
@@ -13,21 +14,6 @@ const SETUP_STEPS = [
   'In GA4 Admin → Property Access Management, grant the service account email (GOOGLE_SERVICE_ACCOUNT_EMAIL) at least "Viewer" access.',
   'Restart the backend — metrics will appear here automatically.',
 ];
-
-// Translate GA Data API errors into a readable, actionable message.
-const describeError = (error) => {
-  const msg = error?.errors?.[0]?.message || error?.message || 'Unknown error';
-  if (/permission|caller does not have|403/i.test(msg)) {
-    return 'The service account does not have access to this GA4 property. Grant it "Viewer" access in GA4 Admin → Property Access Management.';
-  }
-  if (/has not been used|disabled|Data API/i.test(msg)) {
-    return 'The Google Analytics Data API is not enabled for this project. Enable it in Google Cloud Console.';
-  }
-  if (/property|404|invalid/i.test(msg)) {
-    return 'Invalid GA4_PROPERTY_ID. Use the numeric Property ID from GA4 Admin → Property Settings.';
-  }
-  return msg;
-};
 
 // GET /api/analytics/google?days=28
 const getGoogleAnalytics = async (req, res) => {
@@ -41,10 +27,10 @@ const getGoogleAnalytics = async (req, res) => {
     const summary = await getAnalyticsSummary({ days, startDate, endDate });
     res.json(summary);
   } catch (error) {
-    console.error('Google Analytics summary error:', error?.message || error);
+    console.error('Google Analytics summary error:', describeGaError(error));
     res.status(502).json({
       configured: true,
-      error: describeError(error),
+      error: describeGaError(error),
       setupSteps: SETUP_STEPS,
     });
   }
@@ -60,8 +46,8 @@ const getGoogleAnalyticsRealtime = async (req, res) => {
     const activeUsers = await getRealtimeActiveUsers();
     res.json({ configured: true, activeUsers });
   } catch (error) {
-    console.error('Google Analytics realtime error:', error?.message || error);
-    res.status(502).json({ configured: true, activeUsers: 0, error: describeError(error) });
+    console.error('Google Analytics realtime error:', describeGaError(error));
+    res.status(502).json({ configured: true, activeUsers: 0, error: describeGaError(error) });
   }
 };
 

@@ -97,8 +97,21 @@ const getAnalyticsSummary = async ({
     ensurePageViewPathsMigrated().catch(() => {});
   }
 
-  const run = (requestBody) =>
-    client.properties.runReport({ property, requestBody });
+  const run = async (requestBody, attempt = 0) => {
+    try {
+      return await client.properties.runReport({ property, requestBody });
+    } catch (error) {
+      const status = Number(error?.code || error?.response?.status || 0);
+      const msg = String(error?.message || '');
+      const transient = status === 502 || status === 503 || status === 504
+        || /<!DOCTYPE|<html|Error 502|ECONNRESET|ETIMEDOUT|socket hang up/i.test(msg);
+      if (transient && attempt < 1) {
+        await new Promise((r) => setTimeout(r, 800));
+        return run(requestBody, attempt + 1);
+      }
+      throw error;
+    }
+  };
 
   const [
     totalsRes,

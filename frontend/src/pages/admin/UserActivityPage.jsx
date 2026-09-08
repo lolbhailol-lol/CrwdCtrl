@@ -370,7 +370,9 @@ export default function UserActivityPage() {
                         <p className="text-xs text-emerald-400 mt-1">Showing Google Analytics data for this date range</p>
                     )}
                     {overview?.ga?.error && (
-                        <p className="text-xs text-amber-400 mt-1">GA error: {overview.ga.error}</p>
+                        <p className="text-xs text-amber-400 mt-1 max-w-xl">
+                            {overview.ga.error}
+                        </p>
                     )}
                     {tab === 'overview' && headerSummary && (
                         <p className="text-xs text-gray-600 mt-1">{headerSummary}</p>
