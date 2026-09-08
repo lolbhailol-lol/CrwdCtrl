@@ -14,6 +14,7 @@ export const TREK_DETAIL_ICON_OPTIONS = [
     { id: 'weather', label: 'Weather' },
     { id: 'ice', label: 'Ice / Ice bath' },
     { id: 'star', label: 'Highlight' },
+    { id: 'dress', label: 'Dress code' },
     { id: 'info', label: 'Info' },
     { id: 'default', label: 'Default' },
 ];
@@ -51,6 +52,7 @@ export const EVENT_DETAIL_BOX_PRESETS = [
     { label: 'Duration', value: '', icon: 'clock' },
     { label: 'Max People', value: '', icon: 'people' },
     { label: 'Age Limit', value: '', icon: 'age' },
+    { label: 'Dress Code', value: '', icon: 'dress' },
 ];
 
 const EVENT_MAP_SIDE_RULES = [
@@ -95,6 +97,19 @@ export function isBoardMeetupEvent(event) {
     return /board\s*game|boardgame|board\s*meetup|board\s*night|board\s*club/.test(blob);
 }
 
+/** Cafe / coffee hangouts — map side shows Date · Time · Venue (not Sport / Café fee cards). */
+export function isCafeHangoutEvent(event) {
+    const display = String(event?.displayType || '').trim();
+    if (/^caf[eé]$/i.test(display) || /^hangout$/i.test(display)) return true;
+    const blob = [
+        event?.title,
+        event?.displayType,
+        event?.runCategory,
+        event?.description,
+    ].filter(Boolean).join(' ').toLowerCase();
+    return /caf[eé]\s*hang|hangout|coffee\s*(social|meetup|hang)/.test(blob);
+}
+
 function formatCommunityEventDate(value) {
     if (!value) return '';
     const d = new Date(value);
@@ -119,11 +134,15 @@ export function eventMapSideFacts(event) {
     const boxes = normalizeRunDetailBoxes(event.detailBoxes, event);
     const findBox = (re) => boxes.find((box) => re.test(String(box.label || '').trim()));
 
-    if (isBoardMeetupEvent(event)) {
+    if (isBoardMeetupEvent(event) || isCafeHangoutEvent(event)) {
         const date = String(findBox(/^(date)$/i)?.value || formatCommunityEventDate(event.eventDate) || '').trim();
-        const time = String(
-            findBox(/^(time|timing|event timing)$/i)?.value || event.reportingTime || '',
-        ).trim();
+        const timeBox = findBox(/^(time|timing|event timing)$/i);
+        let time = String(timeBox?.value || '').trim();
+        if (!time) {
+            const start = String(event.reportingTime || '').trim();
+            const end = String(event.returnTime || '').trim();
+            time = start && end ? `${start} – ${end}` : (start || end);
+        }
         const venue = String(
             findBox(/^(venue|location)$/i)?.value || displayVenueName(event) || '',
         ).trim();
@@ -201,6 +220,7 @@ const LABEL_ICON_RULES = [
     { match: /game|sport|badminton|session/i, icon: 'star' },
     { match: /weather|rain|season/i, icon: 'weather' },
     { match: /ice|cold.?plunge|cryo|snow/i, icon: 'ice' },
+    { match: /dress|attire|outfit|wear|clothing/i, icon: 'dress' },
 ];
 
 export function guessIconForLabel(label = '') {

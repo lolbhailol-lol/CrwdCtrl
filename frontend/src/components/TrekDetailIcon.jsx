@@ -129,6 +129,18 @@ const ICONS = {
             <path d="M12 3l2.6 5.8L21 10l-4.5 4.2L18 21l-6-3.4L6 21l1.5-6.8L3 10l6.4-1.2L12 3z" fill="#FDE047" stroke="#EAB308" strokeWidth="1" />
         </svg>
     ),
+    dress: ({ size }) => (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+            <path
+                d="M9 4.5h6l1.8 2.2 2.2-.6v2.4l-2.4 1.2V20H7V9.7L4.6 8.5V6.1l2.2.6L9 4.5z"
+                fill="#1F2937"
+            />
+            <path d="M9 4.5h6l-1.2 2.4H10.2L9 4.5z" fill="#111827" />
+            <path d="M10.2 6.9h3.6v1.4H10.2V6.9z" fill="#EF4444" />
+            <path d="M12 8.3v11.2" stroke="#DC2626" strokeWidth="1.4" strokeLinecap="round" opacity="0.85" />
+            <circle cx="12" cy="7.4" r="0.7" fill="#FCA5A5" />
+        </svg>
+    ),
     info: ({ size }) => (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
             <circle cx="12" cy="12" r="9" fill="#E0F2FE" stroke="#0284C7" strokeWidth="1.2" />

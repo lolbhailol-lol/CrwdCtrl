@@ -1,6 +1,6 @@
 const ALLOWED_ICONS = new Set([
     'people', 'sun', 'moon', 'map-pin', 'age', 'fitness', 'calendar',
-    'info', 'mountain', 'route', 'tent', 'food', 'weather', 'clock', 'star', 'default',
+    'info', 'mountain', 'route', 'tent', 'food', 'weather', 'clock', 'star', 'dress', 'ice', 'default',
 ]);
 
 function sanitizeTrekDetailBoxes(list) {
