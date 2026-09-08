@@ -28,6 +28,8 @@ import { organizerHubCopy } from '../../utils/listingHubCopy';
 import { usePageContentLoading } from '../../hooks/usePageContentLoading';
 import InAppOpenChromeGate, { shouldShowInAppChromeGate } from '../../components/InAppOpenChromeGate';
 import { getExternalBrowserTargetUrl } from '../../utils/openInExternalBrowser';
+import { isInAppBrowser } from '../../config/apiBase';
+import { signalDetailPageReady } from '../../utils/bootSplash';
 
 const RUN_DETAIL_CACHE_PREFIX = 'crwdctrl_event_community_detail_v18_';
 const readRunDetailCache = (key) => {
@@ -208,9 +210,12 @@ export default function EventCommunityEventPage() {
         }
 
         const controller = new AbortController();
+        const inApp = isInAppBrowser();
         publicFetchJSONRetry(`/sports/${encodeURIComponent(eventId)}`, {
             signal: controller.signal,
             ...DETAIL_FETCH_OPTS,
+            retries: inApp ? 2 : DETAIL_FETCH_OPTS.retries,
+            timeout: inApp ? 12000 : DETAIL_FETCH_OPTS.timeout,
             headers: getBearerAuthHeaders(resolveAuthToken(authToken)),
         })
             .then((res) => {
@@ -323,6 +328,23 @@ export default function EventCommunityEventPage() {
     const showPageLoader = (loading && !event)
         || (Boolean(event) && Boolean(id) && !entityMatchesRouteParam(event, id, ['title', 'name']));
     usePageContentLoading(showPageLoader);
+
+    // Never leave WhatsApp stuck on the 3D loader if the network hangs
+    useEffect(() => {
+        if (!showPageLoader) return undefined;
+        const ms = isInAppBrowser() ? 16000 : 40000;
+        const timer = window.setTimeout(() => {
+            setLoading(false);
+            setFetchingDetail(false);
+            if (!eventRef.current) setLoadError((prev) => prev || 'network');
+        }, ms);
+        return () => window.clearTimeout(timer);
+    }, [showPageLoader]);
+
+    useEffect(() => {
+        if (showPageLoader || !event) return;
+        signalDetailPageReady();
+    }, [showPageLoader, event]);
 
     if (showPageLoader) {
         return <DetailPageLoader label="Loading event" variant="event" />;

@@ -8,7 +8,9 @@ export function lazyWithRetry(importFn) {
             return await importFn();
         } catch (error) {
             if (isChunkLoadError(error) && reloadOnceForChunkError()) {
-                return new Promise(() => {});
+                // Reload kicked off — wait briefly, then fail (never hang Suspense forever
+                // in WhatsApp / in-app browsers where reload can be ignored).
+                await new Promise((resolve) => setTimeout(resolve, 4000));
             }
             throw error;
         }

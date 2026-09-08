@@ -89,7 +89,8 @@ export function shouldShowBootSplash() {
 
     try {
       const ua = navigator.userAgent || '';
-      if (/Instagram|FBAN|FBAV|FB_IAB|Messenger/i.test(ua)) {
+      // In-app browsers stick on the HTML splash — skip like Instagram
+      if (/Instagram|FBAN|FBAV|FB_IAB|Messenger|WhatsApp/i.test(ua)) {
         return false;
       }
     } catch { /* ignore */ }

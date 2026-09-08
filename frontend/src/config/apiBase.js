@@ -50,12 +50,15 @@ function envApiBase() {
 
 /**
  * Single source of truth for API base URL.
- * Prefer explicit VITE_API_BASE_URL / Railway when set — same-origin `/api` only works
- * when a reverse proxy exists (Vercel rewrite or frontend Caddyfile). Without it,
- * POST /api returns empty 405 HTML and payment breaks with "Unexpected end of JSON input".
- * Same-origin remains first in getApiBaseCandidates() for Instagram-safe retries.
+ * WhatsApp / Instagram: prefer same-origin `/api` (Caddy proxy) — direct Railway
+ * CORS often hangs those WebViews on the event “Loading…” screen.
  */
 export function getApiBaseUrl() {
+  if (typeof window !== 'undefined' && isInAppBrowser()) {
+    const sameOrigin = getSameOriginApiBase();
+    if (sameOrigin) return sameOrigin;
+  }
+
   const fromEnv = envApiBase();
   if (fromEnv) return fromEnv;
 
@@ -69,25 +72,34 @@ export function getApiBaseUrl() {
 
 /**
  * Ordered bases for resilient fetches (login / public / organizer / payments).
- * Railway direct first (always works with CORS), then same-origin `/api`
- * (Instagram-safe once frontend Caddy proxies to the backend).
+ * In-app browsers (WhatsApp / Instagram): same-origin `/api` first — they often
+ * hang or block CORS to railway.app and leave detail pages on “Loading…” forever.
+ * Normal browsers: Railway env URL first, then same-origin fallback.
  */
 export function getApiBaseCandidates() {
   const primary = getApiBaseUrl();
   const siteApi = getSameOriginApiBase();
   const fromEnv = envApiBase();
-  const bases = [];
+  const wwwApi = typeof window !== 'undefined' && window.location.hostname === 'www.crwdctrl.in'
+    ? `${window.location.origin}/api`
+    : null;
 
-  // Direct Railway API first — avoids empty 405 from a missing /api proxy
+  if (typeof window !== 'undefined' && isInAppBrowser()) {
+    return [...new Set([
+      siteApi,
+      wwwApi,
+      fromEnv,
+      primary,
+      PRODUCTION_API_BASE_URL,
+    ].filter(Boolean))];
+  }
+
+  const bases = [];
   if (fromEnv) bases.push(fromEnv);
   if (primary && !bases.includes(primary)) bases.push(primary);
   if (!bases.includes(PRODUCTION_API_BASE_URL)) bases.push(PRODUCTION_API_BASE_URL);
-  // Same-origin last so Instagram can still succeed when Caddy /api proxy is live
   if (siteApi && !bases.includes(siteApi)) bases.push(siteApi);
-  if (typeof window !== 'undefined' && window.location.hostname === 'www.crwdctrl.in') {
-    const wwwApi = `${window.location.origin}/api`;
-    if (!bases.includes(wwwApi)) bases.push(wwwApi);
-  }
+  if (wwwApi && !bases.includes(wwwApi)) bases.push(wwwApi);
 
   return [...new Set(bases.filter(Boolean))];
 }

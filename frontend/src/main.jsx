@@ -13,6 +13,7 @@ import { initGlobalErrorHandlers } from './utils/chunkError'
 import { dismissBootOverlays } from './utils/dismissBootOverlays'
 import { isSafariBrowser } from './utils/safariBrowser'
 import { preloadCategoryNavIcons } from './constants/categoryNavIcons'
+import { isInAppBrowser } from './config/apiBase'
 import { SpeedInsights } from '@vercel/speed-insights/react'
 
 initThemeClass()
@@ -48,7 +49,8 @@ if (!shouldShowBootSplash()) {
 // PWA service worker — web only (not Capacitor native shell)
 if (import.meta.env.PROD && !isNativeApp()) {
   let swRefreshing = false;
-  if ('serviceWorker' in navigator) {
+  const skipSwReload = isInAppBrowser();
+  if ('serviceWorker' in navigator && !skipSwReload) {
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (swRefreshing) return;
       swRefreshing = true;
@@ -60,7 +62,8 @@ if (import.meta.env.PROD && !isNativeApp()) {
     registerSW({
       immediate: true,
       onNeedRefresh() {
-        if (swRefreshing) return;
+        // WhatsApp / Instagram WebViews can loop reload forever on SW updates
+        if (skipSwReload || swRefreshing) return;
         swRefreshing = true;
         window.location.reload();
       },
