@@ -512,7 +512,9 @@ const buildCompetitionData = (compData, options = {}) => {
                 ? roundsObject.list
                 : roundsSource.map((round) => round?.title || round?.description).filter(Boolean),
             roundsList,
-        }
+        },
+        slug: compData.slug || '',
+        name: compData.name || compData.title || '',
     };
 };
 
@@ -630,11 +632,11 @@ function EventPage() {
         }
         return !resolvePaintPackage(competitionId, location);
     });
-    const [warmNav, setWarmNav] = useState(() =>
-        Boolean(
-            isWarmCompetitionLocationState(location.state) || peekWarmCompetitionNav(),
-        ),
+    const warmNavRef = useRef(
+        Boolean(isWarmCompetitionLocationState(location.state) || peekWarmCompetitionNav()),
     );
+    const [warmNav, setWarmNav] = useState(() => warmNavRef.current);
+    const canonicalFixRef = useRef(''); // path we already tried to replace to (prevents redirect loops)
     const [openingRegister, setOpeningRegister] = useState(false);
     const openingRegisterRef = useRef(false);
     const { isDark } = useDarkMode();
@@ -669,7 +671,12 @@ function EventPage() {
     useLayoutEffect(() => {
         const warm =
             isWarmCompetitionLocationState(location.state) || peekWarmCompetitionNav();
-        if (warm) setWarmNav(true);
+        if (warm) {
+            warmNavRef.current = true;
+            setWarmNav(true);
+        }
+        // Allow one fresh canonical fix per route id
+        canonicalFixRef.current = '';
 
         let pack = resolvePaintPackage(competitionId, location);
         if (!pack && warm && location.state?.competition) {
@@ -680,7 +687,10 @@ function EventPage() {
         fetchGenRef.current += 1;
         setCompetitionData(pack);
         setPageReady(Boolean(pack) || warm);
-        setHoldLoader(!warm && !pack);
+        setHoldLoader((prev) => {
+            const next = !warm && !pack;
+            return prev === next ? prev : next;
+        });
         setOpeningRegister(false);
         openingRegisterRef.current = false;
         setFetchDone(false);
@@ -690,17 +700,24 @@ function EventPage() {
         setShowFullAbout(false);
         setShowShareMenu(false);
         return undefined;
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- location.state read for paint seed; competitionId is the switch key
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [competitionId]);
 
     useEffect(() => {
-        if (warmNav || location.state?.skipDemoLoad || resolvePaintPackage(competitionId, location)) {
-            setHoldLoader(false);
+        if (warmNavRef.current || warmNav || location.state?.skipDemoLoad) {
+            setHoldLoader((prev) => (prev === false ? prev : false));
             return undefined;
         }
-        const timer = window.setTimeout(() => setHoldLoader(false), COMPETITION_DEMO_LOAD_MS);
+        if (resolvePaintPackage(competitionId, location)) {
+            setHoldLoader((prev) => (prev === false ? prev : false));
+            return undefined;
+        }
+        const timer = window.setTimeout(() => {
+            setHoldLoader((prev) => (prev === false ? prev : false));
+        }, COMPETITION_DEMO_LOAD_MS);
         return () => window.clearTimeout(timer);
-    }, [competitionId, location.state?.skipDemoLoad, warmNav]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [competitionId, warmNav]);
 
     // Fetch competition data from backend API
     useEffect(() => {
@@ -843,16 +860,26 @@ function EventPage() {
 
     useEffect(() => {
         if (!competitionData) return;
-        const canonical = competitionPath(competitionData);
+        // URL already identifies this competition — never replace (stops slug ping-pong loops)
+        if (competitionId && entityMatchesRouteParam(competitionData, competitionId, ['name', 'title'])) {
+            return;
+        }
+        const canonical = competitionPath({
+            ...competitionData,
+            slug: competitionData.slug,
+            name: competitionData.name || competitionData.title,
+            title: competitionData.title || competitionData.name,
+        });
         if (!canonical) return;
         if (window.location.pathname === canonical) return;
+        if (canonicalFixRef.current === canonical) return;
+        canonicalFixRef.current = canonical;
         navigate(`${canonical}${window.location.search || ''}`, {
             replace: true,
             state: location.state,
         });
-        // Only when the competition identity/title settles — not on every location.state identity change
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [competitionData?.id, competitionData?.title, navigate]);
+    }, [competitionData?.id, competitionData?.title, competitionData?.slug, competitionId, navigate]);
 
     // Check for login modal parameter
     useEffect(() => {
