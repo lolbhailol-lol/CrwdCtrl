@@ -5,6 +5,7 @@ import {
   isStalePendingPayment,
   pathsMatchPendingReturn,
 } from './deepLinks';
+import { isHomeHubPath } from './homeShellReady';
 
 /** Skip splash when returning from Cashfree — resume payment immediately */
 function hasPaymentReturnContext() {
@@ -45,6 +46,28 @@ export function isSharedContentDeepLink(pathname = '') {
     || /^\/campus-hunt(\/|$)/.test(path)
     || /^\/campus-hunt-volunteer(\/|$)/.test(path)
   );
+}
+
+/** Google / Bing search opens — HTML splash stacks on the React 3D loader and looks stuck. */
+export function isSearchEngineEntry() {
+  try {
+    if (typeof window === 'undefined') return false;
+    const ua = navigator.userAgent || '';
+    if (/Googlebot|Google-InspectionTool|AdsBot-Google|DuplexWeb-Google|GSA\/|GoogleApp/i.test(ua)) {
+      return true;
+    }
+    const ref = document.referrer || '';
+    if (/google\.(com|co\.|com\.)|bing\.com|duckduckgo\.com|yahoo\.com/i.test(ref)) {
+      return true;
+    }
+    const params = new URLSearchParams(window.location.search || '');
+    if (params.has('gclid') || params.has('gbraid') || params.has('wbraid')) return true;
+    const utm = String(params.get('utm_source') || '').toLowerCase();
+    if (utm === 'google' || utm === 'bing' || utm === 'organic') return true;
+    return false;
+  } catch {
+    return false;
+  }
 }
 
 /** Skip splash during OAuth / email verification returns */
@@ -90,21 +113,26 @@ export function shouldShowBootSplash() {
     try {
       const ua = navigator.userAgent || '';
       // In-app browsers stick on the HTML splash — skip like Instagram
-      if (/Instagram|FBAN|FBAV|FB_IAB|Messenger|WhatsApp/i.test(ua)) {
+      if (/Instagram|FBAN|FBAV|FB_IAB|Messenger|WhatsApp|Line\/|Telegram|Twitter|LinkedInApp|Snapchat|Pinterest|TikTok|BytedanceWebview|MicroMessenger/i.test(ua)) {
         return false;
       }
     } catch { /* ignore */ }
 
+    if (isSearchEngineEntry()) return false;
+
+    const path = window.location.pathname || '';
+    // Home hub + detail pages already show a React 3D loader — a second splash sticks/flashes
+    if (isHomeHubPath(path) || isSharedContentDeepLink(path)) return false;
+
     const [nav] = performance.getEntriesByType?.('navigation') ?? [];
     const isBackForward = nav?.type === 'back_forward' || performance.navigation?.type === 2;
 
-    if (/^\/campus-hunt(\/|$)/.test(window.location.pathname || '')
-      || /^\/campus-hunt-volunteer(\/|$)/.test(window.location.pathname || '')) {
+    if (/^\/campus-hunt(\/|$)/.test(path)
+      || /^\/campus-hunt-volunteer(\/|$)/.test(path)) {
       return false;
     }
 
     if (isBackForward) return false;
-    if (isSharedContentDeepLink()) return true;
     if (nav?.type === 'reload' || nav?.type === 'navigate') return true;
 
     const legacyType = performance.navigation?.type;

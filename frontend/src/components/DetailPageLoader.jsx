@@ -163,10 +163,21 @@ export function HomeHubLoadingScreen() {
   return createPortal(node, document.body);
 }
 
+export function loaderVariantForPath(pathname = '') {
+  const path = String(pathname || '');
+  if (/\/book(\/|$)|\/booking|\/register/.test(path)) return 'booking';
+  if (/\/events\/community-event(\/|$)/.test(path) || /^\/events\/[^/]+/.test(path)) return 'event';
+  if (/\/sports\/run(\/|$)/.test(path) && !/run-club/.test(path)) return 'run';
+  if (/\/trek(\/|$)/.test(path) || /\/treks\//.test(path)) return 'trek';
+  if (/\/view-details(\/|$)/.test(path) || /fest/.test(path)) return 'fest';
+  return 'brand';
+}
+
 /** Suspense / lazy-route fallback */
 export function RouteLoadingFallback({ className = '' }) {
+  const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
   if (typeof window !== 'undefined') {
-    if (isHomeHubPath(window.location.pathname)) return null;
+    if (isHomeHubPath(pathname)) return null;
     // Another full-screen 3D is already up — don't stack boot + route + detail loaders
     const body = document.body;
     if (
@@ -178,13 +189,14 @@ export function RouteLoadingFallback({ className = '' }) {
     }
   }
 
+  const variant = loaderVariantForPath(pathname);
   const node = (
     <div
       className={`route-loading-fallback-root fixed inset-0 z-100050 flex items-center justify-center ${shellBgClass()} ${className}`.trim()}
       aria-busy="true"
       aria-label="Loading page"
     >
-      <DetailLoader3DIcon variant="brand" size="md" tone={readShellDark() ? 'dark' : 'light'} />
+      <DetailLoader3DIcon variant={variant} size="md" tone={readShellDark() ? 'dark' : 'light'} />
     </div>
   );
 

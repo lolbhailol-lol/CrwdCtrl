@@ -26,6 +26,7 @@ import { DETAIL_FETCH_OPTS, classifyDetailLoadError } from '../../utils/detailPa
 import { trackBookNowClick } from '../../services/analyticsService';
 import { organizerHubCopy } from '../../utils/listingHubCopy';
 import { usePageContentLoading } from '../../hooks/usePageContentLoading';
+import { useDetailLoaderFailsafe } from '../../hooks/useDetailLoaderFailsafe';
 import InAppOpenChromeGate, { shouldShowInAppChromeGate } from '../../components/InAppOpenChromeGate';
 import { getExternalBrowserTargetUrl } from '../../utils/openInExternalBrowser';
 import { isInAppBrowser } from '../../config/apiBase';
@@ -72,7 +73,14 @@ function isHydratedEvent(ev) {
     if (!hasPricingSnapshot(ev)) return false;
     const desc = typeof ev.description === 'string' ? ev.description.trim() : '';
     const overview = typeof ev.overview === 'string' ? ev.overview.trim() : '';
-    return Boolean(desc || overview || ev.formSchema || ev.runClub || (ev.venue != null && String(ev.venue).trim()));
+    const hasBody = Boolean(desc || overview || ev.formSchema || ev.runClub);
+    if (!hasBody) return false;
+    const hasDetailValues = Array.isArray(ev.detailBoxes)
+        && ev.detailBoxes.some((box) => String(box?.value || '').trim());
+    const hasTerms = Array.isArray(ev.termsAndConditions) && ev.termsAndConditions.length > 0;
+    const hasClub = Boolean(ev.runClub && (ev.runClub.name || ev.runClub._id || ev.runClub.id));
+    // Home/listing cards often send a title, cover, and a one-line description — not a real page
+    return hasDetailValues || hasTerms || hasClub || Boolean(ev.formSchema);
 }
 
 function pickRunFallback(seeded, cachedEvent, routeParam, keepEvent = null) {
@@ -192,8 +200,9 @@ export default function EventCommunityEventPage() {
                 ? fallback
                 : null);
 
-        if (paintable) {
-            setEvent(paintable);
+        // Keep the 3D event loader up until a real hydrated payload exists.
+        // Listing/nav stubs (Mafia Night from home scroll) flash demo boxes otherwise.
+        if (existingReady) {
             setLoading(false);
             setFetchingDetail(true);
         } else {
@@ -325,21 +334,19 @@ export default function EventCommunityEventPage() {
         });
     }, [event, id, navigate, location.pathname, location.search]);
 
-    const showPageLoader = (loading && !event)
-        || (Boolean(event) && Boolean(id) && !entityMatchesRouteParam(event, id, ['title', 'name']));
+    const showPageLoader = Boolean(id) && !loadError && (
+        !isHydratedEvent(event)
+        || !entityMatchesRouteParam(event, id, ['title', 'name'])
+    );
     usePageContentLoading(showPageLoader);
-
-    // Never leave WhatsApp / slow mobile stuck on the 3D loader if the network hangs
-    useEffect(() => {
-        if (!showPageLoader) return undefined;
-        const ms = isInAppBrowser() ? 8000 : 12000;
-        const timer = window.setTimeout(() => {
-            setLoading(false);
-            setFetchingDetail(false);
-            if (!eventRef.current) setLoadError((prev) => prev || 'network');
-        }, ms);
-        return () => window.clearTimeout(timer);
-    }, [showPageLoader]);
+    useDetailLoaderFailsafe(showPageLoader, () => {
+        setLoading(false);
+        setFetchingDetail(false);
+        if (!isHydratedEvent(eventRef.current)) {
+            setEvent(null);
+            setLoadError((prev) => prev || 'network');
+        }
+    });
 
     useEffect(() => {
         if (showPageLoader || !event) return;

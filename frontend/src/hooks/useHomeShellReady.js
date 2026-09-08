@@ -1,6 +1,7 @@
 import { useLayoutEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
+    hasHomeShellReadyOnce,
     isHomeHubPath,
     isHomeShellReady,
     resetHomeShellReady,
@@ -20,6 +21,12 @@ export function useHomeShellReady() {
             return undefined;
         }
 
+        if (hasHomeShellReadyOnce() || isHomeShellReady()) {
+            setHomeShellReady(true);
+            setReady(true);
+            return undefined;
+        }
+
         setHomeShellReady(false);
         setReady(false);
 
@@ -29,7 +36,7 @@ export function useHomeShellReady() {
         const failSafe = window.setTimeout(() => {
             setHomeShellReady(true);
             setReady(true);
-        }, 12000);
+        }, 4000);
         return () => {
             window.removeEventListener('crwdctrl:home-ready', sync);
             window.clearTimeout(failSafe);

@@ -68,12 +68,20 @@
           var nav = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
           isReload = (nav && nav.type === 'reload') || (performance.navigation && performance.navigation.type === 1);
         } catch (e) {}
-        // Instagram / FB / WhatsApp: never show boot splash — it commonly sticks
-        var stuckSplash = /Instagram|FBAN|FBAV|FB_IAB|Messenger|WhatsApp/i.test(ua);
+        var fromSearch = false;
+        try {
+          fromSearch = /Googlebot|Google-InspectionTool|GSA\/|GoogleApp/i.test(ua)
+            || /google\.|bing\.com|duckduckgo\.com/i.test(document.referrer || '');
+        } catch (e2) {}
+        var homeHub = (p === '/' || p === '/dashboard');
+        // Instagram / FB / WhatsApp / Google / home / deep links: HTML splash stacks on React loaders
+        var stuckSplash = /Instagram|FBAN|FBAV|FB_IAB|Messenger|WhatsApp|Line\/|Telegram|Twitter|LinkedInApp|Snapchat|Pinterest|TikTok|BytedanceWebview|MicroMessenger/i.test(ua)
+          || fromSearch
+          || homeHub
+          || deep;
         if (stuckSplash || hunt) {
           document.documentElement.classList.add('skip-boot-splash');
         } else if (deep && !isReload) {
-          // Shared fest links (external browser): tiny logo, then the page
           document.documentElement.classList.add('short-boot-splash');
         }
         if (p === '/' || p === '/dashboard') {

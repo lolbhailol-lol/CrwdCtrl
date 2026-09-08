@@ -1,12 +1,19 @@
 /** Home hub shell — hide footer / bottom nav until Dashboard finishes first paint. */
 let homeShellReady = false;
+/** After the first successful home paint this session, don't full-screen-load again. */
+let homeShellReadyOnce = false;
 
 export function isHomeShellReady() {
     return homeShellReady;
 }
 
+export function hasHomeShellReadyOnce() {
+    return homeShellReadyOnce;
+}
+
 export function setHomeShellReady(next) {
     homeShellReady = Boolean(next);
+    if (homeShellReady) homeShellReadyOnce = true;
     if (typeof document !== 'undefined') {
         if (homeShellReady) {
             delete document.documentElement.dataset.homeHubLoading;
@@ -27,7 +34,7 @@ export function setHomeShellReady(next) {
 
 /** Clear home-hub loading chrome when leaving `/` or `/dashboard`. */
 export function resetHomeShellReady() {
-    homeShellReady = false;
+    homeShellReady = homeShellReadyOnce;
     if (typeof document !== 'undefined') {
         // Leaving mid-boot used to leave this stuck → whole app looked like endless loading
         delete document.documentElement.dataset.homeHubLoading;

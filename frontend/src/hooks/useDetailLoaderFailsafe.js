@@ -8,7 +8,7 @@ export function useDetailLoaderFailsafe(isLoading, onGiveUp) {
 
     useEffect(() => {
         if (!isLoading) return undefined;
-        const ms = isInAppBrowser() ? 8000 : 12000;
+        const ms = isInAppBrowser() ? 5000 : 6000;
         const timer = window.setTimeout(() => {
             cbRef.current?.();
         }, ms);

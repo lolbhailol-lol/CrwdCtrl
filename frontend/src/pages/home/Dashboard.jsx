@@ -17,7 +17,6 @@ import { useFavorites } from '../../context/FavoritesContext';
 import { useNotifications } from '../../context/NotificationsContext';
 import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
 import ContentImage from '../../components/ContentImage';
-import { usePageContentLoading } from '../../hooks/usePageContentLoading';
 import { setHomeShellReady } from '../../utils/homeShellReady';
 import { buildSearchKeywordsFromCatalog } from '../../utils/buildSearchKeywords';
 import { clearSearchKeywordsCache } from '../../services/searchService';
@@ -287,12 +286,13 @@ const Dashboard = () => {
     const [isFestsLoading, setIsFestsLoading] = useState(() => readInitialFestsFromCache().length === 0);
     // Aux feeds hydrate in place; flag kept for settle markers in fetch effects.
     const [, setHomeAuxLoaded] = useState(false);
-    usePageContentLoading(isFestsLoading && fests.length === 0);
+    // Home hub overlay (App) covers cold start — do not also toggle page-content-loading here
+    // (that stacked loaders and left Google / first-open visits looking stuck).
 
     // Soft safety only — do not end loading before cold-start fetches can finish (iOS)
     useEffect(() => {
         if (!isFestsLoading) return undefined;
-        const timer = window.setTimeout(() => setIsFestsLoading(false), 45000);
+        const timer = window.setTimeout(() => setIsFestsLoading(false), 8000);
         return () => window.clearTimeout(timer);
     }, [isFestsLoading]);
 
@@ -1196,7 +1196,7 @@ const Dashboard = () => {
                 },
             });
         } else if (item._type === 'sport') {
-            navigate(sportRunPath(item));
+            navigate(sportRunPath(item), { state: { event: item } });
         } else if (item._type === 'events') {
             navigate(eventShowPath(item));
         }
@@ -1260,7 +1260,7 @@ const Dashboard = () => {
             setHomeLoadTimedOut(false);
             return undefined;
         }
-        const timeoutMs = /iPhone|iPad|iPod|Safari/i.test(navigator.userAgent || '') ? 12000 : 8000;
+        const timeoutMs = 4000;
         const timer = window.setTimeout(() => setHomeLoadTimedOut(true), timeoutMs);
         return () => window.clearTimeout(timer);
     }, [homeBooting]);
@@ -1410,7 +1410,7 @@ const Dashboard = () => {
                                 });
                             } else if (slide._type === 'trek') navigate(trekPath(slide), { state: { trek: slide } });
                             else if (slide._type === 'community') navigate(communityPath(slide));
-                            else if (slide._type === 'sport') navigate(sportRunPath(slide));
+                            else if (slide._type === 'sport') navigate(sportRunPath(slide), { state: { event: slide } });
                             else navigateToFestDetail(slide);
                         }}
                         isDark={isDark}
