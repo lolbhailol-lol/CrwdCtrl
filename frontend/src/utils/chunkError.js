@@ -139,6 +139,18 @@ export function reloadOnceForChunkError() {
     if (typeof window !== 'undefined' && String(window.location?.pathname || '').startsWith('/campus-hunt/offline')) {
         return false;
     }
+    // In-app / shared deep links: never hard-reload — it loops with SW updates
+    try {
+        const ua = navigator.userAgent || '';
+        if (/Instagram|FBAN|FBAV|FB_IAB|Messenger|WhatsApp/i.test(ua)) return false;
+        const path = String(window.location?.pathname || '');
+        if (/^\/(events|trek|treks|sports|view-details|competitions-view-details)\b/.test(path)) {
+            // Prefer cache-bust navigation at most once; avoid bare reload storms
+            return reloadWithCacheBust({ force: false });
+        }
+    } catch {
+        /* ignore */
+    }
     try {
         if (sessionStorage.getItem(CHUNK_RELOAD_SESSION_KEY)) {
             void forceRecoverFromStaleDeploy();

@@ -14,6 +14,7 @@ import { dismissBootOverlays } from './utils/dismissBootOverlays'
 import { isSafariBrowser } from './utils/safariBrowser'
 import { preloadCategoryNavIcons } from './constants/categoryNavIcons'
 import { isInAppBrowser } from './config/apiBase'
+import { isSharedContentDeepLink } from './utils/bootSplash'
 import { SpeedInsights } from '@vercel/speed-insights/react'
 
 initThemeClass()
@@ -46,52 +47,66 @@ if (!shouldShowBootSplash()) {
   window.setTimeout(removeHtmlBootSplash, safety)
 }
 
-// PWA service worker — web only (not Capacitor native shell)
-if (import.meta.env.PROD && !isNativeApp()) {
-  let swRefreshing = false;
-  const skipSwReload = isInAppBrowser();
-  if ('serviceWorker' in navigator && !skipSwReload) {
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (swRefreshing) return;
-      swRefreshing = true;
-      window.location.reload();
-    });
-  }
+// PWA service worker — web only (not Capacitor native shell).
+// NEVER auto-reload on SW update: onNeedRefresh + controllerchange caused infinite
+// reload loops (WhatsApp / Chrome stuck on “Loading event…” forever after deploys).
+if (import.meta.env.PROD && !isNativeApp() && 'serviceWorker' in navigator) {
+  const deepLink = (() => {
+    try {
+      return isSharedContentDeepLink(window.location.pathname || '');
+    } catch {
+      return false;
+    }
+  })();
+  const inApp = isInAppBrowser();
 
-  import('virtual:pwa-register').then(({ registerSW }) => {
-    registerSW({
-      immediate: true,
-      onNeedRefresh() {
-        // WhatsApp / Instagram WebViews can loop reload forever on SW updates
-        if (skipSwReload || swRefreshing) return;
-        swRefreshing = true;
-        window.location.reload();
-      },
-      onRegisteredSW() {
-        // Drop legacy Workbox API caches (NetworkFirst/NetworkOnly) that threw
-        // no-response when Railway was cold and could serve stale empty JSON.
-        if (!('caches' in window)) return;
-        caches.keys().then((keys) => {
-          keys
-            .filter((key) => /api-cache/i.test(key))
-            .forEach((key) => caches.delete(key));
-        }).catch(() => {});
-      },
-    });
-    navigator.serviceWorker?.getRegistrations?.().then((registrations) => {
-      registrations.forEach((registration) => {
-        const scriptUrl = String(
-          registration.active?.scriptURL
-          || registration.waiting?.scriptURL
-          || registration.installing?.scriptURL
-          || '',
-        );
-        if (scriptUrl.includes('firebase-messaging-sw.js')) {
+  // Shared / in-app opens: drop controlling SW so stale caches can't block the page
+  if (deepLink || inApp) {
+    navigator.serviceWorker.getRegistrations?.()
+      .then((registrations) => {
+        registrations.forEach((registration) => {
           registration.unregister().catch(() => {});
-        }
+        });
+      })
+      .catch(() => {});
+    if ('caches' in window) {
+      caches.keys()
+        .then((keys) => keys.filter((k) => /workbox|api-cache|crwdctrl/i.test(k)).forEach((k) => caches.delete(k)))
+        .catch(() => {});
+    }
+  } else {
+    import('virtual:pwa-register').then(({ registerSW }) => {
+      registerSW({
+        immediate: true,
+        onNeedRefresh() {
+          // Stay on current page — user gets the new SW on next cold open
+        },
+        onRegisteredSW(_swUrl, registration) {
+          if (!('caches' in window)) return;
+          caches.keys().then((keys) => {
+            keys
+              .filter((key) => /api-cache/i.test(key))
+              .forEach((key) => caches.delete(key));
+          }).catch(() => {});
+          // Opportunistically clear obsolete firebase messaging SW
+          navigator.serviceWorker?.getRegistrations?.().then((registrations) => {
+            registrations.forEach((reg) => {
+              const scriptUrl = String(
+                reg.active?.scriptURL
+                || reg.waiting?.scriptURL
+                || reg.installing?.scriptURL
+                || '',
+              );
+              if (scriptUrl.includes('firebase-messaging-sw.js')) {
+                reg.unregister().catch(() => {});
+              }
+            });
+          }).catch(() => {});
+          return registration;
+        },
       });
     }).catch(() => {});
-  });
+  }
 }
 
 createRoot(document.getElementById('root')).render(

@@ -332,7 +332,7 @@ export default function EventCommunityEventPage() {
     // Never leave WhatsApp stuck on the 3D loader if the network hangs
     useEffect(() => {
         if (!showPageLoader) return undefined;
-        const ms = isInAppBrowser() ? 16000 : 40000;
+        const ms = isInAppBrowser() ? 10000 : 20000;
         const timer = window.setTimeout(() => {
             setLoading(false);
             setFetchingDetail(false);
