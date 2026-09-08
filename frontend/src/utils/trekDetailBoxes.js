@@ -97,17 +97,33 @@ export function isBoardMeetupEvent(event) {
     return /board\s*game|boardgame|board\s*meetup|board\s*night|board\s*club/.test(blob);
 }
 
-/** Cafe / coffee hangouts — map side shows Date · Time · Venue (not Sport / Café fee cards). */
+/** Cafe-venue / Mafia Files socials — map side shows Date · Time only (no Café card). */
 export function isCafeHangoutEvent(event) {
     const display = String(event?.displayType || '').trim();
     if (/^caf[eé]$/i.test(display) || /^hangout$/i.test(display)) return true;
+    const venue = String(event?.venue || '').toLowerCase();
+    if (/^caf[eé]\b/.test(venue) || /\bbrookfield\b/.test(venue)) return true;
     const blob = [
         event?.title,
+        event?.slug,
         event?.displayType,
         event?.runCategory,
         event?.description,
+        event?.venue,
     ].filter(Boolean).join(' ').toLowerCase();
-    return /caf[eé]\s*hang|hangout|coffee\s*(social|meetup|hang)/.test(blob);
+    return /caf[eé]\s*hang|hangout|coffee\s*(social|meetup|hang)|mafia\s*files/.test(blob);
+}
+
+/** "3:00 PM" + "5:00 PM" → "3:00 - 5:00" */
+function formatMapSideTimeRange(start, end) {
+    const stripMeridiem = (value) => String(value || '')
+        .replace(/\s*(am|pm)\s*$/i, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    const a = stripMeridiem(start);
+    const b = stripMeridiem(end);
+    if (a && b) return `${a} - ${b}`;
+    return a || b || String(start || end || '').trim();
 }
 
 function formatCommunityEventDate(value) {
@@ -139,9 +155,18 @@ export function eventMapSideFacts(event) {
         const timeBox = findBox(/^(time|timing|event timing)$/i);
         let time = String(timeBox?.value || '').trim();
         if (!time) {
-            const start = String(event.reportingTime || '').trim();
-            const end = String(event.returnTime || '').trim();
-            time = start && end ? `${start} – ${end}` : (start || end);
+            time = formatMapSideTimeRange(event.reportingTime, event.returnTime);
+        }
+        // Cafe / Mafia Files socials: Date + Time + Sport — Cafe stays in Details, not beside the map.
+        if (isCafeHangoutEvent(event) && !isBoardMeetupEvent(event)) {
+            const sport = String(
+                findBox(/^(sport)$/i)?.value || event.displayType || event.runCategory || '',
+            ).trim();
+            return [
+                date ? { key: 'date', label: 'Date', value: date, icon: 'calendar' } : null,
+                time ? { key: 'time', label: 'Time', value: time, icon: 'clock' } : null,
+                sport ? { key: 'sport', label: 'Sport', value: sport, icon: 'star' } : null,
+            ].filter(Boolean);
         }
         const venue = String(
             findBox(/^(venue|location)$/i)?.value || displayVenueName(event) || '',
@@ -301,10 +326,18 @@ export function resolveRunMapPin(event) {
     const city = String(event.city || '').trim();
     const meetingPoint = String(event.meetingPoint || '').trim();
     const clubBase = String(event.runClub?.basedIn || '').trim();
+    // Don't put the cafe name under the map for cafe/Mafia Files socials — Location lives in Details.
+    const hideCafeCaption = isCafeHangoutEvent(event);
+    const captionFallback = hideCafeCaption
+        ? (city || clubBase || 'Open map')
+        : (venue || meetingPoint || city || clubBase || 'Open map');
 
     if (/^https?:\/\//i.test(routeMap)) {
-        const caption = venue || meetingPoint || city || clubBase || 'Open map';
-        return { query: venue || meetingPoint || city || clubBase, mapUrl: routeMap, caption };
+        return {
+            query: venue || meetingPoint || city || clubBase,
+            mapUrl: routeMap,
+            caption: captionFallback,
+        };
     }
     // Organizers sometimes paste the Maps link into Venue instead of Route Map
     if (/^https?:\/\//i.test(venue)) {
@@ -312,12 +345,15 @@ export function resolveRunMapPin(event) {
         return { query: meetingPoint || city || clubBase, mapUrl: venue, caption };
     }
     if (/^https?:\/\//i.test(meetingPoint)) {
-        const caption = venue || city || clubBase || 'Meeting point';
-        return { query: venue || city || clubBase, mapUrl: meetingPoint, caption };
+        return {
+            query: venue || city || clubBase,
+            mapUrl: meetingPoint,
+            caption: hideCafeCaption ? (city || clubBase || 'Open map') : (venue || city || clubBase || 'Meeting point'),
+        };
     }
 
     const query = venue || meetingPoint || city || clubBase;
-    return { query, mapUrl: '', caption: query };
+    return { query, mapUrl: '', caption: hideCafeCaption ? (city || 'Open map') : query };
 }
 
 /** Same editor shape for sports / run events — falls back to classic run fields. */
