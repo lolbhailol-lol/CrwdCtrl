@@ -91,7 +91,7 @@ export default function SimilarFestsSection({
 
     return (
       <section className={className}>
-        <div className="space-y-8">
+        <div className="space-y-10 md:space-y-12">
           {blocks.map((fest) => {
             const id = fest._id || fest.id;
             const festName = fest.festName || 'Fest';
@@ -145,9 +145,9 @@ export default function SimilarFestsSection({
 
             return (
               <div key={String(id)}>
-                <div className="mb-3 flex items-end justify-between gap-3">
+                <div className="mb-2 md:mb-3 flex items-end justify-between gap-2 md:max-w-xl">
                   <div className="min-w-0">
-                    <h2 className={`text-base sm:text-lg font-bold truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    <h2 className={`text-sm sm:text-base md:text-lg font-bold truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
                       Explore {festName}
                       {fest.collegeName ? (
                         <span className={`font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -155,7 +155,7 @@ export default function SimilarFestsSection({
                         </span>
                       ) : null}
                     </h2>
-                    <p className={`text-xs sm:text-sm mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                    <p className={`text-[11px] sm:text-xs md:text-sm mt-0.5 md:mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                       Competitions you might be interested in
                     </p>
                   </div>
@@ -170,18 +170,19 @@ export default function SimilarFestsSection({
                       });
                       navigate(festPagePath, { state: { from: 'explore-other-fest' } });
                     }}
-                    className={`shrink-0 text-xs font-semibold ${isDark ? 'text-[#0ECCEE]' : 'text-[#0099B8]'}`}
+                    className={`shrink-0 text-[11px] sm:text-xs font-semibold ${isDark ? 'text-[#0ECCEE]' : 'text-[#0099B8]'}`}
                   >
                     View fest
                   </button>
                 </div>
-                <div className="grid grid-cols-2 gap-3 items-stretch">
+                <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:gap-4 w-full md:max-w-xl items-stretch">
                   {comps.map((comp) => (
                     <SimilarCompetitionCard
                       key={String(comp._id || comp.name)}
                       comp={comp}
                       isDark={isDark}
                       hideFee={hideFee}
+                      density="minimal"
                       onPrefetch={() => prefetchCompAndRegistration(comp, fest)}
                       onOpen={() => openComp(comp)}
                     />

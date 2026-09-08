@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getImageUrl } from '../utils/imageImports';
 import { DetailLoader3DIcon } from './DetailPageLoader';
 
@@ -17,10 +17,23 @@ export default function CompetitionCoverImage({
   placeholder = 'trophy',
 }) {
   const imageUrl = src ? getImageUrl(src, { preset }) : '';
+  const imgRef = useRef(null);
   const [status, setStatus] = useState(() => (imageUrl ? 'loading' : 'empty'));
 
   useEffect(() => {
-    setStatus(imageUrl ? 'loading' : 'empty');
+    if (!imageUrl) {
+      setStatus('empty');
+      return;
+    }
+    setStatus('loading');
+    // Cached images often finish before onLoad binds — sync from the DOM node.
+    const id = window.requestAnimationFrame(() => {
+      const img = imgRef.current;
+      if (img?.complete && img.naturalWidth > 0) {
+        setStatus('loaded');
+      }
+    });
+    return () => window.cancelAnimationFrame(id);
   }, [imageUrl]);
 
   const showTrophy =
@@ -31,18 +44,19 @@ export default function CompetitionCoverImage({
   return (
     <div className={`relative overflow-hidden bg-[#1A1B1D] ${containerClassName}`.trim()}>
       {showTrophy ? (
-        <div className="absolute inset-0 flex items-center justify-center">
+        <div className="absolute inset-0 z-0 flex items-center justify-center">
           <DetailLoader3DIcon variant="competition" size={loaderSize} tone="dark" />
         </div>
       ) : null}
       {showMuted ? (
-        <div className="absolute inset-0 bg-[#1A1B1D]" aria-hidden="true" />
+        <div className="absolute inset-0 z-0 bg-[#1A1B1D]" aria-hidden="true" />
       ) : null}
       {imageUrl ? (
         <img
+          ref={imgRef}
           src={imageUrl}
           alt={alt}
-          className={`${className} ${status === 'loaded' ? 'opacity-100' : 'opacity-0'} ${
+          className={`z-10 ${className} ${status === 'loaded' ? 'opacity-100' : 'opacity-0'} ${
             placeholder === 'muted' ? '' : 'transition-opacity duration-200'
           }`}
           loading={eager ? 'eager' : 'lazy'}

@@ -142,7 +142,7 @@ export default function SimilarCompetitionsSection({
 
   return (
     <section className={className}>
-      <div className="mb-3">
+      <div className="mb-3 max-w-md sm:max-w-lg md:max-w-xl">
         <h2 className={`text-base sm:text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
           {festHeading}
           {!heading && collegeHeading ? (
@@ -156,7 +156,7 @@ export default function SimilarCompetitionsSection({
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 items-stretch">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 max-w-md sm:max-w-lg md:max-w-xl items-stretch">
         {cards.map((comp) => (
           <SimilarCompetitionCard
             key={String(comp._id || comp.id)}

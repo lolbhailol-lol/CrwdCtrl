@@ -589,7 +589,9 @@ function EventPage() {
         inAppBack();
     }, [navigate, location.state, competitionData?.fest, inAppBack]);
 
-    // Switching comps reuses this page — swap to a complete package or hold on loader
+    // Switching comps reuses this page — swap to a complete package or hold on loader.
+    // Depend only on competitionId (not location.key): slug replace:true creates a new
+    // key and would re-enter this effect forever.
     useLayoutEffect(() => {
         const pack = resolvePaintPackage(competitionId, location);
         fetchGenRef.current += 1;
@@ -605,8 +607,8 @@ function EventPage() {
         setShowFullAbout(false);
         setShowShareMenu(false);
         return undefined;
-        // location.key covers explore/similar navigations with skipDemoLoad seed
-    }, [competitionId, location.key]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- location.state read for paint seed; competitionId is the switch key
+    }, [competitionId]);
 
     useEffect(() => {
         if (location.state?.skipDemoLoad || resolvePaintPackage(competitionId, location)) {
@@ -673,7 +675,7 @@ function EventPage() {
                 const stateCompetition = location.state?.competition;
                 if (stateCompetition && entityMatchesRouteParam(stateCompetition, competitionId, ['name', 'title'])) {
                     const built = buildCompetitionData(stateCompetition, { useFestRegistrationFallback: true });
-                    saveCompetitionDetailCache(competitionId, built);
+                    // Don't cache incomplete explore seeds — they poison registration UI
                     applyPackage(built);
                 } else {
                     const cached = competitionId ? loadCompetitionDetailCache(competitionId) : null;
@@ -694,7 +696,10 @@ function EventPage() {
         };
 
         fetchCompetitionData();
-    }, [competitionId, navigate, location.state]);
+        // location.state is read for seed fallbacks; do not list it as a dep (replace navigations
+        // create a new state reference and would retrigger fetch forever with location.key loops).
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [competitionId, navigate]);
 
     // Keep tab index valid when empty placeholder rounds are filtered out
     useEffect(() => {
@@ -755,10 +760,15 @@ function EventPage() {
     useEffect(() => {
         if (!competitionData) return;
         const canonical = competitionPath(competitionData);
-        if (canonical && window.location.pathname !== canonical) {
-            navigate(`${canonical}${window.location.search || ''}`, { replace: true, state: location.state });
-        }
-    }, [competitionData, navigate, location.state]);
+        if (!canonical) return;
+        if (window.location.pathname === canonical) return;
+        navigate(`${canonical}${window.location.search || ''}`, {
+            replace: true,
+            state: location.state,
+        });
+        // Only when the competition identity/title settles — not on every location.state identity change
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [competitionData?.id, competitionData?.title, navigate]);
 
     // Check for login modal parameter
     useEffect(() => {
@@ -2158,7 +2168,7 @@ function EventPage() {
                                         festTitle={festName}
                                         isDark={isDark}
                                         hideFee={false}
-                                        className="mt-8"
+                                        className="mt-10 md:mt-12"
                                     />
                                     <SimilarFestsSection
                                         relatedFests={relatedFestsForDiscovery}
@@ -2167,7 +2177,7 @@ function EventPage() {
                                         limit={2}
                                         variant="blocks"
                                         hideFee={false}
-                                        className="mt-8"
+                                        className="mt-10 md:mt-14 mb-4"
                                     />
                                 </>
                             ) : null}
