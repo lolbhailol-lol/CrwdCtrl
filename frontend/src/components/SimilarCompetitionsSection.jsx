@@ -113,17 +113,18 @@ export default function SimilarCompetitionsSection({
   const sub = subtitle || 'Competitions you might be interested in';
 
   const goToDetail = (comp) => {
+    const targetId = String(comp._id || comp.id || '');
     trackSimilarCompetitionClick({
       source: analyticsSource,
       action: 'open_detail',
-      competitionId: comp._id || comp.id,
+      competitionId: targetId,
       festId: festRef?._id || festRef?.id,
     });
     prefetchCompAndRegistration(comp, festRef);
     markWarmCompetitionNav();
     const path = competitionDetailNavPath({
-      id: comp._id || comp.id,
-      _id: comp._id || comp.id,
+      id: targetId,
+      _id: targetId,
       slug: comp.slug,
       name: comp.name,
       title: comp.name,
@@ -132,11 +133,14 @@ export default function SimilarCompetitionsSection({
       state: {
         competition: {
           ...comp,
+          _id: targetId || comp._id,
+          id: targetId || comp.id,
           fest: festRef || null,
           festId: festRef?._id || festRef?.id,
         },
         from: analyticsSource,
         skipDemoLoad: true,
+        navToken: `${targetId}-${Date.now()}`,
         backTo: `${location.pathname}${location.search || ''}`,
       },
     });

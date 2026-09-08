@@ -15,7 +15,7 @@ import { publicFetchJSONRetry as fetchJSON, resolveUrl } from '../../services/ap
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { openExternalUrl, shareContent } from '../../utils/externalLink';
-import { competitionPath, competitionRegistrationPath, festRegisterPath, festPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
+import { competitionPath, competitionRegistrationPath, festRegisterPath, festPath, entityMatchesRouteParam, isObjectId } from '../../utils/slugRoutes';
 import { resolveCompetitionFee, buildRegistrationPrefetch, saveRegistrationPrefetch } from '../../utils/festPublicTransform';
 import { minCompetitionFeeAmount } from '../../utils/competitionFeeTiers';
 import { trackBookNowClick } from '../../services/analyticsService';
@@ -643,12 +643,14 @@ function EventPage() {
     const stateCompId = String(
         location.state?.competition?._id || location.state?.competition?.id || '',
     );
+    const navToken = location.state?.navToken != null ? String(location.state.navToken) : '';
     const [openingRegister, setOpeningRegister] = useState(false);
     const openingRegisterRef = useRef(false);
     const { isDark } = useDarkMode();
     const { alert: showAlert, toast } = useDialog();
     const { isAuthenticated } = useAuth();
     const fetchGenRef = useRef(0);
+    const lastSwitchKeyRef = useRef('');
 
     const goBack = useCallback(() => {
         const backTo = location.state?.backTo;
@@ -671,9 +673,15 @@ function EventPage() {
         inAppBack();
     }, [navigate, location.state, competitionData?.fest, inAppBack]);
 
-    // Switching comps reuses this page — swap to a complete package or hold on loader.
-    // Depend on competitionId + explore seed id (not location.key alone).
+    // Switching comps reuses this page — always re-seed when route/seed/nav changes.
+    // (No soft-skip: that kept the previous competition painted on Explore taps.)
     useLayoutEffect(() => {
+        const switchKey = `${competitionId || ''}::${stateCompId || ''}::${navToken || ''}`;
+        if (switchKey === lastSwitchKeyRef.current) {
+            return undefined;
+        }
+        lastSwitchKeyRef.current = switchKey;
+
         const warm =
             isWarmCompetitionLocationState(location.state) || peekWarmCompetitionNav();
         if (warm) {
@@ -683,30 +691,19 @@ function EventPage() {
 
         const existing = competitionDataRef.current;
         const existingId = String(existing?.id || '');
-        // Same painted competition (ignore slug-only URL quirks). Different seed id = real switch.
-        const sameAsPainted =
-            existing
-            && competitionId
-            && entityMatchesRouteParam(existing, competitionId, ['name', 'title'])
-            && (!stateCompId || !existingId || stateCompId === existingId);
-
-        if (sameAsPainted) {
-            return undefined;
-        }
 
         let pack = resolvePaintPackage(competitionId, location);
-        if (!pack && warm && location.state?.competition) {
+        // Explore / similar: always prefer the tapped card seed when it differs from what's painted
+        if (
+            location.state?.competition
+            && (location.state?.skipDemoLoad || warm)
+            && stateCompId
+            && stateCompId !== existingId
+        ) {
             pack = buildCompetitionData(location.state.competition, {
                 useFestRegistrationFallback: true,
             });
-        }
-        // Explore seed always wins over a stale previous competition paint
-        if (
-            warm
-            && location.state?.competition
-            && stateCompId
-            && (!existingId || stateCompId !== existingId)
-        ) {
+        } else if (!pack && warm && location.state?.competition) {
             pack = buildCompetitionData(location.state.competition, {
                 useFestRegistrationFallback: true,
             });
@@ -729,7 +726,7 @@ function EventPage() {
         setShowShareMenu(false);
         return undefined;
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [competitionId, stateCompId]);
+    }, [competitionId, stateCompId, navToken]);
 
     useEffect(() => {
         if (warmNavRef.current || warmNav || location.state?.skipDemoLoad) {
@@ -749,19 +746,6 @@ function EventPage() {
 
     // Fetch competition data from backend API
     useEffect(() => {
-        // Already showing this competition fully — do not refetch / blank UI
-        const existing = competitionDataRef.current;
-        const existingId = String(existing?.id || '');
-        if (
-            existing
-            && competitionId
-            && fetchDoneRef.current
-            && entityMatchesRouteParam(existing, competitionId, ['name', 'title'])
-            && (!stateCompId || !existingId || stateCompId === existingId)
-        ) {
-            return undefined;
-        }
-
         const gen = fetchGenRef.current;
         const applyPackage = (built) => {
             if (gen !== fetchGenRef.current) return;
@@ -783,9 +767,14 @@ function EventPage() {
                 return;
             }
 
+            // Prefer mongo id from explore seed when URL token is a slug — more reliable fetch
+            const fetchId =
+                (stateCompId && isObjectId(stateCompId) ? stateCompId : null)
+                || competitionId;
+
             try {
                 setError(null);
-                const response = await fetchJSON(`/fests/competitions/${competitionId}/public`, {
+                const response = await fetchJSON(`/fests/competitions/${fetchId}/public`, {
                     cacheBust: false,
                 });
                 if (gen !== fetchGenRef.current) return;
@@ -819,9 +808,14 @@ function EventPage() {
                 }
                 
                 const stateCompetition = location.state?.competition;
-                if (stateCompetition && entityMatchesRouteParam(stateCompetition, competitionId, ['name', 'title'])) {
+                if (
+                    stateCompetition
+                    && (
+                        entityMatchesRouteParam(stateCompetition, competitionId, ['name', 'title'])
+                        || (stateCompId && String(stateCompetition._id || stateCompetition.id) === stateCompId)
+                    )
+                ) {
                     const built = buildCompetitionData(stateCompetition, { useFestRegistrationFallback: true });
-                    // Don't cache incomplete explore seeds — they poison registration UI
                     applyPackage(built);
                 } else {
                     const cached = competitionId ? loadCompetitionDetailCache(competitionId) : null;
@@ -834,7 +828,6 @@ function EventPage() {
                     setError(errorMessage);
                         setFetchDone(true);
                     } else {
-                        // Keep whatever package is already on screen
                         setFetchDone(true);
                 }
                 }
@@ -842,10 +835,8 @@ function EventPage() {
         };
 
         fetchCompetitionData();
-        // location.state is read for seed fallbacks; do not list it as a dep (replace navigations
-        // create a new state reference and would retrigger fetch forever with location.key loops).
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [competitionId, stateCompId, navigate]);
+    }, [competitionId, stateCompId, navToken, navigate]);
 
     // Keep tab index valid when empty placeholder rounds are filtered out
     useEffect(() => {

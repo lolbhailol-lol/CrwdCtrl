@@ -106,17 +106,18 @@ export default function SimilarFestsSection({
             });
 
             const openComp = (comp) => {
+              const targetId = String(comp._id || comp.id || '');
               trackSimilarCompetitionClick({
                 source: 'explore-other-fest',
                 action: 'open_detail',
-                competitionId: comp._id || comp.id,
+                competitionId: targetId,
                 festId: id,
               });
               markWarmCompetitionNav();
               navigate(
                 competitionDetailNavPath({
-                  id: comp._id || comp.id,
-                  _id: comp._id || comp.id,
+                  id: targetId,
+                  _id: targetId,
                   slug: comp.slug,
                   name: comp.name,
                   title: comp.name,
@@ -125,6 +126,8 @@ export default function SimilarFestsSection({
                   state: {
                     competition: {
                       ...comp,
+                      _id: targetId || comp._id,
+                      id: targetId || comp.id,
                       registrationType: comp.registrationType || 'fest',
                       fest: {
                         _id: id,
@@ -139,6 +142,7 @@ export default function SimilarFestsSection({
                     },
                     from: 'explore-other-fest-comp',
                     skipDemoLoad: true,
+                    navToken: `${targetId}-${Date.now()}`,
                     backTo: backToHere,
                   },
                 },
