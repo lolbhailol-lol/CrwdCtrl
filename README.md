@@ -1,262 +1,149 @@
 # CrwdCtrl
 
-A full-stack festival management platform connecting organizers and participants for seamless event discovery, registration, and management across educational institutions.
+**Discover college fests, run clubs, treks, and local events — then register, pay, and check in in one place.**
 
-## Tech Stack
+Live product: [www.crwdctrl.in](https://www.crwdctrl.in)
 
-### Frontend
-- **React** + **Vite**
-- **Tailwind CSS** for styling
-- **React Router** for navigation
-- **Axios** for API calls
-- **Firebase** for Google authentication (client)
-- **PWA** support (`vite-plugin-pwa`)
+CrwdCtrl is a full-stack community & event platform built for Indian campuses and local organizers. Participants browse and book; organizers run registrations, payments, and QR gate check-in from dedicated portals.
 
-### Backend
-- **Node.js** + **Express**
-- **MongoDB** + **Mongoose**
-- **JWT** + **bcryptjs** for authentication
-- **Firebase Admin SDK** for social auth verification (server)
-- **Cloudinary** for media uploads
-- **Nodemailer** / **Resend** for email delivery
+---
 
-### Deployment
-- **Backend**: [Railway](https://railway.app) (Nixpacks)
-- **Frontend**: [Vercel](https://vercel.com)
-- **Database**: MongoDB Atlas
+## Highlights
 
-## Project Structure
+- **Multi-category discovery** — college fests & competitions, running clubs, treks, community events, shows
+- **Organizer portals** — fest, trek, run-club / event-community, and event-show dashboards
+- **Payments** — Cashfree (and related flows) with tickets / QR proof where needed
+- **QR check-in** — scanner flows for gates and volunteers
+- **Campus Hunt** — scavenger-hunt module for fest activations
+- **Auth** — Google / Firebase + JWT sessions
+- **Mobile** — responsive PWA + Capacitor Android shell
+
+---
+
+## Screenshots
+
+> Add product shots here when you publish (Home · Fest detail · Booking · Organizer dashboard · Scanner).
+
+| Home | Event detail | Organizer |
+|------|--------------|-----------|
+| _TODO_ | _TODO_ | _TODO_ |
+
+---
+
+## Stack
+
+| Layer | Tech |
+|-------|------|
+| **Frontend** | React 19, Vite 7, Tailwind CSS 4, React Router 7, Framer Motion, Firebase, Capacitor 8, Sentry, vite-plugin-pwa |
+| **Backend** | Node.js 18+, Express 5, MongoDB / Mongoose 8, JWT, Firebase Admin, Helmet, rate limiting |
+| **Integrations** | Cashfree, Cloudinary, Resend / Nodemailer, Sentry, Google APIs |
+| **Deploy** | Frontend on Railway (Caddy static + `/api` proxy) · Backend on Railway · MongoDB Atlas |
+
+---
+
+## Monorepo layout
 
 ```
 CrwdCtrl/
-├── railway.json                    # Railway deployment config
-├── backend/
-│   ├── package.json
-│   ├── scripts/
-│   │   └── cleanup-duplicate-registrations.js
-│   └── src/
-│       ├── server.js               # Entry point & Express setup
-│       ├── config/
-│       │   └── db.js               # MongoDB connection
-│       ├── controllers/
-│       │   ├── usercontroller.js          # Auth & profile
-│       │   ├── studentController.js       # Student operations
-│       │   ├── festOrganizerController.js # Festival CRUD
-│       │   ├── competitionController.js   # Competition management
-│       │   ├── registrationController.js  # Registration handling
-│       │   ├── adminAuthController.js     # Admin authentication
-│       │   ├── adminFestController.js     # Admin fest management
-│       │   └── uploadController.js        # File uploads
-│       ├── model/
-│       │   ├── usermodel.js                    # Base user schema
-│       │   ├── student&participant.js           # Student profile
-│       │   ├── fest_organizer_model.js          # Festival data
-│       │   ├── event_model.js                   # Event schema
-│       │   ├── competition_model.js             # Competition schema
-│       │   ├── competition_registration_model.js
-│       │   └── registration_model.js            # Registration schema
-│       ├── routers/
-│       │   ├── userroute.js            # Auth routes
-│       │   ├── studentroute.js         # Student routes
-│       │   ├── festOrganizerRoute.js   # Organizer routes
-│       │   ├── publicFestRoute.js      # Public discovery
-│       │   ├── competitionRoute.js     # Competition routes
-│       │   ├── registrationRoute.js    # Registration routes
-│       │   └── adminRoute.js           # Admin routes
-│       ├── middleware/
-│       │   ├── authmiddleware.js       # JWT auth
-│       │   └── adminAuth.js            # Admin auth
-│       ├── services/
-│       │   ├── emailService.js         # Email delivery
-│       │   ├── cloudinaryService.js    # Image uploads
-│       │   └── googleSheetsService.js  # Sheets integration
-│       └── utils/
-│           └── fileUpload.js           # Multer config
-└── frontend/
-    ├── package.json
-    ├── index.html
-    ├── vite.config.js
-    ├── tailwind.config.js
-    ├── vercel.json                 # Vercel deployment config
-    └── src/
-        ├── main.jsx                # App entry point
-        ├── App.jsx / App.tsx       # Root component & routing
-        ├── firebase.js             # Firebase client config
-        ├── config/
-        │   ├── env.js              # Environment helpers
-        │   └── firebaseConfig.ts   # Firebase config
-        ├── context/
-        │   ├── AuthContext.jsx          # Auth state
-        │   ├── DarkModeContext.jsx      # Theme toggle
-        │   ├── FavoritesContext.jsx     # Saved events
-        │   ├── NotificationsContext.jsx # Notifications
-        │   └── RegisteredEventsContext.jsx
-        ├── services/
-        │   ├── apiService.js       # API client
-        │   ├── authService.js/.ts  # Auth API calls
-        │   ├── googleAuthService.ts
-        │   └── searchService.js    # Search API
-        ├── hooks/
-        │   └── useEnv.js           # Env variable hook
-        ├── components/
-        │   ├── Navbar.jsx
-        │   ├── Footer.jsx
-        │   ├── EventCard.jsx/.tsx
-        │   ├── FestCard.jsx
-        │   ├── ProtectedRoute.tsx
-        │   ├── ErrorBoundary.jsx
-        │   ├── admin/              # Admin dashboard components
-        │   └── pages/              # Page-level components
-        ├── pages/
-        │   ├── LoginPage.js/.tsx
-        │   ├── DashboardPage.tsx
-        │   ├── EventsPage.tsx
-        │   ├── EventDetailsPage.tsx
-        │   └── EventRegistrationPage.tsx
-        ├── data/                   # Static data
-        ├── assets/                 # Images & static files
-        └── utils/                  # Utility functions
+├── frontend/          # React app (Vite) + Capacitor Android
+├── backend/           # Express API
+├── ARCHITECTURE.md    # System diagram
+├── DEPLOYMENT.md      # Deploy notes
+├── SECURITY.md        # Vulnerability reporting
+└── LICENSE
 ```
 
-## Features
+Everything product-critical lives in `frontend/` and `backend/`. Copy env templates from each package’s `.env.example` — never commit real `.env` files.
 
-- **Multi-role auth** — Students, Organizers, Admins (JWT + Firebase Google sign-in)
-- **Festival CRUD** — Create, manage, and publish festivals with events & competitions
-- **Public discovery** — Browse, search, and filter fests by category (Cultural, Tech, Sports)
-- **Registration system** — Register for fests, events, and competitions with capacity tracking
-- **Admin dashboard** — Manage all fests, registrations, and competitions
-- **Media uploads** — Cloudinary-powered image uploads for festivals
-- **Email notifications** — Registration confirmations via Nodemailer/Resend
-- **Dark mode** — Theme toggle across the app
-- **Responsive UI** — Mobile-first with Tailwind CSS
+---
 
-## Setup
+## Architecture
 
-### Prerequisites
-- Node.js >= 18
-- MongoDB (local or Atlas)
+```mermaid
+flowchart LR
+  U[Users / Organizers] --> FE[React + Vite]
+  FE -->|JWT REST /api| BE[Express API]
+  FE --> FB[Firebase Auth / FCM]
+  BE --> DB[(MongoDB Atlas)]
+  BE --> CF[Cashfree]
+  BE --> CL[Cloudinary]
+  BE --> EM[Resend / Email]
+  BE --> FB
+```
+
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for a fuller diagram.
+
+---
+
+## Features by role
+
+### Participants
+Browse hubs (fests, sports, treks, events), open shareable detail pages, register / book, pay, and show QR tickets.
+
+### Organizers
+Dedicated logins for fests, treks, run clubs / event communities, and shows — guests, coupons, notifications, scan, settlements.
+
+### Admins
+Platform controls for listings, sections, coupons, payments overview, and ops tools.
+
+---
+
+## Run locally
+
+**Requirements:** Node.js 18+, MongoDB (local or Atlas).
 
 ### Backend
+
 ```bash
 cd backend
+cp .env.example .env   # fill MongoDB, JWT, Firebase Admin, etc.
 npm install
-cp .env.example .env       # create your local env file
-npm run dev                # Development (nodemon)
-npm start                  # Production
+npm run dev            # default http://localhost:8080
 ```
 
 ### Frontend
+
 ```bash
 cd frontend
+cp .env.example .env   # set VITE_API_BASE_URL=http://localhost:8080/api
 npm install
-npm run dev             # Vite dev server
-npm run build           # Production build
+npm run dev            # Vite → http://localhost:5173
 ```
 
-### Environment Variables
+Health check: `GET http://localhost:8080/api/health` (or your configured port).
 
-**Backend**:
-- Use `backend/.env.example` as the template.
-- Create `backend/.env` locally (do **not** commit it).
-- Default port is `8080` (see `backend/src/server.js`).
+---
 
-**Frontend**:
-- Use `frontend/.env.example` as the template.
-- Create `frontend/.env` locally (do **not** commit it).
-- The frontend expects an API base like:
-  - `VITE_API_BASE_URL=http://localhost:8080/api` (local)
+## Environment
 
-### Useful URLs (local)
-- **Frontend**: `http://localhost:5173`
-- **Backend health**: `http://localhost:8080/api/health`
+| Package | Template |
+|---------|----------|
+| Backend | [`backend/.env.example`](./backend/.env.example) |
+| Frontend | [`frontend/.env.example`](./frontend/.env.example) |
+
+Client `VITE_*` keys (Firebase web config, etc.) are expected in the browser. **Server secrets** (Mongo URI, JWT, Cashfree secrets, Firebase Admin JSON, email keys) stay only in Railway / local `.env`.
+
+---
 
 ## Scripts
 
-### Backend (`backend/package.json`)
-- `npm run dev`: start with nodemon
-- `npm start`: start with node
-- `npm run health`: checks `GET /api/health`
+| Command | Where | What |
+|---------|-------|------|
+| `npm run dev` | frontend / backend | Local development |
+| `npm run build` | frontend | Production Vite build + SEO prerender |
+| `npm test` | frontend / backend | Unit / module tests |
+| `npm run cap:sync:prod` | frontend | Android Capacitor prod sync |
 
-### Frontend (`frontend/package.json`)
-- `npm run dev`: Vite dev server
-- `npm run build`: production build
-- `npm run preview`: preview build locally
+---
 
-## Deployment
+## Security
 
-**Stack:** Frontend on [Vercel](https://vercel.com), backend on [Railway](https://railway.app), database on MongoDB Atlas.
+Please report vulnerabilities privately — see [SECURITY.md](./SECURITY.md).
 
-### 1. Backend (Railway)
-
-1. Create a Railway service with **Root Directory** = `backend` (or use repo `railway.json`).
-2. Set these variables in the Railway dashboard (see `backend/.env.example`):
-
-| Variable | Required | Notes |
-|----------|----------|-------|
-| `MONGODB_URI` | Yes | MongoDB Atlas connection string |
-| `JWT_SECRET` | Yes | Long random string |
-| `NODE_ENV` | Yes | `production` |
-| `CASHFREE_CLIENT_ID` | Yes | Payment Gateway API key |
-| `CASHFREE_CLIENT_SECRET` | Yes | Payment Gateway secret |
-| `CASHFREE_ENV` | Yes | `production` for live payments |
-| `ADMIN_EMAIL` | Yes | Admin dashboard login |
-| `ADMIN_PASSWORD` | Yes | Admin dashboard login |
-| `FRONTEND_URL` | Recommended | e.g. `https://www.crwdctrl.in` |
-| `RESEND_API_KEY` | Optional | Transactional email |
-| `CLOUDINARY_*` | Optional | Image uploads |
-
-3. Deploy — health check: `GET /api/health`
-
-Verify Cashfree locally before deploy:
-```bash
-cd backend && node scripts/test-cashfree.js
-```
-
-### 2. Frontend (Vercel)
-
-1. Set **Root Directory** to `frontend`.
-2. Build uses `frontend/vercel.json` — env vars are baked in at build time.
-3. **Critical:** `VITE_CASHFREE_MODE` must match backend `CASHFREE_ENV` (both `production` for live).
-4. Production API URL: `VITE_API_BASE_URL=https://crwdctrl-production-9c58.up.railway.app/api`
-
-For local dev, copy `frontend/.env.example` → `frontend/.env`.
-
-### 3. Cashfree checklist
-
-- Use **Payment Gateway** API keys (not Payouts).
-- Whitelist your domains in Cashfree Dashboard: `https://www.crwdctrl.in`, `https://crwdctrl.in`, Vercel preview URLs if needed.
-- Sandbox keys → set both `CASHFREE_ENV=sandbox` and `VITE_CASHFREE_MODE=sandbox`.
-
-### 4. Post-deploy smoke test
-
-- `GET https://<backend>/api/health` → 200
-- Open site → register/login
-- Test a paid fest/competition/trek booking → Cashfree checkout opens → payment verifies
-
-## Deployment notes (legacy)
-- **Vercel (frontend)**: set `VITE_API_BASE_URL` to your deployed backend base (ending in `/api`).
-- **Railway (backend)**: `PORT` is injected automatically by the platform.
-
-## API Routes
-
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| POST | `/api/users/register` | — | Register user |
-| POST | `/api/users/login` | — | Login |
-| GET | `/api/users/profile` | JWT | Get profile |
-| GET | `/api/public/fests` | — | Browse festivals |
-| GET | `/api/public/fests/search` | — | Search festivals |
-| GET | `/api/public/fests/:festId` | — | Festival details |
-| POST | `/api/students/profile` | JWT | Create student profile |
-| GET | `/api/students/registered-fests` | JWT | My registrations |
-| POST | `/api/fest-organizer/create` | JWT | Create festival |
-| PUT | `/api/fest-organizer/update/:festId` | JWT | Update festival |
-| DELETE | `/api/fest-organizer/delete/:festId` | JWT | Delete festival |
-| POST | `/api/registrations/register` | JWT | Register for event |
-| GET | `/api/competitions/:festId` | — | List competitions |
-| GET | `/api/admin/*` | Admin | Admin endpoints |
+---
 
 ## License
 
-All rights reserved.
+MIT — see [LICENSE](./LICENSE).
 
+Built by [Karan Jadhav](https://github.com/lolbhailol-lol) · Product: [crwdctrl.in](https://www.crwdctrl.in)

@@ -1,29 +1,24 @@
-# CrwdCtrl Frontend
+# Frontend
 
-This is the React + Vite frontend for **CrwdCtrl**.
+React + Vite app for [CrwdCtrl](https://www.crwdctrl.in).
 
-## Run locally
+## Local setup
 
 ```bash
-cd frontend
+cp .env.example .env
 npm install
 npm run dev
 ```
 
-## Environment
+Point `VITE_API_BASE_URL` at your local backend (e.g. `http://localhost:8080/api`).
 
-Copy `frontend/.env.example` to `frontend/.env` and set values (especially `VITE_API_BASE_URL`).
+## Useful scripts
 
-The app expects `VITE_API_BASE_URL` to point at the backend API base (ending in `/api`), for example:
-- `http://localhost:8080/api`
+| Script | Purpose |
+|--------|---------|
+| `npm run dev` | Vite dev server |
+| `npm run build` | Production build + SEO prerender |
+| `npm test` | Frontend tests |
+| `npm run cap:sync:prod` | Capacitor Android prod sync |
 
-## Build
-
-```bash
-npm run build
-npm run preview
-```
-
-## More docs
-
-See the root `README.md` for full-stack setup, backend instructions, and deployment notes.
+See the [root README](../README.md) for monorepo overview.
