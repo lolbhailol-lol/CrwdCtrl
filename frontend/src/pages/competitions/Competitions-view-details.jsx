@@ -636,11 +636,13 @@ function EventPage() {
         Boolean(isWarmCompetitionLocationState(location.state) || peekWarmCompetitionNav()),
     );
     const [warmNav, setWarmNav] = useState(() => warmNavRef.current);
-    const canonicalFixRef = useRef(''); // path we already tried to replace to (prevents redirect loops)
     const competitionDataRef = useRef(competitionData);
     const fetchDoneRef = useRef(fetchDone);
     competitionDataRef.current = competitionData;
     fetchDoneRef.current = fetchDone;
+    const stateCompId = String(
+        location.state?.competition?._id || location.state?.competition?.id || '',
+    );
     const [openingRegister, setOpeningRegister] = useState(false);
     const openingRegisterRef = useRef(false);
     const { isDark } = useDarkMode();
@@ -670,8 +672,7 @@ function EventPage() {
     }, [navigate, location.state, competitionData?.fest, inAppBack]);
 
     // Switching comps reuses this page — swap to a complete package or hold on loader.
-    // Depend only on competitionId (not location.key): slug replace:true creates a new
-    // key and would re-enter this effect forever.
+    // Depend on competitionId + explore seed id (not location.key alone).
     useLayoutEffect(() => {
         const warm =
             isWarmCompetitionLocationState(location.state) || peekWarmCompetitionNav();
@@ -680,19 +681,18 @@ function EventPage() {
             setWarmNav(true);
         }
 
-        // Same competition, only URL token changed (ObjectId ↔ slug). Keep painted UI —
-        // resetting here caused Explore tap flash / loading glitch / URL ping-pong.
         const existing = competitionDataRef.current;
-        if (
+        const existingId = String(existing?.id || '');
+        // Same painted competition (ignore slug-only URL quirks). Different seed id = real switch.
+        const sameAsPainted =
             existing
             && competitionId
             && entityMatchesRouteParam(existing, competitionId, ['name', 'title'])
-        ) {
+            && (!stateCompId || !existingId || stateCompId === existingId);
+
+        if (sameAsPainted) {
             return undefined;
         }
-
-        // Allow one fresh canonical fix per real competition switch
-        canonicalFixRef.current = '';
 
         let pack = resolvePaintPackage(competitionId, location);
         if (!pack && warm && location.state?.competition) {
@@ -700,6 +700,18 @@ function EventPage() {
                 useFestRegistrationFallback: true,
             });
         }
+        // Explore seed always wins over a stale previous competition paint
+        if (
+            warm
+            && location.state?.competition
+            && stateCompId
+            && (!existingId || stateCompId !== existingId)
+        ) {
+            pack = buildCompetitionData(location.state.competition, {
+                useFestRegistrationFallback: true,
+            });
+        }
+
         fetchGenRef.current += 1;
         setCompetitionData(pack);
         setPageReady(Boolean(pack) || warm);
@@ -717,7 +729,7 @@ function EventPage() {
         setShowShareMenu(false);
         return undefined;
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [competitionId]);
+    }, [competitionId, stateCompId]);
 
     useEffect(() => {
         if (warmNavRef.current || warmNav || location.state?.skipDemoLoad) {
@@ -737,13 +749,15 @@ function EventPage() {
 
     // Fetch competition data from backend API
     useEffect(() => {
-        // Canonical URL rename for the same loaded competition — do not refetch / blank UI
+        // Already showing this competition fully — do not refetch / blank UI
         const existing = competitionDataRef.current;
+        const existingId = String(existing?.id || '');
         if (
             existing
             && competitionId
             && fetchDoneRef.current
             && entityMatchesRouteParam(existing, competitionId, ['name', 'title'])
+            && (!stateCompId || !existingId || stateCompId === existingId)
         ) {
             return undefined;
         }
@@ -780,6 +794,10 @@ function EventPage() {
                 if (compData) {
                     const built = buildCompetitionData(compData, { useFestRegistrationFallback: true });
                     saveCompetitionDetailCache(competitionId, built);
+                    const mongoId = String(built.id || '');
+                    if (mongoId && mongoId !== String(competitionId)) {
+                        saveCompetitionDetailCache(mongoId, built);
+                    }
                     applyPackage(built);
                 } else {
                     setError('Competition not found');
@@ -827,7 +845,7 @@ function EventPage() {
         // location.state is read for seed fallbacks; do not list it as a dep (replace navigations
         // create a new state reference and would retrigger fetch forever with location.key loops).
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [competitionId, navigate]);
+    }, [competitionId, stateCompId, navigate]);
 
     // Keep tab index valid when empty placeholder rounds are filtered out
     useEffect(() => {
@@ -885,32 +903,8 @@ function EventPage() {
         };
     }, [competitionId]);
 
-    useEffect(() => {
-        if (!competitionData) return;
-        // URL already identifies this competition — never replace (stops slug ping-pong loops)
-        if (competitionId && entityMatchesRouteParam(competitionData, competitionId, ['name', 'title'])) {
-            return;
-        }
-        const canonical = competitionPath({
-            ...competitionData,
-            slug: competitionData.slug,
-            name: competitionData.name || competitionData.title,
-            title: competitionData.title || competitionData.name,
-        });
-        if (!canonical) return;
-        if (window.location.pathname === canonical) return;
-        if (canonicalFixRef.current === canonical) return;
-        // Skip rewrite while explore/similar warm seed is still loading — avoids URL thrash
-        if (!fetchDone && (warmNavRef.current || location.state?.skipDemoLoad)) {
-            return;
-        }
-        canonicalFixRef.current = canonical;
-        navigate(`${canonical}${window.location.search || ''}`, {
-            replace: true,
-            state: location.state,
-        });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [competitionData?.id, competitionData?.title, competitionData?.slug, competitionId, fetchDone, navigate]);
+    // Intentionally no canonical URL rewrite — navigate() replace was thrashing
+    // Explore / similar competition switches (URL ping-pong + loading glitch).
 
     // Check for login modal parameter
     useEffect(() => {

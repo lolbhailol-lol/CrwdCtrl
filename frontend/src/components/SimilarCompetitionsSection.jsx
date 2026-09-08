@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { competitionPath, festPath } from '../utils/slugRoutes';
+import { competitionDetailNavPath, festPath } from '../utils/slugRoutes';
 import {
   buildCompetitionNavPayload,
   buildRegistrationPrefetch,
@@ -121,7 +121,7 @@ export default function SimilarCompetitionsSection({
     });
     prefetchCompAndRegistration(comp, festRef);
     markWarmCompetitionNav();
-    const path = competitionPath({
+    const path = competitionDetailNavPath({
       id: comp._id || comp.id,
       _id: comp._id || comp.id,
       slug: comp.slug,

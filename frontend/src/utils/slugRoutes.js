@@ -176,6 +176,18 @@ export function competitionPath(competition = {}) {
     return `/competitions-view-details/${slug || id}`;
 }
 
+/**
+ * In-app Explore / similar switches: always use Mongo id so the route param is stable
+ * (no slug rewrite thrash when switching competitions on the same page).
+ */
+export function competitionDetailNavPath(competition = {}) {
+    const id = pickId(competition);
+    if (id && isObjectId(id)) {
+        return `/competitions-view-details/${id}`;
+    }
+    return competitionPath(competition);
+}
+
 export function competitionRegistrationPath(competition = {}) {
     const id = pickId(competition);
     const slug = toSlug(competition.name || competition.title || '');

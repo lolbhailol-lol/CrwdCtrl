@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { festPath, competitionPath } from '../utils/slugRoutes';
+import { festPath, competitionDetailNavPath } from '../utils/slugRoutes';
 import { getImageUrl } from '../utils/imageImports';
 import { handleImageErrorWithFallback } from '../utils/fallbackImageGenerator';
 import {
@@ -114,7 +114,7 @@ export default function SimilarFestsSection({
               });
               markWarmCompetitionNav();
               navigate(
-                competitionPath({
+                competitionDetailNavPath({
                   id: comp._id || comp.id,
                   _id: comp._id || comp.id,
                   slug: comp.slug,

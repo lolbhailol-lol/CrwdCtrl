@@ -172,17 +172,17 @@ export function PageTransitionProvider({ children }) {
             return clearTimers;
         }
 
-        resetScrollToTop();
-
-        if (shouldSkipPageTransition(location.pathname)) {
+        // REPLACE = in-place URL tweak — keep scroll & skip skeleton (no jump/glitch)
+        if (navType === 'REPLACE') {
             prevLocationKey.current = location.key;
             visitedRoutes.add(location.pathname);
             setIsTransitioning(false);
             return clearTimers;
         }
 
-        // Canonical slug redirects (replace) — never re-flash the route skeleton
-        if (navType === 'REPLACE') {
+        resetScrollToTop();
+
+        if (shouldSkipPageTransition(location.pathname)) {
             prevLocationKey.current = location.key;
             visitedRoutes.add(location.pathname);
             setIsTransitioning(false);
@@ -253,18 +253,21 @@ export function PageTransitionContent({ children }) {
         const el = ref.current;
         if (!el) return;
 
-        // Admin / organizer shells: no slide flash — keep content steady
-        // Fest / competition details: soft fade when switching between them
+        // Admin / organizer shells: no slide flash — keep content steady.
+        // Competition detail switches paint their own seed — fade here causes Explore glitch.
         if (skipMotion) {
-            // REPLACE = canonical slug fix — do not fade / glitch the same page
             if (navType === 'REPLACE') {
+                isFirst.current = false;
+                return;
+            }
+            const isCompetitionDetail = location.pathname.startsWith('/competitions-view-details');
+            if (isCompetitionDetail) {
                 isFirst.current = false;
                 return;
             }
             const isDetailSwitch =
                 location.pathname.endsWith('-fest')
                 || location.pathname.startsWith('/view-details')
-                || location.pathname.startsWith('/competitions-view-details')
                 || location.pathname.startsWith('/competition/');
             if (isDetailSwitch && !isFirst.current) {
                 el.classList.remove('page-transition-enter', 'page-transition-enter-back', 'page-transition-detail-fade');
