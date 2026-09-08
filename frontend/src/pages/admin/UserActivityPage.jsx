@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { adminFetchJSON } from '../../services/api/admin.api.js';
 import { InlinePageLoader } from '../../components/DetailPageLoader';
+import UserActivityScopedTab from './UserActivityScopedTab.jsx';
 
 const RANGE_OPTIONS = [
     { id: 'all-time', label: 'All time' },
@@ -22,6 +23,7 @@ function todayIsoDate() {
 
 const TABS = [
     { id: 'overview', label: 'Overview' },
+    { id: 'scoped', label: 'Fests & pages' },
     { id: 'daily', label: 'Daily' },
     { id: 'all-users', label: 'All users' },
     { id: 'logins', label: 'Logins' },
@@ -295,6 +297,7 @@ export default function UserActivityPage() {
         setError('');
         try {
             if (tab === 'overview') await fetchOverview();
+            else if (tab === 'scoped') { /* loaded inside UserActivityScopedTab */ }
             else if (tab === 'daily') await fetchDaily();
             else if (tab === 'all-users') await fetchAllUsers();
             else if (tab === 'logins') await fetchLogins();
@@ -469,10 +472,18 @@ export default function UserActivityPage() {
                 </div>
             )}
 
-            {loading ? (
+            {loading && tab !== 'scoped' ? (
                 <InlinePageLoader label="Loading user activity…" minHeight={false} />
             ) : (
                 <>
+                    {tab === 'scoped' && (
+                        <UserActivityScopedTab
+                            rangeQuery={rangeQuery}
+                            buildRangeParams={buildRangeParams}
+                            openUserHistory={openUserHistory}
+                        />
+                    )}
+
                     {tab === 'overview' && (
                         <div className="space-y-5">
                             {!overview && (

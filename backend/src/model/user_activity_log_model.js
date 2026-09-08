@@ -52,6 +52,9 @@ userActivityLogSchema.index({ sourceAnalyticsId: 1 }, { unique: true, sparse: tr
 userActivityLogSchema.index({ createdAt: -1 });
 userActivityLogSchema.index({ email: 1, createdAt: -1 });
 userActivityLogSchema.index({ sessionId: 1, createdAt: -1 });
+userActivityLogSchema.index({ 'metadata.festId': 1, createdAt: -1 });
+userActivityLogSchema.index({ 'metadata.competitionId': 1, createdAt: -1 });
+userActivityLogSchema.index({ page: 1, createdAt: -1 });
 // Keep activity logs for 1 year
 userActivityLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: 365 * 24 * 60 * 60 });
 

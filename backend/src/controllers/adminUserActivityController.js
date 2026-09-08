@@ -1,6 +1,10 @@
+const mongoose = require('mongoose');
 const UserLoginLog = require('../model/user_login_log_model');
 const UserActivityLog = require('../model/user_activity_log_model');
 const User = require('../model/usermodel');
+const FestOrganizer = require('../model/fest_organizer_model');
+const Competition = require('../model/competition_model');
+const Registration = require('../model/registration_model');
 const {
     parseReportRange,
     normalizeEmail,
@@ -12,6 +16,7 @@ const {
     listAllUsersWithSummaries,
     getFullUserHistory,
 } = require('../services/userFullHistoryService');
+const { toSlug } = require('../utils/slug');
 
 function formatDuration(seconds) {
     const s = Math.max(0, Math.round(Number(seconds) || 0));
@@ -30,6 +35,128 @@ function escapeRegex(str) {
 
 function resolveRange(req) {
     return parseReportRange(req.query);
+}
+
+function isObjectId(value) {
+    return /^[a-f\d]{24}$/i.test(String(value || '').trim());
+}
+
+function idVariants(id) {
+    const raw = String(id || '').trim();
+    if (!raw) return [];
+    const variants = [raw];
+    if (isObjectId(raw)) {
+        variants.push(new mongoose.Types.ObjectId(raw));
+    }
+    return variants;
+}
+
+function metadataIdMatch(field, id) {
+    const variants = idVariants(id);
+    if (!variants.length) return null;
+    return { [field]: { $in: variants } };
+}
+
+function buildPathTokens(entity = {}, nameKeys = []) {
+    const tokens = new Set();
+    const id = String(entity._id || entity.id || '').trim();
+    if (id) tokens.add(id);
+    const slug = toSlug(entity.slug || '');
+    if (slug) tokens.add(slug);
+    nameKeys.forEach((key) => {
+        const named = toSlug(entity[key] || '');
+        if (named) tokens.add(named);
+    });
+    (entity.previousSlugs || []).forEach((s) => {
+        const prev = toSlug(s);
+        if (prev) tokens.add(prev);
+    });
+    return [...tokens].filter(Boolean);
+}
+
+function buildScopedActivityMatch({ match, festId, competitionId, pageFilter, fest, competitions }) {
+    const clauses = [];
+    const festMeta = festId ? metadataIdMatch('metadata.festId', festId) : null;
+    const competitionMeta = competitionId
+        ? metadataIdMatch('metadata.competitionId', competitionId)
+        : null;
+
+    if (competitionMeta) {
+        clauses.push(competitionMeta);
+        clauses.push({
+            eventType: { $in: ['competition_view', 'book_now_click', 'similar_competition_click', 'registration'] },
+            ...competitionMeta,
+        });
+    } else if (festMeta) {
+        clauses.push(festMeta);
+        clauses.push({
+            eventType: { $in: ['fest_view', 'explore_fest_click', 'registration', 'book_now_click'] },
+            ...festMeta,
+        });
+        const competitionIds = (competitions || []).map((c) => String(c._id));
+        if (competitionIds.length) {
+            clauses.push({
+                $or: competitionIds.map((id) => metadataIdMatch('metadata.competitionId', id)).filter(Boolean),
+            });
+        }
+    }
+
+    const pageTokens = [];
+    if (competitionId) {
+        const competition = (competitions || []).find((c) => String(c._id) === String(competitionId));
+        pageTokens.push(...buildPathTokens(competition || { _id: competitionId }, ['name', 'title']));
+    } else if (festId) {
+        pageTokens.push(...buildPathTokens(fest || { _id: festId }, ['festName', 'title']));
+        (competitions || []).forEach((c) => {
+            pageTokens.push(...buildPathTokens(c, ['name', 'title']));
+        });
+    }
+
+    const uniqueTokens = [...new Set(pageTokens)];
+    if (uniqueTokens.length) {
+        const pathPatterns = uniqueTokens.map((token) => escapeRegex(token));
+        const joined = pathPatterns.join('|');
+        if (competitionId) {
+            clauses.push({
+                page: {
+                    $regex: `/(competitions-view-details|competition-registration|fest/[^/]+/register)/(${joined})(?:/|$|\\?)`,
+                    $options: 'i',
+                },
+            });
+            clauses.push({
+                page: {
+                    $regex: `/fest/[^/]+/register.*[?&]competition=(${joined})(?:&|$)`,
+                    $options: 'i',
+                },
+            });
+        } else if (festId) {
+            clauses.push({
+                page: {
+                    $regex: `/(view-details|fest)/(${joined})(?:/|$|\\?)`,
+                    $options: 'i',
+                },
+            });
+            clauses.push({
+                page: {
+                    $regex: `/(competitions-view-details|competition-registration|fest/[^/]+/register)/(${joined})(?:/|$|\\?)`,
+                    $options: 'i',
+                },
+            });
+        }
+    }
+
+    if (pageFilter) {
+        clauses.push({ page: new RegExp(escapeRegex(pageFilter), 'i') });
+    }
+
+    if (!clauses.length) {
+        return { ...match, _id: null }; // force empty when no scope
+    }
+
+    return {
+        ...match,
+        $or: clauses,
+    };
 }
 
 function mergeDailyWithGa(internalDaily, gaDaily) {
@@ -716,6 +843,386 @@ const getFullHistory = async (req, res) => {
     }
 };
 
+/**
+ * GET /admin/user-activity/scoped
+ * Fest → competition → page visitor activity + registration/check-in roster.
+ * Query: festId (required unless page=), competitionId?, page?, range, loggedInOnly?
+ */
+const getScopedActivity = async (req, res) => {
+    try {
+        const { match, range } = resolveRange(req);
+        const festId = String(req.query.festId || '').trim();
+        const competitionId = String(req.query.competitionId || '').trim();
+        const pageFilter = String(req.query.page || '').trim();
+        const loggedInOnly = req.query.loggedInOnly === 'true';
+        const visitorPage = Math.max(parseInt(req.query.visitorPage, 10) || 1, 1);
+        const visitorLimit = Math.min(parseInt(req.query.visitorLimit, 10) || 50, 200);
+        const visitorSkip = (visitorPage - 1) * visitorLimit;
+
+        if (!festId && !competitionId && !pageFilter) {
+            return res.status(400).json({
+                success: false,
+                message: 'Provide festId, competitionId, or page',
+            });
+        }
+
+        let fest = null;
+        let competitions = [];
+        let resolvedFestId = festId;
+        let resolvedCompetitionId = competitionId;
+
+        if (competitionId && isObjectId(competitionId)) {
+            const competition = await Competition.findById(competitionId)
+                .select('name slug fest previousSlugs')
+                .lean();
+            if (competition) {
+                resolvedCompetitionId = String(competition._id);
+                if (!resolvedFestId) resolvedFestId = String(competition.fest);
+                competitions = [competition];
+            }
+        }
+
+        if (resolvedFestId && isObjectId(resolvedFestId)) {
+            fest = await FestOrganizer.findById(resolvedFestId)
+                .select('festName slug collegeName previousSlugs')
+                .lean();
+            if (!fest) {
+                return res.status(404).json({ success: false, message: 'Fest not found' });
+            }
+            if (!competitions.length || !resolvedCompetitionId) {
+                competitions = await Competition.find({ fest: resolvedFestId })
+                    .select('name slug fest previousSlugs')
+                    .sort({ name: 1 })
+                    .lean();
+            } else if (competitions.length === 1) {
+                // keep the single competition already loaded
+            }
+        }
+
+        const activityMatch = buildScopedActivityMatch({
+            match,
+            festId: resolvedFestId,
+            competitionId: resolvedCompetitionId,
+            pageFilter,
+            fest,
+            competitions: resolvedCompetitionId
+                ? competitions.filter((c) => String(c._id) === String(resolvedCompetitionId))
+                : competitions,
+        });
+
+        if (loggedInOnly) {
+            activityMatch.email = { $nin: [null, ''] };
+        }
+
+        const visitorIdentity = {
+            $cond: [
+                { $and: [{ $ne: ['$email', null] }, { $ne: ['$email', ''] }] },
+                '$email',
+                {
+                    $cond: [
+                        { $and: [{ $ne: ['$sessionId', null] }, { $ne: ['$sessionId', ''] }] },
+                        { $concat: ['session:', '$sessionId'] },
+                        { $concat: ['anon:', { $toString: '$_id' }] },
+                    ],
+                },
+            ],
+        };
+
+        const [
+            totalEvents,
+            pageViewCount,
+            festViewCount,
+            competitionViewCount,
+            uniqueVisitorAgg,
+            topPages,
+            competitionBreakdown,
+            visitorsAgg,
+            visitorsTotalAgg,
+        ] = await Promise.all([
+            UserActivityLog.countDocuments(activityMatch),
+            UserActivityLog.countDocuments({
+                ...activityMatch,
+                eventType: 'page_view',
+                durationSeconds: 0,
+            }),
+            UserActivityLog.countDocuments({ ...activityMatch, eventType: 'fest_view' }),
+            UserActivityLog.countDocuments({ ...activityMatch, eventType: 'competition_view' }),
+            UserActivityLog.aggregate([
+                { $match: activityMatch },
+                { $group: { _id: visitorIdentity } },
+                { $count: 'count' },
+            ]),
+            UserActivityLog.aggregate([
+                { $match: { ...activityMatch, page: { $nin: ['', null] } } },
+                {
+                    $group: {
+                        _id: '$page',
+                        views: {
+                            $sum: {
+                                $cond: [
+                                    {
+                                        $and: [
+                                            { $eq: ['$eventType', 'page_view'] },
+                                            { $eq: ['$durationSeconds', 0] },
+                                        ],
+                                    },
+                                    1,
+                                    1,
+                                ],
+                            },
+                        },
+                        uniqueVisitors: { $addToSet: visitorIdentity },
+                        lastVisitedAt: { $max: '$createdAt' },
+                    },
+                },
+                {
+                    $project: {
+                        page: '$_id',
+                        views: 1,
+                        uniqueVisitors: { $size: '$uniqueVisitors' },
+                        lastVisitedAt: 1,
+                        _id: 0,
+                    },
+                },
+                { $sort: { views: -1 } },
+                { $limit: 40 },
+            ]),
+            resolvedFestId && !resolvedCompetitionId
+                ? UserActivityLog.aggregate([
+                    {
+                        $match: {
+                            ...activityMatch,
+                            'metadata.competitionId': { $nin: [null, ''] },
+                        },
+                    },
+                    {
+                        $group: {
+                            _id: '$metadata.competitionId',
+                            views: { $sum: 1 },
+                            uniqueVisitors: { $addToSet: visitorIdentity },
+                            lastVisitedAt: { $max: '$createdAt' },
+                        },
+                    },
+                    {
+                        $project: {
+                            competitionId: { $toString: '$_id' },
+                            views: 1,
+                            uniqueVisitors: { $size: '$uniqueVisitors' },
+                            lastVisitedAt: 1,
+                            _id: 0,
+                        },
+                    },
+                    { $sort: { views: -1 } },
+                    { $limit: 100 },
+                ])
+                : Promise.resolve([]),
+            UserActivityLog.aggregate([
+                { $match: activityMatch },
+                {
+                    $group: {
+                        _id: visitorIdentity,
+                        email: { $max: '$email' },
+                        userId: { $max: '$userId' },
+                        visits: { $sum: 1 },
+                        pageViews: {
+                            $sum: {
+                                $cond: [
+                                    {
+                                        $and: [
+                                            { $eq: ['$eventType', 'page_view'] },
+                                            { $eq: ['$durationSeconds', 0] },
+                                        ],
+                                    },
+                                    1,
+                                    0,
+                                ],
+                            },
+                        },
+                        festViews: {
+                            $sum: { $cond: [{ $eq: ['$eventType', 'fest_view'] }, 1, 0] },
+                        },
+                        competitionViews: {
+                            $sum: { $cond: [{ $eq: ['$eventType', 'competition_view'] }, 1, 0] },
+                        },
+                        lastVisitedAt: { $max: '$createdAt' },
+                        firstVisitedAt: { $min: '$createdAt' },
+                        lastPage: { $last: '$page' },
+                        devices: { $addToSet: '$device' },
+                    },
+                },
+                { $sort: { lastVisitedAt: -1 } },
+                { $skip: visitorSkip },
+                { $limit: visitorLimit },
+            ]),
+            UserActivityLog.aggregate([
+                { $match: activityMatch },
+                { $group: { _id: visitorIdentity } },
+                { $count: 'count' },
+            ]),
+        ]);
+
+        const competitionNameById = Object.fromEntries(
+            (competitions || []).map((c) => [String(c._id), c.name || 'Competition']),
+        );
+
+        // Registration / check-in roster for "who came"
+        let registrations = [];
+        let registrationStats = {
+            total: 0,
+            approved: 0,
+            checkedIn: 0,
+            pendingCheckIn: 0,
+        };
+
+        if (resolvedFestId && isObjectId(resolvedFestId)) {
+            const regFilter = { fest: resolvedFestId };
+            if (resolvedCompetitionId && isObjectId(resolvedCompetitionId)) {
+                regFilter.competitionId = resolvedCompetitionId;
+            }
+
+            const [regRows, regCounts] = await Promise.all([
+                Registration.find(regFilter)
+                    .populate('user', 'name email phoneNumber phone')
+                    .select('status paymentStatus checkedIn checkedInAt competitionId createdAt user responses')
+                    .sort({ checkedInAt: -1, createdAt: -1 })
+                    .limit(300)
+                    .lean(),
+                Registration.aggregate([
+                    { $match: regFilter },
+                    {
+                        $group: {
+                            _id: null,
+                            total: { $sum: 1 },
+                            approved: {
+                                $sum: { $cond: [{ $eq: ['$status', 'approved'] }, 1, 0] },
+                            },
+                            checkedIn: {
+                                $sum: {
+                                    $cond: [
+                                        {
+                                            $and: [
+                                                { $eq: ['$status', 'approved'] },
+                                                { $eq: ['$checkedIn', true] },
+                                            ],
+                                        },
+                                        1,
+                                        0,
+                                    ],
+                                },
+                            },
+                        },
+                    },
+                ]),
+            ]);
+
+            const counts = regCounts[0] || { total: 0, approved: 0, checkedIn: 0 };
+            registrationStats = {
+                total: counts.total || 0,
+                approved: counts.approved || 0,
+                checkedIn: counts.checkedIn || 0,
+                pendingCheckIn: Math.max(0, (counts.approved || 0) - (counts.checkedIn || 0)),
+            };
+
+            registrations = regRows.map((r) => ({
+                id: String(r._id),
+                status: r.status,
+                paymentStatus: r.paymentStatus,
+                checkedIn: Boolean(r.checkedIn),
+                checkedInAt: r.checkedInAt || null,
+                registeredAt: r.createdAt,
+                competitionId: r.competitionId ? String(r.competitionId) : null,
+                competitionName: r.competitionId
+                    ? (competitionNameById[String(r.competitionId)] || null)
+                    : null,
+                user: r.user
+                    ? {
+                        id: String(r.user._id),
+                        name: r.user.name || '',
+                        email: r.user.email || '',
+                        phone: r.user.phoneNumber || r.user.phone || '',
+                    }
+                    : null,
+            }));
+        }
+
+        const visitorTotal = visitorsTotalAgg[0]?.count || uniqueVisitorAgg[0]?.count || 0;
+
+        // Enrich visitor emails with names from User collection
+        const visitorEmails = visitorsAgg
+            .map((v) => normalizeEmail(v.email))
+            .filter(Boolean);
+        const usersByEmail = {};
+        if (visitorEmails.length) {
+            const users = await User.find({ email: { $in: visitorEmails } })
+                .select('name email')
+                .lean();
+            users.forEach((u) => {
+                usersByEmail[normalizeEmail(u.email)] = u.name || '';
+            });
+        }
+
+        res.json({
+            success: true,
+            range,
+            scope: {
+                festId: resolvedFestId || null,
+                festName: fest?.festName || null,
+                collegeName: fest?.collegeName || null,
+                competitionId: resolvedCompetitionId || null,
+                competitionName: resolvedCompetitionId
+                    ? (competitionNameById[resolvedCompetitionId] || null)
+                    : null,
+                page: pageFilter || null,
+            },
+            competitions: competitions.map((c) => ({
+                id: String(c._id),
+                name: c.name,
+            })),
+            stats: {
+                totalEvents,
+                pageViews: pageViewCount,
+                festViews: festViewCount,
+                competitionViews: competitionViewCount,
+                uniqueVisitors: uniqueVisitorAgg[0]?.count || 0,
+            },
+            registrationStats,
+            topPages,
+            competitionBreakdown: (competitionBreakdown || []).map((row) => ({
+                ...row,
+                competitionName: competitionNameById[String(row.competitionId)] || null,
+            })),
+            visitors: visitorsAgg.map((v) => {
+                const email = normalizeEmail(v.email);
+                return {
+                    key: v._id,
+                    email: email || null,
+                    name: email ? (usersByEmail[email] || '') : '',
+                    userId: v.userId ? String(v.userId) : null,
+                    isGuest: !email,
+                    visits: v.visits,
+                    pageViews: v.pageViews,
+                    festViews: v.festViews,
+                    competitionViews: v.competitionViews,
+                    firstVisitedAt: v.firstVisitedAt,
+                    lastVisitedAt: v.lastVisitedAt,
+                    lastPage: v.lastPage || '',
+                    devices: (v.devices || []).filter(Boolean),
+                };
+            }),
+            visitorPagination: {
+                page: visitorPage,
+                limit: visitorLimit,
+                total: visitorTotal,
+                totalPages: Math.ceil(visitorTotal / visitorLimit) || 1,
+            },
+            registrations,
+        });
+    } catch (error) {
+        console.error('Admin user-activity scoped error:', error);
+        res.status(500).json({ success: false, message: 'Failed to fetch scoped activity' });
+    }
+};
+
 module.exports = {
     getOverview,
     getDailyBreakdown,
@@ -724,5 +1231,6 @@ module.exports = {
     getUserDetail,
     listAllUsers,
     getFullHistory,
+    getScopedActivity,
     runBackfill,
 };

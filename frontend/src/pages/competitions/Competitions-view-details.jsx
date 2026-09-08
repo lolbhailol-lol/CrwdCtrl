@@ -18,7 +18,7 @@ import { openExternalUrl, shareContent } from '../../utils/externalLink';
 import { competitionPath, competitionRegistrationPath, festRegisterPath, festPath, entityMatchesRouteParam, isObjectId } from '../../utils/slugRoutes';
 import { resolveCompetitionFee, buildRegistrationPrefetch, saveRegistrationPrefetch } from '../../utils/festPublicTransform';
 import { minCompetitionFeeAmount } from '../../utils/competitionFeeTiers';
-import { trackBookNowClick } from '../../services/analyticsService';
+import { trackBookNowClick, trackCompetitionView } from '../../services/analyticsService';
 import PrizePoolPodium from '../../components/PrizePoolPodium';
 import CompetitionCoverImage from '../../components/CompetitionCoverImage';
 import { signalDetailPageReady } from '../../utils/bootSplash';
@@ -999,6 +999,21 @@ function EventPage() {
             signalDetailPageReady();
         }
     }, [pageReady, fetchDone, error, holdLoader]);
+
+    useEffect(() => {
+        const compId = competitionData?.id || competitionData?._id;
+        if (!compId) return undefined;
+        const festKey = competitionData?.festId || competitionData?.fest?._id || competitionData?.fest?.id;
+        trackCompetitionView(compId, festKey, { competitionName: competitionData?.title || '' });
+        return undefined;
+    }, [
+        competitionData?.id,
+        competitionData?._id,
+        competitionData?.festId,
+        competitionData?.fest?._id,
+        competitionData?.fest?.id,
+        competitionData?.title,
+    ]);
 
     const warmFromOtherComp =
         warmNav

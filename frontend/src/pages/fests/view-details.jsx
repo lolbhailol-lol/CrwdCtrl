@@ -33,6 +33,7 @@ import FestPublicLiveStrip from '../../components/FestPublicLiveStrip';
 import SimilarFestsSection from '../../components/SimilarFestsSection';
 import { getFestPlugin } from '../../features/fests/plugins';
 import { useInAppBack } from '../../hooks/useInAppBack';
+import { trackFestView } from '../../services/analyticsService';
 
 const CrwdCtrlLogin = lazy(() => import('../auth/login'));
 const CrwdCtrlRegister = lazy(() => import('../auth/register'));
@@ -370,6 +371,13 @@ function EventDetailsPage() {
       signalDetailPageReady();
     }
   }, [eventData, fetchDone, error]);
+
+  useEffect(() => {
+    const festKey = eventData?.id || eventData?._id;
+    if (!festKey) return undefined;
+    trackFestView(festKey, { festName: eventData?.title || '' });
+    return undefined;
+  }, [eventData?.id, eventData?._id, eventData?.title]);
 
   if (fetchDone && error && !eventData) {
     return (

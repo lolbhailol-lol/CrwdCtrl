@@ -98,12 +98,23 @@ export const trackPageEngagement = (page, durationSeconds, previousPage = null) 
   });
 };
 
-export const trackFestView = (festId) => {
-  sendEvent('fest_view', { festId, page: window.location.pathname || '' });
+export const trackFestView = (festId, extra = {}) => {
+  if (!festId) return;
+  sendEvent('fest_view', {
+    festId: String(festId),
+    page: window.location.pathname || '',
+    ...extra,
+  });
 };
 
-export const trackCompetitionView = (competitionId) => {
-  sendEvent('competition_view', { competitionId, page: window.location.pathname || '' });
+export const trackCompetitionView = (competitionId, festId = null, extra = {}) => {
+  if (!competitionId) return;
+  sendEvent('competition_view', {
+    competitionId: String(competitionId),
+    ...(festId ? { festId: String(festId) } : {}),
+    page: window.location.pathname || '',
+    ...extra,
+  });
 };
 
 export const trackRegistration = (festId, competitionId = null) => {

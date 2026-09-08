@@ -103,6 +103,7 @@ router.get('/user-activity/feed', adminAuth, adminUserActivityCtrl.listActivityF
 router.get('/user-activity/user', adminAuth, adminUserActivityCtrl.getUserDetail);
 router.get('/user-activity/all-users', adminAuth, adminUserActivityCtrl.listAllUsers);
 router.get('/user-activity/full-history', adminAuth, adminUserActivityCtrl.getFullHistory);
+router.get('/user-activity/scoped', adminAuth, adminUserActivityCtrl.getScopedActivity);
 router.post('/user-activity/backfill', adminAuth, adminUserActivityCtrl.runBackfill);
 
 // ===== FEST PRIORITY MANAGEMENT (must come BEFORE generic :id routes) =====
