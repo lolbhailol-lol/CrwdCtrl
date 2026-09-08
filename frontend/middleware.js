@@ -37,14 +37,15 @@ const BOT_UA =
 function pickShareImage(entity) {
   if (!entity || typeof entity !== 'object') return undefined;
   const covers = entity.coverImages && typeof entity.coverImages === 'object' ? entity.coverImages : {};
+  // Prefer landscape/wide for WhatsApp & Facebook (tall portraits often fail preview).
   const candidates = [
-    covers.portrait,
     covers.wide,
-    covers.hero,
     covers.landscape,
-    covers.video,
-    covers.square,
+    covers.hero,
     covers.page,
+    covers.square,
+    covers.portrait,
+    covers.video,
     entity.coverImage,
     entity.poster,
     entity.banner,

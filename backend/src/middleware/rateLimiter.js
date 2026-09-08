@@ -69,6 +69,8 @@ const apiLimiter = rateLimit({
     if (path.startsWith('/campus-hunt/')) return true;
     // Public detail GETs — viral shared run/trek links must not 429 as "not found"
     if (req.method === 'GET') {
+      // Social crawler OG HTML — WhatsApp/Facebook prefetch must not 429
+      if (/^\/seo\/og/.test(path)) return true;
       if (/^\/sports\/[^/]+$/.test(path)) return true;
       if (/^\/treks\/[^/]+$/.test(path)) return true;
       // MindSpark / fest browse — college NAT + WhatsApp blast must not 429 the brochure

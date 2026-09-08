@@ -45,6 +45,25 @@
 		}
 	}
 
+	# Social crawlers need Open Graph HTML — SPA index.html only has the site logo.
+	# Route detail-page bots to the backend OG endpoint so WhatsApp gets the event cover.
+	@socialbot header_regexp User-Agent (?i)(facebookexternalhit|facebot|twitterbot|whatsapp|slackbot|slack-imgproxy|linkedinbot|discordbot|telegrambot|pinterest|redditbot|googlebot|bingbot|embedly|skypeuripreview|iframely|nuzzel|bitlybot)
+	@sharepath path_regexp sharepath ^/(view-details|competitions-view-details|trek|treks/community|sports/run|sports/run-club|events)/
+	handle @socialbot {
+		handle @sharepath {
+			rewrite * /api/seo/og{uri}
+			reverse_proxy {$API_UPSTREAM:https://crwdctrl-production-9c58.up.railway.app} {
+				header_up Host {http.reverse_proxy.upstream.host}
+				header_up X-Forwarded-Host {host}
+				header_up X-Forwarded-Proto {scheme}
+				header_up X-Real-IP {remote_host}
+				transport http {
+					versions 1.1
+				}
+			}
+		}
+	}
+
 	handle {
 		root * /app/dist
 		encode {
