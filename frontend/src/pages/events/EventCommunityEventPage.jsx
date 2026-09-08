@@ -183,29 +183,22 @@ export default function EventCommunityEventPage() {
             setFetchingDetail(false);
             // Soft-refresh below for userRegistration + latest fields (don't skip fetch)
         }
+        // Hydrated cache only — listing stubs / renamed events flash “old” UI if painted early
         const fallback = existingReady
             ? existing
             : pickRunFallback(seeded, cachedEvent, id, existing);
 
         if (!existingReady) {
             setFetchingDetail(true);
-            if (fallback) {
-                setEvent(fallback);
-                setLoading(false);
-            } else {
-                setEvent(null);
-                setLoading(true);
-            }
-
+            setLoading(true);
+            setEvent(null);
             setImgPg(0);
             setOverviewExpanded(false);
             setActiveRunTab('Details');
             setOpenInfo(null);
             setTermsOpen(false);
             setTierSheetOpen(false);
-            if (!fallback || eventCoverHint(fallback) !== eventCoverHint(eventRef.current)) {
-                setHeroLoaded(false);
-            }
+            setHeroLoaded(false);
         }
 
         const controller = new AbortController();
@@ -227,7 +220,7 @@ export default function EventCommunityEventPage() {
                         if (s) writeRunDetailCache(String(s), d.event);
                     });
                     setLoadError('');
-                } else if (fallback) {
+                } else if (fallback && isHydratedEvent(fallback)) {
                     setEvent(fallback);
                     setLoadError('');
                 } else {
@@ -247,7 +240,7 @@ export default function EventCommunityEventPage() {
             })
             .catch((err) => {
                 if (controller.signal.aborted) return;
-                if (fallback) {
+                if (fallback && isHydratedEvent(fallback)) {
                     setEvent(fallback);
                     setLoadError('');
                     return;
@@ -280,7 +273,9 @@ export default function EventCommunityEventPage() {
         }
     }, [event, id, navigate, location.state]);
 
-    const showPageLoader = (loading && !event)
+    // Show 3D event loader instead of flashing listing stubs / previous event content
+    const showPageLoader = loading
+        || fetchingDetail
         || (event && id && !entityMatchesRouteParam(event, id, ['title', 'name']));
     usePageContentLoading(showPageLoader);
 
