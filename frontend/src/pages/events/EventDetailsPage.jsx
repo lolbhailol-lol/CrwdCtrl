@@ -17,6 +17,7 @@ import { shareContent, openExternalUrl } from '../../utils/externalLink';
 import { publicFetchJSONRetry as fetchJSON } from '../../services/api/client';
 import { EVENT_TYPE_LABELS, formatEventShowDate } from '../../constants/eventsPage';
 import { useInAppBack } from '../../hooks/useInAppBack';
+import { useDetailLoaderFailsafe } from '../../hooks/useDetailLoaderFailsafe';
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { eventShowPath } from '../../utils/slugRoutes';
@@ -147,6 +148,11 @@ export default function EventDetailsPage() {
     load();
     return () => { active = false; };
   }, [eventId, navigate]);
+
+  useDetailLoaderFailsafe(loading, () => {
+    setLoading(false);
+    setError((prev) => prev || 'Failed to load event');
+  });
 
   useEffect(() => {
     if (!event || !eventId) return;

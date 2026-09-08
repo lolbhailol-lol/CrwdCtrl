@@ -10,6 +10,7 @@ import { useInAppBack } from '../../hooks/useInAppBack';
 import PaymentErrorModal from '../../components/PaymentErrorModal';
 import RunCheckoutPanel from '../../components/sports/RunCheckoutPanel';
 import DetailPageLoader from '../../components/DetailPageLoader';
+import { useDetailLoaderFailsafe } from '../../hooks/useDetailLoaderFailsafe';
 import { CompletingPaymentStep } from '../fests/FestRegistration/PaymentStep';
 import {
     getPendingPayment,
@@ -421,12 +422,19 @@ export default function RunEventBookingPage() {
                     setLoadError(classifyDetailLoadError(err));
                 }
             } finally {
-                if (!controller.signal.aborted) setLoadingEvent(false);
+                setLoadingEvent(false);
             }
         })();
 
         return () => controller.abort();
-    }, [id, location.state?.event, authToken, isAuthenticated]);
+        // Route id only — auth/token must not remount the booking loader after payment
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [id]);
+
+    useDetailLoaderFailsafe(loadingEvent, () => {
+        setLoadingEvent(false);
+        setLoadError((prev) => prev || 'network');
+    });
 
     useEffect(() => {
         if (!event) return;

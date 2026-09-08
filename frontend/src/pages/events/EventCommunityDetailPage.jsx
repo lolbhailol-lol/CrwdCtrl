@@ -35,6 +35,7 @@ import {
     createDetailCache,
 } from '../../utils/detailPageLoad';
 import { usePageContentLoading } from '../../hooks/usePageContentLoading';
+import { useDetailLoaderFailsafe } from '../../hooks/useDetailLoaderFailsafe';
 
 const runClubDetailCache = createDetailCache('crwdctrl_event_community_v5_');
 
@@ -307,7 +308,7 @@ export default function EventCommunityDetailPage() {
                 }
             })
             .finally(() => {
-                if (!controller.signal.aborted) setLoading(false);
+                setLoading(false);
             });
         return () => controller.abort();
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -422,6 +423,10 @@ export default function EventCommunityDetailPage() {
         || (club && id && !entityMatchesRouteParam(club, id, ['name', 'title']));
     const isEventHub = true;
     usePageContentLoading(showPageLoader);
+    useDetailLoaderFailsafe(showPageLoader, () => {
+        setLoading(false);
+        if (!club) setLoadError((prev) => prev || 'network');
+    });
 
     const name = club?.title || '';
     const basedIn = club?.subtitle || '';

@@ -287,7 +287,7 @@ const Dashboard = () => {
     const [isFestsLoading, setIsFestsLoading] = useState(() => readInitialFestsFromCache().length === 0);
     // Aux feeds hydrate in place; flag kept for settle markers in fetch effects.
     const [, setHomeAuxLoaded] = useState(false);
-    usePageContentLoading(isFestsLoading);
+    usePageContentLoading(isFestsLoading && fests.length === 0);
 
     // Soft safety only — do not end loading before cold-start fetches can finish (iOS)
     useEffect(() => {

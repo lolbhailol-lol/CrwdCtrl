@@ -7,7 +7,7 @@ import {
     setHomeShellReady,
 } from '../utils/homeShellReady';
 
-/** True when footer / bottom nav may show on the home hub routes. */
+/** True when footer / bottom nav may show on the home hub routes. Call once (AppContent). */
 export function useHomeShellReady() {
     const { pathname } = useLocation();
     const onHomeHub = isHomeHubPath(pathname);
@@ -34,6 +34,27 @@ export function useHomeShellReady() {
             window.removeEventListener('crwdctrl:home-ready', sync);
             window.clearTimeout(failSafe);
         };
+    }, [onHomeHub]);
+
+    return !onHomeHub || ready;
+}
+
+/** Footer / bottom nav — subscribe only. Must not reset the overlay (that stacked 3× loaders). */
+export function useHomeShellReadyValue() {
+    const { pathname } = useLocation();
+    const onHomeHub = isHomeHubPath(pathname);
+    const [ready, setReady] = useState(() => !onHomeHub || isHomeShellReady());
+
+    useLayoutEffect(() => {
+        if (!onHomeHub) {
+            setReady(true);
+            return undefined;
+        }
+
+        setReady(isHomeShellReady());
+        const sync = () => setReady(true);
+        window.addEventListener('crwdctrl:home-ready', sync);
+        return () => window.removeEventListener('crwdctrl:home-ready', sync);
     }, [onHomeHub]);
 
     return !onHomeHub || ready;

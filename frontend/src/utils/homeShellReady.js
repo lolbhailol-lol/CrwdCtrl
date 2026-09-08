@@ -31,6 +31,8 @@ export function resetHomeShellReady() {
     if (typeof document !== 'undefined') {
         // Leaving mid-boot used to leave this stuck → whole app looked like endless loading
         delete document.documentElement.dataset.homeHubLoading;
+        // setHomeShellReady(false) also adds this — must clear or detail pages stay blank/chrome-hidden
+        document.body.classList.remove('page-content-loading');
     }
 }
 

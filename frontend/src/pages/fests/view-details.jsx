@@ -27,6 +27,7 @@ import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { festPath, competitionPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
 import { loadFestDetailCache, saveFestDetailCache, saveCompetitionDetailCache } from '../../utils/detailPageCache';
 import { signalDetailPageReady } from '../../utils/bootSplash';
+import { useDetailLoaderFailsafe } from '../../hooks/useDetailLoaderFailsafe';
 import DetailPageLoader from '../../components/DetailPageLoader';
 import CompetitionCoverImage from '../../components/CompetitionCoverImage';
 import FestPublicLiveStrip from '../../components/FestPublicLiveStrip';
@@ -379,6 +380,10 @@ function EventDetailsPage() {
     return undefined;
   }, [eventData?.id, eventData?._id, eventData?.title]);
 
+  useDetailLoaderFailsafe(!eventData?.title && !error, () => {
+    setFetchDone(true);
+  });
+
   if (fetchDone && error && !eventData) {
     return (
       <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex items-center justify-center">
@@ -535,9 +540,6 @@ function EventDetailsPage() {
         bodyReady ? 'opacity-100' : 'opacity-90'
       } ${isDark ? 'bg-black' : 'bg-white'}`}
     >
-      {openingCompetition ? (
-        <DetailPageLoader variant="competition" label="Loading competition" />
-      ) : null}
       <Seo
         title={pageEvent.title}
         description={festDescription}

@@ -1,14 +1,6 @@
 import { Instagram } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { Link } from 'react-router-dom';
-import {
-  LEGAL_EMAIL,
-  LEGAL_NAME,
-  LEGAL_OPERATOR_LINE,
-  LEGAL_PHONE_DISPLAY,
-  LEGAL_PHONE_TEL,
-  LEGAL_POLICY_LINKS,
-} from '../../constants/legalEntity';
 
 export default function Footer() {
   const { isDark } = useDarkMode();
@@ -30,24 +22,6 @@ export default function Footer() {
             <p className={`mt-1 text-sm ${muted}`}>
               Fests, clubs &amp; meetups near you
             </p>
-            <p className={`mt-3 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-              {LEGAL_OPERATOR_LINE}
-            </p>
-            <p className={`mt-1 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-              Legal name: {LEGAL_NAME}
-            </p>
-            <p className={`mt-1 text-sm ${muted}`}>
-              Email:{' '}
-              <a href={`mailto:${LEGAL_EMAIL}`} className="underline">
-                {LEGAL_EMAIL}
-              </a>
-            </p>
-            <p className={`mt-1 text-sm ${muted}`}>
-              Phone:{' '}
-              <a href={`tel:${LEGAL_PHONE_TEL}`} className="underline">
-                {LEGAL_PHONE_DISPLAY}
-              </a>
-            </p>
             <a
               href="https://www.instagram.com/crwdctrl.in?igsh=ODZpb2tpaGR4Y2Rn"
               target="_blank"
@@ -59,18 +33,15 @@ export default function Footer() {
             </a>
           </div>
 
-          <nav className="flex flex-col items-center gap-2 md:items-end" aria-label="Legal">
-            {LEGAL_POLICY_LINKS.map((link) => (
-              <Link
-                key={link.to}
-                to={link.to}
-                className={`text-sm font-medium transition-colors ${
-                  isDark ? 'text-white hover:text-[#0ECCEE]' : 'text-gray-900 hover:text-[#0ECCEE]'
-                }`}
-              >
-                {link.label}
-              </Link>
-            ))}
+          <nav className="flex flex-col items-center gap-2 md:items-end" aria-label="Footer">
+            <Link
+              to="/help-center"
+              className={`text-sm font-medium transition-colors ${
+                isDark ? 'text-white hover:text-[#0ECCEE]' : 'text-gray-900 hover:text-[#0ECCEE]'
+              }`}
+            >
+              Help Center
+            </Link>
           </nav>
         </div>
 
@@ -79,7 +50,7 @@ export default function Footer() {
             isDark ? 'border-gray-800 text-gray-500' : 'border-gray-200 text-gray-500'
           }`}
         >
-          © 2026 CrwdCtrl. Owned and operated by {LEGAL_NAME}. All rights reserved.
+          © 2026 CrwdCtrl. All rights reserved.
         </p>
       </div>
     </footer>

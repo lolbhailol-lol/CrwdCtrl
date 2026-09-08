@@ -165,8 +165,17 @@ export function HomeHubLoadingScreen() {
 
 /** Suspense / lazy-route fallback */
 export function RouteLoadingFallback({ className = '' }) {
-  if (typeof window !== 'undefined' && isHomeHubPath(window.location.pathname)) {
-    return null;
+  if (typeof window !== 'undefined') {
+    if (isHomeHubPath(window.location.pathname)) return null;
+    // Another full-screen 3D is already up — don't stack boot + route + detail loaders
+    const body = document.body;
+    if (
+      body.classList.contains('page-transition-active')
+      || body.classList.contains('detail-page-loading')
+      || document.documentElement.dataset.homeHubLoading
+    ) {
+      return null;
+    }
   }
 
   const node = (

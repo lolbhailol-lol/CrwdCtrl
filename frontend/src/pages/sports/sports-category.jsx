@@ -20,6 +20,7 @@ import DetailPageLoader, { DetailLoader3DIcon } from '../../components/DetailPag
 import CustomPageSectionsRenderer from '../../components/CustomPageSectionsRenderer';
 import { usePageSectionHandlers } from '../../utils/pageSectionHandlers';
 import { usePageContentLoading } from '../../hooks/usePageContentLoading';
+import { useDetailLoaderFailsafe } from '../../hooks/useDetailLoaderFailsafe';
 import { SPORTS_BROWSE_CATEGORIES } from '../../constants/sportsBrowseCategories';
 import {
     SPORT_TYPE_LABELS,
@@ -296,6 +297,7 @@ export default function SportsCategoryPage() {
     }, [runClubEntities]);
 
     const hasSportsContent = runClubs.length > 0 || filteredActivities.length > 0;
+    useDetailLoaderFailsafe(loading && !hasSportsContent, () => setLoading(false));
 
     useEffect(() => {
         if (loading) return;

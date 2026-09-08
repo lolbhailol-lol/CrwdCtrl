@@ -34,7 +34,7 @@ import { appRoutes, CrwdCtrlLogin, CrwdCtrlRegister } from './app/router'
 import { resolveUrl } from './services/api/client'
 import { RouteLoadingFallback, HomeHubLoadingScreen } from './components/DetailPageLoader'
 import { useBodyHasClass } from './hooks/useBodyHasClass'
-import { useHomeShellReady } from './hooks/useHomeShellReady'
+import { useHomeShellReady, useHomeShellReadyValue } from './hooks/useHomeShellReady'
 import { isHomeHubPath } from './utils/homeShellReady'
 
 import './App.css'
@@ -46,7 +46,7 @@ function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick
   const mobileSearch = useMobileSearchOptional();
   const { prepareRouteNavigation, startOverlayTransition, hideChrome } = usePageTransition();
   const pageContentLoading = useBodyHasClass('page-content-loading');
-  const homeShellReady = useHomeShellReady();
+  const homeShellReady = useHomeShellReadyValue();
 
   const handleNavFromProfile = useCallback((path) => {
     if (path === '/profile') return;
@@ -117,7 +117,7 @@ function ConditionalFooter() {
   const location = useLocation();
   const { hideChrome } = usePageTransition();
   const pageContentLoading = useBodyHasClass('page-content-loading');
-  const homeShellReady = useHomeShellReady();
+  const homeShellReady = useHomeShellReadyValue();
 
   const shouldHideFooter =
     hideChrome ||

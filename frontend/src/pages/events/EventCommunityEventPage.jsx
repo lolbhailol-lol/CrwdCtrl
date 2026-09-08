@@ -329,10 +329,10 @@ export default function EventCommunityEventPage() {
         || (Boolean(event) && Boolean(id) && !entityMatchesRouteParam(event, id, ['title', 'name']));
     usePageContentLoading(showPageLoader);
 
-    // Never leave WhatsApp stuck on the 3D loader if the network hangs
+    // Never leave WhatsApp / slow mobile stuck on the 3D loader if the network hangs
     useEffect(() => {
         if (!showPageLoader) return undefined;
-        const ms = isInAppBrowser() ? 10000 : 20000;
+        const ms = isInAppBrowser() ? 8000 : 12000;
         const timer = window.setTimeout(() => {
             setLoading(false);
             setFetchingDetail(false);

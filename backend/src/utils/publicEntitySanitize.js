@@ -23,6 +23,61 @@ function stripRegistrationSecrets(registration) {
   return rest;
 }
 
+/** ObjectId / Buffer — never object-spread (that leaked `{ buffer: … }` into public JSON). */
+function isObjectIdLike(value) {
+  if (!value || typeof value !== 'object') return false;
+  if (typeof value.toHexString === 'function') return true;
+  if (value._bsontype === 'ObjectId') return true;
+  if (typeof Buffer !== 'undefined' && Buffer.isBuffer(value)) return true;
+  return false;
+}
+
+function objectIdToHex(value) {
+  if (value == null) return value;
+  if (typeof value === 'string') return value;
+  if (typeof value.toHexString === 'function') return value.toHexString();
+  if (typeof Buffer !== 'undefined' && Buffer.isBuffer(value) && value.length === 12) {
+    return value.toString('hex');
+  }
+  // Already-broken public JSON shape from older sanitizer: `{ buffer: { type:'Buffer', data:[…] } }`
+  if (typeof value === 'object' && value.buffer) {
+    try {
+      const raw = (typeof Buffer !== 'undefined' && Buffer.isBuffer(value.buffer))
+        ? value.buffer
+        : Buffer.from(value.buffer.data || value.buffer);
+      if (raw.length === 12) return raw.toString('hex');
+    } catch {
+      /* ignore */
+    }
+  }
+  const asString = String(value);
+  if (/^[a-f0-9]{24}$/i.test(asString)) return asString.toLowerCase();
+  return null;
+}
+
+/**
+ * Populated docs: drop groupLink. Bare ObjectIds: return hex string.
+ * Spreading an ObjectId used to emit `{ buffer: { type: 'Buffer', data: [...] } }`.
+ */
+function sanitizeNestedRef(ref, { stripGroupLink = true } = {}) {
+  if (ref == null || typeof ref !== 'object') return ref;
+  if (isObjectIdLike(ref)) {
+    return objectIdToHex(ref) || ref;
+  }
+  const populated = ref.name != null
+    || ref.slug != null
+    || ref.listingHub != null
+    || ref.groupLink != null
+    || (ref._id != null && Object.keys(ref).length > 1);
+  if (!populated) {
+    const hex = objectIdToHex(ref._id || ref.id || ref);
+    if (hex) return hex;
+  }
+  if (!stripGroupLink) return ref;
+  const { groupLink: _g, ...rest } = ref;
+  return rest;
+}
+
 /**
  * Always remove from public trek / sports / fest / competition payloads.
  * @param {object} entity
@@ -44,18 +99,15 @@ function sanitizePublicEntity(entity, opts = {}) {
     copy.registration = stripRegistrationSecrets(copy.registration);
   }
 
-  // Nested community / run club refs may carry groupLink
-  if (stripGroupLink && copy.communityId && typeof copy.communityId === 'object') {
-    const { groupLink: _g, ...communityRest } = copy.communityId;
-    copy.communityId = communityRest;
+  // Nested community / run club refs may carry groupLink — or be bare ObjectIds
+  if (copy.communityId && typeof copy.communityId === 'object') {
+    copy.communityId = sanitizeNestedRef(copy.communityId, { stripGroupLink });
   }
-  if (stripGroupLink && copy.runClubId && typeof copy.runClubId === 'object') {
-    const { groupLink: _g, ...clubRest } = copy.runClubId;
-    copy.runClubId = clubRest;
+  if (copy.runClubId && typeof copy.runClubId === 'object') {
+    copy.runClubId = sanitizeNestedRef(copy.runClubId, { stripGroupLink });
   }
   if (stripGroupLink && copy.runClub && typeof copy.runClub === 'object') {
-    const { groupLink: _g, ...clubRest } = copy.runClub;
-    copy.runClub = clubRest;
+    copy.runClub = sanitizeNestedRef(copy.runClub, { stripGroupLink: true });
   }
 
   return copy;

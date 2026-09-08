@@ -11,6 +11,7 @@ import { useInAppBack } from '../../hooks/useInAppBack';
 import Seo from '../../components/Seo';
 import LazyMap from '../../components/LazyMap';
 import DetailPageLoader from '../../components/DetailPageLoader';
+import { useDetailLoaderFailsafe } from '../../hooks/useDetailLoaderFailsafe';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { formatBatchDate, normalizeTrekBatches } from '../../utils/trekDateDisplay';
 import { ScheduleMainMarker, ScheduleSubMarker } from '../../components/SchedulePointMarkers';
@@ -348,7 +349,7 @@ export default function TrekDetailPage() {
                 setLoadError(classifyDetailLoadError(err));
             })
             .finally(() => {
-                if (!controller.signal.aborted) setLoading(false);
+                setLoading(false);
             });
 
         return () => controller.abort();
@@ -357,6 +358,10 @@ export default function TrekDetailPage() {
 
     // Always clear to loader when switching treks (do not paint previous trek under loading=false)
     const showPageLoader = loading || (trek && id && !trekMatchesRouteParam(trek, id));
+    useDetailLoaderFailsafe(showPageLoader, () => {
+        setLoading(false);
+        if (!trek) setLoadError((prev) => prev || 'network');
+    });
 
     useEffect(() => {
         if (!trek?.communityId) return undefined;

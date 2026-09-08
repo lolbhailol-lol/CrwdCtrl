@@ -24,6 +24,7 @@ import CompetitionCoverImage from '../../components/CompetitionCoverImage';
 import { signalDetailPageReady } from '../../utils/bootSplash';
 import { COMPETITION_DEMO_LOAD_MS } from '../../constants/skeletonLoading';
 import DetailPageLoader from '../../components/DetailPageLoader';
+import { useDetailLoaderFailsafe } from '../../hooks/useDetailLoaderFailsafe';
 import {
     clearWarmCompetitionNav,
     isWarmCompetitionLocationState,
@@ -576,42 +577,22 @@ function EventPage() {
     const [showFullAbout, setShowFullAbout] = useState(false);
     const [showFullRoundDesc, setShowFullRoundDesc] = useState(false);
     const [expandedRules, setExpandedRules] = useState({});
-    const [competitionData, setCompetitionData] = useState(() => {
-        // Explore / warm entry: start empty so centered 3D loader can show
-        if (
-            location.state?.skipDemoLoad
-            || isWarmCompetitionLocationState(location.state)
-            || peekWarmCompetitionNav()
-        ) {
-            return null;
-        }
-        return resolvePaintPackage(competitionId, location);
-    });
+    const [competitionData, setCompetitionData] = useState(() => resolvePaintPackage(competitionId, location));
     const [showLogin, setShowLogin] = useState(false);
     const [showRegister, setShowRegister] = useState(false);
     const [fetchDone, setFetchDone] = useState(false);
     const [error, setError] = useState(null);
     // Single gate: hero + body + chips paint together (no empty banner then fade-in)
-    const [pageReady, setPageReady] = useState(() => {
-        if (
-            location.state?.skipDemoLoad
-            || isWarmCompetitionLocationState(location.state)
-            || peekWarmCompetitionNav()
-        ) {
-            return false;
+    const [pageReady, setPageReady] = useState(() => Boolean(resolvePaintPackage(competitionId, location)));
+    const [holdLoader, setHoldLoader] = useState(() => !resolvePaintPackage(competitionId, location));
+    useDetailLoaderFailsafe(holdLoader, () => {
+        if (pendingPaintRef.current && !competitionDataRef.current) {
+            setCompetitionData(pendingPaintRef.current);
+            pendingPaintRef.current = null;
         }
-        return Boolean(resolvePaintPackage(competitionId, location));
-    });
-    const [holdLoader, setHoldLoader] = useState(() => {
-        // Warm / explore / missing pack → show centered 3D "Loading competition"
-        if (
-            location.state?.skipDemoLoad
-            || isWarmCompetitionLocationState(location.state)
-            || peekWarmCompetitionNav()
-        ) {
-            return true;
-        }
-        return !resolvePaintPackage(competitionId, location);
+        setPageReady(true);
+        setHoldLoader(false);
+        setFetchDone(true);
     });
     const warmNavRef = useRef(
         Boolean(isWarmCompetitionLocationState(location.state) || peekWarmCompetitionNav()),
@@ -707,8 +688,14 @@ function EventPage() {
         setShowFullAbout(false);
         setShowShareMenu(false);
 
-        // Explore / similar / any real switch: full-page 3D loader first (not seed flash)
-        if (switchingAway || warm || location.state?.skipDemoLoad) {
+        // Seeded nav (fest → competition / similar): paint immediately — no second 3D flash
+        if (pack) {
+            pendingPaintRef.current = null;
+            switchLoaderMinRef.current = true;
+            setCompetitionData(pack);
+            setPageReady(true);
+            setHoldLoader(false);
+        } else if (switchingAway || warm) {
             pendingPaintRef.current = pack;
             switchLoaderMinRef.current = false;
             setCompetitionData(null);
@@ -746,7 +733,7 @@ function EventPage() {
             minDone = true;
             switchLoaderMinRef.current = true;
             release();
-        }, Math.max(COMPETITION_DEMO_LOAD_MS, 420));
+        }, COMPETITION_DEMO_LOAD_MS);
 
         if (fetchDone) {
             release();

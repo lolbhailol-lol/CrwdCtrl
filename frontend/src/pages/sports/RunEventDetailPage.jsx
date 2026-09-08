@@ -23,6 +23,7 @@ import { resolveAuthToken, getBearerAuthHeaders } from '../../utils/authToken';
 import { publicFetchJSONRetry } from '../../services/api/client';
 import { DETAIL_FETCH_OPTS, classifyDetailLoadError } from '../../utils/detailPageLoad';
 import { trackBookNowClick } from '../../services/analyticsService';
+import { isInAppBrowser } from '../../config/apiBase';
 
 const RUN_DETAIL_CACHE_PREFIX = 'crwdctrl_run_detail_v1_';
 const readRunDetailCache = (key) => {
@@ -194,7 +195,8 @@ export default function RunEventDetailPage() {
                 setLoadError(classifyDetailLoadError(err));
             })
             .finally(() => {
-                if (!controller.signal.aborted) setLoading(false);
+                // Always clear — abort+skip left StrictMode remounts stuck on “Loading run”
+                setLoading(false);
             });
         return () => controller.abort();
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -212,6 +214,16 @@ export default function RunEventDetailPage() {
 
     const showPageLoader = (loading && !event)
         || (Boolean(event) && Boolean(id) && !entityMatchesRouteParam(event, id, ['title', 'name']));
+
+    useEffect(() => {
+        if (!showPageLoader) return undefined;
+        const ms = isInAppBrowser() ? 8000 : 12000;
+        const timer = window.setTimeout(() => {
+            setLoading(false);
+            if (!event) setLoadError((prev) => prev || 'network');
+        }, ms);
+        return () => window.clearTimeout(timer);
+    }, [showPageLoader, event]);
 
     if (showPageLoader) {
         return <DetailPageLoader label="Loading run" variant="run" />;

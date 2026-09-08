@@ -14,6 +14,7 @@ import { shareContent, openExternalUrl } from '../../utils/externalLink';
 import { useInAppBack } from '../../hooks/useInAppBack';
 import { CompactPortraitCardsRowSkeleton } from '../../components/HomeEventCardSkeleton';
 import DetailPageLoader from '../../components/DetailPageLoader';
+import { useDetailLoaderFailsafe } from '../../hooks/useDetailLoaderFailsafe';
 import {
     AnimatedCard,
     AnimatedCounter,
@@ -278,7 +279,7 @@ export default function CommunityDetailPage() {
                 }
             })
             .finally(() => {
-                if (!controller.signal.aborted) setLoading(false);
+                setLoading(false);
             });
         return () => controller.abort();
         // Only re-run when the route id changes; nav state is read once for seeding
@@ -357,6 +358,10 @@ export default function CommunityDetailPage() {
 
     const galleryImages = useMemo(() => buildGalleryImages(community), [community]);
     const showPageLoader = loading || (community && id && !entityMatchesRouteParam(community, id, ['name', 'title']));
+    useDetailLoaderFailsafe(showPageLoader, () => {
+        setLoading(false);
+        if (!community) setLoadError((prev) => prev || 'network');
+    });
 
     if (showPageLoader) {
         return <DetailPageLoader label="Loading community" variant="trek" />;

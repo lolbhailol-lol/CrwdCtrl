@@ -3,6 +3,7 @@ import { useLocation, useNavigationType } from 'react-router-dom';
 import PageTransitionSkeleton from '../PageTransitionSkeleton';
 import { SKELETON_LOADING_MS, SKELETON_LOADING_SAFETY_MS } from '../../constants/skeletonLoading';
 import { isSharedContentDeepLink } from '../../utils/bootSplash';
+import { isCategoryHubRoute } from '../../utils/categoryHubRoutes';
 
 function resetScrollToTop() {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
@@ -50,6 +51,13 @@ function shouldSkipPageTransition(pathname) {
         || pathname.startsWith('/sports/run/')
         || pathname.startsWith('/trek/')
         || pathname.startsWith('/treks/community/')
+        || isCategoryHubRoute(pathname)
+        || pathname.startsWith('/payment')
+        || pathname.startsWith('/qr-ticket')
+        || pathname.startsWith('/payment-invoice')
+        || pathname === '/booking'
+        || pathname.endsWith('/book')
+        || pathname.includes('/register')
     );
 }
 
