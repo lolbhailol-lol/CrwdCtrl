@@ -1,16 +1,14 @@
 import { createPortal } from 'react-dom';
 import { ExternalLink, X } from 'lucide-react';
 import {
-    copyPageLink,
     detectInAppBrowserName,
-    getExternalBrowserHandoffHref,
     getExternalBrowserTargetUrl,
     isIosDevice,
+    launchExternalBrowserFromTap,
 } from '../utils/openInExternalBrowser';
+import { dismissBootOverlays } from '../utils/dismissBootOverlays';
+import { signalDetailPageReady } from '../utils/bootSplash';
 
-/**
- * Instagram iOS: native instagram://extbrowser link — no JS redirect.
- */
 export default function OpenInBrowserModal({
     open,
     onClose,
@@ -20,11 +18,16 @@ export default function OpenInBrowserModal({
 }) {
     const appName = appNameProp || detectInAppBrowserName();
     const httpsUrl = getExternalBrowserTargetUrl(pageUrl || (typeof window !== 'undefined' ? window.location.href : ''));
-    const handoffHref = getExternalBrowserHandoffHref(httpsUrl);
     const isIOS = isIosDevice();
     const browserName = isIOS ? 'Safari' : 'Chrome';
 
     if (!open || typeof document === 'undefined') return null;
+
+    const handleOpen = (event) => {
+        dismissBootOverlays();
+        signalDetailPageReady();
+        launchExternalBrowserFromTap(httpsUrl, event);
+    };
 
     return createPortal(
         <div className="fixed inset-0 z-[2147483000] flex items-end sm:items-center justify-center p-0 sm:p-4 pointer-events-auto">
@@ -53,20 +56,17 @@ export default function OpenInBrowserModal({
 
                 <p className={`mt-2 text-sm leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                     Google login doesn&apos;t work inside {appName}. Tap <strong>Open in {browserName}</strong>.
-                    {isIOS ? (
-                        <> If it does not open, tap <strong>⋯</strong> → <strong>Open in Safari</strong>.</>
-                    ) : null}
+                    This page stays here — {browserName} should open on top.
                 </p>
 
-                <a
-                    href={handoffHref}
-                    rel="noopener noreferrer"
-                    onClick={() => { copyPageLink(httpsUrl); }}
+                <button
+                    type="button"
+                    onClick={handleOpen}
                     className="mt-5 w-full min-h-14 rounded-2xl bg-[#0ECCEE] text-black font-extrabold text-base flex items-center justify-center gap-2 pointer-events-auto touch-manipulation"
                 >
                     <ExternalLink size={18} />
                     Open in {browserName}
-                </a>
+                </button>
             </div>
         </div>,
         document.body,

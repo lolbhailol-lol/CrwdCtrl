@@ -4,19 +4,20 @@ import { ExternalLink } from 'lucide-react';
 import {
     copyPageLink,
     detectInAppBrowserName,
-    getExternalBrowserHandoffHref,
     getExternalBrowserTargetUrl,
     isIosDevice,
     isLikelyInAppBrowser,
+    launchExternalBrowserFromTap,
 } from '../utils/openInExternalBrowser';
+import { dismissBootOverlays } from '../utils/dismissBootOverlays';
+import { signalDetailPageReady } from '../utils/bootSplash';
 
 const TAP_BTN =
     'relative z-10 pointer-events-auto touch-manipulation select-none [-webkit-tap-highlight-color:rgba(14,204,238,0.35)]';
 
 /**
- * Full-screen Instagram / in-app browser gate.
- * Instagram iOS: native <a href="instagram://extbrowser"> — do not JS-redirect
- * (x-safari-https is blocked and location.assign cancels the tap).
+ * Instagram / in-app browser gate.
+ * Never navigate this WebView to intent:// or instagram:// — that stuck-loads.
  */
 export default function InAppOpenChromeGate({
     open,
@@ -27,22 +28,29 @@ export default function InAppOpenChromeGate({
     onDismiss,
 }) {
     const [copied, setCopied] = useState(false);
+    const [opening, setOpening] = useState(false);
 
     if (!open || typeof document === 'undefined') return null;
     if (!isLikelyInAppBrowser()) return null;
 
     const appName = detectInAppBrowserName();
     const isIOS = isIosDevice();
-    const isInstagramIos = isIOS && appName === 'Instagram';
     const browserName = isIOS ? 'Safari' : 'Chrome';
     const httpsUrl = getExternalBrowserTargetUrl(
         pageUrl || (typeof window !== 'undefined' ? window.location.href : ''),
     );
-    const handoffHref = getExternalBrowserHandoffHref(httpsUrl);
 
     const markCopied = () => {
         setCopied(true);
         window.setTimeout(() => setCopied(false), 2500);
+    };
+
+    const handleOpen = (event) => {
+        dismissBootOverlays();
+        signalDetailPageReady();
+        setOpening(true);
+        launchExternalBrowserFromTap(httpsUrl, event);
+        window.setTimeout(() => setOpening(false), 4000);
     };
 
     const handleCopy = async (event) => {
@@ -74,37 +82,34 @@ export default function InAppOpenChromeGate({
                         {eventName}
                     </p>
                 ) : null}
+                <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm leading-relaxed ${
+                    isDark
+                        ? 'border-amber-400/30 bg-amber-500/10 text-amber-50'
+                        : 'border-amber-200 bg-amber-50 text-amber-950'
+                }`}>
+                    Google sign-in and UPI do <strong>not</strong> work inside {appName}.
+                    Tap <strong>Open in {browserName}</strong> — stay on this screen; {browserName} opens on top.
+                    {isIOS ? (
+                        <> If it does not open: tap <strong>⋯</strong> (top right) → <strong>Open in Safari</strong>.</>
+                    ) : (
+                        <> If Chrome does not open: tap Instagram <strong>⋮</strong> → <strong>Open in Chrome</strong>.</>
+                    )}
+                </div>
 
-                {isInstagramIos ? (
-                    <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm leading-relaxed ${
-                        isDark
-                            ? 'border-amber-400/30 bg-amber-500/10 text-amber-50'
-                            : 'border-amber-200 bg-amber-50 text-amber-950'
-                    }`}>
-                        iPhone does not allow Instagram to auto-open Safari.
-                        Tap <strong>OPEN IN SAFARI</strong> below.
-                        If nothing happens: tap <strong>⋯</strong> (top right) → <strong>Open in Safari</strong>.
-                    </div>
-                ) : (
-                    <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm leading-relaxed ${
-                        isDark
-                            ? 'border-amber-400/30 bg-amber-500/10 text-amber-50'
-                            : 'border-amber-200 bg-amber-50 text-amber-950'
-                    }`}>
-                        Google sign-in and UPI do <strong>not</strong> work inside {appName}.
-                        Tap <strong>Open in {browserName}</strong> — this same page opens there.
-                    </div>
-                )}
+                {opening ? (
+                    <p className={`mt-3 text-center text-sm font-semibold ${isDark ? 'text-[#0ECCEE]' : 'text-cyan-700'}`}>
+                        Opening {browserName}… this page stays here.
+                    </p>
+                ) : null}
 
-                <a
-                    href={handoffHref}
-                    rel="noopener noreferrer"
-                    onClick={() => { copyPageLink(httpsUrl); }}
+                <button
+                    type="button"
+                    onClick={handleOpen}
                     className={`${TAP_BTN} mt-5 w-full min-h-16 rounded-2xl bg-[#0ECCEE] text-black text-lg font-extrabold tracking-wide flex items-center justify-center gap-2 active:scale-[0.99]`}
                 >
                     <ExternalLink size={22} strokeWidth={2.5} />
                     OPEN IN {browserName.toUpperCase()}
-                </a>
+                </button>
 
                 <button
                     type="button"
@@ -115,7 +120,7 @@ export default function InAppOpenChromeGate({
                             : 'border-gray-200 bg-gray-50 text-gray-900'
                     }`}
                 >
-                    {copied ? 'Copied — paste in Safari' : 'Copy link'}
+                    {copied ? `Copied — paste in ${browserName}` : 'Copy link'}
                 </button>
 
                 {typeof onDismiss === 'function' ? (

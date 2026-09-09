@@ -18,10 +18,8 @@ import {
     detectInAppBrowserName,
     isLikelyInAppBrowser,
     isIosDevice,
-    openInExternalBrowser,
     getExternalBrowserTargetUrl,
-    getExternalBrowserHandoffHref,
-    copyPageLink,
+    launchExternalBrowserFromTap,
 } from '../../utils/openInExternalBrowser';
 
 function GoogleIcon({ className = 'w-5 h-5 sm:w-6 sm:h-6' }) {
@@ -79,24 +77,15 @@ export default function CrwdCtrlLogin({
         setInAppBrowserBlocked(true);
     }, []);
 
-    const handoffToExternalBrowser = async (event) => {
+    const handoffToExternalBrowser = (event) => {
         const url = getExternalBrowserTargetUrl(window.location.href);
         try {
             sessionStorage.setItem('auth_redirect_url', url);
         } catch {
             /* ignore */
         }
-        copyPageLink(url);
-        // iOS: let the native <a href="instagram://extbrowser"> tap through.
-        // JS location.assign is blocked by Instagram and cancels the handoff.
-        if (isIOSDevice) return;
-        event?.preventDefault?.();
-        openInExternalBrowser(url);
+        launchExternalBrowserFromTap(url, event);
     };
-
-    const safariHandoffHref = typeof window !== 'undefined'
-        ? getExternalBrowserHandoffHref(window.location.href)
-        : 'https://www.crwdctrl.in';
 
     // Determine if this is being used as a modal or a page
     const isModal = !!onClose;
@@ -465,14 +454,14 @@ export default function CrwdCtrlLogin({
                                             </>
                                         )}
                                     </div>
-                                    <a
-                                        href={safariHandoffHref}
+                                    <button
+                                        type="button"
                                         onClick={handoffToExternalBrowser}
                                         className="w-full min-h-14 flex items-center justify-center gap-2 rounded-2xl bg-[#0ECCEE] text-black font-extrabold text-sm tracking-wide hover:opacity-90 pointer-events-auto touch-manipulation"
                                     >
                                         <ExternalLink size={18} />
                                         OPEN IN {preferredBrowserName.toUpperCase()}
-                                    </a>
+                                    </button>
                                     <p className={`pt-1 text-center text-[11px] ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
                                         {isAndroidDevice
                                             ? `Same ${handoffGoal} page opens in Chrome`
@@ -486,7 +475,7 @@ export default function CrwdCtrlLogin({
                                             type="button"
                                             onClick={() => {
                                                 if (typeof errors.openInBrowser === 'function') errors.openInBrowser();
-                                                else openInExternalBrowser(window.location.href);
+                                                else launchExternalBrowserFromTap(window.location.href);
                                             }}
                                             className="w-full mb-3 bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-xl font-medium"
                                         >
@@ -629,21 +618,11 @@ export default function CrwdCtrlLogin({
                                 {/* Open in Browser Button */}
                                 <button
                                     type="button"
-                                    onClick={() => {
+                                    onClick={(event) => {
                                         if (errors.openInBrowser && typeof errors.openInBrowser === 'function') {
-                                            // Use the enhanced openInBrowser function
                                             errors.openInBrowser();
                                         } else {
-                                            // Fallback to the old method
-                                            const currentUrl = window.location.href;
-                                            if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
-                                                window.open(`googlechrome://${currentUrl}`, '_blank') || 
-                                                window.open(`firefox://open-url?url=${encodeURIComponent(currentUrl)}`, '_blank') ||
-                                                window.open(currentUrl, '_blank');
-                                            } else {
-                                                window.open(`intent://${currentUrl.replace(/https?:\/\//, '')}#Intent;scheme=https;package=com.android.chrome;end`, '_blank') ||
-                                                window.open(currentUrl, '_blank');
-                                            }
+                                            launchExternalBrowserFromTap(window.location.href, event);
                                         }
                                     }}
                                     className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2"
@@ -758,14 +737,14 @@ export default function CrwdCtrlLogin({
                                 }`}>
                                     Google login is blocked in {inAppBrowserName}. Open {preferredBrowserName} to continue.
                                 </div>
-                                <a
-                                    href={safariHandoffHref}
+                                <button
+                                    type="button"
                                     onClick={handoffToExternalBrowser}
                                     className="w-full min-h-12 flex items-center justify-center gap-2 py-2.5 rounded-lg font-semibold text-sm bg-[#0ECCEE] text-black hover:opacity-90 pointer-events-auto touch-manipulation"
                                 >
                                     <ExternalLink size={18} />
                                     Open in {preferredBrowserName}
-                                </a>
+                                </button>
                             </>
                         ) : null}
                         {/* Google */}

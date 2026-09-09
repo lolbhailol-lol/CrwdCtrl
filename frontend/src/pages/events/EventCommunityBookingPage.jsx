@@ -1490,6 +1490,10 @@ export default function EventCommunityBookingPage() {
         </>
     );
 
+    if (showChromeGate && !showSuccess && !showProcessing) {
+        return loginOverlay;
+    }
+
     if (loadingEvent && !showSuccess && !showProcessing) {
         return (
             <>

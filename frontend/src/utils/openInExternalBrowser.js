@@ -28,7 +28,6 @@ export function isIosDevice(ua = typeof navigator !== 'undefined' ? navigator.us
 export function getExternalBrowserTargetUrl(href = typeof window !== 'undefined' ? window.location.href : '') {
     try {
         const u = new URL(href, typeof window !== 'undefined' ? window.location.origin : 'https://www.crwdctrl.in');
-        // Always hand off to www — apex 307 + in-app cookies break login/payment in Safari.
         if (u.hostname === 'crwdctrl.in') {
             u.hostname = 'www.crwdctrl.in';
         }
@@ -38,7 +37,6 @@ export function getExternalBrowserTargetUrl(href = typeof window !== 'undefined'
     }
 }
 
-/** iOS Safari URL scheme — works in TikTok/WhatsApp/etc. Instagram blocks this. */
 export function getIosSafariHandoffUrl(href = typeof window !== 'undefined' ? window.location.href : '') {
     const url = getExternalBrowserTargetUrl(href);
     try {
@@ -50,16 +48,18 @@ export function getIosSafariHandoffUrl(href = typeof window !== 'undefined' ? wi
     }
 }
 
+/** No browser_fallback_url — Instagram treats the fallback as a page reload and stuck-loads. */
 function getAndroidChromeIntentUrl(href) {
     const url = getExternalBrowserTargetUrl(href);
     const withoutScheme = url.replace(/^https?:\/\//i, '');
-    return `intent://${withoutScheme}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(url)};end`;
+    return `intent://${withoutScheme}#Intent;scheme=https;package=com.android.chrome;end`;
 }
 
-/**
- * Native <a href> for a real user tap.
- * Instagram iOS blocks x-safari-https; use instagram://extbrowser instead.
- */
+function getAndroidChromeSchemeUrl(href) {
+    const url = getExternalBrowserTargetUrl(href);
+    return `googlechromes://${url.replace(/^https:\/\//i, '')}`;
+}
+
 export function getExternalBrowserHandoffHref(href = typeof window !== 'undefined' ? window.location.href : '') {
     const url = getExternalBrowserTargetUrl(href);
     const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
@@ -76,39 +76,64 @@ export function getExternalBrowserHandoffHref(href = typeof window !== 'undefine
     return getIosSafariHandoffUrl(url);
 }
 
-function navigateTo(url) {
-    if (typeof window === 'undefined' || !url) return false;
-    try {
-        window.location.assign(url);
-        return true;
-    } catch {
-        try {
-            window.location.href = url;
-            return true;
-        } catch {
-            return false;
-        }
-    }
+function fireHiddenIframe(src) {
+    if (typeof document === 'undefined' || !src) return;
+    const iframe = document.createElement('iframe');
+    iframe.setAttribute('src', src);
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;border:0;pointer-events:none';
+    document.body.appendChild(iframe);
+    window.setTimeout(() => {
+        try { iframe.remove(); } catch { /* ignore */ }
+    }, 2000);
+}
+
+function fireHiddenAnchor(href) {
+    if (typeof document === 'undefined' || !href) return;
+    const a = document.createElement('a');
+    a.href = href;
+    a.rel = 'noopener noreferrer';
+    a.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0';
+    document.body.appendChild(a);
+    a.click();
+    window.setTimeout(() => {
+        try { a.remove(); } catch { /* ignore */ }
+    }, 0);
 }
 
 /**
- * JS fallback only. Instagram iOS must use a native <a href> tap —
- * location.assign(x-safari) is blocked and can cancel the real handoff.
+ * Open Chrome/Safari from Instagram without navigating this WebView.
+ * <a href="intent://…"> unloads the event page and Instagram spins "loading" forever.
  */
-export function openInExternalBrowser(href = typeof window !== 'undefined' ? window.location.href : '') {
+export function launchExternalBrowserFromTap(href, event) {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+
     const url = getExternalBrowserTargetUrl(href);
     const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
-    const handoff = getExternalBrowserHandoffHref(url);
+    const android = /Android/i.test(ua);
+    const schemes = android
+        ? [getAndroidChromeIntentUrl(url), getAndroidChromeSchemeUrl(url)]
+        : [getExternalBrowserHandoffHref(url)];
+
+    schemes.forEach((scheme) => {
+        fireHiddenIframe(scheme);
+        fireHiddenAnchor(scheme);
+    });
 
     try {
-        if (navigateTo(handoff)) {
-            return { ok: true, method: 'handoff-href', url: handoff };
-        }
-        window.open(url, '_blank', 'noopener,noreferrer');
-        return { ok: true, method: 'window-open', url };
+        window.open(schemes[0], '_blank');
     } catch {
-        return { ok: false, method: 'failed', url };
+        /* ignore */
     }
+
+    copyPageLink(url);
+    return { ok: true, url };
+}
+
+/** @deprecated use launchExternalBrowserFromTap — must not location.assign custom schemes */
+export function openInExternalBrowser(href = typeof window !== 'undefined' ? window.location.href : '') {
+    return launchExternalBrowserFromTap(href);
 }
 
 export async function copyPageLink(href = typeof window !== 'undefined' ? window.location.href : '') {
