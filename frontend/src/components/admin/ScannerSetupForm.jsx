@@ -12,6 +12,7 @@ import {
   Share2,
 } from 'lucide-react';
 import { adminFetch } from '../../services/api/admin.api.js';
+import { publicWebUrl } from '../../utils/publicWebOrigin';
 
 const VARIANT = {
   fest: {
@@ -102,10 +103,7 @@ export default function ScannerSetupForm({ variant = 'fest', eventId, eventName,
   const [message, setMessage] = useState('');
   const [copiedBundle, setCopiedBundle] = useState(false);
 
-  const loginUrl =
-    typeof window !== 'undefined'
-      ? `${window.location.origin}/organizer/login`
-      : '/organizer/login';
+  const loginUrl = publicWebUrl('/organizer/login');
 
   useEffect(() => {
     if (!eventId || !apiPath) return;

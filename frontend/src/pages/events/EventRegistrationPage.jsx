@@ -39,6 +39,8 @@ import {
 import { getSuggestedCouponCode, getSuggestedCouponLabel } from '../../utils/suggestedCoupon';
 import RunCheckoutPanel from '../../components/sports/RunCheckoutPanel';
 import { useInAppBack } from '../../hooks/useInAppBack';
+import InAppOpenChromeGate, { shouldShowInAppChromeGate } from '../../components/InAppOpenChromeGate';
+import { getExternalBrowserTargetUrl } from '../../utils/openInExternalBrowser';
 
 const API = API_BASE_URL;
 
@@ -174,6 +176,10 @@ export default function EventRegistrationPage() {
     const [transactionId, setTransactionId] = useState('');
     const [uploadingProof, setUploadingProof] = useState(false);
     const [upiCopied, setUpiCopied] = useState(false);
+    const [chromeGateDismissed, setChromeGateDismissed] = useState(false);
+    const [payChromeGate, setPayChromeGate] = useState(false);
+    const [loginDismissed, setLoginDismissed] = useState(false);
+    const inAppChrome = shouldShowInAppChromeGate();
     const [selectedTierId, setSelectedTierId] = useState(() => {
         try {
             return new URLSearchParams(window.location.search).get('tier') || location.state?.tierId || '';
@@ -200,6 +206,7 @@ export default function EventRegistrationPage() {
             ? `${eventShowPath(event)}/register${window.location.search || ''}`
             : currentAppPath();
         openLoginSheet({ returnPath });
+        setLoginDismissed(false);
         setShowLogin(true);
     }, [event]);
 
@@ -208,6 +215,7 @@ export default function EventRegistrationPage() {
     useEffect(() => {
         if (isAuthenticated && showLogin) setShowLogin(false);
         if (isAuthenticated && showRegister) setShowRegister(false);
+        if (isAuthenticated) setLoginDismissed(false);
     }, [isAuthenticated, showLogin, showRegister]);
 
     // After Register Now: open Google sheet if not signed in (user can tap Sign in with Google)
@@ -216,6 +224,8 @@ export default function EventRegistrationPage() {
         if (loading && !event) return;
         if (isAuthed() || loginPromptedRef.current) return;
         if (done || paying) return;
+        // Prefer Instagram Open-in-browser gate before login sheet
+        if (inAppChrome && !chromeGateDismissed) return;
         loginPromptedRef.current = true;
         openLogin();
     }, [
@@ -228,8 +238,10 @@ export default function EventRegistrationPage() {
         authToken,
         done,
         paying,
-        openLogin,
+        inAppChrome,
+        chromeGateDismissed,
         isAuthed,
+        openLogin,
     ]);
 
     useEffect(() => {
@@ -1166,6 +1178,14 @@ export default function EventRegistrationPage() {
                 saveEventPayDraft(order.orderId, draftPayload);
             }
 
+            if (inAppChrome && payableAmount > 0) {
+                setPayChromeGate(true);
+                setChromeGateDismissed(false);
+                setPaying(false);
+                setError('Open in Safari / Chrome to pay — Instagram blocks Google Pay / PhonePe.');
+                return;
+            }
+
             let checkout;
             try {
                 checkout = await openCashfreeCheckout({
@@ -1309,6 +1329,30 @@ export default function EventRegistrationPage() {
         setCouponCode(suggestedCoupon);
         applyCoupon(suggestedCoupon);
     }, [isPaymentStepPreview, suggestedCoupon]);
+
+    const needsAuthGate = !isAuthed() && !done && !paying;
+    const showChromeGate = inAppChrome && !chromeGateDismissed && (needsAuthGate || payChromeGate);
+    const showLoginOverlay = showLogin && (!inAppChrome || chromeGateDismissed) && !loginDismissed;
+
+    if (showChromeGate) {
+        return (
+            <InAppOpenChromeGate
+                open
+                actionLabel={payChromeGate ? 'pay & register' : 'register'}
+                eventName={event?.title || event?.name || ''}
+                isDark={isDark}
+                pageUrl={typeof window !== 'undefined' ? getExternalBrowserTargetUrl(window.location.href) : undefined}
+                onDismiss={() => {
+                    setChromeGateDismissed(true);
+                    setPayChromeGate(false);
+                    if (!isAuthed()) {
+                        loginPromptedRef.current = true;
+                        openLogin();
+                    }
+                }}
+            />
+        );
+    }
 
     if (loading && !done && !paying) {
         return <DetailPageLoader label="Loading event" variant="event" />;
@@ -1895,13 +1939,16 @@ export default function EventRegistrationPage() {
                 </div>
             </div>
 
-            {showLogin && (
+            {showLoginOverlay && (
                 <div className="fixed inset-0 z-50">
                     <CrwdCtrlLogin
                         googleOnly
                         title="Sign in to register"
                         subtitle="Tap Sign in with Google — then pick your package"
-                        onClose={() => setShowLogin(false)}
+                        onClose={() => {
+                            setShowLogin(false);
+                            setLoginDismissed(true);
+                        }}
                     />
                 </div>
             )}

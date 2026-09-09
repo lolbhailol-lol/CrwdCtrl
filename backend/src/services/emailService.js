@@ -666,7 +666,7 @@ const generateEventEmailHTML = (userName, event) => {
             </div>
 
             <p style="text-align: center; margin-top: 30px;">
-                <a href="https://crwdctrl.in/fests/${event.id}" 
+                <a href="${getSiteUrl()}/view-details/${event.id}" 
                    style="background: #053780; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
                    View Event Details
                 </a>

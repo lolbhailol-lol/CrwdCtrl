@@ -374,8 +374,6 @@ router.get('/:id/debug', devOnly, async (req, res) => {
         const { id } = req.params;
         const mongoose = require('mongoose');
         
-        console.log(`🔍 DEBUG: Checking fest with ID: ${id}`);
-        
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.json({ 
                 error: 'Invalid ObjectId format', 

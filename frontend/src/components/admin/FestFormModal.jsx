@@ -1124,18 +1124,7 @@ export default function FestFormModal({ fest, onClose, onSaved, api, allFests = 
   }
     // Only initialize form once when fest data is first loaded
     if (fest && !formInitialized) {
-      console.log('🔄 Loading fest data into form (first time):', fest);
-      console.log('  - fest.artistsHeading:', fest.artistsHeading);
-      console.log('  - fest.competitionsHeading:', fest.competitionsHeading);
-      console.log('  - fest.contacts:', fest.contacts);
-      console.log('🔍 DEBUG - Registration data from fest:');
-      console.log('  - fest.registration:', fest.registration);
-      console.log('  - fest.registration.formType:', fest.registration?.formType);
-      console.log('  - fest.registration.formSchema:', fest.registration?.formSchema);
-      console.log('  - fest.registration.steps:', fest.registration?.steps);
-      console.log('  - fest.registration.steps length:', fest.registration?.steps?.length);
       if (fest.registration?.steps?.length > 0) {
-        console.log('  - Steps details:');
         fest.registration.steps.forEach((step, index) => {
           console.log(`    Step ${index + 1}:`, {
             stepNumber: step.stepNumber,
@@ -1220,15 +1209,6 @@ export default function FestFormModal({ fest, onClose, onSaved, api, allFests = 
           ? fest.relatedFestIds.map((id) => String(id?._id || id)).filter(Boolean)
           : [],
       });
-      
-      console.log('✅ Form state set with values:');
-      console.log('  - artistsHeading will be:', fest.artistsHeading || "Artists You'll Love");
-      console.log('  - competitionsHeading will be:', fest.competitionsHeading || "Competitions");
-      console.log('  - contacts will be:', fest.contacts || []);
-      console.log('🔍 DEBUG - Form state after setting:');
-      console.log('  - form.formType will be:', fest.registration?.formType || 'SINGLE_STEP');
-      console.log('  - form.formSchema will be:', (fest.registration?.formSchema || []).length, 'fields');
-      console.log('  - form.steps will be:', (fest.registration?.steps || []).length, 'steps');
       
       // Mark form as initialized to prevent future resets
       setFormInitialized(true);
@@ -1418,7 +1398,6 @@ export default function FestFormModal({ fest, onClose, onSaved, api, allFests = 
 
     // Validate internal form mandatory fields
     if (form.registrationMode === 'INTERNAL_FORM') {
-      console.log('🔍 Validating internal form fields...');
       if (!form.organizerEmail) {
         console.error('❌ Organizer email missing');
         setError('Organizer email is required for internal form registration');

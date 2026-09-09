@@ -155,22 +155,13 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
             if (searchQuery.trim().length >= 2) {
                 setIsSearching(true);
                 try {
-                    console.log('🔍 Starting search for:', searchQuery);
                     const results = await searchAll(searchQuery);
-                    console.log('🔍 Search results received:', {
-                        fests: results.fests.length,
-                        competitions: results.competitions.length,
-                        total: results.total
-                    });
                     
                     // Combine fests and competitions, limit to 6 total results
                     const combinedResults = [
                         ...results.fests.map(fest => ({ ...fest, resultType: 'fest' })),
                         ...results.competitions.map(comp => ({ ...comp, resultType: 'competition' }))
                     ].slice(0, 6);
-                    
-                    console.log('🔍 Final combined results:', combinedResults.length, 'types:', combinedResults.map(r => r.resultType));
-                    
                     setSearchResults(combinedResults);
                     setIsSearchDropdownOpen(true);
                 } catch (error) {
@@ -487,7 +478,6 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
     const handleLocationClick = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        console.log('🔍 Location button clicked, current dropdown state:', isLocationDropdownOpen);
         setIsLocationDropdownOpen(!isLocationDropdownOpen);
     };
 

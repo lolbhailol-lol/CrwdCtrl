@@ -9,7 +9,8 @@
 
 | Layer | Platform | URL / ID |
 |-------|----------|----------|
-| Frontend (web) | Railway (Caddy + `frontend/`) | https://www.crwdctrl.in · https://crwdctrl.in |
+| Frontend (web) | Railway (Caddy + `frontend/`) | **https://www.crwdctrl.in** (canonical) |
+| Apex domain | Must redirect to www | `https://crwdctrl.in` → `https://www.crwdctrl.in` (never attach apex to the **API** service) |
 | Frontend (Android) | Capacitor | `in.crwdctrl.app` |
 | Backend API | Railway | https://crwdctrl-production-9c58.up.railway.app |
 | Database | MongoDB Atlas | via `MONGODB_URI` |
@@ -115,6 +116,7 @@ VITE_FIREBASE_VAPID_KEY=
    - Login / fest browse works
    - `/privacy-policy` accessible (Play Store requirement)
    - `/api/health` via the same host (Caddy proxy) returns 200
+   - **Apex check:** `curl -sI https://crwdctrl.in/` must **not** return `x-railway-fallback: true`. If it does, apex is unattached or pointed at the wrong Railway service — attach `crwdctrl.in` to the **frontend** service (or a redirect-only service), never the API. Organizers must use `https://www.crwdctrl.in/.../login`.
 
 ### SPA routing
 

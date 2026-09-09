@@ -1,15 +1,14 @@
 import { useEffect, useState } from 'react';
 import { isInAppBrowser } from '../../../../config/apiBase';
 import { applyOfflineHuntManifest } from '../offlineHuntManifest';
+import { launchExternalBrowserFromTap, copyPageLink } from '../../../../utils/openInExternalBrowser';
 
-function openInChrome() {
-  const href = window.location.href;
-  const withoutScheme = href.replace(/^https?:\/\//i, '');
-  window.location.href = `intent://${withoutScheme}#Intent;scheme=https;package=com.android.chrome;end`;
+function openInChrome(event) {
+  launchExternalBrowserFromTap(window.location.href, event, { stay: true });
 }
 
 function copyLink() {
-  return navigator.clipboard?.writeText(window.location.href);
+  return copyPageLink(window.location.href);
 }
 
 /**

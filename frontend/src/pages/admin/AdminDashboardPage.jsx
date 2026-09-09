@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminStats from '../../components/admin/AdminStatsCard';
 import { adminFetchJSON } from '../../services/api/admin.api.js';
+import { ORGANIZER_LOGIN_MATRIX, publicWebUrl } from '../../utils/publicWebOrigin';
 
 const QUICK_LINKS = [
   { label: 'Manage Fests', path: '/admin/fests', description: 'Create, edit, and manage fests' },
@@ -80,6 +81,47 @@ export default function AdminDashboardPage() {
       </div>
 
       <AdminStats stats={stats} />
+
+      <div className="rounded-xl border border-white/8 bg-[#121316] p-4 space-y-3">
+        <div>
+          <h2 className="text-lg font-bold text-white">Organizer login URLs</h2>
+          <p className="text-xs text-amber-300/90 mt-1">
+            Always use <strong>www.crwdctrl.in</strong> — apex <code className="text-amber-200">crwdctrl.in</code> hits the API and shows Railway Not Found.
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[640px]">
+            <thead>
+              <tr className="text-left text-gray-500 border-b border-white/6 text-xs uppercase tracking-wider">
+                <th className="py-2 pr-3">Portal</th>
+                <th className="py-2 pr-3">Login URL</th>
+                <th className="py-2">Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ORGANIZER_LOGIN_MATRIX.map((row) => (
+                <tr key={row.id} className="border-b border-white/5">
+                  <td className="py-2.5 pr-3 text-white font-medium whitespace-nowrap">{row.label}</td>
+                  <td className="py-2.5 pr-3">
+                    <button
+                      type="button"
+                      className="text-[#0ECCEE] text-left text-xs break-all hover:underline"
+                      onClick={() => {
+                        const url = publicWebUrl(row.loginPath);
+                        navigator.clipboard?.writeText(url);
+                      }}
+                      title="Click to copy"
+                    >
+                      {publicWebUrl(row.loginPath)}
+                    </button>
+                  </td>
+                  <td className="py-2.5 text-gray-500 text-xs">{row.note}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {QUICK_LINKS.map((link) => (

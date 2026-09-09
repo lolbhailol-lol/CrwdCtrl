@@ -35,6 +35,8 @@ import {
 import { useRegistrationSuccessPopup } from '../../hooks/useSuccessPopup';
 import { finalizeCompetitionAfterPayment } from '../../utils/competitionPaymentComplete';
 import AlsoRegisterForSection from '../../components/AlsoRegisterForSection';
+import InAppOpenChromeGate, { shouldShowInAppChromeGate } from '../../components/InAppOpenChromeGate';
+import { getExternalBrowserTargetUrl } from '../../utils/openInExternalBrowser';
 
 // Configure API base URL - HARDCODED FOR PRODUCTION FIX
 import { fetchPaymentQuote } from '../../services/api/payment.api';
@@ -75,7 +77,6 @@ export default function CompetitionRegistration() {
     };
     const initialUi = getInitialCompetitionRegistrationUi(location.pathname, location.search, location.state);
     const {
-        isAuthenticated,
         isLoading: authLoading,
         token,
         firebaseUser,
@@ -107,6 +108,9 @@ export default function CompetitionRegistration() {
     // True once we've waited long enough for Firebase -> backend JWT sync to finish
     const [authSyncExpired, setAuthSyncExpired] = useState(false);
     const [paymentModal, setPaymentModal] = useState({ open: false, message: '', orderId: '' });
+    const [chromeGateDismissed, setChromeGateDismissed] = useState(false);
+    const [payChromeGate, setPayChromeGate] = useState(false);
+    const inAppChrome = shouldShowInAppChromeGate();
 
     useEffect(() => {
         if (!firebaseUser || resolveAuthToken(token)) {
@@ -127,12 +131,10 @@ export default function CompetitionRegistration() {
     const generateFieldId = (field) => {
         // Priority 1: use fieldName directly (this is what backend expects)
         if (field.fieldName) {
-            console.log(`🔑 Using fieldName for "${field.label}":`, field.fieldName);
             return field.fieldName;
         }
         // Priority 2: use field.id directly (without field_ prefix)
         if (field.id) {
-            console.log(`🔑 Using id for "${field.label}":`, field.id);
             return field.id;
         }
         // Priority 3: generate from label as fallback (if label exists)
@@ -144,7 +146,6 @@ export default function CompetitionRegistration() {
                 labelToSanitize = labelToSanitize.substring(6); // Remove 'field_' prefix
             }
             const sanitized = `field_${labelToSanitize.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')}`;
-            console.log(`🔑 Generated ID for "${field.label}":`, sanitized);
             return sanitized;
         }
         console.warn(`🔑 No ID could be generated for field:`, field);
@@ -167,14 +168,6 @@ export default function CompetitionRegistration() {
                 throw new Error('Failed to fetch competition details');
             }
             const data = await response.json();
-            console.log('🏆 Competition data for registration:', {
-                name: data.name,
-                registrationType: data.registrationType,
-                status: data.registration?.status,
-                formType: data.registration?.formType,
-                steps: data.registration?.steps?.length || 0,
-                schemaFields: data.registration?.formSchema?.length || 0,
-            });
             
             setCompetition(data);
 
@@ -190,7 +183,6 @@ export default function CompetitionRegistration() {
             
             // ✅ CRITICAL: Support both single-step and multi-step forms
             const formSchema = getFormSchema(data.registration);
-            console.log(`📝 Form schema: ${formSchema.length} fields (${isMultiStepForm(data.registration) ? 'multi-step' : 'single-step'})`);
             
             if (formSchema.length > 0) {
                 formSchema.forEach(field => {
@@ -212,7 +204,6 @@ export default function CompetitionRegistration() {
 
             // ✅ CRITICAL FIX: Initialize stepData with the same structure for multi-step forms
             if (isMultiStepForm(data.registration)) {
-                console.log('🔄 Initializing stepData for multi-step form - initializing ALL steps');
                 const allStepsData = {};
 
                 data.registration.steps.forEach(step => {
@@ -237,7 +228,6 @@ export default function CompetitionRegistration() {
                     }
                 }
 
-                console.log('📊 Initialized stepData for all steps:', allStepsData);
                 setStepData(allStepsData);
             }
 
@@ -255,14 +245,7 @@ export default function CompetitionRegistration() {
     // ✅ MAIN: Initialize registration and fetch competition details
     useEffect(() => {
         const initializeRegistration = async () => {
-            console.log('🔄 CompReg: Initializing registration...', {
-                authLoading, isAuthenticated, isAuthProcessing, isRedirectProcessing,
-                hasToken: !!token,
-                hasUsableToken: hasUsableAuthToken(token),
-            });
-
             if (authLoading || isAuthProcessing || isRedirectProcessing) {
-                console.log('⏳ CompReg: Auth still loading, waiting...');
                 return;
             }
 
@@ -271,10 +254,15 @@ export default function CompetitionRegistration() {
             if (!usableToken) {
                 // Give the Firebase -> backend JWT sync a bounded window, then fall back to login
                 if (firebaseUser && !authSyncExpired) {
-                    console.log('⏳ CompReg: Firebase user present — waiting for backend session sync...');
                     return;
                 }
-                console.log('❌ CompReg: No usable auth token, redirecting to login');
+                // Instagram / IAB: show Open in Chrome/Safari before bouncing to /login
+                if (inAppChrome && !chromeGateDismissed) {
+                    setError('');
+                    setLoading(false);
+                    setCompletingPayment(false);
+                    return;
+                }
                 setError('Please log in to register for competitions');
                 setLoading(false);
                 setCompletingPayment(false);
@@ -283,12 +271,11 @@ export default function CompetitionRegistration() {
                 return;
             }
 
-            console.log('✅ CompReg: Usable auth token confirmed, proceeding');
             fetchCompetitionDetails();
         };
 
         initializeRegistration();
-    }, [competitionId, authLoading, token, firebaseUser, authSyncExpired, isAuthProcessing, isRedirectProcessing, navigate, fetchCompetitionDetails]);
+    }, [competitionId, authLoading, token, firebaseUser, authSyncExpired, isAuthProcessing, isRedirectProcessing, navigate, fetchCompetitionDetails, inAppChrome, chromeGateDismissed]);
 
     useEffect(() => {
         if (!competition) return;
@@ -623,8 +610,6 @@ export default function CompetitionRegistration() {
     };
 
     const handleInputChange = (fieldId, value, fieldType = 'text') => {
-        console.log('🎯 handleInputChange CALLED:', { fieldId, value, fieldType, isMultiStep: isMultiStepFormActive() });
-        console.log(`📝 Setting form field: ${fieldId} = ${value} (type: ${fieldType})`);
         
         if (isMultiStepFormActive()) {
             // For multi-step forms, use step-specific data handling
@@ -665,7 +650,6 @@ export default function CompetitionRegistration() {
     const handleFileUpload = async (file, fieldId) => {
         if (!file) return;
 
-        console.log('📁 Starting file upload for field:', fieldId, 'File:', file.name);
 
         setUploadingFiles(prev => ({
             ...prev,
@@ -691,14 +675,8 @@ export default function CompetitionRegistration() {
             // ✅ PERFORMANCE: Compress images if they're large
             let processedFile = file;
             if (file.type.startsWith('image/') && file.size > 2 * 1024 * 1024) { // 2MB threshold
-                console.log('🗜️ Compressing large image:', file.name);
                 try {
                     processedFile = await compressImage(file);
-                    console.log('✅ Image compressed:', {
-                        original: `${(file.size / 1024 / 1024).toFixed(2)}MB`,
-                        compressed: `${(processedFile.size / 1024 / 1024).toFixed(2)}MB`,
-                        reduction: `${(((file.size - processedFile.size) / file.size) * 100).toFixed(1)}%`
-                    });
                 } catch (compressionError) {
                     console.warn('⚠️ Image compression failed, using original:', compressionError);
                     processedFile = file;
@@ -734,7 +712,6 @@ export default function CompetitionRegistration() {
                 }));
             }
             
-            console.log('✅ File prepared for upload:', fieldId, '- Will upload during form submission');
         } catch (err) {
             console.error('❌ File validation error:', err);
             setError(err.message || 'Failed to validate file');
@@ -798,7 +775,6 @@ export default function CompetitionRegistration() {
         const fieldId = generateFieldId(field);
         const { type, required, options, placeholder } = field;
         
-        console.log(`🎨 renderField called for: ${field.label} (${fieldId}, type: ${type})`);
         
         // Get value from appropriate location based on form type
         let value;
@@ -1002,11 +978,9 @@ export default function CompetitionRegistration() {
             verifiedPaymentOverride = null,
             draft = null,
         } = options;
-        console.log('🚀 Starting competition registration submission...');
         
         // ✅ PERFORMANCE: Prevent double submission
         if (submitting) {
-            console.log('⚠️ Submission already in progress, ignoring duplicate request');
             return;
         }
 
@@ -1046,15 +1020,12 @@ export default function CompetitionRegistration() {
         try {
             // ✅ CRITICAL: Support both single-step and multi-step forms for validation
             const formSchema = getFormSchema(competition.registration);
-            console.log(`📝 Validation schema: ${formSchema.length} fields (${isMultiStepForm(competition.registration) ? 'multi-step' : 'single-step'})`);
             
             const allFormData = draft ? buildFormDataFromDraft(draft) : getAllFormData();
             
             if (!paidResume) {
             // Validate required fields
             const requiredFields = formSchema.filter(field => field.required) || [];
-            console.log('🔍 Validating required fields:', requiredFields.map(f => ({ label: f.label, id: generateFieldId(f) })));
-            console.log('📋 Current form data keys:', Object.keys(allFormData));
             
             for (const field of requiredFields) {
                 const fieldId = generateFieldId(field);
@@ -1079,6 +1050,14 @@ export default function CompetitionRegistration() {
             let verifiedPaymentFields = verifiedPaymentOverride || paymentFields; // may already be set from a prior attempt
 
             if (feeAmount > 0 && !verifiedPaymentFields && !paidResume) {
+                if (inAppChrome) {
+                    setPayChromeGate(true);
+                    setChromeGateDismissed(false);
+                    setSubmitting(false);
+                    setSubmissionProgress('');
+                    setError('Open in Safari / Chrome to pay — Instagram blocks Google Pay / PhonePe.');
+                    return;
+                }
                 setSubmissionProgress('Opening payment gateway...');
 
                 const submitToken = token || localStorage.getItem('crwdctrl_token');
@@ -1171,7 +1150,6 @@ export default function CompetitionRegistration() {
 
                 verifiedPaymentFields = buildVerifiedPaymentFields(verifyResult.data, orderData.orderId);
                 setPaymentFields(verifiedPaymentFields);
-                console.log('✅ Cashfree payment verified, proceeding with registration');
             } else if (feeAmount === 0) {
                 // Free competition — validate old QR-based payment fields if QR is configured
                 const totalSteps = getTotalSteps();
@@ -1196,79 +1174,35 @@ export default function CompetitionRegistration() {
             let fileCount = 0;
 
             // Process form fields with consistent field naming
-            console.log('🔍 PROCESSING FIELDS - Starting:', {
-                formSchemaLength: formSchema.length,
-                allFormDataKeys: Object.keys(allFormData),
-                allFormDataFull: allFormData,
-                isMultiStep: isMultiStepFormActive(),
-                fileFieldsInSchema: formSchema.filter(f => f.type === 'file' || f.type === 'image').map(f => ({
-                    label: f.label,
-                    fieldId: generateFieldId(f),
-                    lookingFor: `${generateFieldId(f)}_file`
-                }))
-            });
-            
             formSchema.forEach(field => {
                 const fieldId = generateFieldId(field);
                 const value = allFormData[fieldId];
                 const backendFieldName = generateFieldId(field);
                 
-                console.log('🔍 PROCESSING FIELD:', {
-                    label: field.label,
-                    fieldId,
-                    fieldType: field.type,
-                    value: typeof value === 'string' ? value.substring(0, 100) : value,
-                    hasValue: !!value,
-                    allFormDataKeys: Object.keys(allFormData)
-                });
-                
                 if (field.type === 'file' || field.type === 'image') {
                     // Add file to FormData if it exists
                     const fileData = allFormData[`${fieldId}_file`];
-                    
-                    console.log('🔍 FILE DEBUG:', {
-                        fieldId,
-                        fieldLabel: field.label,
-                        hasFileData: !!fileData,
-                        fileDataType: typeof fileData,
-                        isFile: fileData instanceof File,
-                        isBlob: fileData instanceof Blob,
-                        fileDataSize: fileData?.size || 'N/A',
-                        fileDataName: fileData?.name || 'N/A'
-                    });
                     
                     if (fileData && fileData.size > 0) {
                         submissionFormData.append(backendFieldName, fileData);
                         const fileSizeInMB = (fileData.size / 1024 / 1024).toFixed(2);
                         totalFileSize += fileData.size;
                         fileCount++;
-                        console.log('📁 Added file to form data:', {
-                            fieldName: backendFieldName,
-                            fileName: fileData.name,
-                            fileSize: `${fileSizeInMB}MB`,
-                            actualSize: fileData.size,
-                            totalFileSize: `${(totalFileSize / 1024 / 1024).toFixed(2)}MB`
-                        });
                     }
                 } else {
                     // Add text data to responses object
                     textResponses[backendFieldName] = value ?? '';
-                    console.log('📝 Added text response:', backendFieldName, '=', typeof value === 'string' ? value.substring(0, 50) : value);
                 }
             });
 
-            console.log('📋 Final textResponses object:', textResponses);
-            console.log('📋 Final textResponses keys:', Object.keys(textResponses));
 
             // Add text responses as JSON
             submissionFormData.append('responses', JSON.stringify(textResponses));
-            console.log('✅ Appended responses to FormData');
 
             // Attach verified Cashfree payment fields if payment was made
             if (verifiedPaymentFields) {
                 submissionFormData.append('payment_order_id', verifiedPaymentFields.payment_order_id);
                 submissionFormData.append('payment_id', verifiedPaymentFields.payment_id);
-                console.log('💳 Cashfree payment fields appended to submission');
             }
 
             // Legacy QR-based payment fields (only used when feeAmount === 0 but QR is configured)
@@ -1294,12 +1228,6 @@ export default function CompetitionRegistration() {
                 throw new Error(`Total file size (${(totalFileSize / 1024 / 1024).toFixed(2)}MB) exceeds limit of 50MB. Please reduce file sizes.`);
             }
 
-            console.log('📊 Submission summary:', {
-                textFields: Object.keys(textResponses).length,
-                fileFields: fileCount,
-                totalFileSize: `${(totalFileSize / 1024 / 1024).toFixed(2)}MB`,
-                hasPaymentInfo: !!paymentReceiptUrl
-            });
 
             setSubmissionProgress('Submitting registration to server... (instant response)');
             const startTime = Date.now();
@@ -1312,18 +1240,10 @@ export default function CompetitionRegistration() {
                 controller.abort();
             }, baseTimeout);
 
-            console.log(`⏱️ Request timeout: ${(baseTimeout / 1000).toFixed(0)}s`);
             const resolvedId = competition?._id || competition?.id || competitionId;
-            console.log('🌐 Making fetch request to:', `${API_BASE_URL}/registrations/competitions/${resolvedId}/custom`);
 
             // ✅ FIX: Ensure we have a valid token before submission
             const submitToken = token || localStorage.getItem('crwdctrl_token');
-            console.log('🔑 Auth token check for form submission:', {
-                hasContextToken: !!token,
-                hasStorageToken: !!localStorage.getItem('crwdctrl_token'),
-                finalToken: submitToken ? submitToken.substring(0, 20) + '...' : 'NONE',
-                tokenLength: submitToken?.length
-            });
             
             if (!submitToken) {
                 throw new Error('Authentication required. Please log in again to submit your registration.');
@@ -1343,11 +1263,6 @@ export default function CompetitionRegistration() {
 
             clearTimeout(timeoutId);
             const submitTime = ((Date.now() - startTime) / 1000).toFixed(1);
-            console.log(`📡 Registration response received in ${submitTime}s:`, { 
-                status: response.status, 
-                ok: response.ok,
-                contentType: response.headers.get('content-type')
-            });
 
             if (!response.ok) {
                 let errorMessage = 'Registration failed';
@@ -1372,7 +1287,6 @@ export default function CompetitionRegistration() {
 
             setSubmissionProgress('Registration completed successfully!');
             const result = await response.json();
-            console.log('✅ Registration successful:', result);
 
             const regId = result._id || result.registration?._id || result.registrationId;
             if (regId) setRegistrationId(regId);
@@ -1530,6 +1444,27 @@ export default function CompetitionRegistration() {
     const waitingOnAuth = !hasStoredSession && (
         authLoading || isAuthProcessing || isRedirectProcessing || (!!firebaseUser && !authSyncExpired)
     );
+    const showChromeGate = inAppChrome
+        && !chromeGateDismissed
+        && !success
+        && !completingPayment
+        && (!hasStoredSession || payChromeGate);
+
+    if (showChromeGate) {
+        return (
+            <InAppOpenChromeGate
+                open
+                actionLabel={payChromeGate ? 'pay & register' : 'register'}
+                eventName={competition?.name || ''}
+                isDark
+                pageUrl={typeof window !== 'undefined' ? getExternalBrowserTargetUrl(window.location.href) : undefined}
+                onDismiss={() => {
+                    setChromeGateDismissed(true);
+                    setPayChromeGate(false);
+                }}
+            />
+        );
+    }
 
     if ((loading || waitingOnAuth) && !success && !completingPayment) {
         return (

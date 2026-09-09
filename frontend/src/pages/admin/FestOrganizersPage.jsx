@@ -3,6 +3,7 @@ import { PartyPopper, Plus, Pencil, Trash2, Search, Check, X } from 'lucide-reac
 import { InlinePageLoader } from '../../components/DetailPageLoader';
 import { adminFetchJSON } from '../../services/api/admin.api.js';
 import { useDialog } from '../../context/DialogContext';
+import { publicWebUrl } from '../../utils/publicWebOrigin';
 
 const emptyForm = {
     name: '',
@@ -47,12 +48,8 @@ export default function FestOrganizersPage() {
     const [inviteNote, setInviteNote] = useState('');
     const [inviteSaving, setInviteSaving] = useState(false);
 
-    const organizerLoginUrl = typeof window !== 'undefined'
-        ? `${window.location.origin}/fest-organizer/login`
-        : '/fest-organizer/login';
-    const organizerSignupUrl = typeof window !== 'undefined'
-        ? `${window.location.origin}/fest-organizer/signup`
-        : '/fest-organizer/signup';
+    const organizerLoginUrl = publicWebUrl('/fest-organizer/login');
+    const organizerSignupUrl = publicWebUrl('/fest-organizer/signup');
 
     const copyUrl = async (url, label) => {
         try {

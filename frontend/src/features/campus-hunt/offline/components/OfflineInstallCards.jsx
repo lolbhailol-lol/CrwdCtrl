@@ -1,9 +1,16 @@
 import { useState } from 'react';
 import { CAMPUS_HUNT_PATHS } from '../../config';
+import { PUBLIC_WEB_ORIGIN } from '../../../../utils/publicWebOrigin';
 
 function installUrl(token) {
-  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://crwdctrl.in';
-  return `${origin}${CAMPUS_HUNT_PATHS.offlineInstall(token)}`;
+  const origin = typeof window !== 'undefined' ? window.location.origin : PUBLIC_WEB_ORIGIN;
+  try {
+    const u = new URL(origin);
+    if (u.hostname === 'crwdctrl.in') u.hostname = 'www.crwdctrl.in';
+    return `${u.origin}${CAMPUS_HUNT_PATHS.offlineInstall(token)}`;
+  } catch {
+    return `${PUBLIC_WEB_ORIGIN}${CAMPUS_HUNT_PATHS.offlineInstall(token)}`;
+  }
 }
 
 export function teamWhatsAppText(row) {

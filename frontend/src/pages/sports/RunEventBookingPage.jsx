@@ -30,6 +30,8 @@ import {
 } from '../../utils/paymentNavigation';
 import { API_BASE_URL, publicFetchJSONRetry } from '../../services/api/client';
 import { isInAppBrowser } from '../../config/apiBase';
+import InAppOpenChromeGate, { shouldShowInAppChromeGate } from '../../components/InAppOpenChromeGate';
+import { getExternalBrowserTargetUrl } from '../../utils/openInExternalBrowser';
 import { useBookingSuccessPopup } from '../../hooks/useSuccessPopup';
 import { sportRunPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
 import { mergeRunFormFields, profileToRunFormData, isDefaultContactField, responseAliasGroup } from '../../utils/formFieldDedupe';
@@ -133,6 +135,9 @@ export default function RunEventBookingPage() {
     const [showLogin, setShowLogin] = useState(false);
     const [showRegister, setShowRegister] = useState(false);
     const [loginDismissed, setLoginDismissed] = useState(false);
+    const [chromeGateDismissed, setChromeGateDismissed] = useState(false);
+    const [payChromeGate, setPayChromeGate] = useState(false);
+    const inAppChrome = shouldShowInAppChromeGate();
 
     const isAuthed = useCallback(() => {
         return isAuthenticated || hasUsableAuthToken(authToken);
@@ -1056,6 +1061,13 @@ export default function RunEventBookingPage() {
                 return;
             }
 
+            if (inAppChrome && payableAmount > 0) {
+                setPayChromeGate(true);
+                setChromeGateDismissed(false);
+                setError('Open in Safari / Chrome to pay — Instagram blocks Google Pay / PhonePe.');
+                return;
+            }
+
             saveDraft({ step: 2 });
             setPaying(true);
             try {
@@ -1232,23 +1244,43 @@ export default function RunEventBookingPage() {
 
     const hasStoredSession = !!localStorage.getItem('crwdctrl_token');
     const waitingOnAuth = hasStoredSession && (authLoading || isAuthProcessing || isRedirectProcessing);
-    const showLoginOverlay = formLocked
-        && !loginDismissed
+    const needsAuthGate = formLocked
         && !showSuccess
         && !showProcessing
         && !waitingOnAuth
         && !isRedirectProcessing;
+    const showChromeGate = inAppChrome && !chromeGateDismissed && (needsAuthGate || payChromeGate);
+    const showLoginOverlay = needsAuthGate && !loginDismissed && (!inAppChrome || chromeGateDismissed);
 
-    const loginOverlay = showLoginOverlay || showLogin ? (
-        <Suspense fallback={null}>
-            <CrwdCtrlLogin
-                googleOnly
-                title="Sign in to book"
-                subtitle="Your form is ready below — one tap with Google to start filling it"
-                onClose={handleCloseLogin}
+    const loginOverlay = (
+        <>
+            <InAppOpenChromeGate
+                open={showChromeGate}
+                actionLabel={payChromeGate ? 'pay & book' : 'book'}
+                eventName={event?.title || event?.name || ''}
+                isDark={isDark}
+                pageUrl={typeof window !== 'undefined' ? getExternalBrowserTargetUrl(window.location.href) : undefined}
+                onDismiss={() => {
+                    setChromeGateDismissed(true);
+                    setPayChromeGate(false);
+                }}
             />
-        </Suspense>
-    ) : null;
+            {showLoginOverlay || showLogin ? (
+                <Suspense fallback={null}>
+                    <CrwdCtrlLogin
+                        googleOnly
+                        title="Sign in to book"
+                        subtitle="Your form is ready below — one tap with Google to start filling it"
+                        onClose={handleCloseLogin}
+                    />
+                </Suspense>
+            ) : null}
+        </>
+    );
+
+    if (showChromeGate && !showSuccess && !showProcessing) {
+        return loginOverlay;
+    }
 
     if (loadingEvent && !showSuccess && !showProcessing) {
         return (
