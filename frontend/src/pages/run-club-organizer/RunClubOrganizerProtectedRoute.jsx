@@ -17,7 +17,13 @@ import {
     toEventCommunityOrganizerPath,
 } from '../../utils/organizerPortalPaths';
 import { isEventsListingHub } from '../../utils/listingHubCopy';
-import DetailPageLoader from '../../components/DetailPageLoader';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
+import { useDetailLoaderFailsafe } from '../../hooks/useDetailLoaderFailsafe';
+
+function PortalSessionLoader({ label, onGiveUp }) {
+    useDetailLoaderFailsafe(true, onGiveUp);
+    return <InlinePageLoader label={label} variant="brand" fullScreen />;
+}
 
 async function bootOrganizerSession(forcedHub = '') {
     const token = getRunClubOrganizerToken();
@@ -76,7 +82,12 @@ export default function RunClubOrganizerProtectedRoute({ children, forcedHub = '
     }, [forcedHub]);
 
     if (status === 'checking') {
-        return <DetailPageLoader label={isEventPortal ? 'Opening event organizer portal' : 'Opening club manager portal'} />;
+        return (
+            <PortalSessionLoader
+                label={isEventPortal ? 'Opening event organizer portal' : 'Opening club manager portal'}
+                onGiveUp={() => setStatus('guest')}
+            />
+        );
     }
 
     if (status === 'guest') {

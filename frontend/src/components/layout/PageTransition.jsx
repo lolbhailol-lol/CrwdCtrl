@@ -44,9 +44,10 @@ function shouldSkipPageTransition(pathname) {
         || pathname.startsWith('/competitions-view-details')
         || pathname.startsWith('/competition/')
         || /^\/fest\/[^/]+\/register/.test(pathname)
-        // Community / run / trek details own DetailPageLoader — avoid empty shell + bottom-nav flash
+        // Community / run / trek / event-show details own DetailPageLoader — avoid empty shell + bottom-nav flash
         || pathname.startsWith('/events/community')
         || pathname.startsWith('/events/community-event')
+        || /^\/events\/[^/]+/.test(pathname)
         || pathname.startsWith('/sports/run-club/')
         || pathname.startsWith('/sports/run/')
         || pathname.startsWith('/trek/')

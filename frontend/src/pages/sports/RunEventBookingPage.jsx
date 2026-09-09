@@ -1283,12 +1283,7 @@ export default function RunEventBookingPage() {
     }
 
     if (loadingEvent && !showSuccess && !showProcessing) {
-        return (
-            <>
-                <DetailPageLoader label="Loading booking" variant="booking" />
-                {loginOverlay}
-            </>
-        );
+        return <DetailPageLoader label="Loading booking" variant="booking" />;
     }
 
     if (!event && !showSuccess && !showProcessing) {

@@ -10,6 +10,8 @@ import { API_BASE_URL } from '../../services/api/client';
 import { authenticatedFetchJSON } from '../../services/api/auth.api';
 import { useAuth } from '../../context/AuthContext';
 import { InlinePageLoader } from '../../components/DetailPageLoader';
+import { useDetailLoaderFailsafe } from '../../hooks/useDetailLoaderFailsafe';
+import { signalDetailPageReady } from '../../utils/bootSplash';
 
 const ticketCacheKey = (type, id) => `crwdctrl_ticket_${type || 'fest'}_${id}`;
 
@@ -239,6 +241,15 @@ export default function QRTicketPage() {
   const backLinkClass = isDark
     ? 'text-gray-400 hover:text-white'
     : 'text-gray-600 hover:text-gray-900';
+
+  useDetailLoaderFailsafe(loading && !ticket, () => {
+    setLoading(false);
+    setError((prev) => prev || 'Could not load ticket. Check My Bookings.');
+  });
+
+  useEffect(() => {
+    if (!loading && ticket) signalDetailPageReady();
+  }, [loading, ticket]);
 
   if (loading) {
     return (

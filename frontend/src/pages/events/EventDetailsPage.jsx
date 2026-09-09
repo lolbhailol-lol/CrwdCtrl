@@ -22,6 +22,7 @@ import Seo from '../../components/Seo';
 import { breadcrumbSchema, eventSchema } from '../../utils/seo';
 import { eventShowPath } from '../../utils/slugRoutes';
 import DetailPageLoader from '../../components/DetailPageLoader';
+import { signalDetailPageReady } from '../../utils/bootSplash';
 import { trackBookNowClick } from '../../services/analyticsService';
 import { getEventShowTiers, isEventShowTiersPricing, formatInr } from '../../utils/eventShowTiers';
 
@@ -153,6 +154,10 @@ export default function EventDetailsPage() {
     setLoading(false);
     setError((prev) => prev || 'Failed to load event');
   });
+
+  useEffect(() => {
+    if (!loading && event) signalDetailPageReady();
+  }, [loading, event]);
 
   useEffect(() => {
     if (!event || !eventId) return;

@@ -14,6 +14,8 @@ import { normalizeImageList, normalizeImageUrl } from '../../utils/uploadUrls';
 import { shareContent, openExternalUrl } from '../../utils/externalLink';
 import { useInAppBack } from '../../hooks/useInAppBack';
 import DetailPageLoader, { DetailLoader3DIcon } from '../../components/DetailPageLoader';
+import { useDetailLoaderFailsafe } from '../../hooks/useDetailLoaderFailsafe';
+import { signalDetailPageReady } from '../../utils/bootSplash';
 import { normalizeRunCategory } from '../../constants/runClubCategories';
 import {
     AnimatedCard,
@@ -379,8 +381,18 @@ export default function RunClubDetailPage() {
         }
     }, [categoryOptions, activeCategory]);
 
-    const showPageLoader = loading || (club && id && !entityMatchesRouteParam(club, id, ['name', 'title']));
+    const showPageLoader = (loading && !club)
+        || (Boolean(club) && Boolean(id) && !entityMatchesRouteParam(club, id, ['name', 'title']));
     const isEventHub = false;
+
+    useDetailLoaderFailsafe(showPageLoader, () => {
+        setLoading(false);
+        if (!club) setLoadError((prev) => prev || 'network');
+    });
+
+    useEffect(() => {
+        if (!showPageLoader && club) signalDetailPageReady();
+    }, [showPageLoader, club]);
 
     const name = club?.title || '';
     const basedIn = club?.subtitle || '';

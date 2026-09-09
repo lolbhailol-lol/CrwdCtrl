@@ -5,6 +5,8 @@ import { useAuth } from '../../context/AuthContext';
 import { openCashfreeCheckout, buildVerifiedPaymentFields, classifyCheckoutError } from '../../utils/useCashfree';
 import PaymentErrorModal from '../../components/PaymentErrorModal';
 import { InlinePageLoader } from '../../components/DetailPageLoader';
+import { useDetailLoaderFailsafe } from '../../hooks/useDetailLoaderFailsafe';
+import { signalDetailPageReady } from '../../utils/bootSplash';
 import { RegistrationStatusVisual } from '../../components/RegistrationStatusVisual';
 import {
     discardStalePaymentRecovery,
@@ -1450,6 +1452,14 @@ export default function CompetitionRegistration() {
         && !completingPayment
         && (!hasStoredSession || payChromeGate);
 
+    useDetailLoaderFailsafe((loading || waitingOnAuth) && !success && !completingPayment && !showChromeGate, () => {
+        setLoading(false);
+    });
+
+    useEffect(() => {
+        if (!loading && !waitingOnAuth && (competition || success)) signalDetailPageReady();
+    }, [loading, waitingOnAuth, competition, success]);
+
     if (showChromeGate) {
         return (
             <InAppOpenChromeGate
@@ -1495,7 +1505,7 @@ export default function CompetitionRegistration() {
 
     // Main registration form
     return (
-        <div className="min-h-screen bg-[#111213] px-4 py-6 pb-24 sm:pb-8">
+        <div className="min-h-screen bg-[#111213] px-4 py-6 pb-[max(6rem,var(--safe-bottom)+5rem)] sm:pb-8">
             <PaymentErrorModal
                 open={paymentModal.open}
                 message={paymentModal.message}

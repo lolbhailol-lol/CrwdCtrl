@@ -9,6 +9,8 @@ import CrwdCtrlRegister from '../auth/register';
 import { openCashfreeCheckout, classifyCheckoutError } from '../../utils/useCashfree';
 import PaymentErrorModal from '../../components/PaymentErrorModal';
 import DetailPageLoader from '../../components/DetailPageLoader';
+import { useDetailLoaderFailsafe } from '../../hooks/useDetailLoaderFailsafe';
+import { signalDetailPageReady } from '../../utils/bootSplash';
 import { RegistrationStatusVisual } from '../../components/RegistrationStatusVisual';
 import { getPendingPayment, clearPendingPayment, shouldResumePendingPayment } from '../../utils/deepLinks';
 import { verifyPaymentWithRetry, pollPaymentUntilVerified, goToBookings, classifyVerifyError, PAYMENT_BACKGROUND_MAX_WAIT_MS } from '../../utils/paymentNavigation';
@@ -1333,6 +1335,14 @@ export default function EventRegistrationPage() {
     const needsAuthGate = !isAuthed() && !done && !paying;
     const showChromeGate = inAppChrome && !chromeGateDismissed && (needsAuthGate || payChromeGate);
     const showLoginOverlay = showLogin && (!inAppChrome || chromeGateDismissed) && !loginDismissed;
+
+    useDetailLoaderFailsafe(loading && !done && !paying && !showChromeGate, () => {
+        setLoading(false);
+    });
+
+    useEffect(() => {
+        if (!loading && (event || done)) signalDetailPageReady();
+    }, [loading, event, done]);
 
     if (showChromeGate) {
         return (

@@ -3,6 +3,8 @@ import { ChevronLeft } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDarkMode } from '../../context/DarkModeContext';
 import DetailPageLoader from '../../components/DetailPageLoader';
+import { useDetailLoaderFailsafe } from '../../hooks/useDetailLoaderFailsafe';
+import { signalDetailPageReady } from '../../utils/bootSplash';
 import CompetitionCoverImage from '../../components/CompetitionCoverImage';
 import {
   transformFestPublicData,
@@ -136,6 +138,15 @@ const CompetitionListPage = () => {
             },
         });
     };
+
+    useDetailLoaderFailsafe(loading, () => {
+        setLoading(false);
+        setError((prev) => prev || 'Could not load competitions');
+    });
+
+    useEffect(() => {
+        if (!loading && eventData) signalDetailPageReady();
+    }, [loading, eventData]);
 
     // Loading state
     if (loading) {

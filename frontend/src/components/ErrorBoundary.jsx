@@ -16,6 +16,15 @@ class ErrorBoundary extends React.Component {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
     this.setState({ errorInfo });
     captureException(error, { extra: { componentStack: errorInfo?.componentStack } });
+
+    // Stale SW / chunk after deploy — auto-recover instead of trapping users on "Update available"
+    if (isChunkLoadError(error) && !this._autoChunkRecover) {
+      this._autoChunkRecover = true;
+      this.setState({ recovering: true });
+      forceRecoverFromStaleDeploy().then((started) => {
+        if (!started) this.setState({ recovering: false });
+      });
+    }
   }
 
   handleReload = async () => {

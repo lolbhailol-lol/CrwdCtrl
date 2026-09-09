@@ -14,6 +14,7 @@ import { normalizeImageList, normalizeImageUrl } from '../../utils/uploadUrls';
 import { shareContent, openExternalUrl } from '../../utils/externalLink';
 import { useInAppBack } from '../../hooks/useInAppBack';
 import DetailPageLoader, { DetailLoader3DIcon } from '../../components/DetailPageLoader';
+import { signalDetailPageReady } from '../../utils/bootSplash';
 import { eventCommunityCategoryChips, normalizeEventCommunityCategory } from '../../constants/eventCommunityCategories';
 import {
     AnimatedCard,
@@ -427,6 +428,10 @@ export default function EventCommunityDetailPage() {
         setLoading(false);
         if (!club) setLoadError((prev) => prev || 'network');
     });
+
+    useEffect(() => {
+        if (!showPageLoader && club) signalDetailPageReady();
+    }, [showPageLoader, club]);
 
     const name = club?.title || '';
     const basedIn = club?.subtitle || '';

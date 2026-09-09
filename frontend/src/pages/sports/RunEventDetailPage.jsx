@@ -23,7 +23,8 @@ import { resolveAuthToken, getBearerAuthHeaders } from '../../utils/authToken';
 import { publicFetchJSONRetry } from '../../services/api/client';
 import { DETAIL_FETCH_OPTS, classifyDetailLoadError } from '../../utils/detailPageLoad';
 import { trackBookNowClick } from '../../services/analyticsService';
-import { isInAppBrowser } from '../../config/apiBase';
+import { useDetailLoaderFailsafe } from '../../hooks/useDetailLoaderFailsafe';
+import { signalDetailPageReady } from '../../utils/bootSplash';
 
 const RUN_DETAIL_CACHE_PREFIX = 'crwdctrl_run_detail_v1_';
 const readRunDetailCache = (key) => {
@@ -137,10 +138,16 @@ export default function RunEventDetailPage() {
         const cachedEvent = cachedByParam || cachedById;
         const fallback = pickRunFallback(seeded, cachedEvent, id);
 
-        // Always logo-load first — never paint thin/nav/demo stubs
-        setEvent(null);
-        setLoadError('');
-        setLoading(true);
+        // Paint seed/cache immediately so deep links / hub → detail do not wait on API
+        if (fallback) {
+            setEvent(fallback);
+            setLoading(false);
+            setLoadError('');
+        } else {
+            setEvent(null);
+            setLoadError('');
+            setLoading(true);
+        }
 
         setImgPg(0);
         setOverviewExpanded(false);
@@ -215,14 +222,13 @@ export default function RunEventDetailPage() {
     const showPageLoader = (loading && !event)
         || (Boolean(event) && Boolean(id) && !entityMatchesRouteParam(event, id, ['title', 'name']));
 
+    useDetailLoaderFailsafe(showPageLoader, () => {
+        setLoading(false);
+        if (!event) setLoadError((prev) => prev || 'network');
+    });
+
     useEffect(() => {
-        if (!showPageLoader) return undefined;
-        const ms = isInAppBrowser() ? 8000 : 12000;
-        const timer = window.setTimeout(() => {
-            setLoading(false);
-            if (!event) setLoadError((prev) => prev || 'network');
-        }, ms);
-        return () => window.clearTimeout(timer);
+        if (!showPageLoader && event) signalDetailPageReady();
     }, [showPageLoader, event]);
 
     if (showPageLoader) {
