@@ -1,5 +1,6 @@
 import { Route } from 'react-router-dom';
 import ConnectionStatus from '../../components/ConnectionStatus';
+import OpenInExternalBrowserPage from '../../pages/OpenInExternalBrowserPage';
 import {
   Dashboard,
   Booking,
@@ -104,6 +105,7 @@ export const publicRoutes = (
       <Route path="/list-your-fest" element={<ListYourFest />} />
       <Route path="/notifications" element={<NotificationsPanel />} />
       <Route path="/connection-status" element={<ConnectionStatus />} />
+      <Route path="/open-browser" element={<OpenInExternalBrowserPage />} />
       <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       <Route path="/contact-us" element={<ContactUs />} />

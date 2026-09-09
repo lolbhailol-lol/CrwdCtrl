@@ -45,6 +45,7 @@ export function isSharedContentDeepLink(pathname = '') {
     || /^\/events\/[^/]+/.test(path)
     || /^\/campus-hunt(\/|$)/.test(path)
     || /^\/campus-hunt-volunteer(\/|$)/.test(path)
+    || /^\/open-browser(\/|$)/.test(path)
   );
 }
 

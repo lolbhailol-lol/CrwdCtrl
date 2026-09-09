@@ -60,6 +60,35 @@ function getAndroidChromeSchemeUrl(href) {
     return `googlechromes://${url.replace(/^https:\/\//i, '')}`;
 }
 
+const ALLOWED_HANDOFF_HOSTS = new Set(['www.crwdctrl.in', 'crwdctrl.in', 'localhost', '127.0.0.1']);
+
+export function sanitizeHandoffTarget(raw) {
+    try {
+        const url = getExternalBrowserTargetUrl(String(raw || ''));
+        const parsed = new URL(url);
+        const host = parsed.hostname.replace(/^www\./, '');
+        const allowed = ALLOWED_HANDOFF_HOSTS.has(parsed.hostname)
+            || host === 'crwdctrl.in'
+            || parsed.hostname === 'localhost'
+            || parsed.hostname === '127.0.0.1';
+        if (!allowed || (parsed.protocol !== 'https:' && parsed.hostname !== 'localhost' && parsed.hostname !== '127.0.0.1')) {
+            return 'https://www.crwdctrl.in';
+        }
+        if (parsed.pathname.startsWith('/open-browser')) {
+            return `${parsed.origin}/`;
+        }
+        return `${parsed.origin}${parsed.pathname}${parsed.search}${parsed.hash}`;
+    } catch {
+        return 'https://www.crwdctrl.in';
+    }
+}
+
+export function getOpenBrowserHelperUrl(href) {
+    const url = sanitizeHandoffTarget(href);
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://www.crwdctrl.in';
+    return `${origin}/open-browser?to=${encodeURIComponent(url)}`;
+}
+
 export function getExternalBrowserHandoffHref(href = typeof window !== 'undefined' ? window.location.href : '') {
     const url = getExternalBrowserTargetUrl(href);
     const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
@@ -105,11 +134,11 @@ function fireHiddenAnchor(href) {
  * Open Chrome/Safari from Instagram without navigating this WebView.
  * <a href="intent://…"> unloads the event page and Instagram spins "loading" forever.
  */
-export function launchExternalBrowserFromTap(href, event) {
+export function launchExternalBrowserFromTap(href, event, { stay = false } = {}) {
     event?.preventDefault?.();
     event?.stopPropagation?.();
 
-    const url = getExternalBrowserTargetUrl(href);
+    const url = sanitizeHandoffTarget(href);
     const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
     const android = /Android/i.test(ua);
     const schemes = android
@@ -128,6 +157,15 @@ export function launchExternalBrowserFromTap(href, event) {
     }
 
     copyPageLink(url);
+
+    if (!stay && typeof window !== 'undefined') {
+        window.setTimeout(() => {
+            if (document.hidden) return;
+            if (window.location.pathname === '/open-browser') return;
+            window.location.assign(getOpenBrowserHelperUrl(url));
+        }, 450);
+    }
+
     return { ok: true, url };
 }
 

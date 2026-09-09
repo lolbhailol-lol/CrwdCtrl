@@ -58,6 +58,7 @@ function shouldSkipPageTransition(pathname) {
         || pathname === '/booking'
         || pathname.endsWith('/book')
         || pathname.includes('/register')
+        || pathname.startsWith('/open-browser')
     );
 }
 
