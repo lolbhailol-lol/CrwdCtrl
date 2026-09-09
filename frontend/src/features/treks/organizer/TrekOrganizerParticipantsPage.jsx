@@ -14,16 +14,16 @@ import {
     deleteTrekOrganizerParticipant,
     sendTrekOrganizerParticipantMessage,
     reviewTrekOrganizerPayment,
-} from '../../services/api/trekOrganizer.api';
-import { useDialog } from '../../context/DialogContext';
-import { getTrekOrganizerSession } from '../../utils/trekOrganizerSession';
-import { formatOrganizerTrekDate } from '../../utils/trekDateDisplay';
+} from '../../../services/api/trekOrganizer.api';
+import { useDialog } from '../../../context/DialogContext';
+import { getTrekOrganizerSession } from '../../../utils/trekOrganizerSession';
+import { formatOrganizerTrekDate } from '../../../utils/trekDateDisplay';
 import ParticipantCard from './ParticipantCard';
 import TrekOrganizerMessageModal from './TrekOrganizerMessageModal';
 import TrekOrganizerWhatsAppModal from './TrekOrganizerWhatsAppModal';
 import TrekOrganizerParticipantModal from './TrekOrganizerParticipantModal';
-import PaymentProofReviewModal from '../run-club-organizer/PaymentProofReviewModal';
-import { isValidWhatsAppPhone } from '../../utils/whatsappDeepLink';
+import PaymentProofReviewModal from '../../sports/organizer/PaymentProofReviewModal';
+import { isValidWhatsAppPhone } from '../../../utils/whatsappDeepLink';
 
 const SORT_OPTIONS = [
     { value: 'createdAt:desc', label: 'Newest first' },

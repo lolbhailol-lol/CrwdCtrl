@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Bell, Megaphone, Loader, CheckCircle2, Mail, Smartphone, AppWindow } from 'lucide-react';
-import { broadcastTrekOrganizerAnnouncement, sendTrekOrganizerReminder } from '../../services/api/trekOrganizer.api';
-import { useDialog } from '../../context/DialogContext';
+import { broadcastTrekOrganizerAnnouncement, sendTrekOrganizerReminder } from '../../../services/api/trekOrganizer.api';
+import { useDialog } from '../../../context/DialogContext';
 import { SectionCard } from './OrganizerUi';
 
 const BROADCAST_PRESETS = [

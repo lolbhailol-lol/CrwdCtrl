@@ -4,7 +4,7 @@ import { Mountain, Loader } from 'lucide-react';
 import {
     fetchTrekOrganizerSignupCommunities,
     trekOrganizerSignup,
-} from '../../services/api/trekOrganizer.api';
+} from '../../../services/api/trekOrganizer.api';
 
 export default function TrekOrganizerSignupPage() {
     const navigate = useNavigate();

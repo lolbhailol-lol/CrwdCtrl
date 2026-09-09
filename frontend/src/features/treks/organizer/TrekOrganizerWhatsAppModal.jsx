@@ -6,7 +6,7 @@ import {
     openWhatsApp,
     loadSavedWhatsAppCustom,
     saveWhatsAppCustom,
-} from '../../utils/whatsappDeepLink';
+} from '../../../utils/whatsappDeepLink';
 
 /**
  * Opens WhatsApp on the organizer's device (wa.me) — no WhatsApp API.

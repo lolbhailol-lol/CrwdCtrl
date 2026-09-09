@@ -12,10 +12,10 @@ import {
     publishFestOrganizerLiveUpdate,
     archiveFestOrganizerLiveUpdate,
     deleteFestOrganizerLiveUpdate,
-} from '../../services/api/festOrganizer.api';
-import { useDialog } from '../../context/DialogContext';
-import { getFestPlugin } from '../../features/fests/plugins';
-import { InlinePageLoader } from '../../components/DetailPageLoader';
+} from '../../../services/api/festOrganizer.api';
+import { useDialog } from '../../../context/DialogContext';
+import { getFestPlugin } from '../plugins';
+import { InlinePageLoader } from '../../../components/DetailPageLoader';
 
 const emptyForm = {
     title: '',

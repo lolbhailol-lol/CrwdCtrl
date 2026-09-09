@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { Mountain, Loader } from 'lucide-react';
-import { trekOrganizerLogin, tryTrekOrganizerAppSession } from '../../services/api/trekOrganizer.api';
+import { trekOrganizerLogin, tryTrekOrganizerAppSession } from '../../../services/api/trekOrganizer.api';
 import {
     isTrekOrganizerManualLogout,
     setTrekOrganizerSession,
-} from '../../utils/trekOrganizerSession';
-import { showAppPopup } from '../../utils/appPopup';
-import { useAuth } from '../../context/AuthContext';
-import DetailPageLoader from '../../components/DetailPageLoader';
+} from '../../../utils/trekOrganizerSession';
+import { showAppPopup } from '../../../utils/appPopup';
+import { useAuth } from '../../../context/AuthContext';
+import DetailPageLoader from '../../../components/DetailPageLoader';
 
 function resolvePostLoginPath(treks, from) {
     if (from) return from;

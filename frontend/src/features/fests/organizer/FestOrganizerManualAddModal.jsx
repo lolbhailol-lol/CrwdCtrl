@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Loader, X } from 'lucide-react';
-import { createFestOrganizerManualParticipant } from '../../services/api/festOrganizer.api';
+import { createFestOrganizerManualParticipant } from '../../../services/api/festOrganizer.api';
 
 const empty = {
     name: '',

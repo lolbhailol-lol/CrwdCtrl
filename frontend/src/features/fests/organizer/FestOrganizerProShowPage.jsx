@@ -9,9 +9,9 @@ import {
     updateFestOrganizerProShow,
     fetchFestOrganizerProShowTickets,
     issueFestOrganizerProShowPass,
-} from '../../services/api/festOrganizer.api';
-import { InlinePageLoader } from '../../components/DetailPageLoader';
-import { useDialog } from '../../context/DialogContext';
+} from '../../../services/api/festOrganizer.api';
+import { InlinePageLoader } from '../../../components/DetailPageLoader';
+import { useDialog } from '../../../context/DialogContext';
 
 function waLink(phone) {
     const digits = String(phone || '').replace(/\D/g, '');

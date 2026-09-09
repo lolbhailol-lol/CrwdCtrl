@@ -1,47 +1,47 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, Bell } from 'lucide-react';
-import { useDarkMode } from '../../context/DarkModeContext';
-import { useFavorites } from '../../context/FavoritesContext';
-import { useNotifications } from '../../context/NotificationsContext';
-import { getCoverImageUrl } from '../../utils/coverImages';
-import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
-import { toCardText } from '../../utils/cardText';
-import { openExternalUrl, shareContent } from '../../utils/externalLink';
-import HomeCategoryBar from '../../components/HomeCategoryBar';
-import MobileStickyHeader from '../../components/MobileStickyHeader';
-import CategorySearchRow from '../../components/CategorySearchRow';
-import MobileHeroSearchField from '../../components/MobileHeroSearchField';
-import AppLogo from '../../components/AppLogo';
-import CardFavoriteButton from '../../components/CardFavoriteButton';
-import CardShareButton from '../../components/CardShareButton';
-import HomeCarouselSection from '../../components/HomeCarouselSection';
-import DetailPageLoader, { DetailLoader3DIcon } from '../../components/DetailPageLoader';
-import CustomPageSectionsRenderer from '../../components/CustomPageSectionsRenderer';
-import { usePageSectionHandlers } from '../../utils/pageSectionHandlers';
-import { usePageContentLoading } from '../../hooks/usePageContentLoading';
-import { useDetailLoaderFailsafe } from '../../hooks/useDetailLoaderFailsafe';
-import { SPORTS_BROWSE_CATEGORIES } from '../../constants/sportsBrowseCategories';
+import { useDarkMode } from '../../../context/DarkModeContext';
+import { useFavorites } from '../../../context/FavoritesContext';
+import { useNotifications } from '../../../context/NotificationsContext';
+import { getCoverImageUrl } from '../../../utils/coverImages';
+import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
+import { toCardText } from '../../../utils/cardText';
+import { openExternalUrl, shareContent } from '../../../utils/externalLink';
+import HomeCategoryBar from '../../../components/HomeCategoryBar';
+import MobileStickyHeader from '../../../components/MobileStickyHeader';
+import CategorySearchRow from '../../../components/CategorySearchRow';
+import MobileHeroSearchField from '../../../components/MobileHeroSearchField';
+import AppLogo from '../../../components/AppLogo';
+import CardFavoriteButton from '../../../components/CardFavoriteButton';
+import CardShareButton from '../../../components/CardShareButton';
+import HomeCarouselSection from '../../../components/HomeCarouselSection';
+import DetailPageLoader, { DetailLoader3DIcon } from '../../../components/DetailPageLoader';
+import CustomPageSectionsRenderer from '../../../components/CustomPageSectionsRenderer';
+import { usePageSectionHandlers } from '../../../utils/pageSectionHandlers';
+import { usePageContentLoading } from '../../../hooks/usePageContentLoading';
+import { useDetailLoaderFailsafe } from '../../../hooks/useDetailLoaderFailsafe';
+import { SPORTS_BROWSE_CATEGORIES } from '../../../constants/sportsBrowseCategories';
 import {
     SPORT_TYPE_LABELS,
     getSportsDisplayType,
     showsInUpcoming,
     sortUpcomingEvents,
-} from '../../constants/sportsPage';
-import { normalizeImageUrl } from '../../utils/uploadUrls';
-import { buildSearchKeywordsFromCatalog } from '../../utils/buildSearchKeywords';
-import { navigateToSearchResult } from '../../utils/searchNavigation';
-import { festPath, runClubPath, sportRunPath } from '../../utils/slugRoutes';
-import ContentImage from '../../components/ContentImage';
-import { preloadImages } from '../../utils/preloadImages';
+} from '../../../constants/sportsPage';
+import { normalizeImageUrl } from '../../../utils/uploadUrls';
+import { buildSearchKeywordsFromCatalog } from '../../../utils/buildSearchKeywords';
+import { navigateToSearchResult } from '../../../utils/searchNavigation';
+import { festPath, runClubPath, sportRunPath } from '../../../utils/slugRoutes';
+import ContentImage from '../../../components/ContentImage';
+import { preloadImages } from '../../../utils/preloadImages';
 
-import { fetchCatalogJSON } from '../../services/api/catalogCache';
-import Seo from '../../components/Seo';
-import FaqSection from '../../components/FaqSection';
-import { breadcrumbSchema, faqSchema, itemListSchema } from '../../utils/seo';
-import { usePublicConfig } from '../../hooks/usePublicConfig';
-import AnnouncementBanner from '../../components/AnnouncementBanner';
-import { SPORTS_FAQ } from '../../constants/faqs';
+import { fetchCatalogJSON } from '../../../services/api/catalogCache';
+import Seo from '../../../components/Seo';
+import FaqSection from '../../../components/FaqSection';
+import { breadcrumbSchema, faqSchema, itemListSchema } from '../../../utils/seo';
+import { usePublicConfig } from '../../../hooks/usePublicConfig';
+import AnnouncementBanner from '../../../components/AnnouncementBanner';
+import { SPORTS_FAQ } from '../../../constants/faqs';
 
 const SPORTS_DESCRIPTION =
     'Discover sports events, running clubs and gym communities near you. Find runs, tournaments and sports fests, and join active communities on CrwdCtrl.';

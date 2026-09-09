@@ -3,19 +3,19 @@ import { useParams } from 'react-router-dom';
 import {
     Bell, Megaphone, Loader, User, Search, X, Mail, Smartphone, MessageSquare, Send,
 } from 'lucide-react';
-import { DetailLoader3DIcon } from '../../components/DetailPageLoader';
+import { DetailLoader3DIcon } from '../../../../components/DetailPageLoader';
 import {
     broadcastRunClubOrganizerAnnouncement,
     sendRunClubOrganizerReminder,
     fetchRunClubOrganizerParticipants,
     notifyRunClubOrganizerParticipant,
-} from '../../services/api/runClubOrganizer.api';
-import { useDialog } from '../../context/DialogContext';
+} from '../../../../services/api/runClubOrganizer.api';
+import { useDialog } from '../../../../context/DialogContext';
 import {
     organizerHubCopy,
     organizerBroadcastPresets,
     organizerIndividualPresets,
-} from '../../utils/listingHubCopy';
+} from '../../../../utils/listingHubCopy';
 
 function formatDeliveryToast(res) {
     const d = res.delivery;

@@ -7,9 +7,9 @@ import {
 import {
     fetchFestOrganizerDashboard,
     fetchFestOrganizerNotifyContacts,
-} from '../../services/api/festOrganizer.api';
-import { InlinePageLoader } from '../../components/DetailPageLoader';
-import { getFestPlugin } from '../../features/fests/plugins';
+} from '../../../services/api/festOrganizer.api';
+import { InlinePageLoader } from '../../../components/DetailPageLoader';
+import { getFestPlugin } from '../plugins';
 
 function waLink(phone, text) {
     const digits = String(phone || '').replace(/\D/g, '');

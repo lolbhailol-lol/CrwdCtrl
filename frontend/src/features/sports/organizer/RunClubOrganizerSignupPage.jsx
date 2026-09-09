@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { Footprints, Users, Loader, ArrowLeft } from 'lucide-react';
-import { DetailLoader3DIcon } from '../../components/DetailPageLoader';
+import { DetailLoader3DIcon } from '../../../components/DetailPageLoader';
 import {
     fetchRunClubOrganizerSignupClubs,
     runClubOrganizerSignup,
     applyRunClubOrganizerAuthPayload,
-} from '../../services/api/runClubOrganizer.api';
-import { organizerHubCopy } from '../../utils/listingHubCopy';
+} from '../../../services/api/runClubOrganizer.api';
+import { organizerHubCopy } from '../../../utils/listingHubCopy';
 import {
     isEventCommunityOrganizerPath,
     EVENT_COMMUNITY_ORGANIZER_BASE,
@@ -15,8 +15,8 @@ import {
     organizerHomePath,
     organizerEventPath,
     organizerSignupPath,
-} from '../../utils/organizerPortalPaths';
-import Seo from '../../components/Seo';
+} from '../../../utils/organizerPortalPaths';
+import Seo from '../../../components/Seo';
 
 export default function RunClubOrganizerSignupPage() {
     const navigate = useNavigate();

@@ -10,9 +10,9 @@ import {
     updateFestOrganizerProbable,
     deleteFestOrganizerProbable,
     convertFestOrganizerProbable,
-} from '../../services/api/festOrganizer.api';
-import { useDialog } from '../../context/DialogContext';
-import { InlinePageLoader } from '../../components/DetailPageLoader';
+} from '../../../services/api/festOrganizer.api';
+import { useDialog } from '../../../context/DialogContext';
+import { InlinePageLoader } from '../../../components/DetailPageLoader';
 
 function waLink(phone, competitionName) {
     const digits = String(phone || '').replace(/\D/g, '');

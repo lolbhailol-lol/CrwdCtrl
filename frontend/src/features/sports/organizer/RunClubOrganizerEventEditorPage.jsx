@@ -7,21 +7,21 @@ import {
     publishRunClubOrganizerEvent,
     updateRunClubOrganizerEvent,
     uploadRunClubOrganizerImage,
-} from '../../services/api/runClubOrganizer.api';
-import { getRunClubOrganizerSession, setRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
-import { isEventsListingHub, organizerHubCopy } from '../../utils/listingHubCopy';
-import { sportRunPath } from '../../utils/slugRoutes';
-import DetailPageLoader from '../../components/DetailPageLoader';
-import TrekDetailBoxesEditor from '../../components/admin/TrekDetailBoxesEditor';
-import MultiContactListField from '../../components/admin/MultiContactListField';
-import SelectFieldOptionsEditor from '../../components/admin/SelectFieldOptionsEditor';
+} from '../../../services/api/runClubOrganizer.api';
+import { getRunClubOrganizerSession, setRunClubOrganizerSession } from '../../../utils/runClubOrganizerSession';
+import { isEventsListingHub, organizerHubCopy } from '../../../utils/listingHubCopy';
+import { sportRunPath } from '../../../utils/slugRoutes';
+import DetailPageLoader from '../../../components/DetailPageLoader';
+import TrekDetailBoxesEditor from '../../../components/admin/TrekDetailBoxesEditor';
+import MultiContactListField from '../../../components/admin/MultiContactListField';
+import SelectFieldOptionsEditor from '../../../components/admin/SelectFieldOptionsEditor';
 import {
     normalizeRunDetailBoxes,
     sanitizeDetailBoxesPayload,
     EVENT_DETAIL_BOX_PRESETS,
     RUN_DETAIL_BOX_PRESETS,
-} from '../../utils/trekDetailBoxes';
-import { contactsFromEvent, contactsToPayload } from '../../utils/runContacts';
+} from '../../../utils/trekDetailBoxes';
+import { contactsFromEvent, contactsToPayload } from '../../../utils/runContacts';
 
 const FIELD_TYPES = [
     { value: 'text', label: 'Text' },

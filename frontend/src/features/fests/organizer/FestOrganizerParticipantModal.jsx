@@ -1,19 +1,19 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { X, Loader, Check, Ban, RotateCcw, MessageCircle, Phone, Trash2, UserPlus, Pencil } from 'lucide-react';
-import { DetailLoader3DIcon } from '../../components/DetailPageLoader';
+import { DetailLoader3DIcon } from '../../../components/DetailPageLoader';
 import {
     fetchFestOrganizerParticipant,
     deleteFestOrganizerParticipant,
     updateFestOrganizerParticipantStatus,
     updateFestOrganizerParticipantWhatsappGroup,
     updateFestOrganizerParticipantTeamMembers,
-} from '../../services/api/festOrganizer.api';
-import { useDialog } from '../../context/DialogContext';
-import { filterExtraFestFormResponses } from '../../utils/festFormResponseKeys';
+} from '../../../services/api/festOrganizer.api';
+import { useDialog } from '../../../context/DialogContext';
+import { filterExtraFestFormResponses } from '../../../utils/festFormResponseKeys';
 import OrganizerTeamRoster from './OrganizerTeamRoster';
 import WhatsAppGroupToggle from './WhatsAppGroupToggle';
-import { getFestPlugin } from '../../features/fests/plugins';
+import { getFestPlugin } from '../plugins';
 
 function humanizeKey(key = '') {
     return String(key)

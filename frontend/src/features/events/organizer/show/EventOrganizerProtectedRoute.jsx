@@ -3,7 +3,7 @@ import {
     getEventOrganizerToken,
     isEventOrganizerTokenExpired,
     clearEventOrganizerSession,
-} from '../../utils/eventShowOrganizerSession';
+} from '../../../../utils/eventShowOrganizerSession';
 
 export default function EventOrganizerProtectedRoute({ children }) {
     const location = useLocation();

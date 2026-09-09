@@ -1,5 +1,5 @@
 import { Loader } from 'lucide-react';
-import { scrollFieldIntoView } from '../../../utils/registrationDraft';
+import { scrollFieldIntoView } from '../../../../utils/registrationDraft';
 
 export default function FestRegistrationField({
   field,

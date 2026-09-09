@@ -6,10 +6,10 @@ import {
     updateEventOrganizerParticipantStatus,
     deleteEventOrganizerParticipant,
     downloadEventOrganizerExport,
-} from '../../services/api/eventShowOrganizer.api';
-import { useDialog } from '../../context/DialogContext';
+} from '../../../../services/api/eventShowOrganizer.api';
+import { useDialog } from '../../../../context/DialogContext';
 import EventOrganizerManualAddModal from './EventOrganizerManualAddModal';
-import { InlinePageLoader } from '../../components/DetailPageLoader';
+import { InlinePageLoader } from '../../../../components/DetailPageLoader';
 
 /** Keys already shown in structured Drivers / summary — hide from raw dump */
 const HIDDEN_RESPONSE_KEYS = new Set([

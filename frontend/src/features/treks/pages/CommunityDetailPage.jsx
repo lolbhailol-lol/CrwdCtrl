@@ -1,31 +1,31 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { ArrowLeft, Share2, X, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
-import CardFavoriteButton from '../../components/CardFavoriteButton';
-import FollowCommunityBar from '../../components/FollowCommunityBar';
-import CrwdCtrlLogin from '../auth/login';
-import { useDarkMode } from '../../context/DarkModeContext';
-import { useFavorites } from '../../context/FavoritesContext';
-import { getImageUrl } from '../../utils/imageImports';
-import { getCoverImageUrl } from '../../utils/coverImages';
-import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
-import { normalizeImageList, normalizeImageUrl } from '../../utils/uploadUrls';
-import { shareContent, openExternalUrl } from '../../utils/externalLink';
-import { useInAppBack } from '../../hooks/useInAppBack';
-import { CompactPortraitCardsRowSkeleton } from '../../components/HomeEventCardSkeleton';
-import DetailPageLoader from '../../components/DetailPageLoader';
-import { useDetailLoaderFailsafe } from '../../hooks/useDetailLoaderFailsafe';
+import CardFavoriteButton from '../../../components/CardFavoriteButton';
+import FollowCommunityBar from '../../../components/FollowCommunityBar';
+import CrwdCtrlLogin from '../../../pages/auth/login';
+import { useDarkMode } from '../../../context/DarkModeContext';
+import { useFavorites } from '../../../context/FavoritesContext';
+import { getImageUrl } from '../../../utils/imageImports';
+import { getCoverImageUrl } from '../../../utils/coverImages';
+import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
+import { normalizeImageList, normalizeImageUrl } from '../../../utils/uploadUrls';
+import { shareContent, openExternalUrl } from '../../../utils/externalLink';
+import { useInAppBack } from '../../../hooks/useInAppBack';
+import { CompactPortraitCardsRowSkeleton } from '../../../components/HomeEventCardSkeleton';
+import DetailPageLoader from '../../../components/DetailPageLoader';
+import { useDetailLoaderFailsafe } from '../../../hooks/useDetailLoaderFailsafe';
 import {
     AnimatedCard,
     AnimatedCounter,
     ImmersiveHero,
     ScrollReveal,
-} from '../../motion';
-import Seo from '../../components/Seo';
-import { breadcrumbSchema, itemListSchema } from '../../utils/seo';
-import { formatTrekCardDate } from '../../utils/trekDateDisplay';
-import { communityPath, trekPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
-import ContentImage from '../../components/ContentImage';
+} from '../../../motion';
+import Seo from '../../../components/Seo';
+import { breadcrumbSchema, itemListSchema } from '../../../utils/seo';
+import { formatTrekCardDate } from '../../../utils/trekDateDisplay';
+import { communityPath, trekPath, entityMatchesRouteParam } from '../../../utils/slugRoutes';
+import ContentImage from '../../../components/ContentImage';
 
 const GALLERY_PREVIEW_COUNT = 4;
 
@@ -37,12 +37,12 @@ const buildGalleryImages = (community) => normalizeImageList(community?.galleryI
 import {
     fetchTrekCommunity,
     fetchTreksByCommunity,
-} from '../../services/api/public.api';
+} from '../../../services/api/public.api';
 import {
     classifyDetailLoadError,
     isTransientDetailError,
     createDetailCache,
-} from '../../utils/detailPageLoad';
+} from '../../../utils/detailPageLoad';
 
 const communityDetailCache = createDetailCache('crwdctrl_trek_community_v1_');
 

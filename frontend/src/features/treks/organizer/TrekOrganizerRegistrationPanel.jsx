@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Loader } from 'lucide-react';
-import { updateTrekOrganizerRegistration } from '../../services/api/trekOrganizer.api';
-import { GENDER_PHASE_OPTIONS } from '../../utils/trekGenderRegistration';
+import { updateTrekOrganizerRegistration } from '../../../services/api/trekOrganizer.api';
+import { GENDER_PHASE_OPTIONS } from '../../../utils/trekGenderRegistration';
 
 /**
  * Gender phase controls. When `embedded`, skips outer card chrome

@@ -4,15 +4,15 @@ import { RefreshCw, Search, ChevronRight, Trophy, UserPlus, QrCode, MessageCircl
 import {
     fetchFestOrganizerDashboard,
     updateFestOrganizerCompetitionSlots,
-} from '../../services/api/festOrganizer.api';
-import { getImageUrl } from '../../utils/imageImports';
-import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
-import { useDialog } from '../../context/DialogContext';
-import { getFestPlugin } from '../../features/fests/plugins';
-import { organizerCompetitionFeeLabel } from '../../utils/competitionFeeTiers';
+} from '../../../services/api/festOrganizer.api';
+import { getImageUrl } from '../../../utils/imageImports';
+import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
+import { useDialog } from '../../../context/DialogContext';
+import { getFestPlugin } from '../plugins';
+import { organizerCompetitionFeeLabel } from '../../../utils/competitionFeeTiers';
 import FestOrganizerCompetitionQrModal from './FestOrganizerCompetitionQrModal';
-import { downloadCompetitionQrPng } from '../../utils/competitionPublicQr';
-import { InlinePageLoader } from '../../components/DetailPageLoader';
+import { downloadCompetitionQrPng } from '../../../utils/competitionPublicQr';
+import { InlinePageLoader } from '../../../components/DetailPageLoader';
 
 function formatCategoryLabel(tab, plugin) {
     if (!tab || tab === 'OTHER') return 'Other';

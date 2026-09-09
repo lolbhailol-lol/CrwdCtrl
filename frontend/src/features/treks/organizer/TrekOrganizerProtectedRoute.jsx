@@ -3,7 +3,7 @@ import {
     getTrekOrganizerToken,
     isTrekOrganizerTokenExpired,
     clearTrekOrganizerSession,
-} from '../../utils/trekOrganizerSession';
+} from '../../../utils/trekOrganizerSession';
 
 export default function TrekOrganizerProtectedRoute({ children }) {
     const location = useLocation();

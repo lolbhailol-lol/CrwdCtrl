@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Footprints, ChevronRight, MapPin, Phone, Instagram } from 'lucide-react';
-import { fetchRunClubOrganizerMe } from '../../services/api/runClubOrganizer.api';
-import DetailPageLoader from '../../components/DetailPageLoader';
-import { getRunClubOrganizerSession, setRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
-import { organizerHubCopy } from '../../utils/listingHubCopy';
+import { fetchRunClubOrganizerMe } from '../../../services/api/runClubOrganizer.api';
+import DetailPageLoader from '../../../components/DetailPageLoader';
+import { getRunClubOrganizerSession, setRunClubOrganizerSession } from '../../../utils/runClubOrganizerSession';
+import { organizerHubCopy } from '../../../utils/listingHubCopy';
 
 function formatEventDate(d) {
     if (!d) return 'Date TBA';

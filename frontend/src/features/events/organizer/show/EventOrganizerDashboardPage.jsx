@@ -7,10 +7,10 @@ import {
 import {
     fetchEventOrganizerDashboard,
     setEventOrganizerRegistrationStatus,
-} from '../../services/api/eventShowOrganizer.api';
-import { eventShowPath } from '../../utils/slugRoutes';
-import { formatEventShowDate } from '../../constants/eventsPage';
-import DetailPageLoader from '../../components/DetailPageLoader';
+} from '../../../../services/api/eventShowOrganizer.api';
+import { eventShowPath } from '../../../../utils/slugRoutes';
+import { formatEventShowDate } from '../../../../constants/eventsPage';
+import DetailPageLoader from '../../../../components/DetailPageLoader';
 
 function StatTile({ label, value, tone = 'default', icon: Icon, to, hint }) {
     const navigate = useNavigate();

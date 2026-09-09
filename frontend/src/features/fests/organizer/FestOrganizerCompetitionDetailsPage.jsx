@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Pencil, RefreshCw, Trophy } from 'lucide-react';
-import { InlinePageLoader } from '../../components/DetailPageLoader';
+import { InlinePageLoader } from '../../../components/DetailPageLoader';
 import {
     fetchFestOrganizerCompetitionDetails,
     buildFestOrganizerAdminApi,
-} from '../../services/api/festOrganizer.api';
-import CompetitionModal from '../../components/admin/Competition_Modal';
+} from '../../../services/api/festOrganizer.api';
+import CompetitionModal from '../../../components/admin/Competition_Modal';
 
 /**
  * Opens the same admin Competition_Modal for this fest so organizers

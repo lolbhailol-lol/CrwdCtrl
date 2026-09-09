@@ -6,19 +6,19 @@ import {
     isRunClubOrganizerTokenExpired,
     getRunClubOrganizerSession,
     isRunClubOrganizerManualLogout,
-} from '../../utils/runClubOrganizerSession';
+} from '../../../utils/runClubOrganizerSession';
 import {
     tryRunClubOrganizerAppSession,
     organizerSessionMatchesHub,
-} from '../../services/api/runClubOrganizer.api';
+} from '../../../services/api/runClubOrganizer.api';
 import {
     organizerLoginPath,
     organizerSignupPath,
     toEventCommunityOrganizerPath,
-} from '../../utils/organizerPortalPaths';
-import { isEventsListingHub } from '../../utils/listingHubCopy';
-import { InlinePageLoader } from '../../components/DetailPageLoader';
-import { useDetailLoaderFailsafe } from '../../hooks/useDetailLoaderFailsafe';
+} from '../../../utils/organizerPortalPaths';
+import { isEventsListingHub } from '../../../utils/listingHubCopy';
+import { InlinePageLoader } from '../../../components/DetailPageLoader';
+import { useDetailLoaderFailsafe } from '../../../hooks/useDetailLoaderFailsafe';
 
 function PortalSessionLoader({ label, onGiveUp }) {
     useDetailLoaderFailsafe(true, onGiveUp);

@@ -1,16 +1,16 @@
 import React, { useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { competitionDetailNavPath, festPath } from '../utils/slugRoutes';
+import { competitionDetailNavPath, festPath } from '../../../utils/slugRoutes';
 import {
   buildCompetitionNavPayload,
   buildRegistrationPrefetch,
   saveRegistrationPrefetch,
-} from '../utils/festPublicTransform';
-import { saveCompetitionDetailCache } from '../utils/detailPageCache';
-import { resolveSimilarCompetitionCards } from '../utils/similarCompetitions';
-import { trackSimilarCompetitionClick } from '../services/analyticsService';
-import { markWarmCompetitionNav } from '../utils/warmCompetitionNav';
-import SimilarCompetitionCard from './SimilarCompetitionCard';
+} from '../../../utils/festPublicTransform';
+import { saveCompetitionDetailCache } from '../../../utils/detailPageCache';
+import { resolveSimilarCompetitionCards } from '../../../utils/similarCompetitions';
+import { trackSimilarCompetitionClick } from '../../../services/analyticsService';
+import { markWarmCompetitionNav } from '../../../utils/warmCompetitionNav';
+import SimilarCompetitionCard from '../../../components/SimilarCompetitionCard';
 
 function resolveFestRef(competition, festOverride) {
   return (

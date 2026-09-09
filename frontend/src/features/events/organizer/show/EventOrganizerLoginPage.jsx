@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { CalendarDays, Loader, ArrowLeft } from 'lucide-react';
-import { eventOrganizerLogin } from '../../services/api/eventShowOrganizer.api';
-import { setEventOrganizerSession } from '../../utils/eventShowOrganizerSession';
-import { showAppPopup } from '../../utils/appPopup';
+import { eventOrganizerLogin } from '../../../../services/api/eventShowOrganizer.api';
+import { setEventOrganizerSession } from '../../../../utils/eventShowOrganizerSession';
+import { showAppPopup } from '../../../../utils/appPopup';
 
 function resolvePostLoginPath(events, from) {
     if (from) return from;

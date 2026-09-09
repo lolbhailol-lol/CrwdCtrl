@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { publicFetchJSONRetry as fetchJSON } from '../services/api/client';
-import SimilarCompetitionsSection from './SimilarCompetitionsSection';
+import SimilarCompetitionsSection from '../features/fests/components/SimilarCompetitionsSection';
 
 /**
  * Post-registration upsell: similar competitions → open detail (then register there).

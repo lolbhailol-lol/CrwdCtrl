@@ -2,11 +2,11 @@ import {
   discardStalePaymentRecovery,
   getPendingPayment,
   shouldResumePendingPayment,
-} from '../../../utils/deepLinks';
+} from '../../../../utils/deepLinks';
 import {
   loadFestRegistrationSuccess,
   clearFestRegistrationSuccess,
-} from '../../../utils/registrationDraft';
+} from '../../../../utils/registrationDraft';
 
 export function getInitialFestRegistrationUi(pathname, search, navigationState = null, options = {}) {
   const freshStart =

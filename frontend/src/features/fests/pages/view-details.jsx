@@ -2,42 +2,42 @@ import React, { useState, useEffect, useLayoutEffect, useRef, Suspense, lazy } f
 import { Calendar, MapPin, Heart } from "lucide-react";
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { Phone, Instagram, Mail, ArrowLeft, Share, ChevronLeft, ChevronRight, X } from 'lucide-react';
-import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
-import shareIcon from '../../assets/share.svg';
-import calendarIcon from '../../assets/calendar.svg';
-import locationIcon from '../../assets/location-.svg';
-import { useDarkMode } from '../../context/DarkModeContext';
-import { useDialog } from '../../context/DialogContext';
-import { useAuth } from '../../context/AuthContext';
-import { useFavorites } from '../../context/FavoritesContext';
-import { getImageUrl } from '../../utils/imageImports';
-import CardFavoriteButton from '../../components/CardFavoriteButton';
-import CardShareButton from '../../components/CardShareButton';
-import { shareContent } from '../../utils/externalLink';
+import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
+import shareIcon from '../../../assets/share.svg';
+import calendarIcon from '../../../assets/calendar.svg';
+import locationIcon from '../../../assets/location-.svg';
+import { useDarkMode } from '../../../context/DarkModeContext';
+import { useDialog } from '../../../context/DialogContext';
+import { useAuth } from '../../../context/AuthContext';
+import { useFavorites } from '../../../context/FavoritesContext';
+import { getImageUrl } from '../../../utils/imageImports';
+import CardFavoriteButton from '../../../components/CardFavoriteButton';
+import CardShareButton from '../../../components/CardShareButton';
+import { shareContent } from '../../../utils/externalLink';
 import {
   transformFestPublicData,
   buildCompetitionNavPayload,
   resolveCompetitionFee,
   isFestPlaceholderCopy,
   festHasCompetitionGroups,
-} from '../../utils/festPublicTransform';
-import { publicFetchJSONRetry as fetchJSON } from '../../services/api/client';
-import Seo from '../../components/Seo';
-import { breadcrumbSchema, eventSchema } from '../../utils/seo';
-import { festPath, competitionPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
-import { loadFestDetailCache, saveFestDetailCache, saveCompetitionDetailCache } from '../../utils/detailPageCache';
-import { signalDetailPageReady } from '../../utils/bootSplash';
-import { useDetailLoaderFailsafe } from '../../hooks/useDetailLoaderFailsafe';
-import DetailPageLoader from '../../components/DetailPageLoader';
-import CompetitionCoverImage from '../../components/CompetitionCoverImage';
-import FestPublicLiveStrip from '../../components/FestPublicLiveStrip';
-import SimilarFestsSection from '../../components/SimilarFestsSection';
-import { getFestPlugin } from '../../features/fests/plugins';
-import { useInAppBack } from '../../hooks/useInAppBack';
-import { trackFestView } from '../../services/analyticsService';
+} from '../../../utils/festPublicTransform';
+import { publicFetchJSONRetry as fetchJSON } from '../../../services/api/client';
+import Seo from '../../../components/Seo';
+import { breadcrumbSchema, eventSchema } from '../../../utils/seo';
+import { festPath, competitionPath, entityMatchesRouteParam } from '../../../utils/slugRoutes';
+import { loadFestDetailCache, saveFestDetailCache, saveCompetitionDetailCache } from '../../../utils/detailPageCache';
+import { signalDetailPageReady } from '../../../utils/bootSplash';
+import { useDetailLoaderFailsafe } from '../../../hooks/useDetailLoaderFailsafe';
+import DetailPageLoader from '../../../components/DetailPageLoader';
+import CompetitionCoverImage from '../../../components/CompetitionCoverImage';
+import FestPublicLiveStrip from '../components/FestPublicLiveStrip';
+import SimilarFestsSection from '../components/SimilarFestsSection';
+import { getFestPlugin } from '../plugins';
+import { useInAppBack } from '../../../hooks/useInAppBack';
+import { trackFestView } from '../../../services/analyticsService';
 
-const CrwdCtrlLogin = lazy(() => import('../auth/login'));
-const CrwdCtrlRegister = lazy(() => import('../auth/register'));
+const CrwdCtrlLogin = lazy(() => import('../../../pages/auth/login'));
+const CrwdCtrlRegister = lazy(() => import('../../../pages/auth/register'));
 function formatCompFee(compOrFee) {
   if (compOrFee && typeof compOrFee === 'object') {
     return resolveCompetitionFee(compOrFee).label;

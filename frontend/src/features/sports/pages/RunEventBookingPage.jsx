@@ -1,22 +1,22 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback, Suspense, lazy } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { ArrowLeft, ChevronLeft, ChevronRight, ChevronDown, Loader, CheckCircle, Clock, Check } from 'lucide-react';
-import { useDarkMode } from '../../context/DarkModeContext';
-import { useAuth } from '../../context/AuthContext';
-import { useNotifications } from '../../context/NotificationsContext';
-import { buildVerifiedPaymentFields } from '../../utils/useCashfree';
-import { useInAppBack } from '../../hooks/useInAppBack';
+import { useDarkMode } from '../../../context/DarkModeContext';
+import { useAuth } from '../../../context/AuthContext';
+import { useNotifications } from '../../../context/NotificationsContext';
+import { buildVerifiedPaymentFields } from '../../../utils/useCashfree';
+import { useInAppBack } from '../../../hooks/useInAppBack';
 
-import PaymentErrorModal from '../../components/PaymentErrorModal';
-import RunCheckoutPanel from '../../components/sports/RunCheckoutPanel';
-import DetailPageLoader from '../../components/DetailPageLoader';
-import { useDetailLoaderFailsafe } from '../../hooks/useDetailLoaderFailsafe';
-import { CompletingPaymentStep } from '../fests/FestRegistration/PaymentStep';
+import PaymentErrorModal from '../../../components/PaymentErrorModal';
+import RunCheckoutPanel from '../components/RunCheckoutPanel';
+import DetailPageLoader from '../../../components/DetailPageLoader';
+import { useDetailLoaderFailsafe } from '../../../hooks/useDetailLoaderFailsafe';
+import { CompletingPaymentStep } from '../../fests/pages/FestRegistration/PaymentStep';
 import {
     getPendingPayment,
     clearPendingPayment,
     shouldResumePendingPayment,
-} from '../../utils/deepLinks';
+} from '../../../utils/deepLinks';
 import {
     goToBookings,
     verifyPaymentWithRetry,
@@ -27,28 +27,28 @@ import {
     PAYMENT_REDIRECT_STUCK_MS,
     classifyVerifyError,
     clearCashfreeReturnAndPending,
-} from '../../utils/paymentNavigation';
-import { API_BASE_URL, publicFetchJSONRetry } from '../../services/api/client';
-import { isInAppBrowser } from '../../config/apiBase';
-import InAppOpenChromeGate, { shouldShowInAppChromeGate } from '../../components/InAppOpenChromeGate';
-import { getExternalBrowserTargetUrl } from '../../utils/openInExternalBrowser';
-import { useBookingSuccessPopup } from '../../hooks/useSuccessPopup';
-import { sportRunPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
-import { mergeRunFormFields, profileToRunFormData, isDefaultContactField, responseAliasGroup } from '../../utils/formFieldDedupe';
-import { resolveAuthToken, getBearerAuthHeaders, hasUsableAuthToken, isAuthFailureMessage } from '../../utils/authToken';
+} from '../../../utils/paymentNavigation';
+import { API_BASE_URL, publicFetchJSONRetry } from '../../../services/api/client';
+import { isInAppBrowser } from '../../../config/apiBase';
+import InAppOpenChromeGate, { shouldShowInAppChromeGate } from '../../../components/InAppOpenChromeGate';
+import { getExternalBrowserTargetUrl } from '../../../utils/openInExternalBrowser';
+import { useBookingSuccessPopup } from '../../../hooks/useSuccessPopup';
+import { sportRunPath, entityMatchesRouteParam } from '../../../utils/slugRoutes';
+import { mergeRunFormFields, profileToRunFormData, isDefaultContactField, responseAliasGroup } from '../../../utils/formFieldDedupe';
+import { resolveAuthToken, getBearerAuthHeaders, hasUsableAuthToken, isAuthFailureMessage } from '../../../utils/authToken';
 import {
     classifyDetailLoadError,
     createDetailCache,
     DETAIL_FETCH_OPTS,
-} from '../../utils/detailPageLoad';
+} from '../../../utils/detailPageLoad';
 import {
     createAuthModalHandlers,
     getInitialBookingUiState,
     runCashfreeCheckoutAndVerify,
     setPaymentFlowToStepTwo,
     setPaymentFlowToSuccess,
-} from '../../utils/bookingFlowShared';
-import { openLoginSheet } from '../../utils/loginFlow';
+} from '../../../utils/bookingFlowShared';
+import { openLoginSheet } from '../../../utils/loginFlow';
 import {
     findSportsTier,
     getSportsTiers,
@@ -56,16 +56,16 @@ import {
     resolveSportsPerPersonFee,
     resolveOptionalAddOn,
     formatInr,
-} from '../../utils/sportsTiers';
+} from '../../../utils/sportsTiers';
 import {
     firstPageCouponFields,
     hasAutoCouponOptions,
     resolveFormAutoCouponCode,
     selectOptionLabels,
-} from '../../utils/formOptionCoupons';
+} from '../../../utils/formOptionCoupons';
 
-const CrwdCtrlLogin = lazy(() => import('../auth/login'));
-const CrwdCtrlRegister = lazy(() => import('../auth/register'));
+const CrwdCtrlLogin = lazy(() => import('../../../pages/auth/login'));
+const CrwdCtrlRegister = lazy(() => import('../../../pages/auth/register'));
 
 const runDetailCache = createDetailCache('crwdctrl_run_detail_v1_');
 

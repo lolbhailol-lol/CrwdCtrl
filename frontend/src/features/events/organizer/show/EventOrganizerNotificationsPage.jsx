@@ -4,8 +4,8 @@ import { Bell, Loader, Megaphone } from 'lucide-react';
 import {
     sendEventOrganizerReminder,
     sendEventOrganizerBroadcast,
-} from '../../services/api/eventShowOrganizer.api';
-import { useDialog } from '../../context/DialogContext';
+} from '../../../../services/api/eventShowOrganizer.api';
+import { useDialog } from '../../../../context/DialogContext';
 
 export default function EventOrganizerNotificationsPage() {
     const { eventId } = useParams();

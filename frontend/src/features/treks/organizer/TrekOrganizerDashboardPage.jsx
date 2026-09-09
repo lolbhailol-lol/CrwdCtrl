@@ -7,13 +7,13 @@ import {
 import {
     fetchTrekOrganizerDashboard,
     updateTrekOrganizerRegistration,
-} from '../../services/api/trekOrganizer.api';
-import { trekPath } from '../../utils/slugRoutes';
-import { formatOrganizerTrekDate } from '../../utils/trekDateDisplay';
+} from '../../../services/api/trekOrganizer.api';
+import { trekPath } from '../../../utils/slugRoutes';
+import { formatOrganizerTrekDate } from '../../../utils/trekDateDisplay';
 import TrekOrganizerRegistrationPanel from './TrekOrganizerRegistrationPanel';
-import { InlinePageLoader } from '../../components/DetailPageLoader';
+import { InlinePageLoader } from '../../../components/DetailPageLoader';
 import { CapacityBar, ProgressBar, SectionCard, StatTile } from './OrganizerUi';
-import { getCoverImageUrl } from '../../utils/coverImages';
+import { getCoverImageUrl } from '../../../utils/coverImages';
 
 function formatUpdatedAt(ts) {
     if (!ts) return '';

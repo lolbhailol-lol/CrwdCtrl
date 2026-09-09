@@ -9,10 +9,10 @@ import {
     fetchRunClubOrganizerEvent,
     setRunClubOrganizerRegistrationStatus,
     expireRunClubOrganizerPendingPayments,
-} from '../../services/api/runClubOrganizer.api';
-import { sportRunPath } from '../../utils/slugRoutes';
-import DetailPageLoader from '../../components/DetailPageLoader';
-import { organizerHubCopy } from '../../utils/listingHubCopy';
+} from '../../../services/api/runClubOrganizer.api';
+import { sportRunPath } from '../../../utils/slugRoutes';
+import DetailPageLoader from '../../../components/DetailPageLoader';
+import { organizerHubCopy } from '../../../utils/listingHubCopy';
 
 function StatTile({ label, value, tone = 'default', icon: Icon, onClick, to, hint }) {
     const navigate = useNavigate();

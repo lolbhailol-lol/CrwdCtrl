@@ -1,26 +1,26 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Upload, Loader, CheckCircle } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
-import { openCashfreeCheckout, buildVerifiedPaymentFields, classifyCheckoutError } from '../../utils/useCashfree';
-import PaymentErrorModal from '../../components/PaymentErrorModal';
-import { InlinePageLoader } from '../../components/DetailPageLoader';
-import { useDetailLoaderFailsafe } from '../../hooks/useDetailLoaderFailsafe';
-import { signalDetailPageReady } from '../../utils/bootSplash';
-import { RegistrationStatusVisual } from '../../components/RegistrationStatusVisual';
+import { useAuth } from '../../../../context/AuthContext';
+import { openCashfreeCheckout, buildVerifiedPaymentFields, classifyCheckoutError } from '../../../../utils/useCashfree';
+import PaymentErrorModal from '../../../../components/PaymentErrorModal';
+import { InlinePageLoader } from '../../../../components/DetailPageLoader';
+import { useDetailLoaderFailsafe } from '../../../../hooks/useDetailLoaderFailsafe';
+import { signalDetailPageReady } from '../../../../utils/bootSplash';
+import { RegistrationStatusVisual } from '../../../../components/RegistrationStatusVisual';
 import {
     discardStalePaymentRecovery,
     getPendingPayment,
     clearPendingPayment,
     isTrekPaymentPending,
     shouldResumePendingPayment,
-} from '../../utils/deepLinks';
+} from '../../../../utils/deepLinks';
 import {
     goToBookings,
     verifyPaymentWithRetry,
     classifyVerifyError,
     clearCashfreeReturnAndPending,
-} from '../../utils/paymentNavigation';
+} from '../../../../utils/paymentNavigation';
 import {
     applyRegistrationDraft,
     clearRegistrationDraft,
@@ -28,23 +28,23 @@ import {
     loadRegistrationDraft,
     saveRegistrationDraft,
     scrollFieldIntoView,
-} from '../../utils/registrationDraft';
-import { parseTicketPrice } from '../../utils/platformFee';
+} from '../../../../utils/registrationDraft';
+import { parseTicketPrice } from '../../../../utils/platformFee';
 import {
     hasUsableAuthToken,
     resolveAuthToken,
-} from '../../utils/authToken';
-import { useRegistrationSuccessPopup } from '../../hooks/useSuccessPopup';
-import { finalizeCompetitionAfterPayment } from '../../utils/competitionPaymentComplete';
-import AlsoRegisterForSection from '../../components/AlsoRegisterForSection';
-import InAppOpenChromeGate, { shouldShowInAppChromeGate } from '../../components/InAppOpenChromeGate';
-import { getExternalBrowserTargetUrl } from '../../utils/openInExternalBrowser';
+} from '../../../../utils/authToken';
+import { useRegistrationSuccessPopup } from '../../../../hooks/useSuccessPopup';
+import { finalizeCompetitionAfterPayment } from '../../../../utils/competitionPaymentComplete';
+import AlsoRegisterForSection from '../../../../components/AlsoRegisterForSection';
+import InAppOpenChromeGate, { shouldShowInAppChromeGate } from '../../../../components/InAppOpenChromeGate';
+import { getExternalBrowserTargetUrl } from '../../../../utils/openInExternalBrowser';
 
 // Configure API base URL - HARDCODED FOR PRODUCTION FIX
-import { fetchPaymentQuote } from '../../services/api/payment.api';
-import { API_BASE_URL } from '../../services/api/client';
-import { useInAppBack } from '../../hooks/useInAppBack';
-import { competitionRegistrationPath } from '../../utils/slugRoutes';
+import { fetchPaymentQuote } from '../../../../services/api/payment.api';
+import { API_BASE_URL } from '../../../../services/api/client';
+import { useInAppBack } from '../../../../hooks/useInAppBack';
+import { competitionRegistrationPath } from '../../../../utils/slugRoutes';
 
 function getInitialCompetitionRegistrationUi(pathname, search, navigationState = null) {
     discardStalePaymentRecovery({ pathname, search, navigationState });

@@ -2,41 +2,41 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { ArrowLeft, Share2, X, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
-import CardFavoriteButton from '../../components/CardFavoriteButton';
-import FollowCommunityBar from '../../components/FollowCommunityBar';
-import CrwdCtrlLogin from '../auth/login';
-import { useDarkMode } from '../../context/DarkModeContext';
-import { useFavorites } from '../../context/FavoritesContext';
-import { getImageUrl } from '../../utils/imageImports';
-import { getCoverImageUrl, primaryCoverUrl, resolveCoverImage } from '../../utils/coverImages';
-import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
-import { normalizeImageList, normalizeImageUrl } from '../../utils/uploadUrls';
-import { shareContent, openExternalUrl } from '../../utils/externalLink';
-import { useInAppBack } from '../../hooks/useInAppBack';
-import DetailPageLoader, { DetailLoader3DIcon } from '../../components/DetailPageLoader';
-import { signalDetailPageReady } from '../../utils/bootSplash';
-import { eventCommunityCategoryChips, normalizeEventCommunityCategory } from '../../constants/eventCommunityCategories';
+import CardFavoriteButton from '../../../components/CardFavoriteButton';
+import FollowCommunityBar from '../../../components/FollowCommunityBar';
+import CrwdCtrlLogin from '../../../pages/auth/login';
+import { useDarkMode } from '../../../context/DarkModeContext';
+import { useFavorites } from '../../../context/FavoritesContext';
+import { getImageUrl } from '../../../utils/imageImports';
+import { getCoverImageUrl, primaryCoverUrl, resolveCoverImage } from '../../../utils/coverImages';
+import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
+import { normalizeImageList, normalizeImageUrl } from '../../../utils/uploadUrls';
+import { shareContent, openExternalUrl } from '../../../utils/externalLink';
+import { useInAppBack } from '../../../hooks/useInAppBack';
+import DetailPageLoader, { DetailLoader3DIcon } from '../../../components/DetailPageLoader';
+import { signalDetailPageReady } from '../../../utils/bootSplash';
+import { eventCommunityCategoryChips, normalizeEventCommunityCategory } from '../../../constants/eventCommunityCategories';
 import {
     AnimatedCard,
     AnimatedCounter,
     ScrollProgress,
     ScrollReveal,
-} from '../../motion';
-import Seo from '../../components/Seo';
-import { absoluteUrl, breadcrumbSchema, itemListSchema } from '../../utils/seo';
+} from '../../../motion';
+import Seo from '../../../components/Seo';
+import { absoluteUrl, breadcrumbSchema, itemListSchema } from '../../../utils/seo';
 
 import {
     fetchRunClub,
     fetchSportsByRunClub,
-} from '../../services/api/public.api';
-import { eventCommunityPath, eventCommunityEventPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
+} from '../../../services/api/public.api';
+import { eventCommunityPath, eventCommunityEventPath, entityMatchesRouteParam } from '../../../utils/slugRoutes';
 import {
     classifyDetailLoadError,
     isTransientDetailError,
     createDetailCache,
-} from '../../utils/detailPageLoad';
-import { usePageContentLoading } from '../../hooks/usePageContentLoading';
-import { useDetailLoaderFailsafe } from '../../hooks/useDetailLoaderFailsafe';
+} from '../../../utils/detailPageLoad';
+import { usePageContentLoading } from '../../../hooks/usePageContentLoading';
+import { useDetailLoaderFailsafe } from '../../../hooks/useDetailLoaderFailsafe';
 
 const runClubDetailCache = createDetailCache('crwdctrl_event_community_v5_');
 

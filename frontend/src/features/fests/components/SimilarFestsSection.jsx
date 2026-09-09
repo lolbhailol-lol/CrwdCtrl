@@ -1,20 +1,20 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { festPath, competitionDetailNavPath } from '../utils/slugRoutes';
-import { getImageUrl } from '../utils/imageImports';
-import { handleImageErrorWithFallback } from '../utils/fallbackImageGenerator';
+import { festPath, competitionDetailNavPath } from '../../../utils/slugRoutes';
+import { getImageUrl } from '../../../utils/imageImports';
+import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
 import {
   buildCompetitionNavPayload,
   buildRegistrationPrefetch,
   saveRegistrationPrefetch,
-} from '../utils/festPublicTransform';
-import { saveCompetitionDetailCache } from '../utils/detailPageCache';
+} from '../../../utils/festPublicTransform';
+import { saveCompetitionDetailCache } from '../../../utils/detailPageCache';
 import {
   trackSimilarCompetitionClick,
   trackExploreFestClick,
-} from '../services/analyticsService';
-import { markWarmCompetitionNav } from '../utils/warmCompetitionNav';
-import SimilarCompetitionCard from './SimilarCompetitionCard';
+} from '../../../services/analyticsService';
+import { markWarmCompetitionNav } from '../../../utils/warmCompetitionNav';
+import SimilarCompetitionCard from '../../../components/SimilarCompetitionCard';
 
 const FEST_TYPE_LABEL = {
   technical: 'technical',

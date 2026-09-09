@@ -1,19 +1,19 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader, CheckCircle, Check } from 'lucide-react';
-import { useDarkMode } from '../../context/DarkModeContext';
-import { useAuth } from '../../context/AuthContext';
-import { useNotifications } from '../../context/NotificationsContext';
-import CrwdCtrlLogin from '../auth/login';
-import CrwdCtrlRegister from '../auth/register';
-import { openCashfreeCheckout, classifyCheckoutError } from '../../utils/useCashfree';
-import PaymentErrorModal from '../../components/PaymentErrorModal';
-import DetailPageLoader from '../../components/DetailPageLoader';
-import { useDetailLoaderFailsafe } from '../../hooks/useDetailLoaderFailsafe';
-import { signalDetailPageReady } from '../../utils/bootSplash';
-import { RegistrationStatusVisual } from '../../components/RegistrationStatusVisual';
-import { getPendingPayment, clearPendingPayment, shouldResumePendingPayment } from '../../utils/deepLinks';
-import { verifyPaymentWithRetry, pollPaymentUntilVerified, goToBookings, classifyVerifyError, PAYMENT_BACKGROUND_MAX_WAIT_MS } from '../../utils/paymentNavigation';
+import { useDarkMode } from '../../../context/DarkModeContext';
+import { useAuth } from '../../../context/AuthContext';
+import { useNotifications } from '../../../context/NotificationsContext';
+import CrwdCtrlLogin from '../../../pages/auth/login';
+import CrwdCtrlRegister from '../../../pages/auth/register';
+import { openCashfreeCheckout, classifyCheckoutError } from '../../../utils/useCashfree';
+import PaymentErrorModal from '../../../components/PaymentErrorModal';
+import DetailPageLoader from '../../../components/DetailPageLoader';
+import { useDetailLoaderFailsafe } from '../../../hooks/useDetailLoaderFailsafe';
+import { signalDetailPageReady } from '../../../utils/bootSplash';
+import { RegistrationStatusVisual } from '../../../components/RegistrationStatusVisual';
+import { getPendingPayment, clearPendingPayment, shouldResumePendingPayment } from '../../../utils/deepLinks';
+import { verifyPaymentWithRetry, pollPaymentUntilVerified, goToBookings, classifyVerifyError, PAYMENT_BACKGROUND_MAX_WAIT_MS } from '../../../utils/paymentNavigation';
 import {
     saveEventRegistrationDraft,
     loadEventRegistrationDraft,
@@ -21,15 +21,15 @@ import {
     saveEventPayDraft,
     clearEventPaymentArtifacts,
     completeEventPayAndRegister,
-} from '../../utils/eventPaymentRecovery';
-import { buildEventPriceBreakdown } from '../../utils/platformFee';
-import { resolveTrekPlatformFeePercent } from '../../utils/trekRegistrationFee';
-import { API_BASE_URL, publicFetchJSONRetry } from '../../services/api/client';
-import { resolveAuthToken, getBearerAuthHeaders, hasUsableAuthToken } from '../../utils/authToken';
-import { useBookingSuccessPopup } from '../../hooks/useSuccessPopup';
-import { eventShowPath } from '../../utils/slugRoutes';
-import { openLoginSheet, currentAppPath } from '../../utils/loginFlow';
-import { openExternalUrl } from '../../utils/externalLink';
+} from '../../../utils/eventPaymentRecovery';
+import { buildEventPriceBreakdown } from '../../../utils/platformFee';
+import { resolveTrekPlatformFeePercent } from '../../../utils/trekRegistrationFee';
+import { API_BASE_URL, publicFetchJSONRetry } from '../../../services/api/client';
+import { resolveAuthToken, getBearerAuthHeaders, hasUsableAuthToken } from '../../../utils/authToken';
+import { useBookingSuccessPopup } from '../../../hooks/useSuccessPopup';
+import { eventShowPath } from '../../../utils/slugRoutes';
+import { openLoginSheet, currentAppPath } from '../../../utils/loginFlow';
+import { openExternalUrl } from '../../../utils/externalLink';
 import {
     getEventShowTiers,
     findEventShowTier,
@@ -37,12 +37,12 @@ import {
     resolveTierParticipantCount,
     sanitizeEventShowAddOns,
     formatInr,
-} from '../../utils/eventShowTiers';
-import { getSuggestedCouponCode, getSuggestedCouponLabel } from '../../utils/suggestedCoupon';
-import RunCheckoutPanel from '../../components/sports/RunCheckoutPanel';
-import { useInAppBack } from '../../hooks/useInAppBack';
-import InAppOpenChromeGate, { shouldShowInAppChromeGate } from '../../components/InAppOpenChromeGate';
-import { getExternalBrowserTargetUrl } from '../../utils/openInExternalBrowser';
+} from '../../../utils/eventShowTiers';
+import { getSuggestedCouponCode, getSuggestedCouponLabel } from '../../../utils/suggestedCoupon';
+import RunCheckoutPanel from '../../sports/components/RunCheckoutPanel';
+import { useInAppBack } from '../../../hooks/useInAppBack';
+import InAppOpenChromeGate, { shouldShowInAppChromeGate } from '../../../components/InAppOpenChromeGate';
+import { getExternalBrowserTargetUrl } from '../../../utils/openInExternalBrowser';
 
 const API = API_BASE_URL;
 

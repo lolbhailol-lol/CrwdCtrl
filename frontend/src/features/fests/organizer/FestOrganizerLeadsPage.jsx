@@ -11,11 +11,11 @@ import {
     fetchFestOrganizerLeadStats,
     fetchFestOrganizerLeads,
     updateFestOrganizerLead,
-} from '../../services/api/festOrganizer.api';
-import { useDialog } from '../../context/DialogContext';
-import { getFestOrganizerSession } from '../../utils/festOrganizerSession';
-import { InlinePageLoader } from '../../components/DetailPageLoader';
-import { openWhatsApp } from '../../utils/whatsappDeepLink';
+} from '../../../services/api/festOrganizer.api';
+import { useDialog } from '../../../context/DialogContext';
+import { getFestOrganizerSession } from '../../../utils/festOrganizerSession';
+import { InlinePageLoader } from '../../../components/DetailPageLoader';
+import { openWhatsApp } from '../../../utils/whatsappDeepLink';
 
 const INTERESTS = [
     { id: 'volunteer', label: 'Volunteer' },

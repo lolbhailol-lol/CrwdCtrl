@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Outlet, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { CalendarDays, LayoutDashboard, Users, QrCode, LogOut, Bell, Menu, Home, ExternalLink } from 'lucide-react';
-import { markRunClubOrganizerLoggedOut, getRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
-import { fetchRunClubOrganizerDashboard } from '../../services/api/runClubOrganizer.api';
-import { organizerHubCopy } from '../../utils/listingHubCopy';
-import { EVENT_COMMUNITY_ORGANIZER_BASE, organizerEventPath, organizerHomePath } from '../../utils/organizerPortalPaths';
-import Seo from '../../components/Seo';
+import { markRunClubOrganizerLoggedOut, getRunClubOrganizerSession } from '../../../../utils/runClubOrganizerSession';
+import { fetchRunClubOrganizerDashboard } from '../../../../services/api/runClubOrganizer.api';
+import { organizerHubCopy } from '../../../../utils/listingHubCopy';
+import { EVENT_COMMUNITY_ORGANIZER_BASE, organizerEventPath, organizerHomePath } from '../../../../utils/organizerPortalPaths';
+import Seo from '../../../../components/Seo';
 
 const navForEvent = (eventId) => [
     { label: 'Home', path: organizerEventPath(eventId, true), icon: LayoutDashboard, end: true, short: 'Dash' },
@@ -65,8 +65,8 @@ export default function EventCommunityOrganizerLayout() {
     useEffect(() => {
         void import('./EventCommunityOrganizerDashboardPage');
         void import('./EventCommunityOrganizerNotificationsPage');
-        void import('../run-club-organizer/RunClubOrganizerParticipantsPage');
-        void import('../run-club-organizer/RunClubOrganizerScanPage');
+        void import('../../../sports/organizer/RunClubOrganizerParticipantsPage');
+        void import('../../../sports/organizer/RunClubOrganizerScanPage');
     }, []);
 
     useEffect(() => {

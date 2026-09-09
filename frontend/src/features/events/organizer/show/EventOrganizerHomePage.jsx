@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CalendarDays, ChevronRight } from 'lucide-react';
-import { fetchEventOrganizerMe } from '../../services/api/eventShowOrganizer.api';
-import { getEventOrganizerSession, setEventOrganizerSession } from '../../utils/eventShowOrganizerSession';
-import { InlinePageLoader } from '../../components/DetailPageLoader';
+import { fetchEventOrganizerMe } from '../../../../services/api/eventShowOrganizer.api';
+import { getEventOrganizerSession, setEventOrganizerSession } from '../../../../utils/eventShowOrganizerSession';
+import { InlinePageLoader } from '../../../../components/DetailPageLoader';
 
 function statusBadge(status) {
     const s = String(status || 'draft').toLowerCase();

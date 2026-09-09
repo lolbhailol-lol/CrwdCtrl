@@ -4,7 +4,7 @@ import { CalendarDays, Loader, ArrowLeft } from 'lucide-react';
 import {
     eventOrganizerSignup,
     fetchEventOrganizerSignupEvents,
-} from '../../services/api/eventShowOrganizer.api';
+} from '../../../../services/api/eventShowOrganizer.api';
 
 export default function EventOrganizerSignupPage() {
     const navigate = useNavigate();

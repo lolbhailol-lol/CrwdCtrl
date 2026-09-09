@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Loader, CheckCircle2 } from 'lucide-react';
-import { InlinePageLoader } from '../../components/DetailPageLoader';
-import { publicFetchJSONRetry } from '../../services/api/client';
+import { InlinePageLoader } from '../../../../components/DetailPageLoader';
+import { publicFetchJSONRetry } from '../../../../services/api/client';
 
 const INTERESTS = [
     { id: 'volunteer', label: 'Volunteer', hint: 'Help run it' },

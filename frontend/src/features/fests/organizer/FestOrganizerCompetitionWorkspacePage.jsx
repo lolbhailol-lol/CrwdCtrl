@@ -15,22 +15,22 @@ import {
     updateFestOrganizerCompetitionSlots,
     updateFestOrganizerParticipantWhatsappGroup,
     updateFestOrganizerCompetitionDetails,
-} from '../../services/api/festOrganizer.api';
-import { useDialog } from '../../context/DialogContext';
-import { getImageUrl } from '../../utils/imageImports';
-import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
+} from '../../../services/api/festOrganizer.api';
+import { useDialog } from '../../../context/DialogContext';
+import { getImageUrl } from '../../../utils/imageImports';
+import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
 import FestOrganizerManualAddModal from './FestOrganizerManualAddModal';
 import OrganizerTeamRoster, { OrganizerRosterPreview } from './OrganizerTeamRoster';
 import WhatsAppGroupToggle from './WhatsAppGroupToggle';
-import { getFestPlugin } from '../../features/fests/plugins';
-import CompetitionFeeTiersEditor from '../../components/admin/CompetitionFeeTiersEditor';
+import { getFestPlugin } from '../plugins';
+import CompetitionFeeTiersEditor from '../../../components/admin/CompetitionFeeTiersEditor';
 import {
     getCompetitionFeeTiers,
     organizerCompetitionFeeLabel,
     sanitizeCompetitionFeeTiers,
-} from '../../utils/competitionFeeTiers';
-import { downloadCompetitionQrPng } from '../../utils/competitionPublicQr';
-import { InlinePageLoader } from '../../components/DetailPageLoader';
+} from '../../../utils/competitionFeeTiers';
+import { downloadCompetitionQrPng } from '../../../utils/competitionPublicQr';
+import { InlinePageLoader } from '../../../components/DetailPageLoader';
 
 const TABS = [
     { id: 'solo', label: 'Solo entries' },

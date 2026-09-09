@@ -1,46 +1,46 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Bell, MapPin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useDarkMode } from '../../context/DarkModeContext';
-import { useFavorites } from '../../context/FavoritesContext';
-import { useNotifications } from '../../context/NotificationsContext';
-import { getImageUrl } from '../../utils/imageImports';
-import { getCoverImageUrl } from '../../utils/coverImages';
-import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
-import { toCardText } from '../../utils/cardText';
-import HomeCategoryBar from '../../components/HomeCategoryBar';
-import MobileStickyHeader from '../../components/MobileStickyHeader';
-import CategorySearchRow from '../../components/CategorySearchRow';
-import MobileHeroSearchField from '../../components/MobileHeroSearchField';
-import { buildSearchKeywordsFromCatalog } from '../../utils/buildSearchKeywords';
-import { shareContent, openExternalUrl } from '../../utils/externalLink';
-import { navigateToSearchResult } from '../../utils/searchNavigation';
-import { usePageContentLoading } from '../../hooks/usePageContentLoading';
-import AppLogo from '../../components/AppLogo';
-import CardFavoriteButton from '../../components/CardFavoriteButton';
-import CardShareButton from '../../components/CardShareButton';
-import CarouselDotPagination from '../../components/CarouselDotPagination';
-import HeroBanner from '../../components/HeroBanner';
+import { useDarkMode } from '../../../context/DarkModeContext';
+import { useFavorites } from '../../../context/FavoritesContext';
+import { useNotifications } from '../../../context/NotificationsContext';
+import { getImageUrl } from '../../../utils/imageImports';
+import { getCoverImageUrl } from '../../../utils/coverImages';
+import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
+import { toCardText } from '../../../utils/cardText';
+import HomeCategoryBar from '../../../components/HomeCategoryBar';
+import MobileStickyHeader from '../../../components/MobileStickyHeader';
+import CategorySearchRow from '../../../components/CategorySearchRow';
+import MobileHeroSearchField from '../../../components/MobileHeroSearchField';
+import { buildSearchKeywordsFromCatalog } from '../../../utils/buildSearchKeywords';
+import { shareContent, openExternalUrl } from '../../../utils/externalLink';
+import { navigateToSearchResult } from '../../../utils/searchNavigation';
+import { usePageContentLoading } from '../../../hooks/usePageContentLoading';
+import AppLogo from '../../../components/AppLogo';
+import CardFavoriteButton from '../../../components/CardFavoriteButton';
+import CardShareButton from '../../../components/CardShareButton';
+import CarouselDotPagination from '../../../components/CarouselDotPagination';
+import HeroBanner from '../../../components/HeroBanner';
 import {
     HeroBannerSkeleton,
     CompactPortraitCardsRowSkeleton,
     WideActivityCardsRowSkeleton,
-} from '../../components/HomeEventCardSkeleton';
-import CustomPageSectionsRenderer from '../../components/CustomPageSectionsRenderer';
-import { usePageSectionHandlers } from '../../utils/pageSectionHandlers';
-import { mapEventShow } from '../../constants/eventsPage';
-import Seo from '../../components/Seo';
-import FaqSection from '../../components/FaqSection';
-import { breadcrumbSchema, faqSchema, itemListSchema } from '../../utils/seo';
-import { EVENTS_FAQ } from '../../constants/faqs';
-import { eventShowPath, eventCommunityEventPath, runClubPath } from '../../utils/slugRoutes';
-import { usePublicConfig } from '../../hooks/usePublicConfig';
-import AnnouncementBanner from '../../components/AnnouncementBanner';
+} from '../../../components/HomeEventCardSkeleton';
+import CustomPageSectionsRenderer from '../../../components/CustomPageSectionsRenderer';
+import { usePageSectionHandlers } from '../../../utils/pageSectionHandlers';
+import { mapEventShow } from '../../../constants/eventsPage';
+import Seo from '../../../components/Seo';
+import FaqSection from '../../../components/FaqSection';
+import { breadcrumbSchema, faqSchema, itemListSchema } from '../../../utils/seo';
+import { EVENTS_FAQ } from '../../../constants/faqs';
+import { eventShowPath, eventCommunityEventPath, runClubPath } from '../../../utils/slugRoutes';
+import { usePublicConfig } from '../../../hooks/usePublicConfig';
+import AnnouncementBanner from '../../../components/AnnouncementBanner';
 
 const EVENTS_DESCRIPTION =
     'Discover events, shows and meetups near you — concerts, stand-up comedy, workshops and more. Find and book tickets to events around you on CrwdCtrl.';
 
-import { fetchCatalogJSON } from '../../services/api/catalogCache';
+import { fetchCatalogJSON } from '../../../services/api/catalogCache';
 
 const EVENTS_CACHE_KEY = 'crwdctrl_events_page_v3';
 const readEventsCache = () => {

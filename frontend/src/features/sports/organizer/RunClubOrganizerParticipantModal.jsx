@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { X, Clock, CheckCircle, AlertCircle } from 'lucide-react';
-import { fetchRunClubOrganizerParticipant, resendRunClubOrganizerConfirmation, updateRunClubOrganizerParticipantFormAnswers } from '../../services/api/runClubOrganizer.api';
-import { useDialog } from '../../context/DialogContext';
-import TrekRegistrationResponses from '../trek-organizer/TrekRegistrationResponses';
+import { fetchRunClubOrganizerParticipant, resendRunClubOrganizerConfirmation, updateRunClubOrganizerParticipantFormAnswers } from '../../../services/api/runClubOrganizer.api';
+import { useDialog } from '../../../context/DialogContext';
+import TrekRegistrationResponses from '../../treks/organizer/TrekRegistrationResponses';
 import MissingFormAnswersEditor from './MissingFormAnswersEditor';
-import { DetailLoader3DIcon } from '../../components/DetailPageLoader';
+import { DetailLoader3DIcon } from '../../../components/DetailPageLoader';
 
 function Badge({ children, tone = 'neutral' }) {
     const tones = {

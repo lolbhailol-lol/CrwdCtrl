@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Outlet, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Users, QrCode, LogOut, Footprints, Bell, Menu, Home, ArrowLeft, ExternalLink } from 'lucide-react';
-import { markRunClubOrganizerLoggedOut, getRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
-import { organizerHubCopy } from '../../utils/listingHubCopy';
+import { markRunClubOrganizerLoggedOut, getRunClubOrganizerSession } from '../../../utils/runClubOrganizerSession';
+import { organizerHubCopy } from '../../../utils/listingHubCopy';
 
 const navForEvent = (eventId) => [
     { label: 'Home', path: `/run-club-organizer/events/${eventId}`, icon: LayoutDashboard, end: true, short: 'Dash' },

@@ -55,5 +55,24 @@ Severity: **P0** money/access · **P1** conversion · **P2** glitch · **P3** po
 ## Remaining ops
 
 1. Railway apex → frontend (not API) — still blocks D1.  
-2. Deploy frontend so U-series + IAB fixes hit production.  
+2. Deploy frontend so U-series + IAB fixes + domain architecture hit production.  
 3. Re-smoke Instagram Open in Chrome + run/fest/event book after deploy.
+
+## Frontend domain architecture (2026-09-09)
+
+Product code lives under `frontend/src/features/{domain}/`. Public URLs unchanged. Old `pages/<domain>` paths are thin re-export shims.
+
+| Domain | Feature root | Contains |
+|--------|--------------|----------|
+| Fests | `features/fests/` | `pages/` (hub, detail, registration, competitions, stall), `organizer/`, plugins (MindSpark/Techfest), fest components |
+| Sports | `features/sports/` | `pages/` (hub, run club, run detail, booking), `organizer/` (run-club-organizer), `components/RunCheckoutPanel` |
+| Events | `features/events/` | `pages/` (hub, shows, community, booking), `organizer/show/`, `organizer/community/` |
+| Treks | `features/treks/` | `pages/`, `organizer/` |
+
+**Shared (not moved):** `pages/home`, `auth`, `profile`, `payment`, `legal`, `admin`, `organizer` (scanner), `features/campus-hunt`, layout/loaders.
+
+**Router:** [`frontend/src/app/router/lazyPages.js`](frontend/src/app/router/lazyPages.js) imports from `features/*`.
+
+**Cleanup:** Old `pages/{fests,sports,events,treks,…}` and `components/sports` shim trees removed. Shared shell stays under `pages/home|auth|profile|payment|legal|admin`.
+
+**Backend:** routers stay under `backend/src/routers/` for now (map: `publicFestRoute`, `publicSportsRoute`, `publicTrekRoute`, `publicEventShowRoute`, etc.). Physical backend domain folders are a follow-up.

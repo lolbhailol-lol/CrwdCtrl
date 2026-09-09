@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { UserCheck, RefreshCw } from 'lucide-react';
-import CheckinScannerPage from '../../components/admin/CheckinScannerPage';
-import OrganizerGateCheckinPanel from '../../components/organizer/OrganizerGateCheckinPanel';
-import { getApiBaseUrl } from '../../config/apiBase';
-import { getTrekOrganizerToken } from '../../utils/trekOrganizerSession';
+import CheckinScannerPage from '../../../components/admin/CheckinScannerPage';
+import OrganizerGateCheckinPanel from '../../../components/organizer/OrganizerGateCheckinPanel';
+import { getApiBaseUrl } from '../../../config/apiBase';
+import { getTrekOrganizerToken } from '../../../utils/trekOrganizerSession';
 import {
     lookupTrekOrganizerParticipant,
     trekOrganizerCheckin,
     fetchTrekOrganizerCheckinStats,
     fetchTrekOrganizerParticipants,
-} from '../../services/api/trekOrganizer.api';
-import { useDialog } from '../../context/DialogContext';
+} from '../../../services/api/trekOrganizer.api';
+import { useDialog } from '../../../context/DialogContext';
 import { ProgressBar, SectionCard } from './OrganizerUi';
 
 function cleanPhone(phone) {

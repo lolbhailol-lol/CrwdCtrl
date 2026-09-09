@@ -1,7 +1,7 @@
-import { goToBookings } from '../../../utils/paymentNavigation';
-import { getFestPluginFromAny } from '../../../features/fests/plugins';
-import { RegistrationStatusVisual, SuccessRevealGate } from '../../../components/RegistrationStatusVisual';
-import AlsoRegisterForSection from '../../../components/AlsoRegisterForSection';
+import { goToBookings } from '../../../../utils/paymentNavigation';
+import { getFestPluginFromAny } from '../../plugins';
+import { RegistrationStatusVisual, SuccessRevealGate } from '../../../../components/RegistrationStatusVisual';
+import AlsoRegisterForSection from '../../../../components/AlsoRegisterForSection';
 
 export default function SuccessStep({
   isDark,

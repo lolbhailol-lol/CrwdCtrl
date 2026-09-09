@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { ExternalLink, Info, Pencil, RefreshCw } from 'lucide-react';
-import { InlinePageLoader } from '../../components/DetailPageLoader';
+import { InlinePageLoader } from '../../../components/DetailPageLoader';
 import {
     fetchFestOrganizerFestDetails,
     buildFestOrganizerAdminApi,
-} from '../../services/api/festOrganizer.api';
-import FestFormModal from '../../components/admin/FestFormModal';
+} from '../../../services/api/festOrganizer.api';
+import FestFormModal from '../../../components/admin/FestFormModal';
 
 export default function FestOrganizerInfoPage() {
     const { festId } = useParams();

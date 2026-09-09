@@ -10,12 +10,12 @@ import {
     updateRunClubOrganizerRegistration,
     expireRunClubOrganizerPendingPayments,
     uploadRunClubOrganizerImage,
-} from '../../services/api/runClubOrganizer.api';
-import { eventCommunityEventPath } from '../../utils/slugRoutes';
-import DetailPageLoader, { DetailLoader3DIcon } from '../../components/DetailPageLoader';
-import { organizerHubCopy } from '../../utils/listingHubCopy';
-import { organizerEventPath } from '../../utils/organizerPortalPaths';
-import { getRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
+} from '../../../../services/api/runClubOrganizer.api';
+import { eventCommunityEventPath } from '../../../../utils/slugRoutes';
+import DetailPageLoader, { DetailLoader3DIcon } from '../../../../components/DetailPageLoader';
+import { organizerHubCopy } from '../../../../utils/listingHubCopy';
+import { organizerEventPath } from '../../../../utils/organizerPortalPaths';
+import { getRunClubOrganizerSession } from '../../../../utils/runClubOrganizerSession';
 
 const PULSE_TONES = {
     cyan: { wrap: 'border-cyan-500/20 bg-cyan-500/[0.07]', value: 'text-cyan-200', label: 'text-cyan-400/70' },

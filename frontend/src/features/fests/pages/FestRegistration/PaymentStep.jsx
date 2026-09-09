@@ -1,8 +1,8 @@
 import { Loader } from 'lucide-react';
-import PaymentErrorModal from '../../../components/PaymentErrorModal';
-import { goToBookings } from '../../../utils/paymentNavigation';
-import { RegistrationStatusVisual, RegistrationProcessingOverlay } from '../../../components/RegistrationStatusVisual';
-import { useInAppBack } from '../../../hooks/useInAppBack';
+import PaymentErrorModal from '../../../../components/PaymentErrorModal';
+import { goToBookings } from '../../../../utils/paymentNavigation';
+import { RegistrationStatusVisual, RegistrationProcessingOverlay } from '../../../../components/RegistrationStatusVisual';
+import { useInAppBack } from '../../../../hooks/useInAppBack';
 
 export function CompletingPaymentStep({
   isDark,

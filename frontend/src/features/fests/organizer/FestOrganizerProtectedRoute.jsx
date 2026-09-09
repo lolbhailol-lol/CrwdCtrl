@@ -3,7 +3,7 @@ import {
     getFestOrganizerToken,
     isFestOrganizerTokenExpired,
     clearFestOrganizerSession,
-} from '../../utils/festOrganizerSession';
+} from '../../../utils/festOrganizerSession';
 
 export default function FestOrganizerProtectedRoute({ children }) {
     const location = useLocation();

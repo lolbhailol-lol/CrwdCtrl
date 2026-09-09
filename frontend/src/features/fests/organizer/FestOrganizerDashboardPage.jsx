@@ -5,12 +5,12 @@ import {
     Trophy, Calendar, MapPin, Building2, ArrowRight, AlertCircle, CheckCircle2, Mic2, Radio,
     Pencil, Download,
 } from 'lucide-react';
-import { fetchFestOrganizerDashboard } from '../../services/api/festOrganizer.api';
-import { getImageUrl } from '../../utils/imageImports';
-import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
-import { getFestPlugin } from '../../features/fests/plugins';
+import { fetchFestOrganizerDashboard } from '../../../services/api/festOrganizer.api';
+import { getImageUrl } from '../../../utils/imageImports';
+import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
+import { getFestPlugin } from '../plugins';
 import FestOrganizerCompetitionQrModal from './FestOrganizerCompetitionQrModal';
-import { InlinePageLoader } from '../../components/DetailPageLoader';
+import { InlinePageLoader } from '../../../components/DetailPageLoader';
 
 function formatWhen(d) {
     if (!d) return '';

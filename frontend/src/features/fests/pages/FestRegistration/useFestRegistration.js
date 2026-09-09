@@ -1,22 +1,22 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
-import { useAuth } from '../../../context/AuthContext';
-import { useDarkMode } from '../../../context/DarkModeContext';
-import { useNotifications } from '../../../context/NotificationsContext';
-import { openCashfreeCheckout, buildVerifiedPaymentFields, classifyCheckoutError } from '../../../utils/useCashfree';
+import { useAuth } from '../../../../context/AuthContext';
+import { useDarkMode } from '../../../../context/DarkModeContext';
+import { useNotifications } from '../../../../context/NotificationsContext';
+import { openCashfreeCheckout, buildVerifiedPaymentFields, classifyCheckoutError } from '../../../../utils/useCashfree';
 import {
   getPendingPayment,
   clearPendingPayment,
   isTrekPaymentPending,
   shouldResumePendingPayment,
-} from '../../../utils/deepLinks';
+} from '../../../../utils/deepLinks';
 import {
   verifyPaymentWithRetry,
   pollPaymentUntilVerified,
   PAYMENT_BACKGROUND_MAX_WAIT_MS,
   classifyVerifyError,
   clearCashfreeReturnAndPending,
-} from '../../../utils/paymentNavigation';
+} from '../../../../utils/paymentNavigation';
 import {
   clearRegistrationDraft,
   festRegDraftKey,
@@ -24,18 +24,18 @@ import {
   saveRegistrationDraft,
   applyRegistrationDraft,
   saveFestRegistrationSuccess,
-} from '../../../utils/registrationDraft';
-import { useRegistrationSuccessPopup } from '../../../hooks/useSuccessPopup';
-import { finalizeCompetitionAfterPayment } from '../../../utils/competitionPaymentComplete';
+} from '../../../../utils/registrationDraft';
+import { useRegistrationSuccessPopup } from '../../../../hooks/useSuccessPopup';
+import { finalizeCompetitionAfterPayment } from '../../../../utils/competitionPaymentComplete';
 import {
   clearStoredAuthSession,
   getBearerAuthHeaders,
   hasUsableAuthToken,
   resolveAuthToken,
-} from '../../../utils/authToken';
-import { parseTicketPrice } from '../../../utils/platformFee';
-import { fetchPaymentQuote as fetchPaymentQuoteApi } from '../../../services/api/payment.api';
-import { getRosterBounds, needsParticipantCountStep, isCompetitionSoldOut, isCompetitionRegistrationClosed } from '../../../utils/teamSize';
+} from '../../../../utils/authToken';
+import { parseTicketPrice } from '../../../../utils/platformFee';
+import { fetchPaymentQuote as fetchPaymentQuoteApi } from '../../../../services/api/payment.api';
+import { getRosterBounds, needsParticipantCountStep, isCompetitionSoldOut, isCompetitionRegistrationClosed } from '../../../../utils/teamSize';
 import {
   teamMemberMissingLabel,
   normalizeTeamMember,
@@ -45,15 +45,15 @@ import {
   validateTeamName,
   validateTeamDetails,
   isMindSparkFest,
-} from '../../../features/fests/mindspark';
-import { rosterMemberMissingLabel } from '../../../features/fests/techfest';
-import { getFestPluginFromAny } from '../../../features/fests/plugins';
-import { getCompetitionFeeTiers } from '../../../utils/competitionFeeTiers';
-import { waitAtLeast, sleep, PROCESS_UI_MIN_MS } from '../../../components/RegistrationStatusVisual';
-import { useInAppBack } from '../../../hooks/useInAppBack';
-import { API_BASE_URL } from '../../../services/api/client';
-import { festRegisterPath, festPath, isObjectId } from '../../../utils/slugRoutes';
-import { loadRegistrationPrefetch, saveRegistrationPrefetch } from '../../../utils/festPublicTransform';
+} from '../../mindspark';
+import { rosterMemberMissingLabel } from '../../techfest';
+import { getFestPluginFromAny } from '../../plugins';
+import { getCompetitionFeeTiers } from '../../../../utils/competitionFeeTiers';
+import { waitAtLeast, sleep, PROCESS_UI_MIN_MS } from '../../../../components/RegistrationStatusVisual';
+import { useInAppBack } from '../../../../hooks/useInAppBack';
+import { API_BASE_URL } from '../../../../services/api/client';
+import { festRegisterPath, festPath, isObjectId } from '../../../../utils/slugRoutes';
+import { loadRegistrationPrefetch, saveRegistrationPrefetch } from '../../../../utils/festPublicTransform';
 import { getInitialFestRegistrationUi, generateFieldId, compressImage, buildInitialFormData, mergeFormDataWithSchema, customerPhoneFromRegistration } from './helpers';
 
 export default function useFestRegistration() {

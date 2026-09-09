@@ -8,13 +8,13 @@ import {
 import {
     exportTrekOrganizerCustomers,
     fetchTrekOrganizerCustomers,
-} from '../../services/api/trekOrganizer.api';
-import { useDialog } from '../../context/DialogContext';
-import { getTrekOrganizerSession } from '../../utils/trekOrganizerSession';
-import { isValidWhatsAppPhone } from '../../utils/whatsappDeepLink';
-import { getCoverImageUrl } from '../../utils/coverImages';
+} from '../../../services/api/trekOrganizer.api';
+import { useDialog } from '../../../context/DialogContext';
+import { getTrekOrganizerSession } from '../../../utils/trekOrganizerSession';
+import { isValidWhatsAppPhone } from '../../../utils/whatsappDeepLink';
+import { getCoverImageUrl } from '../../../utils/coverImages';
 import TrekOrganizerWhatsAppModal from './TrekOrganizerWhatsAppModal';
-import { InlinePageLoader } from '../../components/DetailPageLoader';
+import { InlinePageLoader } from '../../../components/DetailPageLoader';
 
 const COMMUNITY_SORT = [
     { value: 'trekCount:desc', label: 'Most treks' },

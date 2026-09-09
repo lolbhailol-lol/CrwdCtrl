@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Outlet, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Users, QrCode, LogOut, Mountain, Bell, Menu, Home, ContactRound } from 'lucide-react';
-import { markTrekOrganizerLoggedOut, getTrekOrganizerSession } from '../../utils/trekOrganizerSession';
+import { markTrekOrganizerLoggedOut, getTrekOrganizerSession } from '../../../utils/trekOrganizerSession';
 import { navActiveClass, navIdleClass } from './organizerTheme';
 
 const navForTrek = (trekId) => [

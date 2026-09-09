@@ -1,19 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { QrCode } from 'lucide-react';
-import CheckinScannerPage from '../../components/admin/CheckinScannerPage';
-import OrganizerGateCheckinPanel from '../../components/organizer/OrganizerGateCheckinPanel';
-import { getApiBaseUrl } from '../../config/apiBase';
-import { getRunClubOrganizerToken, getRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
+import CheckinScannerPage from '../../../components/admin/CheckinScannerPage';
+import OrganizerGateCheckinPanel from '../../../components/organizer/OrganizerGateCheckinPanel';
+import { getApiBaseUrl } from '../../../config/apiBase';
+import { getRunClubOrganizerToken, getRunClubOrganizerSession } from '../../../utils/runClubOrganizerSession';
 import {
     lookupRunClubOrganizerParticipant,
     runClubOrganizerCheckin,
     fetchRunClubOrganizerParticipants,
     fetchRunClubOrganizerEvent,
-} from '../../services/api/runClubOrganizer.api';
-import { useDialog } from '../../context/DialogContext';
-import { isEventsListingHub, organizerHubCopy } from '../../utils/listingHubCopy';
-import { getGuestOpsAnswers, shortOpsLabel } from '../trek-organizer/ParticipantCard';
+} from '../../../services/api/runClubOrganizer.api';
+import { useDialog } from '../../../context/DialogContext';
+import { isEventsListingHub, organizerHubCopy } from '../../../utils/listingHubCopy';
+import { getGuestOpsAnswers, shortOpsLabel } from '../../treks/organizer/ParticipantCard';
 
 function cleanPhone(phone) {
     if (!phone || phone === '—') return '';

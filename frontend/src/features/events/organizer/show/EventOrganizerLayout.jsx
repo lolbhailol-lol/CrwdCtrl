@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Outlet, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Users, QrCode, LogOut, CalendarDays, Bell, Menu, Home, ExternalLink } from 'lucide-react';
-import { clearEventOrganizerSession, getEventOrganizerSession } from '../../utils/eventShowOrganizerSession';
+import { clearEventOrganizerSession, getEventOrganizerSession } from '../../../../utils/eventShowOrganizerSession';
 
 const navForEvent = (eventId) => [
     { label: 'Dashboard', path: `/event-organizer/events/${eventId}`, icon: LayoutDashboard, end: true },

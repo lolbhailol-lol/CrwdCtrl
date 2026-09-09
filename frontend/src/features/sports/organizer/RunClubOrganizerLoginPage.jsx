@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { Footprints, Users, Loader, ArrowLeft } from 'lucide-react';
-import { runClubOrganizerLogin, tryRunClubOrganizerAppSession } from '../../services/api/runClubOrganizer.api';
-import { isRunClubOrganizerManualLogout, setRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
-import { isEventsListingHub, organizerHubCopy } from '../../utils/listingHubCopy';
+import { runClubOrganizerLogin, tryRunClubOrganizerAppSession } from '../../../services/api/runClubOrganizer.api';
+import { isRunClubOrganizerManualLogout, setRunClubOrganizerSession } from '../../../utils/runClubOrganizerSession';
+import { isEventsListingHub, organizerHubCopy } from '../../../utils/listingHubCopy';
 import {
     organizerEventPath,
     organizerHomePath,
@@ -12,11 +12,11 @@ import {
     isEventCommunityOrganizerPath,
     EVENT_COMMUNITY_ORGANIZER_BASE,
     RUN_CLUB_ORGANIZER_BASE,
-} from '../../utils/organizerPortalPaths';
-import { showAppPopup } from '../../utils/appPopup';
-import { useAuth } from '../../context/AuthContext';
-import DetailPageLoader from '../../components/DetailPageLoader';
-import Seo from '../../components/Seo';
+} from '../../../utils/organizerPortalPaths';
+import { showAppPopup } from '../../../utils/appPopup';
+import { useAuth } from '../../../context/AuthContext';
+import DetailPageLoader from '../../../components/DetailPageLoader';
+import Seo from '../../../components/Seo';
 
 function resolvePostLoginPath(events, from, isEventHub) {
     if (from) return from;

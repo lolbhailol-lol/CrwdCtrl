@@ -1,23 +1,23 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader, CheckCircle, ImagePlus, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useDarkMode } from '../../context/DarkModeContext';
-import { useAuth } from '../../context/AuthContext';
-import { useNotifications } from '../../context/NotificationsContext';
-import CrwdCtrlLogin from '../auth/login';
-import CrwdCtrlRegister from '../auth/register';
-import { buildVerifiedPaymentFields } from '../../utils/useCashfree';
-import { runRazorpayCheckoutAndVerify, sanitizeRazorpayContact } from '../../utils/useRazorpay';
-import { useInAppBack } from '../../hooks/useInAppBack';
+import { useDarkMode } from '../../../context/DarkModeContext';
+import { useAuth } from '../../../context/AuthContext';
+import { useNotifications } from '../../../context/NotificationsContext';
+import CrwdCtrlLogin from '../../../pages/auth/login';
+import CrwdCtrlRegister from '../../../pages/auth/register';
+import { buildVerifiedPaymentFields } from '../../../utils/useCashfree';
+import { runRazorpayCheckoutAndVerify, sanitizeRazorpayContact } from '../../../utils/useRazorpay';
+import { useInAppBack } from '../../../hooks/useInAppBack';
 
-import PaymentErrorModal from '../../components/PaymentErrorModal';
-import { InlinePageLoader } from '../../components/DetailPageLoader';
-import { RegistrationStatusVisual } from '../../components/RegistrationStatusVisual';
+import PaymentErrorModal from '../../../components/PaymentErrorModal';
+import { InlinePageLoader } from '../../../components/DetailPageLoader';
+import { RegistrationStatusVisual } from '../../../components/RegistrationStatusVisual';
 import {
     getPendingPayment,
     clearPendingPayment,
     shouldResumePendingPayment,
-} from '../../utils/deepLinks';
+} from '../../../utils/deepLinks';
 import {
     goToBookings,
     verifyPaymentWithRetry,
@@ -25,35 +25,35 @@ import {
     PAYMENT_BACKGROUND_MAX_WAIT_MS,
     classifyVerifyError,
     clearCashfreeReturnAndPending,
-} from '../../utils/paymentNavigation';
-import { buildTrekPriceBreakdown } from '../../utils/platformFee';
-import { resolveTrekPlatformFeePercent } from '../../utils/trekRegistrationFee';
-import { isTrekFormFieldEmpty } from '../../constants/trekFormFields';
-import { mergeRunFormFields } from '../../utils/formFieldDedupe';
-import { API_BASE_URL, publicFetchJSONRetry } from '../../services/api/client';
+} from '../../../utils/paymentNavigation';
+import { buildTrekPriceBreakdown } from '../../../utils/platformFee';
+import { resolveTrekPlatformFeePercent } from '../../../utils/trekRegistrationFee';
+import { isTrekFormFieldEmpty } from '../../../constants/trekFormFields';
+import { mergeRunFormFields } from '../../../utils/formFieldDedupe';
+import { API_BASE_URL, publicFetchJSONRetry } from '../../../services/api/client';
 import {
     resolveAuthToken,
     getBearerAuthHeaders,
     hasUsableAuthToken,
     isAuthFailureMessage,
-} from '../../utils/authToken';
-import { useBookingSuccessPopup } from '../../hooks/useSuccessPopup';
-import { evaluateUserRegistrationAccess, getGenderPhaseStepNotice, isGenderPhaseRestricted } from '../../utils/trekGenderRegistration';
-import GenderQuickPick from '../../components/GenderQuickPick';
-import { trekPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
+} from '../../../utils/authToken';
+import { useBookingSuccessPopup } from '../../../hooks/useSuccessPopup';
+import { evaluateUserRegistrationAccess, getGenderPhaseStepNotice, isGenderPhaseRestricted } from '../../../utils/trekGenderRegistration';
+import GenderQuickPick from '../../../components/GenderQuickPick';
+import { trekPath, entityMatchesRouteParam } from '../../../utils/slugRoutes';
 import {
     classifyDetailLoadError,
     createDetailCache,
     DETAIL_FETCH_OPTS,
-} from '../../utils/detailPageLoad';
+} from '../../../utils/detailPageLoad';
 import {
     createAuthModalHandlers,
     getInitialBookingUiState,
     runCashfreeCheckoutAndVerify,
     setPaymentFlowToStepTwo,
     setPaymentFlowToSuccess,
-} from '../../utils/bookingFlowShared';
-import { openLoginSheet } from '../../utils/loginFlow';
+} from '../../../utils/bookingFlowShared';
+import { openLoginSheet } from '../../../utils/loginFlow';
 
 const API = API_BASE_URL;
 const trekDetailCache = createDetailCache('crwdctrl_trek_detail_v1_');

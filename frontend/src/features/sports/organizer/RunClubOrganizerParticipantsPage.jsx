@@ -13,14 +13,14 @@ import {
     reviewRunClubOrganizerPayment,
     updateRunClubOrganizerParticipantFormAnswers,
     notifyRunClubOrganizerParticipant,
-} from '../../services/api/runClubOrganizer.api';
-import { DetailLoader3DIcon } from '../../components/DetailPageLoader';
-import { useDialog } from '../../context/DialogContext';
-import ParticipantCard, { getGuestOpsAnswers, shortOpsLabel } from '../trek-organizer/ParticipantCard';
+} from '../../../services/api/runClubOrganizer.api';
+import { DetailLoader3DIcon } from '../../../components/DetailPageLoader';
+import { useDialog } from '../../../context/DialogContext';
+import ParticipantCard, { getGuestOpsAnswers, shortOpsLabel } from '../../treks/organizer/ParticipantCard';
 import PaymentProofReviewModal from './PaymentProofReviewModal';
 import MissingFormAnswersEditor from './MissingFormAnswersEditor';
-import { getRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
-import { isEventsListingHub, organizerHubCopy } from '../../utils/listingHubCopy';
+import { getRunClubOrganizerSession } from '../../../utils/runClubOrganizerSession';
+import { isEventsListingHub, organizerHubCopy } from '../../../utils/listingHubCopy';
 
 function FilterChip({ active, onClick, children }) {
     return (

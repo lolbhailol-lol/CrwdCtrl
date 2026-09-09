@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { PartyPopper, Loader, ArrowLeft } from 'lucide-react';
-import { festOrganizerLogin, applyFestOrganizerAuthPayload } from '../../services/api/festOrganizer.api';
-import { showAppPopup } from '../../utils/appPopup';
+import { festOrganizerLogin, applyFestOrganizerAuthPayload } from '../../../services/api/festOrganizer.api';
+import { showAppPopup } from '../../../utils/appPopup';
 
 export default function FestOrganizerLoginPage() {
     const navigate = useNavigate();

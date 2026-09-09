@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { X, Loader, Clock, CheckCircle, AlertCircle, Phone, Copy, UserRound, MessageCircle } from 'lucide-react';
-import { fetchTrekOrganizerParticipant, resendTrekOrganizerConfirmation } from '../../services/api/trekOrganizer.api';
-import { useDialog } from '../../context/DialogContext';
+import { fetchTrekOrganizerParticipant, resendTrekOrganizerConfirmation } from '../../../services/api/trekOrganizer.api';
+import { useDialog } from '../../../context/DialogContext';
 import TrekRegistrationResponses from './TrekRegistrationResponses';
 import TrekOrganizerWhatsAppModal from './TrekOrganizerWhatsAppModal';
-import { isValidWhatsAppPhone } from '../../utils/whatsappDeepLink';
+import { isValidWhatsAppPhone } from '../../../utils/whatsappDeepLink';
 
 function Badge({ children, tone = 'neutral' }) {
     const tones = {

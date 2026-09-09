@@ -1,44 +1,44 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, MapPin } from 'lucide-react';
-import AppLogo from '../../components/AppLogo';
-import CardShareButton from '../../components/CardShareButton';
-import { shareContent } from '../../utils/externalLink';
-import { TREK_BROWSE_CATEGORIES } from '../../constants/trekBrowseCategories';
-import { useDarkMode } from '../../context/DarkModeContext';
-import { useFavorites } from '../../context/FavoritesContext';
-import { useNotifications } from '../../context/NotificationsContext';
-import { getCoverImageUrl } from '../../utils/coverImages';
-import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
-import { toCardText } from '../../utils/cardText';
-import HomeCategoryBar from '../../components/HomeCategoryBar';
-import MobileStickyHeader from '../../components/MobileStickyHeader';
-import CategorySearchRow from '../../components/CategorySearchRow';
-import MobileHeroSearchField from '../../components/MobileHeroSearchField';
-import { useHeroSearch } from '../../hooks/useHeroSearch';
-import { buildSearchKeywordsFromCatalog } from '../../utils/buildSearchKeywords';
-import CardFavoriteButton from '../../components/CardFavoriteButton';
-import CarouselDotPagination from '../../components/CarouselDotPagination';
-import HeroBanner from '../../components/HeroBanner';
+import AppLogo from '../../../components/AppLogo';
+import CardShareButton from '../../../components/CardShareButton';
+import { shareContent } from '../../../utils/externalLink';
+import { TREK_BROWSE_CATEGORIES } from '../../../constants/trekBrowseCategories';
+import { useDarkMode } from '../../../context/DarkModeContext';
+import { useFavorites } from '../../../context/FavoritesContext';
+import { useNotifications } from '../../../context/NotificationsContext';
+import { getCoverImageUrl } from '../../../utils/coverImages';
+import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
+import { toCardText } from '../../../utils/cardText';
+import HomeCategoryBar from '../../../components/HomeCategoryBar';
+import MobileStickyHeader from '../../../components/MobileStickyHeader';
+import CategorySearchRow from '../../../components/CategorySearchRow';
+import MobileHeroSearchField from '../../../components/MobileHeroSearchField';
+import { useHeroSearch } from '../../../hooks/useHeroSearch';
+import { buildSearchKeywordsFromCatalog } from '../../../utils/buildSearchKeywords';
+import CardFavoriteButton from '../../../components/CardFavoriteButton';
+import CarouselDotPagination from '../../../components/CarouselDotPagination';
+import HeroBanner from '../../../components/HeroBanner';
 import {
     HeroBannerSkeleton,
     CompactPortraitCardsRowSkeleton,
     WideActivityCardsRowSkeleton,
-} from '../../components/HomeEventCardSkeleton';
-import CustomPageSectionsRenderer from '../../components/CustomPageSectionsRenderer';
-import { usePageSectionHandlers } from '../../utils/pageSectionHandlers';
-import { usePageContentLoading } from '../../hooks/usePageContentLoading';
-import { fetchCatalogJSON, invalidateCatalogCache } from '../../services/api/catalogCache';
-import Seo from '../../components/Seo';
-import FaqSection from '../../components/FaqSection';
-import { breadcrumbSchema, faqSchema, itemListSchema } from '../../utils/seo';
-import { TREKS_FAQ } from '../../constants/faqs';
-import { formatTrekCardDate } from '../../utils/trekDateDisplay';
-import { communityPath, competitionPath, festPath, trekPath } from '../../utils/slugRoutes';
-import ContentImage from '../../components/ContentImage';
-import { preloadImages } from '../../utils/preloadImages';
-import { usePublicConfig } from '../../hooks/usePublicConfig';
-import AnnouncementBanner from '../../components/AnnouncementBanner';
+} from '../../../components/HomeEventCardSkeleton';
+import CustomPageSectionsRenderer from '../../../components/CustomPageSectionsRenderer';
+import { usePageSectionHandlers } from '../../../utils/pageSectionHandlers';
+import { usePageContentLoading } from '../../../hooks/usePageContentLoading';
+import { fetchCatalogJSON, invalidateCatalogCache } from '../../../services/api/catalogCache';
+import Seo from '../../../components/Seo';
+import FaqSection from '../../../components/FaqSection';
+import { breadcrumbSchema, faqSchema, itemListSchema } from '../../../utils/seo';
+import { TREKS_FAQ } from '../../../constants/faqs';
+import { formatTrekCardDate } from '../../../utils/trekDateDisplay';
+import { communityPath, competitionPath, festPath, trekPath } from '../../../utils/slugRoutes';
+import ContentImage from '../../../components/ContentImage';
+import { preloadImages } from '../../../utils/preloadImages';
+import { usePublicConfig } from '../../../hooks/usePublicConfig';
+import AnnouncementBanner from '../../../components/AnnouncementBanner';
 
 const TREKS_DESCRIPTION =
     'Discover treks, hiking trips and adventure communities near you. Browse upcoming treks, join trekking communities and book your next outdoor adventure on CrwdCtrl.';

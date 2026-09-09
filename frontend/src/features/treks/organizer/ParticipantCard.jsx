@@ -4,7 +4,7 @@ import {
     CheckCircle, Clock, Copy, MessageCircle, Trash2, Mail, Bell, ContactRound, Mountain,
 } from 'lucide-react';
 import TrekRegistrationResponses from './TrekRegistrationResponses';
-import { isValidWhatsAppPhone } from '../../utils/whatsappDeepLink';
+import { isValidWhatsAppPhone } from '../../../utils/whatsappDeepLink';
 
 function Pill({ children, tone = 'neutral' }) {
     const styles = {

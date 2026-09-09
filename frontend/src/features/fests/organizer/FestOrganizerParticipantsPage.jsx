@@ -10,12 +10,12 @@ import {
     deleteFestOrganizerParticipant,
     updateFestOrganizerParticipantStatus,
     notifyFestOrganizerParticipant,
-} from '../../services/api/festOrganizer.api';
-import { useDialog } from '../../context/DialogContext';
+} from '../../../services/api/festOrganizer.api';
+import { useDialog } from '../../../context/DialogContext';
 import FestOrganizerParticipantModal from './FestOrganizerParticipantModal';
 import { OrganizerRosterPreview } from './OrganizerTeamRoster';
-import { getFestPlugin } from '../../features/fests/plugins';
-import { InlinePageLoader } from '../../components/DetailPageLoader';
+import { getFestPlugin } from '../plugins';
+import { InlinePageLoader } from '../../../components/DetailPageLoader';
 
 function waLink(phone) {
     const digits = String(phone || '').replace(/\D/g, '');

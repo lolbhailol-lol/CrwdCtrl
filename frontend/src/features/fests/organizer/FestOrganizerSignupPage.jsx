@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Loader } from 'lucide-react';
-import { festOrganizerSignup } from '../../services/api/festOrganizer.api';
+import { festOrganizerSignup } from '../../../services/api/festOrganizer.api';
 
 export default function FestOrganizerSignupPage() {
     const navigate = useNavigate();

@@ -1,26 +1,26 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
-import { useDarkMode } from '../../context/DarkModeContext';
-import { useFavorites } from '../../context/FavoritesContext';
-import { getImageUrl } from '../../utils/imageImports';
-import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
-import { toCardText } from '../../utils/cardText';
-import { FestSubpageLoadingSkeleton } from '../../components/HomeEventCardSkeleton';
-import CardFavoriteButton from '../../components/CardFavoriteButton';
-import CarouselDotPagination from '../../components/CarouselDotPagination';
-import { getCarouselScrollPage } from '../../utils/horizontalScroll';
-import CustomPageSectionsRenderer from '../../components/CustomPageSectionsRenderer';
-import Seo from '../../components/Seo';
-import { breadcrumbSchema, itemListSchema } from '../../utils/seo';
-import { usePageSectionHandlers } from '../../utils/pageSectionHandlers';
-import { fetchRawPublicFests, prefetchFestDetail } from '../../services/api/fests.api';
-import { readFestsCacheByType, writeFestsCache } from '../../utils/festsSessionCache';
-import { usePageContentLoading } from '../../hooks/usePageContentLoading';
-import { festPath } from '../../utils/slugRoutes';
-import { buildFestDetailNavState } from '../../utils/detailPageCache';
-import { usePublicConfig } from '../../hooks/usePublicConfig';
-import { useInAppBack } from '../../hooks/useInAppBack';
+import { useDarkMode } from '../../../context/DarkModeContext';
+import { useFavorites } from '../../../context/FavoritesContext';
+import { getImageUrl } from '../../../utils/imageImports';
+import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
+import { toCardText } from '../../../utils/cardText';
+import { FestSubpageLoadingSkeleton } from '../../../components/HomeEventCardSkeleton';
+import CardFavoriteButton from '../../../components/CardFavoriteButton';
+import CarouselDotPagination from '../../../components/CarouselDotPagination';
+import { getCarouselScrollPage } from '../../../utils/horizontalScroll';
+import CustomPageSectionsRenderer from '../../../components/CustomPageSectionsRenderer';
+import Seo from '../../../components/Seo';
+import { breadcrumbSchema, itemListSchema } from '../../../utils/seo';
+import { usePageSectionHandlers } from '../../../utils/pageSectionHandlers';
+import { fetchRawPublicFests, prefetchFestDetail } from '../../../services/api/fests.api';
+import { readFestsCacheByType, writeFestsCache } from '../../../utils/festsSessionCache';
+import { usePageContentLoading } from '../../../hooks/usePageContentLoading';
+import { festPath } from '../../../utils/slugRoutes';
+import { buildFestDetailNavState } from '../../../utils/detailPageCache';
+import { usePublicConfig } from '../../../hooks/usePublicConfig';
+import { useInAppBack } from '../../../hooks/useInAppBack';
 
 const FEST_TYPE_SEO = {
     cultural: {

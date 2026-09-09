@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { ArrowLeft, Loader, CheckCircle } from 'lucide-react';
-import CrwdCtrlLogin from '../../auth/login';
-import CrwdCtrlRegister from '../../auth/register';
-import PaymentErrorModal from '../../../components/PaymentErrorModal';
-import InAppOpenChromeGate, { shouldShowInAppChromeGate } from '../../../components/InAppOpenChromeGate';
+import CrwdCtrlLogin from '../../../../pages/auth/login';
+import CrwdCtrlRegister from '../../../../pages/auth/register';
+import PaymentErrorModal from '../../../../components/PaymentErrorModal';
+import InAppOpenChromeGate, { shouldShowInAppChromeGate } from '../../../../components/InAppOpenChromeGate';
 import FestRegistrationField from './FestRegistrationField';
 import { generateFieldId } from './helpers';
 import {
@@ -11,11 +11,11 @@ import {
   TeamDetailsStep,
   FeeTierStep,
   RosterPersonStep,
-} from '../../../features/fests/mindspark';
-import { TechfestRosterPersonStep } from '../../../features/fests/techfest';
-import { getFestPluginFromAny } from '../../../features/fests/plugins';
-import { RegistrationProcessingOverlay } from '../../../components/RegistrationStatusVisual';
-import { useInAppBack } from '../../../hooks/useInAppBack';
+} from '../../mindspark';
+import { TechfestRosterPersonStep } from '../../techfest';
+import { getFestPluginFromAny } from '../../plugins';
+import { RegistrationProcessingOverlay } from '../../../../components/RegistrationStatusVisual';
+import { useInAppBack } from '../../../../hooks/useInAppBack';
 
 export default function FestRegistrationForm({
   isDark,

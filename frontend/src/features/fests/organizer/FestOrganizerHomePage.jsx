@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PartyPopper, ChevronRight, MapPin } from 'lucide-react';
-import { fetchFestOrganizerMe } from '../../services/api/festOrganizer.api';
-import { getFestOrganizerSession, setFestOrganizerSession } from '../../utils/festOrganizerSession';
-import { InlinePageLoader } from '../../components/DetailPageLoader';
+import { fetchFestOrganizerMe } from '../../../services/api/festOrganizer.api';
+import { getFestOrganizerSession, setFestOrganizerSession } from '../../../utils/festOrganizerSession';
+import { InlinePageLoader } from '../../../components/DetailPageLoader';
 
 export default function FestOrganizerHomePage() {
     const navigate = useNavigate();

@@ -1,13 +1,13 @@
 /**
  * Fests feature root.
  *
- * - plugins/     → getFestPlugin() — named-fest behavior (MindSpark, Techfest, …)
- * - mindspark/   → MindSpark-only roster UI (imported via the plugin)
- * - techfest/    → Techfest IIT Bombay modules + Accommodation chip
- * - campus-hunt  → already under features/campus-hunt
+ * - pages/      → public fest + competition + stall pages
+ * - organizer/  → fest-organizer portal
+ * - components/ → fest-scoped UI (SimilarFests, etc.)
+ * - plugins/    → getFestPlugin() — MindSpark, Techfest, …
+ * - mindspark/ / techfest/ → plugin modules
  *
- * Pages stay in pages/fests & pages/fest-organizer. Do not add
- * isMindSparkFest() branches in shared registration/booking — extend the plugin.
+ * Shared shell (home, auth, payment, admin) stays under pages/.
  */
 export * from './mindspark';
 export * from './techfest';

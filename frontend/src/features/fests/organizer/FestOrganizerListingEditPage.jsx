@@ -9,15 +9,15 @@ import {
     fetchFestOrganizerCompetitions,
     fetchFestOrganizerDashboard,
     buildFestOrganizerAdminApi,
-} from '../../services/api/festOrganizer.api';
-import { getFestOrganizerSession } from '../../utils/festOrganizerSession';
-import CompetitionModal from '../../components/admin/Competition_Modal';
-import FestFormModal from '../../components/admin/FestFormModal';
-import { InlinePageLoader } from '../../components/DetailPageLoader';
-import { getImageUrl } from '../../utils/imageImports';
-import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
-import { organizerCompetitionFeeLabel } from '../../utils/competitionFeeTiers';
-import { getFestPlugin } from '../../features/fests/plugins';
+} from '../../../services/api/festOrganizer.api';
+import { getFestOrganizerSession } from '../../../utils/festOrganizerSession';
+import CompetitionModal from '../../../components/admin/Competition_Modal';
+import FestFormModal from '../../../components/admin/FestFormModal';
+import { InlinePageLoader } from '../../../components/DetailPageLoader';
+import { getImageUrl } from '../../../utils/imageImports';
+import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
+import { organizerCompetitionFeeLabel } from '../../../utils/competitionFeeTiers';
+import { getFestPlugin } from '../plugins';
 
 function ModalHost({ children }) {
     if (typeof document === 'undefined') return null;

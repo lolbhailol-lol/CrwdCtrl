@@ -6,8 +6,8 @@ import {
     downloadAllCompetitionQrPngs,
     downloadCompetitionQrPng,
     printAllCompetitionQrs,
-} from '../../utils/competitionPublicQr';
-import { useDialog } from '../../context/DialogContext';
+} from '../../../utils/competitionPublicQr';
+import { useDialog } from '../../../context/DialogContext';
 
 /**
  * Modal: preview branded QR first (transparent ctrl. mark, QR around it), then download.

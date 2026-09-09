@@ -5,26 +5,26 @@ import {
   ArrowLeft, Share2, Heart, Calendar, MapPin,
   Phone, Instagram, Mail, ChevronRight, ChevronLeft, X, Check,
 } from 'lucide-react';
-import { useDarkMode } from '../../context/DarkModeContext';
-import { useDialog } from '../../context/DialogContext';
-import { useFavorites } from '../../context/FavoritesContext';
-import { useAuth } from '../../context/AuthContext';
-import CrwdCtrlLogin from '../auth/login';
-import { getImageUrl } from '../../utils/imageImports';
-import { getCoverImageUrl, normalizeCoverImages, primaryCoverUrl } from '../../utils/coverImages';
-import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
-import { shareContent, openExternalUrl } from '../../utils/externalLink';
-import { publicFetchJSONRetry as fetchJSON } from '../../services/api/client';
-import { EVENT_TYPE_LABELS, formatEventShowDate } from '../../constants/eventsPage';
-import { useInAppBack } from '../../hooks/useInAppBack';
-import { useDetailLoaderFailsafe } from '../../hooks/useDetailLoaderFailsafe';
-import Seo from '../../components/Seo';
-import { breadcrumbSchema, eventSchema } from '../../utils/seo';
-import { eventShowPath } from '../../utils/slugRoutes';
-import DetailPageLoader from '../../components/DetailPageLoader';
-import { signalDetailPageReady } from '../../utils/bootSplash';
-import { trackBookNowClick } from '../../services/analyticsService';
-import { getEventShowTiers, isEventShowTiersPricing, formatInr } from '../../utils/eventShowTiers';
+import { useDarkMode } from '../../../context/DarkModeContext';
+import { useDialog } from '../../../context/DialogContext';
+import { useFavorites } from '../../../context/FavoritesContext';
+import { useAuth } from '../../../context/AuthContext';
+import CrwdCtrlLogin from '../../../pages/auth/login';
+import { getImageUrl } from '../../../utils/imageImports';
+import { getCoverImageUrl, normalizeCoverImages, primaryCoverUrl } from '../../../utils/coverImages';
+import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
+import { shareContent, openExternalUrl } from '../../../utils/externalLink';
+import { publicFetchJSONRetry as fetchJSON } from '../../../services/api/client';
+import { EVENT_TYPE_LABELS, formatEventShowDate } from '../../../constants/eventsPage';
+import { useInAppBack } from '../../../hooks/useInAppBack';
+import { useDetailLoaderFailsafe } from '../../../hooks/useDetailLoaderFailsafe';
+import Seo from '../../../components/Seo';
+import { breadcrumbSchema, eventSchema } from '../../../utils/seo';
+import { eventShowPath } from '../../../utils/slugRoutes';
+import DetailPageLoader from '../../../components/DetailPageLoader';
+import { signalDetailPageReady } from '../../../utils/bootSplash';
+import { trackBookNowClick } from '../../../services/analyticsService';
+import { getEventShowTiers, isEventShowTiersPricing, formatInr } from '../../../utils/eventShowTiers';
 
 function formatEventDateTime(showTimings) {
   if (!showTimings?.length) return 'Date & time TBA';

@@ -1,21 +1,21 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Bell, Megaphone, Loader, User, Search, X } from 'lucide-react';
-import { DetailLoader3DIcon } from '../../components/DetailPageLoader';
+import { DetailLoader3DIcon } from '../../../components/DetailPageLoader';
 import {
     broadcastRunClubOrganizerAnnouncement,
     sendRunClubOrganizerReminder,
     fetchRunClubOrganizerParticipants,
     notifyRunClubOrganizerParticipant,
-} from '../../services/api/runClubOrganizer.api';
-import { useDialog } from '../../context/DialogContext';
-import { getRunClubOrganizerSession } from '../../utils/runClubOrganizerSession';
+} from '../../../services/api/runClubOrganizer.api';
+import { useDialog } from '../../../context/DialogContext';
+import { getRunClubOrganizerSession } from '../../../utils/runClubOrganizerSession';
 import {
     isEventsListingHub,
     organizerHubCopy,
     organizerBroadcastPresets,
     organizerIndividualPresets,
-} from '../../utils/listingHubCopy';
+} from '../../../utils/listingHubCopy';
 
 const BROADCAST_PRESETS = [
     { title: 'Reporting time updated', message: 'The reporting time for the run has been updated. Please check the run page for the latest schedule.' },

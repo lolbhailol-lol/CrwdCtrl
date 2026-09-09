@@ -2,45 +2,45 @@ import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from
 import { createPortal } from 'react-dom';
 import { Phone, Instagram, Check, Mail, ArrowLeft, Ticket, Share2, Users, FileText, ExternalLink } from 'lucide-react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { useDarkMode } from '../../context/DarkModeContext';
-import { useDialog } from '../../context/DialogContext';
-import { useAuth } from '../../context/AuthContext';
-import CalendarIcon from '../../assets/calendar.svg';
-import LocationIcon from '../../assets/location-.svg';
-import ShareIcon from '../../assets/share.svg';
-import { getImageUrl } from '../../utils/imageImports.js';
-import CrwdCtrlLogin from '../auth/login';
-import CrwdCtrlRegister from '../auth/register';
-import { publicFetchJSONRetry as fetchJSON, resolveUrl } from '../../services/api/client';
-import Seo from '../../components/Seo';
-import { breadcrumbSchema, eventSchema } from '../../utils/seo';
-import { openExternalUrl, shareContent } from '../../utils/externalLink';
-import { competitionPath, competitionRegistrationPath, festRegisterPath, festPath, entityMatchesRouteParam, isObjectId } from '../../utils/slugRoutes';
-import { resolveCompetitionFee, buildRegistrationPrefetch, saveRegistrationPrefetch } from '../../utils/festPublicTransform';
-import { minCompetitionFeeAmount } from '../../utils/competitionFeeTiers';
-import { trackBookNowClick, trackCompetitionView } from '../../services/analyticsService';
-import PrizePoolPodium from '../../components/PrizePoolPodium';
-import CompetitionCoverImage from '../../components/CompetitionCoverImage';
-import { signalDetailPageReady } from '../../utils/bootSplash';
-import { COMPETITION_DEMO_LOAD_MS } from '../../constants/skeletonLoading';
-import DetailPageLoader from '../../components/DetailPageLoader';
-import { useDetailLoaderFailsafe } from '../../hooks/useDetailLoaderFailsafe';
+import { useDarkMode } from '../../../../context/DarkModeContext';
+import { useDialog } from '../../../../context/DialogContext';
+import { useAuth } from '../../../../context/AuthContext';
+import CalendarIcon from '../../../../assets/calendar.svg';
+import LocationIcon from '../../../../assets/location-.svg';
+import ShareIcon from '../../../../assets/share.svg';
+import { getImageUrl } from '../../../../utils/imageImports.js';
+import CrwdCtrlLogin from '../../../../pages/auth/login';
+import CrwdCtrlRegister from '../../../../pages/auth/register';
+import { publicFetchJSONRetry as fetchJSON, resolveUrl } from '../../../../services/api/client';
+import Seo from '../../../../components/Seo';
+import { breadcrumbSchema, eventSchema } from '../../../../utils/seo';
+import { openExternalUrl, shareContent } from '../../../../utils/externalLink';
+import { competitionPath, competitionRegistrationPath, festRegisterPath, festPath, entityMatchesRouteParam, isObjectId } from '../../../../utils/slugRoutes';
+import { resolveCompetitionFee, buildRegistrationPrefetch, saveRegistrationPrefetch } from '../../../../utils/festPublicTransform';
+import { minCompetitionFeeAmount } from '../../../../utils/competitionFeeTiers';
+import { trackBookNowClick, trackCompetitionView } from '../../../../services/analyticsService';
+import PrizePoolPodium from '../../../../components/PrizePoolPodium';
+import CompetitionCoverImage from '../../../../components/CompetitionCoverImage';
+import { signalDetailPageReady } from '../../../../utils/bootSplash';
+import { COMPETITION_DEMO_LOAD_MS } from '../../../../constants/skeletonLoading';
+import DetailPageLoader from '../../../../components/DetailPageLoader';
+import { useDetailLoaderFailsafe } from '../../../../hooks/useDetailLoaderFailsafe';
 import {
     clearWarmCompetitionNav,
     isWarmCompetitionLocationState,
     peekWarmCompetitionNav,
-} from '../../utils/warmCompetitionNav';
-import { formatSlotsLabel, buildTeamSizeLabel, isCompetitionSoldOut, isCompetitionRegistrationClosed } from '../../utils/teamSize';
-import { useInAppBack } from '../../hooks/useInAppBack';
-import { canGoBackInApp } from '../../utils/inAppBack';
-import { isMindSparkFest } from '../../features/fests/mindspark/isMindSparkFest';
-import { isTechfestFest } from '../../features/fests/techfest/isTechfestFest';
+} from '../../../../utils/warmCompetitionNav';
+import { formatSlotsLabel, buildTeamSizeLabel, isCompetitionSoldOut, isCompetitionRegistrationClosed } from '../../../../utils/teamSize';
+import { useInAppBack } from '../../../../hooks/useInAppBack';
+import { canGoBackInApp } from '../../../../utils/inAppBack';
+import { isMindSparkFest } from '../../mindspark/isMindSparkFest';
+import { isTechfestFest } from '../../techfest/isTechfestFest';
 import {
     loadCompetitionDetailCache,
     saveCompetitionDetailCache,
     loadFestDetailCache,
     isBuiltCompetitionDetail,
-} from '../../utils/detailPageCache';
+} from '../../../../utils/detailPageCache';
 import SimilarFestsSection from '../../components/SimilarFestsSection';
 
 /** Compact slots + team chips — sits above Register Now inside the bar */

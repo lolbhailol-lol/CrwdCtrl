@@ -2,32 +2,32 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { ArrowLeft, Share2, Heart, ChevronRight, ChevronDown, Backpack } from 'lucide-react';
-import { useDarkMode } from '../../context/DarkModeContext';
-import { getImageUrl } from '../../utils/imageImports';
-import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
-import { ScrollProgress, ScrollReveal } from '../../motion';
-import { shareContent, openExternalUrl } from '../../utils/externalLink';
-import { useInAppBack } from '../../hooks/useInAppBack';
-import Seo from '../../components/Seo';
-import LazyMap from '../../components/LazyMap';
-import DetailPageLoader from '../../components/DetailPageLoader';
-import { useDetailLoaderFailsafe } from '../../hooks/useDetailLoaderFailsafe';
-import { breadcrumbSchema, eventSchema } from '../../utils/seo';
-import { formatBatchDate, normalizeTrekBatches } from '../../utils/trekDateDisplay';
-import { ScheduleMainMarker, ScheduleSubMarker } from '../../components/SchedulePointMarkers';
-import { normalizeItineraryDay, SCHEDULE_SUB_INDENT_PX } from '../../utils/trekItinerary';
-import { normalizeDetailBoxes, resolveTrekMapPin } from '../../utils/trekDetailBoxes';
-import TrekDetailIcon from '../../components/TrekDetailIcon';
-import { fetchTrekCommunity } from '../../services/api/public.api';
-import { publicFetchJSONRetry } from '../../services/api/client';
-import { trackBookNowClick } from '../../services/analyticsService';
-import { trekPath, entityMatchesRouteParam } from '../../utils/slugRoutes';
-import { resolveTrekHeroSlides, resolveTrekGalleryImages } from '../../utils/trekImages';
+import { useDarkMode } from '../../../context/DarkModeContext';
+import { getImageUrl } from '../../../utils/imageImports';
+import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
+import { ScrollProgress, ScrollReveal } from '../../../motion';
+import { shareContent, openExternalUrl } from '../../../utils/externalLink';
+import { useInAppBack } from '../../../hooks/useInAppBack';
+import Seo from '../../../components/Seo';
+import LazyMap from '../../../components/LazyMap';
+import DetailPageLoader from '../../../components/DetailPageLoader';
+import { useDetailLoaderFailsafe } from '../../../hooks/useDetailLoaderFailsafe';
+import { breadcrumbSchema, eventSchema } from '../../../utils/seo';
+import { formatBatchDate, normalizeTrekBatches } from '../../../utils/trekDateDisplay';
+import { ScheduleMainMarker, ScheduleSubMarker } from '../../../components/SchedulePointMarkers';
+import { normalizeItineraryDay, SCHEDULE_SUB_INDENT_PX } from '../../../utils/trekItinerary';
+import { normalizeDetailBoxes, resolveTrekMapPin } from '../../../utils/trekDetailBoxes';
+import TrekDetailIcon from '../../../components/TrekDetailIcon';
+import { fetchTrekCommunity } from '../../../services/api/public.api';
+import { publicFetchJSONRetry } from '../../../services/api/client';
+import { trackBookNowClick } from '../../../services/analyticsService';
+import { trekPath, entityMatchesRouteParam } from '../../../utils/slugRoutes';
+import { resolveTrekHeroSlides, resolveTrekGalleryImages } from '../../../utils/trekImages';
 import {
     classifyDetailLoadError,
     createDetailCache,
     DETAIL_FETCH_OPTS,
-} from '../../utils/detailPageLoad';
+} from '../../../utils/detailPageLoad';
 
 const trekDetailCache = createDetailCache('crwdctrl_trek_detail_v1_');
 const GALLERY_PREVIEW_COUNT = 4;

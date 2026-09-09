@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import DetailPageLoader from '../../../components/DetailPageLoader';
-import { useDetailLoaderFailsafe } from '../../../hooks/useDetailLoaderFailsafe';
-import { COMPETITION_DEMO_LOAD_MS } from '../../../constants/skeletonLoading';
+import DetailPageLoader from '../../../../components/DetailPageLoader';
+import { useDetailLoaderFailsafe } from '../../../../hooks/useDetailLoaderFailsafe';
+import { COMPETITION_DEMO_LOAD_MS } from '../../../../constants/skeletonLoading';
 import useFestRegistration from './useFestRegistration';
 import FestRegistrationForm from './FestRegistrationForm';
 import PaymentStep, { CompletingPaymentStep } from './PaymentStep';

@@ -3,8 +3,8 @@ import { Loader, X } from 'lucide-react';
 import {
     fetchEventOrganizerEvent,
     createEventOrganizerManualParticipant,
-} from '../../services/api/eventShowOrganizer.api';
-import { getEventShowTiers, sanitizeEventShowAddOns, formatInr, resolveTierParticipantCount } from '../../utils/eventShowTiers';
+} from '../../../../services/api/eventShowOrganizer.api';
+import { getEventShowTiers, sanitizeEventShowAddOns, formatInr, resolveTierParticipantCount } from '../../../../utils/eventShowTiers';
 
 const BLOOD_OPTIONS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Prefer not to say'];
 const DRIVE_OPTIONS = [

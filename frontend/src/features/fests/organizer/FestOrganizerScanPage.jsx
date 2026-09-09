@@ -1,15 +1,15 @@
 import { useCallback, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import CheckinScannerPage from '../../components/admin/CheckinScannerPage';
-import OrganizerGateCheckinPanel from '../../components/organizer/OrganizerGateCheckinPanel';
-import { getApiBaseUrl } from '../../config/apiBase';
-import { getFestOrganizerToken } from '../../utils/festOrganizerSession';
+import CheckinScannerPage from '../../../components/admin/CheckinScannerPage';
+import OrganizerGateCheckinPanel from '../../../components/organizer/OrganizerGateCheckinPanel';
+import { getApiBaseUrl } from '../../../config/apiBase';
+import { getFestOrganizerToken } from '../../../utils/festOrganizerSession';
 import {
     fetchFestOrganizerParticipants,
     lookupFestOrganizerParticipant,
     festOrganizerCheckin,
-} from '../../services/api/festOrganizer.api';
-import { useDialog } from '../../context/DialogContext';
+} from '../../../services/api/festOrganizer.api';
+import { useDialog } from '../../../context/DialogContext';
 
 function normalizeFestRow(p) {
     if (!p) return null;

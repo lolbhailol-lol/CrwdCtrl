@@ -1,23 +1,23 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, SlidersHorizontal } from 'lucide-react';
-import { useDarkMode } from '../../context/DarkModeContext';
-import { useFavorites } from '../../context/FavoritesContext';
-import { getCoverImageUrl } from '../../utils/coverImages';
-import { handleImageErrorWithFallback } from '../../utils/fallbackImageGenerator';
-import CardFavoriteButton from '../../components/CardFavoriteButton';
-import CardShareButton from '../../components/CardShareButton';
-import { shareContent } from '../../utils/externalLink';
-import { TrekListSkeleton } from '../../components/HomeEventCardSkeleton';
-import { TREK_BROWSE_CATEGORIES } from '../../constants/trekBrowseCategories';
+import { useDarkMode } from '../../../context/DarkModeContext';
+import { useFavorites } from '../../../context/FavoritesContext';
+import { getCoverImageUrl } from '../../../utils/coverImages';
+import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
+import CardFavoriteButton from '../../../components/CardFavoriteButton';
+import CardShareButton from '../../../components/CardShareButton';
+import { shareContent } from '../../../utils/externalLink';
+import { TrekListSkeleton } from '../../../components/HomeEventCardSkeleton';
+import { TREK_BROWSE_CATEGORIES } from '../../../constants/trekBrowseCategories';
 import {
     USER_FILTER_SECTIONS,
     emptyUserFilters,
     trekMatchesFilters,
-} from '../../constants/trekFilters';
+} from '../../../constants/trekFilters';
 
-import { fetchCatalogJSON } from '../../services/api/catalogCache';
-import { useInAppBack } from '../../hooks/useInAppBack';
+import { fetchCatalogJSON } from '../../../services/api/catalogCache';
+import { useInAppBack } from '../../../hooks/useInAppBack';
 
 const TREK_CATEGORIES = TREK_BROWSE_CATEGORIES;
 

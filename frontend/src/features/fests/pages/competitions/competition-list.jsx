@@ -1,19 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useDarkMode } from '../../context/DarkModeContext';
-import DetailPageLoader from '../../components/DetailPageLoader';
-import { useDetailLoaderFailsafe } from '../../hooks/useDetailLoaderFailsafe';
-import { signalDetailPageReady } from '../../utils/bootSplash';
-import CompetitionCoverImage from '../../components/CompetitionCoverImage';
+import { useDarkMode } from '../../../../context/DarkModeContext';
+import DetailPageLoader from '../../../../components/DetailPageLoader';
+import { useDetailLoaderFailsafe } from '../../../../hooks/useDetailLoaderFailsafe';
+import { signalDetailPageReady } from '../../../../utils/bootSplash';
+import CompetitionCoverImage from '../../../../components/CompetitionCoverImage';
 import {
   transformFestPublicData,
   buildCompetitionNavPayload,
-} from '../../utils/festPublicTransform';
-import { publicFetchJSONRetry as fetchJSON } from '../../services/api/client';
-import { competitionPath } from '../../utils/slugRoutes';
-import { saveCompetitionDetailCache } from '../../utils/detailPageCache';
-import { useInAppBack } from '../../hooks/useInAppBack';
+} from '../../../../utils/festPublicTransform';
+import { publicFetchJSONRetry as fetchJSON } from '../../../../services/api/client';
+import { competitionPath } from '../../../../utils/slugRoutes';
+import { saveCompetitionDetailCache } from '../../../../utils/detailPageCache';
+import { useInAppBack } from '../../../../hooks/useInAppBack';
 
 const CompetitionListPage = () => {
     const { isDark } = useDarkMode();

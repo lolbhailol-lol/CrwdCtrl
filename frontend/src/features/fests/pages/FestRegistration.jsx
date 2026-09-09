@@ -1,1 +1,1 @@
-export { default } from './FestRegistration/index.jsx';
+export { default } from './FestRegistration/index';

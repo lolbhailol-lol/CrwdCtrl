@@ -4,14 +4,14 @@ import {
     Mountain, MapPin, Phone, Instagram,
     ContactRound, Users, IndianRupee, Clock, Activity, CalendarDays,
 } from 'lucide-react';
-import { InlinePageLoader } from '../../components/DetailPageLoader';
+import { InlinePageLoader } from '../../../components/DetailPageLoader';
 import {
     fetchTrekOrganizerMe,
     fetchTrekOrganizerDashboard,
-} from '../../services/api/trekOrganizer.api';
-import { getTrekOrganizerSession, setTrekOrganizerSession } from '../../utils/trekOrganizerSession';
-import { formatBatchDate, normalizeTrekBatches } from '../../utils/trekDateDisplay';
-import { getCoverImageUrl } from '../../utils/coverImages';
+} from '../../../services/api/trekOrganizer.api';
+import { getTrekOrganizerSession, setTrekOrganizerSession } from '../../../utils/trekOrganizerSession';
+import { formatBatchDate, normalizeTrekBatches } from '../../../utils/trekDateDisplay';
+import { getCoverImageUrl } from '../../../utils/coverImages';
 import { SectionCard } from './OrganizerUi';
 
 const MAX_DASHBOARD_FETCH = 24;

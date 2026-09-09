@@ -1,14 +1,14 @@
 import { useCallback, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import CheckinScannerPage from '../../components/admin/CheckinScannerPage';
-import OrganizerGateCheckinPanel from '../../components/organizer/OrganizerGateCheckinPanel';
-import { getApiBaseUrl } from '../../config/apiBase';
-import { getEventOrganizerToken } from '../../utils/eventShowOrganizerSession';
+import CheckinScannerPage from '../../../../components/admin/CheckinScannerPage';
+import OrganizerGateCheckinPanel from '../../../../components/organizer/OrganizerGateCheckinPanel';
+import { getApiBaseUrl } from '../../../../config/apiBase';
+import { getEventOrganizerToken } from '../../../../utils/eventShowOrganizerSession';
 import {
     fetchEventOrganizerParticipants,
     eventOrganizerCheckin,
-} from '../../services/api/eventShowOrganizer.api';
-import { useDialog } from '../../context/DialogContext';
+} from '../../../../services/api/eventShowOrganizer.api';
+import { useDialog } from '../../../../context/DialogContext';
 
 function normalizeEventRow(p) {
     if (!p) return null;
