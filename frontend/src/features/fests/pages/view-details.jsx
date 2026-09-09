@@ -32,7 +32,7 @@ import DetailPageLoader from '../../../components/DetailPageLoader';
 import CompetitionCoverImage from '../../../components/CompetitionCoverImage';
 import FestPublicLiveStrip from '../components/FestPublicLiveStrip';
 import SimilarFestsSection from '../components/SimilarFestsSection';
-import { getFestPlugin } from '../plugins';
+import { getFestPlugin } from '../plugins/registry';
 import { useInAppBack } from '../../../hooks/useInAppBack';
 import { trackFestView } from '../../../services/analyticsService';
 
@@ -50,13 +50,6 @@ function getPrimaryPhone(contacts = []) {
     if (!contact?.phone) continue;
     const entry = contact.phone.split(/\s*(?:,|\/)\s*/).filter(Boolean)[0];
     if (entry) return entry.replace(/\s*\([^)]*\)/, '').trim();
-  }
-  return null;
-}
-
-function getPrimaryInstagram(contacts = []) {
-  for (const contact of contacts) {
-    if (contact?.instagramId) return contact.instagramId.replace('@', '');
   }
   return null;
 }
@@ -91,11 +84,19 @@ function CompetitionScrollCard({
       : 'h-48';
 
   return (
-    <button
-      type="button"
+    <div
+      role="link"
+      tabIndex={busy ? -1 : 0}
       onClick={onClick}
       onPointerDown={onPointerDown}
-      disabled={busy}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget || busy) return;
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onClick?.(event);
+        }
+      }}
+      aria-disabled={busy}
       aria-busy={busy}
       className={`card-surface text-left rounded-2xl overflow-hidden transition hover:-translate-y-0.5 active:scale-[0.98] flex flex-col ${
         fill ? 'w-full h-full' : largeCover ? 'w-52 shrink-0' : 'w-46 shrink-0'
@@ -127,7 +128,7 @@ function CompetitionScrollCard({
           </p>
         ) : null}
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -352,12 +353,6 @@ function EventDetailsPage() {
     setShowRegister(false);
   };
 
-  // Switch from login to register
-  const handleSwitchToRegister = () => {
-    setShowLogin(false);
-    setShowRegister(true);
-  };
-
   // Switch from register to login
   const handleSwitchToLogin = () => {
     setShowRegister(false);
@@ -490,7 +485,6 @@ function EventDetailsPage() {
   };
 
   const primaryPhone = getPrimaryPhone(pageEvent.contacts);
-  const primaryInstagram = getPrimaryInstagram(pageEvent.contacts);
   const galleryPreview = pageEvent.galleryImages || [];
 
   const handleFestFavorite = () => {
@@ -646,6 +640,8 @@ function EventDetailsPage() {
                     {pageEvent.galleryImages?.slice(0, 6).map((img, idx) => (
                       <button
                         key={idx}
+                        type="button"
+                        aria-label={`Show gallery image ${idx + 1}`}
                         onClick={() => handleGalleryImageClick(img)}
                         className={`w-10 sm:w-12 h-10 sm:h-12 ${currentHeroImage === img ? 'ring-2 ring-blue-500 ring-offset-2' : ''} bg-white rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-300 hover:ring-offset-1 transition-all duration-200`}
                       >
@@ -669,6 +665,7 @@ function EventDetailsPage() {
                       <button
                         key={idx}
                         type="button"
+                        aria-label={`Open gallery image ${idx + 1}`}
                         onClick={() => {
                           handleGalleryImageClick(img);
                           openLightbox(idx);
@@ -840,6 +837,8 @@ function EventDetailsPage() {
 
                   <div className="flex space-x-2">
                     <button
+                      type="button"
+                      aria-label="Share fest"
                       onClick={handleShare}
                       className={`p-2.5 sm:p-3 ${isDark ? 'bg-[#111213] hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} rounded-xl transition`}
                     >

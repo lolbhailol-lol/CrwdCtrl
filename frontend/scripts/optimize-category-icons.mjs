@@ -24,11 +24,16 @@ const ICONS = [
   { out: 'fests-light.webp', src: 'FEST.svg' },
   { out: 'sports-light.webp', src: 'SPORTS.svg' },
   { out: 'treks-light.webp', src: 'trek.svg' },
-  { out: 'theatre-light.webp', src: 'THETRE.svg' },
+  { out: 'events-light.webp', src: 'events light new.svg' },
   { out: 'fests-dark.webp', src: 'fest-dark.svg' },
   { out: 'sports-dark.webp', src: 'sports-dark.svg' },
   { out: 'treks-dark.webp', src: 'treks-dark.svg' },
-  { out: 'theatre-dark.webp', src: 'theatre-dark.svg' },
+  { out: 'events-dark.webp', src: 'events dark new.svg' },
+  { out: 'cultural.webp', src: 'cul.svg' },
+  { out: 'technology.webp', src: 'techhh.svg' },
+  { out: 'sport-category.webp', src: 'spor.svg' },
+  { out: 'adventure.webp', src: 'adventure.svg' },
+  { out: 'nature.webp', src: 'nature.svg' },
 ];
 
 async function optimizeOne({ out, src }) {

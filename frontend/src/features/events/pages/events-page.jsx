@@ -543,6 +543,7 @@ export default function EventsPage() {
             />
 
             <main className="pb-8">
+                <h1 className="sr-only">Events, shows, and meetups</h1>
                 {!loading && heroBannerEvents.length > 0 && (
                     <HeroBanner events={heroBannerEvents} onEventClick={handleHeroClick} />
                 )}

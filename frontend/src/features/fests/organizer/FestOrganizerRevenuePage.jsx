@@ -9,7 +9,7 @@ import {
     fetchFestOrganizerNotifyContacts,
 } from '../../../services/api/festOrganizer.api';
 import { InlinePageLoader } from '../../../components/DetailPageLoader';
-import { getFestPlugin } from '../plugins';
+import { getFestPlugin } from '../plugins/registry';
 
 function waLink(phone, text) {
     const digits = String(phone || '').replace(/\D/g, '');
@@ -31,8 +31,6 @@ export default function FestOrganizerRevenuePage() {
     const [unpaid, setUnpaid] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const mindSpark = getFestPlugin(festId).id === 'mindspark';
-
     const load = async () => {
         setLoading(true);
         setError('');

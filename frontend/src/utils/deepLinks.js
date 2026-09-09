@@ -187,7 +187,7 @@ export function hasPaymentReturnExpected() {
  * Drop abandoned checkout recovery when the user is intentionally opening registration
  * (Register Now) — not returning from Cashfree with return query params.
  */
-export function discardStalePaymentRecovery({ pathname, search = '', navigationState = null } = {}) {
+export function discardStalePaymentRecovery({ search = '', navigationState = null } = {}) {
   if (hasCashfreeReturnParams(search)) return;
   if (navigationState?.fromPaymentReturn) return;
 

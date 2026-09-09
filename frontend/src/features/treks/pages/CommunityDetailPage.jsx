@@ -10,7 +10,7 @@ import { getImageUrl } from '../../../utils/imageImports';
 import { getCoverImageUrl } from '../../../utils/coverImages';
 import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
 import { normalizeImageList, normalizeImageUrl } from '../../../utils/uploadUrls';
-import { shareContent, openExternalUrl } from '../../../utils/externalLink';
+import { shareContent } from '../../../utils/externalLink';
 import { useInAppBack } from '../../../hooks/useInAppBack';
 import { CompactPortraitCardsRowSkeleton } from '../../../components/HomeEventCardSkeleton';
 import DetailPageLoader from '../../../components/DetailPageLoader';
@@ -283,7 +283,7 @@ export default function CommunityDetailPage() {
             });
         return () => controller.abort();
         // Only re-run when the route id changes; nav state is read once for seeding
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [id]);
 
     useEffect(() => {

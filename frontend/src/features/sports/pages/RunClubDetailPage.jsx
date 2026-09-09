@@ -308,7 +308,7 @@ export default function RunClubDetailPage() {
                 if (!controller.signal.aborted) setLoading(false);
             });
         return () => controller.abort();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [id]);
 
     useEffect(() => {

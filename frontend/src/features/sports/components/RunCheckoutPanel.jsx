@@ -17,7 +17,7 @@ export default function RunCheckoutPanel({
     couponCode,
     couponLoading,
     couponError,
-    couponJustApplied,
+    couponJustApplied: _couponJustApplied,
     onCouponCodeChange,
     onApplyCoupon,
     onClearCoupon,

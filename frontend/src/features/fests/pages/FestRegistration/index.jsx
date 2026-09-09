@@ -34,7 +34,6 @@ export default function FestRegistration() {
     hasAuth,
     showLogin,
     loginDismissed,
-    setShowLogin,
     showRegister,
     handleCloseLogin,
     handleCloseRegister,

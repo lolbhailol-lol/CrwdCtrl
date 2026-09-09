@@ -12,7 +12,7 @@ import {
     getBudgetTier,
     DIFFICULTY_LEVEL_FILTER_OPTIONS,
 } from '../../constants/trekFilters';
-import { adminFetch, adminFetchJSON } from '../../services/api/admin.api.js';
+import { adminFetchJSON } from '../../services/api/admin.api.js';
 import { notifyAdminDataUpdated } from '../../utils/notifyAdminDataUpdated';
 import { normalizeTrekBatches, EMPTY_BATCH } from '../../utils/trekDateDisplay';
 import { normalizeDetailBoxes } from '../../utils/trekDetailBoxes';

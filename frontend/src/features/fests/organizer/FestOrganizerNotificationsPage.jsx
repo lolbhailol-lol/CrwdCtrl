@@ -14,7 +14,7 @@ import {
 } from '../../../services/api/festOrganizer.api';
 import { InlinePageLoader } from '../../../components/DetailPageLoader';
 import { useDialog } from '../../../context/DialogContext';
-import { getFestPlugin } from '../plugins';
+import { getFestPlugin } from '../plugins/registry';
 
 const AUDIENCES = [
     { id: 'approved', label: 'Approved', hint: 'Confirmed entries', mindSparkLabel: 'Registered', mindSparkHint: 'Paid / confirmed' },

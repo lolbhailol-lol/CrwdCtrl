@@ -37,6 +37,8 @@ const Sidebar = () => {
         <>
             {/* Mobile Menu Button */}
             <button
+                type="button"
+                aria-label="Open navigation menu"
                 onClick={() => setIsMobileMenuOpen(true)}
                 className={`fixed top-4 left-4 z-50 lg:hidden p-3 rounded-xl transition-all duration-200 ${isDark
                     ? 'bg-dark-950/90 text-white border border-gray-900'
@@ -63,6 +65,8 @@ const Sidebar = () => {
 
                 {/* Mobile Close Button */}
                 <button
+                    type="button"
+                    aria-label="Close navigation menu"
                     onClick={() => setIsMobileMenuOpen(false)}
                     className="lg:hidden absolute top-4 right-4 text-white/80 hover:text-white"
                 >
@@ -82,6 +86,8 @@ const Sidebar = () => {
                         return (
                             <button
                                 key={item.id}
+                                type="button"
+                                aria-label={item.label}
                                 onClick={() => handleNavigation(item)}
                                 className={`relative w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-300 group ${
                                     item.special && !isActive
@@ -136,6 +142,8 @@ const Sidebar = () => {
                 {/* Bottom Section: Theme Toggle */}
                 <div className="flex flex-col items-center space-y-4">
                     <button
+                        type="button"
+                        aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
                         onClick={() => toggleDarkMode(!isDark)}
                         className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-300 hover:scale-105 group bg-[#4169E1]`}
 

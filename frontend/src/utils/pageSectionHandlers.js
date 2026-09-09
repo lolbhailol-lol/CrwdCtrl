@@ -50,7 +50,6 @@ export function usePageSectionHandlers(navigate, { toggleFavorite } = {}) {
     }, [toggleFavorite]);
 
     const getShareUrl = useCallback((item) => {
-        const id = item.id || item._id;
         if (item._type === 'fest') return `${window.location.origin}${festPath(item)}`;
         if (item._type === 'trek') return `${window.location.origin}${trekPath(item)}`;
         if (item._type === 'community') return `${window.location.origin}${communityPath(item)}`;

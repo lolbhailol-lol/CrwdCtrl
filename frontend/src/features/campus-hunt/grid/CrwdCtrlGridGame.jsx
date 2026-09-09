@@ -5,7 +5,7 @@ import {
   fetchGridSession,
   submitGridLevel,
   timeoutGridLevel,
-  useGridHint,
+  useGridHint as requestGridHint,
 } from '../services/campusHunt.api';
 
 function copyText(text, onDone) {
@@ -152,7 +152,7 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
     setBusy(true);
     setFeedback('');
     try {
-      const res = await useGridHint(sessionToken, path);
+      const res = await requestGridHint(sessionToken, path);
       const payload = res.data;
       if (payload.view) setData(payload.view);
       setHintCell(payload.nextCell || null);

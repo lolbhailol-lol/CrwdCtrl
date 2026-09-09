@@ -84,10 +84,12 @@ export function coerceClueScoring(settings, defaults) {
     out.timerSeconds = Number(merged.timerSeconds) || defaults.timerSeconds || 180;
   }
   if (merged.timerStartDelaySeconds != null) {
-    out.timerStartDelaySeconds = Number(merged.timerStartDelaySeconds) ?? defaults.timerStartDelaySeconds ?? 0;
+    const delay = Number(merged.timerStartDelaySeconds);
+    out.timerStartDelaySeconds = Number.isFinite(delay) ? delay : (defaults.timerStartDelaySeconds ?? 0);
   }
   if (merged.basePoints != null) {
-    out.basePoints = Number(merged.basePoints) ?? defaults.basePoints ?? 0;
+    const points = Number(merged.basePoints);
+    out.basePoints = Number.isFinite(points) ? points : (defaults.basePoints ?? 0);
   }
   if (defaults.speedBonusBands) {
     out.speedBonusBands = merged.speedBonusBands?.length

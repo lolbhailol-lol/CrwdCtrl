@@ -1214,7 +1214,7 @@ export default function TeamManagerPanel({
         let password = teamSharedPassword(team);
         if (!password && !team.access?.vaultUnreadable) {
           try {
-            // eslint-disable-next-line no-await-in-loop
+             
             const res = await adminRevealTeamAccess(id(team));
             password = teamSharedPassword({ access: res.data?.access || {} });
           } catch {

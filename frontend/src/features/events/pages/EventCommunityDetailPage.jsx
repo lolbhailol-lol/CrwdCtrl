@@ -312,7 +312,7 @@ export default function EventCommunityDetailPage() {
                 setLoading(false);
             });
         return () => controller.abort();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [id]);
 
     useEffect(() => {

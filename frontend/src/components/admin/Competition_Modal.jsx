@@ -19,7 +19,7 @@ import {
   MINDSPARK_MODULE_ORDER,
   resolveMindSparkModule,
 } from '../../features/fests/mindspark';
-import { getFestPlugin } from '../../features/fests/plugins';
+import { getFestPlugin } from '../../features/fests/plugins/registry';
 
 // Individual Form Field Component
 const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpdateOption, onRemoveOption }) => {

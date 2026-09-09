@@ -25,7 +25,6 @@ CREATE TABLE IF NOT EXISTS play_log (
 );
 `;
 
-let connection = null;
 let db = null;
 let encrypted = false;
 
@@ -63,8 +62,6 @@ export async function openOfflineSqlite() {
   }
 
   const sqlite = new SQLiteConnection(CapacitorSQLite);
-  connection = sqlite;
-
   try {
     await sqlite.checkConnectionsConsistency();
   } catch {

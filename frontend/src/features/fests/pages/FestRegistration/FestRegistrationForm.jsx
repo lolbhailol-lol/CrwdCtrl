@@ -13,7 +13,7 @@ import {
   RosterPersonStep,
 } from '../../mindspark';
 import { TechfestRosterPersonStep } from '../../techfest';
-import { getFestPluginFromAny } from '../../plugins';
+import { getFestPluginFromAny } from '../../plugins/registry';
 import { RegistrationProcessingOverlay } from '../../../../components/RegistrationStatusVisual';
 import { useInAppBack } from '../../../../hooks/useInAppBack';
 
@@ -63,7 +63,7 @@ export default function FestRegistrationForm({
   showRegister,
   handleCloseLogin,
   handleCloseRegister,
-  handleSwitchToRegister,
+  handleSwitchToRegister: _handleSwitchToRegister,
   handleSwitchToLogin,
   uploadingFiles,
   handleFileUpload,

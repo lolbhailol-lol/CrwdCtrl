@@ -183,7 +183,7 @@ export default function StartingSystemPanel({
         const existing = byLetter.get(loc.code);
         if (!existing) {
           try {
-            // eslint-disable-next-line no-await-in-loop
+             
             await adminCreateStartingPoint(eventId, {
               ...loc,
               roundId: roundId || undefined,
@@ -196,7 +196,7 @@ export default function StartingSystemPanel({
           }
           continue;
         }
-        // eslint-disable-next-line no-await-in-loop
+         
         await adminUpdateStartingPoint(entityId(existing), {
           name: loc.name,
           description: loc.description,
@@ -212,7 +212,7 @@ export default function StartingSystemPanel({
         if (!letter || needed.has(letter)) continue;
         if (point.active === false
           && Number(point.capacity) === teamsPerWait) continue;
-        // eslint-disable-next-line no-await-in-loop
+         
         await adminUpdateStartingPoint(entityId(point), {
           active: false,
           capacity: teamsPerWait,

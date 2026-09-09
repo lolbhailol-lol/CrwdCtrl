@@ -232,7 +232,7 @@ export const AuthProvider = ({ children }) => {
             unsubscribe();
         };
     // Stable listener — read latest user/token via refs (avoids re-subscribe races)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     }, []);
 
     // ✅ INITIALIZATION - WAIT FOR FIREBASE & CHECK REDIRECT RESULT ON MOBILE

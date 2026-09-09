@@ -14,7 +14,7 @@ import {
 import { useDialog } from '../../../context/DialogContext';
 import FestOrganizerParticipantModal from './FestOrganizerParticipantModal';
 import { OrganizerRosterPreview } from './OrganizerTeamRoster';
-import { getFestPlugin } from '../plugins';
+import { getFestPlugin } from '../plugins/registry';
 import { InlinePageLoader } from '../../../components/DetailPageLoader';
 
 function waLink(phone) {
@@ -149,7 +149,7 @@ export default function FestOrganizerParticipantsPage() {
     useEffect(() => {
         load(1);
         // Filter URL changes — search is applied on submit / when filters change
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: don't refetch on every keystroke
+         
     }, [festId, status, competitionId, checkInStatus, paymentStatus]);
 
     const setParams = (patch, { clearOthers = false } = {}) => {

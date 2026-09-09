@@ -1,5 +1,5 @@
 import { goToBookings } from '../../../../utils/paymentNavigation';
-import { getFestPluginFromAny } from '../../plugins';
+import { getFestPluginFromAny } from '../../plugins/registry';
 import { RegistrationStatusVisual, SuccessRevealGate } from '../../../../components/RegistrationStatusVisual';
 import AlsoRegisterForSection from '../../../../components/AlsoRegisterForSection';
 

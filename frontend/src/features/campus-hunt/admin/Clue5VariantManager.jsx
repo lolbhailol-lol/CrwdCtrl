@@ -68,7 +68,7 @@ export default function Clue5VariantManager({
   roundId,
   campusStarts,
   onChanged,
-  teamCapacity = 40,
+  teamCapacity: _teamCapacity = 40,
   teamSize = 4,
   teamsPerWait = TEAMS_PER_WAIT,
 }) {

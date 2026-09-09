@@ -13,7 +13,7 @@ import { useDialog } from '../../../context/DialogContext';
 import { filterExtraFestFormResponses } from '../../../utils/festFormResponseKeys';
 import OrganizerTeamRoster from './OrganizerTeamRoster';
 import WhatsAppGroupToggle from './WhatsAppGroupToggle';
-import { getFestPlugin } from '../plugins';
+import { getFestPlugin } from '../plugins/registry';
 
 function humanizeKey(key = '') {
     return String(key)

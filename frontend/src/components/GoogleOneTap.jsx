@@ -75,9 +75,6 @@ function ensureGisInitialized(google, callback) {
       context: 'signin',
       auto_select: false,
       cancel_on_tap_outside: true,
-      // false = legacy One Tap (works when user disabled FedCM / third-party sign-in).
-      // true forces FedCM and prints the console warning you're seeing.
-      use_fedcm_for_prompt: false,
       callback,
     });
     gisInitializedForClient = CLIENT_ID;
@@ -142,9 +139,9 @@ export default function GoogleOneTap() {
         promptedRef.current = true;
         try {
           google.accounts.id.prompt((notification) => {
-            const skipped = notification?.isNotDisplayed?.() || notification?.isSkippedMoment?.();
-            if (skipped) {
-              // FedCM disabled, dismissed, or suppressed — stop retrying this session
+            if (notification?.isSkippedMoment?.()) {
+              // FedCM still reports the skip moment, but no longer exposes
+              // display-moment details. Avoid retrying a suppressed prompt.
               markOneTapSkipped();
               promptedRef.current = false;
             }

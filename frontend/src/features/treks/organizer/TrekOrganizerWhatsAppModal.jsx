@@ -48,7 +48,7 @@ export default function TrekOrganizerWhatsAppModal({
         const first = (recipients || []).find((r) => isValidWhatsAppPhone(r.phone));
         const preset = WHATSAPP_PRESETS.find((p) => p.id === 'reminder');
         setMessage(preset?.build(buildCtx(first)) || '');
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- rebuild when modal opens
+         
     }, [open, recipients, trekName, trekDate, meetingPoint]);
 
     useEffect(() => {
@@ -56,7 +56,7 @@ export default function TrekOrganizerWhatsAppModal({
         const preset = WHATSAPP_PRESETS.find((p) => p.id === presetId);
         if (!preset || preset.id === 'custom') return;
         setMessage(preset.build(buildCtx(current)));
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [index, presetId, open, current, trekName, trekDate, meetingPoint]);
 
     if (!open) return null;

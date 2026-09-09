@@ -8,7 +8,7 @@ import {
 import { fetchFestOrganizerDashboard } from '../../../services/api/festOrganizer.api';
 import { getImageUrl } from '../../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
-import { getFestPlugin } from '../plugins';
+import { getFestPlugin } from '../plugins/registry';
 import FestOrganizerCompetitionQrModal from './FestOrganizerCompetitionQrModal';
 import { InlinePageLoader } from '../../../components/DetailPageLoader';
 

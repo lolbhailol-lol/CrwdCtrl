@@ -12,7 +12,6 @@ import { resolveAuthToken, getBearerAuthHeaders } from '../../utils/authToken';
 import { isEventsListingHub } from '../../utils/listingHubCopy';
 import {
     organizerLoginPath,
-    organizerSignupPath,
 } from '../../utils/organizerPortalPaths';
 import { resilientJsonFetch, resolveApiUrl, isProxyMissStatus } from './resilientFetch.js';
 

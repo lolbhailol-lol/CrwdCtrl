@@ -585,6 +585,7 @@ function TreksPage() {
             />
 
             <main className="pb-8">
+                <h1 className="sr-only">Treks and outdoor communities</h1>
                 {!loading && heroBannerEvents.length > 0 && (
                     <HeroBanner
                         events={heroBannerEvents}

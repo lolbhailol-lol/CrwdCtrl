@@ -104,7 +104,7 @@ export default function StationPosterPrint({
     const allCards = [];
     for (const pack of selectedPacks) {
       const posters = [...(pack.posters || [])];
-      // eslint-disable-next-line no-await-in-loop
+       
       for (const poster of posters) {
         const payload = typeof poster.payload === 'string'
           ? poster.payload
@@ -114,7 +114,7 @@ export default function StationPosterPrint({
           0,
         );
         const qrPx = cardCountHint <= 4 ? 180 : cardCountHint <= 6 ? 150 : 128;
-        // eslint-disable-next-line no-await-in-loop
+         
         const qr = await QRCode.toDataURL(payload, {
           width: qrPx,
           margin: 1,

@@ -8,7 +8,7 @@ import {
     updateFestOrganizerCoupon,
 } from '../../../services/api/festOrganizer.api';
 import { useDialog } from '../../../context/DialogContext';
-import { getFestPlugin } from '../plugins';
+import { getFestPlugin } from '../plugins/registry';
 import { InlinePageLoader } from '../../../components/DetailPageLoader';
 
 const EMPTY = {

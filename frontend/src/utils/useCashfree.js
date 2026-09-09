@@ -10,9 +10,8 @@ import {
   storePendingPayment,
   markPaymentReturnExpected,
   isTrekPaymentPending,
-  hasCashfreeReturnParams,
 } from './deepLinks';
-import { classifyVerifyResponse, clearCashfreeReturnAndPending, classifyCheckoutError } from './paymentNavigation';
+import { classifyVerifyResponse, clearCashfreeReturnAndPending } from './paymentNavigation';
 
 let cashfreeInstance = null;
 let cashfreeMode = null;

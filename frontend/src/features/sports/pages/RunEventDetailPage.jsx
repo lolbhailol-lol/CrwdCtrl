@@ -94,7 +94,7 @@ export default function RunEventDetailPage() {
     const location = useLocation();
     const { id } = useParams();
     const { isDark } = useDarkMode();
-    const { token: authToken, isAuthenticated } = useAuth();
+    const { token: authToken } = useAuth();
 
     const [event, setEvent] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -206,7 +206,7 @@ export default function RunEventDetailPage() {
                 setLoading(false);
             });
         return () => controller.abort();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [id]);
 
     useEffect(() => {

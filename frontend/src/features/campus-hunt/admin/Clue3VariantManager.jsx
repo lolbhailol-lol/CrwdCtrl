@@ -56,11 +56,11 @@ function routeForStart(routes, point) {
   return routes.find((route) => String(route.routeKey || '').toUpperCase() === code) || null;
 }
 
-function variantKeyFor(code, waveId) {
+function _variantKeyFor(code, waveId) {
   return `${code}-${waveId}`.toUpperCase();
 }
 
-function resolveThirdCheckpoint(checkpoints, { routeId, waveId, startingPointId }) {
+function _resolveThirdCheckpoint(checkpoints, { routeId, waveId, startingPointId }) {
   const key = `3-${String(waveId || '').toUpperCase()}`.toUpperCase();
   const onRoute = checkpoints.filter((cp) => id(cp.routeId) === id(routeId));
   const byStart = onRoute.find(
@@ -82,7 +82,7 @@ export default function Clue3VariantManager({
   stationCount = null,
   onChanged,
   teamCapacity = 40,
-  teamSize = 4,
+  teamSize: _teamSize = 4,
   teamsPerWait = TEAMS_PER_WAIT,
   teamsPerStation = TARGET_TEAMS_PER_STATION,
 }) {
@@ -99,7 +99,7 @@ export default function Clue3VariantManager({
 
   const [routes, setRoutes] = useState([]);
   const [points, setPoints] = useState([]);
-  const [checkpoints, setCheckpoints] = useState([]);
+  const [_checkpoints, setCheckpoints] = useState([]);
   const [variants, setVariants] = useState([]);
   const [packContent, setPackContent] = useState({});
   const [busy, setBusy] = useState(false);
@@ -114,7 +114,7 @@ export default function Clue3VariantManager({
       .sort((a, b) => order.indexOf(startCode(a)) - order.indexOf(startCode(b)));
   }, [points]);
 
-  const expectedCount = orderedPoints.length * teamSlots.length;
+  const _expectedCount = orderedPoints.length * teamSlots.length;
 
   const refresh = useCallback(async () => {
     if (!eventId) return;

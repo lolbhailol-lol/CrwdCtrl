@@ -13,7 +13,7 @@ import { useDetailLoaderFailsafe } from '../../../hooks/useDetailLoaderFailsafe'
 import { signalDetailPageReady } from '../../../utils/bootSplash';
 import { RegistrationStatusVisual } from '../../../components/RegistrationStatusVisual';
 import { getPendingPayment, clearPendingPayment, shouldResumePendingPayment } from '../../../utils/deepLinks';
-import { verifyPaymentWithRetry, pollPaymentUntilVerified, goToBookings, classifyVerifyError, PAYMENT_BACKGROUND_MAX_WAIT_MS } from '../../../utils/paymentNavigation';
+import { pollPaymentUntilVerified, goToBookings, classifyVerifyError, PAYMENT_BACKGROUND_MAX_WAIT_MS } from '../../../utils/paymentNavigation';
 import {
     saveEventRegistrationDraft,
     loadEventRegistrationDraft,
@@ -171,7 +171,7 @@ export default function EventRegistrationPage() {
     const [couponInfo, setCouponInfo] = useState(null);
     const [couponLoading, setCouponLoading] = useState(false);
     const [couponError, setCouponError] = useState('');
-    const [showCouponField, setShowCouponField] = useState(true);
+    const [_showCouponField, setShowCouponField] = useState(true);
     const autoAppliedCouponRef = useRef('');
     const [paymentModal, setPaymentModal] = useState({ open: false, message: '', orderId: '' });
     const [paymentScreenshotUrl, setPaymentScreenshotUrl] = useState('');

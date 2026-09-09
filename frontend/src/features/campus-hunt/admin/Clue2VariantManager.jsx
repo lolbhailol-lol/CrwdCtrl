@@ -65,7 +65,7 @@ function variantKeyFor(code, waveId) {
   return `${code}-${waveId}`.toUpperCase();
 }
 
-function resolveSecondCheckpoint(checkpoints, {
+function _resolveSecondCheckpoint(checkpoints, {
   routeId,
   waveId,
   startingPointId,
@@ -102,7 +102,7 @@ export default function Clue2VariantManager({
   stationCount = null,
   onChanged,
   teamCapacity = 40,
-  teamSize = 4,
+  teamSize: _teamSize = 4,
   teamsPerWait = TEAMS_PER_WAIT,
   teamsPerStation = TARGET_TEAMS_PER_STATION,
 }) {
@@ -119,7 +119,7 @@ export default function Clue2VariantManager({
 
   const [routes, setRoutes] = useState([]);
   const [points, setPoints] = useState([]);
-  const [checkpoints, setCheckpoints] = useState([]);
+  const [_checkpoints, setCheckpoints] = useState([]);
   const [variants, setVariants] = useState([]);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [codes, setCodes] = useState({});
@@ -135,7 +135,7 @@ export default function Clue2VariantManager({
       .sort((a, b) => order.indexOf(startCode(a)) - order.indexOf(startCode(b)));
   }, [points]);
 
-  const expectedCount = orderedPoints.length * teamSlots.length;
+  const _expectedCount = orderedPoints.length * teamSlots.length;
 
   const refresh = useCallback(async () => {
     if (!eventId) return;

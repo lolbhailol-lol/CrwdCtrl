@@ -804,8 +804,6 @@ export default function DryRunHuddleChecklist({
     });
   }, [qrByPlace, stations, propRows]);
 
-  const propCount = propRows.filter((r) => r.propCode && r.propCode !== '—').length;
-  const expectedPosterCount = stations.length * 4;
   const posterCount = placeRows.reduce(
     (sum, row) => sum + [row.orange, row.green, row.blue, row.purple].filter(Boolean).length,
     0,

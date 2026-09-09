@@ -249,7 +249,7 @@ function GoogleAnalyticsSection() {
   useEffect(() => {
     if (mode === 'preset') fetchGa();
     // In custom mode we wait for the user to click "Apply".
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [days, mode]);
 
   useEffect(() => {

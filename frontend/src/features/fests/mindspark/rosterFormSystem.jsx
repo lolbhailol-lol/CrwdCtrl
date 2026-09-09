@@ -248,7 +248,7 @@ export function TeamSizeSelect({ competition, formData, setFormData, isDark }) {
   useEffect(() => {
     if (!needsStep) return;
     if (!formData.team_size) setSize(min);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [needsStep, min, max, competition?._id || competition?.id]);
 
   if (!needsStep) return null;
@@ -505,7 +505,7 @@ export function RosterPersonStep({ personIndex, competition, formData, setFormDa
     if (needsNorm) {
       setFormData((prev) => ({ ...prev, team_size: chosen, team_members: next.slice(0, chosen) }));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [personIndex, chosen, personFields.map((f) => f.key).join('|')]);
 
   if (personIndex < 0) return null;

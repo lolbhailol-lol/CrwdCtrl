@@ -47,7 +47,7 @@ import {
   isMindSparkFest,
 } from '../../mindspark';
 import { rosterMemberMissingLabel } from '../../techfest';
-import { getFestPluginFromAny } from '../../plugins';
+import { getFestPluginFromAny } from '../../plugins/registry';
 import { getCompetitionFeeTiers } from '../../../../utils/competitionFeeTiers';
 import { waitAtLeast, sleep, PROCESS_UI_MIN_MS } from '../../../../components/RegistrationStatusVisual';
 import { useInAppBack } from '../../../../hooks/useInAppBack';
@@ -1060,7 +1060,7 @@ export default function useFestRegistration() {
     if (currentStep > total) {
       setCurrentStep(total);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [formData.team_size, competition?._id || competition?.id]);
 
   // Solo MindSpark: lock team_size to 1 so submit / validation stay consistent
@@ -1071,7 +1071,7 @@ export default function useFestRegistration() {
       if (Number(prev.team_size) === 1) return prev;
       return { ...prev, team_size: 1 };
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [competition?._id || competition?.id, competition?.teamSizeMax, competition?.teamSizeMin]);
 
   const handleStepFieldChange = (fieldId, value) => {
@@ -1100,7 +1100,7 @@ export default function useFestRegistration() {
     const allData = {};
     
     // First, merge all completed steps
-    Object.entries(stepData).forEach(([stepNum, stepFormData]) => {
+    Object.entries(stepData).forEach(([_stepNum, stepFormData]) => {
             Object.assign(allData, stepFormData);
     });
     
@@ -1125,7 +1125,7 @@ export default function useFestRegistration() {
     return merged;
   };
 
-  const clearCashfreeReturnParams = () => {
+  const _clearCashfreeReturnParams = () => {
     try {
       const params = new URLSearchParams(location.search);
       ['order_id', 'order_token', 'cf_payment_id', 'payment_id'].forEach((key) => params.delete(key));
@@ -1539,7 +1539,8 @@ export default function useFestRegistration() {
       }
 
             } else {
-              }
+              // No field-specific validator is configured.
+            }
       // Cashfree: open checkout if competition/fest has a fee and payment not yet done
       const effectiveFeeAmount = priceBreakdown?.ticketPrice || (isCompetitionRegistration ? (parseTicketPrice(competition?.feeAmount) || parseTicketPrice(competition?.registrationFee)) : (fest.feeAmount || 0));
       let verifiedPaymentFields = verifiedPaymentOverride || paymentFields;
@@ -1686,7 +1687,6 @@ export default function useFestRegistration() {
                     
           if (fileData && fileData.size > 0) {
             submissionFormData.append(backendFieldName, fileData);
-            const fileSizeInMB = (fileData.size / 1024 / 1024).toFixed(2);
             totalFileSize += fileData.size;
             fileCount++;
                       } else {
@@ -1701,7 +1701,8 @@ export default function useFestRegistration() {
                 fileCount++;
               }
             } catch (error) {
-                          }
+              // The DOM fallback is best-effort; normal form state remains authoritative.
+            }
           }
         } else {
           // Add text data to responses object using backend field name
@@ -1818,7 +1819,6 @@ export default function useFestRegistration() {
       const controller = new AbortController();
       
       // ? PERFORMANCE: Track upload progress (define BEFORE fetch so it's available in error handler)
-      const startTime = Date.now();
       
       const timeoutId = setTimeout(() => {
         console.warn(`?? Aborting request after ${(baseTimeout / 1000).toFixed(0)}s timeout`);
@@ -1851,8 +1851,6 @@ export default function useFestRegistration() {
       });
 
       clearTimeout(timeoutId);
-      const uploadTime = ((Date.now() - startTime) / 1000).toFixed(1);
-
       
       if (!response.ok) {
         let errorMessage = 'Failed to submit registration';
@@ -2241,4 +2239,3 @@ export default function useFestRegistration() {
     handleSwitchToLogin,
   };
 }
-

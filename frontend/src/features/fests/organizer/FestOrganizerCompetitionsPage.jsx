@@ -8,7 +8,7 @@ import {
 import { getImageUrl } from '../../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
 import { useDialog } from '../../../context/DialogContext';
-import { getFestPlugin } from '../plugins';
+import { getFestPlugin } from '../plugins/registry';
 import { organizerCompetitionFeeLabel } from '../../../utils/competitionFeeTiers';
 import FestOrganizerCompetitionQrModal from './FestOrganizerCompetitionQrModal';
 import { downloadCompetitionQrPng } from '../../../utils/competitionPublicQr';

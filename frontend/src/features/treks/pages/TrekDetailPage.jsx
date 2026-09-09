@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { ArrowLeft, Share2, Heart, ChevronRight, ChevronDown, Backpack } from 'lucide-react';
@@ -6,7 +6,7 @@ import { useDarkMode } from '../../../context/DarkModeContext';
 import { getImageUrl } from '../../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
 import { ScrollProgress, ScrollReveal } from '../../../motion';
-import { shareContent, openExternalUrl } from '../../../utils/externalLink';
+import { shareContent } from '../../../utils/externalLink';
 import { useInAppBack } from '../../../hooks/useInAppBack';
 import Seo from '../../../components/Seo';
 import LazyMap from '../../../components/LazyMap';
@@ -353,7 +353,7 @@ export default function TrekDetailPage() {
             });
 
         return () => controller.abort();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [id]);
 
     // Always clear to loader when switching treks (do not paint previous trek under loading=false)
@@ -419,7 +419,7 @@ export default function TrekDetailPage() {
                     onClick={() => (isRetryable ? navigate('/treks') : goBack())}
                     className="text-[#0ECCEE] text-sm font-semibold"
                 >
-                    {isNetwork ? 'Browse treks' : '← Go back'}
+                    {isRetryable ? 'Browse treks' : '← Go back'}
                 </button>
             </div>
         );

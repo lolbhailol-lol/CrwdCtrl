@@ -587,6 +587,8 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
                                             Current Location
                                         </h3>
                                         <button
+                                            type="button"
+                                            aria-label="Close location menu"
                                             onClick={() => setIsLocationDropdownOpen(false)}
                                             className={`p-1 rounded-lg transition-colors ${isDark
                                                 ? 'hover:bg-gray-700 text-gray-400'
@@ -668,6 +670,8 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
 
                     {/* Mobile Menu Button */}
                     <button
+                        type="button"
+                        aria-label={isMobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
                         onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                         className={`lg:hidden p-2 rounded-xl transition-all duration-200 ${isDark
                             ? 'text-gray-300 hover:text-[#007BFF] hover:bg-gray-800/60'
@@ -891,6 +895,8 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
                     {/* Notification Bell */}
                     <div className="relative" ref={notificationRef}>
                         <button
+                            type="button"
+                            aria-label="Notifications"
                             onClick={() => {
                                 const opening = !isNotificationOpen;
                                 if (opening) refreshNotifications();
@@ -1044,6 +1050,8 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
                     {/* User Profile Avatar */}
                     <div className="relative">
                         <button
+                            type="button"
+                            aria-label="Open profile"
                             onClick={() => {
                                 if (onOpenProfile) onOpenProfile();
                                 else setIsProfileOpen(true);

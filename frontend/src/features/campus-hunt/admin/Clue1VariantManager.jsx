@@ -114,7 +114,7 @@ function findVariant(variants, code, waveId, startingPointId) {
   )) || null;
 }
 
-function resolveFirstCheckpoint(checkpoints, {
+function _resolveFirstCheckpoint(checkpoints, {
   routeId,
   waveId,
   startingPointId,
@@ -241,7 +241,7 @@ export default function Clue1VariantManager({
   const [variants, setVariants] = useState([]);
   const [routes, setRoutes] = useState([]);
   const [points, setPoints] = useState([]);
-  const [checkpoints, setCheckpoints] = useState([]);
+  const [_checkpoints, setCheckpoints] = useState([]);
   const [packContent, setPackContent] = useState(() => (
     Object.fromEntries(
       buildCluePacks(campusStations, stationCount).map((pack) => [

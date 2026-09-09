@@ -39,7 +39,7 @@ import { faqSchema, itemListSchema, webPageSchema } from '../../utils/seo';
 import { HOME_FAQ } from '../../constants/faqs';
 import { mapEventShow } from '../../constants/eventsPage';
 import { getCoverImageUrl } from '../../utils/coverImages';
-import { API_BASE_URL, publicFetchJSONRetry as fetchJSON } from '../../services/api/client';
+import { API_BASE_URL } from '../../services/api/client';
 import { fetchCatalogJSON, invalidateCatalogCache } from '../../services/api/catalogCache';
 import { seedPublicConfigCache } from '../../services/api/config.api';
 import { usePublicConfig } from '../../hooks/usePublicConfig';
@@ -501,6 +501,7 @@ const Dashboard = () => {
     // if the aggregate is unavailable, so the home page can never be worse off.
     useEffect(() => {
         let cancelled = false;
+        const controller = new AbortController();
 
         // If an admin change is pending, drop the stale cache so we never paint
         // an old card order on this fresh load.
@@ -566,7 +567,8 @@ const Dashboard = () => {
             try {
                 const res = await fetchCatalogJSON('/home', {
                     timeout: baseTimeout,
-                    retries: 2,
+                    retries: 1,
+                    signal: controller.signal,
                 });
                 const d = res?.data;
                 if (!d || d.success !== true || !Array.isArray(d.fests)) return false;
@@ -613,12 +615,16 @@ const Dashboard = () => {
 
         // Fallback: original fests fetch with aggressive cold-start retries.
         const fetchFests = async () => {
-            const maxRetries = 4;
+            const maxRetries = 2;
             for (let attempt = 0; attempt < maxRetries; attempt++) {
                 if (cancelled) return;
                 try {
                     console.log(`Fetching fests (attempt ${attempt + 1}/${maxRetries})`);
-                    const response = await fetchCatalogJSON('/fests/all?priority_check=1', { timeout: baseTimeout, retries: 1 });
+                    const response = await fetchCatalogJSON('/fests/all?priority_check=1', {
+                        timeout: baseTimeout,
+                        retries: 0,
+                        signal: controller.signal,
+                    });
                     if (cancelled) return;
                     const data = response.data;
                     const festsList = Array.isArray(data?.fests) ? data.fests : Array.isArray(data) ? data : [];
@@ -656,13 +662,13 @@ const Dashboard = () => {
         // Fallback: original per-source secondary fetches.
         const runAuxFetches = () => {
             const auxFetches = [
-                fetchCatalogJSON('/trek-communities').then(res => {
+                fetchCatalogJSON('/trek-communities', { retries: 0, signal: controller.signal }).then(res => {
                     if (!cancelled) setHomeCommunities(Array.isArray(res?.data?.communities) ? res.data.communities : []);
                 }).catch(() => {}),
-                fetchCatalogJSON('/treks').then(res => {
+                fetchCatalogJSON('/treks', { retries: 0, signal: controller.signal }).then(res => {
                     if (!cancelled) setHomeTreks(Array.isArray(res?.data?.treks) ? res.data.treks : []);
                 }).catch(() => {}),
-                fetchCatalogJSON('/sports').then(res => {
+                fetchCatalogJSON('/sports', { retries: 0, signal: controller.signal }).then(res => {
                     const sports = Array.isArray(res?.data?.events) ? res.data.events : [];
                     if (!cancelled) setHomeSports((prev) => {
                         const map = new Map(prev.map((s) => [String(s._id || s.id), s]));
@@ -670,7 +676,7 @@ const Dashboard = () => {
                         return [...map.values()];
                     });
                 }).catch(() => {}),
-                fetchCatalogJSON('/sports?hub=events').then(res => {
+                fetchCatalogJSON('/sports?hub=events', { retries: 0, signal: controller.signal }).then(res => {
                     const sports = (Array.isArray(res?.data?.events) ? res.data.events : [])
                         .map((s) => ({ ...s, listingHub: 'events' }));
                     if (!cancelled) setHomeSports((prev) => {
@@ -679,7 +685,7 @@ const Dashboard = () => {
                         return [...map.values()];
                     });
                 }).catch(() => {}),
-                fetchCatalogJSON('/run-clubs').then(res => {
+                fetchCatalogJSON('/run-clubs', { retries: 0, signal: controller.signal }).then(res => {
                     const clubs = Array.isArray(res?.data?.clubs) ? res.data.clubs : [];
                     if (!cancelled) setHomeRunClubs((prev) => {
                         const map = new Map(prev.map((c) => [String(c._id || c.id), c]));
@@ -687,7 +693,7 @@ const Dashboard = () => {
                         return [...map.values()];
                     });
                 }).catch(() => {}),
-                fetchCatalogJSON('/run-clubs?hub=events').then(res => {
+                fetchCatalogJSON('/run-clubs?hub=events', { retries: 0, signal: controller.signal }).then(res => {
                     const clubs = Array.isArray(res?.data?.clubs) ? res.data.clubs : [];
                     if (!cancelled) setHomeRunClubs((prev) => {
                         const map = new Map(prev.map((c) => [String(c._id || c.id), c]));
@@ -695,7 +701,7 @@ const Dashboard = () => {
                         return [...map.values()];
                     });
                 }).catch(() => {}),
-                fetchCatalogJSON('/events').then(res => {
+                fetchCatalogJSON('/events', { retries: 0, signal: controller.signal }).then(res => {
                     if (!cancelled) setHomeEventShows(Array.isArray(res?.data?.shows) ? res.data.shows : []);
                 }).catch(() => {}),
             ];
@@ -711,7 +717,7 @@ const Dashboard = () => {
             fetchFests();
             runAuxFetches();
             // Aggregate carried section labels; fetch them separately on the fallback path.
-            fetchCatalogJSON('/home/section-labels').then(res => {
+            fetchCatalogJSON('/home/section-labels', { retries: 0, signal: controller.signal }).then(res => {
                 const l = res?.data?.labels;
                 if (!cancelled && l && typeof l === 'object') setSectionLabels(prev => ({ ...prev, ...l }));
             }).catch(() => {});
@@ -720,9 +726,13 @@ const Dashboard = () => {
         // Safety: never keep the skeleton forever if something hangs (allow cold starts).
         const auxSafety = window.setTimeout(() => {
             if (!cancelled) setHomeAuxLoaded(true);
-        }, 45000);
+        }, 20000);
 
-        return () => { cancelled = true; window.clearTimeout(auxSafety); };
+        return () => {
+            cancelled = true;
+            controller.abort();
+            window.clearTimeout(auxSafety);
+        };
     }, []);
 
     // Cache cleanup and management
@@ -1309,7 +1319,10 @@ const Dashboard = () => {
                                         <h3 className={`font-semibold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                             Current Location
                                         </h3>
-                                        <button onClick={() => setIsLocationDropdownOpen(false)}
+                                        <button
+                                            type="button"
+                                            aria-label="Close location menu"
+                                            onClick={() => setIsLocationDropdownOpen(false)}
                                             className={`p-1 rounded-lg transition-colors ${isDark ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}>
                                             <X className="w-4 h-4" />
                                         </button>
@@ -1369,6 +1382,7 @@ const Dashboard = () => {
 
             {/* Main content - shared mobile + desktop */}
             <main className="flex-1 pb-4">
+                <h1 className="sr-only">Discover college fests, clubs, treks, and events</h1>
                 {/* Hero  full chrome width on desktop (aligns with navbar Pune  profile) */}
                 {heroEvents.length > 0 && (
                     <HeroBanner

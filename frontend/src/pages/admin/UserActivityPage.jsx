@@ -97,11 +97,11 @@ function formatDuration(seconds) {
     return min > 0 ? `${h}h ${min}m` : `${h}h`;
 }
 
-function StatCard({ icon: Icon, label, value, sub }) {
+function StatCard({ icon: _Icon, label, value, sub }) {
     return (
         <div className="rounded-xl border border-white/8 bg-[#121316] p-4">
             <div className="flex items-center gap-2 text-gray-500 text-xs mb-2">
-                <Icon size={14} className="text-[#0ECCEE]" />
+                <_Icon size={14} className="text-[#0ECCEE]" />
                 {label}
             </div>
             <div className="text-2xl font-bold text-white">{value}</div>

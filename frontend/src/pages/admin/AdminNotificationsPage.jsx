@@ -1836,7 +1836,7 @@ export default function AdminNotificationsPage() {
                             : 'Plain announcement email (no event card)',
                           icon: Mail,
                         },
-                      ].map(({ key, label, desc, icon: Icon }) => (
+                      ].map(({ key, label, desc, icon: _Icon }) => (
                         <label
                           key={key}
                           className={`flex items-start gap-3 px-4 py-3 rounded-lg border cursor-pointer text-sm ${
@@ -1853,7 +1853,7 @@ export default function AdminNotificationsPage() {
                               setChannels((c) => ({ ...c, [key]: e.target.checked }))
                             }
                           />
-                          <Icon size={16} className="mt-0.5 shrink-0" />
+                          <_Icon size={16} className="mt-0.5 shrink-0" />
                           <span>
                             <span className="font-medium block">{label}</span>
                             <span className="text-xs text-gray-500">{desc}</span>

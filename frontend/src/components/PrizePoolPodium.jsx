@@ -16,7 +16,7 @@ function normalizeAmount(raw) {
   let amount = String(raw || '').trim();
   if (!amount) return '';
   // Drop trailing rank notes like "(1st)" already stripped elsewhere
-  amount = amount.replace(/\s*\/\-\s*$/i, '').trim();
+  amount = amount.replace(/\s*\/-\s*$/i, '').trim();
   amount = amount.replace(/^(?:rs\.?|inr)\s*/i, '').trim();
   // Keep existing currency symbol; otherwise add ₹ for numeric amounts
   if (/^[₹]/.test(amount)) return amount;
@@ -72,7 +72,7 @@ export function parsePrizePlace(line) {
 
   // Format: "1st Place: ₹5,000" / "1st Prize: 1500" / "1st: ₹5,000"
   const placeMatch = text.match(
-    /^(1st|2nd|3rd|first|second|third)\s*(?:place|prize)?\s*[:\-]?\s*(.+)$/i,
+    /^(1st|2nd|3rd|first|second|third)\s*(?:place|prize)?\s*[:-]?\s*(.+)$/i,
   );
   if (placeMatch) {
     const rank = rankFromKey(placeMatch[1]);
@@ -106,7 +106,7 @@ export function parsePrizePool(text) {
   // Inline scan when structured places weren't found
   if (!parsed.some((p) => p.kind === 'place')) {
     const inlinePlaceFirst = [...raw.matchAll(
-      /\b(1st|2nd|3rd|first|second|third)\b\s*(?:place|prize)?\s*[:\-]?\s*(₹[\d,.\s+kK]+|Rs\.?\s*[\d,.\s+]+|INR\s*[\d,.\s+]+|[\d,]+\+?(?:\s*\/\-)?)/gi,
+      /\b(1st|2nd|3rd|first|second|third)\b\s*(?:place|prize)?\s*[:-]?\s*(₹[\d,.\s+kK]+|Rs\.?\s*[\d,.\s+]+|INR\s*[\d,.\s+]+|[\d,]+\+?(?:\s*\/-)?)/gi,
     )];
     for (const m of inlinePlaceFirst) {
       const item = parsePrizePlace(`${m[1]} Place: ${m[2]}`);
@@ -114,7 +114,7 @@ export function parsePrizePool(text) {
     }
 
     const inlineAmountFirst = [...raw.matchAll(
-      /(₹?[\d,]+(?:\.\d+)?\+?(?:\s*\/\-)?)(?:\s*)\(\s*(1st|2nd|3rd|first|second|third)\b([^)]*)\)/gi,
+      /(₹?[\d,]+(?:\.\d+)?\+?(?:\s*\/-)?)(?:\s*)\(\s*(1st|2nd|3rd|first|second|third)\b([^)]*)\)/gi,
     )];
     for (const m of inlineAmountFirst) {
       const item = parsePrizePlace(`${m[1]} (${m[2]}${m[3] || ''})`);
@@ -124,7 +124,7 @@ export function parsePrizePool(text) {
 
   if (!parsed.some((p) => p.kind === 'total')) {
     const totalM = raw.match(
-      /(?:total(?:\s+prize)?\s*pool|worth)\s*[:\-]?\s*(₹[\d,.\s+kK]+|Rs\.?\s*[\d,.\s+]+|INR\s*[\d,.\s+]+|[\d,]+\+?)/i,
+      /(?:total(?:\s+prize)?\s*pool|worth)\s*[:-]?\s*(₹[\d,.\s+kK]+|Rs\.?\s*[\d,.\s+]+|INR\s*[\d,.\s+]+|[\d,]+\+?)/i,
     );
     if (totalM) {
       parsed.push({ kind: 'total', amount: normalizeAmount(totalM[1]), label: 'Total Pool' });
@@ -134,11 +134,11 @@ export function parsePrizePool(text) {
   // Bare pool amounts: "INR 1,50,000" / "₹1,50,000" / "Rs. 50000/-"
   if (!parsed.some((p) => p.kind === 'place' || p.kind === 'total')) {
     const bare = raw.match(
-      /^(?:rs\.?|inr)\s*([\d,]+(?:\.\d+)?\+?)\s*(?:\/\-)?$/i,
+      /^(?:rs\.?|inr)\s*([\d,]+(?:\.\d+)?\+?)\s*(?:\/-)?$/i,
     ) || raw.match(
-      /^₹\s*([\d,]+(?:\.\d+)?\+?)\s*(?:\/\-)?$/i,
+      /^₹\s*([\d,]+(?:\.\d+)?\+?)\s*(?:\/-)?$/i,
     ) || raw.match(
-      /^([\d,]+(?:\.\d+)?\+?)\s*(?:\/\-)?$/,
+      /^([\d,]+(?:\.\d+)?\+?)\s*(?:\/-)?$/,
     );
     if (bare) {
       parsed.push({

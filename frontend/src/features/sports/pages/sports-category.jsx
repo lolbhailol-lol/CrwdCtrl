@@ -457,6 +457,7 @@ export default function SportsCategoryPage() {
             />
 
             <main className="pb-8">
+                <h1 className="sr-only">Sports events and clubs</h1>
                 <AnnouncementBanner announcement={publicConfig.announcement} />
                 <div className="max-w-2xl lg:max-w-none mx-auto lg:mx-0">
                 {!loading && loadError && !hasSportsContent ? (

@@ -64,11 +64,11 @@ function ageFrom(dob) {
     return age >= 0 && age < 130 ? age : null;
 }
 
-function DetailItem({ icon: Icon, label, value }) {
+function DetailItem({ icon: _Icon, label, value }) {
     if (value === null || value === undefined || value === '') return null;
     return (
         <div className="flex flex-col gap-0.5">
-            <span className="text-gray-600 flex items-center gap-1"><Icon size={11} /> {label}</span>
+            <span className="text-gray-600 flex items-center gap-1"><_Icon size={11} /> {label}</span>
             <span className="text-gray-300 wrap-break-word">{value}</span>
         </div>
     );

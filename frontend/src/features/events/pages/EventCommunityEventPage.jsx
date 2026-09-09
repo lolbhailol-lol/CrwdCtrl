@@ -140,7 +140,7 @@ export default function EventCommunityEventPage() {
     const { token: authToken, isAuthenticated } = useAuth();
 
     const [event, setEvent] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const [_loading, setLoading] = useState(true);
     const [fetchingDetail, setFetchingDetail] = useState(true);
     const [loadError, setLoadError] = useState('');
     const [userRegistration, setUserRegistration] = useState(null);
@@ -285,7 +285,7 @@ export default function EventCommunityEventPage() {
             controller.abort();
         };
         // Route id only — auth changes must not wipe the page and spam the loader
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [id]);
 
     // Soft-refresh registration status after login without remounting the page
@@ -318,7 +318,7 @@ export default function EventCommunityEventPage() {
             })
             .catch(() => { /* keep current page */ });
         return () => controller.abort();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [isAuthenticated, authToken]);
 
     useEffect(() => {

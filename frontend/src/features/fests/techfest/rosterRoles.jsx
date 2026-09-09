@@ -115,7 +115,7 @@ export function TechfestRosterPersonStep({ personIndex, competition, formData, s
     if (needsNorm) {
       setFormData((prev) => ({ ...prev, team_size: chosen, team_members: next.slice(0, chosen) }));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [personIndex, chosen, allPersonFields.map((f) => f.key).join('|')]);
 
   if (personIndex < 0) return null;

@@ -52,7 +52,7 @@ function Segmented({ value, onChange, options }) {
     );
 }
 
-function ModeCard({ active, onClick, icon: Icon, title, hint, tone = 'cyan' }) {
+function ModeCard({ active, onClick, icon: _Icon, title, hint, tone = 'cyan' }) {
     const tones = {
         cyan: active
             ? 'border-[#0ECCEE]/40 bg-[#0ECCEE]/10'

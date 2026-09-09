@@ -281,18 +281,10 @@ export default function PlayerPlayScreen({
     }
   };
 
-  if (!team) {
-    return (
-      <div className="mx-auto max-w-lg animate-pulse px-4 pb-10 pt-8 text-white">
-        <div className="h-3 w-24 rounded bg-white/10" />
-        <div className="mt-3 h-7 w-40 rounded bg-white/15" />
-        <div className="mt-8 h-28 rounded-2xl border border-white/10 bg-white/[0.04]" />
-      </div>
-    );
-  }
-
-  const locked = team.currentStage === 'SCORE_LOCKED';
-  const atStartReport = !waitingForRelease && needsStartReport(team.currentStage) && !activeNum;
+  const locked = team?.currentStage === 'SCORE_LOCKED';
+  const atStartReport = Boolean(
+    team && !waitingForRelease && needsStartReport(team.currentStage) && !activeNum,
+  );
 
   const timerRevealAtStart = useMemo(() => {
     if (!atStartReport) return null;
@@ -302,6 +294,16 @@ export default function PlayerPlayScreen({
     }
     return null;
   }, [atStartReport, challenges]);
+
+  if (!team) {
+    return (
+      <div className="mx-auto max-w-lg animate-pulse px-4 pb-10 pt-8 text-white">
+        <div className="h-3 w-24 rounded bg-white/10" />
+        <div className="mt-3 h-7 w-40 rounded bg-white/15" />
+        <div className="mt-8 h-28 rounded-2xl border border-white/10 bg-white/[0.04]" />
+      </div>
+    );
+  }
 
   const checkpointTheme = themeForPlayerContext({
     stage: team.currentStage,

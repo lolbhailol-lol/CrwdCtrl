@@ -5,7 +5,7 @@ import {
     Trophy, IndianRupee, Info, ClipboardList, Mic2, Radio, Pencil, Tag,
 } from 'lucide-react';
 import { clearFestOrganizerSession, getFestOrganizerSession } from '../../../utils/festOrganizerSession';
-import { getFestPlugin } from '../plugins';
+import { getFestPlugin } from '../plugins/registry';
 
 const navForFest = (festId, { hideStallLeads = false, hideProShow = false } = {}) => [
     { label: 'Overview', path: `/fest-organizer/fests/${festId}`, icon: LayoutDashboard, end: true, short: 'Home', group: 'ops' },

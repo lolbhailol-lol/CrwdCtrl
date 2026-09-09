@@ -131,7 +131,7 @@ function challengeView(bundle, state, session, n, now) {
   };
 }
 
-function checkpointStatus(bundle, state, session, now) {
+function checkpointStatus(bundle, state, session, _now) {
   const key = pendingCheckpointKey(state.currentStage);
   if (!key) return null;
   const expected = checkpointForKey(bundle, key);

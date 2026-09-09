@@ -32,7 +32,7 @@ function cacheKey(path) {
  */
 export async function fetchCatalogJSON(path, options = {}) {
   // Default retries/timeout tuned for mobile + cold Railway starts
-  const { force = false, retries = 2, timeout } = options;
+  const { force = false, retries = 2, timeout, signal } = options;
   const key = cacheKey(path);
 
   if (!force) {
@@ -40,7 +40,9 @@ export async function fetchCatalogJSON(path, options = {}) {
     if (hit && Date.now() - hit.ts < TTL_MS) {
       return { data: hit.data, headers: hit.headers };
     }
-    if (inFlight.has(key)) {
+    // A caller-owned AbortSignal must not be coupled to another consumer's
+    // deduplicated request. Signal-bound requests therefore stay independent.
+    if (!signal && inFlight.has(key)) {
       return inFlight.get(key);
     }
   }
@@ -52,20 +54,21 @@ export async function fetchCatalogJSON(path, options = {}) {
   const promise = publicFetchJSONRetry(fetchPath, {
     retries,
     timeout,
+    signal,
     cacheBust: false,
     cacheControl: force,
   })
     .then((res) => {
       cache.set(key, { data: res.data, headers: res.headers, ts: Date.now() });
-      inFlight.delete(key);
+      if (!signal) inFlight.delete(key);
       return res;
     })
     .catch((err) => {
-      inFlight.delete(key);
+      if (!signal) inFlight.delete(key);
       throw err;
     });
 
-  inFlight.set(key, promise);
+  if (!signal) inFlight.set(key, promise);
   return promise;
 }
 

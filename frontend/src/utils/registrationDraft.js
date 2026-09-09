@@ -1,4 +1,4 @@
-import { mindsparkPlugin } from '../features/fests/plugins';
+import { mindsparkPlugin } from '../features/fests/plugins/mindsparkPlugin';
 
 const DRAFT_MAX_AGE_MS = 30 * 60 * 1000;
 

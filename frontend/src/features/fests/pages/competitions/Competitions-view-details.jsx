@@ -8,10 +8,9 @@ import { useAuth } from '../../../../context/AuthContext';
 import CalendarIcon from '../../../../assets/calendar.svg';
 import LocationIcon from '../../../../assets/location-.svg';
 import ShareIcon from '../../../../assets/share.svg';
-import { getImageUrl } from '../../../../utils/imageImports.js';
 import CrwdCtrlLogin from '../../../../pages/auth/login';
 import CrwdCtrlRegister from '../../../../pages/auth/register';
-import { publicFetchJSONRetry as fetchJSON, resolveUrl } from '../../../../services/api/client';
+import { publicFetchJSONRetry as fetchJSON } from '../../../../services/api/client';
 import Seo from '../../../../components/Seo';
 import { breadcrumbSchema, eventSchema } from '../../../../utils/seo';
 import { openExternalUrl, shareContent } from '../../../../utils/externalLink';
@@ -402,7 +401,7 @@ const roundHasDisplayableContent = (round) => {
     return !genericTitle && desc.length >= 20;
 };
 
-const buildCompetitionData = (compData, options = {}) => {
+const buildCompetitionData = (compData) => {
     if (!compData) return null;
 
     const roundsSource = Array.isArray(compData.rounds) ? compData.rounds : [];
@@ -708,7 +707,7 @@ function EventPage() {
             setHoldLoader(!pack);
         }
         return undefined;
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [competitionId, stateCompId, navToken]);
 
     // Keep centered 3D loader until min time + fetch (or seed) is ready
@@ -740,7 +739,7 @@ function EventPage() {
         }
 
         return () => window.clearTimeout(timer);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [holdLoader, fetchDone, competitionId, stateCompId, navToken]);
 
     // Deep-link Register from Explore cards (fallback when form mode unknown at tap time)
@@ -801,7 +800,7 @@ function EventPage() {
             },
         });
         return undefined;
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [fetchDone, holdLoader, competitionData?.id, location.state?.intent, navigate]);
 
     // Fetch competition data from backend API
@@ -896,7 +895,7 @@ function EventPage() {
         };
 
         fetchCompetitionData();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [competitionId, stateCompId, navToken, navigate]);
 
     // Keep tab index valid when empty placeholder rounds are filtered out
@@ -1255,7 +1254,7 @@ function EventPage() {
     };
 
     /** Full readable name under the tabs (not truncated like tab chips) */
-    const getRoundDisplayTitle = (round, idx, totalRounds = 0) => {
+    const getRoundDisplayTitle = (round, idx) => {
         const title = String(round?.title || '').trim();
         if (!title) return '';
         if (/^(offline|online)\s*rounds?$/i.test(title)) return '';
@@ -1848,11 +1847,6 @@ function EventPage() {
 
     const handleCloseRegister = () => {
         setShowRegister(false);
-    };
-
-    const handleSwitchToRegister = () => {
-        setShowLogin(false);
-        setShowRegister(true);
     };
 
     const handleSwitchToLogin = () => {
@@ -2504,5 +2498,4 @@ function EventPage() {
 }
 
 export default EventPage;
-
 

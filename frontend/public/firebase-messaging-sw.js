@@ -72,6 +72,5 @@ self.addEventListener('notificationclick', (event) => {
 // Silence unhandled SW errors that may include Firebase URLs with apiKey=
 self.addEventListener('error', (event) => {
   event.preventDefault();
-  // eslint-disable-next-line no-console
   console.error('[firebase-messaging-sw]', redact(event.message || 'error'));
 });

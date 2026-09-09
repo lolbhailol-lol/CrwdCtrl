@@ -433,7 +433,7 @@ export default function RunEventBookingPage() {
 
         return () => controller.abort();
         // Route id only — auth/token must not remount the booking loader after payment
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [id]);
 
     useDetailLoaderFailsafe(loadingEvent, () => {

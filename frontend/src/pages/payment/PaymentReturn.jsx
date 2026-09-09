@@ -36,7 +36,7 @@ import { finalizeCompetitionAfterPayment } from '../../utils/competitionPaymentC
 import { saveFestRegistrationSuccess } from '../../utils/registrationDraft';
 import { API_BASE_URL } from '../../services/api/client';
 import { resolveAuthToken, getBearerAuthHeaders } from '../../utils/authToken';
-import { mindsparkPlugin } from '../../features/fests/plugins';
+import { mindsparkPlugin } from '../../features/fests/plugins/mindsparkPlugin';
 import { festRegisterPath, parseFestRegisterPath } from '../../utils/slugRoutes';
 
 const RECOVERY_FEST_ID = mindsparkPlugin.recoveryFestId;

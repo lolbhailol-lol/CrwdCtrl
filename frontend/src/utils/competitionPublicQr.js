@@ -14,7 +14,7 @@ function escapeHtml(value) {
 
 function safeFileName(value, fallback = 'competition') {
     return String(value || fallback)
-        .replace(/[^\w\-]+/g, '_')
+        .replace(/[^\w-]+/g, '_')
         .replace(/_+/g, '_')
         .replace(/^_|_$/g, '')
         .slice(0, 60) || fallback;

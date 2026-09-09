@@ -92,7 +92,7 @@ export default function Seo({
     return () => {
       injected.forEach((el) => el.remove());
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [resolvedTitle, resolvedDescription, resolvedImage, canonical, type, noindex, keywords, jsonLdKey]);
 
   return null;

@@ -315,7 +315,7 @@ export default function CompetitionRegistration() {
         return () => { cancelled = true; };
     }, [competition, competitionId, token, loading, isAuthProcessing, fetchPaymentQuoteForRegistration]);
 
-    const completePayOnlyRegistration = useCallback(async (verifiedFields, submitToken) => {
+    const _completePayOnlyRegistration = useCallback(async (verifiedFields, submitToken) => {
         const resolvedId = competition?._id || competition?.id || competitionId;
         const regRes = await fetch(`${API_BASE_URL}/registrations/competitions/${resolvedId}/pay-and-register`, {
             method: 'POST',
@@ -448,7 +448,7 @@ export default function CompetitionRegistration() {
         draftKey,
     ]);
 
-    const clearCashfreeReturnParams = () => {
+    const _clearCashfreeReturnParams = () => {
         try {
             const params = new URLSearchParams(location.search);
             ['order_id', 'order_token', 'cf_payment_id', 'payment_id'].forEach((key) => params.delete(key));
@@ -1076,9 +1076,9 @@ export default function CompetitionRegistration() {
                             formData: getAllFormData(),
                             stepData,
                             currentStep,
-                            festId: fest?._id || competition?.fest?._id,
+                            festId: competition?.fest?._id || competition?.fest || competition?.festId || '',
                             competitionId: competition._id,
-                            couponCode: appliedCouponCode || '',
+                            couponCode: '',
                         },
                     }),
                 });
@@ -1187,7 +1187,6 @@ export default function CompetitionRegistration() {
                     
                     if (fileData && fileData.size > 0) {
                         submissionFormData.append(backendFieldName, fileData);
-                        const fileSizeInMB = (fileData.size / 1024 / 1024).toFixed(2);
                         totalFileSize += fileData.size;
                         fileCount++;
                     }
@@ -1232,7 +1231,6 @@ export default function CompetitionRegistration() {
 
 
             setSubmissionProgress('Submitting registration to server... (instant response)');
-            const startTime = Date.now();
 
             // ✅ MATCHING FEST FORM: Dynamic timeout based on file size
             const baseTimeout = 120000; // 120 seconds
@@ -1264,8 +1262,6 @@ export default function CompetitionRegistration() {
             });
 
             clearTimeout(timeoutId);
-            const submitTime = ((Date.now() - startTime) / 1000).toFixed(1);
-
             if (!response.ok) {
                 let errorMessage = 'Registration failed';
                 
@@ -1337,6 +1333,24 @@ export default function CompetitionRegistration() {
     };
 
     handleSubmitRef.current = handleSubmit;
+
+    const hasStoredSession = hasUsableAuthToken(token);
+    const waitingOnAuth = !hasStoredSession && (
+        authLoading || isAuthProcessing || isRedirectProcessing || (!!firebaseUser && !authSyncExpired)
+    );
+    const showChromeGate = inAppChrome
+        && !chromeGateDismissed
+        && !success
+        && !completingPayment
+        && (!hasStoredSession || payChromeGate);
+
+    useDetailLoaderFailsafe((loading || waitingOnAuth) && !success && !completingPayment && !showChromeGate, () => {
+        setLoading(false);
+    });
+
+    useEffect(() => {
+        if (!loading && !waitingOnAuth && (competition || success)) signalDetailPageReady();
+    }, [loading, waitingOnAuth, competition, success]);
 
     if (completingPayment && !success) {
         return (
@@ -1441,24 +1455,6 @@ export default function CompetitionRegistration() {
             </div>
         );
     }
-
-    const hasStoredSession = hasUsableAuthToken(token);
-    const waitingOnAuth = !hasStoredSession && (
-        authLoading || isAuthProcessing || isRedirectProcessing || (!!firebaseUser && !authSyncExpired)
-    );
-    const showChromeGate = inAppChrome
-        && !chromeGateDismissed
-        && !success
-        && !completingPayment
-        && (!hasStoredSession || payChromeGate);
-
-    useDetailLoaderFailsafe((loading || waitingOnAuth) && !success && !completingPayment && !showChromeGate, () => {
-        setLoading(false);
-    });
-
-    useEffect(() => {
-        if (!loading && !waitingOnAuth && (competition || success)) signalDetailPageReady();
-    }, [loading, waitingOnAuth, competition, success]);
 
     if (showChromeGate) {
         return (

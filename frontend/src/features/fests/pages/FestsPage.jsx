@@ -20,9 +20,6 @@ import { useInAppBack } from '../../../hooks/useInAppBack';
 import CardShareButton from '../../../components/CardShareButton';
 import { shareContent } from '../../../utils/externalLink';
 import { FestCardsRowSkeleton } from '../../../components/HomeEventCardSkeleton';
-import CulturalIcon from '../../../assets/mobile-icons/cul.svg';
-import TechIcon from '../../../assets/mobile-icons/techhh.svg';
-import SportsIcon from '../../../assets/mobile-icons/spor.svg';
 import { buildSearchKeywordsFromCatalog } from '../../../utils/buildSearchKeywords';
 import { navigateToSearchResult } from '../../../utils/searchNavigation';
 import { usePageContentLoading } from '../../../hooks/usePageContentLoading';
@@ -36,6 +33,10 @@ import { buildFestDetailNavState } from '../../../utils/detailPageCache';
 import { readFestsCache, writeFestsCache } from '../../../utils/festsSessionCache';
 import { usePublicConfig } from '../../../hooks/usePublicConfig';
 import AnnouncementBanner from '../../../components/AnnouncementBanner';
+
+const CulturalIcon = '/category-icons/cultural.webp';
+const TechIcon = '/category-icons/technology.webp';
+const SportsIcon = '/category-icons/sport-category.webp';
 
 const FESTS_DESCRIPTION =
     'Browse and register for college fests near you — cultural, technical and sports festivals. Find upcoming and ongoing fests, competitions and events on CrwdCtrl.';
@@ -334,6 +335,7 @@ export default function FestsPage() {
             />
 
             <main className="pb-8 lg:pb-12">
+                <h1 className="sr-only">College fests and competitions</h1>
                 <HeroBanner
                     events={[...ongoingFests, ...upcomingFests]
                         .filter(f => f.image || f.heroImage)

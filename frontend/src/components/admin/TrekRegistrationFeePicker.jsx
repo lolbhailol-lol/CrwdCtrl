@@ -11,7 +11,6 @@ export default function TrekRegistrationFeePicker({
     platformFeePercent = 3,
     onRegistrationFeeChange,
     onPlatformFeePercentChange,
-    maxPeoplePerBooking = 0,
     inputClassName = '',
 }) {
     const fee = Number(registrationFee) || 0;

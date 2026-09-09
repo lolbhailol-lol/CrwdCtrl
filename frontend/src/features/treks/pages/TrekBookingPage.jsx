@@ -130,7 +130,6 @@ export default function TrekBookingPage() {
     const {
         handleCloseLogin,
         handleCloseRegister,
-        handleSwitchToRegister,
         handleSwitchToLogin,
     } = createAuthModalHandlers({ setShowLogin, setShowRegister });
 

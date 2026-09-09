@@ -72,12 +72,12 @@ async function idbDelete(storeName, key) {
   });
 }
 
-function useSqlite() {
+function shouldUseSqlite() {
   return isNativeApp() && isSqliteAvailable();
 }
 
 async function storeGet(storeName, key) {
-  if (useSqlite()) {
+  if (shouldUseSqlite()) {
     try {
       return await sqliteGet(storeName, key);
     } catch {
@@ -88,7 +88,7 @@ async function storeGet(storeName, key) {
 }
 
 async function storeSet(storeName, key, value) {
-  if (useSqlite()) {
+  if (shouldUseSqlite()) {
     try {
       return await sqliteSet(storeName, key, value);
     } catch {
@@ -99,7 +99,7 @@ async function storeSet(storeName, key, value) {
 }
 
 async function storeDelete(storeName, key) {
-  if (useSqlite()) {
+  if (shouldUseSqlite()) {
     try {
       return await sqliteDelete(storeName, key);
     } catch {
@@ -181,7 +181,7 @@ export async function resetOfflineHuntLocal(teamCode) {
 }
 
 export async function appendOfflinePlayLog(entry) {
-  if (!useSqlite()) return;
+  if (!shouldUseSqlite()) return;
   try {
     await sqliteAppendPlayLog(entry);
   } catch {
@@ -190,7 +190,7 @@ export async function appendOfflinePlayLog(entry) {
 }
 
 export async function getOfflineStorageInfo() {
-  if (useSqlite()) {
+  if (shouldUseSqlite()) {
     try {
       return await sqliteStorageInfo();
     } catch {

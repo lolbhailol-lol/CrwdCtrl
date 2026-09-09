@@ -5,7 +5,7 @@ import { publicFetchJSON } from '../../services/api/client.js';
 import GalleryImagesUploadField from './GalleryImagesUploadField';
 import { normalizeImageList } from '../../utils/uploadUrls';
 import { excludeCoverUrlsFromGallery } from '../../utils/coverImages';
-import { getFestPlugin } from '../../features/fests/plugins';
+import { getFestPlugin } from '../../features/fests/plugins/registry';
 
 // Individual Form Field Component to prevent state sharing
 const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpdateOption, onRemoveOption }) => {

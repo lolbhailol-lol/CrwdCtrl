@@ -92,9 +92,11 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff2,webmanifest}'],
+        // SVG/PNG content is handled by the runtime image cache. Keeping it out of
+        // precache avoids forcing a multi-megabyte download during first install.
+        globPatterns: ['**/*.{js,css,html,ico,webp,woff2,webmanifest}'],
         globIgnores: ['**/firebase-messaging-sw.js'],
-        maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         cacheId: 'crwdctrl-v12',
         cleanupOutdatedCaches: true,
         clientsClaim: true,
@@ -177,6 +179,7 @@ export default defineConfig(({ mode }) => ({
     // Rollup options for better optimization
     rollupOptions: {
       output: {
+        onlyExplicitManualChunks: true,
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined;
 

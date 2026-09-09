@@ -11,9 +11,9 @@ import { buildPageCarouselItems } from '../../utils/homeCarouselItems';
 import { getCardSizeProps, getCardSizeShortLabel } from '../../utils/homeCardSize';
 import { mapHomeCarouselDisplayItems } from '../../utils/mapHomeCarouselDisplayItems';
 import { TARGET_PAGE_OPTIONS } from '../../utils/pageSections';
-import CulturalIcon from '../../assets/mobile-icons/cul.svg';
-import TechIcon from '../../assets/mobile-icons/techhh.svg';
-import SportsIcon from '../../assets/mobile-icons/spor.svg';
+const CulturalIcon = '/category-icons/cultural.webp';
+const TechIcon = '/category-icons/technology.webp';
+const SportsIcon = '/category-icons/sport-category.webp';
 
 const MAX_FRAME_WIDTH = 300;
 

@@ -18,11 +18,10 @@ import {
 } from '../../../services/api/festOrganizer.api';
 import { useDialog } from '../../../context/DialogContext';
 import { getImageUrl } from '../../../utils/imageImports';
-import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
 import FestOrganizerManualAddModal from './FestOrganizerManualAddModal';
 import OrganizerTeamRoster, { OrganizerRosterPreview } from './OrganizerTeamRoster';
 import WhatsAppGroupToggle from './WhatsAppGroupToggle';
-import { getFestPlugin } from '../plugins';
+import { getFestPlugin } from '../plugins/registry';
 import CompetitionFeeTiersEditor from '../../../components/admin/CompetitionFeeTiersEditor';
 import {
     getCompetitionFeeTiers,
@@ -777,7 +776,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
         if (!p?.id) return;
         setBusyId(`${p.id}:wa`);
         try {
-            const data = await updateFestOrganizerParticipantWhatsappGroup(festId, p.id, joined);
+            await updateFestOrganizerParticipantWhatsappGroup(festId, p.id, joined);
             toast(joined ? 'In WA' : 'Cleared');
             await load();
         } catch (e) {
@@ -890,7 +889,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
         if (!ids?.length) return;
         setBusyId('bulk-approve');
         try {
-            const res = await bulkUpdateFestOrganizerParticipantStatus(festId, ids, 'approved');
+            await bulkUpdateFestOrganizerParticipantStatus(festId, ids, 'approved');
             toast('Approved');
             await load();
         } catch (e) {
@@ -904,7 +903,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
         if (!ids?.length) return;
         setBusyId('bulk-reject');
         try {
-            const res = await bulkUpdateFestOrganizerParticipantStatus(festId, ids, 'rejected');
+            await bulkUpdateFestOrganizerParticipantStatus(festId, ids, 'rejected');
             toast('Rejected');
             await load();
         } catch (e) {
@@ -921,7 +920,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
         }
         setBulkBusy(true);
         try {
-            const res = await bulkUpdateFestOrganizerParticipantStatus(festId, ids, 'approved');
+            await bulkUpdateFestOrganizerParticipantStatus(festId, ids, 'approved');
             toast('Approved');
             await load();
         } catch (e) {
