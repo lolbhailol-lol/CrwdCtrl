@@ -4,6 +4,7 @@ const EventShow = require('../model/event_show_model');
 const EventShowManagerProfileInvite = require('../model/event_show_manager_profile_invite_model');
 const { normalizeUsername } = require('../utils/normalizeUsername');
 const { sendEventOrganizerApprovalEmail } = require('../services/emailService');
+const { getCanonicalSiteUrl } = require('../utils/siteUrl');
 
 function serializeOrganizer(org) {
     const plain = typeof org.toObject === 'function' ? org.toObject() : { ...org };
@@ -109,7 +110,7 @@ exports.createOrganizer = async (req, res) => {
                     .select('title displayName')
                     .lean();
                 const eventTitles = assigned.map((e) => e.displayName || e.title || '').filter(Boolean);
-                const loginUrl = `${String(process.env.FRONTEND_URL || 'https://crwdctrl.in').replace(/\/$/, '')}/event-organizer/login`;
+                const loginUrl = `${getCanonicalSiteUrl()}/event-organizer/login`;
                 const mailResult = await sendEventOrganizerApprovalEmail({
                     toEmail: email,
                     organizerName: name,
@@ -225,7 +226,7 @@ exports.approveOrganizer = async (req, res) => {
                     .select('title displayName')
                     .lean();
                 const eventTitles = assigned.map((e) => e.displayName || e.title || '').filter(Boolean);
-                const loginUrl = `${String(process.env.FRONTEND_URL || 'https://crwdctrl.in').replace(/\/$/, '')}/event-organizer/login`;
+                const loginUrl = `${getCanonicalSiteUrl()}/event-organizer/login`;
                 const mailResult = await sendEventOrganizerApprovalEmail({
                     toEmail: organizer.email,
                     organizerName: organizer.name || '',

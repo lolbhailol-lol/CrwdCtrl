@@ -20,6 +20,11 @@
 		format json
 	}
 
+	# Apex is often attached to the API and 404s (Railway train page).
+	# Always send browsers to www, where the SPA + organizer login live.
+	@apex host crwdctrl.in
+	redir @apex https://www.crwdctrl.in{uri} 308
+
 	header {
 		X-Content-Type-Options "nosniff"
 		-Server

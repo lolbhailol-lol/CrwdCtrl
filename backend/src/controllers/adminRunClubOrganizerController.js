@@ -8,7 +8,9 @@ const {
     sendCommunityOrganizerProfileInviteEmail,
 } = require('../services/emailService');
 
-const SITE = () => String(process.env.FRONTEND_URL || 'https://crwdctrl.in').replace(/\/$/, '');
+const { getCanonicalSiteUrl } = require('../utils/siteUrl');
+
+const SITE = () => getCanonicalSiteUrl();
 
 function organizerPortalUrls(listingHub) {
     const isEvents = listingHub === 'events';

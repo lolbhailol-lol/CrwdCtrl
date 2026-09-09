@@ -2,6 +2,13 @@ const { logger } = require('../utils/logger');
 const { captureException } = require('../config/sentry');
 
 function notFoundHandler(req, res) {
+  const accept = String(req.get('accept') || '');
+  const wantsHtml = req.method === 'GET' && accept.includes('text/html');
+  const path = String(req.path || '');
+  if (wantsHtml && !path.startsWith('/api')) {
+    const dest = `https://www.crwdctrl.in${req.originalUrl || path || '/'}`;
+    return res.redirect(302, dest);
+  }
   res.status(404).json({
     success: false,
     message: 'Route not found',

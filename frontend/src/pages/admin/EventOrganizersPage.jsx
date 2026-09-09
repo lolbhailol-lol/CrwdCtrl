@@ -4,6 +4,7 @@ import { CalendarDays, Plus, Pencil, Trash2, Search, Check, X, Users2 } from 'lu
 import { DetailLoader3DIcon } from '../../components/DetailPageLoader';
 import { adminFetchJSON } from '../../services/api/admin.api.js';
 import { useDialog } from '../../context/DialogContext';
+import { SITE_URL } from '../../utils/seo';
 
 const emptyForm = {
     name: '',
@@ -48,12 +49,8 @@ export default function EventOrganizersPage() {
     const [inviteNote, setInviteNote] = useState('');
     const [inviteSaving, setInviteSaving] = useState(false);
 
-    const loginUrl = typeof window !== 'undefined'
-        ? `${window.location.origin}/event-organizer/login`
-        : '/event-organizer/login';
-    const signupUrl = typeof window !== 'undefined'
-        ? `${window.location.origin}/event-organizer/signup`
-        : '/event-organizer/signup';
+    const loginUrl = `${SITE_URL}/event-organizer/login`;
+    const signupUrl = `${SITE_URL}/event-organizer/signup`;
 
     const load = async () => {
         setLoading(true);

@@ -4,6 +4,7 @@ import { DetailLoader3DIcon } from '../../components/DetailPageLoader';
 import { adminFetchJSON } from '../../services/api/admin.api.js';
 import { useDialog } from '../../context/DialogContext';
 import { COMMUNITY_ORGANIZER_HUB_COPY } from '../../constants/communityOrganizersAdmin.js';
+import { SITE_URL } from '../../utils/seo';
 
 const emptyForm = {
     name: '',
@@ -50,12 +51,8 @@ export function CommunityOrganizersAdminPage({ hub = 'sports' }) {
     const [inviteNote, setInviteNote] = useState('');
     const [inviteSaving, setInviteSaving] = useState(false);
 
-    const organizerLoginUrl = typeof window !== 'undefined'
-        ? `${window.location.origin}${copy.signupLoginPath}`
-        : copy.signupLoginPath;
-    const organizerSignupUrl = typeof window !== 'undefined'
-        ? `${window.location.origin}${copy.signupPath}`
-        : copy.signupPath;
+    const organizerLoginUrl = `${SITE_URL}${copy.signupLoginPath}`;
+    const organizerSignupUrl = `${SITE_URL}${copy.signupPath}`;
 
     const hubQuery = `hub=${hub}`;
 

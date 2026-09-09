@@ -149,6 +149,12 @@
   ],
   "redirects": [
     {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "crwdctrl.in" }],
+      "destination": "https://www.crwdctrl.in/:path*",
+      "permanent": true
+    },
+    {
       "source": "/run-club-organizer/login",
       "has": [{ "type": "query", "key": "hub", "value": "events" }],
       "destination": "/event-community-organizer/login",

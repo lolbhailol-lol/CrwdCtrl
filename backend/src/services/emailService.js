@@ -73,7 +73,8 @@ const getDefaultFrom = () => {
     return 'CrwdCtrl <onboarding@crwdctrl.in>';
 };
 
-const getSiteUrl = () => (process.env.FRONTEND_URL || 'https://crwdctrl.in').replace(/\/$/, '');
+const { getCanonicalSiteUrl } = require('../utils/siteUrl');
+const getSiteUrl = () => getCanonicalSiteUrl();
 
 function escapeHtml(value) {
     return String(value ?? '')
