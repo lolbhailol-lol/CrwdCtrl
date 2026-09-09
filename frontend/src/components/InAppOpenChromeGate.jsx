@@ -2,16 +2,21 @@ import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ExternalLink } from 'lucide-react';
 import {
+    copyPageLink,
     detectInAppBrowserName,
+    getExternalBrowserHandoffHref,
+    getExternalBrowserTargetUrl,
+    isIosDevice,
     isLikelyInAppBrowser,
     openInExternalBrowser,
-    copyPageLink,
-    getExternalBrowserTargetUrl,
 } from '../utils/openInExternalBrowser';
+
+const TAP_BTN =
+    'relative z-10 pointer-events-auto touch-manipulation select-none [-webkit-tap-highlight-color:rgba(14,204,238,0.35)]';
 
 /**
  * Full-screen Instagram / in-app browser gate.
- * Google login + UPI payment cannot work inside Instagram — guide to Safari/Chrome.
+ * Google login + UPI payment cannot work inside Instagram — open Safari/Chrome.
  */
 export default function InAppOpenChromeGate({
     open,
@@ -27,38 +32,42 @@ export default function InAppOpenChromeGate({
     if (!isLikelyInAppBrowser()) return null;
 
     const appName = detectInAppBrowserName();
-    const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/i.test(navigator.userAgent);
+    const isIOS = isIosDevice();
     const browserName = isIOS ? 'Safari' : 'Chrome';
-    const url = getExternalBrowserTargetUrl(
+    const httpsUrl = getExternalBrowserTargetUrl(
         pageUrl || (typeof window !== 'undefined' ? window.location.href : ''),
     );
+    const handoffHref = getExternalBrowserHandoffHref(httpsUrl);
 
-    const handleOpen = async () => {
-        const result = openInExternalBrowser(url);
-        if (result.ok) return;
-        const copy = await copyPageLink(url);
-        if (copy.ok) {
-            setCopied(true);
-            window.setTimeout(() => setCopied(false), 2500);
-        }
+    const markCopied = () => {
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 2500);
     };
 
-    const handleCopy = async () => {
-        const copy = await copyPageLink(url);
-        if (copy.ok) {
-            setCopied(true);
-            window.setTimeout(() => setCopied(false), 2500);
+    const handleOpen = (event) => {
+        if (isIOS) {
+            openInExternalBrowser(httpsUrl);
+            return;
         }
+        event?.preventDefault?.();
+        openInExternalBrowser(httpsUrl);
+    };
+
+    const handleCopy = async (event) => {
+        event?.preventDefault?.();
+        event?.stopPropagation?.();
+        const copy = await copyPageLink(httpsUrl);
+        if (copy.ok) markCopied();
     };
 
     return createPortal(
-        <div className="fixed inset-0 z-[100080] flex items-end sm:items-center justify-center">
-            <div className="absolute inset-0 bg-black/75" aria-hidden />
+        <div className="fixed inset-0 z-[2147483000] flex items-end sm:items-center justify-center pointer-events-auto">
+            <div className="absolute inset-0 bg-black/80 pointer-events-none" aria-hidden />
             <div
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="inapp-chrome-title"
-                className={`relative w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl px-5 pt-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-2xl ${
+                className={`relative z-10 w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl px-5 pt-6 pb-[max(1.75rem,env(safe-area-inset-bottom))] shadow-2xl pointer-events-auto ${
                     isDark ? 'bg-[#111213] text-white' : 'bg-white text-gray-900'
                 }`}
             >
@@ -78,56 +87,44 @@ export default function InAppOpenChromeGate({
                         ? 'border-amber-400/30 bg-amber-500/10 text-amber-50'
                         : 'border-amber-200 bg-amber-50 text-amber-950'
                 }`}>
+                    Google sign-in and UPI do <strong>not</strong> work inside {appName}.
+                    Tap <strong>Open in {browserName}</strong> below — this same page opens there.
                     {isIOS ? (
                         <>
-                            Google sign-in and UPI payment do <strong>not</strong> work inside {appName}.
-                            Tap <strong>⋯</strong> (top right) → <strong>Open in {browserName}</strong>, then {actionLabel}.
+                            {' '}If Safari does not open, tap <strong>⋯</strong> (top right) → <strong>Open in Safari</strong>.
                         </>
-                    ) : (
-                        <>
-                            Google sign-in and UPI payment do <strong>not</strong> work inside {appName}.
-                            Tap the button below — this same page opens in {browserName} so you can {actionLabel}.
-                        </>
-                    )}
+                    ) : null}
                 </div>
 
-                {isIOS ? (
-                    <button
-                        type="button"
-                        onClick={handleCopy}
-                        className="mt-5 w-full min-h-14 rounded-2xl bg-[#0ECCEE] text-black text-base font-extrabold tracking-wide flex items-center justify-center gap-2 hover:opacity-90 active:scale-[0.99]"
-                    >
-                        {copied ? 'Link copied — paste in Safari' : `Copy link for ${browserName}`}
-                    </button>
-                ) : (
-                    <button
-                        type="button"
-                        onClick={handleOpen}
-                        className="mt-5 w-full min-h-14 rounded-2xl bg-[#0ECCEE] text-black text-base font-extrabold tracking-wide flex items-center justify-center gap-2 hover:opacity-90 active:scale-[0.99]"
-                    >
-                        <ExternalLink size={20} strokeWidth={2.5} />
-                        OPEN IN {browserName.toUpperCase()}
-                    </button>
-                )}
+                <a
+                    href={handoffHref}
+                    target={isIOS ? undefined : '_blank'}
+                    rel="noopener noreferrer"
+                    onClick={handleOpen}
+                    className={`${TAP_BTN} mt-5 w-full min-h-16 rounded-2xl bg-[#0ECCEE] text-black text-lg font-extrabold tracking-wide flex items-center justify-center gap-2 active:scale-[0.99]`}
+                >
+                    <ExternalLink size={22} strokeWidth={2.5} />
+                    OPEN IN {browserName.toUpperCase()}
+                </a>
 
-                {isIOS ? (
-                    <button
-                        type="button"
-                        onClick={handleOpen}
-                        className={`mt-3 w-full text-center text-xs font-medium py-2 ${
-                            isDark ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'
-                        }`}
-                    >
-                        Or try opening {browserName} directly
-                    </button>
-                ) : null}
+                <button
+                    type="button"
+                    onClick={handleCopy}
+                    className={`${TAP_BTN} mt-3 w-full min-h-14 rounded-2xl border text-base font-bold ${
+                        isDark
+                            ? 'border-white/20 bg-white/8 text-white'
+                            : 'border-gray-200 bg-gray-50 text-gray-900'
+                    }`}
+                >
+                    {copied ? 'Copied — paste in Safari' : 'Copy link'}
+                </button>
 
                 {typeof onDismiss === 'function' ? (
                     <button
                         type="button"
                         onClick={onDismiss}
-                        className={`mt-1 w-full text-center text-xs font-medium py-2 ${
-                            isDark ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'
+                        className={`${TAP_BTN} mt-3 w-full min-h-12 rounded-xl text-sm font-semibold ${
+                            isDark ? 'text-gray-300 bg-white/5' : 'text-gray-600 bg-gray-100'
                         }`}
                     >
                         Not now

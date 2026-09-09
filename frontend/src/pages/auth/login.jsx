@@ -17,8 +17,10 @@ import OpenInBrowserModal from '../../components/OpenInBrowserModal';
 import {
     detectInAppBrowserName,
     isLikelyInAppBrowser,
+    isIosDevice,
     openInExternalBrowser,
     getExternalBrowserTargetUrl,
+    getExternalBrowserHandoffHref,
     copyPageLink,
 } from '../../utils/openInExternalBrowser';
 
@@ -57,7 +59,7 @@ export default function CrwdCtrlLogin({
     const goBack = useInAppBack('/');
     const location = useLocation();
     const reduceMotion = useReducedMotion();
-    const isIOSDevice = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/i.test(navigator.userAgent);
+    const isIOSDevice = isIosDevice();
     const isAndroidDevice = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
     const preferredBrowserName = isIOSDevice ? 'Safari' : 'Chrome';
     const handoffGoal = /register/i.test(title)
@@ -77,18 +79,27 @@ export default function CrwdCtrlLogin({
         setInAppBrowserBlocked(true);
     }, []);
 
-    const handoffToExternalBrowser = async () => {
+    const handoffToExternalBrowser = async (event) => {
         const url = getExternalBrowserTargetUrl(window.location.href);
         try {
             sessionStorage.setItem('auth_redirect_url', url);
         } catch {
             /* ignore */
         }
+        if (isIOSDevice && event?.currentTarget?.tagName === 'A') {
+            openInExternalBrowser(url);
+            return;
+        }
+        event?.preventDefault?.();
         const result = openInExternalBrowser(url);
         if (!result.ok && isIOSDevice) {
             await copyPageLink(url);
         }
     };
+
+    const safariHandoffHref = typeof window !== 'undefined'
+        ? getExternalBrowserHandoffHref(window.location.href)
+        : 'https://www.crwdctrl.in';
 
     // Determine if this is being used as a modal or a page
     const isModal = !!onClose;
@@ -447,8 +458,8 @@ export default function CrwdCtrlLogin({
                                         {isIOSDevice ? (
                                             <>
                                                 Google sign-in is blocked in {inAppBrowserName}. Tap{' '}
-                                                <strong>⋯</strong> (top right) → <strong>Open in {preferredBrowserName}</strong>,
-                                                then {handoffGoal}.
+                                                <strong>Open in {preferredBrowserName}</strong> below.
+                                                If Safari does not open, tap <strong>⋯</strong> → <strong>Open in Safari</strong>.
                                             </>
                                         ) : (
                                             <>
@@ -457,14 +468,14 @@ export default function CrwdCtrlLogin({
                                             </>
                                         )}
                                     </div>
-                                    <button
-                                        type="button"
+                                    <a
+                                        href={safariHandoffHref}
                                         onClick={handoffToExternalBrowser}
-                                        className="w-full min-h-12 flex items-center justify-center gap-2 rounded-2xl bg-[#0ECCEE] text-black font-extrabold text-sm tracking-wide hover:opacity-90"
+                                        className="w-full min-h-14 flex items-center justify-center gap-2 rounded-2xl bg-[#0ECCEE] text-black font-extrabold text-sm tracking-wide hover:opacity-90 pointer-events-auto touch-manipulation"
                                     >
                                         <ExternalLink size={18} />
                                         OPEN IN {preferredBrowserName.toUpperCase()}
-                                    </button>
+                                    </a>
                                     <p className={`pt-1 text-center text-[11px] ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
                                         {isAndroidDevice
                                             ? `Same ${handoffGoal} page opens in Chrome`
@@ -750,14 +761,14 @@ export default function CrwdCtrlLogin({
                                 }`}>
                                     Google login is blocked in {inAppBrowserName}. Open {preferredBrowserName} to continue.
                                 </div>
-                                <button
-                                    type="button"
-                                    onClick={() => openInExternalBrowser(window.location.href)}
-                                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg font-semibold text-sm bg-[#0ECCEE] text-black hover:opacity-90"
+                                <a
+                                    href={safariHandoffHref}
+                                    onClick={handoffToExternalBrowser}
+                                    className="w-full min-h-12 flex items-center justify-center gap-2 py-2.5 rounded-lg font-semibold text-sm bg-[#0ECCEE] text-black hover:opacity-90 pointer-events-auto touch-manipulation"
                                 >
                                     <ExternalLink size={18} />
                                     Open in {preferredBrowserName}
-                                </button>
+                                </a>
                             </>
                         ) : null}
                         {/* Google */}

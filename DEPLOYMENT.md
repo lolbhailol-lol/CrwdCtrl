@@ -1,7 +1,7 @@
 # CrwdCtrl — Deployment Guide
 
-**Last updated:** June 9, 2026  
-**Covers:** Web (Vercel + Railway), Android (Capacitor), verification, and launch checklist.
+**Last updated:** September 9, 2026  
+**Covers:** Web (Railway frontend + Railway API), Android (Capacitor), verification, and launch checklist.
 
 ---
 
@@ -9,7 +9,7 @@
 
 | Layer | Platform | URL / ID |
 |-------|----------|----------|
-| Frontend (web) | Vercel | https://www.crwdctrl.in |
+| Frontend (web) | Railway (Caddy + `frontend/`) | https://www.crwdctrl.in · https://crwdctrl.in |
 | Frontend (Android) | Capacitor | `in.crwdctrl.app` |
 | Backend API | Railway | https://crwdctrl-production-9c58.up.railway.app |
 | Database | MongoDB Atlas | via `MONGODB_URI` |
@@ -89,14 +89,15 @@ CORS_EXTRA_ORIGINS=            # preview URLs if needed
 
 ---
 
-## 2. Frontend web deployment (Vercel)
+## 2. Frontend web deployment (Railway)
 
-### Environment variables (Vercel dashboard)
+The public site is **not** Vercel. Google Search and phones hit the Railway frontend service (`rootDirectory: /frontend`, `railway.toml` + `Caddyfile`). Caddy serves `dist/` and proxies `/api` to the backend.
 
-Set in **Project → Settings → Environment Variables** (not only `vercel.json`):
+### Environment variables (Railway frontend service)
 
 ```env
 VITE_API_BASE_URL=https://crwdctrl-production-9c58.up.railway.app/api
+API_UPSTREAM=https://crwdctrl-production-9c58.up.railway.app
 VITE_CASHFREE_MODE=production
 VITE_APP_ENVIRONMENT=production
 VITE_SENTRY_DSN=                 # optional
@@ -106,18 +107,18 @@ VITE_FIREBASE_VAPID_KEY=
 
 ### Deploy steps
 
-1. Connect GitHub repo to Vercel.
+1. Push to `master` (Railway auto-deploys the frontend service from GitHub).
 2. Root directory: `frontend`
-3. Build command: `npm run build`
-4. Output: `dist`
-5. Deploy and verify:
+3. Builder: Railpack (Vite SPA + Caddy)
+4. Verify:
    - https://www.crwdctrl.in loads
    - Login / fest browse works
    - `/privacy-policy` accessible (Play Store requirement)
+   - `/api/health` via the same host (Caddy proxy) returns 200
 
 ### SPA routing
 
-`vercel.json` rewrites all paths to `index.html` — required for React Router.
+`frontend/Caddyfile` `try_files` sends unknown paths to `/index.html`. Do not send `/assets/*.js` or `/api` through that catch-all.
 
 ---
 
