@@ -86,15 +86,12 @@ export default function CrwdCtrlLogin({
         } catch {
             /* ignore */
         }
-        if (isIOSDevice && event?.currentTarget?.tagName === 'A') {
-            openInExternalBrowser(url);
-            return;
-        }
+        copyPageLink(url);
+        // iOS: let the native <a href="instagram://extbrowser"> tap through.
+        // JS location.assign is blocked by Instagram and cancels the handoff.
+        if (isIOSDevice) return;
         event?.preventDefault?.();
-        const result = openInExternalBrowser(url);
-        if (!result.ok && isIOSDevice) {
-            await copyPageLink(url);
-        }
+        openInExternalBrowser(url);
     };
 
     const safariHandoffHref = typeof window !== 'undefined'

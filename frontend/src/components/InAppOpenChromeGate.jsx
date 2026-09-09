@@ -8,7 +8,6 @@ import {
     getExternalBrowserTargetUrl,
     isIosDevice,
     isLikelyInAppBrowser,
-    openInExternalBrowser,
 } from '../utils/openInExternalBrowser';
 
 const TAP_BTN =
@@ -16,7 +15,8 @@ const TAP_BTN =
 
 /**
  * Full-screen Instagram / in-app browser gate.
- * Google login + UPI payment cannot work inside Instagram — open Safari/Chrome.
+ * Instagram iOS: native <a href="instagram://extbrowser"> — do not JS-redirect
+ * (x-safari-https is blocked and location.assign cancels the tap).
  */
 export default function InAppOpenChromeGate({
     open,
@@ -33,6 +33,7 @@ export default function InAppOpenChromeGate({
 
     const appName = detectInAppBrowserName();
     const isIOS = isIosDevice();
+    const isInstagramIos = isIOS && appName === 'Instagram';
     const browserName = isIOS ? 'Safari' : 'Chrome';
     const httpsUrl = getExternalBrowserTargetUrl(
         pageUrl || (typeof window !== 'undefined' ? window.location.href : ''),
@@ -42,15 +43,6 @@ export default function InAppOpenChromeGate({
     const markCopied = () => {
         setCopied(true);
         window.setTimeout(() => setCopied(false), 2500);
-    };
-
-    const handleOpen = (event) => {
-        if (isIOS) {
-            openInExternalBrowser(httpsUrl);
-            return;
-        }
-        event?.preventDefault?.();
-        openInExternalBrowser(httpsUrl);
     };
 
     const handleCopy = async (event) => {
@@ -82,25 +74,32 @@ export default function InAppOpenChromeGate({
                         {eventName}
                     </p>
                 ) : null}
-                <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm leading-relaxed ${
-                    isDark
-                        ? 'border-amber-400/30 bg-amber-500/10 text-amber-50'
-                        : 'border-amber-200 bg-amber-50 text-amber-950'
-                }`}>
-                    Google sign-in and UPI do <strong>not</strong> work inside {appName}.
-                    Tap <strong>Open in {browserName}</strong> below — this same page opens there.
-                    {isIOS ? (
-                        <>
-                            {' '}If Safari does not open, tap <strong>⋯</strong> (top right) → <strong>Open in Safari</strong>.
-                        </>
-                    ) : null}
-                </div>
+
+                {isInstagramIos ? (
+                    <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm leading-relaxed ${
+                        isDark
+                            ? 'border-amber-400/30 bg-amber-500/10 text-amber-50'
+                            : 'border-amber-200 bg-amber-50 text-amber-950'
+                    }`}>
+                        iPhone does not allow Instagram to auto-open Safari.
+                        Tap <strong>OPEN IN SAFARI</strong> below.
+                        If nothing happens: tap <strong>⋯</strong> (top right) → <strong>Open in Safari</strong>.
+                    </div>
+                ) : (
+                    <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm leading-relaxed ${
+                        isDark
+                            ? 'border-amber-400/30 bg-amber-500/10 text-amber-50'
+                            : 'border-amber-200 bg-amber-50 text-amber-950'
+                    }`}>
+                        Google sign-in and UPI do <strong>not</strong> work inside {appName}.
+                        Tap <strong>Open in {browserName}</strong> — this same page opens there.
+                    </div>
+                )}
 
                 <a
                     href={handoffHref}
-                    target={isIOS ? undefined : '_blank'}
                     rel="noopener noreferrer"
-                    onClick={handleOpen}
+                    onClick={() => { copyPageLink(httpsUrl); }}
                     className={`${TAP_BTN} mt-5 w-full min-h-16 rounded-2xl bg-[#0ECCEE] text-black text-lg font-extrabold tracking-wide flex items-center justify-center gap-2 active:scale-[0.99]`}
                 >
                     <ExternalLink size={22} strokeWidth={2.5} />

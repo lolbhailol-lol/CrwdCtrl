@@ -2,6 +2,7 @@
 
 export function detectInAppBrowserName(ua = typeof navigator !== 'undefined' ? navigator.userAgent : '') {
     const s = String(ua || '');
+    if (/Barcelona/i.test(s)) return 'Threads';
     if (/Instagram/i.test(s)) return 'Instagram';
     if (/FBAN|FBAV|FB_IAB|Messenger/i.test(s)) return 'Facebook';
     if (/WhatsApp/i.test(s)) return 'WhatsApp';
@@ -37,7 +38,7 @@ export function getExternalBrowserTargetUrl(href = typeof window !== 'undefined'
     }
 }
 
-/** iOS Safari URL scheme — opens real Safari from Instagram/WKWebView on user tap. */
+/** iOS Safari URL scheme — works in TikTok/WhatsApp/etc. Instagram blocks this. */
 export function getIosSafariHandoffUrl(href = typeof window !== 'undefined' ? window.location.href : '') {
     const url = getExternalBrowserTargetUrl(href);
     try {
@@ -49,10 +50,30 @@ export function getIosSafariHandoffUrl(href = typeof window !== 'undefined' ? wi
     }
 }
 
+function getAndroidChromeIntentUrl(href) {
+    const url = getExternalBrowserTargetUrl(href);
+    const withoutScheme = url.replace(/^https?:\/\//i, '');
+    return `intent://${withoutScheme}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(url)};end`;
+}
+
+/**
+ * Native <a href> for a real user tap.
+ * Instagram iOS blocks x-safari-https; use instagram://extbrowser instead.
+ */
 export function getExternalBrowserHandoffHref(href = typeof window !== 'undefined' ? window.location.href : '') {
     const url = getExternalBrowserTargetUrl(href);
-    if (isIosDevice()) return getIosSafariHandoffUrl(url);
-    return url;
+    const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+
+    if (/Android/i.test(ua)) return getAndroidChromeIntentUrl(url);
+    if (!isIosDevice(ua)) return url;
+
+    if (/Barcelona/i.test(ua)) {
+        return `barcelona://extbrowser/?url=${encodeURIComponent(url)}`;
+    }
+    if (/Instagram/i.test(ua)) {
+        return `instagram://extbrowser/?url=${encodeURIComponent(url)}`;
+    }
+    return getIosSafariHandoffUrl(url);
 }
 
 function navigateTo(url) {
@@ -70,29 +91,21 @@ function navigateTo(url) {
     }
 }
 
-/** Try to hand off to Chrome / Safari; fall back to copy instructions. */
+/**
+ * JS fallback only. Instagram iOS must use a native <a href> tap —
+ * location.assign(x-safari) is blocked and can cancel the real handoff.
+ */
 export function openInExternalBrowser(href = typeof window !== 'undefined' ? window.location.href : '') {
     const url = getExternalBrowserTargetUrl(href);
     const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
-    const isAndroid = /Android/i.test(ua);
+    const handoff = getExternalBrowserHandoffHref(url);
 
     try {
-        if (isAndroid) {
-            const withoutScheme = url.replace(/^https?:\/\//i, '');
-            const intent = `intent://${withoutScheme}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(url)};end`;
-            window.location.href = intent;
-            return { ok: true, method: 'android-chrome-intent' };
-        }
-        if (isIosDevice(ua)) {
-            const safariUrl = getIosSafariHandoffUrl(url);
-            if (navigateTo(safariUrl)) {
-                return { ok: true, method: 'ios-x-safari', url: safariUrl };
-            }
-            window.open(url, '_blank', 'noopener,noreferrer');
-            return { ok: true, method: 'ios-window-open', url };
+        if (navigateTo(handoff)) {
+            return { ok: true, method: 'handoff-href', url: handoff };
         }
         window.open(url, '_blank', 'noopener,noreferrer');
-        return { ok: true, method: 'window-open' };
+        return { ok: true, method: 'window-open', url };
     } catch {
         return { ok: false, method: 'failed', url };
     }
