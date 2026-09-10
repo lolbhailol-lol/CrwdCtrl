@@ -70,17 +70,22 @@ const trackEvent = async (req, res) => {
       metadata,
     });
 
-    recordUserActivity({
-      userId,
-      email: metadata?.email || null,
-      sessionId: sessionId || null,
-      eventType,
-      page: metadata?.page || '',
-      previousPage: metadata?.previousPage || '',
-      durationSeconds: metadata?.durationSeconds,
-      metadata,
-      req,
-    }).catch(() => {});
+    // UserActivityLog is the per-user audit stream. Do not duplicate every
+    // anonymous page view into it as well as Analytics; that exhausted the
+    // Atlas free-tier quota. Identified activity still remains available.
+    if (userId || metadata?.email) {
+      recordUserActivity({
+        userId,
+        email: metadata?.email || null,
+        sessionId: sessionId || null,
+        eventType,
+        page: metadata?.page || '',
+        previousPage: metadata?.previousPage || '',
+        durationSeconds: metadata?.durationSeconds,
+        metadata,
+        req,
+      }).catch(() => {});
+    }
 
     res.status(201).json({ success: true });
   } catch (error) {
