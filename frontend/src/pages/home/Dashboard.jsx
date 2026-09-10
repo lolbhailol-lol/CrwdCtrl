@@ -46,6 +46,7 @@ import { usePublicConfig } from '../../hooks/usePublicConfig';
 import { communityPath, competitionPath, eventShowPath, festPath, runClubPath, sportRunPath, trekPath } from '../../utils/slugRoutes';
 import { buildFestDetailNavState } from '../../utils/detailPageCache';
 import { prefetchFestDetail } from '../../services/api/fests.api';
+import { shouldShowHomeSectionLoading } from '../../utils/homeFeedLoading';
 
 const CrwdCtrlLogin = lazy(() => import('../auth/login'));
 const CrwdCtrlRegister = lazy(() => import('../auth/register'));
@@ -285,7 +286,7 @@ const Dashboard = () => {
     const [fests, setFests] = useState(readInitialFestsFromCache);
     const [isFestsLoading, setIsFestsLoading] = useState(() => readInitialFestsFromCache().length === 0);
     // Aux feeds hydrate in place; flag kept for settle markers in fetch effects.
-    const [, setHomeAuxLoaded] = useState(false);
+    const [isHomeAuxLoaded, setHomeAuxLoaded] = useState(false);
     // Home hub overlay (App) covers cold start — do not also toggle page-content-loading here
     // (that stacked loaders and left Google / first-open visits looking stuck).
 
@@ -1420,6 +1421,12 @@ const Dashboard = () => {
                     <HomeCarouselSection
                         title={publicConfig.labels.home.ongoing || sectionLabels.ongoing}
                         items={trendingItems}
+                        loading={shouldShowHomeSectionLoading({
+                            itemCount: trendingItems.length,
+                            isFestsLoading,
+                            isHomeAuxLoaded,
+                            hasError: Boolean(homeFeedError || festError),
+                        })}
                         isDark={isDark}
                         tallCard
                         cardGap={TRENDING_CARD_GAP}
@@ -1452,6 +1459,12 @@ const Dashboard = () => {
                     <HomeCarouselSection
                         title={publicConfig.labels.home.happening || sectionLabels.happening}
                         items={happeningItems}
+                        loading={shouldShowHomeSectionLoading({
+                            itemCount: happeningItems.length,
+                            isFestsLoading,
+                            isHomeAuxLoaded,
+                            hasError: Boolean(homeFeedError || festError),
+                        })}
                         isDark={isDark}
                         wideCard
                         emptyFallback={
