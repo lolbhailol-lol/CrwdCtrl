@@ -63,12 +63,22 @@ const trackEvent = async (req, res) => {
       }
     } catch (_) { /* no auth — that's fine */ }
 
-    await Analytics.create({
-      eventType,
-      userId,
-      sessionId: sessionId || null,
-      metadata,
-    });
+    // GA4 remains the complete traffic source. MongoDB keeps only a small
+    // sample of high-volume browsing telemetry so a free Atlas cluster cannot
+    // be filled by page traffic during a fest launch.
+    const sampledEventTypes = new Set(['page_view', 'fest_view', 'competition_view']);
+    const keepInMongo = process.env.NODE_ENV !== 'production'
+      || !sampledEventTypes.has(eventType)
+      || Math.random() < 0.01;
+
+    if (keepInMongo) {
+      await Analytics.create({
+        eventType,
+        userId,
+        sessionId: sessionId || null,
+        metadata,
+      });
+    }
 
     // UserActivityLog is the per-user audit stream. Do not duplicate every
     // anonymous page view into it as well as Analytics; that exhausted the
