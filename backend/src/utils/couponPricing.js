@@ -3,6 +3,13 @@ const CouponUsage = require('../model/coupon_usage_model');
 const PaymentOrder = require('../model/payment_order_model');
 const { isCouponExpired, isCouponNotStarted } = require('./couponSchedule');
 
+function couponValidationError(message, code = 'COUPON_INVALID') {
+  const error = new Error(message);
+  error.status = 400;
+  error.code = code;
+  return error;
+}
+
 function normalizeCouponCode(raw = '') {
   return String(raw || '').trim().toUpperCase();
 }
@@ -31,9 +38,9 @@ function assertCouponAppliesToEntity(coupon, entityType) {
     .map(couponEntityTypeLabel)
     .filter(Boolean);
   if (!allowed.length) {
-    throw new Error('This coupon is not valid for this registration type.');
+    throw couponValidationError('This coupon is not valid for this registration type.');
   }
-  throw new Error(
+  throw couponValidationError(
     `This coupon is only valid for ${allowed.join(' / ')} — not for ${couponEntityTypeLabel(entityType)}.`,
   );
 }
@@ -54,7 +61,7 @@ function assertCouponScope(coupon, { festId = '', competitionId = '' } = {}) {
 
   const currentFest = idStr(festId);
   if (!currentFest || currentFest !== scopedFest) {
-    throw new Error('This coupon is not valid for this fest.');
+    throw couponValidationError('This coupon is not valid for this fest.');
   }
 
   const allowedComps = Array.isArray(coupon.competitionIds)
@@ -64,7 +71,7 @@ function assertCouponScope(coupon, { festId = '', competitionId = '' } = {}) {
 
   const currentComp = idStr(competitionId);
   if (!currentComp || !allowedComps.includes(currentComp)) {
-    throw new Error('This coupon is not valid for this competition.');
+    throw couponValidationError('This coupon is not valid for this competition.');
   }
 }
 
@@ -98,14 +105,14 @@ function assertPeopleAllowed(coupon, people) {
   const maxPeople = Math.max(0, Number(coupon.maxPeople) || 0);
 
   if (peopleCount < minPeople) {
-    throw new Error(
+    throw couponValidationError(
       minPeople === 1
         ? 'This coupon cannot be applied to this booking size.'
         : `This coupon needs at least ${minPeople} people in the booking.`,
     );
   }
   if (maxPeople > 0 && peopleCount > maxPeople) {
-    throw new Error(
+    throw couponValidationError(
       maxPeople === minPeople
         ? `This coupon is only valid when booking exactly ${maxPeople} people.`
         : `This coupon is only valid for up to ${maxPeople} people.`,
@@ -129,7 +136,7 @@ async function validateAndPriceCoupon({
 
   if (!normalizedCode) {
     if (failOnMissingCode) {
-      throw new Error('Coupon code is required.');
+      throw couponValidationError('Coupon code is required.');
     }
     return {
       couponApplied: false,
@@ -143,30 +150,30 @@ async function validateAndPriceCoupon({
   }
 
   if (baseAmount <= 0) {
-    throw new Error('Coupons are only valid on paid registrations.');
+    throw couponValidationError('Coupons are only valid on paid registrations.');
   }
 
   const coupon = await Coupon.findOne({ code: normalizedCode }).lean();
-  if (!coupon) throw new Error('Invalid coupon code.');
-  if (!coupon.active) throw new Error('This coupon is currently inactive.');
+  if (!coupon) throw couponValidationError('Invalid coupon code.');
+  if (!coupon.active) throw couponValidationError('This coupon is currently inactive.');
 
   const now = new Date();
   if (isCouponNotStarted(coupon.startsAt, now)) {
-    throw new Error('This coupon is not active yet.');
+    throw couponValidationError('This coupon is not active yet.');
   }
   if (isCouponExpired(coupon.expiresAt, now)) {
-    throw new Error('This coupon has expired. Ask the organizer to extend the expiry date in admin.');
+    throw couponValidationError('This coupon has expired. Ask the organizer to extend the expiry date in admin.');
   }
   assertCouponAppliesToEntity(coupon, entityType);
   assertCouponScope(coupon, { festId, competitionId });
 
   const minAmount = Math.max(0, Number(coupon.minAmount) || 0);
   if (minAmount > 0 && baseAmount < minAmount) {
-    throw new Error(`This coupon needs a minimum payable of ₹${minAmount}.`);
+    throw couponValidationError(`This coupon needs a minimum payable of ₹${minAmount}.`);
   }
 
   if (coupon.maxTotalUses > 0 && Number(coupon.usedCount || 0) >= Number(coupon.maxTotalUses)) {
-    throw new Error('This coupon has reached its total usage limit.');
+    throw couponValidationError('This coupon has reached its total usage limit.', 'COUPON_TOTAL_LIMIT');
   }
 
   const peopleCount = assertPeopleAllowed(coupon, people);
@@ -174,7 +181,10 @@ async function validateAndPriceCoupon({
   if (userId && coupon.maxUsesPerUser > 0) {
     const usage = await CouponUsage.findOne({ couponId: coupon._id, userId }).lean();
     if ((usage?.usedCount || 0) >= Number(coupon.maxUsesPerUser)) {
-      throw new Error('You have already used this coupon the maximum allowed times.');
+      throw couponValidationError(
+        'You have already used this coupon the maximum allowed times.',
+        'COUPON_USER_LIMIT',
+      );
     }
   }
 
@@ -327,6 +337,7 @@ async function consumeCouponUsageForRegistration({ registration, userId }) {
 }
 
 module.exports = {
+  couponValidationError,
   normalizeCouponCode,
   computeCouponDiscount,
   validateAndPriceCoupon,
