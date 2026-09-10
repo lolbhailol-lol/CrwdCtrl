@@ -66,6 +66,8 @@ const userSchema = new mongoose.Schema(
       enum: ['password', 'google', 'facebook', 'twitter', 'firebase'],
     },
     loginCount: { type: Number, default: 0 },
+    loginConfirmationEmailSentAt: { type: Date, default: null },
+    loginConfirmationEmailClaimedAt: { type: Date, default: null },
 
     // Soft-delete (account deactivation) — keeps booking/registration history intact
     isDeleted: { type: Boolean, default: false },

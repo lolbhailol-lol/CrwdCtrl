@@ -1,7 +1,8 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const User = require("../model/usermodel");
-const { sendWelcomeEmail, sendLoginConfirmationEmail } = require('../services/emailService');
+const { sendWelcomeEmail } = require('../services/emailService');
+const { sendLoginConfirmationOnce } = require('../services/loginConfirmationService');
 const { createNotification } = require('./notificationController');
 const { sendPushNotification } = require('../services/pushService');
 const { getJwtSecret } = require('../config/jwtSecret');
@@ -379,12 +380,7 @@ const login = async (req, res) => {
         delete userResponse.password;
 
         if (user.email) {
-            const loginEmailData = {
-                name: user.name,
-                email: user.email,
-            };
-
-            sendLoginConfirmationEmail(loginEmailData).catch(error => {
+            sendLoginConfirmationOnce(user).catch(error => {
                 console.error('❌ Failed to send login confirmation email to:', user.email);
                 console.error('   Error:', error.message);
             });
