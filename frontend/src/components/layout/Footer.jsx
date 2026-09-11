@@ -4,6 +4,10 @@ import { Link } from 'react-router-dom';
 
 export default function Footer() {
   const { isDark } = useDarkMode();
+  const muted = isDark ? 'text-gray-400' : 'text-gray-600';
+  const linkClass = isDark
+    ? 'text-gray-300 hover:text-[#0ECCEE]'
+    : 'text-gray-700 hover:text-[#0ECCEE]';
 
   return (
     <footer
@@ -15,30 +19,28 @@ export default function Footer() {
         <div className="flex flex-col items-center gap-6 md:flex-row md:items-start md:justify-between">
           <div className="text-center md:text-left">
             <h2 className="text-xl font-bold text-[#0ECCEE]">CrwdCtrl</h2>
-            <p className={`mt-1 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+            <p className={`mt-1 text-sm ${muted}`}>
               Fests, clubs &amp; meetups near you
             </p>
             <a
-              href="https://www.instagram.com/crwdctrl.in?igsh=MTBpNm9ta2ptMmc2dA=="
+              href="https://www.instagram.com/crwdctrl.in?igsh=ODZpb2tpaGR4Y2Rn"
               target="_blank"
               rel="noopener noreferrer"
-              className={`mt-4 inline-flex items-center gap-2 text-sm transition-colors ${
-                isDark ? 'text-gray-300 hover:text-[#0ECCEE]' : 'text-gray-700 hover:text-[#0ECCEE]'
-              }`}
+              className={`mt-4 inline-flex items-center gap-2 text-sm transition-colors ${linkClass}`}
             >
               <Instagram className="h-4 w-4 text-pink-600" />
               @crwdctrl.in
             </a>
           </div>
 
-          <nav className="flex flex-col items-center gap-2 md:items-end" aria-label="Support">
+          <nav className="flex flex-col items-center gap-2 md:items-end" aria-label="Footer">
             <Link
-              to="/contact-us"
+              to="/help-center"
               className={`text-sm font-medium transition-colors ${
                 isDark ? 'text-white hover:text-[#0ECCEE]' : 'text-gray-900 hover:text-[#0ECCEE]'
               }`}
             >
-              Contact Us
+              Help Center
             </Link>
           </nav>
         </div>

@@ -1,11 +1,13 @@
 const Analytics = require('../model/analytics_model');
 const User = require('../model/usermodel');
+const { recordUserActivity } = require('../services/userActivityService');
 const Registration = require('../model/registration_model');
 const FestOrganizer = require('../model/fest_organizer_model');
 const TrekBooking = require('../model/trek_booking_model');
 const CategoryRegistration = require('../model/category_registration_model');
 const PaymentOrder = require('../model/payment_order_model');
 const { deriveRevenueFromPaidAmount } = require('../utils/platformFee');
+const { migrateStoredPageViewPaths } = require('../services/analyticsPathMigration');
 
 function sumRevenueRows(rows, amountKey, options = {}) {
   return rows.reduce(
@@ -61,12 +63,39 @@ const trackEvent = async (req, res) => {
       }
     } catch (_) { /* no auth — that's fine */ }
 
-    await Analytics.create({
-      eventType,
-      userId,
-      sessionId: sessionId || null,
-      metadata,
-    });
+    // GA4 remains the complete traffic source. MongoDB keeps only a small
+    // sample of high-volume browsing telemetry so a free Atlas cluster cannot
+    // be filled by page traffic during a fest launch.
+    const sampledEventTypes = new Set(['page_view', 'fest_view', 'competition_view']);
+    const keepInMongo = process.env.NODE_ENV !== 'production'
+      || !sampledEventTypes.has(eventType)
+      || Math.random() < 0.01;
+
+    if (keepInMongo) {
+      await Analytics.create({
+        eventType,
+        userId,
+        sessionId: sessionId || null,
+        metadata,
+      });
+    }
+
+    // UserActivityLog is the per-user audit stream. Do not duplicate every
+    // anonymous page view into it as well as Analytics; that exhausted the
+    // Atlas free-tier quota. Identified activity still remains available.
+    if (userId || metadata?.email) {
+      recordUserActivity({
+        userId,
+        email: metadata?.email || null,
+        sessionId: sessionId || null,
+        eventType,
+        page: metadata?.page || '',
+        previousPage: metadata?.previousPage || '',
+        durationSeconds: metadata?.durationSeconds,
+        metadata,
+        req,
+      }).catch(() => {});
+    }
 
     res.status(201).json({ success: true });
   } catch (error) {
@@ -493,4 +522,13 @@ module.exports = {
   getFestAnalytics,
   getRealtimeStats,
   getRevenueSummary,
+  migratePageViewPaths: async (req, res) => {
+    try {
+      const result = await migrateStoredPageViewPaths();
+      res.json({ success: true, ...result });
+    } catch (error) {
+      console.error('❌ Page view path migration error:', error);
+      res.status(500).json({ success: false, message: 'Failed to migrate page view paths' });
+    }
+  },
 };

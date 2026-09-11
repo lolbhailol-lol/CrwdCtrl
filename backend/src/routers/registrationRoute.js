@@ -5,6 +5,8 @@ const {
   submitRegistration,
   submitCompetitionRegistration,
   submitCustomCompetitionRegistration,
+  submitEventShowRegistration,
+  payAndRegisterEventShow,
   payAndRegisterFest,
   payAndRegister,
   getUserRegistration,
@@ -12,15 +14,18 @@ const {
   updateRegistrationStatus,
   getUserRegistrations,
   getRegistrationDetails,
+  getEventShowRegistrationDetails,
   getTrekBookingDetails,
   getPaymentInvoice,
   getTrekPaymentInvoice,
+  getEventShowPaymentInvoice,
   testGoogleSheets,
   diagnoseGoogleSheets,
-  upload
+  upload,
+  updateTeamMembers,
 } = require('../controllers/registrationController');
 
-const { authenticateToken } = require('../middleware/authmiddleware');
+const { authenticateToken, optionalAuthenticateToken } = require('../middleware/authmiddleware');
 const authenticateAdmin = require('../middleware/adminAuth');
 const devOnly = require('../middleware/devOnly');
 const { registrationLimiter } = require('../middleware/rateLimiter');
@@ -52,6 +57,21 @@ router.post(
   authenticateToken,
   upload.any(),
   submitCustomCompetitionRegistration
+);
+
+// Event (EventShow) internal registration — dynamic form + files + payment
+router.post(
+  '/events/:eventShowId/custom',
+  authenticateToken,
+  upload.any(),
+  submitEventShowRegistration
+);
+
+// Event pay-and-register after Cashfree (idempotent; uses stored draft if needed)
+router.post(
+  '/events/:eventShowId/pay-and-register',
+  authenticateToken,
+  payAndRegisterEventShow
 );
 
 // Cashfree payment registration — no form, uses user profile data
@@ -94,12 +114,17 @@ router.post('/upload', authenticateToken, upload.any(), async (req, res) => {
   }
 });
 
+// Add/update team members on an existing registration (user must own it)
+router.patch('/details/:registrationId/team-members', authenticateToken, updateTeamMembers);
+
 router.get('/fests/:festId/registration', authenticateToken, getUserRegistration);
 router.get('/my-registrations', authenticateToken, getUserRegistrations);
 router.get('/details/:registrationId', authenticateToken, getRegistrationDetails);
+router.get('/event-registration/:registrationId', authenticateToken, getEventShowRegistrationDetails);
 router.get('/invoice/:registrationId', authenticateToken, getPaymentInvoice);
-router.get('/trek-booking/:bookingId/invoice', authenticateToken, getTrekPaymentInvoice);
-router.get('/trek-booking/:bookingId', authenticateToken, getTrekBookingDetails);
+router.get('/event-registration/:registrationId/invoice', authenticateToken, getEventShowPaymentInvoice);
+router.get('/trek-booking/:bookingId/invoice', optionalAuthenticateToken, getTrekPaymentInvoice);
+router.get('/trek-booking/:bookingId', optionalAuthenticateToken, getTrekBookingDetails);
 
 /* ======================
    ADMIN ROUTES
@@ -107,9 +132,9 @@ router.get('/trek-booking/:bookingId', authenticateToken, getTrekBookingDetails)
 
 router.get('/admin/fests/:festId/registrations', authenticateAdmin, getFestRegistrations);
 router.put('/admin/registrations/:registrationId/status', authenticateAdmin, updateRegistrationStatus);
-router.post('/admin/test-google-sheets', authenticateAdmin, testGoogleSheets);
+router.post('/admin/test-google-sheets', devOnly, authenticateAdmin, testGoogleSheets);
 // ✅ NEW: Diagnostic endpoint for Google Sheets integration
-router.get('/admin/fests/:festId/diagnose-google-sheets', authenticateAdmin, diagnoseGoogleSheets);
+router.get('/admin/fests/:festId/diagnose-google-sheets', devOnly, authenticateAdmin, diagnoseGoogleSheets);
 
 /* ======================
    DEBUG (OPTIONAL)

@@ -1,9 +1,12 @@
-import { useState, useEffect, useMemo } from 'react';
-import { X, Upload } from 'lucide-react';
-import { normalizeImageList, normalizeImageUrl, parseUploadedUrls } from '../../utils/uploadUrls';
+import { useState, useEffect } from 'react';
+import { X } from 'lucide-react';
+import MultiCoverImagesUpload from './MultiCoverImagesUpload';
+import GalleryImagesUploadField from './GalleryImagesUploadField';
+import CommunityHeroBannerField from './CommunityHeroBannerField';
+import { normalizeCoverImages, primaryCoverUrl, EMPTY_COVER_IMAGES, excludeCoverUrlsFromGallery } from '../../utils/coverImages';
+import { normalizeImageUrl } from '../../utils/uploadUrls';
 import { RUN_CATEGORY_OPTIONS } from '../../constants/runClubCategories';
-import { adminFetch, adminFetchJSON } from '../../utils/adminApi';
-const GALLERY_PREVIEW_COUNT = 4;
+import { adminFetchJSON } from '../../services/api/admin.api.js';
 
 const EMPTY = {
     name: '',
@@ -12,43 +15,39 @@ const EMPTY = {
     aboutUs: '',
     runCategories: [],
     coverImage: '',
+    coverImages: EMPTY_COVER_IMAGES(),
     galleryImages: [],
     registrationLink: '',
+    registration: { status: 'open', mode: 'internal_form' },
     contactPhone: '',
     contactInstagram: '',
+    groupLink: '',
+    listingHub: 'sports',
     status: 'published',
 };
 
 function pickClubFormFields(source = {}) {
+    const coverImages = normalizeCoverImages(source.coverImages);
+    const legacyCover = normalizeImageUrl(source.coverImage);
+    if (!coverImages.portrait && legacyCover) coverImages.portrait = legacyCover;
     return {
         name: source.name || '',
         basedIn: source.basedIn || '',
         organizer: source.organizer || '',
         aboutUs: source.aboutUs || '',
         runCategories: Array.isArray(source.runCategories) ? source.runCategories : [],
-        coverImage: normalizeImageUrl(source.coverImage),
-        galleryImages: normalizeImageList(source.galleryImages),
+        coverImage: legacyCover || primaryCoverUrl(coverImages),
+        coverImages,
+        galleryImages: excludeCoverUrlsFromGallery(source.galleryImages, coverImages, legacyCover),
         registrationLink: source.registrationLink || '',
+        registration: { ...EMPTY.registration, ...(source.registration || {}) },
         contactPhone: source.contactPhone || '',
         contactInstagram: source.contactInstagram || '',
+        groupLink: source.groupLink || '',
+        listingHub: source.listingHub === 'events' ? 'events' : 'sports',
         status: source.status || 'published',
     };
 }
-
-const buildGalleryPreview = (coverImage, galleryImages) => {
-    const seen = new Set();
-    const out = [];
-    const add = (url) => {
-        const normalized = normalizeImageUrl(url);
-        if (normalized && !seen.has(normalized)) {
-            seen.add(normalized);
-            out.push(normalized);
-        }
-    };
-    add(coverImage);
-    normalizeImageList(galleryImages).forEach(add);
-    return out;
-};
 
 function AdminFormSection({ title, hint, children }) {
     return (
@@ -62,44 +61,6 @@ function AdminFormSection({ title, hint, children }) {
     );
 }
 
-function GalleryPreviewRow({ images }) {
-    if (!images.length) {
-        return (
-            <p className="text-xs text-gray-500 rounded-lg border border-dashed border-gray-600 px-3 py-2">
-                Upload a cover image or gallery images to preview the public Gallery row.
-            </p>
-        );
-    }
-
-    return (
-        <div>
-            <p className="text-xs text-gray-500 mb-2">Preview — matches the public run club detail page</p>
-            <div className="grid grid-cols-4 gap-2 max-w-sm">
-                {images.slice(0, GALLERY_PREVIEW_COUNT).map((url, i) => {
-                    const isOverflowTile = images.length > GALLERY_PREVIEW_COUNT && i === GALLERY_PREVIEW_COUNT - 1;
-                    const remainingCount = images.length - GALLERY_PREVIEW_COUNT;
-                    return (
-                        <div
-                            key={`${url}-${i}`}
-                            className="relative aspect-square rounded-xl overflow-hidden bg-[#1D1E20] border border-gray-700"
-                        >
-                            <img src={url} alt="" className="absolute inset-0 w-full h-full object-cover" />
-                            {isOverflowTile ? (
-                                <div className="absolute inset-0 flex items-center justify-center bg-black/55">
-                                    <span className="text-white text-sm font-semibold">{remainingCount}+</span>
-                                </div>
-                            ) : null}
-                        </div>
-                    );
-                })}
-            </div>
-            <p className="text-[11px] text-gray-600 mt-2">
-                {images.length} image{images.length !== 1 ? 's' : ''} total · cover is always included first
-            </p>
-        </div>
-    );
-}
-
 export default function RunClubFormModal({ club, onClose, onSaved }) {
     const [form, setForm] = useState(EMPTY);
     const [uploading, setUploading] = useState(false);
@@ -109,16 +70,11 @@ export default function RunClubFormModal({ club, onClose, onSaved }) {
 
     useEffect(() => {
         if (!club) {
-            setForm(EMPTY);
+            setForm({ ...EMPTY, listingHub: 'sports' });
             return;
         }
-        setForm(pickClubFormFields(club));
+        setForm({ ...pickClubFormFields(club), listingHub: 'sports' });
     }, [club]);
-
-    const galleryPreview = useMemo(
-        () => buildGalleryPreview(form.coverImage, form.galleryImages),
-        [form.coverImage, form.galleryImages],
-    );
 
     const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -129,30 +85,6 @@ export default function RunClubFormModal({ club, onClose, onSaved }) {
                 ? form.runCategories.filter((c) => c !== cat)
                 : [...form.runCategories, cat],
         );
-    };
-
-    const uploadImages = async (files, field) => {
-        const isGallery = field === 'galleryImages';
-        isGallery ? setUploadingGallery(true) : setUploading(true);
-        setError('');
-        try {
-            const fd = new FormData();
-            files.forEach((f) => fd.append('images', f));
-            const res = await adminFetch('/admin/upload/images', { method: 'POST', body: fd });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || data.error || 'Upload failed');
-            const urls = parseUploadedUrls(data);
-            if (!urls.length) throw new Error('Upload succeeded but no image URL was returned');
-            if (isGallery) {
-                set('galleryImages', [...form.galleryImages, ...urls]);
-            } else {
-                set('coverImage', urls[0]);
-            }
-        } catch (err) {
-            setError(`Upload failed: ${err.message}`);
-        } finally {
-            isGallery ? setUploadingGallery(false) : setUploading(false);
-        }
     };
 
     const handleSubmit = async (e) => {
@@ -169,11 +101,19 @@ export default function RunClubFormModal({ club, onClose, onSaved }) {
         setSaving(true);
         try {
             const path = club ? `/admin/run-clubs/${club._id}` : '/admin/run-clubs';
+            const fields = pickClubFormFields(form);
+            const coverImages = normalizeCoverImages(fields.coverImages);
+            const coverImage = primaryCoverUrl(coverImages, fields.coverImage);
             const data = await adminFetchJSON(path, {
                 method: club ? 'PUT' : 'POST',
                 body: JSON.stringify({
-                    ...pickClubFormFields(form),
-                    ...(club ? {} : { showOnSportsPage: true, showInRunClubs: true }),
+                    ...fields,
+                    coverImages,
+                    coverImage,
+                    galleryImages: excludeCoverUrlsFromGallery(fields.galleryImages, coverImages, coverImage),
+                    listingHub: 'sports',
+                    showOnSportsPage: true,
+                    showInRunClubs: true,
                 }),
             });
             localStorage.setItem('admin_data_updated', Date.now().toString());
@@ -194,8 +134,12 @@ export default function RunClubFormModal({ club, onClose, onSaved }) {
             <div className="w-full max-w-2xl bg-[#111213] rounded-xl border border-gray-700 shadow-2xl">
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
                     <div>
-                        <h2 className="text-lg font-bold text-white">{club ? 'Edit Run Club' : 'Add Run Club'}</h2>
-                        <p className="text-xs text-gray-500 mt-0.5">Fields map to the public run club detail page</p>
+                        <h2 className="text-lg font-bold text-white">
+                            {club ? 'Edit Run Club' : 'Add Run Club'}
+                        </h2>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                            Fields map to the public run club detail page
+                        </p>
                     </div>
                     <button type="button" onClick={onClose} className="text-gray-400 hover:text-white">
                         <X size={20} />
@@ -211,48 +155,8 @@ export default function RunClubFormModal({ club, onClose, onSaved }) {
 
                     <AdminFormSection
                         title="Hero & identity"
-                        hint="Cover, name, and location shown at the top of the detail page"
+                        hint="Name, organizer and location shown at the top of the detail page"
                     >
-                        <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-2">Cover Image</label>
-                            {form.coverImage && (
-                                <div className="relative w-full h-36 mb-2 rounded-xl overflow-hidden">
-                                    <img src={form.coverImage} alt="Cover" className="w-full h-full object-cover" />
-                                    <button
-                                        type="button"
-                                        onClick={() => set('coverImage', '')}
-                                        className="absolute top-2 right-2 bg-red-600 rounded-full p-1 hover:bg-red-700"
-                                    >
-                                        <X size={12} />
-                                    </button>
-                                </div>
-                            )}
-                            <label className="flex items-center gap-2 cursor-pointer w-fit bg-[#1D1E20] border border-dashed border-gray-500 hover:border-[#0ECCEE] rounded-lg px-4 py-2 text-sm text-gray-400 transition-colors">
-                                {uploading ? (
-                                    <span className="text-[#0ECCEE]">Uploading...</span>
-                                ) : (
-                                    <>
-                                        <Upload size={14} />
-                                        <span>Upload cover image</span>
-                                    </>
-                                )}
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={(e) => {
-                                        const f = Array.from(e.target.files);
-                                        if (f.length) uploadImages(f, 'coverImage');
-                                        e.target.value = '';
-                                    }}
-                                    disabled={uploading}
-                                    className="hidden"
-                                />
-                            </label>
-                            <p className="text-xs text-gray-500 mt-1">
-                                Full-width hero image. Also appears first in the Gallery section.
-                            </p>
-                        </div>
-
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-300 mb-1">
@@ -290,6 +194,43 @@ export default function RunClubFormModal({ club, onClose, onSaved }) {
                         </div>
                     </AdminFormSection>
 
+                    <AdminFormSection
+                        title="Cover images"
+                        hint="Card layouts and hero banner — separate from the gallery below"
+                    >
+                        <MultiCoverImagesUpload
+                            value={form.coverImages}
+                            excludeKeys={['page']}
+                            onChange={(coverImages) => {
+                                set('coverImages', coverImages);
+                                set('coverImage', primaryCoverUrl(coverImages, form.coverImage));
+                            }}
+                            onError={(msg) => setError(`Cover upload failed: ${msg}`)}
+                            onUploadingChange={setUploading}
+                            hint="Upload a cropped image per layout (portrait cards, wide cards, hero, etc.)."
+                        />
+                    </AdminFormSection>
+
+                    <AdminFormSection
+                        title="Run Club detail banner (393 × 396)"
+                        hint="Separate upload for the Run Club page top banner frame. Use this for exact-fit hero crop."
+                    >
+                        <CommunityHeroBannerField
+                            value={form.coverImages?.hero || ''}
+                            onChange={(url) => {
+                                const nextCoverImages = normalizeCoverImages({
+                                    ...form.coverImages,
+                                    hero: url || '',
+                                });
+                                set('coverImages', nextCoverImages);
+                                set('coverImage', primaryCoverUrl(nextCoverImages, form.coverImage));
+                            }}
+                            onError={(msg) => setError(`Detail banner upload failed: ${msg}`)}
+                            onUploadingChange={setUploading}
+                            communityName={form.name || 'Run Club'}
+                        />
+                    </AdminFormSection>
+
                     <AdminFormSection title="About Us" hint="Description block below the club name">
                         <textarea
                             value={form.aboutUs}
@@ -325,56 +266,14 @@ export default function RunClubFormModal({ club, onClose, onSaved }) {
 
                     <AdminFormSection
                         title="Gallery"
-                        hint="Photo row at the bottom of the detail page — tap opens full-screen viewer"
+                        hint="Extra photos only — not used as cover or card images"
                     >
-                        {form.galleryImages.length > 0 && (
-                            <div className="flex flex-wrap gap-2">
-                                {form.galleryImages.map((url, i) => (
-                                    <div key={i} className="relative w-20 h-20">
-                                        <img
-                                            src={url}
-                                            alt=""
-                                            className="w-full h-full object-cover rounded-lg border border-gray-600"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                set(
-                                                    'galleryImages',
-                                                    form.galleryImages.filter((_, j) => j !== i),
-                                                )
-                                            }
-                                            className="absolute -top-1.5 -right-1.5 bg-red-600 rounded-full p-0.5 hover:bg-red-700"
-                                        >
-                                            <X size={10} />
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                        <label className="flex items-center gap-2 cursor-pointer w-fit bg-[#1D1E20] border border-dashed border-gray-500 hover:border-[#0ECCEE] rounded-lg px-4 py-2 text-sm text-gray-400 transition-colors">
-                            {uploadingGallery ? (
-                                <span className="text-[#0ECCEE]">Uploading...</span>
-                            ) : (
-                                <>
-                                    <Upload size={14} />
-                                    <span>Upload gallery images</span>
-                                </>
-                            )}
-                            <input
-                                type="file"
-                                accept="image/*"
-                                multiple
-                                onChange={(e) => {
-                                    const f = Array.from(e.target.files);
-                                    if (f.length) uploadImages(f, 'galleryImages');
-                                    e.target.value = '';
-                                }}
-                                disabled={uploadingGallery}
-                                className="hidden"
-                            />
-                        </label>
-                        <GalleryPreviewRow images={galleryPreview} />
+                        <GalleryImagesUploadField
+                            value={form.galleryImages}
+                            onChange={(galleryImages) => set('galleryImages', galleryImages)}
+                            onError={(msg) => setError(`Gallery upload failed: ${msg}`)}
+                            onUploadingChange={setUploadingGallery}
+                        />
                     </AdminFormSection>
 
                     <AdminFormSection
@@ -402,17 +301,62 @@ export default function RunClubFormModal({ club, onClose, onSaved }) {
                                     placeholder="@handle"
                                 />
                             </div>
+                            <div className="flex items-start gap-3">
+                                <span className="text-gray-400 text-sm w-24 shrink-0 pt-2.5">WhatsApp</span>
+                                <div className="flex-1 min-w-0">
+                                    <input
+                                        type="url"
+                                        value={form.groupLink}
+                                        onChange={(e) => set('groupLink', e.target.value)}
+                                        className={inp}
+                                        placeholder="https://chat.whatsapp.com/…"
+                                    />
+                                    <p className="text-[11px] text-gray-500 mt-1">
+                                        Sent to runners after payment is approved. Falls back to club phone if empty.
+                                    </p>
+                                </div>
+                            </div>
                         </div>
                     </AdminFormSection>
 
-                    <AdminFormSection title="Join link" hint="Optional external registration link for the club">
-                        <input
-                            type="url"
-                            value={form.registrationLink}
-                            onChange={(e) => set('registrationLink', e.target.value)}
-                            className={inp}
-                            placeholder="https://..."
-                        />
+                    <AdminFormSection title="Registration" hint="Choose how members join — an in-app form, or an external link (WhatsApp / website / Google form)">
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-xs font-medium text-gray-400 mb-1">Registration Status</label>
+                                <select
+                                    value={form.registration?.status || 'open'}
+                                    onChange={(e) => set('registration', { ...form.registration, status: e.target.value })}
+                                    className={inp}
+                                >
+                                    <option value="open">Open</option>
+                                    <option value="closed">Closed</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-gray-400 mb-1">Registration Type</label>
+                                <select
+                                    value={form.registration?.mode || 'internal_form'}
+                                    onChange={(e) => set('registration', { ...form.registration, mode: e.target.value })}
+                                    className={inp}
+                                >
+                                    <option value="internal_form">Internal Form</option>
+                                    <option value="external_link">External Link</option>
+                                </select>
+                            </div>
+                        </div>
+                        {(form.registration?.mode || 'internal_form') === 'external_link' && (
+                            <div className="mt-3">
+                                <label className="block text-xs font-medium text-gray-400 mb-1">External Link</label>
+                                <input
+                                    type="url"
+                                    value={form.registrationLink}
+                                    onChange={(e) => set('registrationLink', e.target.value)}
+                                    className={inp}
+                                    placeholder="https://wa.me/... or website / form link"
+                                />
+                                <p className="text-[11px] text-gray-600 mt-1">When set, the public page shows a “Book Now” button that opens this link.</p>
+                            </div>
+                        )}
                     </AdminFormSection>
 
                     <p className="text-[11px] text-gray-600 px-1">

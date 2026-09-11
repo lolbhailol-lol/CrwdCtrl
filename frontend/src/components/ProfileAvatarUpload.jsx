@@ -1,7 +1,9 @@
 import React, { useRef, useState } from 'react';
-import { Camera, Loader2, User } from 'lucide-react';
+import { Camera, Loader2, User, Trash2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useDialog } from '../context/DialogContext';
 import { authAPI, handleApiError } from '../services/api/auth.api';
+import AvatarCropModal from './AvatarCropModal';
 
 const MAX_SIZE_MB = 5;
 
@@ -16,15 +18,17 @@ export default function ProfileAvatarUpload({
     onSuccess,
 }) {
     const { user, token, updateUser, isAuthenticated } = useAuth();
+    const { confirm } = useDialog();
     const fileInputRef = useRef(null);
     const [uploading, setUploading] = useState(false);
     const [imgError, setImgError] = useState(false);
     const [uploadError, setUploadError] = useState('');
+    const [cropFile, setCropFile] = useState(null);
 
     const showImage = isAuthenticated && user?.profilePic && !imgError;
     const showInitial = isAuthenticated && user?.name && !showImage;
 
-    const handleFileChange = async (e) => {
+    const handleFileChange = (e) => {
         const file = e.target.files?.[0];
         e.target.value = '';
         if (!file || !token) return;
@@ -40,8 +44,17 @@ export default function ProfileAvatarUpload({
             return;
         }
 
+        // Let the user crop/zoom before uploading.
+        setCropFile(file);
+    };
+
+    const uploadCroppedImage = async (file) => {
+        setCropFile(null);
+        if (!file || !token) return;
+
         setUploading(true);
         setImgError(false);
+        setUploadError('');
 
         try {
             const { url } = await authAPI.uploadProfileImage(token, file);
@@ -54,6 +67,34 @@ export default function ProfileAvatarUpload({
             }
         } catch (err) {
             setUploadError(handleApiError(err) || 'Failed to upload profile picture.');
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const handleDeletePhoto = async () => {
+        if (!token || !user?.profilePic) return;
+        const confirmed = await confirm({
+            title: 'Remove profile photo?',
+            message: 'Your current profile picture will be removed.',
+            confirmText: 'Remove',
+            tone: 'danger',
+        });
+        if (!confirmed) return;
+
+        setUploading(true);
+        setUploadError('');
+        try {
+            const response = await authAPI.updateProfile(token, { profilePic: '' });
+            if (response.success) {
+                updateUser(response.data.user);
+                setImgError(false);
+                onSuccess?.();
+            } else {
+                setUploadError(response.message || 'Failed to remove profile picture.');
+            }
+        } catch (err) {
+            setUploadError(handleApiError(err) || 'Failed to remove profile picture.');
         } finally {
             setUploading(false);
         }
@@ -108,6 +149,21 @@ export default function ProfileAvatarUpload({
                         >
                             <Camera className="w-4 h-4" />
                         </button>
+                        {showImage && (
+                            <button
+                                type="button"
+                                onClick={handleDeletePhoto}
+                                disabled={uploading}
+                                aria-label="Remove profile picture"
+                                className={`absolute bottom-0 left-0 flex items-center justify-center rounded-full border-2 shadow-md transition-colors disabled:opacity-60 ${cameraBtnClass} ${
+                                    isDark
+                                        ? 'bg-gray-800 border-gray-600 text-red-400 hover:bg-gray-700'
+                                        : 'bg-white border-gray-200 text-red-500 hover:bg-gray-50'
+                                }`}
+                            >
+                                <Trash2 className="w-4 h-4" />
+                            </button>
+                        )}
                         <input
                             ref={fileInputRef}
                             type="file"
@@ -120,6 +176,15 @@ export default function ProfileAvatarUpload({
             </div>
             {uploadError && (
                 <p className="text-xs text-red-500 mt-1.5 text-center max-w-40">{uploadError}</p>
+            )}
+
+            {cropFile && (
+                <AvatarCropModal
+                    file={cropFile}
+                    isDark={isDark}
+                    onCancel={() => setCropFile(null)}
+                    onCropped={uploadCroppedImage}
+                />
             )}
         </div>
     );

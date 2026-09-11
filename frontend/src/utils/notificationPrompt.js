@@ -37,6 +37,15 @@ export function markNotificationPromptAttempted() {
     }
 }
 
+export function canOfferBrowserNotifications() {
+    try {
+        if (typeof window === 'undefined' || typeof Notification === 'undefined') return false;
+        return Notification.permission === 'default';
+    } catch {
+        return false;
+    }
+}
+
 /** True only once — on the first login when we have not asked before. */
 export function shouldPromptForNotifications() {
     if (hasAttemptedNotificationPrompt()) return false;

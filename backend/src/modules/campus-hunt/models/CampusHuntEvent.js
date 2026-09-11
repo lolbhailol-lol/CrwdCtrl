@@ -1,0 +1,145 @@
+const mongoose = require('mongoose');
+const { EVENT_STATUSES, DEFAULT_SCORING_CONFIG } = require('../constants');
+
+const speedBandSchema = new mongoose.Schema(
+  {
+    maxSeconds: { type: Number, required: true },
+    bonus: { type: Number, required: true },
+  },
+  { _id: false },
+);
+
+const attemptBandSchema = new mongoose.Schema(
+  {
+    attempt: { type: Number, required: true },
+    points: { type: Number, required: true },
+  },
+  { _id: false },
+);
+
+const clueScoringSchema = new mongoose.Schema(
+  {
+    basePoints: { type: Number, required: true },
+    maxAttempts: { type: Number, default: 3 },
+    hintCost: { type: Number, default: DEFAULT_SCORING_CONFIG.hintCost },
+    timerSeconds: { type: Number, default: 0 },
+    /** Clue 2: seconds to read instructions before the solve timer starts. */
+    timerStartDelaySeconds: { type: Number, default: 0 },
+    awardMode: { type: String },
+    allowLateSubmit: { type: Boolean },
+    revealOnMaxAttempts: { type: Boolean },
+    attemptBands: { type: [attemptBandSchema], default: [] },
+    speedBonusBands: { type: [speedBandSchema], default: [] },
+  },
+  { _id: false },
+);
+
+const scoringConfigSchema = new mongoose.Schema(
+  {
+    startingScore: { type: Number, default: DEFAULT_SCORING_CONFIG.startingScore },
+    hintCost: { type: Number, default: DEFAULT_SCORING_CONFIG.hintCost },
+    clue1: { type: clueScoringSchema, default: () => ({ ...DEFAULT_SCORING_CONFIG.clue1 }) },
+    clue2: { type: clueScoringSchema, default: () => ({ ...DEFAULT_SCORING_CONFIG.clue2 }) },
+    clue3: { type: clueScoringSchema, default: () => ({ ...DEFAULT_SCORING_CONFIG.clue3 }) },
+    clue4: { type: clueScoringSchema, default: () => ({ ...DEFAULT_SCORING_CONFIG.clue4 }) },
+    clue5: { type: clueScoringSchema, default: () => ({ ...DEFAULT_SCORING_CONFIG.clue5 }) },
+  },
+  { _id: false },
+);
+
+const campusHuntEventSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true, trim: true },
+    college: { type: String, required: true, trim: true },
+    slug: {
+      type: String,
+      required: true,
+      trim: true,
+      lowercase: true,
+      unique: true,
+    },
+    date: { type: Date },
+    status: {
+      type: String,
+      enum: EVENT_STATUSES,
+      default: 'draft',
+      index: true,
+    },
+    teamCapacity: { type: Number, default: 40 },
+    teamSize: { type: Number, default: 4 },
+    /** Finale board size (usually ≤ teamCapacity, max 12). */
+    finaleCapacity: { type: Number, default: 12 },
+    /** Top N from Round 1 auto-promoted into Finale. */
+    finaleDirectFromR1: { type: Number, default: 5 },
+    /**
+     * Organizer-defined round names + how many teams from each qualify to finals.
+     * Empty round2/round3 name = that round is not used yet.
+     */
+    roundPlan: {
+      round1Name: { type: String, default: 'Campus Hunt', trim: true },
+      round2Name: { type: String, default: '', trim: true },
+      round3Name: { type: String, default: '', trim: true },
+      finaleName: { type: String, default: 'Finale', trim: true },
+      qualifyFromRound1: { type: Number, default: 0, min: 0, max: 200 },
+      qualifyFromRound2: { type: Number, default: 0, min: 0, max: 200 },
+      qualifyFromRound3: { type: Number, default: 0, min: 0, max: 200 },
+    },
+    startingScore: { type: Number, default: 100 },
+    /** When true, college appears in Profile → Campus Hunt leaderboard */
+    publicLeaderboardLive: { type: Boolean, default: false, index: true },
+    /** When true, Profile shows Campus Hunt login (Google session required) */
+    publicLoginLive: { type: Boolean, default: false, index: true },
+    /** When true, finale leaderboard visible while finale round is live */
+    publicFinaleLeaderboardLive: { type: Boolean, default: false, index: true },
+    /**
+     * Player hub — which rounds players may open.
+     * Locked rounds stay visible but cannot be entered.
+     */
+    playerRoundAccess: {
+      round1: { type: Boolean, default: true },
+      survival: { type: Boolean, default: false },
+      finale: { type: Boolean, default: false },
+    },
+    scoringConfig: {
+      type: scoringConfigSchema,
+      default: () => ({ ...DEFAULT_SCORING_CONFIG }),
+    },
+    /** How many of the 4 starting points are live (1–4). Small demos often use 1. */
+    startCount: { type: Number, default: 4, min: 1, max: 4 },
+    /** How many of the 10 campus hunt places are live (1–10). */
+    stationCount: { type: Number, default: 10, min: 1, max: 10 },
+    /** Custom names for starting points A–D. */
+    campusStarts: {
+      type: [{
+        code: { type: String, required: true, trim: true, uppercase: true },
+        name: { type: String, required: true, trim: true },
+        _id: false,
+      }],
+      default: undefined,
+    },
+    /** Custom names for the 10 hunt scan places (codes S01–S10). */
+    campusStations: {
+      type: [{
+        code: { type: String, required: true, trim: true, uppercase: true },
+        name: { type: String, required: true, trim: true },
+        /** Shared plant slips at this stop (length ≈ teamSize). Same for all teams. */
+        plantFragments: { type: [String], default: undefined },
+        /** Word leaders type after joining fragments — unlocks poster scan. */
+        joinedWord: { type: String, default: '', trim: true },
+        _id: false,
+      }],
+      default: undefined,
+    },
+    /** Monotonic id for each offline pack export batch (reinstall clears local STATE). */
+    offlineExportBatchId: { type: String, default: '', trim: true },
+    featureNotes: { type: String, default: '' },
+  },
+  { timestamps: true },
+);
+
+campusHuntEventSchema.index({ college: 1, status: 1 });
+campusHuntEventSchema.index({ publicLeaderboardLive: 1, status: 1 });
+campusHuntEventSchema.index({ publicLoginLive: 1, status: 1 });
+
+module.exports = mongoose.models.CampusHuntEvent
+  || mongoose.model('CampusHuntEvent', campusHuntEventSchema);

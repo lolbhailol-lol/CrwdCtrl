@@ -1,24 +1,34 @@
 import React from 'react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { ArrowLeft, Mail, Phone, Globe, User, MapPin, Clock, MessageCircle, Send } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useInAppBack } from '../../hooks/useInAppBack';
+import Seo from '../../components/Seo';
+import { breadcrumbSchema, webPageSchema } from '../../utils/seo';
+import { openExternalUrl } from '../../utils/externalLink';
+import {
+    LEGAL_EMAIL,
+    LEGAL_NAME,
+    LEGAL_OPERATOR_LINE,
+    LEGAL_PHONE_DISPLAY,
+    LEGAL_PHONE_TEL,
+    SUPPORT_EMAIL,
+    WEBSITE_URL,
+    LEGAL_JURISDICTION,
+} from '../../constants/legalEntity';
 
 export default function ContactUs() {
     const { isDark } = useDarkMode();
-    const navigate = useNavigate();
+    const goBack = useInAppBack();
 
     const contactData = {
-        website: "https://www.crwdctrl.in",
-        email: "Karan@crwdctrl.in",
+        website: WEBSITE_URL,
+        email: LEGAL_EMAIL,
+        supportEmail: SUPPORT_EMAIL,
         phone_numbers: [
             {
-                name: "Karan Jadhav",
-                number: "+91 72762 76424"
+                name: LEGAL_NAME,
+                number: LEGAL_PHONE_DISPLAY,
             },
-            {
-                name: "Sanshikha Aryan",
-                number: "+91 7006225981"
-            }
         ]
     };
 
@@ -31,17 +41,32 @@ export default function ContactUs() {
     };
 
     const handleWebsiteClick = () => {
-        window.open(contactData.website, '_blank', 'noopener,noreferrer');
+        openExternalUrl(contactData.website);
     };
+
+    const contactDescription =
+        'Get in touch with the CrwdCtrl team. Contact us for support, partnerships, listing your fest or event, or any questions about the platform.';
 
     return (
         <div className="crwdctrl-page crwdctrl-page--content min-h-screen transition-colors duration-300">
+            <Seo
+                title="Contact Us"
+                description={contactDescription}
+                canonical="/contact-us"
+                jsonLd={[
+                    webPageSchema({ name: 'Contact CrwdCtrl', description: contactDescription, url: '/contact-us' }),
+                    breadcrumbSchema([
+                        { name: 'Home', path: '/' },
+                        { name: 'Contact Us', path: '/contact-us' },
+                    ]),
+                ]}
+            />
             {/* Header */}
             <div className={`crwdctrl-sticky-header ${isDark ? 'bg-[#111111] border-gray-800' : 'bg-white border-gray-200'} border-b`}>
                 <div className="max-w-4xl mx-auto px-4 py-4">
                     <div className="flex items-center justify-center relative">
                         <button
-                            onClick={() => navigate(-1)}
+                            onClick={goBack}
                             className={`lg:hidden absolute left-0 p-2 rounded-lg ${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-100'} transition-colors`}
                         >
                             <ArrowLeft className="w-5 h-5" />
@@ -70,6 +95,29 @@ export default function ContactUs() {
                         <p className={`${isDark ? 'text-gray-300' : 'text-gray-600'} max-w-2xl mx-auto`}>
                             Have questions, suggestions, or need assistance? Our team is here to help you make the most of your CrwdCtrl experience.
                         </p>
+                    </div>
+                </div>
+
+                <div className={`${isDark ? 'bg-[#111111] border-gray-800' : 'bg-white border-gray-200'} border rounded-lg p-6 mb-8`}>
+                    <h2 className="text-lg font-semibold mb-2">Legal / Business Information</h2>
+                    <p className={`text-sm mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                        {LEGAL_OPERATOR_LINE}
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                        <p><strong>Legal name:</strong> {LEGAL_NAME}</p>
+                        <p>
+                            <strong>Email:</strong>{' '}
+                            <a href={`mailto:${LEGAL_EMAIL}`} className="text-blue-500 underline">{LEGAL_EMAIL}</a>
+                        </p>
+                        <p>
+                            <strong>Phone:</strong>{' '}
+                            <a href={`tel:${LEGAL_PHONE_TEL}`} className="text-blue-500 underline">{LEGAL_PHONE_DISPLAY}</a>
+                        </p>
+                        <p>
+                            <strong>Website:</strong>{' '}
+                            <a href={WEBSITE_URL} className="text-blue-500 underline">{WEBSITE_URL}</a>
+                        </p>
+                        <p><strong>Location:</strong> {LEGAL_JURISDICTION}</p>
                     </div>
                 </div>
 
@@ -106,6 +154,9 @@ export default function ContactUs() {
                         </p>
                         <p className="text-blue-500 hover:text-blue-600 transition-colors font-medium">
                             {contactData.email}
+                        </p>
+                        <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                            Support: {contactData.supportEmail}
                         </p>
                     </div>
 

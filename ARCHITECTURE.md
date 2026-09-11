@@ -1,5 +1,7 @@
 # CrwdCtrl Architecture
 
+High-level view of how the web client, API, database, and external services fit together.
+
 ```mermaid
 flowchart LR
   classDef user fill:#FFE4EC,stroke:#D81B60,stroke-width:2px,color:#880E4F;
@@ -9,55 +11,48 @@ flowchart LR
   classDef external fill:#F3E5F5,stroke:#8E24AA,stroke-width:2px,color:#4A148C;
   classDef session fill:#FFFDE7,stroke:#F9A825,stroke-width:2px,color:#5D4037;
 
-  U["User / Browser"]:::user
+  U["User / Browser / Android"]:::user
 
   subgraph FE["Frontend"]
     direction TB
-    FE1["React App"]:::frontend
-    FE2["UI Pages, Components, Contexts"]:::frontend
-    FE3["API Client + Auth Helpers"]:::frontend
+    FE1["React + Vite app"]:::frontend
+    FE2["Hubs, detail pages, organizer UIs"]:::frontend
+    FE3["API client + auth helpers"]:::frontend
     FE4["Firebase SDK<br/>Auth, Messaging, Analytics"]:::frontend
-    FE5["Local Session<br/>JWT Token + User Profile"]:::session
+    FE5["Session<br/>JWT + profile"]:::session
   end
 
   subgraph BE["Backend"]
     direction TB
     BE1["Express API<br/>/api"]:::backend
-    BE2["Middleware Layer<br/>CORS, Helmet, Rate Limit, Logging, JWT Auth"]:::backend
-    BE3["Routes<br/>Users, Admin, Events, Fests, Competitions,<br/>Treks, Sports, Payments, Notifications, QR, Analytics"]:::backend
-    BE4["Controllers + Services<br/>Business Logic + Integrations"]:::backend
-    BE5["Mongoose Models"]:::backend
+    BE2["Middleware<br/>CORS, Helmet, rate limit, JWT"]:::backend
+    BE3["Routes<br/>Users, fests, competitions, treks,<br/>sports / events, payments, QR, hunt, admin"]:::backend
+    BE4["Controllers + services"]:::backend
+    BE5["Mongoose models"]:::backend
   end
 
   subgraph DB["Database"]
-    direction TB
     DB1["MongoDB Atlas"]:::database
   end
 
-  subgraph EXT["External Services"]
-    direction TB
-    X1["Firebase<br/>Auth + FCM + Analytics"]:::external
-    X2["Cashfree<br/>Payments"]:::external
-    X3["Cloudinary<br/>Media Uploads"]:::external
-    X4["Resend / SMTP<br/>Email Delivery"]:::external
+  subgraph EXT["External services"]
+    X1["Firebase Auth / FCM"]:::external
+    X2["Cashfree"]:::external
+    X3["Cloudinary"]:::external
+    X4["Resend / SMTP"]:::external
   end
 
   U --> FE1
-  FE1 --> FE2
-  FE2 --> FE3
+  FE1 --> FE2 --> FE3
   FE2 --> FE4
   FE3 --> FE5
-
-  FE3 -->|"JWT REST calls"| BE1
-  FE4 -->|"OAuth login, push tokens, analytics"| X1
-
+  FE3 -->|"JWT REST"| BE1
+  FE4 --> X1
   BE1 --> BE2 --> BE3 --> BE4 --> BE5 --> DB1
-  BE2 -->|"Validate JWT + load role"| BE5
-
-  BE4 -->|"Create / verify orders"| X2
-  BE4 -->|"Upload images / files"| X3
-  BE4 -->|"Send transactional emails"| X4
-  BE4 -->|"Push notifications via Firebase Admin"| X1
+  BE4 --> X2
+  BE4 --> X3
+  BE4 --> X4
+  BE4 --> X1
 ```
 
-This diagram reflects the current codebase structure in CrwdCtrl and the main runtime data flow between the client, API, database, and external integrations.
+Product overview and local setup: [README.md](./README.md).

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import ProfileSidebar from '../../components/ProfileSidebar';
+import ProfileSidebar from '../../components/layout/ProfileSidebar';
 
 const ProfilePage = () => {
     const navigate = useNavigate();

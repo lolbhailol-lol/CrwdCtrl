@@ -1,12 +1,53 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, User, Calendar, HelpCircle, LogOut, Heart, Bell, Sun, Moon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, User, HelpCircle, LogOut, Sun, Moon, Footprints, Users, Mountain, CalendarDays, MapPinned, KeyRound } from 'lucide-react';
+import { isCampusHuntEnabled, CAMPUS_HUNT_PATHS } from '../../features/campus-hunt/config';
+import {
+    clearCampusHuntProfileCache,
+    loadCampusHuntProfileEntries,
+    peekCampusHuntProfileCache,
+    warmCampusHuntChunks,
+} from '../../features/campus-hunt/utils/campusHuntProfileCache';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import MobileBottomNav from './MobileBottomNav';
 import ProfileAvatarUpload from '../ProfileAvatarUpload';
 import ProfileSidebarLoadingSkeleton from '../ProfileSidebarLoadingSkeleton';
-import { SKELETON_LOADING_MS } from '../../constants/skeletonLoading';
+import { usePageTransition } from './PageTransition';
+import {
+    fetchClubManagerProfileEligible,
+    tryRunClubOrganizerAppSession,
+} from '../../services/api/runClubOrganizer.api';
+import {
+    EVENT_COMMUNITY_ORGANIZER_BASE,
+    RUN_CLUB_ORGANIZER_BASE,
+    organizerLoginPath,
+    organizerSignupPath,
+} from '../../utils/organizerPortalPaths';
+import {
+    fetchTrekCommunityProfileEligible,
+    tryTrekOrganizerAppSession,
+} from '../../services/api/trekOrganizer.api';
+import {
+    fetchEventOrganizerProfileEligible,
+    tryEventOrganizerAppSession,
+} from '../../services/api/eventShowOrganizer.api';
+import { resolveAuthToken, hasUsableAuthToken } from '../../utils/authToken';
+import { prepareLogin } from '../../utils/loginFlow';
+
+function GoogleIcon({ className = 'w-6 h-6' }) {
+    return (
+        <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+        </svg>
+    );
+}
+
+/** Session caches so reopening Profile does not wait on the network again */
+let organizerEligibilityCache = null;
 
 export default function ProfileSidebar({
     isOpen,
@@ -17,25 +58,166 @@ export default function ProfileSidebar({
     embedBottomNav = true,
 }) {
     const { isDark, toggleDarkMode } = useDarkMode();
-    const { user, logout, isAuthenticated, isLoading, isAuthProcessing, isRedirectProcessing } = useAuth();
+    const { user, logout, isAuthenticated, isLoading, isAuthProcessing, isRedirectProcessing, token } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
-    const [sidebarRevealReady, setSidebarRevealReady] = useState(false);
+    const { prepareRouteNavigation } = usePageTransition();
+    const [clubManagerEligible, setClubManagerEligible] = useState(
+        () => Boolean(organizerEligibilityCache?.club),
+    );
+    const [communityOrganizerEligible, setCommunityOrganizerEligible] = useState(
+        () => Boolean(organizerEligibilityCache?.eventsCommunity),
+    );
+    const [trekCommunityEligible, setTrekCommunityEligible] = useState(
+        () => Boolean(organizerEligibilityCache?.trek),
+    );
+    const [eventOrganizerEligible, setEventOrganizerEligible] = useState(
+        () => Boolean(organizerEligibilityCache?.event),
+    );
+    const cachedHunt = peekCampusHuntProfileCache();
+    const [campusHuntLoginLive, setCampusHuntLoginLive] = useState(
+        () => Boolean(cachedHunt?.showLogin),
+    );
+    const [campusHuntLeaderboardLive, setCampusHuntLeaderboardLive] = useState(
+        () => Boolean(cachedHunt?.showLeaderboard),
+    );
+    const [campusHuntMyTeams, setCampusHuntMyTeams] = useState(
+        () => cachedHunt?.myTeams || [],
+    );
+    const [campusHuntEntriesPending, setCampusHuntEntriesPending] = useState(
+        () => isCampusHuntEnabled() && !cachedHunt?.resolved,
+    );
 
     const authPending = isLoading || isAuthProcessing || isRedirectProcessing;
+    // Only skeleton on cold auth bootstrap — never block on organizer / hunt API calls
+    const isProfileLoading = isOpen && authPending && !isAuthenticated && !user;
+    // Primitive identity for effect deps (strings compare by value — not by reference)
+    const campusHuntIdentity = isAuthenticated
+        ? String(user?.uid || user?.id || user?.email || '').toLowerCase()
+        : '';
 
+    // Drop profile caches on confirmed logout (skip cold auth bootstrap)
     useEffect(() => {
-        if (!isOpen) {
-            setSidebarRevealReady(false);
+        if (authPending || isAuthenticated) return undefined;
+        clearCampusHuntProfileCache();
+        organizerEligibilityCache = null;
+        setCampusHuntLoginLive(false);
+        setCampusHuntLeaderboardLive(false);
+        setCampusHuntMyTeams([]);
+        setCampusHuntEntriesPending(isCampusHuntEnabled());
+        setClubManagerEligible(false);
+        setCommunityOrganizerEligible(false);
+        setTrekCommunityEligible(false);
+        setEventOrganizerEligible(false);
+        return undefined;
+    }, [isAuthenticated, authPending]);
+
+    // Prefetch Campus Hunt entries as soon as auth settles (not only when Profile opens)
+    useEffect(() => {
+        if (!isCampusHuntEnabled()) {
+            setCampusHuntLoginLive(false);
+            setCampusHuntLeaderboardLive(false);
+            setCampusHuntMyTeams([]);
+            setCampusHuntEntriesPending(false);
+            return undefined;
+        }
+        if (authPending) return undefined;
+        if (isAuthenticated && !campusHuntIdentity) return undefined;
+
+        const cacheKey = isAuthenticated ? `u:${campusHuntIdentity}` : 'guest';
+        const hit = peekCampusHuntProfileCache();
+        if (hit?.key === cacheKey && hit.resolved) {
+            setCampusHuntLoginLive(Boolean(hit.showLogin));
+            setCampusHuntLeaderboardLive(Boolean(hit.showLeaderboard));
+            setCampusHuntMyTeams(hit.myTeams || []);
+            setCampusHuntEntriesPending(false);
             return undefined;
         }
 
-        setSidebarRevealReady(false);
-        const revealTimer = window.setTimeout(() => setSidebarRevealReady(true), SKELETON_LOADING_MS);
-        return () => window.clearTimeout(revealTimer);
+        let cancelled = false;
+        setCampusHuntEntriesPending(true);
+        (async () => {
+            try {
+                const next = await loadCampusHuntProfileEntries(cacheKey);
+                if (cancelled) return;
+                setCampusHuntLoginLive(next.showLogin);
+                setCampusHuntLeaderboardLive(next.showLeaderboard);
+                setCampusHuntMyTeams(next.myTeams || []);
+            } catch {
+                if (!cancelled && !peekCampusHuntProfileCache()?.resolved) {
+                    setCampusHuntLoginLive(false);
+                    setCampusHuntLeaderboardLive(false);
+                    setCampusHuntMyTeams([]);
+                }
+            } finally {
+                if (!cancelled) setCampusHuntEntriesPending(false);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [authPending, isAuthenticated, campusHuntIdentity]);
+
+    // Warm hunt route chunks when Profile opens
+    useEffect(() => {
+        if (!isOpen || !isCampusHuntEnabled()) return undefined;
+        warmCampusHuntChunks();
+        return undefined;
     }, [isOpen]);
 
-    const isProfileLoading = isOpen && (!sidebarRevealReady || authPending);
+    // Organizer rows load in the background; menu is usable immediately
+    useEffect(() => {
+        if (!isOpen) return undefined;
+        let cancelled = false;
+
+        if (!isAuthenticated) {
+            setClubManagerEligible(false);
+            setCommunityOrganizerEligible(false);
+            setTrekCommunityEligible(false);
+            setEventOrganizerEligible(false);
+            organizerEligibilityCache = null;
+            return undefined;
+        }
+
+        if (authPending) return undefined;
+
+        const authToken = resolveAuthToken(token);
+        if (!hasUsableAuthToken(authToken)) return undefined;
+
+        const cacheKey = String(user?.email || authToken).toLowerCase();
+        if (organizerEligibilityCache?.key === cacheKey) {
+            setClubManagerEligible(Boolean(organizerEligibilityCache.club));
+            setCommunityOrganizerEligible(Boolean(organizerEligibilityCache.eventsCommunity));
+            setTrekCommunityEligible(Boolean(organizerEligibilityCache.trek));
+            setEventOrganizerEligible(Boolean(organizerEligibilityCache.event));
+            return undefined;
+        }
+
+        (async () => {
+            try {
+                const [clubData, trekData, eventData] = await Promise.all([
+                    fetchClubManagerProfileEligible(authToken).catch(() => ({ eligible: false })),
+                    fetchTrekCommunityProfileEligible(authToken).catch(() => ({ eligible: false })),
+                    fetchEventOrganizerProfileEligible(authToken).catch(() => ({ eligible: false })),
+                ]);
+                if (cancelled) return;
+                const next = {
+                    key: cacheKey,
+                    club: Boolean(clubData?.sportsEligible ?? clubData?.eligible),
+                    eventsCommunity: Boolean(clubData?.eventsEligible),
+                    trek: Boolean(trekData?.eligible),
+                    event: Boolean(eventData?.eligible),
+                };
+                organizerEligibilityCache = next;
+                setClubManagerEligible(next.club);
+                setCommunityOrganizerEligible(next.eventsCommunity);
+                setTrekCommunityEligible(next.trek);
+                setEventOrganizerEligible(next.event);
+            } catch {
+                /* keep prior / empty */
+            }
+        })();
+
+        return () => { cancelled = true; };
+    }, [isOpen, isAuthenticated, authPending, user?.email, token]);
 
     useEffect(() => {
         if (!isOpen) return undefined;
@@ -50,34 +232,184 @@ export default function ProfileSidebar({
     }, [isOpen]);
 
     const handleLogout = () => {
+        clearCampusHuntProfileCache();
+        organizerEligibilityCache = null;
+        setCampusHuntLoginLive(false);
+        setCampusHuntLeaderboardLive(false);
+        setCampusHuntMyTeams([]);
+        setCampusHuntEntriesPending(isCampusHuntEnabled());
+        setClubManagerEligible(false);
+        setCommunityOrganizerEligible(false);
+        setTrekCommunityEligible(false);
+        setEventOrganizerEligible(false);
         logout();
         onClose();
         navigate('/');
     };
 
-    const handleMenuItemClick = (label) => {
-        if (label === 'Edit profile') {
-            navigate('/edit-profile');
-            onClose();
-        } else if (label === 'Bookings') {
-            navigate('/booking');
-            onClose();
-        } else if (label === 'Help Center') {
-            navigate('/help-center');
-            onClose();
-        } else if (label === 'Favourites') {
-            navigate('/favorites');
-            onClose();
-        } else if (label === 'Notifications') {
-            navigate('/notifications');
-            onClose();
-        }
-        // Add other navigation cases here if needed
+    const MENU_ROUTES = {
+        'Edit profile': '/edit-profile',
+        'Help Center': '/help-center',
+        'Campus Hunt login': CAMPUS_HUNT_PATHS.profileLogin,
+        'Campus Hunt leaderboard': CAMPUS_HUNT_PATHS.leaderboard,
     };
+
+    const goToPath = (path) => {
+        if (location.pathname === path) {
+            onClose();
+            return;
+        }
+        prepareRouteNavigation(path);
+        navigate(path);
+        onClose();
+    };
+
+    const promptGoogleFromProfile = () => {
+        if (onShowLogin) {
+            onShowLogin({ stayInProfile: true });
+            return;
+        }
+        prepareLogin({ fromProfile: true, stayInProfile: true });
+        prepareRouteNavigation('/login');
+        navigate('/login');
+    };
+
+    const handleMenuItemClick = async (label) => {
+        const teamEntry = campusHuntMyTeams.find(
+            (t) => label === `Team ${t.teamCode}` || label === t.teamCode,
+        );
+        if (teamEntry?.loginPath) {
+            if (!isAuthenticated) {
+                promptGoogleFromProfile();
+                return;
+            }
+            goToPath(teamEntry.loginPath);
+            return;
+        }
+
+        const needsGoogle = !isAuthenticated && (
+            label === 'Campus Hunt login'
+            || label === 'Campus Hunt leaderboard'
+            || label === 'Edit profile'
+        );
+        if (needsGoogle) {
+            warmCampusHuntChunks();
+            promptGoogleFromProfile();
+            return;
+        }
+
+        if (label === 'Campus Hunt login') {
+            warmCampusHuntChunks();
+            goToPath(CAMPUS_HUNT_PATHS.profileLogin);
+            return;
+        }
+
+        if (label === 'Club manager') {
+            try {
+                const booted = await tryRunClubOrganizerAppSession(token, 'sports', { force: true });
+                goToPath(booted?.token ? RUN_CLUB_ORGANIZER_BASE : organizerLoginPath(false));
+            } catch (err) {
+                goToPath(err?.code === 'no_organizer_account'
+                    ? organizerSignupPath(false)
+                    : organizerLoginPath(false));
+            }
+            return;
+        }
+
+        if (label === 'Community organizer') {
+            if (!isAuthenticated) {
+                const organizerReturn = organizerLoginPath(true);
+                prepareLogin({ fromProfile: true, returnPath: organizerReturn });
+                navigate(`/login?redirect=${encodeURIComponent(organizerReturn)}`);
+                onClose();
+                return;
+            }
+            try {
+                const booted = await tryRunClubOrganizerAppSession(token, 'events', { force: true });
+                goToPath(booted?.token ? EVENT_COMMUNITY_ORGANIZER_BASE : organizerLoginPath(true));
+            } catch (err) {
+                goToPath(err?.code === 'no_organizer_account'
+                    ? organizerSignupPath(true)
+                    : organizerLoginPath(true));
+            }
+            return;
+        }
+
+        if (label === 'Trek community') {
+            try {
+                const booted = await tryTrekOrganizerAppSession(token, { force: true });
+                goToPath(booted?.token ? '/trek-organizer' : '/trek-organizer/login');
+            } catch (err) {
+                goToPath(err?.code === 'no_organizer_account'
+                    ? '/trek-organizer/signup'
+                    : '/trek-organizer/login');
+            }
+            return;
+        }
+
+        if (label === 'Event organizer') {
+            try {
+                const booted = await tryEventOrganizerAppSession(token);
+                goToPath(booted?.token ? '/event-organizer' : '/event-organizer/login');
+            } catch (err) {
+                goToPath(err?.code === 'no_organizer_account'
+                    ? '/event-organizer/signup'
+                    : '/event-organizer/login');
+            }
+            return;
+        }
+
+        const path = MENU_ROUTES[label];
+        if (!path) return;
+        if (label.startsWith('Campus Hunt')) warmCampusHuntChunks();
+        goToPath(path);
+    };
+
+    const campusHuntTeamItems = (campusHuntMyTeams || []).map((t) => ({
+        icon: KeyRound,
+        label: `Team ${t.teamCode}`,
+        hint: t.teamName || t.college || 'Open team login',
+    }));
+
+    const huntEnabled = isCampusHuntEnabled();
+    const huntLoginHint = !isAuthenticated
+        ? 'Sign in with Google, then enter your team code'
+        : (campusHuntTeamItems.length > 0 ? 'Enter another team code' : 'Enter team code');
+    const huntBoardHint = !isAuthenticated
+        ? 'Sign in with Google, then open live scores'
+        : 'Live college scores';
+
+    const campusHuntItems = huntEnabled ? [
+        ...campusHuntTeamItems,
+        {
+            icon: KeyRound,
+            label: 'Campus Hunt login',
+            hint: campusHuntEntriesPending && !campusHuntLoginLive ? 'Loading…' : huntLoginHint,
+            pending: campusHuntEntriesPending && !campusHuntLoginLive,
+        },
+        {
+            icon: MapPinned,
+            label: 'Campus Hunt leaderboard',
+            hint: campusHuntEntriesPending && !campusHuntLeaderboardLive ? 'Loading…' : huntBoardHint,
+            pending: campusHuntEntriesPending && !campusHuntLeaderboardLive,
+        },
+    ] : [];
 
     const menuItems = [
         { icon: User, label: 'Edit profile' },
-        { icon: Calendar, label: 'Bookings' },
+        ...campusHuntItems,
+        ...(clubManagerEligible
+            ? [{ icon: Footprints, label: 'Club manager', hint: 'Runs, guests, check-in & notify' }]
+            : []),
+        ...(communityOrganizerEligible
+            ? [{ icon: Users, label: 'Community organizer', hint: 'Events, guests, scan & notify' }]
+            : []),
+        ...(trekCommunityEligible
+            ? [{ icon: Mountain, label: 'Trek community', hint: 'Treks, participants, check-in & notify' }]
+            : []),
+        ...(eventOrganizerEligible
+            ? [{ icon: CalendarDays, label: 'Event organizer', hint: 'Events, guests, check-in & notify' }]
+            : []),
     ];
 
     const secondaryItems = [
@@ -86,11 +418,37 @@ export default function ProfileSidebar({
 
     // Mobile menu items - filtered based on authentication status
     const allMobileMenuItems = [
-        { icon: User, label: 'Edit profile', requiresAuth: true },
-        { icon: Heart, label: 'Favourites', requiresAuth: false },
-        { icon: Calendar, label: 'Bookings', requiresAuth: false },
+        { icon: User, label: 'Edit profile', requiresAuth: false },
+        ...campusHuntTeamItems.map((item) => ({ ...item, requiresAuth: false })),
+        ...(huntEnabled
+            ? [{
+                icon: KeyRound,
+                label: 'Campus Hunt login',
+                requiresAuth: false,
+                hint: huntLoginHint,
+            }]
+            : []),
+        ...(huntEnabled
+            ? [{
+                icon: MapPinned,
+                label: 'Campus Hunt leaderboard',
+                requiresAuth: false,
+                hint: huntBoardHint,
+            }]
+            : []),
+        ...(clubManagerEligible
+            ? [{ icon: Footprints, label: 'Club manager', requiresAuth: true, hint: 'Runs, guests, check-in & notify' }]
+            : []),
+        ...(communityOrganizerEligible
+            ? [{ icon: Users, label: 'Community organizer', requiresAuth: true, hint: 'Events, guests, scan & notify' }]
+            : []),
+        ...(trekCommunityEligible
+            ? [{ icon: Mountain, label: 'Trek community', requiresAuth: true, hint: 'Treks, participants, check-in & notify' }]
+            : []),
+        ...(eventOrganizerEligible
+            ? [{ icon: CalendarDays, label: 'Event organizer', requiresAuth: true, hint: 'Events, guests, check-in & notify' }]
+            : []),
         { icon: HelpCircle, label: 'Help Center', requiresAuth: false },
-        { icon: Bell, label: 'Notifications', requiresAuth: true },
     ];
 
     // Filter menu items based on authentication status for mobile view
@@ -113,17 +471,17 @@ export default function ProfileSidebar({
             <div className="hidden md:block profile-sidebar-layer">
                 {/* Full Screen Overlay */}
                 <div
-                    className={`fixed inset-0 backdrop-blur-sm z-60 transition-opacity duration-300 ${isDark ? 'bg-[#161718]/50' : 'bg-white/30'}`}
+                    className={`fixed inset-0 z-60 transition-opacity duration-300 ${isDark ? 'bg-black/40' : 'bg-black/20'}`}
                     onClick={onClose}
                 />
 
                 {/* Sidebar */}
                 <div className={`fixed right-0 top-0 z-70 w-full max-w-md h-full transform transition-all duration-300 ${isOpen ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'
                     }`}>
-                    <div className={`h-full rounded-l-2xl shadow-xl overflow-hidden overflow-y-auto scrollbar-hide ${isDark ? 'bg-[#161718]' : 'bg-white'
+                    <div className={`relative h-full rounded-l-2xl shadow-xl overflow-hidden overflow-y-auto scrollbar-hide ${isDark ? 'bg-[#161718]' : 'bg-white'
                         }`}>
-                        {/* Header */}
-                        <div className="px-4 pt-4">
+                        {/* Header stays usable so guest can dismiss */}
+                        <div className="relative z-20 px-4 pt-4">
                             <div className="flex items-center justify-between pb-8">
                                 <h1 className={`text-2xl font-medium font-inter leading-8 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                     Profile
@@ -139,6 +497,7 @@ export default function ProfileSidebar({
                             </div>
                         </div>
 
+                        <div className="relative">
                         {/* Profile Section */}
                         {isProfileLoading ? (
                             <ProfileSidebarLoadingSkeleton variant="desktop" isDark={isDark} />
@@ -177,16 +536,23 @@ export default function ProfileSidebar({
                                             : 'border border-gray-100 bg-white hover:bg-gray-50'
                                     }`}
                                 >
-                                    <div className="flex items-center gap-3">
-                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isDark ? 'bg-[#0ECCEE]/15' : 'bg-[#0ECCEE]/10'
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <div className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center ${isDark ? 'bg-[#0ECCEE]/15' : 'bg-[#0ECCEE]/10'
                                             }`}>
                                             <item.icon className="w-5 h-5 text-[#0ECCEE]" />
                                         </div>
-                                        <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                            {item.label}
-                                        </span>
+                                        <div className="min-w-0 text-left">
+                                            <span className={`font-medium block ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                {item.label}
+                                            </span>
+                                            {item.hint ? (
+                                                <span className={`text-[11px] block truncate ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                                    {item.hint}
+                                                </span>
+                                            ) : null}
+                                        </div>
                                     </div>
-                                    <ChevronRight className={`w-5 h-5 transition-colors ${isDark
+                                    <ChevronRight className={`w-5 h-5 shrink-0 transition-colors ${isDark
                                         ? 'text-gray-500 group-hover:text-gray-300'
                                         : 'text-gray-400 group-hover:text-gray-600'
                                         }`} />
@@ -206,16 +572,23 @@ export default function ProfileSidebar({
                                             : 'border border-gray-100 bg-white hover:bg-gray-50'
                                     }`}
                                 >
-                                    <div className="flex items-center gap-3">
-                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isDark ? 'bg-[#0ECCEE]/15' : 'bg-[#0ECCEE]/10'
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <div className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center ${isDark ? 'bg-[#0ECCEE]/15' : 'bg-[#0ECCEE]/10'
                                             }`}>
                                             <item.icon className="w-5 h-5 text-[#0ECCEE]" />
                                         </div>
-                                        <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                            {item.label}
-                                        </span>
+                                        <div className="min-w-0 text-left">
+                                            <span className={`font-medium block ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                {item.label}
+                                            </span>
+                                            {item.hint ? (
+                                                <span className={`text-[11px] block truncate ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                                    {item.hint}
+                                                </span>
+                                            ) : null}
+                                        </div>
                                     </div>
-                                    <ChevronRight className={`w-5 h-5 transition-colors ${isDark
+                                    <ChevronRight className={`w-5 h-5 shrink-0 transition-colors ${isDark
                                         ? 'text-gray-500 group-hover:text-gray-300'
                                         : 'text-gray-400 group-hover:text-gray-600'
                                         }`} />
@@ -241,26 +614,20 @@ export default function ProfileSidebar({
                                 </button>
                             ) : (
                                 <button
-                                    onClick={() => {
-                                        if (onShowLogin) {
-                                            onShowLogin();
-                                            onClose();
-                                        } else {
-                                            navigate('/login');
-                                            onClose();
-                                        }
-                                    }}
-                                    className={`w-full flex items-center justify-center gap-2 p-4 rounded-xl transition-colors group bg-[#0ECCEE] hover:bg-[#0ECCEE]/90 active:scale-[0.98]`}
+                                    onClick={() => promptGoogleFromProfile()}
+                                    className="w-full flex items-center justify-center gap-2 p-4 rounded-xl transition-colors group bg-[#0ECCEE] hover:bg-[#0ECCEE]/90 active:scale-[0.98]"
                                 >
+                                    <GoogleIcon className="w-5 h-5" />
                                     <span className="font-medium text-black">
-                                        Log In
+                                        Continue with Google
                                     </span>
-                                    <User className="w-5 h-5 text-black" />
                                 </button>
                             )}
                         </div>
                         </>
                         )}
+                        </div>
+
                     </div>
                 </div>
             </div>
@@ -270,7 +637,7 @@ export default function ProfileSidebar({
                 {/* Mobile Profile Screen */}
                 <div className={`fixed inset-0 z-9999 profile-sidebar-mobile flex flex-col h-dvh max-h-dvh overflow-hidden ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
                     <div className="profile-sidebar-mobile__scroll flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain scrollbar-hide">
-                        <main className="px-4 pt-4 sm:px-6 pb-4">
+                        <main className="px-4 pt-[calc(var(--safe-top)+1rem)] sm:px-6 pb-4">
                             <div
                                 className={`mx-auto w-full max-w-md rounded-2xl ${
                                     isDark ? 'bg-[#161718]' : 'bg-white'
@@ -279,14 +646,6 @@ export default function ProfileSidebar({
                                 <div className="px-4 pt-4">
                                     <div className="flex items-start justify-between gap-3 pb-8">
                                         <div className="flex min-w-0 items-center gap-2">
-                                            <button
-                                                type="button"
-                                                onClick={onClose}
-                                                className={`shrink-0 rounded-lg p-1 transition-colors touch-manipulation ${isDark ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-600 hover:bg-gray-100'}`}
-                                                aria-label="Close profile"
-                                            >
-                                                <ChevronLeft className="h-6 w-6" />
-                                            </button>
                                             <h1 className={`text-2xl font-medium font-inter leading-8 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                                 Profile
                                             </h1>
@@ -349,16 +708,23 @@ export default function ProfileSidebar({
                                                 : 'border border-gray-100 bg-white hover:bg-gray-50'
                                         }`}
                                     >
-                                        <div className="flex items-center gap-4">
-                                            <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isDark ? 'bg-[#0ECCEE]/15' : 'bg-[#0ECCEE]/10'
+                                        <div className="flex items-center gap-4 min-w-0">
+                                            <div className={`w-12 h-12 shrink-0 rounded-full flex items-center justify-center ${isDark ? 'bg-[#0ECCEE]/15' : 'bg-[#0ECCEE]/10'
                                                 }`}>
                                                 <item.icon className="w-6 h-6 text-[#0ECCEE]" />
                                             </div>
-                                            <span className={`font-medium text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                {item.label}
-                                            </span>
+                                            <div className="min-w-0 text-left">
+                                                <span className={`font-medium text-lg block ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                    {item.label}
+                                                </span>
+                                                {item.hint ? (
+                                                    <span className={`text-xs block truncate ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                                        {item.hint}
+                                                    </span>
+                                                ) : null}
+                                            </div>
                                         </div>
-                                        <ChevronRight className={`w-6 h-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
+                                        <ChevronRight className={`w-6 h-6 shrink-0 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
                                     </button>
                                 ))}
                             </div>
@@ -378,20 +744,12 @@ export default function ProfileSidebar({
                                 </button>
                             ) : (
                                 <button
-                                    onClick={() => {
-                                        if (onShowLogin) {
-                                            onShowLogin();
-                                            onClose();
-                                        } else {
-                                            navigate('/login');
-                                            onClose();
-                                        }
-                                    }}
+                                    onClick={() => promptGoogleFromProfile()}
                                     className="w-full flex items-center justify-center gap-3 p-4 rounded-2xl transition-all duration-200 active:scale-95 bg-[#0ECCEE] hover:bg-[#0ECCEE]/90"
                                 >
-                                    <User className="w-6 h-6 text-black" />
+                                    <GoogleIcon />
                                     <span className="font-semibold text-black text-lg">
-                                        Log In
+                                        Continue with Google
                                     </span>
                                 </button>
                             )}

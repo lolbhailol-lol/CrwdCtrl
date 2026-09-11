@@ -1,7 +1,29 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { normalizeFavoriteEntry } from '../utils/favoriteNormalize';
 
 const FavoritesContext = createContext();
+const STORAGE_KEY = 'crwdctrl-favorites';
+
+function readFavoritesFromStorage() {
+    if (typeof window === 'undefined') return {};
+    try {
+        const savedFavorites = localStorage.getItem(STORAGE_KEY);
+        if (!savedFavorites) return {};
+        return JSON.parse(savedFavorites);
+    } catch {
+        // SecurityError (private Safari / restricted iframe) or bad JSON
+        return {};
+    }
+}
+
+function writeFavoritesToStorage(favorites) {
+    if (typeof window === 'undefined') return;
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(favorites));
+    } catch {
+        // QuotaExceeded / SecurityError — ignore; in-memory still works
+    }
+}
 
 export const useFavorites = () => {
     const context = useContext(FavoritesContext);
@@ -12,21 +34,7 @@ export const useFavorites = () => {
 };
 
 export const FavoritesProvider = ({ children }) => {
-    // Initialize favorites from localStorage
-    const [favorites, setFavorites] = useState(() => {
-        if (typeof window !== 'undefined') {
-            const savedFavorites = localStorage.getItem('crwdctrl-favorites');
-            if (savedFavorites) {
-                try {
-                    return JSON.parse(savedFavorites);
-                } catch (error) {
-                    console.error('Error parsing favorites from localStorage:', error);
-                    return {};
-                }
-            }
-        }
-        return {};
-    });
+    const [favorites, setFavorites] = useState(() => readFavoritesFromStorage());
 
     // Migrate legacy favorites to normalized shape
     useEffect(() => {
@@ -46,14 +54,11 @@ export const FavoritesProvider = ({ children }) => {
 
     // Save to localStorage whenever favorites change
     useEffect(() => {
-        if (typeof window !== 'undefined') {
-            localStorage.setItem('crwdctrl-favorites', JSON.stringify(favorites));
-        }
+        writeFavoritesToStorage(favorites);
     }, [favorites]);
 
-    // Add or remove a favorite
-    const toggleFavorite = (eventId, eventData = null) => {
-        setFavorites(prev => {
+    const toggleFavorite = useCallback((eventId, eventData = null) => {
+        setFavorites((prev) => {
             const newFavorites = { ...prev };
 
             if (newFavorites[eventId]) {
@@ -64,49 +69,46 @@ export const FavoritesProvider = ({ children }) => {
 
             return newFavorites;
         });
-    };
+    }, []);
 
-    // Check if an event is favorited
-    const isFavorite = (eventId) => {
-        return Boolean(favorites[eventId]);
-    };
+    const isFavorite = useCallback((eventId) => Boolean(favorites[eventId]), [favorites]);
 
-    // Get all favorite events (stored shape is normalized on write/migration)
-    const getFavoriteEvents = () => {
+    const getFavoriteEvents = useCallback(() => {
         return Object.entries(favorites).map(([id, data]) => ({
             ...data,
             id: data.id || id,
         }));
-    };
+    }, [favorites]);
 
-    // Get favorite count
-    const getFavoriteCount = () => {
-        return Object.keys(favorites).length;
-    };
+    const getFavoriteCount = useCallback(() => Object.keys(favorites).length, [favorites]);
 
-    // Remove a favorite by ID
-    const removeFavorite = (eventId) => {
-        setFavorites(prev => {
-            const newFavorites = { ...prev };
-            delete newFavorites[eventId];
-            return newFavorites;
+    const removeFavorite = useCallback((eventId) => {
+        setFavorites((prev) => {
+            const next = { ...prev };
+            delete next[eventId];
+            return next;
         });
-    };
+    }, []);
 
-    // Clear all favorites
-    const clearAllFavorites = () => {
-        setFavorites({});
-    };
+    const clearAllFavorites = useCallback(() => setFavorites({}), []);
 
-    const value = {
+    const value = useMemo(() => ({
         favorites,
         toggleFavorite,
         isFavorite,
         getFavoriteEvents,
         getFavoriteCount,
         removeFavorite,
-        clearAllFavorites
-    };
+        clearAllFavorites,
+    }), [
+        favorites,
+        toggleFavorite,
+        isFavorite,
+        getFavoriteEvents,
+        getFavoriteCount,
+        removeFavorite,
+        clearAllFavorites,
+    ]);
 
     return (
         <FavoritesContext.Provider value={value}>

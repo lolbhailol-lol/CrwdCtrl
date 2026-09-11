@@ -17,7 +17,7 @@ const notificationSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['event', 'reminder', 'registration', 'update', 'system'],
+    enum: ['event', 'reminder', 'registration', 'update', 'system', 'announcement'],
     default: 'system',
   },
   link: {
@@ -32,6 +32,8 @@ const notificationSchema = new mongoose.Schema({
     festId: { type: mongoose.Schema.Types.ObjectId, ref: 'FestOrganizer' },
     competitionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Competition' },
     registrationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Registration' },
+    trekId: { type: mongoose.Schema.Types.ObjectId, ref: 'Trek' },
+    source: { type: String },
   },
 }, { timestamps: true });
 

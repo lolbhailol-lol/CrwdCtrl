@@ -1,20 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import Sidebar from '../../components/Sidebar';
-import Navbar from '../../components/Navbar';
-import ProfileSidebar from '../../components/ProfileSidebar';
+import Sidebar from '../../components/layout/Sidebar';
+import Navbar from '../../components/layout/Navbar';
+import ProfileSidebar from '../../components/layout/ProfileSidebar';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
 import { ArrowLeft, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useInAppBack } from '../../hooks/useInAppBack';
 import { authAPI, handleApiError } from '../../services/api/auth.api';
 import CrwdCtrlLogin from '../auth/login';
 import CrwdCtrlRegister from '../auth/register';
 import ProfileAvatarUpload from '../../components/ProfileAvatarUpload';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 
 function EditProfile() {
     const { isDark } = useDarkMode();
     const { user, token, updateUser, isAuthenticated, isLoading, isAuthProcessing } = useAuth();
     const navigate = useNavigate();
+    const goBack = useInAppBack();
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [showLogin, setShowLogin] = useState(false);
     const [showRegister, setShowRegister] = useState(false);
@@ -307,7 +310,7 @@ function EditProfile() {
 
                 // Navigate back after showing success message
                 setTimeout(() => {
-                    navigate(-1);
+                    goBack();
                 }, 2000);
             } else {
                 setError(response.message || 'Failed to update profile');
@@ -350,9 +353,8 @@ function EditProfile() {
         const storedToken = localStorage.getItem('crwdctrl_token');
 
         return (
-            <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex flex-col items-center justify-center">
-                <Loader2 className="w-8 h-8 animate-spin mb-4" />
-                <p className="text-sm text-gray-500 mb-4">Loading profile data...</p>
+            <div className="crwdctrl-page crwdctrl-page--content min-h-screen">
+                <InlinePageLoader label="Loading profile data..." />
 
                 {/* Debug info */}
                 {import.meta.env.DEV && (
@@ -383,9 +385,9 @@ function EditProfile() {
 
                 {/* Back Navigation */}
                 <main className="flex-1">
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-4">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-[calc(var(--safe-top)+1rem)]">
                         <button
-                            onClick={() => navigate(-1)}
+                            onClick={goBack}
                             className={`flex items-center space-x-2 ${isDark ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'} transition mb-4`}
                         >
                             <ArrowLeft className="w-5 h-5" />
@@ -418,7 +420,7 @@ function EditProfile() {
                                     </div>
                                     <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                                         {user.role || 'student'}
-                                        {user.college && ` â€¢ ${user.college}`}
+                                        {user.college && ` • ${user.college}`}
                                         {user.email && (
                                             <div className="mt-1">{user.email}</div>
                                         )}
@@ -536,7 +538,7 @@ function EditProfile() {
                                     </div>
                                     {user?.provider && !formData.phoneNumber && (
                                         <div className={`mb-2 p-2 rounded text-xs ${isDark ? 'bg-blue-900/20 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>
-                                            ðŸ“± Add your mobile number to receive notifications and updates
+                                            📱 Add your mobile number to receive notifications and updates
                                         </div>
                                     )}
                                     <input
@@ -662,7 +664,7 @@ function EditProfile() {
                             <div className="mt-8 flex gap-4 justify-end">
                                 <button
                                     type="button"
-                                    onClick={() => navigate(-1)}
+                                    onClick={goBack}
                                     disabled={isUpdating}
                                     className={`px-6 py-3 rounded-md text-sm font-medium transition-colors border ${isUpdating ? 'cursor-not-allowed opacity-50' : ''} ${isDark
                                         ? 'border-gray-600 text-gray-300 hover:bg-gray-700'
@@ -705,7 +707,7 @@ function EditProfile() {
                                 </div>
                                 <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                                     {user.role || 'student'}
-                                    {user.college && ` â€¢ ${user.college}`}
+                                    {user.college && ` • ${user.college}`}
                                     {user.email && (
                                         <div className="mt-1">{user.email}</div>
                                     )}
@@ -820,7 +822,7 @@ function EditProfile() {
                                     </div>
                                     {user?.provider && !formData.phoneNumber && (
                                         <div className={`mb-2 p-2 rounded text-xs ${isDark ? 'bg-blue-900/20 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>
-                                            ðŸ“± Add your mobile number to receive notifications and updates
+                                            📱 Add your mobile number to receive notifications and updates
                                         </div>
                                     )}
                                     <input
@@ -955,7 +957,7 @@ function EditProfile() {
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={() => navigate(-1)}
+                                    onClick={goBack}
                                     disabled={isUpdating}
                                     className={`w-full px-6 py-4 rounded-lg text-base font-medium transition-colors border ${isUpdating ? 'cursor-not-allowed opacity-50' : ''} ${isDark
                                         ? 'border-gray-600 text-gray-300 hover:bg-gray-700'

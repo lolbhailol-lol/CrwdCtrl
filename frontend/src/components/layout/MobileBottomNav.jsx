@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Home, Heart, Calendar, User } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
 
 /** Prevent duplicate profile opens from double-tap. */
 const PROFILE_TAP_COOLDOWN_MS = 400;
@@ -12,10 +11,9 @@ const profileTapGuard = { lastAt: 0 };
 const ROUTE_TAP_COOLDOWN_MS = 450;
 const routeTapGuard = { lastAt: 0, path: '' };
 
-const MobileBottomNav = ({ onProfileClick, onProfileClose, onShowLogin, onNavigate, isProfileOpen = false }) => {
+const MobileBottomNav = ({ onProfileClick, onProfileClose, onNavigate, isProfileOpen = false }) => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { isAuthenticated } = useAuth();
     const [mounted, setMounted] = useState(false);
 
     useEffect(() => { setMounted(true); }, []);
@@ -57,11 +55,6 @@ const MobileBottomNav = ({ onProfileClick, onProfileClose, onShowLogin, onNaviga
     };
 
     const handleNavClick = (path, itemId) => {
-        if (itemId === 'profile' && !isAuthenticated) {
-            onShowLogin?.();
-            return;
-        }
-
         if (itemId === 'profile') {
             const now = Date.now();
             if (now - profileTapGuard.lastAt < PROFILE_TAP_COOLDOWN_MS) {

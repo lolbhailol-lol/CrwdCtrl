@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { ChevronLeft, Loader2 } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
+import { DetailLoader3DIcon } from './DetailPageLoader';
 import { useNavigate } from 'react-router-dom';
 import { useDarkMode } from '../context/DarkModeContext';
 import { useHeroSearch } from '../hooks/useHeroSearch';
@@ -176,7 +177,7 @@ export default function MobileSearchOverlay({ session, onClose }) {
           </motion.p>
         ) : heroSearch.isSearching && heroSearch.mergedResults.length === 0 ? (
           <div className="flex items-center gap-2 px-4 py-6">
-            <Loader2 size={18} className="animate-spin text-gray-400" />
+            <DetailLoader3DIcon size="compact" />
             <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Searching…</span>
           </div>
         ) : heroSearch.mergedResults.length > 0 ? (

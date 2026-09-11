@@ -7,6 +7,8 @@ const {
     updateUserProfile,
     checkEmailExists,
     validateToken,
+    refreshSession,
+    deleteAccount,
 } = require('../controllers/usercontroller');
 const { authenticateToken, authorizeRoles } = require('../middleware/authmiddleware');
 const uploadCtrl = require('../controllers/uploadController');
@@ -23,8 +25,12 @@ router.post('/check-email', checkEmailExists);
 router.get('/profile', authenticateToken, getUserProfile);
 router.put('/profile', authenticateToken, updateUserProfile);
 
-// ✅ NEW: Token validation endpoint
+// Account deletion (soft delete + anonymize)
+router.delete('/account', authenticateToken, deleteAccount);
+
+// ✅ Token validation + silent refresh for returning users
 router.get('/validate', authenticateToken, validateToken);
+router.post('/session/refresh', refreshSession);
 
 // Debug route to check authentication status
 router.get('/auth-status', authenticateToken, (req, res) => {

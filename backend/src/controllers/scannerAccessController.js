@@ -7,6 +7,7 @@ const SportsEvent = require('../model/sports_model');
 const Registration = require('../model/registration_model');
 const { getJwtSecret } = require('../config/jwtSecret');
 const { performCheckinFromRaw } = require('../services/checkinService');
+const { hashScannerPassword } = require('../utils/scannerPassword');
 
 const normalizeCode = (code) =>
   String(code || '')
@@ -257,7 +258,6 @@ const getAdminScannerAccess = async (req, res) => {
       code: fest.scannerAccess?.code || '',
       label: fest.scannerAccess?.label || '',
       hasPassword: !!fest.scannerAccess?.passwordHash,
-      password: fest.scannerAccess?.password || '',
       googleSheetsUrl: fest.registration?.googleSheetsUrl || '',
       hasGoogleSheet: !!fest.registration?.googleSheetsUrl,
       loginPath: '/organizer/login',
@@ -333,9 +333,13 @@ const setAdminScannerAccess = async (req, res) => {
     fest.scannerAccess.code = code;
     fest.scannerAccess.label = label;
 
+    let generatedPassword = '';
     if (password) {
-      fest.scannerAccess.passwordHash = await bcrypt.hash(password, 10);
-      fest.scannerAccess.password = password;
+      fest.scannerAccess.passwordHash = await hashScannerPassword(password);
+      generatedPassword = password;
+      fest.scannerAccess.password = undefined;
+      fest.markModified('scannerAccess');
+      fest.$unset('scannerAccess.password');
     }
 
     if (googleSheetsUrl !== undefined) {
@@ -352,7 +356,8 @@ const setAdminScannerAccess = async (req, res) => {
       enabled: fest.scannerAccess.enabled,
       code: fest.scannerAccess.code,
       label: fest.scannerAccess.label,
-      password: fest.scannerAccess.password || '',
+      hasPassword: !!fest.scannerAccess.passwordHash,
+      ...(generatedPassword ? { password: generatedPassword } : {}),
       googleSheetsUrl: fest.registration?.googleSheetsUrl || '',
       hasGoogleSheet: !!fest.registration?.googleSheetsUrl,
       message: password ? 'Scanner login updated' : 'Scanner settings saved (password unchanged)',

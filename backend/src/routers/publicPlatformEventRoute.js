@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const PlatformEvent = require('../model/platform_event_model');
+const { sanitizePublicPlatformEvent } = require('../utils/publicEntitySanitize');
 
 // GET /api/platform-events — list published platform events, supports ?category=trek&city=pune
 router.get('/', async (req, res) => {
@@ -26,7 +27,7 @@ router.get('/', async (req, res) => {
             .lean();
 
         res.status(200).json({
-            events,
+            events: events.map(sanitizePublicPlatformEvent),
             pagination: {
                 currentPage: page,
                 totalPages: Math.ceil(total / limit),
@@ -57,7 +58,7 @@ router.get('/:id', async (req, res) => {
             return res.status(404).json({ message: 'Event not found' });
         }
 
-        res.json({ event });
+        res.json({ event: sanitizePublicPlatformEvent(event) });
     } catch (error) {
         console.error('Public getEvent error:', error);
         res.status(500).json({ message: 'Failed to fetch event' });

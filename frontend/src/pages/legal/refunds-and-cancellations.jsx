@@ -1,11 +1,15 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import { useInAppBack } from '../../hooks/useInAppBack';
 import { ArrowLeft, RefreshCw, XCircle, Clock, Mail } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
+import Seo from '../../components/Seo';
+import { breadcrumbSchema, webPageSchema } from '../../utils/seo';
+import { LEGAL_EMAIL, LEGAL_NAME, LEGAL_OPERATOR_LINE, LEGAL_PHONE_DISPLAY, LEGAL_PHONE_TEL } from '../../constants/legalEntity';
 
 export default function RefundsAndCancellations() {
   const { isDark } = useDarkMode();
-  const navigate = useNavigate();
+  const goBack = useInAppBack();
 
   const card = isDark ? 'bg-[#111111] border-gray-800' : 'bg-white border-gray-200';
 
@@ -13,12 +17,24 @@ export default function RefundsAndCancellations() {
     <div
       className="crwdctrl-page crwdctrl-page--content min-h-screen transition-colors duration-300"
     >
+      <Seo
+        title="Refunds & Cancellations"
+        description="Read CrwdCtrl's refunds and cancellations policy for event registrations, tickets and bookings made through the platform."
+        canonical="/refunds-and-cancellations"
+        jsonLd={[
+          webPageSchema({ name: 'CrwdCtrl Refunds & Cancellations', url: '/refunds-and-cancellations' }),
+          breadcrumbSchema([
+            { name: 'Home', path: '/' },
+            { name: 'Refunds & Cancellations', path: '/refunds-and-cancellations' },
+          ]),
+        ]}
+      />
       <div className={`crwdctrl-sticky-header ${isDark ? 'bg-[#111111] border-gray-800' : 'bg-white border-gray-200'} border-b`}>
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex items-center justify-center relative">
             <button
               type="button"
-              onClick={() => navigate(-1)}
+              onClick={goBack}
               className={`lg:hidden absolute left-0 p-2 rounded-lg ${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-100'} transition-colors`}
             >
               <ArrowLeft className="w-5 h-5" />
@@ -26,7 +42,7 @@ export default function RefundsAndCancellations() {
             <div className="text-center">
               <h1 className="text-xl font-bold">Refunds &amp; Cancellations</h1>
               <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                Last updated: 9 June 2026
+                Last updated: 20 August 2026
               </p>
             </div>
           </div>
@@ -36,7 +52,7 @@ export default function RefundsAndCancellations() {
       <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
         <div className={`${card} border rounded-lg p-6`}>
           <p className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-            CrwdCtrl (operated at{' '}
+            {LEGAL_OPERATOR_LINE} CrwdCtrl (operated at{' '}
             <a href="https://www.crwdctrl.in" className="text-blue-500 underline">
               www.crwdctrl.in
             </a>
@@ -109,9 +125,18 @@ export default function RefundsAndCancellations() {
             coordinate with the organizer and respond within 2–3 business days.
           </p>
           <p className={`text-sm ${isDark ? 'text-blue-300' : 'text-blue-800'}`}>
+            Legal name: {LEGAL_NAME}
+          </p>
+          <p className={`text-sm mt-1 ${isDark ? 'text-blue-300' : 'text-blue-800'}`}>
             Email:{' '}
-            <a href="mailto:Karan@crwdctrl.in" className="underline font-medium">
-              Karan@crwdctrl.in
+            <a href={`mailto:${LEGAL_EMAIL}`} className="underline font-medium">
+              {LEGAL_EMAIL}
+            </a>
+          </p>
+          <p className={`text-sm mt-1 ${isDark ? 'text-blue-300' : 'text-blue-800'}`}>
+            Phone:{' '}
+            <a href={`tel:${LEGAL_PHONE_TEL}`} className="underline font-medium">
+              {LEGAL_PHONE_DISPLAY}
             </a>
           </p>
           <p className={`text-sm mt-2 ${isDark ? 'text-blue-300' : 'text-blue-800'}`}>

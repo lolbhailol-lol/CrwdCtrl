@@ -4,20 +4,28 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Environment variables
+# Environment variables (never commit secrets — use .env.example as template)
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
+!.env.example
+!.env.*.example
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.*.example
 
 # Build outputs
 dist/
 build/
 
-# IDE files
+# IDE / agent local config (do not publish)
 .vscode/
 .idea/
+.cursor/
+.artifacts/
+.claude/
+.vercel/
+.github/agents/
 *.swp
 *.swo
 *~
@@ -42,9 +50,53 @@ backend/uploads/payment-screenshots/*
 # Temporary files
 tmp/
 temp/
+_tmp_*/
+_tmp_*.js
+drive-download*.zip
 
-# Claude Code local session data
-.claude/
+# Local generated reports / Generation Explores exports — never push
+reports/
+~$*
 
 # Local MCP / IDE config
 mcp.json
+
+# Campus Hunt generated team password sheets (secrets)
+backend/unique-team-passwords.tsv
+**/unique-team-passwords.tsv
+
+# Local-only media / renders / videos / personal docs — never push
+local/
+media/
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+*.wav
+Resume_*.pdf
+*.pyc
+__pycache__/
+
+# Legacy / internal dumps (keep out of public clones)
+treks/
+business/
+content-strategy/
+preview/
+SECURITY_FIXES_PHASE1.md
+AUDIT_FINDINGS.md
+BUGS_HOLES_ERRORS_AUDIT.md
+CODEBASE_CLEANUP_AUDIT.md
+CODEBASE_RESTRUCTURING.md
+DEAD_CODE_REMOVAL.md
+DUPLICATE_CODE_CONSOLIDATION.md
+FINAL_AUDIT_REPORT.md
+MOBILE_READINESS_REPORT.md
+PLAYSTORE_LAUNCH_READINESS.md
+PRODUCTION_AUDIT_SCORES.md
+PRODUCTION_HARDENING.md
+PROJECT_AUDIT.md
+TREK_ORGANIZER_PORTAL.md
+TREK_RUNCLUB_BUSINESS_MODEL_DEEP_ANALYSIS.md
+favicon-google-test.png
+google-favicon-16.png

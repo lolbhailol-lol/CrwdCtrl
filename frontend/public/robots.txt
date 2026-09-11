@@ -1,4 +1,58 @@
+# CrwdCtrl — https://www.crwdctrl.in
+# Discover college fests, competitions, treks, running clubs and events.
+
 User-agent: *
+Allow: /
+
+# Private, personal and transactional areas (no SEO value, may contain user data)
+Disallow: /login
+Disallow: /register
+Disallow: /verify-email
+Disallow: /admin
+Disallow: /organizer
+Disallow: /profile
+Disallow: /edit-profile
+Disallow: /favorites
+Disallow: /notifications
+Disallow: /booking
+Disallow: /payment/
+Disallow: /payment-invoice/
+Disallow: /qr-ticket/
+Disallow: /registration-details/
+Disallow: /competition-registration/
+Disallow: /connection-status
+Disallow: /*/register$
+Disallow: /*?showLogin=
+
+# Answer engines / AI crawlers — explicitly welcomed for AEO
+User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: Bingbot
 Allow: /
 
 Sitemap: https://www.crwdctrl.in/sitemap.xml

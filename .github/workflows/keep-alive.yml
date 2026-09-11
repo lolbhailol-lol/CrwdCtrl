@@ -2,39 +2,47 @@ name: Keep Railway Backend Alive
 
 on:
   schedule:
-    # Run every 5 minutes
+    # Every 5 minutes (GitHub may delay slightly; retries below cover that)
     - cron: '*/5 * * * *'
-  workflow_dispatch: # Allow manual trigger
+  workflow_dispatch:
 
 jobs:
   ping-backend:
     runs-on: ubuntu-latest
+    timeout-minutes: 3
     steps:
-      - name: Ping Railway Backend
+      - name: Ping Railway + www API (with cold-start retries)
         run: |
-          echo "🔄 Pinging Railway backend to keep it alive..."
-          
-          # Ping the health endpoint
-          response=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
-            "https://crwdctrl-production-9c58.up.railway.app/api/health" \
-            -H "User-Agent: GitHub-Actions-KeepAlive/1.0")
-          
-          echo "Health check response: $response"
-          
-          # Also ping the keep-alive endpoint
-          response2=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
-            "https://crwdctrl-production-9c58.up.railway.app/api/keep-alive" \
-            -H "User-Agent: GitHub-Actions-KeepAlive/1.0")
-          
-          echo "Keep-alive response: $response2"
-          
-          if [ "$response" = "200" ] || [ "$response2" = "200" ]; then
-            echo "✅ Backend is alive!"
+          set -euo pipefail
+          echo "Pinging backends to keep API warm..."
+
+          URLS=(
+            "https://crwdctrl-production-9c58.up.railway.app/api/health"
+            "https://crwdctrl-production-9c58.up.railway.app/api/keep-alive"
+            "https://www.crwdctrl.in/api/health"
+          )
+
+          ok=0
+          for url in "${URLS[@]}"; do
+            for attempt in 1 2 3 4 5; do
+              code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 45 \
+                -H "User-Agent: GitHub-Actions-KeepAlive/1.1" \
+                -H "Accept: application/json" \
+                "$url" || echo "000")
+              echo "$url attempt=$attempt -> $code"
+              if [ "$code" = "200" ]; then
+                ok=1
+                break
+              fi
+              sleep $((attempt * 3))
+            done
+          done
+
+          if [ "$ok" = "1" ]; then
+            echo "Backend is alive"
           else
-            echo "⚠️ Backend may be starting up (cold start). Responses: $response, $response2"
-            # Don't fail the job - cold starts are expected
+            echo "All probes failed (cold start or outage) — not failing the job"
           fi
-          
+
       - name: Log timestamp
-        run: |
-          echo "Ping completed at: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+        run: echo "Ping completed at: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"

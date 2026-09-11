@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Loader } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 import { useAuth } from '../../context/AuthContext';
 import { getApiBaseUrl } from '../../config/apiBase';
 import CheckinScannerPage from '../../components/admin/CheckinScannerPage';
@@ -45,8 +46,8 @@ export default function OrganizerCheckinPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#161718] flex items-center justify-center">
-        <Loader className="animate-spin text-[#0ECCEE]" size={32} />
+      <div className="min-h-screen bg-[#161718]">
+        <InlinePageLoader variant="fest" />
       </div>
     );
   }

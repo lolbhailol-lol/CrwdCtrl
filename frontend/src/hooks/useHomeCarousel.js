@@ -1,4 +1,22 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+
+const LG_MEDIA = '(min-width: 1024px)';
+
+export function useIsLgUp() {
+    const [isLgUp, setIsLgUp] = useState(
+        () => typeof window !== 'undefined' && window.matchMedia(LG_MEDIA).matches,
+    );
+
+    useEffect(() => {
+        const mq = window.matchMedia(LG_MEDIA);
+        const onChange = () => setIsLgUp(mq.matches);
+        onChange();
+        mq.addEventListener('change', onChange);
+        return () => mq.removeEventListener('change', onChange);
+    }, []);
+
+    return isLgUp;
+}
 
 export const HOME_CARD_GAP = 16;
 export const TRENDING_CARD_GAP = 16;
@@ -40,12 +58,27 @@ export function scrollCarouselToSlide(scrollEl, slideEl, behavior = 'instant') {
     });
 }
 
-export function useCenteredCarouselSidePad(ref, cardWidth) {
+/** Align a slide to the left gutter of a horizontal scroll container. */
+export function scrollCarouselToSlideStart(scrollEl, slideEl, behavior = 'instant') {
+    if (!scrollEl || !slideEl) return;
+
+    const padLeft = Number.parseFloat(getComputedStyle(scrollEl).paddingLeft) || 0;
+    scrollEl.scrollTo({
+        left: Math.max(0, slideEl.offsetLeft - padLeft),
+        behavior,
+    });
+}
+
+export function useCenteredCarouselSidePad(ref, cardWidth, enabled = true) {
     const [sidePad, setSidePad] = useState(0);
 
-    useEffect(() => {
+    useLayoutEffect(() => {
+        if (!enabled) {
+            setSidePad(0);
+            return undefined;
+        }
         const el = ref.current;
-        if (!el || !cardWidth) return;
+        if (!el || !cardWidth) return undefined;
 
         const update = () => {
             setSidePad(Math.max(0, (el.clientWidth - cardWidth) / 2));
@@ -60,7 +93,7 @@ export function useCenteredCarouselSidePad(ref, cardWidth) {
             ro.disconnect();
             window.removeEventListener('resize', update);
         };
-    }, [ref, cardWidth]);
+    }, [ref, cardWidth, enabled]);
 
     return sidePad;
 }
@@ -68,7 +101,7 @@ export function useCenteredCarouselSidePad(ref, cardWidth) {
 export function useMeasuredCardWidth(trackRef, slideCount, fallbackWidth = 280) {
     const [cardWidth, setCardWidth] = useState(fallbackWidth);
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         const firstSlide = trackRef.current?.firstElementChild;
         if (!firstSlide) return;
 

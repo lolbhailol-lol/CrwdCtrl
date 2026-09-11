@@ -37,7 +37,13 @@ exports.getKeywords = async (req, res) => {
                 .sort({ priority: 1, createdAt: -1 })
                 .limit(60)
                 .lean(),
-            RunClub.find({ status: 'published', showInRunClubs: { $ne: false } })
+            RunClub.find({
+                status: 'published',
+                $or: [
+                    { showInRunClubs: { $ne: false }, listingHub: { $ne: 'events' } },
+                    { listingHub: 'events' },
+                ],
+            })
                 .select('name basedIn')
                 .sort({ runClubPriority: 1, createdAt: -1 })
                 .limit(40)

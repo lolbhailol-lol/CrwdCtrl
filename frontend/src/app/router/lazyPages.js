@@ -1,14 +1,19 @@
 import { lazyWithRetry } from '../../utils/lazyWithRetry';
 
-// Eager-loaded for fastest first paint
-export { default as Dashboard } from '../../pages/home/Dashboard';
-export { default as Booking } from '../../pages/profile/booking';
+export const ViewDetailsPage = lazyWithRetry(() => import('../../features/fests/pages/view-details'));
+export const CompetitionsViewDetails = lazyWithRetry(
+  () => import('../../features/fests/pages/competitions/Competitions-view-details'),
+);
 
-export const CulturalFestPage = lazyWithRetry(() => import('../../pages/fests/cultural-fest'));
-export const TechFestPage = lazyWithRetry(() => import('../../pages/fests/tech-fest'));
-export const SportsFestPage = lazyWithRetry(() => import('../../pages/fests/sports-fest'));
-export const SportsCategoryPage = lazyWithRetry(() => import('../../pages/sports/sports-category'));
-export const ViewDetailsPage = lazyWithRetry(() => import('../../pages/fests/view-details'));
+export const Dashboard = lazyWithRetry(() => import('../../pages/home/Dashboard'));
+export const Booking = lazyWithRetry(() => import('../../pages/profile/booking'));
+export const PaymentReturn = lazyWithRetry(() => import('../../pages/payment/PaymentReturn'));
+export const FestStallInterestPage = lazyWithRetry(() => import('../../features/fests/pages/stall/FestStallInterestPage'));
+
+export const CulturalFestPage = lazyWithRetry(() => import('../../features/fests/pages/cultural-fest'));
+export const TechFestPage = lazyWithRetry(() => import('../../features/fests/pages/tech-fest'));
+export const SportsFestPage = lazyWithRetry(() => import('../../features/fests/pages/sports-fest'));
+export const SportsCategoryPage = lazyWithRetry(() => import('../../features/sports/pages/sports-category'));
 export const FavoritesPage = lazyWithRetry(() => import('../../pages/profile/favorites'));
 export const EditProfile = lazyWithRetry(() => import('../../pages/profile/edit-profile'));
 export const HelpCenter = lazyWithRetry(() => import('../../pages/profile/help-center'));
@@ -18,30 +23,43 @@ export const ProfilePage = lazyWithRetry(() => import('../../pages/profile/profi
 export const CrwdCtrlLogin = lazyWithRetry(() => import('../../pages/auth/login'));
 export const CrwdCtrlRegister = lazyWithRetry(() => import('../../pages/auth/register'));
 export const EmailVerification = lazyWithRetry(() => import('../../pages/auth/EmailVerification'));
-export const CompetitionsViewDetails = lazyWithRetry(() => import('../../pages/competitions/Competitions-view-details'));
-export const CompetitionListPage = lazyWithRetry(() => import('../../pages/competitions/competition-list'));
-export const CompetitionRegisterPage = lazyWithRetry(() => import('../../pages/competitions/compition-register-page/compition-register-page'));
+export const CompetitionListPage = lazyWithRetry(() => import('../../features/fests/pages/competitions/competition-list'));
 export const TermsAndConditions = lazyWithRetry(() => import('../../pages/legal/terms-and-conditions'));
 export const PrivacyPolicy = lazyWithRetry(() => import('../../pages/legal/privacy-policy'));
 export const ContactUs = lazyWithRetry(() => import('../../pages/legal/contact-us'));
 export const RefundsAndCancellations = lazyWithRetry(() => import('../../pages/legal/refunds-and-cancellations'));
+export const ShippingPolicy = lazyWithRetry(() => import('../../pages/legal/shipping-policy'));
+export const DeleteAccount = lazyWithRetry(() => import('../../pages/legal/delete-account'));
 export const ProductsAndServices = lazyWithRetry(() => import('../../pages/legal/products-and-services'));
 export const About = lazyWithRetry(() => import('../../pages/legal/about'));
-export const FestsPage = lazyWithRetry(() => import('../../pages/fests/FestsPage'));
-export const FestRegistration = lazyWithRetry(() => import('../../pages/fests/FestRegistration'));
-export const CompetitionRegistration = lazyWithRetry(() => import('../../pages/competitions/CompetitionRegistration'));
+export const FestsPage = lazyWithRetry(() => import('../../features/fests/pages/FestsPage'));
+export const FestRegistration = lazyWithRetry(() => import('../../features/fests/pages/FestRegistration'));
+export const CompetitionRegistration = lazyWithRetry(() => import('../../features/fests/pages/competitions/CompetitionRegistration'));
 export const RegistrationDetails = lazyWithRetry(() => import('../../pages/registration/RegistrationDetails'));
-export const TrekDetailPage = lazyWithRetry(() => import('../../pages/treks/TrekDetailPage'));
-export const TrekBookingPage = lazyWithRetry(() => import('../../pages/treks/TrekBookingPage'));
+export const TrekDetailPage = lazyWithRetry(() => import('../../features/treks/pages/TrekDetailPage'));
+export const TrekBookingPage = lazyWithRetry(() => import('../../features/treks/pages/TrekBookingPage'));
 export const QRTicketPage = lazyWithRetry(() => import('../../pages/payment/QRTicketPage'));
 export const PaymentInvoicePage = lazyWithRetry(() => import('../../pages/payment/PaymentInvoicePage'));
-export const PublicTreksPage = lazyWithRetry(() => import('../../pages/treks/treks-page'));
-export const PublicEventsPage = lazyWithRetry(() => import('../../pages/events/events-page'));
-export const CommunityDetailPage = lazyWithRetry(() => import('../../pages/treks/CommunityDetailPage'));
-export const RunClubDetailPage = lazyWithRetry(() => import('../../pages/sports/RunClubDetailPage'));
-export const RunEventDetailPage = lazyWithRetry(() => import('../../pages/sports/RunEventDetailPage'));
-export const RunEventBookingPage = lazyWithRetry(() => import('../../pages/sports/RunEventBookingPage'));
-export const TrekCategoryPage = lazyWithRetry(() => import('../../pages/treks/TrekCategoryPage'));
+export const PublicTreksPage = lazyWithRetry(() => import('../../features/treks/pages/treks-page'));
+export const PublicEventsPage = lazyWithRetry(() => import('../../features/events/pages/events-page'));
+export const EventDetailsPage = lazyWithRetry(() => import('../../features/events/pages/EventDetailsPage'));
+export const EventRegistrationPage = lazyWithRetry(() => import('../../features/events/pages/EventRegistrationPage'));
+export const CommunityDetailPage = lazyWithRetry(() => import('../../features/treks/pages/CommunityDetailPage'));
+export const RunClubDetailPage = lazyWithRetry(() => import('../../features/sports/pages/RunClubDetailPage'));
+export const RunEventDetailPage = lazyWithRetry(() => import('../../features/sports/pages/RunEventDetailPage'));
+export const RunEventBookingPage = lazyWithRetry(() => import('../../features/sports/pages/RunEventBookingPage'));
+export const EventCommunityDetailPage = lazyWithRetry(() => import('../../features/events/pages/EventCommunityDetailPage'));
+export const EventCommunityEventPage = lazyWithRetry(() => import('../../features/events/pages/EventCommunityEventPage'));
+export const EventCommunityBookingPage = lazyWithRetry(() => import('../../features/events/pages/EventCommunityBookingPage'));
+export const OrganizerLayoutGate = lazyWithRetry(() => import('../../features/events/organizer/community/EventCommunityOrganizerGate').then((m) => ({ default: m.OrganizerLayoutGate })));
+export const OrganizerHomeGate = lazyWithRetry(() => import('../../features/events/organizer/community/EventCommunityOrganizerGate').then((m) => ({ default: m.OrganizerHomeGate })));
+export const OrganizerDashboardGate = lazyWithRetry(() => import('../../features/events/organizer/community/EventCommunityOrganizerGate').then((m) => ({ default: m.OrganizerDashboardGate })));
+export const OrganizerNotificationsGate = lazyWithRetry(() => import('../../features/events/organizer/community/EventCommunityOrganizerGate').then((m) => ({ default: m.OrganizerNotificationsGate })));
+export const EventCommunityOrganizerLayout = lazyWithRetry(() => import('../../features/events/organizer/community/EventCommunityOrganizerLayout'));
+export const EventCommunityOrganizerHomePage = lazyWithRetry(() => import('../../features/events/organizer/community/EventCommunityOrganizerHomePage'));
+export const EventCommunityOrganizerDashboardPage = lazyWithRetry(() => import('../../features/events/organizer/community/EventCommunityOrganizerDashboardPage'));
+export const EventCommunityOrganizerNotificationsPage = lazyWithRetry(() => import('../../features/events/organizer/community/EventCommunityOrganizerNotificationsPage'));
+export const TrekCategoryPage = lazyWithRetry(() => import('../../features/treks/pages/TrekCategoryPage'));
 export const PaymentCheckoutPage = lazyWithRetry(() => import('../../pages/payment/PaymentCheckoutPage'));
 
 export const AdminLayout = lazyWithRetry(() => import('../../pages/admin/AdminLayout'));
@@ -49,13 +67,19 @@ export const AdminDashboardPage = lazyWithRetry(() => import('../../pages/admin/
 export const AdminFestsPage = lazyWithRetry(() => import('../../pages/admin/FestsPage'));
 export const CompetitionsPage = lazyWithRetry(() => import('../../pages/admin/CompetitionsPage'));
 export const RegistrationsPage = lazyWithRetry(() => import('../../pages/admin/RegistrationsPage'));
+export const UserLoginsPage = lazyWithRetry(() => import('../../pages/admin/UserLoginsPage'));
+export const UserActivityPage = lazyWithRetry(() => import('../../pages/admin/UserActivityPage'));
 export const AnalyticsDashboardPage = lazyWithRetry(() => import('../../pages/admin/AnalyticsDashboardPage'));
+export const PaymentsSettlementPage = lazyWithRetry(() => import('../../pages/admin/PaymentsSettlementPage'));
 export const ScannerAccessPage = lazyWithRetry(() => import('../../pages/admin/ScannerAccessPage'));
 export const SportsPage = lazyWithRetry(() => import('../../pages/admin/SportsPage'));
 export const TreksPage = lazyWithRetry(() => import('../../pages/admin/TreksPage'));
 export const AdminEventsPage = lazyWithRetry(() => import('../../pages/admin/AdminEventsPage'));
 export const SectionManager = lazyWithRetry(() => import('../../pages/admin/SectionManager'));
 export const PageSectionsPage = lazyWithRetry(() => import('../../pages/admin/PageSectionsPage'));
+export const AppCopyPage = lazyWithRetry(() => import('../../pages/admin/AppCopyPage'));
+export const CouponsPage = lazyWithRetry(() => import('../../pages/admin/CouponsPage'));
+export const AdminNotificationsPage = lazyWithRetry(() => import('../../pages/admin/AdminNotificationsPage'));
 export const AdminProtectedRoute = lazyWithRetry(() => import('../../pages/admin/AdminProtectedRoute'));
 
 export const OrganizerProtectedRoute = lazyWithRetry(() => import('../../pages/organizer/OrganizerProtectedRoute'));
@@ -64,3 +88,84 @@ export const OrganizerCheckinPage = lazyWithRetry(() => import('../../pages/orga
 export const OrganizerScannerLoginPage = lazyWithRetry(() => import('../../pages/organizer/OrganizerScannerLoginPage'));
 export const OrganizerScanPage = lazyWithRetry(() => import('../../pages/organizer/OrganizerScanPage'));
 export const OrganizerEntryPage = lazyWithRetry(() => import('../../pages/organizer/OrganizerEntryPage'));
+
+export const TrekOrganizerLoginPage = lazyWithRetry(() => import('../../features/treks/organizer/TrekOrganizerLoginPage'));
+export const TrekOrganizerSignupPage = lazyWithRetry(() => import('../../features/treks/organizer/TrekOrganizerSignupPage'));
+export const TrekOrganizerLayout = lazyWithRetry(() => import('../../features/treks/organizer/TrekOrganizerLayout'));
+export const TrekOrganizerProtectedRoute = lazyWithRetry(() => import('../../features/treks/organizer/TrekOrganizerProtectedRoute'));
+export const TrekOrganizerHomePage = lazyWithRetry(() => import('../../features/treks/organizer/TrekOrganizerHomePage'));
+export const TrekOrganizerCustomersPage = lazyWithRetry(() => import('../../features/treks/organizer/TrekOrganizerCustomersPage'));
+export const TrekOrganizerDashboardPage = lazyWithRetry(() => import('../../features/treks/organizer/TrekOrganizerDashboardPage'));
+export const TrekOrganizerParticipantsPage = lazyWithRetry(() => import('../../features/treks/organizer/TrekOrganizerParticipantsPage'));
+export const TrekOrganizerScanPage = lazyWithRetry(() => import('../../features/treks/organizer/TrekOrganizerScanPage'));
+export const TrekOrganizerNotificationsPage = lazyWithRetry(() => import('../../features/treks/organizer/TrekOrganizerNotificationsPage'));
+export const TrekOrganizersPage = lazyWithRetry(() => import('../../pages/admin/TrekOrganizersPage'));
+export const RunClubOrganizersPage = lazyWithRetry(() => import('../../pages/admin/RunClubOrganizersPage'));
+export const EventCommunityOrganizersPage = lazyWithRetry(() => import('../../pages/admin/EventCommunityOrganizersPage'));
+export const FestOrganizersPage = lazyWithRetry(() => import('../../pages/admin/FestOrganizersPage'));
+export const EventOrganizersPage = lazyWithRetry(() => import('../../pages/admin/EventOrganizersPage'));
+
+export const RunClubOrganizerLoginPage = lazyWithRetry(() => import('../../features/sports/organizer/RunClubOrganizerLoginPage'));
+export const RunClubOrganizerSignupPage = lazyWithRetry(() => import('../../features/sports/organizer/RunClubOrganizerSignupPage'));
+export const RunClubOrganizerLayout = lazyWithRetry(() => import('../../features/sports/organizer/RunClubOrganizerLayout'));
+export const RunClubOrganizerProtectedRoute = lazyWithRetry(() => import('../../features/sports/organizer/RunClubOrganizerProtectedRoute'));
+export const RunClubOrganizerHomePage = lazyWithRetry(() => import('../../features/sports/organizer/RunClubOrganizerHomePage'));
+export const RunClubOrganizerDashboardPage = lazyWithRetry(() => import('../../features/sports/organizer/RunClubOrganizerDashboardPage'));
+export const RunClubOrganizerParticipantsPage = lazyWithRetry(() => import('../../features/sports/organizer/RunClubOrganizerParticipantsPage'));
+export const RunClubOrganizerScanPage = lazyWithRetry(() => import('../../features/sports/organizer/RunClubOrganizerScanPage'));
+export const RunClubOrganizerNotificationsPage = lazyWithRetry(() => import('../../features/sports/organizer/RunClubOrganizerNotificationsPage'));
+export const RunClubOrganizerEventEditorPage = lazyWithRetry(() => import('../../features/sports/organizer/RunClubOrganizerEventEditorPage'));
+
+export const EventOrganizerLoginPage = lazyWithRetry(() => import('../../features/events/organizer/show/EventOrganizerLoginPage'));
+export const EventOrganizerSignupPage = lazyWithRetry(() => import('../../features/events/organizer/show/EventOrganizerSignupPage'));
+export const EventOrganizerLayout = lazyWithRetry(() => import('../../features/events/organizer/show/EventOrganizerLayout'));
+export const EventOrganizerProtectedRoute = lazyWithRetry(() => import('../../features/events/organizer/show/EventOrganizerProtectedRoute'));
+export const EventOrganizerHomePage = lazyWithRetry(() => import('../../features/events/organizer/show/EventOrganizerHomePage'));
+export const EventOrganizerDashboardPage = lazyWithRetry(() => import('../../features/events/organizer/show/EventOrganizerDashboardPage'));
+export const EventOrganizerParticipantsPage = lazyWithRetry(() => import('../../features/events/organizer/show/EventOrganizerParticipantsPage'));
+export const EventOrganizerScanPage = lazyWithRetry(() => import('../../features/events/organizer/show/EventOrganizerScanPage'));
+export const EventOrganizerNotificationsPage = lazyWithRetry(() => import('../../features/events/organizer/show/EventOrganizerNotificationsPage'));
+
+export const FestOrganizerLoginPage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerLoginPage'));
+export const FestOrganizerSignupPage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerSignupPage'));
+export const FestOrganizerLayout = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerLayout'));
+export const FestOrganizerProtectedRoute = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerProtectedRoute'));
+export const FestOrganizerHomePage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerHomePage'));
+export const FestOrganizerDashboardPage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerDashboardPage'));
+export const FestOrganizerParticipantsPage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerParticipantsPage'));
+export const FestOrganizerScanPage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerScanPage'));
+export const FestOrganizerNotificationsPage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerNotificationsPage'));
+export const FestOrganizerCompetitionsPage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerCompetitionsPage'));
+export const FestOrganizerCompetitionWorkspacePage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerCompetitionWorkspacePage'));
+export const FestOrganizerCompetitionDetailsPage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerCompetitionDetailsPage'));
+export const FestOrganizerProbablesPage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerProbablesPage'));
+export const FestOrganizerRevenuePage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerRevenuePage'));
+export const FestOrganizerProShowPage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerProShowPage'));
+export const FestOrganizerLiveUpdatesPage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerLiveUpdatesPage'));
+export const FestOrganizerInfoPage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerInfoPage'));
+export const FestOrganizerListingEditPage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerListingEditPage'));
+export const FestOrganizerCouponsPage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerCouponsPage'));
+export const FestOrganizerLeadsPage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerLeadsPage'));
+
+export const MindSparkPaymentsLoginPage = lazyWithRetry(() => import('../../pages/mindspark-payments/MindSparkPaymentsLoginPage'));
+export const MindSparkPaymentsProtectedRoute = lazyWithRetry(() => import('../../pages/mindspark-payments/MindSparkPaymentsProtectedRoute'));
+export const MindSparkPaymentsPage = lazyWithRetry(() => import('../../pages/mindspark-payments/MindSparkPaymentsPage'));
+
+export const CampusHuntLandingPage = lazyWithRetry(() => import('../../features/campus-hunt/pages/CampusHuntLandingPage'));
+export const CampusHuntEnterPage = lazyWithRetry(() => import('../../features/campus-hunt/pages/CampusHuntEnterPage'));
+export const CampusHuntPlayPage = lazyWithRetry(() => import('../../features/campus-hunt/pages/CampusHuntPlayPage'));
+export const CampusHuntTeamLoginPage = lazyWithRetry(() => import('../../features/campus-hunt/pages/CampusHuntTeamLoginPage'));
+export const CampusHuntLoginHubPage = lazyWithRetry(() => import('../../features/campus-hunt/pages/CampusHuntLoginHubPage'));
+export const CampusHuntLeaderboardPage = lazyWithRetry(() => import('../../features/campus-hunt/pages/CampusHuntLeaderboardPage'));
+export const CampusHuntGridPage = lazyWithRetry(() => import('../../features/campus-hunt/pages/CampusHuntGridPage'));
+export const VolunteerLoginPage = lazyWithRetry(() => import('../../features/campus-hunt/pages/VolunteerLoginPage'));
+export const VolunteerCheckpointPage = lazyWithRetry(() => import('../../features/campus-hunt/pages/VolunteerCheckpointPage'));
+export const CampusHuntAdminDashboard = lazyWithRetry(() => import('../../features/campus-hunt/admin/CampusHuntAdminDashboard'));
+export const CampusHuntEventControl = lazyWithRetry(() => import('../../features/campus-hunt/admin/CampusHuntEventControl'));
+export const OfflineHuntLandingPage = lazyWithRetry(() => import('../../features/campus-hunt/offline/pages/OfflineHuntLandingPage'));
+export const OfflineHuntLoginPage = lazyWithRetry(() => import('../../features/campus-hunt/offline/pages/OfflineHuntLoginPage'));
+export const OfflineHuntTeamPage = lazyWithRetry(() => import('../../features/campus-hunt/offline/pages/OfflineHuntTeamPage'));
+export const OfflineHuntRoundsPage = lazyWithRetry(() => import('../../features/campus-hunt/offline/pages/OfflineHuntRoundsPage'));
+export const OfflineHuntPlayPage = lazyWithRetry(() => import('../../features/campus-hunt/offline/pages/OfflineHuntPlayPage'));
+export const OfflineHuntInstallPage = lazyWithRetry(() => import('../../features/campus-hunt/offline/pages/OfflineHuntInstallPage'));
+

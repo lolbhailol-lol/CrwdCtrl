@@ -10,26 +10,21 @@ export function hasPendingOAuthRedirect() {
     }
 }
 
-/** Clear OAuth redirect markers (fixes stuck loading on Capacitor after failed redirects). */
-export function clearOAuthRedirectMarkers() {
+/**
+ * Clear OAuth progress markers.
+ * Keep auth_redirect_url by default so post-login can return to the booking form.
+ */
+export function clearOAuthRedirectMarkers({ keepReturnUrl = true } = {}) {
     try {
         sessionStorage.removeItem('auth_redirect_type');
         sessionStorage.removeItem('auth_redirect_timestamp');
-        sessionStorage.removeItem('auth_redirect_url');
         sessionStorage.removeItem('auth_in_app_browser');
+        if (!keepReturnUrl) {
+            sessionStorage.removeItem('auth_redirect_url');
+        }
     } catch {
         /* ignore */
     }
 }
 
-/** Sync restore from localStorage — safe for initial paint when not on OAuth return. */
-export function restoreSessionFromStorage() {
-    try {
-        const savedUser = localStorage.getItem('crwdctrl_user');
-        const savedToken = localStorage.getItem('crwdctrl_token');
-        if (!savedUser || !savedToken || savedToken.startsWith('firebase_')) return null;
-        return { user: JSON.parse(savedUser), token: savedToken };
-    } catch {
-        return null;
-    }
-}
+export { restoreSessionFromStorage, persistAuthSession, clearAuthSession } from './authStorage';

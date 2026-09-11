@@ -1,20 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import Sidebar from '../../components/Sidebar';
-import Navbar from '../../components/Navbar';
-import ProfileSidebar from '../../components/ProfileSidebar';
+import Sidebar from '../../components/layout/Sidebar';
+import Navbar from '../../components/layout/Navbar';
+import ProfileSidebar from '../../components/layout/ProfileSidebar';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { ArrowLeft, Search, MessageCircle, Book, Settings, Phone, Shield, FileText } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useInAppBack } from '../../hooks/useInAppBack';
 import CrwdCtrlLogin from '../auth/login';
 import CrwdCtrlRegister from '../auth/register';
+import Seo from '../../components/Seo';
+import { breadcrumbSchema, webPageSchema } from '../../utils/seo';
 
 const HelpCenter = () => {
     const { isDark } = useDarkMode();
     const navigate = useNavigate();
+    const goBack = useInAppBack();
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [showLogin, setShowLogin] = useState(false);
     const [showRegister, setShowRegister] = useState(false);
     const [searchParams, setSearchParams] = useSearchParams();
+    const [searchQuery, setSearchQuery] = useState('');
+
+    const SUPPORT_EMAIL = 'crwdctrl.in@gmail.com';
 
     // Check for login modal parameter
     useEffect(() => {
@@ -81,21 +88,57 @@ const HelpCenter = () => {
                 { text: "Privacy Policy", path: "/privacy-policy" },
                 { text: "Terms and Conditions", path: "/terms-and-conditions" },
                 { text: "Refunds & Cancellations", path: "/refunds-and-cancellations" },
+                { text: "Shipping Policy", path: "/shipping-policy" },
                 { text: "Products & Services (INR pricing)", path: "/products-and-services" },
+                { text: "Delete Account", path: "/delete-account" },
                 { text: "About Us", path: "/about" }
             ]
         }
     ];
 
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    const filteredTopics = normalizedQuery
+        ? helpTopics.filter((topic) => {
+              const haystack = [
+                  topic.title,
+                  topic.description,
+                  ...(topic.links?.map((l) => l.text) || []),
+              ]
+                  .join(' ')
+                  .toLowerCase();
+              return haystack.includes(normalizedQuery);
+          })
+        : helpTopics;
+
+    const handleContactSupport = () => {
+        window.location.href = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('CrwdCtrl Support Request')}`;
+    };
+
     return (
         <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex transition-colors duration-300">
+            <Seo
+                title="Help Center"
+                description="Find answers to common questions about CrwdCtrl — getting started, registering for events, managing your account, payments, and contacting support."
+                canonical="/help-center"
+                jsonLd={[
+                    webPageSchema({
+                        name: 'CrwdCtrl Help Center',
+                        description: 'Help and support for using CrwdCtrl.',
+                        url: '/help-center',
+                    }),
+                    breadcrumbSchema([
+                        { name: 'Home', path: '/' },
+                        { name: 'Help Center', path: '/help-center' },
+                    ]),
+                ]}
+            />
             <div className={`flex flex-1 flex-col transition-all duration-300 ${isProfileOpen ? 'blur-sm' : ''}`}>
 
                 {/* Mobile Header with Back Button */}
                 <div className="lg:hidden">
                     <div className="flex items-center justify-between p-4 border-gray-200 dark:border-gray-700">
                         <button
-                            onClick={() => navigate(-1)}
+                            onClick={goBack}
                             className={`flex items-center space-x-2  ${isDark ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'} transition`}
                         >
                             <ArrowLeft className="w-5 h-5" />
@@ -108,7 +151,7 @@ const HelpCenter = () => {
                 <main className="flex-1">
                     <div className="hidden lg:block max-w-7xl mx-auto px-4 sm:px-6 pt-4">
                         <button
-                            onClick={() => navigate(-1)}
+                            onClick={goBack}
                             className={`flex items-center space-x-2 ${isDark ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'} transition mb-4`}
                         >
                             <ArrowLeft className="w-5 h-5" />
@@ -120,7 +163,7 @@ const HelpCenter = () => {
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-8 lg:pb-8">
                         <div className="max-w-4xl mx-auto">
                             {/* Header Section */}
-                            <div className="text-center mb-6 lg:mb-8 pt-4 lg:pt-0">
+                            <div className="text-center mb-6 lg:mb-8 pt-[calc(var(--safe-top)+1rem)] lg:pt-0">
                                 <h1 className={`text-2xl lg:text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} mb-3 lg:mb-4`}>
                                     Help Center
                                 </h1>
@@ -133,6 +176,8 @@ const HelpCenter = () => {
                                     <Search className={`absolute left-6 lg:left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
                                     <input
                                         type="text"
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
                                         placeholder="Search for help topics..."
                                         className={`w-full pl-12 pr-4 py-3 rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${isDark
                                             ? 'bg-black border-gray-700 text-white placeholder-gray-400'
@@ -144,7 +189,7 @@ const HelpCenter = () => {
 
                             {/* Help Topics Grid */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6 mb-6 lg:mb-8 px-2 lg:px-0">
-                                {helpTopics.map((topic, index) => (
+                                {filteredTopics.map((topic, index) => (
                                     <div
                                         key={index}
                                         className={`p-4 lg:p-6 rounded-lg border transition-all duration-200 ${topic.isLegal
@@ -196,6 +241,11 @@ const HelpCenter = () => {
                                         </div>
                                     </div>
                                 ))}
+                                {filteredTopics.length === 0 && (
+                                    <div className={`md:col-span-2 text-center py-10 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                        No help topics match "{searchQuery}". Try a different search or contact support below.
+                                    </div>
+                                )}
                             </div>
 
                             {/* Contact Section */}
@@ -207,7 +257,10 @@ const HelpCenter = () => {
                                     <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-4 px-2 lg:px-0`}>
                                         Can't find what you're looking for? Our support team is here to help.
                                     </p>
-                                    <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors duration-200">
+                                    <button
+                                        onClick={handleContactSupport}
+                                        className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors duration-200"
+                                    >
                                         Contact Support
                                     </button>
                                 </div>

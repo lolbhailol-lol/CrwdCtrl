@@ -1,0 +1,47 @@
+# CrwdCtrl
+
+> CrwdCtrl is an Indian community and event discovery platform where users find and register for college fests, competitions, tech and sports events, running clubs, gym communities, treks, and local meetups near them. Browsing and discovery are free; some events charge their own registration or ticket fee, always shown on the event page. Organizers can list fests and events and manage registrations and QR check-ins.
+
+Key facts:
+- Name: CrwdCtrl
+- Website: https://www.crwdctrl.in
+- Region served: India
+- Categories: college fests (cultural, technical, sports), competitions, treks & adventure communities, running clubs, gym communities, events, shows and meetups
+- Audience: students and young people discovering events; organizers listing and managing events
+- Pricing: free to browse and discover; individual events may charge their own fee
+- Contact: crwdctrl.in@gmail.com
+- Instagram: https://www.instagram.com/crwdctrl.in
+
+## Discover
+
+- [College Fests](https://www.crwdctrl.in/fests): Browse and register for cultural, technical and sports college fests across India.
+- [Cultural Fests](https://www.crwdctrl.in/cultural-fest): Music, dance, drama, fashion and art college festivals.
+- [Tech Fests](https://www.crwdctrl.in/tech-fest): Hackathons, coding and robotics competitions and tech events.
+- [Sports Fests](https://www.crwdctrl.in/sports-fest): Sports college fests, tournaments and athletic meets.
+- [Treks & Adventure](https://www.crwdctrl.in/treks): Day hikes, weekend treks, backpacking and camping run by trekking communities.
+- [Sports, Running Clubs & Gym Communities](https://www.crwdctrl.in/sports): Running clubs, runs, marathons, gym communities and sports events.
+- [Events & Shows](https://www.crwdctrl.in/events): Concerts, stand-up comedy, workshops and meetups near you.
+
+## For organizers
+
+- [List Your Fest or Event](https://www.crwdctrl.in/list-your-fest): List a fest, competition, trek or running event and manage registrations and check-ins.
+
+## About & support
+
+- [About CrwdCtrl](https://www.crwdctrl.in/about): What CrwdCtrl is, who it serves and how it makes event discovery easier.
+- [Help Center](https://www.crwdctrl.in/help-center): Answers about getting started, registering, accounts and payments.
+- [Contact Us](https://www.crwdctrl.in/contact-us): Reach the CrwdCtrl team for support, partnerships or listing events.
+
+## Common questions
+
+- What is CrwdCtrl? CrwdCtrl is a community and event discovery platform to find and register for college fests, competitions, tech and sports events, running clubs, gym communities, treks and local meetups near you.
+- Is CrwdCtrl free? Browsing and discovering events is free. Some events charge their own registration or ticket fee, shown on the event page before you register.
+- How do I register for a college fest? Open the fest page, review the details and competitions, tap Register, and complete the form. You receive a confirmation and a QR ticket where applicable.
+- Can organizers list events? Yes. Organizers list fests, competitions, treks and runs via the "List your fest" page and manage registrations from the organizer dashboard.
+- How do I contact CrwdCtrl? Email crwdctrl.in@gmail.com, use the Contact Us page, or message @crwdctrl.in on Instagram.
+
+## Policies
+
+- [Privacy Policy](https://www.crwdctrl.in/privacy-policy)
+- [Terms & Conditions](https://www.crwdctrl.in/terms-and-conditions)
+- [Refunds & Cancellations](https://www.crwdctrl.in/refunds-and-cancellations)

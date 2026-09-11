@@ -1,10 +1,14 @@
-import { useState, useEffect, useMemo } from 'react';
-import { X, Upload } from 'lucide-react';
-import { normalizeImageList, normalizeImageUrl, parseUploadedUrls } from '../../utils/uploadUrls';
-import { adminFetch, adminFetchJSON } from '../../utils/adminApi';
+import { useState, useEffect } from 'react';
+import { X, Plus, Trash2 } from 'lucide-react';
+import MultiCoverImagesUpload from './MultiCoverImagesUpload';
+import CommunityHeroBannerField from './CommunityHeroBannerField';
+import GalleryImagesUploadField from './GalleryImagesUploadField';
+import { normalizeCoverImages, primaryCoverUrl, EMPTY_COVER_IMAGES } from '../../utils/coverImages';
+import { normalizeImageList, normalizeImageUrl } from '../../utils/uploadUrls';
+import { adminFetchJSON } from '../../services/api/admin.api.js';
+import { notifyAdminDataUpdated } from '../../utils/notifyAdminDataUpdated';
 
 const CATEGORY_OPTIONS = ['Camping', 'Trail Walks', 'Hiking', 'Backpacking', 'Adventure'];
-const GALLERY_PREVIEW_COUNT = 4;
 
 const EMPTY = {
     name: '',
@@ -12,40 +16,47 @@ const EMPTY = {
     aboutUs: '',
     trekCategories: [],
     coverImage: '',
+    coverImages: EMPTY_COVER_IMAGES(),
     galleryImages: [],
     contactPhone: '',
     contactInstagram: '',
+    groupLink: '',
+    contacts: [],
     status: 'published',
+    paymentGateway: 'cashfree',
+    cashfreeMerchant: 'platform',
 };
 
+const normalizeContacts = (list) =>
+    Array.isArray(list)
+        ? list.map((c) => ({
+            name: c?.name || '',
+            role: c?.role || '',
+            phone: c?.phone || '',
+        }))
+        : [];
+
 function pickCommunityFormFields(source = {}) {
+    const coverImages = normalizeCoverImages(source.coverImages);
+    const legacyCover = normalizeImageUrl(source.coverImage);
+    if (!coverImages.portrait && legacyCover) coverImages.portrait = legacyCover;
     return {
         name: source.name || '',
         basedIn: source.basedIn || '',
         aboutUs: source.aboutUs || '',
         trekCategories: Array.isArray(source.trekCategories) ? source.trekCategories : [],
-        coverImage: normalizeImageUrl(source.coverImage),
+        coverImage: legacyCover || primaryCoverUrl(coverImages),
+        coverImages,
         galleryImages: normalizeImageList(source.galleryImages),
         contactPhone: source.contactPhone || '',
         contactInstagram: source.contactInstagram || '',
+        groupLink: source.groupLink || '',
+        contacts: normalizeContacts(source.contacts),
         status: source.status || 'published',
+        paymentGateway: source.paymentGateway === 'razorpay' ? 'razorpay' : 'cashfree',
+        cashfreeMerchant: source.cashfreeMerchant === 'events' ? 'events' : 'platform',
     };
 }
-
-const buildGalleryPreview = (coverImage, galleryImages) => {
-    const seen = new Set();
-    const out = [];
-    const add = (url) => {
-        const normalized = normalizeImageUrl(url);
-        if (normalized && !seen.has(normalized)) {
-            seen.add(normalized);
-            out.push(normalized);
-        }
-    };
-    add(coverImage);
-    normalizeImageList(galleryImages).forEach(add);
-    return out;
-};
 
 function AdminFormSection({ title, hint, children }) {
     return (
@@ -59,42 +70,10 @@ function AdminFormSection({ title, hint, children }) {
     );
 }
 
-function GalleryPreviewRow({ images }) {
-    if (!images.length) {
-        return (
-            <p className="text-xs text-gray-500 rounded-lg border border-dashed border-gray-600 px-3 py-2">
-                Upload a cover image or gallery images to preview the public Gallery row.
-            </p>
-        );
-    }
-
-    return (
-        <div>
-            <p className="text-xs text-gray-500 mb-2">Preview — matches the public community detail page</p>
-            <div className="grid grid-cols-4 gap-2 max-w-sm">
-                {images.slice(0, GALLERY_PREVIEW_COUNT).map((url, i) => {
-                    const isOverflowTile = images.length > GALLERY_PREVIEW_COUNT && i === GALLERY_PREVIEW_COUNT - 1;
-                    const remainingCount = images.length - GALLERY_PREVIEW_COUNT;
-                    return (
-                        <div key={`${url}-${i}`} className="relative aspect-square rounded-xl overflow-hidden bg-[#1D1E20] border border-gray-700">
-                            <img src={url} alt="" className="absolute inset-0 w-full h-full object-cover" />
-                            {isOverflowTile ? (
-                                <div className="absolute inset-0 flex items-center justify-center bg-black/55">
-                                    <span className="text-white text-sm font-semibold">{remainingCount}+</span>
-                                </div>
-                            ) : null}
-                        </div>
-                    );
-                })}
-            </div>
-            <p className="text-[11px] text-gray-600 mt-2">{images.length} image{images.length !== 1 ? 's' : ''} total · cover is always included first</p>
-        </div>
-    );
-}
-
 export default function TrekCommunityFormModal({ community, onClose, onSaved }) {
     const [form, setForm] = useState(EMPTY);
     const [uploading, setUploading] = useState(false);
+    const [uploadingHero, setUploadingHero] = useState(false);
     const [uploadingGallery, setUploadingGallery] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
@@ -107,11 +86,6 @@ export default function TrekCommunityFormModal({ community, onClose, onSaved }) 
         setForm(pickCommunityFormFields(community));
     }, [community]);
 
-    const galleryPreview = useMemo(
-        () => buildGalleryPreview(form.coverImage, form.galleryImages),
-        [form.coverImage, form.galleryImages],
-    );
-
     const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
     const toggleCategory = (cat) => {
@@ -121,50 +95,52 @@ export default function TrekCommunityFormModal({ community, onClose, onSaved }) 
         );
     };
 
-    const uploadImages = async (files, field) => {
-        const isGallery = field === 'galleryImages';
-        isGallery ? setUploadingGallery(true) : setUploading(true);
-        try {
-            const fd = new FormData();
-            files.forEach(f => fd.append('images', f));
-            const res = await adminFetch('/admin/upload/images', { method: 'POST', body: fd });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || 'Upload failed');
-            const urls = parseUploadedUrls(data);
-            if (!urls.length) throw new Error('Upload succeeded but no image URL was returned');
-            if (isGallery) {
-                set('galleryImages', [...form.galleryImages, ...urls]);
-            } else {
-                set('coverImage', urls[0]);
-            }
-        } catch (err) {
-            setError(`Upload failed: ${err.message}`);
-        } finally {
-            isGallery ? setUploadingGallery(false) : setUploading(false);
+    const [customCategory, setCustomCategory] = useState('');
+    const addCustomCategory = () => {
+        const value = customCategory.trim();
+        if (!value) return;
+        if (!form.trekCategories.some(c => c.toLowerCase() === value.toLowerCase())) {
+            set('trekCategories', [...form.trekCategories, value]);
         }
+        setCustomCategory('');
     };
+
+    const addContact = () => set('contacts', [...form.contacts, { name: '', role: '', phone: '' }]);
+    const updateContact = (idx, field, value) =>
+        set('contacts', form.contacts.map((c, i) => (i === idx ? { ...c, [field]: value } : c)));
+    const removeContact = (idx) => set('contacts', form.contacts.filter((_, i) => i !== idx));
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
         if (!form.name.trim()) { setError('Community name is required.'); return; }
-        if (uploading || uploadingGallery) {
+        if (uploading || uploadingHero || uploadingGallery) {
             setError('Please wait for image upload to finish.');
             return;
         }
         setSaving(true);
         try {
             const path = community ? `/admin/trek-communities/${community._id}` : '/admin/trek-communities';
+            const fields = pickCommunityFormFields(form);
+            const coverImages = normalizeCoverImages(fields.coverImages);
             const payload = {
-                ...pickCommunityFormFields(form),
+                ...fields,
+                coverImages,
+                coverImage: primaryCoverUrl(coverImages, fields.coverImage),
+                contacts: fields.contacts
+                    .map((c) => ({
+                        name: (c.name || '').trim(),
+                        role: (c.role || '').trim(),
+                        phone: (c.phone || '').trim(),
+                    }))
+                    .filter((c) => c.name || c.role || c.phone),
                 ...(community ? {} : { showOnTreks: true, trekPageSection: 'communities' }),
             };
             const data = await adminFetchJSON(path, {
                 method: community ? 'PUT' : 'POST',
                 body: JSON.stringify(payload),
             });
-            localStorage.setItem('admin_data_updated', Date.now().toString());
-            setTimeout(() => localStorage.removeItem('admin_data_updated'), 1000);
+            notifyAdminDataUpdated();
             onSaved(data.community);
         } catch (err) {
             setError(err.message);
@@ -172,6 +148,13 @@ export default function TrekCommunityFormModal({ community, onClose, onSaved }) 
             setSaving(false);
         }
     };
+
+    const heroBannerDisplay =
+        form.coverImages?.hero
+        || form.coverImages?.portrait
+        || form.coverImage
+        || '';
+    const usingFallbackBanner = !form.coverImages?.hero && Boolean(form.coverImages?.portrait || form.coverImage);
 
     const inp = "w-full bg-[#1D1E20] border border-gray-600 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-[#0ECCEE]";
 
@@ -195,29 +178,8 @@ export default function TrekCommunityFormModal({ community, onClose, onSaved }) 
 
                     <AdminFormSection
                         title="Hero & identity"
-                        hint="Cover, name, and location shown at the top of the detail page"
+                        hint="Name and location shown at the top of the detail page"
                     >
-                        <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-2">Cover Image</label>
-                            {form.coverImage && (
-                                <div className="relative w-full h-36 mb-2 rounded-xl overflow-hidden">
-                                    <img src={form.coverImage} alt="Cover" className="w-full h-full object-cover" />
-                                    <button
-                                        type="button"
-                                        onClick={() => set('coverImage', '')}
-                                        className="absolute top-2 right-2 bg-red-600 rounded-full p-1 hover:bg-red-700"
-                                    >
-                                        <X size={12} />
-                                    </button>
-                                </div>
-                            )}
-                            <label className="flex items-center gap-2 cursor-pointer w-fit bg-[#1D1E20] border border-dashed border-gray-500 hover:border-[#0ECCEE] rounded-lg px-4 py-2 text-sm text-gray-400 transition-colors">
-                                {uploading ? <span className="text-[#0ECCEE]">Uploading...</span> : <><Upload size={14} /><span>Upload cover image</span></>}
-                                <input type="file" accept="image/*" onChange={e => { const f = Array.from(e.target.files); if (f.length) uploadImages(f, 'coverImage'); e.target.value = ''; }} disabled={uploading} className="hidden" />
-                            </label>
-                            <p className="text-xs text-gray-500 mt-1">Full-width hero image. Also appears first in the Gallery section.</p>
-                        </div>
-
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-300 mb-1">Community Name <span className="text-red-400">*</span></label>
@@ -228,6 +190,45 @@ export default function TrekCommunityFormModal({ community, onClose, onSaved }) 
                                 <input type="text" value={form.basedIn} onChange={e => set('basedIn', e.target.value)} className={inp} placeholder="e.g. Pune, Maharashtra" />
                             </div>
                         </div>
+                    </AdminFormSection>
+
+                    <AdminFormSection
+                        title="Community page banner"
+                        hint="393 × 396 crop — matches the mobile header on /treks/community/:id (back, share, stats badges)"
+                    >
+                        <CommunityHeroBannerField
+                            value={heroBannerDisplay}
+                            communityName={form.name}
+                            onChange={(heroUrl) => {
+                                const coverImages = { ...normalizeCoverImages(form.coverImages), hero: heroUrl || '' };
+                                set('coverImages', coverImages);
+                                set('coverImage', primaryCoverUrl(coverImages, form.coverImage));
+                            }}
+                            onError={(msg) => setError(`Banner upload failed: ${msg}`)}
+                            onUploadingChange={setUploadingHero}
+                        />
+                        {usingFallbackBanner ? (
+                            <p className="text-xs text-amber-500/90 rounded-lg border border-amber-700/40 bg-amber-900/20 px-3 py-2">
+                                This community is using a card image as the page banner. Upload above and crop to the 393×396 frame for a proper fit.
+                            </p>
+                        ) : null}
+                    </AdminFormSection>
+
+                    <AdminFormSection
+                        title="Cover card images"
+                        hint="Portrait card = community page trek cards & treks listing. Wide/square for other carousels. Separate from the page banner above."
+                    >
+                        <MultiCoverImagesUpload
+                            value={form.coverImages}
+                            excludeKeys={['hero', 'page']}
+                            onChange={(coverImages) => {
+                                set('coverImages', coverImages);
+                                set('coverImage', primaryCoverUrl(coverImages, form.coverImage));
+                            }}
+                            onError={(msg) => setError(`Cover upload failed: ${msg}`)}
+                            onUploadingChange={setUploading}
+                            hint="Crop size-wise — start with Portrait card for the horizontal trek cards on the community page."
+                        />
                     </AdminFormSection>
 
                     <AdminFormSection title="About Us" hint="Description block below the community name">
@@ -245,7 +246,7 @@ export default function TrekCommunityFormModal({ community, onClose, onSaved }) 
                         hint="Filter chips on the detail page — treks must use a matching category to appear under each chip"
                     >
                         <div className="flex flex-wrap gap-2">
-                            {CATEGORY_OPTIONS.map(cat => (
+                            {[...CATEGORY_OPTIONS, ...form.trekCategories.filter(c => !CATEGORY_OPTIONS.includes(c))].map(cat => (
                                 <button
                                     key={cat}
                                     type="button"
@@ -260,36 +261,40 @@ export default function TrekCommunityFormModal({ community, onClose, onSaved }) 
                                 </button>
                             ))}
                         </div>
+                        <div className="flex items-center gap-2 mt-3">
+                            <input
+                                type="text"
+                                value={customCategory}
+                                onChange={e => setCustomCategory(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustomCategory(); } }}
+                                className={inp}
+                                placeholder="Add a custom category (e.g. Waterfall Treks)"
+                            />
+                            <button
+                                type="button"
+                                onClick={addCustomCategory}
+                                className="shrink-0 px-4 py-2.5 rounded-lg bg-[#1D1E20] border border-gray-600 hover:border-[#0ECCEE] text-sm text-gray-200 font-medium transition-colors"
+                            >
+                                Add
+                            </button>
+                        </div>
                     </AdminFormSection>
 
                     <AdminFormSection
-                        title="Gallery"
-                        hint="Horizontal photo row at the bottom of the detail page — tap opens full-screen viewer"
+                        title="Gallery images"
+                        hint="Separate gallery grid on the community detail page — not used as banner or cover cards"
                     >
-                        {form.galleryImages.length > 0 && (
-                            <div className="flex flex-wrap gap-2">
-                                {form.galleryImages.map((url, i) => (
-                                    <div key={i} className="relative w-20 h-20">
-                                        <img src={url} alt="" className="w-full h-full object-cover rounded-lg border border-gray-600" />
-                                        <button
-                                            type="button"
-                                            onClick={() => set('galleryImages', form.galleryImages.filter((_, j) => j !== i))}
-                                            className="absolute -top-1.5 -right-1.5 bg-red-600 rounded-full p-0.5 hover:bg-red-700"
-                                        >
-                                            <X size={10} />
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                        <label className="flex items-center gap-2 cursor-pointer w-fit bg-[#1D1E20] border border-dashed border-gray-500 hover:border-[#0ECCEE] rounded-lg px-4 py-2 text-sm text-gray-400 transition-colors">
-                            {uploadingGallery ? <span className="text-[#0ECCEE]">Uploading...</span> : <><Upload size={14} /><span>Upload gallery images</span></>}
-                            <input type="file" accept="image/*" multiple onChange={e => { const f = Array.from(e.target.files); if (f.length) uploadImages(f, 'galleryImages'); e.target.value = ''; }} disabled={uploadingGallery} className="hidden" />
-                        </label>
-                        <GalleryPreviewRow images={galleryPreview} />
+                        <GalleryImagesUploadField
+                            value={form.galleryImages}
+                            onChange={(galleryImages) => set('galleryImages', galleryImages)}
+                            onError={(msg) => setError(`Gallery upload failed: ${msg}`)}
+                            onUploadingChange={setUploadingGallery}
+                            uploadLabel="Upload gallery images"
+                            hint="These only appear in the Gallery section on the community page."
+                        />
                     </AdminFormSection>
 
-                    <AdminFormSection title="Contact Details" hint="Phone enables the call button next to the community name and the contact cards below">
+                    <AdminFormSection title="Contact Details" hint="Phone enables the call button; Instagram and group link show on the community & trek pages">
                         <div className="space-y-3">
                             <div className="flex items-center gap-3">
                                 <span className="text-gray-400 text-sm w-24 shrink-0">Phone</span>
@@ -299,12 +304,117 @@ export default function TrekCommunityFormModal({ community, onClose, onSaved }) 
                                 <span className="text-gray-400 text-sm w-24 shrink-0">Instagram</span>
                                 <input type="text" value={form.contactInstagram} onChange={e => set('contactInstagram', e.target.value)} className={inp} placeholder="@handle" />
                             </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-1">Community group link</label>
+                                <input
+                                    type="url"
+                                    value={form.groupLink}
+                                    onChange={e => set('groupLink', e.target.value)}
+                                    className={inp}
+                                    placeholder="https://chat.whatsapp.com/... or Telegram invite link"
+                                />
+                                <p className="text-[11px] text-gray-600 mt-1.5">
+                                    Fallback when a trek has no trek-specific link. Sent only in registration emails and My Bookings → View Details.
+                                </p>
+                            </div>
+                        </div>
+                    </AdminFormSection>
+
+                    <AdminFormSection
+                        title="People to contact"
+                        hint="Name, role and phone for each person — same as the trek form. Shown as contact cards on the community page."
+                    >
+                        <div className="rounded-lg border border-gray-700/60 p-3">
+                            <div className="flex items-center justify-between mb-1">
+                                <label className="block text-sm font-medium text-gray-300">Contacts</label>
+                                <button type="button" onClick={addContact} className="flex items-center gap-1 text-xs font-semibold text-[#0ECCEE] hover:underline">
+                                    <Plus size={13} /> Add contact
+                                </button>
+                            </div>
+                            {(form.contacts || []).length === 0 ? (
+                                <p className="text-xs text-gray-600 rounded-lg border border-dashed border-gray-600 px-3 py-2.5">No contacts added yet.</p>
+                            ) : (
+                                <div className="space-y-3 mt-3">
+                                    {(form.contacts || []).map((c, idx) => (
+                                        <div key={idx} className="rounded-lg border border-gray-700 bg-[#1D1E20] p-3 space-y-2.5">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xs font-semibold text-gray-400">Contact {idx + 1}</span>
+                                                <button type="button" onClick={() => removeContact(idx)} className="text-gray-500 hover:text-red-400" aria-label="Remove contact">
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2.5">
+                                                <input type="text" value={c.name} onChange={e => updateContact(idx, 'name', e.target.value)} className={inp} placeholder="Name (e.g. Rahul)" />
+                                                <input type="text" value={c.role} onChange={e => updateContact(idx, 'role', e.target.value)} className={inp} placeholder="Role (e.g. Lead Organizer)" />
+                                            </div>
+                                            <input type="tel" value={c.phone} onChange={e => updateContact(idx, 'phone', e.target.value)} className={inp} placeholder="Phone (+91 98765 43210)" />
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </AdminFormSection>
 
                     <p className="text-[11px] text-gray-600 px-1">
                         Visibility, carousel order &amp; home page placement → <span className="text-gray-500">Home &amp; Sections → Communities</span>
                     </p>
+
+                    <AdminFormSection
+                        title="Online payments"
+                        hint="Cashfree platform = main CrwdCtrl. Cashfree events = same account as Delulu. Razorpay = organizer merchant keys."
+                    >
+                        <div className="flex flex-col gap-3 sm:flex-row sm:gap-6">
+                            {[
+                                { value: 'cashfree', label: 'Cashfree' },
+                                { value: 'razorpay', label: 'Razorpay (organizer)' },
+                            ].map((opt) => (
+                                <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="comm_payment_gateway"
+                                        value={opt.value}
+                                        checked={form.paymentGateway === opt.value}
+                                        onChange={() => set('paymentGateway', opt.value)}
+                                        className="accent-[#0ECCEE]"
+                                    />
+                                    <span className="text-sm text-gray-300">{opt.label}</span>
+                                </label>
+                            ))}
+                        </div>
+                        {form.paymentGateway === 'cashfree' ? (
+                            <div className="space-y-2">
+                                <p className="text-xs text-gray-500">Cashfree account</p>
+                                <div className="flex flex-col gap-2 sm:flex-row sm:gap-6">
+                                    {[
+                                        { value: 'platform', label: 'Platform (main CrwdCtrl)' },
+                                        { value: 'events', label: 'Events (same as Delulu)' },
+                                    ].map((opt) => (
+                                        <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="radio"
+                                                name="comm_cashfree_merchant"
+                                                value={opt.value}
+                                                checked={form.cashfreeMerchant === opt.value}
+                                                onChange={() => set('cashfreeMerchant', opt.value)}
+                                                className="accent-[#0ECCEE]"
+                                            />
+                                            <span className="text-sm text-gray-300">{opt.label}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                                {form.cashfreeMerchant === 'events' ? (
+                                    <p className="text-xs text-emerald-400/90 rounded-lg border border-emerald-700/40 bg-emerald-900/15 px-3 py-2">
+                                        Paid treks settle on the Delulu / events Cashfree account (<code className="text-emerald-200">CASHFREE_EVENTS_*</code>).
+                                    </p>
+                                ) : null}
+                            </div>
+                        ) : null}
+                        {form.paymentGateway === 'razorpay' ? (
+                            <p className="text-xs text-amber-500/90 rounded-lg border border-amber-700/40 bg-amber-900/20 px-3 py-2">
+                                All paid treks in this community will checkout via Razorpay. Set <code className="text-amber-200">RAZORPAY_KEY_ID</code> and <code className="text-amber-200">RAZORPAY_KEY_SECRET</code> on the backend (Railway / .env).
+                            </p>
+                        ) : null}
+                    </AdminFormSection>
 
                     <div>
                         <label className="block text-sm font-medium text-gray-300 mb-2">Status</label>
@@ -333,7 +443,7 @@ export default function TrekCommunityFormModal({ community, onClose, onSaved }) 
                         <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm font-medium transition-colors">
                             Cancel
                         </button>
-                        <button type="submit" disabled={saving || uploading || uploadingGallery} className="flex-1 px-4 py-2.5 bg-[#0ECCEE] hover:bg-[#0ECCEE]/80 text-black rounded-lg text-sm font-bold transition-colors disabled:opacity-50">
+                        <button type="submit" disabled={saving || uploading || uploadingHero || uploadingGallery} className="flex-1 px-4 py-2.5 bg-[#0ECCEE] hover:bg-[#0ECCEE]/80 text-black rounded-lg text-sm font-bold transition-colors disabled:opacity-50">
                             {saving ? 'Saving...' : community ? 'Update Community' : 'Add Community'}
                         </button>
                     </div>

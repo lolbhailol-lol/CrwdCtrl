@@ -1,18 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, Clock, Calendar, ArrowLeft } from 'lucide-react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
+import { useInAppBack } from '../../hooks/useInAppBack';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useNotifications } from '../../context/NotificationsContext';
-import Sidebar from '../../components/Sidebar';
-import Navbar from '../../components/Navbar';
-import ProfileSidebar from '../../components/ProfileSidebar';
+import Sidebar from '../../components/layout/Sidebar';
+import Navbar from '../../components/layout/Navbar';
+import ProfileSidebar from '../../components/layout/ProfileSidebar';
 import CrwdCtrlLogin from '../auth/login';
 import CrwdCtrlRegister from '../auth/register';
 
 function NotificationsPanel() {
-    const navigate = useNavigate();
+    const goBack = useInAppBack();
     const { isDark } = useDarkMode();
-    const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+    const { notifications, unreadCount, markAsRead, markAllAsRead, refreshNotifications } = useNotifications();
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [showLogin, setShowLogin] = useState(false);
     const [showRegister, setShowRegister] = useState(false);
@@ -24,6 +25,10 @@ function NotificationsPanel() {
             setShowLogin(true);
         }
     }, [searchParams]);
+
+    useEffect(() => {
+        refreshNotifications();
+    }, [refreshNotifications]);
 
     // Handle login modal close
     const handleCloseLogin = () => {
@@ -63,7 +68,7 @@ function NotificationsPanel() {
                                 <div className="flex items-center gap-3 min-w-0">
                                     <button
                                         type="button"
-                                        onClick={() => navigate(-1)}
+                                        onClick={goBack}
                                         aria-label="Go back"
                                         className={`shrink-0 p-1 rounded-lg transition-colors ${
                                             isDark ? 'text-white hover:bg-gray-800' : 'text-gray-900 hover:bg-gray-100'
@@ -158,14 +163,14 @@ function NotificationsPanel() {
 
             {/* Mobile Layout */}
             <div className="lg:hidden flex flex-1 flex-col w-full">
-                <main className="flex-1 px-4 pt-4 sm:px-6 pb-4">
+                <main className="flex-1 px-4 pt-[calc(var(--safe-top)+1rem)] sm:px-6 pb-4">
                     <div className="mx-auto w-full max-w-md overflow-hidden rounded-2xl">
                         <div className={`px-4 pt-4 ${isDark ? 'bg-[#111213]' : 'bg-slate-100'}`}>
                             <div className="flex items-center justify-between pb-8">
                                 <div className="flex items-center gap-3 min-w-0">
                                     <button
                                         type="button"
-                                        onClick={() => navigate(-1)}
+                                        onClick={goBack}
                                         aria-label="Go back"
                                         className={`shrink-0 p-1 rounded-lg transition-colors ${
                                             isDark ? 'text-white hover:bg-gray-800' : 'text-gray-900 hover:bg-gray-100'

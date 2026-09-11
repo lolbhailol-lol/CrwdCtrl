@@ -1,24 +1,35 @@
 const express = require('express');
 const router = express.Router();
 const TrekCommunity = require('../model/trek_community_model');
+const { findByIdOrSlug } = require('../utils/slug');
+const { sanitizePublicCommunity } = require('../utils/publicEntitySanitize');
 
 router.get('/', async (req, res) => {
     try {
+        const requested = Number.parseInt(String(req.query.limit || ''), 10);
+        const limit = Math.min(
+            Number.isFinite(requested) && requested > 0 ? requested : 100,
+            200,
+        );
         const communities = await TrekCommunity.find({ status: 'published' })
             .sort({ trekPagePriority: 1, createdAt: -1 })
-            .limit(50)
+            .limit(limit)
             .lean();
-        res.json({ communities });
+        res.json({ communities: communities.map(sanitizePublicCommunity) });
     } catch (err) {
         res.status(500).json({ message: 'Failed to fetch communities' });
     }
 });
 
-router.get('/:id', async (req, res) => {
+router.get('/:idOrSlug', async (req, res) => {
     try {
-        const community = await TrekCommunity.findOne({ _id: req.params.id, status: 'published' }).lean();
+        const community = await findByIdOrSlug(TrekCommunity, req.params.idOrSlug, {
+            baseFilter: { status: 'published' },
+            pickName: (row) => row.name,
+            lean: true,
+        });
         if (!community) return res.status(404).json({ message: 'Not found' });
-        res.json({ community });
+        res.json({ community: sanitizePublicCommunity(community) });
     } catch (err) {
         res.status(500).json({ message: 'Failed to fetch community' });
     }
