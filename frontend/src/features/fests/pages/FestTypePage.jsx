@@ -96,7 +96,11 @@ function formatFestDate(date) {
 }
 
 function festCardName(fest) {
-    return isTechfestFest(fest) ? 'IIT Bombay' : fest.festName;
+    return fest.festName;
+}
+
+function festCardCollegeName(fest) {
+    return isTechfestFest(fest) ? 'IIT Bombay' : toCardText(fest.collegeName);
 }
 
 export default function FestTypePage({
@@ -244,7 +248,7 @@ export default function FestTypePage({
                                                     </div>
                                                     <div className="px-4 pt-3 pb-4">
                                                         <p className={`card-event-title line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>{toCardText(festCardName(fest))}</p>
-                                                        <p className={`card-event-subtitle mb-3 line-clamp-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{toCardText(fest.collegeName)}</p>
+                                                        <p className={`card-event-subtitle mb-3 line-clamp-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{festCardCollegeName(fest)}</p>
                                                         <button
                                                             onClick={() => openFestDetails(fest)}
                                                             className="w-full h-11 rounded-2xl bg-[#0ECCEE] text-black text-sm font-medium shadow-md"
@@ -300,7 +304,7 @@ export default function FestTypePage({
                                                 </div>
                                                 <div className="flex-1 min-w-0 px-4 py-4">
                                                     <p className={`card-event-title line-clamp-2 mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>{toCardText(festCardName(fest))}</p>
-                                                    <p className={`card-event-subtitle line-clamp-1 mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{toCardText(fest.collegeName)}</p>
+                                                    <p className={`card-event-subtitle line-clamp-1 mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{festCardCollegeName(fest)}</p>
                                                     {fest.festDate && (
                                                         <p className={`text-xs font-medium leading-4 tracking-tight ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                                                             {formatFestDate(fest.festDate)}
