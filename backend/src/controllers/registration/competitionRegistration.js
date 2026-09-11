@@ -927,6 +927,7 @@ const submitCompetitionRegistration = async (req, res) => {
 
 // ─── Update team members on an existing registration ─────────────────────────
 const Competition = require('../../model/competition_model');
+const { mergeUpdatedTeamMembers } = require('../../utils/teamMemberMerge');
 
 const updateTeamMembers = async (req, res) => {
   try {
@@ -984,35 +985,13 @@ const updateTeamMembers = async (req, res) => {
       ? existingMembers[0]
       : leadFromResponses;
 
-    // Caller may send full array (lead included) or just the additions
-    let newMembers;
-    if (
-      team_members[0]
-      && String(team_members[0].email || '').toLowerCase() === String(lead.email || '').toLowerCase()
-      && (lead.email || team_members.length > 1)
-    ) {
-      // Caller sent full array including lead — preserve original lead object
-      newMembers = [lead, ...team_members.slice(1)];
-    } else if (
-      team_members[0]
-      && String(team_members[0].name || '').trim()
-      && existingMembers.length === 0
-      && team_members.length <= sizeMax
-      && String(team_members[0].name || '').toLowerCase() === String(lead.name || '').toLowerCase()
-    ) {
-      newMembers = [lead, ...team_members.slice(1)];
-    } else {
-      // Caller sent only additions (or lead email mismatch)
-      newMembers = [lead, ...team_members.filter((m) => m && typeof m === 'object')];
-      // If first submitted row duplicates the lead by email, drop that duplicate
-      if (
-        newMembers.length > 1
-        && lead.email
-        && String(newMembers[1].email || '').toLowerCase() === String(lead.email).toLowerCase()
-      ) {
-        newMembers = [lead, ...newMembers.slice(2)];
-      }
-    }
+    // User booking pages send additions only; organizer editors send the full roster.
+    // Preserve existing teammates for additions and ignore repeated submissions.
+    const newMembers = mergeUpdatedTeamMembers({
+      existingMembers,
+      lead,
+      submittedMembers: team_members,
+    });
 
     // Validate size
     if (newMembers.length < sizeMin) {

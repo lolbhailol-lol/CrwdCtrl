@@ -759,29 +759,14 @@ const sendWithResend = async (mailOptions) => {
 };
 
 const sendWelcomeEmail = async (userData) => {
-    console.log("🚀🚀🚀 RESEND FUNCTION DEFINITELY HIT 🚀🚀🚀");
     try {
-        console.log('🔥 [RESEND ONLY] Sending welcome email to:', userData.email);
-
-        if (!process.env.RESEND_API_KEY || !resendInstance) {
-            throw new Error('Resend not configured');
-        }
-
-        const { data, error } = await resendInstance.emails.send({
-            from: 'CrwdCtrl <onboarding@crwdctrl.in>', // ✅ IMPORTANT
-            to: [userData.email],
+        console.log('📧 Sending welcome email to:', userData.email);
+        return await sendEmail({
+            from: getDefaultFrom(),
+            to: userData.email,
             subject: "🎉 Welcome to CrwdCtrl — explore fests, runs & more!",
             html: generateWelcomeEmailHTML(userData)
         });
-
-        if (error) {
-            console.error('❌ Resend error:', error);
-            throw new Error(error.message);
-        }
-
-        console.log('✅ Welcome email sent via RESEND!', data.id);
-        return data;
-
     } catch (error) {
         console.error('❌ Welcome email failed:', error.message);
         throw error;
