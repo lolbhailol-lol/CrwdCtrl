@@ -21,6 +21,7 @@ import { festPath } from '../../../utils/slugRoutes';
 import { buildFestDetailNavState } from '../../../utils/detailPageCache';
 import { usePublicConfig } from '../../../hooks/usePublicConfig';
 import { useInAppBack } from '../../../hooks/useInAppBack';
+import { isTechfestFest } from '../techfest/isTechfestFest';
 
 const FEST_TYPE_SEO = {
     cultural: {
@@ -92,6 +93,10 @@ function StatusBadge({ status }) {
 function formatFestDate(date) {
     if (!date) return '';
     return String(date).trim();
+}
+
+function festCardName(fest) {
+    return isTechfestFest(fest) ? 'IIT Bombay' : fest.festName;
 }
 
 export default function FestTypePage({
@@ -238,7 +243,7 @@ export default function FestTypePage({
                                                         />
                                                     </div>
                                                     <div className="px-4 pt-3 pb-4">
-                                                        <p className={`card-event-title line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>{toCardText(fest.festName)}</p>
+                                                        <p className={`card-event-title line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>{toCardText(festCardName(fest))}</p>
                                                         <p className={`card-event-subtitle mb-3 line-clamp-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{toCardText(fest.collegeName)}</p>
                                                         <button
                                                             onClick={() => openFestDetails(fest)}
@@ -294,7 +299,7 @@ export default function FestTypePage({
                                                     />
                                                 </div>
                                                 <div className="flex-1 min-w-0 px-4 py-4">
-                                                    <p className={`card-event-title line-clamp-2 mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>{toCardText(fest.festName)}</p>
+                                                    <p className={`card-event-title line-clamp-2 mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>{toCardText(festCardName(fest))}</p>
                                                     <p className={`card-event-subtitle line-clamp-1 mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{toCardText(fest.collegeName)}</p>
                                                     {fest.festDate && (
                                                         <p className={`text-xs font-medium leading-4 tracking-tight ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
