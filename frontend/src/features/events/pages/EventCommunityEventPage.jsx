@@ -9,7 +9,7 @@ import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenera
 import Seo from '../../../components/Seo';
 import LazyMap from '../../../components/LazyMap';
 import TrekDetailIcon from '../../../components/TrekDetailIcon';
-import DetailPageLoader from '../../../components/DetailPageLoader';
+import DetailPageLoader, { DetailLoader3DIcon } from '../../../components/DetailPageLoader';
 import { primaryCoverUrl } from '../../../utils/coverImages';
 import { absoluteUrl, breadcrumbSchema, eventSchema } from '../../../utils/seo';
 import { shareContent } from '../../../utils/externalLink';
@@ -499,7 +499,12 @@ export default function EventCommunityEventPage() {
                                 {img ? (
                                     <>
                                         {!heroLoaded && i === 0 && (
-                                            <div aria-hidden className="absolute inset-0 bg-[#1A1B1D]" />
+                                            <div
+                                                aria-hidden
+                                                className="absolute inset-0 z-1 flex items-center justify-center bg-[#1A1B1D]"
+                                            >
+                                                <DetailLoader3DIcon variant="event" tone="dark" />
+                                            </div>
                                         )}
                                         <img
                                         src={getImageUrl(img, { preset: 'hero' })}
