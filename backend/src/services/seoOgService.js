@@ -31,17 +31,28 @@ function cleanDescription(text, max = 160) {
   return `${normalized.slice(0, max - 1).trimEnd()}…`;
 }
 
-/** Prefer landscape slots for WhatsApp/Facebook (they struggle with tall portraits). */
-function pickShareImage(entity) {
+/** Share cards prefer the portrait listing artwork, with landscape fallbacks. */
+function pickShareImage(entity, { preferPortrait = true } = {}) {
   if (!entity || typeof entity !== 'object') return undefined;
   const covers = entity.coverImages && typeof entity.coverImages === 'object' ? entity.coverImages : {};
-  const candidates = [
+  const landscapeCandidates = [
     covers.wide,
     covers.landscape,
     covers.hero,
     covers.page,
     covers.square,
     covers.portrait,
+  ];
+  const portraitCandidates = [
+    covers.portrait,
+    covers.page,
+    covers.square,
+    covers.wide,
+    covers.landscape,
+    covers.hero,
+  ];
+  const candidates = [
+    ...(preferPortrait ? portraitCandidates : landscapeCandidates),
     covers.video,
     entity.coverImage,
     entity.poster,
@@ -58,14 +69,16 @@ function pickShareImage(entity) {
 }
 
 /** WhatsApp prefers ~1200×630 JPEG; Cloudinary can crop on the fly. */
-function toOgImageUrl(url) {
+function toOgImageUrl(url, { contain = true } = {}) {
   if (!url || typeof url !== 'string') return DEFAULT_IMAGE;
   const trimmed = url.trim();
   if (!trimmed) return DEFAULT_IMAGE;
   if (/res\.cloudinary\.com\/[^/]+\/image\/upload\//i.test(trimmed) && !/\/upload\/[^/]+,/.test(trimmed)) {
     return trimmed.replace(
       /\/image\/upload\//i,
-      '/image/upload/c_fill,w_1200,h_630,f_jpg,q_auto/',
+      contain
+        ? '/image/upload/c_pad,w_1200,h_630,b_auto,f_jpg,q_auto/'
+        : '/image/upload/c_fill,w_1200,h_630,f_jpg,q_auto/',
     );
   }
   return trimmed;
@@ -152,7 +165,7 @@ const ROUTES = [
   },
   {
     test: /^\/events\/community-event\/([^/]+)\/?$/,
-    load: async (id) => loadSportsEvent(id),
+    load: async (id) => loadSportsEvent(id, { preferPortrait: true }),
   },
   {
     test: /^\/events\/community\/([^/]+)\/?$/,
@@ -176,7 +189,7 @@ const ROUTES = [
   },
 ];
 
-async function loadSportsEvent(id) {
+async function loadSportsEvent(id, { preferPortrait = false } = {}) {
   const event = await findByIdOrSlug(SportsEvent, id, {
     baseFilter: { status: { $in: ['published', 'completed'] } },
     pickName: (row) => row.title,
@@ -186,7 +199,8 @@ async function loadSportsEvent(id) {
   return {
     title: event.title,
     description: event.description,
-    image: pickShareImage(event),
+    image: pickShareImage(event, { preferPortrait }),
+    containShareImage: preferPortrait,
   };
 }
 
@@ -203,11 +217,11 @@ async function loadRunClub(id, suffix) {
   };
 }
 
-function buildOgHtml({ title, description, image, path }) {
+function buildOgHtml({ title, description, image, path, containShareImage = true }) {
   const safeTitle = title || SITE_NAME;
   const desc = cleanDescription(description || `${safeTitle} on ${SITE_NAME}.`);
   const pageUrl = absoluteUrl(path);
-  const imageUrl = toOgImageUrl(image);
+  const imageUrl = toOgImageUrl(image, { contain: containShareImage });
   const fullTitle = safeTitle.includes(SITE_NAME) ? safeTitle : `${safeTitle} | ${SITE_NAME}`;
 
   return `<!DOCTYPE html>
@@ -260,6 +274,7 @@ async function resolveOgHtml(pathname) {
     title: item.title,
     description: item.description,
     image: item.image,
+    containShareImage: item.containShareImage,
     path,
   });
 }
