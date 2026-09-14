@@ -4,4 +4,5 @@ export {
   defaultFestPlugin,
   mindsparkPlugin,
   techfestPlugin,
+  kshitijPlugin,
 } from './registry';

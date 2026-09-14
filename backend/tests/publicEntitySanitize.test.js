@@ -76,6 +76,7 @@ test('sanitizePublicCompetition strips direct and nested fest secrets', () => {
   const result = sanitizePublicCompetition({
     googleSheetsUrl: 'gs',
     confirmationEmail: 'confirm@x.com',
+    judgingCriteria: ['Clarity of Vocals — 30 points'],
     registration: { organizerEmail: 'org@x.com', confirmationEmail: 'confirm2@x.com' },
     fest: { registration: { organizerEmail: 'fest@x.com', paymentQR: 'fest-qr' } },
   });
@@ -86,6 +87,7 @@ test('sanitizePublicCompetition strips direct and nested fest secrets', () => {
   assert.equal(result.registration.confirmationEmail, undefined);
   assert.equal(result.fest.registration.organizerEmail, undefined);
   assert.equal(result.fest.registration.paymentQR, 'fest-qr');
+  assert.deepEqual(result.judgingCriteria, ['Clarity of Vocals — 30 points']);
 });
 
 test('sanitizePublicRunClub and sanitizePublicEventShow strip sensitive fields', () => {

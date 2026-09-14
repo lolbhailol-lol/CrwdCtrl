@@ -1073,7 +1073,7 @@ const EVENT_UPDATABLE_FIELDS = [
 ];
 
 const COMPETITION_UPDATABLE_FIELDS = [
-    'name', 'description', 'category', 'eligibility', 'rules', 'commonRulesMessage',
+    'name', 'description', 'category', 'eventCategory', 'eventFormat', 'eligibility', 'rules', 'commonRulesMessage', 'judgingCriteria',
     'roundRulesMessage', 'rounds', 'venue', 'dateTime', 'startAt', 'endAt',
     'coverImage', 'bannerImage', 'logo', 'images', 'gallery', 'prizes',
     'contactEmail', 'contactPhone', 'links', 'registrationType', 'registration',

@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Phone, Instagram, Check, Mail, ArrowLeft, Ticket, Share2, Users, FileText, ExternalLink } from 'lucide-react';
+import { Phone, Instagram, Check, Mail, ArrowLeft, Ticket, Share2, Users, FileText, ExternalLink, CalendarDays, MapPin } from 'lucide-react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useDarkMode } from '../../../../context/DarkModeContext';
 import { useDialog } from '../../../../context/DialogContext';
 import { useAuth } from '../../../../context/AuthContext';
-import CalendarIcon from '../../../../assets/calendar.svg';
-import LocationIcon from '../../../../assets/location-.svg';
 import ShareIcon from '../../../../assets/share.svg';
 import CrwdCtrlLogin from '../../../../pages/auth/login';
 import CrwdCtrlRegister from '../../../../pages/auth/register';
@@ -84,8 +82,8 @@ function RegisterMetaChips({ slotsLabel, teamLabel, isDark }) {
             <span
                 className={`inline-flex flex-1 min-w-0 items-center justify-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
                     isDark
-                        ? 'bg-amber-400/15 text-amber-200'
-                        : 'bg-amber-50 text-amber-700'
+                        ? 'bg-violet-500/20 text-violet-200 ring-1 ring-inset ring-violet-400/20'
+                        : 'bg-violet-100 text-violet-800 ring-1 ring-inset ring-violet-200'
                 }`}
             >
                 <Users className="w-2.5 h-2.5 shrink-0 opacity-70" strokeWidth={2.25} />
@@ -460,6 +458,7 @@ const buildCompetitionData = (compData) => {
         description: sanitizeRoundDescription(compData.description || ''),
         commonRules: sanitizeRulesArray(compData.commonRules || compData.rules || []),
         commonRulesMessage: sanitizeRoundDescription(compData.commonRulesMessage || ''),
+        judgingCriteria: sanitizeRulesArray(compData.judgingCriteria || []),
         registrationLink: compData.registrationLink || '',
 
         registrationType: compData.registrationType || 'fest',
@@ -490,6 +489,8 @@ const buildCompetitionData = (compData) => {
         module: String(compData.module || '').trim(),
         competitionType: compData.competitionType || '',
         category: compData.category || '',
+        eventCategory: String(compData.eventCategory || '').trim(),
+        eventFormat: String(compData.eventFormat || '').trim(),
         relatedCompetitions: Array.isArray(compData.relatedCompetitions)
             ? compData.relatedCompetitions
             : [],
@@ -618,24 +619,33 @@ function EventPage() {
 
     const goBack = useCallback(() => {
         const backTo = location.state?.backTo;
-        if (backTo && typeof backTo === 'string' && backTo.startsWith('/')) {
-            navigate(backTo);
-            return;
-        }
-        if (canGoBackInApp()) {
-            navigate(-1);
+        const currentPath = `${location.pathname}${location.search || ''}`.replace(/\/$/, '') || '/';
+        const normalizedBackTo = typeof backTo === 'string'
+            ? backTo.replace(/\/$/, '') || '/'
+            : '';
+        if (normalizedBackTo.startsWith('/') && normalizedBackTo !== currentPath) {
+            navigate(backTo, { replace: true });
             return;
         }
         const festRef =
             competitionData?.fest ||
             location.state?.eventData ||
             location.state?.competition?.fest;
+        const festToken = String(festRef?.slug || festRef?.festName || festRef?.title || '').toLowerCase();
+        if (festRef && festToken.includes('kshitij')) {
+            navigate(festPath(festRef), { replace: true });
+            return;
+        }
+        if (canGoBackInApp()) {
+            navigate(-1);
+            return;
+        }
         if (festRef && (festRef._id || festRef.id || festRef.slug || festRef.festName || festRef.title)) {
-            navigate(festPath(festRef));
+            navigate(festPath(festRef), { replace: true });
             return;
         }
         inAppBack();
-    }, [navigate, location.state, competitionData?.fest, inAppBack]);
+    }, [navigate, location.pathname, location.search, location.state, competitionData?.fest, inAppBack]);
 
     // Switching comps reuses this page — show centered 3D loader (like fest → competition).
     useLayoutEffect(() => {
@@ -1129,7 +1139,15 @@ function EventPage() {
         location.state?.competition?.fest?.festName ||
         '';
     const passedEventData = location.state?.eventData;
-    const showDiscovery = Boolean(fetchDone);
+    const festSlug = String(
+        eventData?.fest?.slug
+        || location.state?.competition?.fest?.slug
+        || '',
+    ).toLowerCase();
+    const isKshitijPuneRegionals =
+        festSlug === 'kshitij-pune-regionals-2026'
+        || String(festName).toLowerCase().includes('kshitij pune regionals');
+    const showDiscovery = Boolean(fetchDone && !isKshitijPuneRegionals);
 
     // Function to get common rules based on fest context
     const getCommonRules = () => {
@@ -1334,7 +1352,7 @@ function EventPage() {
                                 type="button"
                                 onClick={() => setShowFullRoundDesc((v) => !v)}
                                 className={`mt-1.5 text-sm font-semibold ${
-                                    isDark ? 'text-[#0ECCEE]' : 'text-[#0099B8]'
+                                    isDark ? 'text-sky-300' : 'text-sky-700'
                                 }`}
                             >
                                 {showFullRoundDesc ? 'read less' : 'read more'}
@@ -1356,10 +1374,23 @@ function EventPage() {
     };
 
     const commonRules = getCommonRules();
+    const judgingCriteria = sanitizeRulesArray(eventData?.judgingCriteria || []);
     // Re-filter at render (covers stale detail cache with empty placeholder rounds)
     const roundsList = (eventData?.rounds?.roundsList || []).filter(roundHasDisplayableContent);
-    // Hide entire Competition Rounds card when MindSpark (or any) comp has no real round content
-    const showCompetitionRounds = roundsList.length > 0;
+    // A single direct-final/knockout entry describes the format for Kshitij; it is not a useful rounds section.
+    const showCompetitionRounds = roundsList.length > 0
+        && (!isKshitijPuneRegionals || roundsList.length > 1);
+    const showRulesJudgingSideBySide = isKshitijPuneRegionals
+        && !showCompetitionRounds
+        && commonRules.length > 0
+        && judgingCriteria.length > 0;
+    const rulesSectionTitle = isKshitijPuneRegionals ? 'Rules & Regulations' : 'Rules and Guidelines';
+    const roundsSectionTitle = isKshitijPuneRegionals
+        && String(eventData?.title || '').toLowerCase() === 'the boardroom'
+        ? 'Event Flow'
+        : isKshitijPuneRegionals
+            ? 'Competition Rounds'
+            : `${eventData?.title || 'Competition'} Rounds`;
 
     const contactList = (() => {
         const c = eventData?.contact;
@@ -1630,12 +1661,7 @@ function EventPage() {
     };
 
     const registrationInfo = getRegistrationStatus();
-    const registerCtaText =
-        !registrationInfo.isDisabled
-        && eventData?.feeKnown
-        && eventData?.feeIsFree
-            ? 'Register free'
-            : registrationInfo.buttonText;
+    const registerCtaText = registrationInfo.buttonText;
 
     const goToRegistration = (path, state = {}) => {
         if (openingRegisterRef.current) return;
@@ -1888,7 +1914,7 @@ function EventPage() {
                     <button
                         type="button"
                         onClick={() => setShowFullAbout((v) => !v)}
-                        className="mt-1 text-sm font-semibold text-[#0060DF]"
+                        className={`mt-1 text-sm font-semibold ${isDark ? 'text-sky-300' : 'text-sky-700'}`}
                     >
                         {showFullAbout ? 'read less' : 'read more'}
                     </button>
@@ -2046,14 +2072,14 @@ function EventPage() {
                                 {(eventData.date || eventData.venue) && (
                                 <div className="space-y-2 mb-4">
                                     {eventData.date ? (
-                                    <div className="flex items-center gap-2 text-blue-600">
-                                        <img src={CalendarIcon} alt="Calendar" className={`w-4 h-4 ${isDark ? 'filter invert' : ''}`} />
+                                    <div className={`flex items-center gap-2 ${isDark ? 'text-sky-300' : 'text-sky-700'}`}>
+                                        <CalendarDays className="w-4 h-4 shrink-0" aria-hidden="true" />
                                         <span className="text-sm">{eventData.date}{eventData.time ? ` | ${eventData.time}` : ''}</span>
                                     </div>
                                     ) : null}
                                     {eventData.venue && eventData.venue !== 'TBD' ? (
-                                    <div className="flex items-center gap-2 text-blue-600">
-                                        <img src={LocationIcon} alt="Location" className={`w-4 h-4 ${isDark ? 'filter invert' : ''}`} />
+                                    <div className={`flex items-center gap-2 ${isDark ? 'text-sky-300' : 'text-sky-700'}`}>
+                                        <MapPin className="w-4 h-4 shrink-0" aria-hidden="true" />
                                         <span className="text-sm">{eventData.venue}</span>
                                     </div>
                                     ) : null}
@@ -2061,15 +2087,27 @@ function EventPage() {
                                 )}
                                 </div>
 
-                            {/* Prize pool — classic medal podium (all fest competitions) */}
+                            {/* Kshitij qualification highlight; classic podium for monetary prizes elsewhere. */}
                             {eventData?.prize && !/^(tbd|tba|n\/a|na|-|subject to change)$/i.test(String(eventData.prize).trim()) && (
                                 <div className="px-4 pb-2">
+                                    {isKshitijPuneRegionals ? (
+                                    <div className={`rounded-2xl border p-4 flex items-center gap-3 ${isDark ? 'border-cyan-400/35 bg-gradient-to-r from-cyan-400/15 to-violet-500/10' : 'border-cyan-200 bg-gradient-to-r from-cyan-50 to-violet-50'}`}>
+                                        <span className="size-10 shrink-0 rounded-full bg-[#0ECCEE] text-slate-950 shadow-md shadow-cyan-500/20 flex items-center justify-center">
+                                            <Ticket size={20} strokeWidth={2.4} />
+                                        </span>
+                                        <div className="min-w-0">
+                                            <p className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-cyan-300' : 'text-cyan-700'}`}>Winner Benefit</p>
+                                            <p className={`mt-0.5 text-sm font-semibold leading-snug ${isDark ? 'text-white' : 'text-gray-900'}`}>{eventData.prize}</p>
+                                        </div>
+                                    </div>
+                                    ) : (
                                     <PrizePoolPodium
                                       prizeText={eventData.prize}
                                       isDark={isDark}
                                       compact
                                       showTitle={isTechfestCompetition}
                                     />
+                                    )}
                                     </div>
                                 )}
 
@@ -2083,7 +2121,7 @@ function EventPage() {
                             {showCompetitionRounds && (
                             <div className="px-4 py-5">
                                 <div className={`${isDark ? 'bg-[#111213]' : 'bg-white'} rounded-xl p-4 sm:p-5 shadow-sm`}>
-                                    <h2 className={`text-xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Competition Rounds</h2>
+                                    <h2 className={`text-xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>{roundsSectionTitle}</h2>
 
                                     {/* Mobile Round Tabs - Dynamic based on available rounds */}
                                     {roundsList.length > 1 && !festName?.toLowerCase().includes('symbi') && (
@@ -2115,11 +2153,24 @@ function EventPage() {
                             {commonRules.length > 0 ? (
                             <div className="px-4 py-5">
                                 <div className={`${isDark ? 'bg-[#111213]' : 'bg-white'} rounded-xl p-4 sm:p-5 shadow-sm`}>
-                                    <h2 className={`text-xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Rules and Guidelines</h2>
+                                    <h2 className={`text-xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>{rulesSectionTitle}</h2>
                                     <RulesList
                                         rules={commonRules}
                                         ruleKey={`mobile-common-rules-${eventData?.id}`}
                                         maxItems={3}
+                                    />
+                                </div>
+                            </div>
+                            ) : null}
+
+                            {judgingCriteria.length > 0 ? (
+                            <div className="px-4 py-5">
+                                <div className={`${isDark ? 'bg-[#111213]' : 'bg-white'} rounded-xl p-4 sm:p-5 shadow-sm`}>
+                                    <h2 className={`text-xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Judging Criteria</h2>
+                                    <RulesList
+                                        rules={judgingCriteria}
+                                        ruleKey={`mobile-judging-${eventData?.id}`}
+                                        maxItems={5}
                                     />
                                 </div>
                             </div>
@@ -2185,26 +2236,51 @@ function EventPage() {
                                 </div>
 
                                 <div className="space-y-6">
-                                    {/* Desktop Prize Pool — classic medal podium (all fest competitions) */}
+                                    {/* Kshitij qualification highlight; classic podium for monetary prizes elsewhere. */}
                                     {eventData?.prize && !/^(tbd|tba|n\/a|na|-|subject to change)$/i.test(String(eventData.prize).trim()) && (
+                                        isKshitijPuneRegionals ? (
+                                        <div className={`rounded-2xl border p-5 flex items-center gap-4 ${isDark ? 'border-cyan-400/35 bg-gradient-to-r from-cyan-400/15 to-violet-500/10' : 'border-cyan-200 bg-gradient-to-r from-cyan-50 to-violet-50'}`}>
+                                            <span className="size-11 shrink-0 rounded-full bg-[#0ECCEE] text-slate-950 shadow-md shadow-cyan-500/20 flex items-center justify-center">
+                                                <Ticket size={22} strokeWidth={2.4} />
+                                            </span>
+                                            <div className="min-w-0">
+                                                <p className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-cyan-300' : 'text-cyan-700'}`}>Winner Benefit</p>
+                                                <p className={`mt-1 font-semibold leading-snug ${isDark ? 'text-white' : 'text-gray-900'}`}>{eventData.prize}</p>
+                                            </div>
+                                        </div>
+                                        ) : (
                                         <PrizePoolPodium
                                           prizeText={eventData.prize}
                                           isDark={isDark}
                                           showTitle={isTechfestCompetition}
                                         />
+                                        )
                                     )}
 
-                                    {/* Common Rules */}
-                                    {commonRules.length > 0 ? (
-                                    <div className={`${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'} rounded-2xl p-6`}>
-                                        <h2 className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Rules and Guidelines</h2>
-                                        <RulesList
-                                            rules={commonRules}
-                                            ruleKey={`desktop-common-rules-${eventData?.id}`}
-                                            maxItems={5}
-                                        />
+                                    <div className={showRulesJudgingSideBySide ? 'grid grid-cols-2 gap-4' : 'space-y-6'}>
+                                        {/* Common Rules */}
+                                        {commonRules.length > 0 ? (
+                                        <div className={`${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'} rounded-2xl p-6`}>
+                                            <h2 className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>{rulesSectionTitle}</h2>
+                                            <RulesList
+                                                rules={commonRules}
+                                                ruleKey={`desktop-common-rules-${eventData?.id}`}
+                                                maxItems={5}
+                                            />
+                                        </div>
+                                        ) : null}
+
+                                        {judgingCriteria.length > 0 ? (
+                                        <div className={`${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'} rounded-2xl p-6`}>
+                                            <h2 className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Judging Criteria</h2>
+                                            <RulesList
+                                                rules={judgingCriteria}
+                                                ruleKey={`desktop-judging-${eventData?.id}`}
+                                                maxItems={5}
+                                            />
+                                        </div>
+                                        ) : null}
                                     </div>
-                                    ) : null}
                                 </div>
 
                                 {/* Contact Details */}
@@ -2234,18 +2310,17 @@ function EventPage() {
                                     {eventData.subtitle ? (
                                     <p className={`mb-3 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{eventData.subtitle}</p>
                                     ) : null}
-
                                     {(eventData.date || (eventData.venue && eventData.venue !== 'TBD')) && (
                                     <div className="space-y-2 mb-3">
                                         {eventData.date ? (
-                                        <div className="flex items-center gap-2 text-blue-600">
-                                            <img src={CalendarIcon} alt="Calendar" className={`w-4 h-4 ${isDark ? 'filter invert' : ''}`} />
+                                        <div className={`flex items-center gap-2 ${isDark ? 'text-sky-300' : 'text-sky-700'}`}>
+                                            <CalendarDays className="w-4 h-4 shrink-0" aria-hidden="true" />
                                             <span className="text-sm">{eventData.date}{eventData.time ? ` | ${eventData.time}` : ''}</span>
                                         </div>
                                         ) : null}
                                         {eventData.venue && eventData.venue !== 'TBD' ? (
-                                        <div className="flex items-center gap-2 text-blue-600">
-                                            <img src={LocationIcon} alt="Location" className={`w-4 h-4 ${isDark ? 'filter invert' : ''}`} />
+                                        <div className={`flex items-center gap-2 ${isDark ? 'text-sky-300' : 'text-sky-700'}`}>
+                                            <MapPin className="w-4 h-4 shrink-0" aria-hidden="true" />
                                             <span className="text-sm">{eventData.venue}</span>
                                         </div>
                                         ) : null}
@@ -2371,7 +2446,7 @@ function EventPage() {
                                 {/* Competition Rounds — hidden when no real round content */}
                                 {showCompetitionRounds && (
                                 <div className={`${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'} rounded-2xl p-6`}>
-                                    <h2 className={`text-2xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>{eventData?.title || 'Competition'} Rounds</h2>
+                                    <h2 className={`text-2xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>{roundsSectionTitle}</h2>
 
                                     {/* Desktop Round Tabs - Dynamic based on available rounds */}
                                     {roundsList.length > 1 && !festName?.toLowerCase().includes('symbi') && (
@@ -2498,4 +2573,3 @@ function EventPage() {
 }
 
 export default EventPage;
-

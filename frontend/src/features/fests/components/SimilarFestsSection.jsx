@@ -73,6 +73,8 @@ export default function SimilarFestsSection({
   limit,
   variant = 'cards',
   hideFee = false,
+  fullWidthMobile = false,
+  hideSubtitle = false,
 }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -213,9 +215,11 @@ export default function SimilarFestsSection({
         <h2 className={`text-base sm:text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
           {heading}
         </h2>
-        <p className={`text-xs sm:text-sm mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-          {sub}
-        </p>
+        {!hideSubtitle ? (
+          <p className={`text-xs sm:text-sm mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+            {sub}
+          </p>
+        ) : null}
       </div>
 
       <div
@@ -241,7 +245,9 @@ export default function SimilarFestsSection({
           return (
             <article
               key={String(id)}
-              className="card-surface snap-start shrink-0 w-[min(85vw,320px)] sm:w-[280px] rounded-2xl overflow-hidden"
+              className={`card-surface snap-start shrink-0 rounded-2xl overflow-hidden ${
+                fullWidthMobile ? 'w-full sm:w-[280px]' : 'w-[min(85vw,320px)] sm:w-[280px]'
+              }`}
             >
               <button
                 type="button"

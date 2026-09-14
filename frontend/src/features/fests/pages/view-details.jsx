@@ -433,6 +433,7 @@ function EventDetailsPage() {
   const LiveBadge = festPlugin.LiveBadge;
   const mindSparkDesktop = festPlugin.id === 'mindspark';
   const techfestPage = festPlugin.id === 'techfest';
+  const kshitijPage = festPlugin.id === 'kshitij';
   // Techfest fest hero: brand logo contained & centered (URL from fest cover / admin)
   const heroShellClass = 'bg-[#1A1B1D]';
   const heroImageClass = 'object-cover object-center';
@@ -520,6 +521,9 @@ function EventDetailsPage() {
     ? (pageEvent.heroImage || pageEvent.image || '')
     : (currentHeroImage || pageEvent.heroImage || pageEvent.image);
   const techfestHeroSrc = heroImage ? getImageUrl(heroImage, { preset: 'hero' }) : '';
+  const mobileHeroImage = kshitijPage
+    ? (pageEvent.coverImages?.portrait || heroImage)
+    : heroImage;
   const overviewText = isFestPlaceholderCopy(pageEvent.overview) ? '' : pageEvent.overview;
   const dateLabel = isFestPlaceholderCopy(pageEvent.dateTime) ? '' : pageEvent.dateTime;
   const venueLabel = isFestPlaceholderCopy(pageEvent.venue) ? '' : pageEvent.venue;
@@ -713,7 +717,7 @@ function EventDetailsPage() {
 
                 {/* Competitions */}
                 {availableTabs.length > 0 && (
-                  <div ref={eventsRef} className={`${isDark ? 'bg-[#111213]' : 'bg-gray-100'} rounded-2xl p-4 sm:p-6 transition-colors duration-300 scroll-mt-[calc(var(--desktop-navbar-h)+0.75rem)]`}>
+                  <div ref={eventsRef} className={`${isDark ? 'bg-[#111213]' : 'bg-gray-100'} ${festPlugin.id === 'kshitij' ? 'mt-3' : ''} rounded-2xl p-4 sm:p-6 transition-colors duration-300 scroll-mt-[calc(var(--desktop-navbar-h)+0.75rem)]`}>
                     <h2 className={`text-xl sm:text-2xl font-bold mb-4 sm:mb-6 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                       {pageEvent.competitionsHeading || "Competitions"}
                     </h2>
@@ -1050,6 +1054,8 @@ function EventDetailsPage() {
               isDark={isDark}
               limit={4}
               className="mt-8 mb-4"
+              title={kshitijPage ? 'Explore more Fests' : undefined}
+              hideSubtitle={kshitijPage}
             />
           </div>
         </div>
@@ -1069,11 +1075,13 @@ function EventDetailsPage() {
               />
               ) : null}
             </div>
-          ) : heroImage ? (
+          ) : mobileHeroImage ? (
           <img
-            src={getImageUrl(heroImage, { preset: 'hero' })}
+            src={getImageUrl(mobileHeroImage, { preset: kshitijPage ? 'eventHeroFit' : 'hero' })}
             alt={pageEvent.title}
-            className="absolute inset-0 w-full h-full object-cover object-[center_30%]"
+            className={`absolute inset-0 w-full h-full object-cover ${
+              kshitijPage ? 'object-center scale-[1.28] sm:scale-[1.12]' : 'object-[center_30%]'
+            }`}
           />
           ) : null}
           <div
@@ -1187,7 +1195,7 @@ function EventDetailsPage() {
 
         {/* Artists Over the Years */}
         {pageEvent.artists && pageEvent.artists.length > 0 && (
-          <section className={`px-4 mb-8 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
+          <section className={`px-4 mb-8 ${festPlugin.id === 'kshitij' ? 'pt-3' : ''} ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
             <h2 className={`text-base font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
               {pageEvent.artistsHeading || 'Artist Over the Years'}
             </h2>
@@ -1428,6 +1436,9 @@ function EventDetailsPage() {
           isDark={isDark}
           limit={4}
           className="mb-8 px-4"
+          fullWidthMobile={kshitijPage}
+          title={kshitijPage ? 'Explore more Fests' : undefined}
+          hideSubtitle={kshitijPage}
         />
       </div>
 

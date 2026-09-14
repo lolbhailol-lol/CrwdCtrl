@@ -1,8 +1,10 @@
 import { isMindSparkFest } from '../mindspark/isMindSparkFest';
 import { isTechfestFest } from '../techfest/isTechfestFest';
+import { isKshitijFest } from '../kshitij/isKshitijFest';
 import { defaultFestPlugin } from './defaultPlugin';
 import { mindsparkPlugin } from './mindsparkPlugin';
 import { techfestPlugin } from './techfestPlugin';
+import { kshitijPlugin } from './kshitijPlugin';
 
 /**
  * Resolve the named-fest plugin for a fest id, fest object, or competition.fest.
@@ -11,6 +13,7 @@ import { techfestPlugin } from './techfestPlugin';
 export function getFestPlugin(festOrId, festMeta = null) {
   if (isMindSparkFest(festOrId, festMeta)) return mindsparkPlugin;
   if (isTechfestFest(festOrId, festMeta)) return techfestPlugin;
+  if (isKshitijFest(festOrId, festMeta)) return kshitijPlugin;
   return defaultFestPlugin;
 }
 
@@ -24,4 +27,4 @@ export function getFestPluginFromAny(...candidates) {
   return defaultFestPlugin;
 }
 
-export { defaultFestPlugin, mindsparkPlugin, techfestPlugin };
+export { defaultFestPlugin, mindsparkPlugin, techfestPlugin, kshitijPlugin };

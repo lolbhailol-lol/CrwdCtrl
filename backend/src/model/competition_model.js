@@ -75,6 +75,20 @@ const competitionSchema = new mongoose.Schema(
     default: 'OTHER',
   },
 
+  /** Source-document label such as Popular, USP, or Others. */
+  eventCategory: {
+    type: String,
+    trim: true,
+    default: '',
+  },
+
+  /** Participant-facing format from the source rulebook. */
+  eventFormat: {
+    type: String,
+    trim: true,
+    default: '',
+  },
+
   /** MindSpark module heading (CODIFICA, HACKATHON, …). Empty = infer from name. */
   module: {
     type: String,
@@ -115,6 +129,9 @@ const competitionSchema = new mongoose.Schema(
     type: String,
     trim: true,
   },
+
+  /** Participant-facing scoring/judging criteria, separate from rules. */
+  judgingCriteria: [{ type: String, trim: true }],
 
   rounds: [
     {

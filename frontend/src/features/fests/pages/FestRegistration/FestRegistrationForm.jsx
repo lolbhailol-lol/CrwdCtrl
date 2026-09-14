@@ -77,11 +77,14 @@ export default function FestRegistrationForm({
   const hideFestCommonForm =
     Boolean(isCompetitionRegistration) && festPlugin.skipFestCommonFormOnCompetition;
   const mindSparkLayout = festPlugin.id === 'mindspark';
+  const submitLabel = festPlugin.id === 'kshitij' ? 'Submit Registration' : 'Confirm Booking';
   const PersonStep = festPlugin.id === 'techfest' ? TechfestRosterPersonStep : RosterPersonStep;
   const onParticipantStep = typeof isOnParticipantStep === 'function' && isOnParticipantStep();
   const onTeamDetailsStep = typeof isOnTeamDetailsStep === 'function' && isOnTeamDetailsStep();
   const onFeeTierStep = typeof isOnFeeTierStep === 'function' && isOnFeeTierStep();
   const onPersonStep = typeof isOnPersonStep === 'function' && isOnPersonStep();
+  const registrationSteps = getStepMeta();
+  const compactProgress = registrationSteps.length > 5;
 
   const paymentModalEl = (
     <PaymentErrorModal
@@ -100,7 +103,7 @@ export default function FestRegistrationForm({
     <div className="crwdctrl-page crwdctrl-page--content min-h-screen pt-[calc(var(--safe-top)+1.25rem)] sm:pt-[calc(var(--safe-top)+1.5rem)] md:pt-3 lg:pt-2 pb-24 md:pb-8">
       {paymentModalEl}
       <RegistrationProcessingOverlay
-        open={Boolean(submitting)}
+        open={Boolean(submitting) && festPlugin.id !== 'kshitij'}
         isDark={isDark}
         mode={
           processOverlayMode
@@ -194,10 +197,13 @@ export default function FestRegistrationForm({
             {/* Multi-step progress (fest steps and/or competition Team size → Details) */}
             {isEffectiveMultiStep() && (
               <div className={`rounded-lg p-4 mb-4 ${isDark ? 'bg-[#111213]' : 'bg-gray-50'}`}>
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between gap-3 mb-3">
                   <h3 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Progress</h3>
                   <div className="text-right">
-                    <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Step {currentStep} of {getTotalSteps()}</span>
+                    <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {compactProgress ? `${registrationSteps[currentStep - 1]?.stepTitle || 'Details'} · ` : ''}
+                      Step {currentStep} of {getTotalSteps()}
+                    </span>
                   </div>
                 </div>
 
@@ -208,8 +214,9 @@ export default function FestRegistrationForm({
                   />
                 </div>
 
+                {!compactProgress && (
                 <div className="flex justify-between gap-2 overflow-x-auto pb-1">
-                  {getStepMeta().map((step) => (
+                  {registrationSteps.map((step) => (
                     <div key={step.stepNumber} className="flex flex-col items-center min-w-0 flex-1">
                       <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
                         step.stepNumber === currentStep
@@ -226,6 +233,7 @@ export default function FestRegistrationForm({
                     </div>
                   ))}
                 </div>
+                )}
               </div>
             )}
 
@@ -475,7 +483,7 @@ export default function FestRegistrationForm({
                   if (priceBreakdown && !paymentFields) {
                     return `Pay ₹${Number(priceBreakdown.totalAmount).toLocaleString('en-IN')} & Book`;
                   }
-                  return 'Confirm Booking';
+                  return submitLabel;
                 })()}
               </button>
             </div>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { getImageUrl } from '../utils/imageImports';
 import { DetailLoader3DIcon } from './DetailPageLoader';
 
@@ -20,7 +20,7 @@ export default function CompetitionCoverImage({
   const imgRef = useRef(null);
   const [status, setStatus] = useState(() => (imageUrl ? 'loading' : 'empty'));
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!imageUrl) {
       setStatus('empty');
       return;
