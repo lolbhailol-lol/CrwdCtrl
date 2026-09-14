@@ -120,6 +120,10 @@ async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides 
       competitionId: competition._id,
       user: userId,
     });
+    if (paymentOrder.orderTags?.slotReservationToken) {
+      const { releaseCompetitionSlot } = require('./competitionSlotReservationService');
+      await releaseCompetitionSlot(paymentOrder.orderTags.slotReservationToken).catch(() => {});
+    }
     if (!saved.created) {
       return { ok: true, registrationId: saved.registration._id, alreadyExists: true };
     }

@@ -12,6 +12,7 @@ const emptyForm = {
     phone: '',
     email: '',
     assignedFestIds: [],
+    portalRole: 'organizer',
     isActive: true,
 };
 
@@ -108,6 +109,7 @@ export default function FestOrganizersPage() {
             phone: org.phone || '',
             email: org.email || '',
             assignedFestIds: (org.assignedFestIds || []).map((f) => String(f._id || f)),
+            portalRole: org.portalRole === 'desk' ? 'desk' : 'organizer',
             isActive: org.isActive !== false,
         });
         setModalOpen(true);
@@ -137,6 +139,7 @@ export default function FestOrganizersPage() {
                 phone: form.phone.trim(),
                 email: form.email.trim(),
                 assignedFestIds: form.assignedFestIds,
+                portalRole: form.portalRole,
                 isActive: form.isActive,
             };
             if (form.password) body.password = form.password;
@@ -353,6 +356,7 @@ export default function FestOrganizersPage() {
                                         <div className="flex items-center gap-2 flex-wrap">
                                             <p className="font-medium text-white">{org.name}</p>
                                             {statusBadge(org)}
+                                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300">{org.portalRole === 'desk' ? 'Desk only' : 'Organizer'}</span>
                                         </div>
                                         <p className="text-xs text-gray-500">@{org.username}{org.email ? ` · ${org.email}` : ''}</p>
                                         <p className="text-xs text-gray-400 mt-1">
@@ -394,6 +398,12 @@ export default function FestOrganizersPage() {
                         <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder={editing ? 'New password (optional)' : 'Password'} className="w-full px-3 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 text-white text-sm" />
                         <input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="Email (optional)" className="w-full px-3 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 text-white text-sm" />
                         <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="Phone" className="w-full px-3 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 text-white text-sm" />
+                        <label className="block text-xs text-gray-400">Access level
+                            <select value={form.portalRole} onChange={(e) => setForm({ ...form, portalRole: e.target.value })} className="mt-1 w-full px-3 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 text-white text-sm">
+                                <option value="organizer">Full organizer</option>
+                                <option value="desk">Fest Day Desk only</option>
+                            </select>
+                        </label>
                         <div>
                             <p className="text-xs text-gray-400 mb-2">Assigned fests</p>
                             <div className="max-h-40 overflow-y-auto space-y-1 border border-gray-800 rounded-lg p-2">

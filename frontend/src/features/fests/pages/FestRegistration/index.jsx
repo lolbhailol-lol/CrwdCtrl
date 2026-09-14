@@ -318,6 +318,7 @@ export default function FestRegistration() {
       fest={fest}
       competition={competition}
       isCompetitionRegistration={isCompetitionRegistration}
+      festDayMode={r.festDayMode}
       formLocked={!hasAuth}
       authSyncing={waitingOnAuth}
       notice={r.notice}

@@ -25,7 +25,11 @@ export default function FestOrganizerLoginPage() {
                 message: `Welcome, ${welcome}.`,
                 tone: 'login',
             });
-            navigate(location.state?.from || '/fest-organizer', { replace: true });
+            const deskFestId = data?.fests?.[0]?._id || data?.fests?.[0]?.id;
+            const destination = data?.organizer?.portalRole === 'desk' && deskFestId
+                ? `/fest-organizer/fests/${deskFestId}/fest-day-desk`
+                : '/fest-organizer';
+            navigate(location.state?.from || destination, { replace: true });
         } catch (err) {
             setError(err.message || 'Login failed');
         } finally {

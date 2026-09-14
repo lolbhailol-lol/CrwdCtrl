@@ -62,6 +62,7 @@ export default function useFestRegistration() {
   const goBack = useInAppBack();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+  const festDayMode = searchParams.get('festDay') === '1';
   const paymentResumeRef = useRef(false);
   const competitionPaymentResumeRef = useRef(false);
   const handleSubmitRef = useRef(null);
@@ -139,6 +140,15 @@ export default function useFestRegistration() {
   }, [location.state?.prefetch, festId, competitionId]);
 
   useEffect(() => {
+    if (!festDayMode || !resolvedCompetitionId || !hasUsableAuthToken(authToken)) return;
+    fetch(`${API_BASE_URL}/registrations/fests/${encodeURIComponent(festId)}/desk-form-start`, {
+      method: 'POST',
+      headers: getBearerAuthHeaders(authToken),
+      body: JSON.stringify({ competitionId: resolvedCompetitionId }),
+    }).catch(() => {});
+  }, [festDayMode, resolvedCompetitionId, festId, authToken]);
+
+  useEffect(() => {
     if (!firebaseUser || resolveAuthToken(authToken)) {
       setAuthSyncExpired(false);
       return;
@@ -187,6 +197,19 @@ export default function useFestRegistration() {
     if (draft.currentStep) setCurrentStep(draft.currentStep);
     if (draft.completedSteps?.length) setCompletedSteps(new Set(draft.completedSteps));
   };
+
+  useEffect(() => {
+    if (!festDayMode || success || completingPayment) return undefined;
+    const timer = window.setTimeout(() => {
+      saveRegistrationDraft(draftKey, {
+        formData,
+        stepData,
+        currentStep,
+        completedSteps,
+      });
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [festDayMode, success, completingPayment, draftKey, formData, stepData, currentStep, completedSteps]);
 
   const handleCloseLogin = () => {
     setLoginDismissed(true);
@@ -1545,6 +1568,10 @@ export default function useFestRegistration() {
       const effectiveFeeAmount = priceBreakdown?.ticketPrice || (isCompetitionRegistration ? (parseTicketPrice(competition?.feeAmount) || parseTicketPrice(competition?.registrationFee)) : (fest.feeAmount || 0));
       let verifiedPaymentFields = verifiedPaymentOverride || paymentFields;
       if (effectiveFeeAmount > 0 && !verifiedPaymentFields && !paidResume) {
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+          saveRegistrationDraft(draftKey, { formData: getAllFormData(), stepData, currentStep, completedSteps });
+          throw new Error('You are offline. Your form is saved—reconnect before starting payment.');
+        }
         setSubmissionProgress('Opening payment gateway...');
 
         const orderNotes = isCompetitionRegistration
@@ -2149,6 +2176,7 @@ export default function useFestRegistration() {
     navigate,
     goBack,
     location,
+    festDayMode,
     competitionId: resolvedCompetitionId || competitionId,
     isAuthenticated,
     authLoading,

@@ -33,6 +33,9 @@ router.post(
 );
 
 router.get('/fests/:festId/dashboard', authenticateFestOrganizer, requireFestAccess, ctrl.getDashboard);
+router.get('/fests/:festId/fest-day-desk', authenticateFestOrganizer, requireFestAccess, ctrl.getFestDayDesk);
+router.post('/fests/:festId/fest-day-desk/orders/:orderId/refresh', authenticateFestOrganizer, requireFestAccess, ctrl.refreshFestDayDeskOrder);
+router.post('/fests/:festId/fest-day-desk/orders/:orderId/refund', authenticateFestOrganizer, requireFestAccess, ctrl.refundFestDayDeskOrder);
 router.get('/fests/:festId/details', authenticateFestOrganizer, requireFestAccess, ctrl.getFestDetails);
 router.patch('/fests/:festId/details', authenticateFestOrganizer, requireFestAccess, ctrl.updateFestDetails);
 router.get('/fests/:festId/live-updates/meta', authenticateFestOrganizer, requireFestAccess, liveCtrl.getLiveUpdateMeta);

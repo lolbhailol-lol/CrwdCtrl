@@ -42,7 +42,12 @@ function occupiedSlotFilter(competitionId) {
 
 async function countOccupiedCompetitionSlots(competitionId) {
   if (!competitionId) return 0;
-  return Registration.countDocuments(occupiedSlotFilter(competitionId));
+  const CompetitionSlotReservation = require('../model/competition_slot_reservation_model');
+  const [registrations, reservations] = await Promise.all([
+    Registration.countDocuments(occupiedSlotFilter(competitionId)),
+    CompetitionSlotReservation.countDocuments({ competitionId, expiresAt: { $gt: new Date() } }),
+  ]);
+  return registrations + reservations;
 }
 
 async function loadCompetitionForSlots(competitionOrId) {

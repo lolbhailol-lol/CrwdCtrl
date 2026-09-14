@@ -1,5 +1,6 @@
 import QRCode from 'qrcode';
 import markLogoUrl from '../assets/crwdctrl-mark.png';
+export { competitionRegistrationUrl } from './competitionRegistrationUrl';
 
 /** Always encode production public URLs so posters work from any host (incl. localhost). */
 const PUBLIC_WEB_ORIGIN = 'https://www.crwdctrl.in';
@@ -44,6 +45,7 @@ export function competitionPublicPageUrl(competition) {
     if (!slug && !id) return '';
     return `${PUBLIC_WEB_ORIGIN}/competitions-view-details/${slug || id}`;
 }
+
 
 function loadImage(src) {
     return new Promise((resolve, reject) => {

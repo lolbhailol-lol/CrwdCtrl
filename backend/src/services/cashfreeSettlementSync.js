@@ -319,7 +319,13 @@ async function applyWebhookFinanceEvent(payload) {
       raw: payload,
       actor: 'cashfree_webhook',
     });
-    return { handled: true, kind: 'refund', skipped: !doc, orderId: classified.normalized.orderId };
+    return {
+      handled: true,
+      kind: 'refund',
+      skipped: !doc,
+      orderId: classified.normalized.orderId,
+      status: classified.normalized.status,
+    };
   }
 
   return { handled: false };

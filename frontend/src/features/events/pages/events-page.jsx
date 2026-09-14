@@ -458,7 +458,7 @@ export default function EventsPage() {
             subtitle: show.city || show.organizer,
             description: show.type,
             image: show.image,
-            resultType: 'fest',
+            resultType: 'events',
         })),
         [shows],
     );

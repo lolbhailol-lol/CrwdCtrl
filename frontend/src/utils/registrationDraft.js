@@ -1,6 +1,10 @@
 import { mindsparkPlugin } from '../features/fests/plugins/mindsparkPlugin';
 
-const DRAFT_MAX_AGE_MS = 30 * 60 * 1000;
+const DRAFT_MAX_AGE_MS = 2 * 60 * 60 * 1000;
+
+function draftStorage() {
+  return typeof window !== 'undefined' ? window.localStorage : null;
+}
 
 export function festRegDraftKey(festId, competitionId) {
   return `crwdctrl_reg_draft_fest_${festId}_${competitionId || 'fest'}`;
@@ -42,7 +46,7 @@ export function saveRegistrationDraft(key, payload) {
         stepData[step] = serializeFieldSlice(fields);
       }
     }
-    sessionStorage.setItem(
+    draftStorage()?.setItem(
       key,
       JSON.stringify({
         formData,
@@ -62,11 +66,11 @@ export function saveRegistrationDraft(key, payload) {
 export function loadRegistrationDraft(key) {
   if (!key) return null;
   try {
-    const raw = sessionStorage.getItem(key);
+    const raw = draftStorage()?.getItem(key);
     if (!raw) return null;
     const draft = JSON.parse(raw);
     if (!draft?.ts || Date.now() - draft.ts > DRAFT_MAX_AGE_MS) {
-      sessionStorage.removeItem(key);
+      draftStorage()?.removeItem(key);
       return null;
     }
     return draft;
@@ -77,7 +81,7 @@ export function loadRegistrationDraft(key) {
 
 export function clearRegistrationDraft(key) {
   if (!key) return;
-  sessionStorage.removeItem(key);
+  draftStorage()?.removeItem(key);
 }
 
 /** Flatten draft text answers for pay-and-register fallback after redirect checkout. */

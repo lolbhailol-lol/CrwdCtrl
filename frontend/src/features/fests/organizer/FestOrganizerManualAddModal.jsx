@@ -14,6 +14,7 @@ const empty = {
     note: '',
     whatsappGroupJoined: false,
     feeTierId: '',
+    cashConfirmed: false,
 };
 
 export default function FestOrganizerManualAddModal({
@@ -65,6 +66,8 @@ export default function FestOrganizerManualAddModal({
                 status: 'approved',
                 note: form.note.trim(),
                 whatsappGroupJoined: Boolean(form.whatsappGroupJoined),
+                collectionMethod: form.paymentStatus === 'paid' ? 'cash' : form.paymentStatus,
+                cashConfirmed: Boolean(form.cashConfirmed),
             });
             onCreated?.(data.participant);
             onClose?.();
@@ -179,7 +182,7 @@ export default function FestOrganizerManualAddModal({
                                 onChange={(e) => set('paymentStatus', e.target.value)}
                                 className="w-full px-3 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 text-sm text-white"
                             >
-                                <option value="paid">Paid / offline collected</option>
+                                <option value="paid">Cash collected at desk (not Cashfree)</option>
                                 <option value="free">Complimentary</option>
                                 <option value="pending">Pending</option>
                             </select>
@@ -195,6 +198,12 @@ export default function FestOrganizerManualAddModal({
                             />
                         </label>
                     </div>
+                    {form.paymentStatus === 'paid' ? (
+                        <label className="flex items-start gap-2.5 rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2.5 cursor-pointer">
+                            <input type="checkbox" required checked={Boolean(form.cashConfirmed)} onChange={(e) => set('cashConfirmed', e.target.checked)} className="mt-0.5" />
+                            <span className="text-xs text-amber-200">I physically collected this cash. Cashfree payments must be verified in Fest Day Desk.</span>
+                        </label>
+                    ) : null}
                     <label className="block space-y-1">
                         <span className="text-[11px] text-gray-500">Note (optional)</span>
                         <input

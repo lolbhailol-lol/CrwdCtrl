@@ -2,15 +2,18 @@ import { useEffect, useState } from 'react';
 import { Outlet, useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
     LayoutDashboard, Users, QrCode, LogOut, PartyPopper, Bell, Menu, Home,
-    Trophy, IndianRupee, Info, ClipboardList, Mic2, Radio, Pencil, Tag,
+    Trophy, IndianRupee, Info, ClipboardList, Mic2, Radio, Pencil, Tag, ScanLine,
 } from 'lucide-react';
 import { clearFestOrganizerSession, getFestOrganizerSession } from '../../../utils/festOrganizerSession';
 import { getFestPlugin } from '../plugins/registry';
 
-const navForFest = (festId, { hideStallLeads = false, hideProShow = false } = {}) => [
+const navForFest = (festId, { hideStallLeads = false, hideProShow = false, showFestDayDesk = false } = {}) => [
     { label: 'Overview', path: `/fest-organizer/fests/${festId}`, icon: LayoutDashboard, end: true, short: 'Home', group: 'ops' },
     { label: 'Edit fest & comps', path: `/fest-organizer/fests/${festId}/edit-listing`, icon: Pencil, short: 'Edit', group: 'edit' },
     { label: 'Live', path: `/fest-organizer/fests/${festId}/live`, icon: Radio, short: 'Live', group: 'ops' },
+    ...(showFestDayDesk
+        ? [{ label: 'Fest Day Desk', path: `/fest-organizer/fests/${festId}/fest-day-desk`, icon: ScanLine, short: 'Desk', group: 'ops' }]
+        : []),
     ...(!hideStallLeads
         ? [{ label: 'Stall / Leads', path: `/fest-organizer/fests/${festId}/leads`, icon: ClipboardList, short: 'Leads', group: 'ops' }]
         : []),
@@ -97,12 +100,17 @@ export default function FestOrganizerLayout() {
     const plugin = getFestPlugin(festId, activeFest);
     const hideStallLeads = Boolean(festId && plugin.hideStallLeads);
     const hideProShow = Boolean(festId && plugin.hideProShow);
-    const nav = festId ? navForFest(festId, { hideStallLeads, hideProShow }) : [];
+    const showFestDayDesk = plugin.id === 'mindspark';
+    const fullNav = festId ? navForFest(festId, { hideStallLeads, hideProShow, showFestDayDesk }) : [];
+    const nav = session?.organizer?.portalRole === 'desk'
+        ? fullNav.filter((item) => item.label === 'Fest Day Desk')
+        : fullNav;
+    const isDeskOnly = session?.organizer?.portalRole === 'desk';
     const overviewItem = nav.find((n) => n.label === 'Overview');
     const opsNav = nav.filter((n) => n.group === 'ops' && n.label !== 'Overview');
     const editNav = nav.filter((n) => n.group === 'edit');
     const mobilePrimary = hideProShow
-        ? ['Live', 'Competitions', 'Participants', 'Check-in', 'Connect']
+        ? ['Fest Day Desk', 'Competitions', 'Participants', 'Check-in', 'Connect']
         : ['Live', 'Competitions', 'Pro Show'];
     // MindSpark day-of: Scan + Connect on the bar; Edit stays in sidebar / overview
     const mobileNav = hideProShow
@@ -144,6 +152,12 @@ export default function FestOrganizerLayout() {
         }
     }, [hideProShow, festId, location.pathname, navigate]);
 
+    useEffect(() => {
+        if (!isDeskOnly || !festId || !showFestDayDesk) return;
+        const deskPath = `/fest-organizer/fests/${festId}/fest-day-desk`;
+        if (location.pathname !== deskPath) navigate(deskPath, { replace: true });
+    }, [festId, isDeskOnly, location.pathname, navigate, showFestDayDesk]);
+
     return (
         <div className="min-h-dvh bg-[#0c0d0e] text-white flex">
             <aside
@@ -166,7 +180,7 @@ export default function FestOrganizerLayout() {
                 </div>
 
                 <nav className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-2.5 py-3 space-y-0.5">
-                    <OrgNavButton
+                    {!isDeskOnly ? <OrgNavButton
                         to="/fest-organizer"
                         end
                         onNavigate={() => setSidebarOpen(false)}
@@ -178,7 +192,7 @@ export default function FestOrganizerLayout() {
                     >
                         <Home size={16} className="shrink-0" />
                         All fests
-                    </OrgNavButton>
+                    </OrgNavButton> : null}
 
                     {activeFest ? (
                         <p className="px-3 pt-3 pb-1 text-[10px] uppercase tracking-wider text-gray-600 truncate" title={activeFest.festName}>

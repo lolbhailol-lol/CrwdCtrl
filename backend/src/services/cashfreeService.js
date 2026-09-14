@@ -161,6 +161,22 @@ async function fetchPaymentsForOrder(orderId, { merchant = 'platform' } = {}) {
   return response.data;
 }
 
+async function createCashfreeRefund({ orderId, amount, refundId, idempotencyKey, note, merchant = 'platform' }) {
+  const m = normalizeMerchant(merchant);
+  assertCredentials(m);
+  const response = await axios.post(
+    `${getBaseUrl(m)}/orders/${encodeURIComponent(orderId)}/refunds`,
+    {
+      refund_amount: Number(amount),
+      refund_id: String(refundId),
+      refund_note: String(note || 'Fest registration refund').slice(0, 100),
+      refund_speed: 'STANDARD',
+    },
+    { headers: { ...getHeaders(m), 'x-idempotency-key': String(idempotencyKey || crypto.randomUUID()) } },
+  );
+  return response.data;
+}
+
 async function fetchOrderSettlements(orderId, { merchant = 'platform' } = {}) {
   const m = normalizeMerchant(merchant);
   assertCredentials(m);
@@ -429,6 +445,7 @@ module.exports = {
   createCashfreeOrder,
   fetchOrder,
   fetchPaymentsForOrder,
+  createCashfreeRefund,
   fetchOrderSettlements,
   verifyCashfreePayment,
   verifyWebhookSignature,

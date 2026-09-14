@@ -10,6 +10,7 @@ const festOrganizerAccountSchema = new mongoose.Schema(
         email: { type: String, trim: true, lowercase: true, sparse: true, unique: true },
         passwordHash: { type: String, required: true },
         phone: { type: String, trim: true, default: '' },
+        portalRole: { type: String, enum: ['organizer', 'desk'], default: 'organizer', index: true },
         assignedFestIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'FestOrganizer' }],
         status: {
             type: String,

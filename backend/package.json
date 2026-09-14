@@ -43,5 +43,7 @@
     "health": "curl -f http://localhost:8080/api/health || exit 1",
     "verify-deploy": "node scripts/verify-deploy.js",
     "lint:env": "node -e \"require('./src/config/requiredEnv').assertProductionEnv()\""
+    ,"test:fest-day-load": "node scripts/load-test-fest-day-desk.js"
+    ,"smoke:cashfree-real": "node scripts/smoke-cashfree-real-payment.js"
   }
 }

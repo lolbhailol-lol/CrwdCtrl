@@ -6,6 +6,7 @@ import {
     FestOrganizerProtectedRoute,
     FestOrganizerHomePage,
     FestOrganizerDashboardPage,
+    FestOrganizerFestDayDeskPage,
     FestOrganizerParticipantsPage,
     FestOrganizerScanPage,
     FestOrganizerNotificationsPage,
@@ -36,6 +37,7 @@ export const festOrganizerRoutes = (
         >
             <Route index element={<FestOrganizerHomePage />} />
             <Route path="fests/:festId" element={<FestOrganizerDashboardPage />} />
+            <Route path="fests/:festId/fest-day-desk" element={<FestOrganizerFestDayDeskPage />} />
             <Route path="fests/:festId/leads" element={<FestOrganizerLeadsPage />} />
             <Route path="fests/:festId/competitions" element={<FestOrganizerCompetitionsPage />} />
             <Route path="fests/:festId/competitions/probables" element={<FestOrganizerProbablesPage />} />

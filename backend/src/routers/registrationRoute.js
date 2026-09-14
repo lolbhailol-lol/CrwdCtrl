@@ -29,10 +29,13 @@ const { authenticateToken, optionalAuthenticateToken } = require('../middleware/
 const authenticateAdmin = require('../middleware/adminAuth');
 const devOnly = require('../middleware/devOnly');
 const { registrationLimiter } = require('../middleware/rateLimiter');
+const { startFestDayForm } = require('../controllers/festDayFormController');
 
 /* ======================
    USER ROUTES
 ====================== */
+
+router.post('/fests/:festId/desk-form-start', registrationLimiter, authenticateToken, startFestDayForm);
 
 // Fest registration (dynamic form + files)
 router.post(

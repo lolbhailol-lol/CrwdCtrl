@@ -60,6 +60,7 @@ exports.createOrganizer = async (req, res) => {
         const phone = String(req.body.phone || '').trim();
         const email = FestOrganizerAccount.normalizeOptionalEmail(req.body.email);
         const assignedFestIds = parseFestIds(req.body.assignedFestIds);
+        const portalRole = req.body.portalRole === 'desk' ? 'desk' : 'organizer';
 
         if (!name || !username || !password) {
             return res.status(400).json({ success: false, message: 'Name, username and password are required' });
@@ -97,6 +98,7 @@ exports.createOrganizer = async (req, res) => {
             passwordHash: await FestOrganizerAccount.hashPassword(password),
             phone,
             assignedFestIds,
+            portalRole,
             status: 'approved',
             isActive: true,
             approvedAt: now,
@@ -132,6 +134,7 @@ exports.updateOrganizer = async (req, res) => {
 
         if (req.body.name !== undefined) organizer.name = String(req.body.name).trim();
         if (req.body.phone !== undefined) organizer.phone = String(req.body.phone).trim();
+        if (req.body.portalRole !== undefined) organizer.portalRole = req.body.portalRole === 'desk' ? 'desk' : 'organizer';
         if (req.body.email !== undefined) {
             const nextEmail = FestOrganizerAccount.normalizeOptionalEmail(req.body.email);
             if (nextEmail) {

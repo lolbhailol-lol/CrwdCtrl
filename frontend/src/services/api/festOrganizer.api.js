@@ -173,6 +173,32 @@ export async function fetchFestOrganizerDashboard(festId) {
     return festOrganizerFetch(`/fest-organizer/fests/${festId}/dashboard`);
 }
 
+export async function fetchFestDayDesk(festId, params = {}) {
+    const qs = new URLSearchParams(params).toString();
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/fest-day-desk${qs ? `?${qs}` : ''}`, {
+        retries: 1,
+        timeout: 15000,
+    });
+}
+
+export async function refreshFestDayDeskOrder(festId, orderId) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/fest-day-desk/orders/${encodeURIComponent(orderId)}/refresh`, {
+        method: 'POST',
+        body: {},
+        retries: 1,
+        timeout: 20000,
+    });
+}
+
+export async function refundFestDayDeskOrder(festId, orderId) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/fest-day-desk/orders/${encodeURIComponent(orderId)}/refund`, {
+        method: 'POST',
+        body: {},
+        retries: 0,
+        timeout: 25000,
+    });
+}
+
 export async function fetchFestOrganizerCoupons(festId) {
     return festOrganizerFetch(`/fest-organizer/fests/${festId}/coupons`);
 }

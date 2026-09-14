@@ -132,6 +132,7 @@ export const FestOrganizerLayout = lazyWithRetry(() => import('../../features/fe
 export const FestOrganizerProtectedRoute = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerProtectedRoute'));
 export const FestOrganizerHomePage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerHomePage'));
 export const FestOrganizerDashboardPage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerDashboardPage'));
+export const FestOrganizerFestDayDeskPage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerFestDayDeskPage'));
 export const FestOrganizerParticipantsPage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerParticipantsPage'));
 export const FestOrganizerScanPage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerScanPage'));
 export const FestOrganizerNotificationsPage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerNotificationsPage'));
@@ -168,4 +169,3 @@ export const OfflineHuntTeamPage = lazyWithRetry(() => import('../../features/ca
 export const OfflineHuntRoundsPage = lazyWithRetry(() => import('../../features/campus-hunt/offline/pages/OfflineHuntRoundsPage'));
 export const OfflineHuntPlayPage = lazyWithRetry(() => import('../../features/campus-hunt/offline/pages/OfflineHuntPlayPage'));
 export const OfflineHuntInstallPage = lazyWithRetry(() => import('../../features/campus-hunt/offline/pages/OfflineHuntInstallPage'));
-

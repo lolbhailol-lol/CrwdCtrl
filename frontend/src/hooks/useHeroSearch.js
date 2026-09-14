@@ -99,11 +99,7 @@ export function useHeroSearch({ quickPickItems = [], keywordCatalog = [], onResu
             try {
                 const results = await searchAll(q);
                 if (cancelled) return;
-                const combined = [
-                    ...results.fests.map((fest) => ({ ...fest, resultType: 'fest' })),
-                    ...results.competitions.map((comp) => ({ ...comp, resultType: 'competition' })),
-                ];
-                setApiResults(combined);
+                setApiResults(results.results || []);
             } catch {
                 if (!cancelled) setApiResults([]);
             } finally {

@@ -1,4 +1,5 @@
 const PaymentOrder = require('../model/payment_order_model');
+const Registration = require('../model/registration_model');
 const {
   verifyWebhookSignature,
   inspectWebhookSignature,
@@ -91,6 +92,20 @@ exports.handleCashfreeWebhook = async (req, res) => {
       const { applyWebhookFinanceEvent } = require('../services/cashfreeSettlementSync');
       const finance = await applyWebhookFinanceEvent(payload);
       if (finance.handled) {
+        if (finance.kind === 'refund' && finance.orderId) {
+          const refundStatus = String(finance.status || '').toUpperCase();
+          if (refundStatus === 'SUCCESS') {
+            await Registration.updateMany(
+              { payment_order_id: finance.orderId },
+              { $set: { status: 'rejected', 'responses.refund_status': 'refunded' } },
+            ).catch(() => {});
+          } else if (['FAILED', 'CANCELLED'].includes(refundStatus)) {
+            await Registration.updateMany(
+              { payment_order_id: finance.orderId, 'responses.refund_status': 'pending' },
+              { $set: { status: 'approved', 'responses.refund_status': refundStatus.toLowerCase() } },
+            ).catch(() => {});
+          }
+        }
         return res.status(200).send('OK');
       }
     } catch (financeErr) {
@@ -183,6 +198,11 @@ exports.handleCashfreeWebhook = async (req, res) => {
           { status: 'FAILED' },
           { upsert: false }
         );
+        const failedOrder = await PaymentOrder.findOne({ orderId }).select('orderTags.slotReservationToken').lean();
+        if (failedOrder?.orderTags?.slotReservationToken) {
+          const { releaseCompetitionSlot } = require('../services/competitionSlotReservationService');
+          await releaseCompetitionSlot(failedOrder.orderTags.slotReservationToken).catch(() => {});
+        }
       } catch (dbErr) {
         console.error('[paymentWebhook] Failed to mark order FAILED:', dbErr.message);
       }
@@ -193,6 +213,11 @@ exports.handleCashfreeWebhook = async (req, res) => {
           { status: 'EXPIRED' },
           { upsert: false }
         );
+        const droppedOrder = await PaymentOrder.findOne({ orderId }).select('orderTags.slotReservationToken').lean();
+        if (droppedOrder?.orderTags?.slotReservationToken) {
+          const { releaseCompetitionSlot } = require('../services/competitionSlotReservationService');
+          await releaseCompetitionSlot(droppedOrder.orderTags.slotReservationToken).catch(() => {});
+        }
       } catch (dbErr) {
         console.error('[paymentWebhook] Failed to mark order EXPIRED:', dbErr.message);
       }

@@ -4,6 +4,10 @@ const FestOrganizerAccount = require('../model/fest_organizer_account_model');
 const FestOrganizer = require('../model/fest_organizer_model');
 const FestOrganizerProfileInvite = require('../model/fest_organizer_profile_invite_model');
 const Registration = require('../model/registration_model');
+const PaymentOrder = require('../model/payment_order_model');
+const PaymentRefund = require('../model/payment_refund_model');
+const FestDayFormSession = require('../model/fest_day_form_session_model');
+const CompetitionSlotReservation = require('../model/competition_slot_reservation_model');
 const { getJwtSecret } = require('../config/jwtSecret');
 const { performCheckinFromRaw } = require('../services/checkinService');
 const { notifyFestParticipants, notifyFestParticipant, parseNotifyChannels } = require('../utils/festParticipantOutreach');
@@ -21,8 +25,29 @@ const {
 const { parseTicketPrice } = require('../utils/platformFee');
 const { cashfreeSettlementFields, summarizeCashfreeSettlement } = require('../utils/cashfreeGatewayFee');
 const { getFestPlugin } = require('../modules/fest/plugins');
+const { isMindSparkFestId } = require('../modules/fest/plugins/mindspark');
+const { verifyCashfreePayment } = require('../services/cashfreeService');
 
 const TOKEN_TTL = '7d';
+
+function requireMindSparkDesk(req, res) {
+    if (isMindSparkFestId(req.festId)) return true;
+    res.status(404).json({ success: false, message: 'Fest Day Desk is available for MindSpark only' });
+    return false;
+}
+
+function deskDraftIdentity(order) {
+    const draft = order?.orderTags?.registrationDraft || {};
+    const form = draft.formData || draft.responses || {};
+    const members = Array.isArray(form.team_members) ? form.team_members : [];
+    const captain = members.find((member) => member && typeof member === 'object') || {};
+    return {
+        name: String(form.full_name || form.name || form.leader_name || captain.name || '').trim(),
+        phone: String(form.phone || form.mobile || form.contact_no || captain.phone || '').trim(),
+        email: String(form.email || captain.email || order?.customerEmail || '').trim(),
+        teamName: String(form.team_name || form.teamName || '').trim(),
+    };
+}
 
 function normalizeDisplayName(raw) {
     return String(raw || '').trim().replace(/\s+/g, ' ').slice(0, 80);
@@ -504,6 +529,7 @@ async function buildOrganizerAuthResponse(organizer, { displayName } = {}) {
             email: organizer.email || '',
             phone: organizer.phone,
             status: FestOrganizerAccount.effectiveStatus(organizer),
+            portalRole: organizer.portalRole === 'desk' ? 'desk' : 'organizer',
             assignedFestIds: organizer.assignedFestIds || [],
             displayName: typedName,
         },
@@ -2662,6 +2688,16 @@ exports.createManualParticipant = async (req, res) => {
         const paymentStatus = ['free', 'pending', 'paid', 'failed'].includes(paymentStatusRaw)
             ? paymentStatusRaw
             : 'paid';
+        if (isMindSparkFestId(req.festId) && paymentStatus === 'paid') {
+            const collectionMethod = String(req.body.collectionMethod || '').toLowerCase();
+            if (collectionMethod !== 'cash' || req.body.cashConfirmed !== true) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Confirm physical cash collection. Verify Cashfree payments from Fest Day Desk instead.',
+                });
+            }
+            cleanResponses.collection_method = 'cash';
+        }
         let feeDefault = Number(competition?.feeAmount ?? competition?.registrationFee) || 0;
         const feeTierId = String(req.body.feeTierId || cleanResponses.feeTierId || '').trim();
         if (competition && sanitizeCompetitionFeeTiers(competition.feeTiers).length) {
@@ -2694,6 +2730,11 @@ exports.createManualParticipant = async (req, res) => {
             || waJoinedRaw === 'true'
             || waJoinedRaw === 1
             || waJoinedRaw === '1';
+
+        if (isMindSparkFestId(req.festId) && competition) {
+            const { assertCompetitionAcceptsRegistration } = require('../utils/competitionSlots');
+            await assertCompetitionAcceptsRegistration(competition);
+        }
 
         const reg = await Registration.create({
             fest: req.festId,
@@ -2729,5 +2770,259 @@ exports.createManualParticipant = async (req, res) => {
             return res.status(409).json({ success: false, message: 'Duplicate registration conflict' });
         }
         res.status(500).json({ success: false, message: 'Failed to add participant' });
+    }
+};
+
+/** MindSpark day-of desk: competition catalogue plus recent Cashfree attempts. */
+exports.getFestDayDesk = async (req, res) => {
+    try {
+        if (!requireMindSparkDesk(req, res)) return;
+        const search = String(req.query.search || '').trim().toLowerCase();
+        const Competition = mongoose.model('Competition');
+        const competitions = await Competition.find({ fest: req.festId })
+            .select('name feeAmount registrationFee feeTiers slotsAllotted showSlotsPublic registration.status category module')
+            .sort({ name: 1 })
+            .lean();
+        const competitionIds = competitions.map((competition) => competition._id);
+        const filledRows = await Registration.aggregate([
+            {
+                $match: {
+                    fest: new mongoose.Types.ObjectId(String(req.festId)),
+                    competitionId: { $in: competitionIds },
+                    status: 'approved',
+                },
+            },
+            { $group: { _id: '$competitionId', count: { $sum: 1 } } },
+        ]);
+        const filledByCompetition = new Map(filledRows.map((row) => [String(row._id), Number(row.count) || 0]));
+        const reservedRows = await CompetitionSlotReservation.aggregate([
+            { $match: { competitionId: { $in: competitionIds }, expiresAt: { $gt: new Date() } } },
+            { $group: { _id: '$competitionId', count: { $sum: 1 } } },
+        ]);
+        const reservedByCompetition = new Map(reservedRows.map((row) => [String(row._id), Number(row.count) || 0]));
+        const competitionRows = competitions.map((competition) => {
+            const slotsAllotted = Math.max(0, Number(competition.slotsAllotted) || 0);
+            const slotsFilled = (filledByCompetition.get(String(competition._id)) || 0)
+                + (reservedByCompetition.get(String(competition._id)) || 0);
+            const registrationStatus = String(competition.registration?.status || '');
+            return {
+                ...competition,
+                slotsAllotted,
+                slotsFilled,
+                slotsLeft: slotsAllotted > 0 ? Math.max(0, slotsAllotted - slotsFilled) : null,
+                registrationsOpen: registrationStatus.toLowerCase() !== 'registration_closed',
+            };
+        });
+        const orderFilter = {
+            entityType: 'competition',
+            entityId: { $in: competitionIds },
+        };
+        if (search) {
+            const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(escaped, 'i');
+            const User = require('../model/usermodel');
+            const [users, matchingRegistrations] = await Promise.all([
+                User.find({ $or: [{ name: regex }, { email: regex }, { phone: regex }, { phoneNumber: regex }] })
+                    .select('_id').limit(100).lean(),
+                Registration.find({
+                    fest: req.festId,
+                    $or: [
+                        ...(mongoose.Types.ObjectId.isValid(search) ? [{ _id: search }] : []),
+                        { payment_order_id: regex },
+                        { 'responses.name': regex },
+                        { 'responses.full_name': regex },
+                        { 'responses.phone': regex },
+                        { 'responses.mobile': regex },
+                        { 'responses.team_name': regex },
+                    ],
+                }).select('payment_order_id').limit(100).lean(),
+            ]);
+            orderFilter.$or = [
+                { orderId: regex },
+                { customerEmail: regex },
+                { customerPhone: regex },
+                { 'orderTags.competitionName': regex },
+                { userId: { $in: users.map((user) => user._id) } },
+                { orderId: { $in: matchingRegistrations.map((registration) => registration.payment_order_id).filter(Boolean) } },
+            ];
+        }
+        const orders = await PaymentOrder.find(orderFilter)
+            .populate('userId', 'name email phone phoneNumber')
+            .sort({ createdAt: -1 })
+            .limit(search ? 100 : 120)
+            .lean();
+        const orderIds = orders.map((order) => order.orderId).filter(Boolean);
+        const registrations = await Registration.find({ payment_order_id: { $in: orderIds } })
+            .select('_id payment_order_id status paymentStatus qrCodeData createdAt')
+            .lean();
+        const refunds = await PaymentRefund.find({ orderId: { $in: orderIds } }).sort({ createdAt: -1 }).lean();
+        const formStarts = await FestDayFormSession.find({ fest: req.festId, expiresAt: { $gt: new Date() } })
+            .populate('user', 'name email phone phoneNumber')
+            .populate('competition', 'name')
+            .sort({ updatedAt: -1 })
+            .limit(120)
+            .lean();
+        const refundByOrder = new Map();
+        refunds.forEach((refund) => {
+            if (!refundByOrder.has(String(refund.orderId))) refundByOrder.set(String(refund.orderId), refund);
+        });
+        const registrationByOrder = new Map(registrations.map((registration) => [
+            String(registration.payment_order_id),
+            registration,
+        ]));
+        const competitionById = new Map(competitions.map((competition) => [String(competition._id), competition]));
+        const orderedUserCompetition = new Set(orders.map((order) => {
+            const userId = order.userId?._id || order.userId || '';
+            return `${String(order.entityId)}:${String(userId)}`;
+        }));
+        const activity = orders.map((order) => {
+            const registration = registrationByOrder.get(String(order.orderId));
+            const competition = competitionById.get(String(order.entityId));
+            const refund = refundByOrder.get(String(order.orderId));
+            const user = order.userId && typeof order.userId === 'object' ? order.userId : null;
+            const draftIdentity = deskDraftIdentity(order);
+            const rawStatus = String(order.status || 'PENDING').toUpperCase();
+            const status = registration
+                ? 'paid'
+                : rawStatus === 'PAID'
+                    ? 'confirming'
+                    : rawStatus === 'EXPIRED'
+                        ? 'expired'
+                        : rawStatus === 'FAILED'
+                            ? 'failed'
+                            : 'payment_pending';
+            return {
+                orderId: order.orderId,
+                status,
+                amount: Number(order.totalAmount) || 0,
+                competitionId: String(order.entityId || ''),
+                competitionName: competition?.name || order.orderTags?.competitionName || 'Competition',
+                participantName: user?.name || draftIdentity.name || 'Participant',
+                phone: user?.phoneNumber || user?.phone || order.customerPhone || draftIdentity.phone || '',
+                email: user?.email || draftIdentity.email || order.customerEmail || '',
+                teamName: draftIdentity.teamName,
+                registrationId: registration?._id ? String(registration._id) : null,
+                refundStatus: refund ? String(refund.status || '').toLowerCase() : '',
+                resumeUrl: order.paymentSessionId
+                    ? `https://www.crwdctrl.in/payment/checkout?payment_session_id=${encodeURIComponent(order.paymentSessionId)}&order_id=${encodeURIComponent(order.orderId)}`
+                    : null,
+                createdAt: order.createdAt,
+                updatedAt: order.updatedAt,
+            };
+        });
+        for (const start of formStarts) {
+            const key = `${String(start.competition?._id || start.competition)}:${String(start.user?._id || start.user)}`;
+            if (orderedUserCompetition.has(key)) continue;
+            const row = {
+                orderId: `form:${start._id}`,
+                status: 'form_started',
+                amount: 0,
+                competitionId: String(start.competition?._id || start.competition || ''),
+                competitionName: start.competition?.name || 'Competition',
+                participantName: start.user?.name || 'Participant',
+                phone: start.user?.phoneNumber || start.user?.phone || '',
+                email: start.user?.email || '',
+                teamName: '',
+                registrationId: null,
+                refundStatus: '',
+                resumeUrl: null,
+                createdAt: start.createdAt,
+                updatedAt: start.updatedAt,
+            };
+            if (!search || [row.participantName, row.phone, row.email, row.competitionName]
+                .some((value) => String(value || '').toLowerCase().includes(search))) activity.push(row);
+        }
+        activity.sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
+        activity.splice(60);
+
+        res.json({ success: true, competitions: competitionRows, activity, refreshedAt: new Date().toISOString() });
+    } catch (error) {
+        console.error('[festOrganizerPortal.getFestDayDesk]', error);
+        res.status(500).json({ success: false, message: 'Failed to load Fest Day Desk' });
+    }
+};
+
+/** Organizer-triggered status refresh; verification remains server-to-server. */
+exports.refreshFestDayDeskOrder = async (req, res) => {
+    try {
+        if (!requireMindSparkDesk(req, res)) return;
+        const orderId = String(req.params.orderId || '').trim();
+        const order = await PaymentOrder.findOne({ orderId, entityType: 'competition' });
+        if (!order) return res.status(404).json({ success: false, message: 'Payment order not found' });
+        const Competition = mongoose.model('Competition');
+        const competition = await Competition.findOne({ _id: order.entityId, fest: req.festId }).select('_id').lean();
+        if (!competition) return res.status(403).json({ success: false, message: 'Order does not belong to this fest' });
+
+        const result = await verifyCashfreePayment({
+            orderId,
+            paymentId: order.paymentId || undefined,
+            merchant: order.cashfreeMerchant === 'events' ? 'events' : 'platform',
+        });
+        if (result.verified) {
+            order.status = 'PAID';
+            if (result.paymentId) order.paymentId = String(result.paymentId);
+            await order.save();
+            const { fulfillFestCompetitionFromPaidOrder } = require('../services/festCompetitionPaymentFulfillment');
+            await fulfillFestCompetitionFromPaidOrder(order);
+        } else if (['failed', 'cancelled'].includes(result.status)) {
+            order.status = result.status === 'cancelled' ? 'EXPIRED' : 'FAILED';
+            await order.save();
+            if (order.orderTags?.slotReservationToken) {
+                const { releaseCompetitionSlot } = require('../services/competitionSlotReservationService');
+                await releaseCompetitionSlot(order.orderTags.slotReservationToken).catch(() => {});
+            }
+        }
+        const registration = await Registration.findOne({ payment_order_id: orderId }).select('_id').lean();
+        res.json({
+            success: true,
+            verified: Boolean(result.verified),
+            status: registration ? 'paid' : (result.status || String(order.status).toLowerCase()),
+            registrationId: registration?._id ? String(registration._id) : null,
+            message: result.message || '',
+        });
+    } catch (error) {
+        console.error('[festOrganizerPortal.refreshFestDayDeskOrder]', error);
+        res.status(500).json({ success: false, message: 'Could not refresh payment status' });
+    }
+};
+
+exports.refundFestDayDeskOrder = async (req, res) => {
+    try {
+        if (!requireMindSparkDesk(req, res)) return;
+        const orderId = String(req.params.orderId || '').trim();
+        const order = await PaymentOrder.findOne({ orderId, entityType: 'competition', status: 'PAID' });
+        if (!order) return res.status(404).json({ success: false, message: 'Paid order not found' });
+        const Competition = mongoose.model('Competition');
+        const competition = await Competition.findOne({ _id: order.entityId, fest: req.festId }).select('_id').lean();
+        if (!competition) return res.status(403).json({ success: false, message: 'Order does not belong to this fest' });
+        const existing = await PaymentRefund.findOne({ orderId, status: { $in: ['SUCCESS', 'PENDING', 'INITIATED'] } }).lean();
+        if (existing) {
+            return res.status(409).json({ success: false, message: `Refund already ${String(existing.status).toLowerCase()}` });
+        }
+        const crypto = require('crypto');
+        const digest = crypto.createHash('sha256').update(`mindspark-refund:${orderId}`).digest('hex');
+        const refundId = `desk_${digest.slice(0, 24)}`;
+        const idempotencyKey = `${digest.slice(0, 8)}-${digest.slice(8, 12)}-4${digest.slice(13, 16)}-8${digest.slice(17, 20)}-${digest.slice(20, 32)}`;
+        const { createCashfreeRefund } = require('../services/cashfreeService');
+        const raw = await createCashfreeRefund({
+            orderId,
+            amount: Number(order.totalAmount),
+            refundId,
+            idempotencyKey,
+            note: `MindSpark registration refund ${orderId}`,
+            merchant: order.cashfreeMerchant === 'events' ? 'events' : 'platform',
+        });
+        const payload = Array.isArray(raw) ? raw[0] : raw;
+        const { normalizeRefundPayload, upsertRefund } = require('../services/cashfreeSettlementSync');
+        const normalized = normalizeRefundPayload(payload, { orderId });
+        await upsertRefund({ normalized, source: 'api', raw: payload, actor: `fest_organizer:${req.organizerId}` });
+        await Registration.updateMany(
+            { payment_order_id: orderId },
+            { $set: { status: 'rejected', 'responses.refund_status': 'pending' } },
+        );
+        return res.json({ success: true, status: normalized?.status || 'PENDING', refundId });
+    } catch (error) {
+        console.error('[festOrganizerPortal.refundFestDayDeskOrder]', error.response?.data || error);
+        return res.status(500).json({ success: false, message: 'Could not start Cashfree refund' });
     }
 };

@@ -23,6 +23,8 @@ require('../model/analytics_model');
 require('../model/payment_order_model');
 require('../model/cashfree_settlement_model');
 require('../model/payment_refund_model');
+require('../model/competition_slot_reservation_model');
+require('../model/fest_day_form_session_model');
 require('../model/organizer_payout_model');
 require('../model/reconciliation_import_model');
 require('../model/payment_audit_log_model');

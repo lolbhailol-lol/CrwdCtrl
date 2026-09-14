@@ -17,7 +17,7 @@ import {
     saveRecentSearch,
     FALLBACK_SEARCH_TERMS,
 } from '../../utils/heroSearchSuggestions';
-import { competitionPath, festPath } from '../../utils/slugRoutes';
+import { navigateToSearchResult } from '../../utils/searchNavigation';
 
 const NAV_ITEMS = [
     { id: 'fests',   label: 'Fests',   path: '/fests' },
@@ -157,12 +157,7 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
                 try {
                     const results = await searchAll(searchQuery);
                     
-                    // Combine fests and competitions, limit to 6 total results
-                    const combinedResults = [
-                        ...results.fests.map(fest => ({ ...fest, resultType: 'fest' })),
-                        ...results.competitions.map(comp => ({ ...comp, resultType: 'competition' }))
-                    ].slice(0, 6);
-                    setSearchResults(combinedResults);
+                    setSearchResults((results.results || []).slice(0, 8));
                     setIsSearchDropdownOpen(true);
                 } catch (error) {
                     console.error('Search error:', error);
@@ -529,12 +524,7 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
         setIsSearchDropdownOpen(false);
         setIsSearchFocused(false);
         
-        // Navigate based on result type
-        if (event.resultType === 'competition') {
-            navigate(competitionPath({ _id: event.id, id: event.id, name: event.title, title: event.title }));
-        } else {
-            navigate(festPath({ _id: event.id, id: event.id, festName: event.title, title: event.title }));
-        }
+        navigateToSearchResult(navigate, event);
     };
 
     // Handle search form submit (Enter key)
@@ -815,7 +805,7 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
                                         <div className="p-4 text-center">
                                             <DetailLoader3DIcon size="compact" className="mx-auto mb-2" />
                                             <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                                Searching fests and competitions...
+                                                Searching all events...
                                             </p>
                                         </div>
                                     ) : searchResults.length > 0 ? (

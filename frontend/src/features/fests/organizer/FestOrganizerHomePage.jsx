@@ -58,7 +58,11 @@ export default function FestOrganizerHomePage() {
                     <button
                         key={fest._id}
                         type="button"
-                        onClick={() => navigate(`/fest-organizer/fests/${fest._id}`)}
+                        onClick={() => navigate(
+                            session?.organizer?.portalRole === 'desk'
+                                ? `/fest-organizer/fests/${fest._id}/fest-day-desk`
+                                : `/fest-organizer/fests/${fest._id}`,
+                        )}
                         className="w-full text-left rounded-2xl border border-white/10 bg-[#161718] p-4 hover:border-[#0ECCEE]/40 transition flex items-center gap-3"
                     >
                         <div className="size-11 rounded-xl bg-[#0ECCEE]/10 flex items-center justify-center shrink-0">

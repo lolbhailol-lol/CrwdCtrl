@@ -9,10 +9,15 @@ function shouldReuseMappedStatus(mapped) {
 
 async function expireCancelledPaymentOrder(orderId) {
   if (!orderId) return;
-  await PaymentOrder.updateOne(
+  const order = await PaymentOrder.findOneAndUpdate(
     { orderId: String(orderId), status: 'PENDING' },
     { $set: { status: 'EXPIRED' } },
+    { new: true },
   );
+  if (order?.orderTags?.slotReservationToken) {
+    const { releaseCompetitionSlot } = require('../services/competitionSlotReservationService');
+    await releaseCompetitionSlot(order.orderTags.slotReservationToken).catch(() => {});
+  }
 }
 
 function extractEntityId(notes = {}) {
@@ -166,6 +171,10 @@ async function findReusablePendingOrder({
     if (!shouldReuseMappedStatus(mapped)) {
       existing.status = mapped === 'failed' ? 'FAILED' : 'EXPIRED';
       await existing.save().catch(() => {});
+      if (existing.orderTags?.slotReservationToken) {
+        const { releaseCompetitionSlot } = require('../services/competitionSlotReservationService');
+        await releaseCompetitionSlot(existing.orderTags.slotReservationToken).catch(() => {});
+      }
       return null;
     }
   } catch {

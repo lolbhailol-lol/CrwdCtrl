@@ -1,4 +1,4 @@
-import { communityPath, competitionPath, festPath, runClubPath, sportRunPath, trekPath } from './slugRoutes';
+import { communityPath, competitionPath, eventShowPath, festPath, runClubPath, sportRunPath, trekPath } from './slugRoutes';
 
 /**
  * Navigate to the correct page from a unified search result.
@@ -72,6 +72,10 @@ export function navigateToSearchResult(navigate, result) {
         },
       },
     });
+    return;
+  }
+  if (type === 'events' || type === 'event') {
+    navigate(eventShowPath({ _id: id, id, title: result.title }));
     return;
   }
   if (id) {

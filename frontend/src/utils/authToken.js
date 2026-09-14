@@ -133,6 +133,10 @@ export function clearStoredAuthSession() {
     storage.removeItem(AUTH_CONFIG.TOKEN_KEY);
     storage.removeItem(USER_KEY);
     storage.removeItem('token');
+    for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+      const key = localStorage.key(index);
+      if (key?.startsWith('crwdctrl_reg_draft_')) localStorage.removeItem(key);
+    }
   } catch {
     /* ignore */
   }

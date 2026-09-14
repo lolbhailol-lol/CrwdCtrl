@@ -488,6 +488,7 @@ exports.validateCoupon = async (req, res) => {
 
 // POST /api/payment/order
 exports.createOrder = async (req, res) => {
+  let slotReservation = null;
   try {
     const { currency = 'INR', notes = {} } = req.body;
     const pricing = await getPricingForRequest(req);
@@ -553,6 +554,14 @@ exports.createOrder = async (req, res) => {
       });
     }
 
+    if (pricing.entityType === 'competition') {
+      const { acquireCompetitionSlot } = require('../services/competitionSlotReservationService');
+      const competition = await Competition.findById(entityId)
+        .select('slotsAllotted registration.maxRegistrations registration.settings.maxRegistrations registration.status')
+        .lean();
+      slotReservation = await acquireCompetitionSlot({ competition, userId });
+    }
+
     // Cashfree order_tags: only simple string pairs; URLs must be https; avoid special chars
     const orderTags = {};
     const allowTag = (key, value) => {
@@ -588,7 +597,11 @@ exports.createOrder = async (req, res) => {
     });
 
     if (entityId) {
-      const mongoOrderTags = { ...notes, ...pricing.notes };
+      const mongoOrderTags = {
+        ...notes,
+        ...pricing.notes,
+        ...(slotReservation?.token ? { slotReservationToken: slotReservation.token } : {}),
+      };
       if (registrationDraft && ['event_show', 'fest', 'competition'].includes(pricing.entityType)) {
         mongoOrderTags.registrationDraft = pricing.entityType === 'event_show'
           ? { ...eventDraft, eventShowId: String(entityId || eventDraft?.eventShowId || '') }
@@ -618,7 +631,12 @@ exports.createOrder = async (req, res) => {
         status: 'PENDING',
         orderTags: mongoOrderTags,
         customerEmail: customerDetails.customerEmail || null,
+        customerPhone: customerDetails.customerPhone || '',
       });
+      if (slotReservation?.token) {
+        const { attachReservationToOrder } = require('../services/competitionSlotReservationService');
+        await attachReservationToOrder(slotReservation.token, order.order_id).catch(() => {});
+      }
     }
 
     res.json({
@@ -636,6 +654,10 @@ exports.createOrder = async (req, res) => {
       totalAmount: pricing.totalAmount,
     });
   } catch (err) {
+    if (slotReservation?.token) {
+      const { releaseCompetitionSlot } = require('../services/competitionSlotReservationService');
+      await releaseCompetitionSlot(slotReservation.token).catch(() => {});
+    }
     console.error('[payment.createOrder]', {
       message: err.message,
       status: err.status,

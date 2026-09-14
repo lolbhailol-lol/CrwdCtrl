@@ -64,6 +64,10 @@ const apiLimiter = rateLimit({
   skip: (req) => {
     const path = String(req.path || '');
     if (path === '/health' || path === '/ready' || path === '/' || path === '/keep-alive' || path === '/status') return true;
+    // Payment and registration writes have identity-aware route-specific limiters.
+    // Do not also charge them to the shared venue-IP bucket during a fest rush.
+    if (req.method === 'POST' && /^\/payment\/(order|verify|quote|coupon-validate)$/.test(path)) return true;
+    if (req.method === 'POST' && /^\/registrations\/(fests|competitions)\/[^/]+\/(register|custom|pay-and-register)$/.test(path)) return true;
     // Campus Hunt has route-specific identity/team/admin limiters. A shared college
     // NAT plus release-boundary polling would otherwise exhaust this IP bucket.
     if (path.startsWith('/campus-hunt/')) return true;

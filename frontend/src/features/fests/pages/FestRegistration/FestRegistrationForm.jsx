@@ -22,6 +22,7 @@ export default function FestRegistrationForm({
   fest,
   competition,
   isCompetitionRegistration,
+  festDayMode = false,
   formLocked = false,
   authSyncing = false,
   notice,
@@ -132,6 +133,12 @@ export default function FestRegistrationForm({
         progressMessage={submissionProgress || 'Processing your registration…'}
       />
       <div className={`mx-auto px-4 sm:px-6 lg:px-8 transition-opacity duration-300 ${mindSparkLayout ? 'max-w-5xl' : 'max-w-4xl'} ${formLocked ? 'opacity-90' : ''}`}>
+        {festDayMode && (
+          <div className={`mb-4 rounded-xl border px-4 py-3 ${isDark ? 'border-[#0ECCEE]/30 bg-[#0ECCEE]/10' : 'border-cyan-200 bg-cyan-50'}`}>
+            <p className={`text-sm font-semibold ${isDark ? 'text-[#0ECCEE]' : 'text-cyan-800'}`}>Fast fest-day registration</p>
+            <p className={`text-xs mt-1 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Captain login only. Your form is saved if the connection drops. Complete Cashfree payment on this phone and do not pay again while confirmation is pending.</p>
+          </div>
+        )}
         {formLocked && (
           <button
             type="button"
@@ -305,7 +312,11 @@ export default function FestRegistrationForm({
                 })()}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-                  {getCurrentStepFields().map((field) => {
+                  {getCurrentStepFields()
+                    // Never infer operational importance from `required`; organizers
+                    // must explicitly opt a field out of the day-of form.
+                    .filter((field) => !festDayMode || field.hideOnFestDay !== true)
+                    .map((field) => {
                     const fieldId = generateFieldId(field);
                     const isFullWidth = field.type === 'textarea' || field.type === 'file' || field.type === 'image'
                       || field.type === 'checkbox' || field.type === 'radio';
