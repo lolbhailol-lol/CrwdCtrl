@@ -1089,6 +1089,7 @@ function EventDetailsPage() {
               isDark={isDark}
               limit={kshitijPage ? 2 : 4}
               className="mt-8 mb-4"
+              fullWidthMobile={kshitijPage || mindSparkDesktop || techfestPage}
               title={kshitijPage ? 'Explore more Fests' : undefined}
               hideSubtitle={kshitijPage}
             />
@@ -1475,7 +1476,7 @@ function EventDetailsPage() {
           isDark={isDark}
           limit={kshitijPage ? 2 : 4}
           className="mb-8 px-4"
-          fullWidthMobile={kshitijPage}
+          fullWidthMobile={kshitijPage || mindSparkDesktop || techfestPage}
           title={kshitijPage ? 'Explore more Fests' : undefined}
           hideSubtitle={kshitijPage}
         />
