@@ -1146,7 +1146,9 @@ function EventPage() {
     ).toLowerCase();
     const isKshitijPuneRegionals =
         festSlug === 'kshitij-pune-regionals-2026'
-        || String(festName).toLowerCase().includes('kshitij pune regionals');
+        || festSlug === 'kshitij-pune-multicity-event-2026'
+        || String(festName).toLowerCase().includes('kshitij pune regionals')
+        || String(festName).toLowerCase().includes('kshitij pune multicity');
     const showDiscovery = Boolean(fetchDone && !isKshitijPuneRegionals);
 
     // Function to get common rules based on fest context

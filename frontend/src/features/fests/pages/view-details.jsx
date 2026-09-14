@@ -132,6 +132,28 @@ function CompetitionScrollCard({
   );
 }
 
+function CompetitionSectionSkeleton({ isDark, mobile = false }) {
+  const pulse = isDark ? 'bg-white/10' : 'bg-gray-200';
+  return (
+    <div aria-label="Loading competition categories" className="animate-pulse">
+      <div className={`${pulse} h-5 w-32 rounded mb-4`} />
+      <div className="flex gap-2 mb-4">
+        {[72, 88, 64].map((width) => (
+          <div key={width} className={`${pulse} h-8 rounded-full shrink-0`} style={{ width }} />
+        ))}
+      </div>
+      <div className="flex gap-4 overflow-hidden">
+        {[0, 1, 2].map((item) => (
+          <div
+            key={item}
+            className={`${pulse} ${mobile ? 'w-52 h-64' : 'w-52 h-72'} rounded-2xl shrink-0`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function resolveSeededFest(eventId, location) {
   const fromState = location?.state?.eventData?.title ? location.state.eventData : null;
   if (fromState && (!eventId || entityMatchesRouteParam(fromState, eventId, ['title', 'festName', 'festival_name']))) {
@@ -725,7 +747,11 @@ function EventDetailsPage() {
                 ) : null}
 
                 {/* Competitions */}
-                {availableTabs.length > 0 && (
+                {!fetchDone ? (
+                  <div className={`${isDark ? 'bg-[#111213]' : 'bg-gray-100'} ${festPlugin.id === 'kshitij' ? 'mt-3' : ''} rounded-2xl p-4 sm:p-6`}>
+                    <CompetitionSectionSkeleton isDark={isDark} />
+                  </div>
+                ) : availableTabs.length > 0 ? (
                   <div ref={eventsRef} className={`${isDark ? 'bg-[#111213]' : 'bg-gray-100'} ${festPlugin.id === 'kshitij' ? 'mt-3' : ''} rounded-2xl p-4 sm:p-6 transition-colors duration-300 scroll-mt-[calc(var(--desktop-navbar-h)+0.75rem)]`}>
                     <h2 className={`text-xl sm:text-2xl font-bold mb-4 sm:mb-6 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                       {pageEvent.competitionsHeading || "Competitions"}
@@ -781,7 +807,7 @@ function EventDetailsPage() {
                       </div>
                     </div>
                   </div>
-                )}
+                ) : null}
 
                 {/* Our Past Sponsors */}
                 {pageEvent.sponsors && pageEvent.sponsors.length > 0 && (
@@ -1255,7 +1281,11 @@ function EventDetailsPage() {
             <FestPublicLiveStrip festId={pageEvent.id || eventId} isDark={isDark} />
           </div>
         ) : null}
-        {availableTabs.length > 0 && (
+        {!fetchDone ? (
+          <section className={`px-4 mb-8 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
+            <CompetitionSectionSkeleton isDark={isDark} mobile />
+          </section>
+        ) : availableTabs.length > 0 ? (
           <section className={`px-4 mb-8 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
             <h2 className={`text-base font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
               {pageEvent.competitionsHeading || 'Competitions'}
@@ -1304,7 +1334,7 @@ function EventDetailsPage() {
               </div>
             </div>
           </section>
-        )}
+        ) : null}
 
         {/* Contact Details */}
         {pageEvent.contacts && pageEvent.contacts.length > 0 && (

@@ -7,7 +7,8 @@ const Fest = require('../src/model/fest_organizer_model');
 const Competition = require('../src/model/competition_model');
 
 const ROOT = path.resolve(__dirname, '../..');
-const SLUG = 'kshitij-pune-regionals-2026';
+const SLUG = 'kshitij-pune-multicity-event-2026';
+const LEGACY_SLUG = 'kshitij-pune-regionals-2026';
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -184,9 +185,16 @@ async function main() {
     Fest.findOne({ slug: 'techfest-iit-bombay-2026' }).select('_id').lean(),
     Fest.findOne({ $or: [{ slug: 'mindspark-2026' }, { festName: /mindspark/i }] }).select('_id').lean(),
   ]);
-  let fest = await Fest.findOne({ $or: [{ slug: SLUG }, { festName: /^Kshitij Pune Regionals$/i }] });
+  let fest = await Fest.findOne({
+    $or: [
+      { slug: SLUG },
+      { slug: LEGACY_SLUG },
+      { previousSlugs: LEGACY_SLUG },
+      { festName: /^Kshitij Pune (?:Regionals|Multicity(?: Event)?)$/i },
+    ],
+  });
   const festPayload = {
-    festName: 'Kshitij Pune Regionals',
+    festName: 'Kshitij Pune Multicity',
     subtitle: 'Kshitij ’26 - Soaring Beyond the Horizon',
     collegeName: 'Mithibai College',
     festType: 'cultural',
@@ -204,7 +212,9 @@ async function main() {
       formInstructions: 'Select a competition and complete the free registration form. No payment is required.',
       resourceLinks: [{ label: 'Event Rulebook', url: rulebook.secure_url }, { label: 'Event Schedule', url: schedule.secure_url }],
     },
-    status: 'upcoming', slug: SLUG, isApproved: true, competitionsHeading: 'Pune Regional Events',
+    status: 'upcoming', slug: SLUG,
+    previousSlugs: [...new Set([...(fest?.previousSlugs || []), LEGACY_SLUG])],
+    isApproved: true, competitionsHeading: 'Multicity Events',
     relatedFestIds: [techfest?._id, mindspark?._id].filter(Boolean),
   };
   if (fest) { Object.assign(fest, festPayload); await fest.save(); } else { fest = await Fest.create(festPayload); }
