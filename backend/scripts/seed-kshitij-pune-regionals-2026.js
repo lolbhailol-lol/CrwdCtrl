@@ -32,7 +32,7 @@ const personFields = [
 const competitions = [
   {
     name: 'Know It All', subtitle: 'Family Feud', competitionType: 'quiz', category: 'QUIZ', module: 'INFORMALS', eventCategory: 'USP', eventFormat: 'Eliminations + Finals',
-    imageSource: 'https://www.subodhmahilacollege.com/gallery/173458318025.jpg',
+    imageSource: 'https://images.pexels.com/photos/1181396/pexels-photo-1181396.jpeg?auto=compress&cs=tinysrgb&w=1200',
     description: 'Put your guessing skills, pop-culture knowledge, and quick thinking to the ultimate test across two exciting rounds: race against the clock to answer category-based questions, then take on Family Feud to match the crowd’s answers.',
     dateTime: '29 Sep 2026, 11:00 AM - 2:30 PM', venue: 'Classroom, MIT-WPU Campus, Pune', slotsAllotted: 0,
     teamSizeMin: 2, teamSizeMax: 2, teamSizeLabel: 'Team of 2',
@@ -95,7 +95,7 @@ const competitions = [
   },
   {
     name: 'The Boardroom', subtitle: 'Group Discussion - Project Volt', competitionType: 'business', category: 'ACADEMIC', module: 'BUSINESS EVENTS', eventCategory: 'Business Event', eventFormat: 'Direct Finals',
-    imageSource: 'https://image-static.collegedunia.com/public/college_data/images/campusimage/1705725711IMG_5029.JPG',
+    imageSource: 'https://images.pexels.com/photos/31739411/pexels-photo-31739411.jpeg?auto=compress&cs=tinysrgb&w=1200',
     description: 'A role-based boardroom simulation where eight stakeholders debate whether a company should deploy an AI system capable of performing 40% of employee work, balancing growth, safety, jobs, sustainability, and public trust.',
     dateTime: '29 Sep 2026, 11:00 AM - 1:30 PM', venue: 'Classroom, MIT-WPU Campus, Pune', slotsAllotted: 0,
     teamSizeMin: 1, teamSizeMax: 1, teamSizeLabel: 'Solo',
@@ -109,7 +109,7 @@ const competitions = [
   },
   {
     name: 'Shuttle Showdown', subtitle: 'Badminton', competitionType: 'sports', category: 'SPORTS', module: 'GAMING AND SPORTS', eventCategory: 'Others', eventFormat: 'Knockouts',
-    imageSource: 'https://assets-cdn.kathmandupost.com/uploads/source/news/2019/sports/Badminton-Prince-Dahal-Nepal-vs-Sirant--Russin-Player--.jpg',
+    imageSource: 'https://images.pexels.com/photos/26238655/pexels-photo-26238655.jpeg?auto=compress&cs=tinysrgb&w=1200',
     description: 'A high-energy badminton tournament where every smash, rally, and drop shot tests your skill and speed. Battle through intense matches, outplay your opponents, and fight your way to the finals.',
     dateTime: '29 Sep 2026, 3:00 PM - 6:00 PM', venue: 'Badminton Court, MIT-WPU Campus, Pune', slotsAllotted: 0,
     teamSizeMin: 1, teamSizeMax: 1, teamSizeLabel: 'Solo',
@@ -119,7 +119,7 @@ const competitions = [
   },
   {
     name: 'Sur Taal', subtitle: 'Bollywood Solo Singing', competitionType: 'music', category: 'MUSIC', module: 'PERFORMING ARTS', eventCategory: 'Popular', eventFormat: 'Direct Finals',
-    imageSource: 'https://media.collegedekho.com/media/img/institute/crawled_images/None/Cultural_Fest.JPG',
+    imageSource: 'https://images.pexels.com/photos/38996316/pexels-photo-38996316.jpeg?auto=compress&cs=tinysrgb&w=1200',
     description: 'Let your voice bring the magic of Bollywood to life. Celebrate the soul of Hindi cinema through music by performing anything from soulful Bollywood classics to energetic chartbusters. Performance duration: 1-2 minutes. Theme: Open.',
     dateTime: '30 Sep 2026, 11:00 AM - 12:30 PM', venue: 'Auditorium, MIT-WPU Campus, Pune', slotsAllotted: 0,
     teamSizeMin: 1, teamSizeMax: 1, teamSizeLabel: 'Solo',
@@ -129,7 +129,7 @@ const competitions = [
   },
   {
     name: 'Bollywood Dhamaka', subtitle: 'Bollywood Group Dance', competitionType: 'dance', category: 'DANCE', module: 'PERFORMING ARTS', eventCategory: 'Popular', eventFormat: 'Direct Finals',
-    imageSource: 'https://cdn.kpbs.org/0b/d5/05e007694306be88be3985b12a8e/cfil-01-web.jpeg',
+    imageSource: 'https://images.pexels.com/photos/12442276/pexels-photo-12442276.jpeg?auto=compress&cs=tinysrgb&w=1200',
     description: 'Groove to the beats of Bollywood! Watch vibrant teams set the stage ablaze with high-energy performances, dazzling costumes, and electrifying moves in this showcase event. Performance duration: 2-3 minutes. Theme: Open.',
     dateTime: '30 Sep 2026, 1:30 PM - 3:00 PM', venue: 'Auditorium, MIT-WPU Campus, Pune', slotsAllotted: 0,
     teamSizeMin: 6, teamSizeMax: 8, teamSizeLabel: '6-8 members',
@@ -139,7 +139,7 @@ const competitions = [
   },
   {
     name: 'Kick and Conquer', subtitle: 'FIFA', competitionType: 'esports', category: 'GAMING', module: 'GAMING AND SPORTS', eventCategory: 'Popular', eventFormat: 'Knockouts',
-    imageSource: 'https://i.gadgets360cdn.com/large/fifa_eworld_cup_2_reuters_full_1533270508326.JPG',
+    imageSource: 'https://images.pexels.com/photos/34543044/pexels-photo-34543044.jpeg?auto=compress&cs=tinysrgb&w=1200',
     description: 'Fast-paced football knockout matches where every pass, tackle, and goal matters. Each match is six minutes (three minutes per half) with a four-minute buffer. With Legendary difficulty and exciting twists, only the best will rise to the top and win the crown.',
     dateTime: '30 Sep 2026, 11:00 AM - 2:30 PM', venue: 'Classroom, MIT-WPU Campus, Pune', slotsAllotted: 0,
     teamSizeMin: 2, teamSizeMax: 2, teamSizeLabel: 'Team of 2',
@@ -180,7 +180,10 @@ async function main() {
   }
 
   await mongoose.connect(uri);
-  const techfest = await Fest.findOne({ slug: 'techfest-iit-bombay-2026' }).select('_id').lean();
+  const [techfest, mindspark] = await Promise.all([
+    Fest.findOne({ slug: 'techfest-iit-bombay-2026' }).select('_id').lean(),
+    Fest.findOne({ $or: [{ slug: 'mindspark-2026' }, { festName: /mindspark/i }] }).select('_id').lean(),
+  ]);
   let fest = await Fest.findOne({ $or: [{ slug: SLUG }, { festName: /^Kshitij Pune Regionals$/i }] });
   const festPayload = {
     festName: 'Kshitij Pune Regionals',
@@ -202,7 +205,7 @@ async function main() {
       resourceLinks: [{ label: 'Event Rulebook', url: rulebook.secure_url }, { label: 'Event Schedule', url: schedule.secure_url }],
     },
     status: 'upcoming', slug: SLUG, isApproved: true, competitionsHeading: 'Pune Regional Events',
-    relatedFestIds: techfest?._id ? [techfest._id] : [],
+    relatedFestIds: [techfest?._id, mindspark?._id].filter(Boolean),
   };
   if (fest) { Object.assign(fest, festPayload); await fest.save(); } else { fest = await Fest.create(festPayload); }
 

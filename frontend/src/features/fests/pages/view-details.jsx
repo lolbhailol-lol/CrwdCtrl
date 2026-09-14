@@ -165,7 +165,7 @@ function EventDetailsPage() {
     const seed = resolveSeededFest(eventId, location);
     return seed?.heroImage || seed?.image || '';
   });
-  const [fetchDone, setFetchDone] = useState(() => Boolean(resolveSeededFest(eventId, location)));
+  const [fetchDone, setFetchDone] = useState(false);
   const [error, setError] = useState(null);
   const [bodyReady, setBodyReady] = useState(() => Boolean(resolveSeededFest(eventId, location)));
   const [openingCompetition, setOpeningCompetition] = useState(false);
@@ -181,7 +181,9 @@ function EventDetailsPage() {
     fetchGenRef.current += 1;
     setEventData(seed);
     setCurrentHeroImage(seed?.heroImage || seed?.image || '');
-    setFetchDone(Boolean(seed));
+    // Cached fest data can paint the stable shell immediately, but its competition
+    // categories may be outdated. Keep them hidden until this route refreshes.
+    setFetchDone(false);
     setError(null);
     setActiveTab('GROUP');
     setShowFullOverview(false);
@@ -258,8 +260,15 @@ function EventDetailsPage() {
 
   useEffect(() => {
     if (!eventData || !eventId) return;
+    if (!entityMatchesRouteParam(eventData, eventId, ['title', 'festName', 'festival_name'])) return;
     if (!festHasCompetitionGroups(eventData) && !fetchDone) return;
-    const canonical = festPath({ id: eventData.id, _id: eventData.id, festName: eventData.title, title: eventData.title });
+    const canonical = festPath({
+      id: eventData.id,
+      _id: eventData.id,
+      slug: eventData.slug,
+      festName: eventData.title,
+      title: eventData.title,
+    });
     if (canonical && window.location.pathname !== canonical) {
       navigate(`${canonical}${window.location.search || ''}`, {
         replace: true,
@@ -325,7 +334,7 @@ function EventDetailsPage() {
   }, [isAuthenticated, showLogin, showRegister]);
 
   // Get available competition tabs based on event data
-  const availableTabs = Object.keys(eventData?.competitions || {});
+  const availableTabs = fetchDone ? Object.keys(eventData?.competitions || {}) : [];
   const visibleTab = availableTabs.includes(activeTab) ? activeTab : (availableTabs[0] || '');
 
   // Set initial active tab to the first available tab
@@ -1052,7 +1061,7 @@ function EventDetailsPage() {
               relatedFests={pageEvent.relatedFests}
               festType={pageEvent.type || pageEvent.category}
               isDark={isDark}
-              limit={4}
+              limit={kshitijPage ? 2 : 4}
               className="mt-8 mb-4"
               title={kshitijPage ? 'Explore more Fests' : undefined}
               hideSubtitle={kshitijPage}
@@ -1434,7 +1443,7 @@ function EventDetailsPage() {
           relatedFests={pageEvent.relatedFests}
           festType={pageEvent.type || pageEvent.category}
           isDark={isDark}
-          limit={4}
+          limit={kshitijPage ? 2 : 4}
           className="mb-8 px-4"
           fullWidthMobile={kshitijPage}
           title={kshitijPage ? 'Explore more Fests' : undefined}

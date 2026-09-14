@@ -71,7 +71,7 @@ export function entityMatchesRouteParam(entity, routeParam, nameKeys = ['name', 
 
 export function festPath(fest = {}) {
     const id = pickId(fest);
-    const slug = toSlug(fest.festName || fest.title || '');
+    const slug = toSlug(fest.slug || fest.festName || fest.title || '');
     return `/view-details/${slug || id}`;
 }
 
