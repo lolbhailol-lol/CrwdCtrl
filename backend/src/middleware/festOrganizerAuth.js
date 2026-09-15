@@ -49,6 +49,7 @@ async function requireFestAccess(req, res, next) {
         if (req.organizer.portalRole === 'desk') {
             const path = String(req.path || '');
             const allowed = (req.method === 'GET' && /\/fest-day-desk$/.test(path))
+                || (req.method === 'POST' && /\/fest-day-desk\/registrations$/.test(path))
                 || (req.method === 'POST' && /\/fest-day-desk\/orders\/[^/]+\/refresh$/.test(path));
             if (!allowed) {
                 return res.status(403).json({ success: false, message: 'Desk accounts can only access Fest Day Desk' });

@@ -59,6 +59,43 @@ async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides 
     const competition = await Competition.findById(competitionId).populate('fest');
     if (!competition) return { ok: false, error: 'Competition not found' };
 
+    const assistedRegistrationId = paymentOrder.orderTags?.assistedRegistrationId;
+    if (assistedRegistrationId) {
+      const assisted = await Registration.findOne({
+        _id: assistedRegistrationId,
+        fest: competition.fest._id,
+        competitionId: competition._id,
+        user: userId,
+      });
+      if (!assisted) return { ok: false, error: 'Assisted registration not found' };
+      if (assisted.paymentStatus === 'paid' && assisted.status === 'approved') {
+        return { ok: true, registrationId: assisted._id, alreadyExists: true };
+      }
+      // A replaced/expired order must never approve the registration later.
+      if (String(assisted.payment_order_id || '') !== String(paymentOrder.orderId)) {
+        return { ok: false, skipped: true, error: 'Payment order is no longer active for this registration' };
+      }
+      const paidTotal = Math.max(0, Number(paymentOrder.totalAmount) || 0);
+      assisted.status = 'approved';
+      assisted.paymentStatus = 'paid';
+      assisted.payment_id = paymentOrder.paymentId || overrides.paymentId || null;
+      assisted.payment_gateway = 'cashfree';
+      assisted.amountPaid = paidTotal;
+      assisted.deferTicketUntilPaid = false;
+      Object.assign(assisted, cashfreeSettlementFields({
+        amountPaid: paidTotal,
+        payment_gateway: 'cashfree',
+        payment_order_id: paymentOrder.orderId,
+      }));
+      await assisted.save();
+      if (paymentOrder.orderTags?.slotReservationToken) {
+        const { releaseCompetitionSlot } = require('./competitionSlotReservationService');
+        await releaseCompetitionSlot(paymentOrder.orderTags.slotReservationToken).catch(() => {});
+      }
+      logger.debug('✅ Assisted competition registration fulfilled:', paymentOrder.orderId, assisted._id);
+      return { ok: true, registrationId: assisted._id };
+    }
+
     const alreadyPaid = payment_order_id
       ? await Registration.findOne({
           payment_order_id,

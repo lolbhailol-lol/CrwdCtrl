@@ -1,6 +1,7 @@
 const express = require('express');
 const { updateTeamMembers } = require('../controllers/registrationController');
 const ctrl = require('../controllers/festOrganizerPortalController');
+const assistedCtrl = require('../controllers/festDayAssistedController');
 const stallCtrl = require('../controllers/festStallLeadController');
 const probableCtrl = require('../controllers/festCompetitionProbableController');
 const proShowCtrl = require('../controllers/festProShowController');
@@ -14,6 +15,9 @@ const router = express.Router();
 
 router.post('/auth/login', authLimiter, ctrl.login);
 router.post('/auth/signup', authLimiter, ctrl.signup);
+router.get('/desk-payment/:token', assistedCtrl.getAssistedPayment);
+router.post('/desk-payment/:token/verify', assistedCtrl.verifyAssistedPayment);
+router.post('/desk-payment/:token/reissue', assistedCtrl.reissueAssistedPayment);
 router.get('/me', authenticateFestOrganizer, ctrl.getMe);
 router.get('/logged-in', authenticateFestOrganizer, ctrl.listLoggedInUsers);
 
@@ -34,6 +38,7 @@ router.post(
 
 router.get('/fests/:festId/dashboard', authenticateFestOrganizer, requireFestAccess, ctrl.getDashboard);
 router.get('/fests/:festId/fest-day-desk', authenticateFestOrganizer, requireFestAccess, ctrl.getFestDayDesk);
+router.post('/fests/:festId/fest-day-desk/registrations', authenticateFestOrganizer, requireFestAccess, assistedCtrl.createAssistedRegistration);
 router.post('/fests/:festId/fest-day-desk/orders/:orderId/refresh', authenticateFestOrganizer, requireFestAccess, ctrl.refreshFestDayDeskOrder);
 router.post('/fests/:festId/fest-day-desk/orders/:orderId/refund', authenticateFestOrganizer, requireFestAccess, ctrl.refundFestDayDeskOrder);
 router.get('/fests/:festId/details', authenticateFestOrganizer, requireFestAccess, ctrl.getFestDetails);

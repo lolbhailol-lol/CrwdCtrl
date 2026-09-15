@@ -2781,7 +2781,7 @@ exports.getFestDayDesk = async (req, res) => {
         const search = String(req.query.search || '').trim().toLowerCase();
         const Competition = mongoose.model('Competition');
         const competitions = await Competition.find({ fest: req.festId })
-            .select('name feeAmount registrationFee feeTiers slotsAllotted showSlotsPublic registration.status category module')
+            .select('name feeAmount registrationFee feeTiers slotsAllotted showSlotsPublic registration.status category module teamSizeMin teamSizeMax teamSizeLabel')
             .sort({ name: 1 })
             .lean();
         const competitionIds = competitions.map((competition) => competition._id);
@@ -2854,7 +2854,7 @@ exports.getFestDayDesk = async (req, res) => {
             .lean();
         const orderIds = orders.map((order) => order.orderId).filter(Boolean);
         const registrations = await Registration.find({ payment_order_id: { $in: orderIds } })
-            .select('_id payment_order_id status paymentStatus qrCodeData createdAt')
+            .select('_id payment_order_id status paymentStatus qrCodeData createdAt +deskPaymentToken responses')
             .lean();
         const refunds = await PaymentRefund.find({ orderId: { $in: orderIds } }).sort({ createdAt: -1 }).lean();
         const formStarts = await FestDayFormSession.find({ fest: req.festId, expiresAt: { $gt: new Date() } })
@@ -2883,11 +2883,14 @@ exports.getFestDayDesk = async (req, res) => {
             const user = order.userId && typeof order.userId === 'object' ? order.userId : null;
             const draftIdentity = deskDraftIdentity(order);
             const rawStatus = String(order.status || 'PENDING').toUpperCase();
-            const status = registration
+            const assistedExpired = Boolean(order.orderTags?.assistedRegistrationId)
+                && rawStatus === 'PENDING'
+                && Date.now() - new Date(order.createdAt).getTime() >= 30 * 60 * 1000;
+            const status = registration?.paymentStatus === 'paid' && registration?.status === 'approved'
                 ? 'paid'
                 : rawStatus === 'PAID'
                     ? 'confirming'
-                    : rawStatus === 'EXPIRED'
+                    : rawStatus === 'EXPIRED' || assistedExpired
                         ? 'expired'
                         : rawStatus === 'FAILED'
                             ? 'failed'
@@ -2904,7 +2907,9 @@ exports.getFestDayDesk = async (req, res) => {
                 teamName: draftIdentity.teamName,
                 registrationId: registration?._id ? String(registration._id) : null,
                 refundStatus: refund ? String(refund.status || '').toLowerCase() : '',
-                resumeUrl: order.paymentSessionId
+                resumeUrl: registration?.deskPaymentToken
+                    ? `https://www.crwdctrl.in/desk-payment/${registration.deskPaymentToken}`
+                    : order.paymentSessionId
                     ? `https://www.crwdctrl.in/payment/checkout?payment_session_id=${encodeURIComponent(order.paymentSessionId)}&order_id=${encodeURIComponent(order.orderId)}`
                     : null,
                 createdAt: order.createdAt,

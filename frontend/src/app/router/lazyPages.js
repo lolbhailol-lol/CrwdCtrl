@@ -60,7 +60,8 @@ export const EventCommunityOrganizerHomePage = lazyWithRetry(() => import('../..
 export const EventCommunityOrganizerDashboardPage = lazyWithRetry(() => import('../../features/events/organizer/community/EventCommunityOrganizerDashboardPage'));
 export const EventCommunityOrganizerNotificationsPage = lazyWithRetry(() => import('../../features/events/organizer/community/EventCommunityOrganizerNotificationsPage'));
 export const TrekCategoryPage = lazyWithRetry(() => import('../../features/treks/pages/TrekCategoryPage'));
-export const PaymentCheckoutPage = lazyWithRetry(() => import('../../pages/payment/PaymentCheckoutPage'));
+  export const PaymentCheckoutPage = lazyWithRetry(() => import('../../pages/payment/PaymentCheckoutPage'));
+  export const DeskPaymentPage = lazyWithRetry(() => import('../../pages/payment/DeskPaymentPage'));
 
 export const AdminLayout = lazyWithRetry(() => import('../../pages/admin/AdminLayout'));
 export const AdminDashboardPage = lazyWithRetry(() => import('../../pages/admin/AdminDashboardPage'));

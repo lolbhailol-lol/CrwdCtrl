@@ -190,6 +190,12 @@ export async function refreshFestDayDeskOrder(festId, orderId) {
     });
 }
 
+export async function createFestDayAssistedRegistration(festId, body) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/fest-day-desk/registrations`, {
+        method: 'POST', body, retries: 1, timeout: 25000,
+    });
+}
+
 export async function refundFestDayDeskOrder(festId, orderId) {
     return festOrganizerFetch(`/fest-organizer/fests/${festId}/fest-day-desk/orders/${encodeURIComponent(orderId)}/refund`, {
         method: 'POST',
