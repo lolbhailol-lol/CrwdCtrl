@@ -7,6 +7,7 @@ const Registration = require('../model/registration_model');
 const PaymentOrder = require('../model/payment_order_model');
 const PaymentRefund = require('../model/payment_refund_model');
 const FestDayFormSession = require('../model/fest_day_form_session_model');
+const FestDayAssistedRegistration = require('../model/fest_day_assisted_registration_model');
 const CompetitionSlotReservation = require('../model/competition_slot_reservation_model');
 const { getJwtSecret } = require('../config/jwtSecret');
 const { performCheckinFromRaw } = require('../services/checkinService');
@@ -2853,9 +2854,12 @@ exports.getFestDayDesk = async (req, res) => {
             .limit(search ? 100 : 120)
             .lean();
         const orderIds = orders.map((order) => order.orderId).filter(Boolean);
-        const registrations = await Registration.find({ payment_order_id: { $in: orderIds } })
-            .select('_id payment_order_id status paymentStatus qrCodeData createdAt +deskPaymentToken responses')
-            .lean();
+        const [registrations, assistedEntries] = await Promise.all([
+            Registration.find({ payment_order_id: { $in: orderIds } })
+                .select('_id payment_order_id status paymentStatus qrCodeData createdAt responses').lean(),
+            FestDayAssistedRegistration.find({ paymentOrderId: { $in: orderIds } })
+                .select('paymentOrderId +paymentToken').lean(),
+        ]);
         const refunds = await PaymentRefund.find({ orderId: { $in: orderIds } }).sort({ createdAt: -1 }).lean();
         const formStarts = await FestDayFormSession.find({ fest: req.festId, expiresAt: { $gt: new Date() } })
             .populate('user', 'name email phone phoneNumber')
@@ -2871,6 +2875,7 @@ exports.getFestDayDesk = async (req, res) => {
             String(registration.payment_order_id),
             registration,
         ]));
+        const assistedByOrder = new Map(assistedEntries.map((entry) => [String(entry.paymentOrderId), entry]));
         const competitionById = new Map(competitions.map((competition) => [String(competition._id), competition]));
         const orderedUserCompetition = new Set(orders.map((order) => {
             const userId = order.userId?._id || order.userId || '';
@@ -2880,6 +2885,7 @@ exports.getFestDayDesk = async (req, res) => {
             const registration = registrationByOrder.get(String(order.orderId));
             const competition = competitionById.get(String(order.entityId));
             const refund = refundByOrder.get(String(order.orderId));
+            const assistedEntry = assistedByOrder.get(String(order.orderId));
             const user = order.userId && typeof order.userId === 'object' ? order.userId : null;
             const draftIdentity = deskDraftIdentity(order);
             const rawStatus = String(order.status || 'PENDING').toUpperCase();
@@ -2907,8 +2913,8 @@ exports.getFestDayDesk = async (req, res) => {
                 teamName: draftIdentity.teamName,
                 registrationId: registration?._id ? String(registration._id) : null,
                 refundStatus: refund ? String(refund.status || '').toLowerCase() : '',
-                resumeUrl: registration?.deskPaymentToken
-                    ? `https://www.crwdctrl.in/desk-payment/${registration.deskPaymentToken}`
+                resumeUrl: assistedEntry?.paymentToken
+                    ? `https://www.crwdctrl.in/desk-payment/${assistedEntry.paymentToken}`
                     : order.paymentSessionId
                     ? `https://www.crwdctrl.in/payment/checkout?payment_session_id=${encodeURIComponent(order.paymentSessionId)}&order_id=${encodeURIComponent(order.orderId)}`
                     : null,

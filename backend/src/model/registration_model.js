@@ -56,10 +56,6 @@ const registrationSchema = new mongoose.Schema({
     unique: true,
     sparse: true,
   },
-  /** Assisted desk entries must not receive a ticket until Cashfree is verified. */
-  deferTicketUntilPaid: { type: Boolean, default: false },
-  deskSubmissionKey: { type: String, trim: true, default: null },
-  deskPaymentToken: { type: String, trim: true, default: null, select: false },
   checkedIn: {
     type: Boolean,
     default: false,
@@ -131,8 +127,6 @@ registrationSchema.index({ user: 1, submittedAt: -1 });
 registrationSchema.index({ fest: 1, status: 1 });
 registrationSchema.index({ fest: 1, isProShow: 1, status: 1 });
 registrationSchema.index({ reminderSent: 1, status: 1 });
-registrationSchema.index({ fest: 1, deskSubmissionKey: 1 }, { unique: true, sparse: true });
-registrationSchema.index({ deskPaymentToken: 1 }, { unique: true, sparse: true });
 registrationSchema.index(
   { payment_order_id: 1 },
   {
@@ -145,7 +139,7 @@ registrationSchema.index(
 );
 
 registrationSchema.pre('save', function assignQrCodeData(next) {
-  if (!this.qrCodeData && !this.deferTicketUntilPaid) {
+  if (!this.qrCodeData) {
     this.qrCodeData = crypto.randomBytes(16).toString('hex');
   }
   next();
