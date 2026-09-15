@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react';
 import { X, Upload, Plus, Trash2, Loader } from 'lucide-react';
-import { adminFetch, adminFetchJSON, getAdminToken } from '../../utils/adminApi';
+import { adminFetch, adminFetchJSON, getAdminToken } from '../../services/api/admin.api.js';
+import { publicFetchJSON } from '../../services/api/client.js';
+import GalleryImagesUploadField from './GalleryImagesUploadField';
+import { normalizeImageList } from '../../utils/uploadUrls';
+import { excludeCoverUrlsFromGallery } from '../../utils/coverImages';
+import { getFestPlugin } from '../../features/fests/plugins/registry';
 
 // Individual Form Field Component to prevent state sharing
 const FormFieldEditor = ({ field, index, onUpdate, onRemove, onAddOption, onUpdateOption, onRemoveOption }) => {
@@ -690,9 +695,13 @@ const StepFieldEditor = ({ field, stepIndex, fieldIndex, onUpdate, onRemove, onA
   );
 };
 
-export default function FestFormModal({ fest, onClose, onSaved }) {
+export default function FestFormModal({ fest, onClose, onSaved, api, allFests = [] }) {
   // STEP STATE: simple multi-step wizard instead of one very long form
   const [step, setStep] = useState(1);
+  const plugin = getFestPlugin(fest);
+  const mindSpark = plugin.id === 'mindspark';
+  const ResourceLinksEditor = plugin.ResourceLinksEditor;
+  const WhatsAppAdmin = plugin.WhatsAppAdmin;
 
   // Form state aligned to new FEST DATA STRUCTURE
   const [form, setForm] = useState({
@@ -705,6 +714,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
     festType: 'cultural', // cultural | technical | sports
     ticketPrice: '',
     feeAmount: 0,
+    platformFeePercent: 3,
     description: '',
     status: 'upcoming', // ongoing | upcoming | completed | lastyearhit
     registrationLink: '',
@@ -714,6 +724,8 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
     paymentQR: '',
     paymentQRMessage: '', // Message to display with QR code
     googleSheetsUrl: '',
+    overallSheetUrl: '', // MindSpark: participant-facing overall sheet for all comps
+    resourceLinks: [], // Extra links shown after registration
     whatsappCommunityLink: '', // Optional WhatsApp community link for participants
     formInstructions: '', // Instructions to display at the start of internal form
     organizerEmail: '', // Email to send registration confirmations to
@@ -722,7 +734,8 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
     formSchema: [], // For single step forms (backward compatible)
     steps: [], // For multi-step forms
     // Images
-    festImages: [], // array of URLs (mapped to galleryImages/coverImage)
+    festImages: [], // legacy alias — prefer galleryImages
+    galleryImages: [],
     coverImage: '',
     // Artists (lineup)
     artists: [],
@@ -733,12 +746,19 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
     contacts: [],
     // Sponsors
     sponsors: [],
+    // Pinned related fests (shown first on public page; empty = auto by festType)
+    relatedFestIds: [],
   });
+  const [relatedFestSearch, setRelatedFestSearch] = useState('');
+  const [relatedFestOptions, setRelatedFestOptions] = useState(() =>
+    Array.isArray(allFests) ? allFests : []
+  );
   const [highlightInput, setHighlightInput] = useState('');
   const [tagInput, setTagInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingGallery, setUploadingGallery] = useState(false);
   const [formInitialized, setFormInitialized] = useState(false); // NEW: Track if form has been initialized
 
   // Reset form initialization when fest changes (new fest selected)
@@ -746,7 +766,60 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
     setFormInitialized(false);
   }, [fest?._id]); // Reset when fest ID changes
 
-  // Form builder functions for registration configuration
+  // Prefer parent-provided fest list; otherwise load a slim public list for the picker
+  useEffect(() => {
+    if (Array.isArray(allFests) && allFests.length > 0) {
+      setRelatedFestOptions(allFests);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await adminFetchJSON('/admin/fests?limit=500').catch(() => null);
+        const list = Array.isArray(data?.fests) ? data.fests : Array.isArray(data) ? data : [];
+        if (!cancelled && list.length > 0) {
+          setRelatedFestOptions(list);
+          return;
+        }
+      } catch (_) { /* fall through */ }
+      try {
+        const data = await publicFetchJSON('/fests/all?limit=200');
+        const list = Array.isArray(data?.fests) ? data.fests : [];
+        if (!cancelled) setRelatedFestOptions(list);
+      } catch (_) {
+        if (!cancelled) setRelatedFestOptions([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [allFests]);
+
+  const applyDefaultRegistrationFields = () => {
+    const mk = (id, type, label, fieldName, opts = {}) => ({
+      id,
+      type,
+      label,
+      fieldName,
+      placeholder: opts.placeholder || '',
+      required: opts.required !== false,
+      options: opts.options || [],
+      validation: opts.validation || {},
+    });
+    setForm((prev) => ({
+      ...prev,
+      formType: 'SINGLE_STEP',
+      formSchema: [
+        mk('full_name', 'text', 'Full Name', 'full_name', { placeholder: 'Your full name' }),
+        mk('email', 'email', 'Email Address', 'email', { placeholder: 'you@email.com' }),
+        mk('mobile', 'tel', 'Mobile Number', 'mobile', { placeholder: '10-digit mobile number' }),
+        mk('college', 'text', 'College / Institute', 'college_name', { placeholder: 'Your college name' }),
+        mk('team_name', 'text', 'Team Name (if applicable)', 'team_name', {
+          placeholder: 'Leave blank for solo events',
+          required: false,
+        }),
+      ],
+    }));
+  };
+
   const addFormField = () => {
     const uuid = crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const newField = {
@@ -1051,18 +1124,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
   }
     // Only initialize form once when fest data is first loaded
     if (fest && !formInitialized) {
-      console.log('🔄 Loading fest data into form (first time):', fest);
-      console.log('  - fest.artistsHeading:', fest.artistsHeading);
-      console.log('  - fest.competitionsHeading:', fest.competitionsHeading);
-      console.log('  - fest.contacts:', fest.contacts);
-      console.log('🔍 DEBUG - Registration data from fest:');
-      console.log('  - fest.registration:', fest.registration);
-      console.log('  - fest.registration.formType:', fest.registration?.formType);
-      console.log('  - fest.registration.formSchema:', fest.registration?.formSchema);
-      console.log('  - fest.registration.steps:', fest.registration?.steps);
-      console.log('  - fest.registration.steps length:', fest.registration?.steps?.length);
       if (fest.registration?.steps?.length > 0) {
-        console.log('  - Steps details:');
         fest.registration.steps.forEach((step, index) => {
           console.log(`    Step ${index + 1}:`, {
             stepNumber: step.stepNumber,
@@ -1081,6 +1143,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
         festType: fest.festType || fest.category || 'cultural',
         ticketPrice: fest.ticketPrice || '',
         feeAmount: fest.feeAmount || 0,
+        platformFeePercent: fest.platformFeePercent ?? 3,
         description: fest.description || fest.overview || '',
         status: fest.status === 'lastyearhit' ? 'completed' : fest.status || 'upcoming',
         registrationLink: fest.registrationLink || fest.websiteLink || '',
@@ -1090,6 +1153,13 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
         paymentQR: fest.registration?.paymentQR || '',
         paymentQRMessage: fest.registration?.paymentQRMessage || '',
         googleSheetsUrl: fest.registration?.googleSheetsUrl || '',
+        overallSheetUrl: fest.registration?.overallSheetUrl || '',
+        resourceLinks: Array.isArray(fest.registration?.resourceLinks)
+          ? fest.registration.resourceLinks.map((l) => ({
+              label: l?.label || '',
+              url: l?.url || '',
+            }))
+          : [],
         whatsappCommunityLink: fest.registration?.whatsappCommunityLink || '',
         formInstructions: fest.registration?.formInstructions || '',
         organizerEmail: fest.registration?.organizerEmail || '',
@@ -1108,7 +1178,16 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
             fieldName: field.fieldName || `field_${(field.id || crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`).slice(0, 8)}`
           })) || []
         })) || [],
-        festImages: fest.galleryImages || fest.gallery || (fest.coverImage ? [fest.coverImage] : []),
+        festImages: (() => {
+          const cover = fest.coverImage || fest.heroImage || '';
+          const gallery = normalizeImageList(fest.galleryImages || fest.gallery || []);
+          return excludeCoverUrlsFromGallery(gallery.length ? gallery : (cover ? [cover] : []), [], cover);
+        })(),
+        galleryImages: (() => {
+          const cover = fest.coverImage || fest.heroImage || '';
+          const gallery = normalizeImageList(fest.galleryImages || fest.gallery || []);
+          return excludeCoverUrlsFromGallery(gallery, [], cover);
+        })(),
         coverImage: fest.coverImage || fest.heroImage || '',
         // Fix artist mapping to preserve existing images
         artists: fest.artists ? fest.artists.map(artist => ({
@@ -1126,16 +1205,10 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
           sponsorName: sponsor.name || '',
         })) : [],
         competitionsHeading: fest.competitionsHeading || "Competitions",
+        relatedFestIds: Array.isArray(fest.relatedFestIds)
+          ? fest.relatedFestIds.map((id) => String(id?._id || id)).filter(Boolean)
+          : [],
       });
-      
-      console.log('✅ Form state set with values:');
-      console.log('  - artistsHeading will be:', fest.artistsHeading || "Artists You'll Love");
-      console.log('  - competitionsHeading will be:', fest.competitionsHeading || "Competitions");
-      console.log('  - contacts will be:', fest.contacts || []);
-      console.log('🔍 DEBUG - Form state after setting:');
-      console.log('  - form.formType will be:', fest.registration?.formType || 'SINGLE_STEP');
-      console.log('  - form.formSchema will be:', (fest.registration?.formSchema || []).length, 'fields');
-      console.log('  - form.steps will be:', (fest.registration?.steps || []).length, 'steps');
       
       // Mark form as initialized to prevent future resets
       setFormInitialized(true);
@@ -1257,10 +1330,12 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
       formData.append('image', file);
       formData.append('folder', 'crwdctrl/fests');
 
-      const response = await adminFetch('/admin/upload/image', {
-        method: 'POST',
-        body: formData,
-      });
+      const response = api?.uploadImage
+        ? await api.uploadImage(formData)
+        : await adminFetch('/admin/upload/image', {
+            method: 'POST',
+            body: formData,
+          });
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -1290,53 +1365,19 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
     }
   };
 
-  const handleMultipleImageUpload = async (files) => {
-    if (!files || files.length === 0) return;
-    
-    setUploadingImage(true);
-    try {
-      const formData = new FormData();
-      Array.from(files).forEach((file) => {
-        formData.append('images', file);
-      });
-      formData.append('folder', 'crwdctrl/fests');
-
-      const response = await adminFetch('/admin/upload/images', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to upload images');
-      }
-
-      const data = await response.json();
-      const newUrls = data.urls.map(u => u.url);
-      setForm({ 
-        ...form, 
-        festImages: [...(form.festImages || []), ...newUrls],
-        galleryImages: [...(form.galleryImages || []), ...newUrls]
-      });
-    } catch (err) {
-      console.error('Error uploading images:', err);
-      setError(err.message || 'Failed to upload images');
-    } finally {
-      setUploadingImage(false);
-    }
-  };
-
   const submit = async () => {
   console.log('🚀 Submit function called');
   setError('');
   setLoading(true);
 
   try {
-    const adminToken = await getAdminToken({ redirectOnFail: false });
-    if (!adminToken) {
-      setError('Admin session expired. Please log in again.');
-      setLoading(false);
-      return;
+    if (!api?.saveFest) {
+      const adminToken = await getAdminToken({ redirectOnFail: false });
+      if (!adminToken) {
+        setError('Admin session expired. Please log in again.');
+        setLoading(false);
+        return;
+      }
     }
 
     console.log('📋 Submitting fest form with data:', form);
@@ -1357,20 +1398,12 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
 
     // Validate internal form mandatory fields
     if (form.registrationMode === 'INTERNAL_FORM') {
-      console.log('🔍 Validating internal form fields...');
-      if (!form.googleSheetsUrl) {
-        console.error('❌ Google Sheets URL missing');
-        setError('Google Sheets URL is required for internal form registration');
-        setLoading(false);
-        return;
-      }
       if (!form.organizerEmail) {
         console.error('❌ Organizer email missing');
         setError('Organizer email is required for internal form registration');
         setLoading(false);
         return;
       }
-      // Validate email format
       const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailPattern.test(form.organizerEmail)) {
         console.error('❌ Invalid organizer email format');
@@ -1378,13 +1411,22 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
         setLoading(false);
         return;
       }
-      // Validate Google Sheets URL format
-      const validUrlPattern = /^https:\/\/docs\.google\.com\/spreadsheets\/(d\/[a-zA-Z0-9-_]+|u\/\d+\/d\/[a-zA-Z0-9-_]+)/;
-      if (!validUrlPattern.test(form.googleSheetsUrl)) {
-        console.error('❌ Invalid Google Sheets URL format');
-        setError('Please provide a valid Google Sheets URL (e.g., https://docs.google.com/spreadsheets/d/your-sheet-id/edit)');
+      const hasFormFields = form.formType === 'MULTI_STEP'
+        ? (form.steps || []).some((step) => (step.fields || []).length > 0)
+        : (form.formSchema || []).length > 0;
+      if (!mindSpark && !hasFormFields) {
+        setError('Add at least one form field — this fest form is used for all competitions.');
         setLoading(false);
         return;
+      }
+      if (form.googleSheetsUrl) {
+        const validUrlPattern = /^https:\/\/docs\.google\.com\/spreadsheets\/(d\/[a-zA-Z0-9-_]+|u\/\d+\/d\/[a-zA-Z0-9-_]+)/;
+        if (!validUrlPattern.test(form.googleSheetsUrl)) {
+          console.error('❌ Invalid Google Sheets URL format');
+          setError('Please provide a valid Google Sheets URL (e.g., https://docs.google.com/spreadsheets/d/your-sheet-id/edit)');
+          setLoading(false);
+          return;
+        }
       }
     }
 
@@ -1400,12 +1442,17 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
       venue: form.venueDetails,
       ticketPrice: form.ticketPrice,
       feeAmount: form.feeAmount || 0,
+      platformFeePercent: Number(form.platformFeePercent ?? 3),
       description: form.description,
       registrationLink: form.registrationLink,
       status: form.status,
 
-      coverImage: form.coverImage || form.festImages[0] || '',
-      galleryImages: form.festImages,
+      coverImage: form.coverImage || '',
+      galleryImages: excludeCoverUrlsFromGallery(
+        form.galleryImages?.length ? form.galleryImages : form.festImages,
+        {},
+        form.coverImage || '',
+      ),
 
       // 🎤 Artists - preserve existing images
       artists: form.artists.map(a => ({
@@ -1429,6 +1476,8 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
       // ✅ FIXED: Direct assignment without fallback to default
       competitionsHeading: form.competitionsHeading,
 
+      relatedFestIds: Array.isArray(form.relatedFestIds) ? form.relatedFestIds : [],
+
       // 📝 Registration Configuration
       registration: {
         mode: form.registrationMode,
@@ -1436,6 +1485,13 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
         paymentQR: form.paymentQR,
         paymentQRMessage: form.paymentQRMessage,
         googleSheetsUrl: form.googleSheetsUrl,
+        overallSheetUrl: form.overallSheetUrl || '',
+        resourceLinks: (form.resourceLinks || [])
+          .map((l) => ({
+            label: String(l?.label || '').trim(),
+            url: String(l?.url || '').trim(),
+          }))
+          .filter((l) => l.url),
         whatsappCommunityLink: form.whatsappCommunityLink,
         formInstructions: form.formInstructions,
         organizerEmail: form.organizerEmail,
@@ -1451,46 +1507,13 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
     console.log('🌐 Making API call to:', path);
     console.log('📤 Method:', fest ? 'PUT' : 'POST');
     console.log('📦 Payload:', payload);
-    console.log('🔍 DEBUG - Registration data in payload:');
-    console.log('  - registration.formType:', payload.registration.formType);
-    console.log('  - registration.formSchema:', payload.registration.formSchema);
-    console.log('  - registration.steps:', payload.registration.steps);
-    console.log('  - form.formType:', form.formType);
-    console.log('  - form.formSchema:', form.formSchema);
-    console.log('  - form.steps:', form.steps);
-    console.log('🔍 DEBUG - Multi-step form validation:');
-    if (form.formType === 'MULTI_STEP') {
-      console.log('  - Is multi-step form: YES');
-      console.log('  - Steps count:', form.steps?.length || 0);
-      console.log('  - Steps data:', form.steps);
-      if (form.steps?.length > 0) {
-        form.steps.forEach((step, index) => {
-          console.log(`    Step ${index + 1}:`, {
-            stepNumber: step.stepNumber,
-            stepTitle: step.stepTitle,
-            fieldsCount: step.fields?.length || 0,
-            fields: step.fields?.map(f => ({ label: f.label, type: f.type, fieldName: f.fieldName }))
-          });
-        });
-      }
-    } else {
-      console.log('  - Is multi-step form: NO (formType:', form.formType, ')');
-    }
-    console.log('🔍 DEBUG - Key fields in payload:');
-    console.log('  - artistsHeading:', payload.artistsHeading, '(type:', typeof payload.artistsHeading, ')');
-    console.log('  - competitionsHeading:', payload.competitionsHeading, '(type:', typeof payload.competitionsHeading, ')');
-    console.log('  - contacts:', payload.contacts, '(type:', typeof payload.contacts, ', length:', payload.contacts?.length, ')');
-    console.log('  - registration.mode:', payload.registration.mode, '(type:', typeof payload.registration.mode, ')');
-    console.log('  - form.artistsHeading:', form.artistsHeading, '(type:', typeof form.artistsHeading, ')');
-    console.log('  - form.competitionsHeading:', form.competitionsHeading, '(type:', typeof form.competitionsHeading, ')');
-    console.log('  - form.contacts:', form.contacts, '(type:', typeof form.contacts, ', length:', form.contacts?.length, ')');
-    console.log('  - form.registrationMode:', form.registrationMode, '(type:', typeof form.registrationMode, ')');
-    console.log('🔑 Admin token:', adminToken ? `Present (${adminToken.substring(0, 20)}...)` : 'Missing');
 
-    const result = await adminFetchJSON(path, {
-      method: fest ? 'PUT' : 'POST',
-      body: JSON.stringify(payload),
-    });
+    const result = api?.saveFest
+      ? await api.saveFest({ festId: fest?._id, payload })
+      : await adminFetchJSON(path, {
+          method: fest ? 'PUT' : 'POST',
+          body: JSON.stringify(payload),
+        });
     console.log('✅ Success result:', result);
 
     // ✅ CRITICAL: Add cache busting to ensure changes are visible immediately
@@ -1528,10 +1551,14 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
 
     // 5. Clear server-side cache so production website updates instantly
     try {
-      await adminFetch('/admin/clear-cache', {
-        method: 'POST',
-        credentials: 'include',
-      });
+      if (api?.clearCache) {
+        await api.clearCache();
+      } else {
+        await adminFetch('/admin/clear-cache', {
+          method: 'POST',
+          credentials: 'include',
+        });
+      }
       console.log('✅ Server cache cleared');
     } catch (cacheErr) {
       console.warn('⚠️ Could not clear server cache:', cacheErr);
@@ -1552,7 +1579,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
 };
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[200] p-4">
       <div className="bg-[#111213] rounded-xl w-full max-w-5xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="sticky top-0 bg-[#111213] border-b border-gray-800 p-6 flex items-center justify-between z-10">
@@ -1725,47 +1752,70 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                 <p className="text-xs text-gray-500 mt-1">Set to 0 for free. When &gt; 0, users pay via Cashfree before registering.</p>
               </div>
 
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-2">Fest Images (can add more than one)</label>
-                <div className="border-2 border-dashed border-gray-700 rounded-lg p-4 text-center">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={(e) => handleMultipleImageUpload(e.target.files)}
-                    className="hidden"
-                    id="fest-images"
-                    disabled={uploadingImage}
-                  />
-                  <label
-                    htmlFor="fest-images"
-                    className={`cursor-pointer flex flex-col items-center gap-2 ${uploadingImage ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  >
-                    {uploadingImage ? (
-                      <Loader className="w-6 h-6 animate-spin text-[#0ECCEE]" />
-                    ) : (
-                      <Upload className="w-6 h-6 text-gray-400" />
-                    )}
-                    <span className="text-sm text-gray-400">
-                      {uploadingImage ? 'Uploading...' : 'Click to upload fest images (multiple allowed)'}
-                    </span>
-                  </label>
-                </div>
-                {form.festImages && form.festImages.length > 0 && (
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-                    {form.festImages.map((img, idx) => (
-                      <div key={idx} className="relative group">
-                        <img src={img} alt={`Fest ${idx + 1}`} className="w-full h-24 object-cover rounded-lg" />
-                        <button
-                          onClick={() => setForm({ ...form, festImages: form.festImages.filter((_, i) => i !== idx) })}
-                          className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <X size={14} />
-                        </button>
-                      </div>
-                    ))}
+              <div className="md:col-span-2 space-y-5">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Cover image</label>
+                  <p className="text-xs text-gray-500 mb-2">Main image on the fest page hero / cards</p>
+                  <div className="border-2 border-dashed border-gray-700 rounded-lg p-4 text-center">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = '';
+                        if (!file) return;
+                        await handleImageUpload(file, 'coverImage');
+                      }}
+                      className="hidden"
+                      id="fest-cover-image"
+                      disabled={uploadingImage}
+                    />
+                    <label
+                      htmlFor="fest-cover-image"
+                      className={`cursor-pointer flex flex-col items-center gap-2 ${uploadingImage ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      {uploadingImage ? (
+                        <Loader className="w-6 h-6 animate-spin text-[#0ECCEE]" />
+                      ) : form.coverImage ? (
+                        <img src={form.coverImage} alt="Cover" className="w-full max-h-40 object-cover rounded-lg" />
+                      ) : (
+                        <Upload className="w-6 h-6 text-gray-400" />
+                      )}
+                      <span className="text-sm text-gray-400">
+                        {uploadingImage ? 'Uploading...' : form.coverImage ? 'Change cover image' : 'Upload cover image'}
+                      </span>
+                    </label>
                   </div>
-                )}
+                  {form.coverImage ? (
+                    <button
+                      type="button"
+                      onClick={() => setForm({ ...form, coverImage: '' })}
+                      className="mt-2 text-xs text-red-400 hover:text-red-300"
+                    >
+                      Remove cover
+                    </button>
+                  ) : null}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Gallery</label>
+                  <p className="text-xs text-gray-500 mb-3">
+                    Extra photos for the scrollable Gallery section at the bottom of the fest page (same as run clubs / runs)
+                  </p>
+                  <GalleryImagesUploadField
+                    value={form.galleryImages?.length ? form.galleryImages : form.festImages}
+                    onChange={(galleryImages) => setForm({
+                      ...form,
+                      galleryImages,
+                      festImages: galleryImages,
+                    })}
+                    onError={(msg) => setError(`Gallery upload failed: ${msg}`)}
+                    onUploadingChange={setUploadingGallery}
+                    uploadImages={api?.uploadImages}
+                    hint=""
+                    uploadLabel="Add gallery images"
+                  />
+                </div>
               </div>
             </div>
 
@@ -1778,6 +1828,104 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
               />
+            </div>
+
+            <div className="space-y-3 pt-2 border-t border-gray-800">
+              <div>
+                <h4 className="text-sm font-semibold text-white">Related / similar fests</h4>
+                <p className="text-xs text-gray-400 mt-1">
+                  Pinned first on the public fest page. Leave empty to auto-match by fest type
+                  ({form.festType || 'cultural'}).
+                </p>
+              </div>
+              {(() => {
+                const selfId = fest?._id ? String(fest._id) : null;
+                const selected = new Set((form.relatedFestIds || []).map(String));
+                const q = relatedFestSearch.trim().toLowerCase();
+                const candidates = (relatedFestOptions || [])
+                  .filter((f) => f && f._id && String(f._id) !== selfId)
+                  .filter((f) => !form.festType || f.festType === form.festType || selected.has(String(f._id)))
+                  .filter((f) => {
+                    if (!q) return true;
+                    const hay = `${f.festName || ''} ${f.collegeName || ''}`.toLowerCase();
+                    return hay.includes(q);
+                  })
+                  .slice(0, 40);
+
+                const toggleRelated = (id) => {
+                  const key = String(id);
+                  setForm((prev) => {
+                    const cur = Array.isArray(prev.relatedFestIds) ? prev.relatedFestIds.map(String) : [];
+                    const next = cur.includes(key)
+                      ? cur.filter((x) => x !== key)
+                      : [...cur, key];
+                    return { ...prev, relatedFestIds: next };
+                  });
+                };
+
+                return (
+                  <>
+                    <input
+                      type="search"
+                      placeholder="Search fests by name or college…"
+                      className="w-full px-3 py-2 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                      value={relatedFestSearch}
+                      onChange={(e) => setRelatedFestSearch(e.target.value)}
+                    />
+                    {selected.size > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {(form.relatedFestIds || []).map((id) => {
+                          const row = (relatedFestOptions || []).find((f) => String(f._id) === String(id));
+                          return (
+                            <button
+                              key={String(id)}
+                              type="button"
+                              onClick={() => toggleRelated(id)}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs bg-[#0ECCEE]/15 text-[#0ECCEE] border border-[#0ECCEE]/40"
+                              title="Click to unpin"
+                            >
+                              {row?.festName || String(id).slice(-6)}
+                              <span aria-hidden>×</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                    <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-700 divide-y divide-gray-800">
+                      {candidates.length === 0 ? (
+                        <p className="px-3 py-4 text-xs text-gray-500">
+                          No other fests of this type yet. Auto-match will still run when more exist.
+                        </p>
+                      ) : (
+                        candidates.map((f) => {
+                          const id = String(f._id);
+                          const checked = selected.has(id);
+                          return (
+                            <label
+                              key={id}
+                              className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-[#1D1E20]"
+                            >
+                              <input
+                                type="checkbox"
+                                className="rounded border-gray-600 text-[#0ECCEE] focus:ring-[#0ECCEE]"
+                                checked={checked}
+                                onChange={() => toggleRelated(id)}
+                              />
+                              <span className="min-w-0 flex-1">
+                                <span className="block text-sm text-white truncate">{f.festName}</span>
+                                <span className="block text-[11px] text-gray-400 truncate">
+                                  {f.collegeName}
+                                  {f.festType ? ` · ${f.festType}` : ''}
+                                </span>
+                              </span>
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
           )}
@@ -2030,6 +2178,13 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
           {step === 5 && (
           <div className="space-y-4">
             <h4 className="text-lg font-semibold border-b border-gray-700 pb-2">Registration Configuration</h4>
+
+            <div className="rounded-lg border border-cyan-800/40 bg-cyan-950/20 p-4 text-sm text-cyan-100">
+              <p className="font-medium mb-1">Common form for all competitions</p>
+              <p className="text-cyan-200/80 text-xs">
+                When competitions use fest registration (default), this single form and Cashfree checkout apply to every competition under this fest. Per-competition fees are set on each competition.
+              </p>
+            </div>
             
             {/* Registration Mode Selection */}
             <div className="space-y-3">
@@ -2103,8 +2258,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                 <div className="bg-[#1D1E20] p-4 rounded-lg">
                   <h5 className="text-lg font-medium mb-4 text-[#0ECCEE] border-b border-gray-600 pb-2">Basic Configuration</h5>
                   
-                  <div className="grid grid-cols-1 gap-4">
-                    {/* Organizer Email */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <label className="block text-sm font-medium mb-2">Organizer Email *</label>
                       <input
@@ -2116,6 +2270,23 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                       />
                       <p className="text-xs text-gray-400">Registration confirmation emails will be sent to this email</p>
                     </div>
+                    {!api ? (
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium mb-2">
+                        Platform fee % <span className="text-gray-400 font-normal text-xs">— 0 = no CrwdCtrl fee</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="10"
+                        step="0.5"
+                        className="w-full px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none"
+                        value={form.platformFeePercent ?? 3}
+                        onChange={(e) => setForm({ ...form, platformFeePercent: Number(e.target.value) })}
+                      />
+                      <p className="text-xs text-gray-400">Set 0 so participants pay only the competition fee via Cashfree.</p>
+                    </div>
+                    ) : null}
                   </div>
                 </div>
 
@@ -2125,7 +2296,7 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                   
                   {/* Google Sheets URL */}
                   <div className="space-y-2">
-                    <label className="block text-sm font-medium mb-2">Google Sheets URL *</label>
+                    <label className="block text-sm font-medium mb-2">Google Sheets URL <span className="text-gray-400 font-normal">(optional)</span></label>
                     <div className="flex gap-2">
                       <input
                         type="url"
@@ -2179,6 +2350,51 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                   </div>
                 </div>
 
+                {/* Section 3–4: classic fest form builder (not MindSpark — comps use roster form) */}
+                {mindSpark ? (
+                  <div className="space-y-4">
+                    <div className="rounded-lg border border-[#0ECCEE]/30 bg-[#0ECCEE]/5 p-4">
+                      <p className="text-sm font-medium text-[#0ECCEE]">MindSpark registration forms</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        Participant fields are configured per competition (team size → Person 1…N). Open a competition
+                        in Edit listing / Competitions and use <span className="text-white">Per-person form fields</span>.
+                        Fest-level Cashfree / sheets settings above still apply when competitions use fest registration.
+                      </p>
+                    </div>
+
+                    <div className="bg-[#1D1E20] p-4 rounded-lg space-y-4">
+                      <h5 className="text-lg font-medium text-[#0ECCEE] border-b border-gray-600 pb-2">
+                        Participant resources (all competitions)
+                      </h5>
+                      <div>
+                        <label className="block text-sm font-medium mb-2">
+                          Overall sheet URL <span className="text-gray-400 font-normal">(shown after register)</span>
+                        </label>
+                        <input
+                          type="url"
+                          placeholder="https://docs.google.com/spreadsheets/d/..."
+                          className="w-full px-3 py-2 rounded-lg bg-[#111213] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-sm"
+                          value={form.overallSheetUrl || ''}
+                          onChange={(e) => setForm({ ...form, overallSheetUrl: e.target.value })}
+                        />
+                        <p className="text-xs text-gray-400 mt-1">
+                          One master sheet / drive link for all MindSpark comps. Separate from the auto-append Google Sheets URL above.
+                        </p>
+                      </div>
+                      {ResourceLinksEditor ? (
+                        <ResourceLinksEditor
+                          links={form.resourceLinks}
+                          onChange={(resourceLinks) => setForm({ ...form, resourceLinks })}
+                          title="Links for all competitions"
+                          hint="Rulebook, schedule, Discord, etc. — shown on every competition success screen"
+                        />
+                      ) : null}
+                    </div>
+
+                    {WhatsAppAdmin ? <WhatsAppAdmin festId={fest?._id || fest?.id} api={api} /> : null}
+                  </div>
+                ) : (
+                  <>
                 {/* Section 3: Form Type Selection */}
                 <div className="bg-[#1D1E20] p-4 rounded-lg">
                   <h5 className="text-lg font-medium mb-4 text-[#0ECCEE] border-b border-gray-600 pb-2">Form Configuration</h5>
@@ -2223,8 +2439,15 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                 {/* Section 4: Form Fields - Single Step */}
                 {form.formType === 'SINGLE_STEP' && (
                   <div className="bg-[#1D1E20] p-4 rounded-lg">
-                    <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
                       <h5 className="text-lg font-medium text-[#0ECCEE] border-b border-gray-600 pb-2 flex-1">Registration Form Fields</h5>
+                      <button
+                        type="button"
+                        onClick={applyDefaultRegistrationFields}
+                        className="px-3 py-1 bg-gray-700 text-white rounded-lg text-sm font-medium hover:bg-gray-600 transition-colors"
+                      >
+                        Use default fields
+                      </button>
                       <button
                         type="button"
                         onClick={addFormField}
@@ -2358,6 +2581,8 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
                     </div>
                   </div>
                 )}
+                  </>
+                )}
 
                 {/* Section 5: Payment Information - Compact */}
                 <div className="bg-[#1D1E20] p-4 rounded-lg">
@@ -2428,10 +2653,10 @@ export default function FestFormModal({ fest, onClose, onSaved }) {
           </button>
           <button
             onClick={submit}
-            disabled={loading || uploadingImage}
+            disabled={loading || uploadingImage || uploadingGallery}
             className="px-6 py-2 rounded-lg bg-[#0ECCEE] text-black font-semibold hover:bg-[#0ECCEE]/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'Saving...' : 'Save Fest'}
+            {loading ? 'Saving...' : uploadingGallery ? 'Uploading…' : 'Save Fest'}
           </button>
         </div>
       </div>

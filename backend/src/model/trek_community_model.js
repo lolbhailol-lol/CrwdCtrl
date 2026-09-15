@@ -1,17 +1,47 @@
 const mongoose = require('mongoose');
+const coverImagesSchema = require('./coverImagesSchema');
+const { ensureUniqueSlug } = require('../utils/slug');
+
+const communityContactSchema = new mongoose.Schema(
+    {
+        name:  { type: String, trim: true, default: '' },
+        role:  { type: String, trim: true, default: '' },
+        phone: { type: String, trim: true, default: '' },
+    },
+    { _id: false },
+);
 
 const trekCommunitySchema = new mongoose.Schema(
     {
         name:              { type: String, required: true, trim: true },
+        /** Unique URL slug — avoids /treks/community/{name} opening the wrong community */
+        slug:              { type: String, trim: true, lowercase: true },
         basedIn:           { type: String, trim: true, default: '' },
         aboutUs:           { type: String, trim: true, default: '' },
         trekCategories:    { type: [String], default: [] },
         coverImage:        { type: String, trim: true, default: '' },
+        coverImages:       { type: coverImagesSchema, default: () => ({}) },
         galleryImages:     { type: [String], default: [] },
         contactPhone:      { type: String, trim: true, default: '' },
         contactInstagram:  { type: String, trim: true, default: '' },
+        /** WhatsApp / Telegram group invite link — shown as Join Community on trek & community pages */
+        groupLink:         { type: String, trim: true, default: '' },
+        /** Repeatable point-of-contact list (name + role + phone) */
+        contacts:          { type: [communityContactSchema], default: [] },
         status:            { type: String, enum: ['published', 'draft'], default: 'published' },
+        /**
+         * Online checkout for this community's treks.
+         * razorpay = organizer Razorpay merchant keys (env RAZORPAY_*); cashfree = Cashfree.
+         */
+        paymentGateway:    { type: String, enum: ['cashfree', 'razorpay'], default: 'cashfree' },
+        /**
+         * Which Cashfree account when paymentGateway is cashfree.
+         * platform = main CrwdCtrl (CASHFREE_*); events = Delulu / events hub (CASHFREE_EVENTS_*).
+         */
+        cashfreeMerchant:  { type: String, enum: ['platform', 'events'], default: 'platform' },
         homeSection:       { type: String, default: null },
+        /** Home page hero / moving banner */
+        showOnHomeSlide:   { type: Boolean, default: false },
         customPageSections: [{
             page: { type: String, required: true },
             sectionSlug: { type: String, required: true },
@@ -24,6 +54,17 @@ const trekCommunitySchema = new mongoose.Schema(
     },
     { timestamps: true }
 );
+
+trekCommunitySchema.index({ slug: 1 }, { unique: true, sparse: true });
+
+trekCommunitySchema.pre('save', async function assignCommunitySlug() {
+    if (this.isModified('name') || !this.slug) {
+        const nextSlug = await ensureUniqueSlug(this.constructor, this.name, {
+            excludeId: this._id,
+        });
+        if (nextSlug) this.slug = nextSlug;
+    }
+});
 
 module.exports = mongoose.models.TrekCommunity
     || mongoose.model('TrekCommunity', trekCommunitySchema);

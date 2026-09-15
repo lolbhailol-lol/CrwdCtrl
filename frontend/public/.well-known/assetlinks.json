@@ -5,7 +5,8 @@
       "namespace": "android_app",
       "package_name": "in.crwdctrl.app",
       "sha256_cert_fingerprints": [
-        "REPLACE_WITH_YOUR_RELEASE_SHA256_FINGERPRINT"
+        "9F:96:9B:BE:AA:60:15:95:A4:DF:43:95:9D:B1:8F:D3:18:11:46:37:19:6F:5D:8A:8D:43:26:B2:E6:10:99:04",
+        "4A:D7:CD:F6:ED:30:24:CE:62:A3:DB:92:1C:9F:F8:F7:FB:CF:15:54:89:58:66:2A:4C:10:66:E5:B4:1C:BE:80"
       ]
     }
   }

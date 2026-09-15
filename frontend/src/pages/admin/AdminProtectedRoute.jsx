@@ -1,7 +1,8 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useEffect, useState } from 'react';
-import { getAdminToken, clearAdminSession, adminFetch } from '../../utils/adminApi';
+import { getAdminToken, clearAdminSession, adminFetch } from '../../services/api/admin.api.js';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 
 function parseAdminToken(token) {
   try {
@@ -41,11 +42,7 @@ export default function AdminProtectedRoute({ children }) {
   }, []);
 
   if (isLoading || (hasStoredToken && verified === null)) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-gray-400">Loading...</div>
-      </div>
-    );
+    return <InlinePageLoader label="Loading admin" minHeight className="min-h-screen" />;
   }
 
   if (verified === false || (!hasStoredToken && verified !== true)) {

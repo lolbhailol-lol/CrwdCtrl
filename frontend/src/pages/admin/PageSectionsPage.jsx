@@ -3,21 +3,26 @@ import { Link } from 'react-router-dom';
 import {
     AlertCircle, ArrowRight, Layers, LayoutGrid, Loader2, Plus, Sparkles,
 } from 'lucide-react';
-import { adminFetchJSON } from '../../utils/adminApi';
+import { adminFetchJSON } from '../../services/api/admin.api.js';
 import { getCardSizeShortLabel } from '../../utils/homeCardSize';
 import { getTargetPageLabel } from '../../utils/pageSections';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 import CardSizePicker from '../../components/admin/CardSizePicker';
 import TargetPagePicker from '../../components/admin/TargetPagePicker';
 import SectionListByPage from '../../components/admin/SectionListByPage';
 import SectionLivePreview from '../../components/admin/SectionLivePreview';
+import HomeFeaturedSlotsEditor from '../../components/admin/HomeFeaturedSlotsEditor';
+import { useDialog } from '../../context/DialogContext';
 
 export default function PageSectionsPage() {
+    const { confirm } = useDialog();
     const [sections, setSections] = useState([]);
     const [fests, setFests] = useState([]);
     const [treks, setTreks] = useState([]);
     const [comms, setComms] = useState([]);
     const [sports, setSports] = useState([]);
     const [runClubs, setRunClubs] = useState([]);
+    const [eventShows, setEventShows] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
@@ -37,19 +42,22 @@ export default function PageSectionsPage() {
     const notifySite = () => {
         localStorage.setItem('admin_data_updated', Date.now().toString());
         setTimeout(() => localStorage.removeItem('admin_data_updated'), 1000);
+        // Same-tab listeners (storage events only fire across tabs)
+        window.dispatchEvent(new Event('admin_data_updated'));
     };
 
     const fetchAll = useCallback(async () => {
         setLoading(true);
         setError('');
         try {
-            const [sectionData, festData, trekData, commData, sportData, clubData] = await Promise.all([
+            const [sectionData, festData, trekData, commData, sportData, clubData, eventData] = await Promise.all([
                 adminFetchJSON('/admin/homepage-sections'),
                 adminFetchJSON('/admin/fests?limit=500'),
                 adminFetchJSON('/admin/treks?limit=500'),
                 adminFetchJSON('/admin/trek-communities?limit=500'),
                 adminFetchJSON('/admin/sports?limit=500'),
                 adminFetchJSON('/admin/run-clubs?limit=500'),
+                adminFetchJSON('/admin/events?limit=500'),
             ]);
             setSections(Array.isArray(sectionData.sections) ? sectionData.sections : []);
             setFests(Array.isArray(festData.fests) ? festData.fests : []);
@@ -57,6 +65,7 @@ export default function PageSectionsPage() {
             setComms(Array.isArray(commData.communities) ? commData.communities : []);
             setSports(Array.isArray(sportData.events) ? sportData.events : []);
             setRunClubs(Array.isArray(clubData.clubs) ? clubData.clubs : []);
+            setEventShows(Array.isArray(eventData.shows) ? eventData.shows : []);
         } catch (e) {
             setError(e.message || 'Failed to load data');
         } finally {
@@ -117,7 +126,7 @@ export default function PageSectionsPage() {
     };
 
     const handleDelete = async (id) => {
-        if (!window.confirm('Delete this section? Items assigned to it will be unassigned.')) return;
+        if (!(await confirm({ title: 'Delete section?', message: 'Delete this section? Items assigned to it will be unassigned.', confirmText: 'Delete', tone: 'danger' }))) return;
         try {
             await adminFetchJSON(`/admin/homepage-sections/${id}`, { method: 'DELETE' });
             setSections((prev) => prev.filter((s) => s._id !== id));
@@ -153,12 +162,7 @@ export default function PageSectionsPage() {
     };
 
     if (loading) {
-        return (
-            <div className="flex flex-col items-center justify-center gap-3 py-24">
-                <Loader2 size={28} className="animate-spin text-[#0ECCEE]" />
-                <p className="text-sm text-gray-500">Loading page sections…</p>
-            </div>
-        );
+        return <InlinePageLoader label="Loading page sections…" />;
     }
 
     return (
@@ -217,6 +221,15 @@ export default function PageSectionsPage() {
                     <Sparkles size={16} className="shrink-0" /> {success}
                 </div>
             )}
+
+            <HomeFeaturedSlotsEditor
+                fests={fests}
+                eventShows={eventShows}
+                treks={treks}
+                communities={comms}
+                sports={sports}
+                runClubs={runClubs}
+            />
 
             {/* Wizard + live preview */}
             <div className="grid xl:grid-cols-[1fr_minmax(280px,320px)] gap-5 items-start">
@@ -280,6 +293,8 @@ export default function PageSectionsPage() {
                         treks={treks}
                         comms={comms}
                         sports={sports}
+                        runClubs={runClubs}
+                        eventShows={eventShows}
                     />
                 </div>
             </div>
@@ -291,6 +306,7 @@ export default function PageSectionsPage() {
                 comms={comms}
                 sports={sports}
                 runClubs={runClubs}
+                eventShows={eventShows}
                 saving={saving}
                 onUpdate={handleUpdate}
                 onTitleDraft={handleTitleDraft}

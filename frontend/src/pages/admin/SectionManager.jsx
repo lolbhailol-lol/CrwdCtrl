@@ -1,57 +1,61 @@
 import { createElement, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { AlertCircle, Check, ExternalLink, GripVertical, LayoutGrid, Layers, Loader2, RefreshCw, Search, Flag, Mountain, Users, Dumbbell, Footprints, Theater } from 'lucide-react';
+import { AlertCircle, Check, ExternalLink, GripVertical, LayoutGrid, Layers, Loader2, RefreshCw, Search, Flag, Mountain, Users, Users2, Dumbbell, Footprints, Theater, Calendar } from 'lucide-react';
 import { buildHomeCarouselItems, normalizeHomeCarouselItem } from '../../utils/homeCarouselItems';
 import { getCardSizeLabel } from '../../utils/homeCardSize';
-import { getTargetPageLabel } from '../../utils/pageSections';
-import { EVENTS_PAGE_SECTION_OPTS } from '../../constants/eventsPage';
-import { adminFetch, adminFetchJSON } from '../../utils/adminApi';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
+import {
+    getTargetPageLabel,
+    getCustomPageAssignmentKeys,
+    toggleCustomPageAssignment,
+    getHomeAssignmentSlugs,
+    applyHomeAssignmentSlugs,
+    isOnHomeHero,
+} from '../../utils/pageSections';
+import { EVENTS_PAGE_CHECK_OPTS } from '../../constants/eventsPage';
+import { eventCommunityIdSet, isEventHubSportsEvent } from '../../utils/listingHubCopy';
+import { runClubPath, sportRunPath } from '../../utils/slugRoutes';
+import { adminFetch, adminFetchJSON } from '../../services/api/admin.api.js';
+import { notifyAdminDataUpdated } from '../../utils/notifyAdminDataUpdated';
 
 // ── Section options ────────────────────────────────────────────────────────────
-const HOME_OPTS = [
-    { value: '',          label: '— None —' },
-    { value: 'trending',  label: 'Ongoing Events' },
-    { value: 'happening', label: '📍 Happening Near You' },
-    { value: 'slide',     label: '🎠 Featured Slide' },
+const HOME_CHECK_OPTS = [
+    { value: 'trending', label: 'Ongoing Events' },
+    { value: 'happening', label: 'Happening Near You' },
 ];
 const FEST_PAGE_OPTS = [
-    { value: 'ongoing',      label: '⭐ Featured' },
-    { value: 'upcoming',     label: '📋 Listed' },
+    { value: 'ongoing', label: '⭐ Featured' },
+    { value: 'upcoming', label: '📋 Listed' },
     { value: 'beyondcampus', label: '🌍 Beyond Campus' },
-    { value: 'lastyearhit',  label: '🏆 Last Year Hit' },
-    { value: 'completed',    label: '✅ Completed' },
+    { value: 'lastyearhit', label: '🏆 Last Year Hit' },
+    { value: 'completed', label: '✅ Completed' },
 ];
-const TREK_PAGE_OPTS = [
-    { value: '',         label: '— None —' },
-    { value: 'hero',     label: '🎬 Coming Soon' },
-    { value: 'weekend',  label: '🏕️ Weekend Plans' },
-    { value: 'beginner', label: '🌿 Beginner Friendly' },
-    { value: 'both',     label: '🌟 Both Sections' },
+const TREK_PAGE_CHECK_OPTS = [
+    { value: 'hero', label: 'Coming Soon' },
+    { value: 'weekend', label: 'Weekend Plans' },
+    { value: 'beginner', label: 'Beginner Friendly' },
 ];
-const COMM_PAGE_OPTS = [
-    { value: 'communities', label: '🏔️ Explore Communities' },
-    { value: 'comingSoon',  label: '🎬 Coming Soon' },
-    { value: 'both',        label: '🌟 Both Sections' },
-    { value: 'hidden',      label: '🚫 Hidden' },
+const COMM_PAGE_CHECK_OPTS = [
+    { value: 'communities', label: 'Explore Communities' },
+    { value: 'comingSoon', label: 'Coming Soon' },
 ];
 const RUN_CLUB_PAGE_OPTS = [
     { value: 'run_clubs', label: '👟 Explore Run Clubs' },
-    { value: 'hidden',    label: '🚫 Hidden' },
-];
-const SPORTS_HOME_OPTS = [
-    { value: '',          label: '— None —' },
-    { value: 'trending',  label: 'Ongoing Events' },
-    { value: 'happening', label: '📍 Happening Near You' },
+    { value: 'hidden', label: '🚫 Hidden' },
 ];
 const RUN_PAGE_OPTS = [
     { value: 'upcoming', label: '🏃 Upcoming Activities' },
-    { value: 'hidden',   label: '🚫 Hidden from Page' },
+    { value: 'hidden', label: '🚫 Hidden from Page' },
+];
+const EVENT_HUB_PAGE_CHECK_OPTS = [
+    { value: 'community', label: 'Community Events' },
 ];
 
 const FEST_CUSTOM_PAGES = ['fests', 'cultural-fest', 'tech-fest', 'sports-fest', 'events'];
 const TREK_CUSTOM_PAGES = ['treks', 'events'];
 const SPORTS_CUSTOM_PAGES = ['sports', 'events'];
 const EVENTS_CUSTOM_PAGES = ['events'];
+const EVENT_COMMUNITY_CUSTOM_PAGES = ['events'];
 
 function parseCustomPageValue(val) {
     if (!val || !val.includes(':')) return null;
@@ -59,21 +63,55 @@ function parseCustomPageValue(val) {
     return { page, sectionSlug: rest.join(':') };
 }
 
-function getCustomPageValue(entity, pages) {
-    const match = (entity.customPageSections || []).find((a) => pages.includes(a.page));
-    return match ? `${match.page}:${match.sectionSlug}` : '';
+function buildCustomPageCheckOpts(sections, pages) {
+    return (sections || [])
+        .filter((s) => s.enabled !== false && pages.includes(s.targetPage || 'home'))
+        .map((s) => ({
+            value: `${s.targetPage}:${s.slug}`,
+            label: `${getTargetPageLabel(s.targetPage)} — ${s.title}`,
+        }));
 }
 
-function buildCustomPageOpts(sections, pages) {
-    return [
-        { value: '', label: '— None —' },
-        ...sections
-            .filter((s) => s.enabled !== false && pages.includes(s.targetPage || 'home'))
-            .map((s) => ({
-                value: `${s.targetPage}:${s.slug}`,
-                label: `✨ ${getTargetPageLabel(s.targetPage)} — ${s.title}`,
-            })),
-    ];
+function buildHomeCheckOpts(customSections) {
+    const custom = (customSections || [])
+        .filter((s) => s.enabled !== false && (s.targetPage || 'home') === 'home')
+        .map((s) => ({ value: s.slug, label: `✨ ${s.title}` }));
+    return [...HOME_CHECK_OPTS, ...custom];
+}
+
+function getTrekPageChecks(featured) {
+    if (featured === 'both') return ['hero', 'weekend'];
+    if (featured === 'hero' || featured === 'weekend' || featured === 'beginner') return [featured];
+    return [];
+}
+
+function toTrekFeaturedSection(checks) {
+    const set = new Set(checks || []);
+    const hasH = set.has('hero');
+    const hasW = set.has('weekend');
+    const hasB = set.has('beginner');
+    if (hasB && !hasH && !hasW) return 'beginner';
+    if (hasH && hasW) return 'both';
+    if (hasH) return 'hero';
+    if (hasW) return 'weekend';
+    if (hasB) return 'beginner';
+    return null;
+}
+
+function getCommPageChecks(c) {
+    if (c.showOnTreks === false) return [];
+    const sec = c.trekPageSection || 'communities';
+    if (sec === 'both') return ['communities', 'comingSoon'];
+    if (sec === 'comingSoon') return ['comingSoon'];
+    return ['communities'];
+}
+
+function toCommPageSection(checks) {
+    const set = new Set(checks || []);
+    if (set.has('communities') && set.has('comingSoon')) return 'both';
+    if (set.has('comingSoon')) return 'comingSoon';
+    if (set.has('communities')) return 'communities';
+    return null;
 }
 
 // ── Shared UI helpers ──────────────────────────────────────────────────────────
@@ -87,16 +125,187 @@ function SaveDot({ state }) {
     return <span className="w-3 shrink-0" />;
 }
 
-/* Assign = section dropdown only (order is set in Reorder mode) */
+/** Multi-select checkboxes — one item can sit in many sections. */
+function AssignCheckGroup({ label, options, selected = [], onToggle, saveKey, saving, emptyHint }) {
+    const selectedSet = useMemo(() => new Set(selected), [selected]);
+    const count = selected.filter(Boolean).length;
+    return (
+        <div className={`rounded-xl border px-2.5 py-2 min-w-[11rem] max-w-[16rem] ${
+            count > 0 ? 'bg-[#0ECCEE]/8 border-[#0ECCEE]/30 shadow-[inset_0_0_0_1px_rgba(14,204,238,0.08)]' : 'bg-[#0D0E10] border-white/8'
+        }`}>
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500">{label}</p>
+                <div className="flex items-center gap-1.5">
+                    {count > 0 && (
+                        <span className="text-[9px] font-bold text-[#0ECCEE]/80 bg-[#0ECCEE]/10 px-1.5 py-0.5 rounded-full">
+                            {count}
+                        </span>
+                    )}
+                    <SaveDot state={saving?.[saveKey]} />
+                </div>
+            </div>
+            {!options.length ? (
+                <div className="text-[10px] text-gray-600 leading-snug">{emptyHint || 'No sections yet'}</div>
+            ) : (
+                <div className="space-y-0.5 max-h-36 overflow-y-auto pr-0.5">
+                    {options.map((o) => {
+                        const checked = selectedSet.has(o.value);
+                        return (
+                            <label
+                                key={o.value}
+                                className={`flex items-start gap-2 cursor-pointer rounded-lg px-1.5 py-1.5 transition-colors ${
+                                    checked ? 'bg-[#0ECCEE]/10' : 'hover:bg-white/5'
+                                }`}
+                            >
+                                <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={(e) => onToggle(o.value, e.target.checked)}
+                                    className="mt-0.5 rounded border-gray-600 text-[#0ECCEE] focus:ring-[#0ECCEE]/40"
+                                />
+                                <span className={`text-[11px] leading-snug ${checked ? 'text-[#0ECCEE] font-medium' : 'text-gray-400'}`}>
+                                    {o.label}
+                                </span>
+                            </label>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
+}
+
+function MetaChip({ children, tone = 'neutral' }) {
+    const tones = {
+        neutral: 'bg-white/5 text-gray-400 border-white/10',
+        sky: 'bg-sky-500/15 text-sky-300 border-sky-500/25',
+        emerald: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/25',
+        amber: 'bg-amber-500/15 text-amber-300 border-amber-500/25',
+    };
+    return (
+        <span className={`inline-flex items-center gap-1 max-w-full truncate text-[10px] font-semibold px-2 py-0.5 rounded-full border ${tones[tone] || tones.neutral}`}>
+            {children}
+        </span>
+    );
+}
+
+/** Shared assign-mode row shell */
+function AssignEntityRow({ children, className = '' }) {
+    return (
+        <div className={`flex items-start gap-3 px-3.5 py-3 mx-2 my-1.5 rounded-xl border border-white/6 bg-[#121314] hover:border-white/12 hover:bg-[#151618] transition-colors flex-wrap ${className}`}>
+            {children}
+        </div>
+    );
+}
+
+/* Single-select — status / hide fields only */
 function AssignPill({ selectValue, selectOpts, onSelect, saveKey, saving }) {
     const isSet = selectValue && selectValue !== '';
     return (
         <div className={`flex items-center gap-1.5 rounded-xl px-2 py-2 border transition-colors min-w-44 ${isSet ? 'bg-[#0ECCEE]/5 border-[#0ECCEE]/25' : 'bg-[#0D0E10] border-white/8'}`}>
-            <select value={selectValue} onChange={e => onSelect(e.target.value)}
+            <select value={selectValue} onChange={(e) => onSelect(e.target.value)}
                 className={`${sel} ${isSet ? 'text-[#0ECCEE]' : 'text-gray-400'}`}>
-                {selectOpts.map(o => <option key={o.value} value={o.value} className={opt}>{o.label}</option>)}
+                {selectOpts.map((o) => <option key={o.value} value={o.value} className={opt}>{o.label}</option>)}
             </select>
             <SaveDot state={saving[saveKey]} />
+        </div>
+    );
+}
+
+// ── Editable home carousel headings ─────────────────────────────────────────────
+const HOME_HEADING_FIELDS = [
+    { key: 'ongoing',   label: 'Ongoing Events section',     placeholder: 'Ongoing Events' },
+    { key: 'happening', label: 'Happening Near You section', placeholder: 'Happening near you' },
+];
+
+function HomeHeadingsEditor() {
+    const [labels, setLabels] = useState({});
+    const [initial, setInitial] = useState({});
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [saved, setSaved] = useState(false);
+    const [error, setError] = useState('');
+
+    useEffect(() => {
+        let active = true;
+        (async () => {
+            try {
+                const data = await adminFetchJSON('/admin/site-settings/home-section-labels');
+                if (!active) return;
+                const l = data?.labels || {};
+                setLabels(l);
+                setInitial(l);
+            } catch (_) {
+                if (active) setError('Could not load headings');
+            } finally {
+                if (active) setLoading(false);
+            }
+        })();
+        return () => { active = false; };
+    }, []);
+
+    const update = (k, v) => { setLabels((p) => ({ ...p, [k]: v })); setSaved(false); };
+    const dirty = HOME_HEADING_FIELDS.some((f) => (labels[f.key] || '') !== (initial[f.key] || ''));
+
+    const save = async () => {
+        setSaving(true);
+        setError('');
+        try {
+            const payload = {};
+            HOME_HEADING_FIELDS.forEach((f) => {
+                payload[f.key] = (labels[f.key] || '').trim() || f.placeholder;
+            });
+            const data = await adminFetchJSON('/admin/site-settings/home-section-labels', {
+                method: 'PUT',
+                body: JSON.stringify({ labels: payload }),
+            });
+            const l = data?.labels || payload;
+            setLabels(l);
+            setInitial(l);
+            setSaved(true);
+            localStorage.setItem('admin_data_updated', Date.now().toString());
+            setTimeout(() => localStorage.removeItem('admin_data_updated'), 1000);
+            setTimeout(() => setSaved(false), 2000);
+        } catch (err) {
+            setError(err.message || 'Failed to save');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <div className="rounded-2xl border border-white/8 bg-[#17181A] px-5 py-4">
+            <div className="flex items-center justify-between gap-3 mb-3">
+                <div>
+                    <h2 className="text-sm font-bold text-white">Home Section Headings</h2>
+                    <p className="text-xs text-gray-500 mt-0.5">Rename the fixed carousels shown on the home page</p>
+                </div>
+                <button
+                    type="button"
+                    onClick={save}
+                    disabled={saving || loading || !dirty}
+                    className="flex items-center gap-1.5 px-3.5 py-2 bg-[#0ECCEE] hover:bg-[#3dd8f5] rounded-xl text-xs font-bold text-black transition-colors disabled:opacity-40"
+                >
+                    {saving ? <Loader2 size={13} className="animate-spin" /> : saved ? <Check size={13} /> : null}
+                    {saving ? 'Saving' : saved ? 'Saved' : 'Save'}
+                </button>
+            </div>
+            {error && <p className="text-xs text-red-400 mb-2">{error}</p>}
+            <div className="grid sm:grid-cols-2 gap-3">
+                {HOME_HEADING_FIELDS.map((f) => (
+                    <div key={f.key}>
+                        <label className="block text-xs text-gray-400 mb-1">{f.label}</label>
+                        <input
+                            type="text"
+                            value={labels[f.key] ?? ''}
+                            onChange={(e) => update(f.key, e.target.value)}
+                            placeholder={f.placeholder}
+                            disabled={loading}
+                            className="w-full bg-[#0D0E10] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#0ECCEE] disabled:opacity-50"
+                        />
+                    </div>
+                ))}
+            </div>
         </div>
     );
 }
@@ -130,6 +339,8 @@ const ASSIGN_TABS = [
     { id: 'communities', label: 'Communities', icon: Users },
     { id: 'runclubs', label: 'Run Clubs', icon: Footprints },
     { id: 'runs', label: 'Runs', icon: Dumbbell },
+    { id: 'eventcomms', label: 'Event Communities', icon: Users2 },
+    { id: 'communityevents', label: 'Community Events', icon: Calendar },
     { id: 'events', label: 'Events', icon: Theater },
 ];
 
@@ -166,8 +377,12 @@ function ModeSwitcher({ mode, onChange }) {
     );
 }
 
-function PreviewLink({ type, id }) {
-    const url = PREVIEW_URL[type]?.(id);
+function PreviewLink({ type, id, listingHub }) {
+    const url = type === 'runclub'
+        ? runClubPath({ _id: id, listingHub })
+        : type === 'sport'
+            ? sportRunPath({ _id: id, listingHub })
+            : PREVIEW_URL[type]?.(id);
     if (!url) return null;
     return (
         <a href={url} target="_blank" rel="noopener noreferrer" title="Preview on site"
@@ -211,6 +426,12 @@ const TREK_PAGE_SECTIONS = [
     { key: 'hero', label: '🎬 Coming Soon' },
     { key: 'weekend', label: '🏕️ Weekend Plans' },
     { key: 'beginner', label: '🌿 Beginner Friendly' },
+];
+
+/** Trek communities on /treks — separate from individual trek carousels */
+const TREK_COMMUNITY_PAGE_SECTIONS = [
+    { key: 'communities', label: '🧭 Explore Communities' },
+    { key: 'comingSoon', label: '✨ Coming Soon (Communities)' },
 ];
 
 const EVENTS_PAGE_SECTIONS = [
@@ -326,6 +547,15 @@ export default function SectionManager() {
     const [reordering, setReordering] = useState(false);
     const [customSections, setCustomSections] = useState([]);
 
+    const communityById = useMemo(() => {
+        const map = new Map();
+        for (const c of comms) {
+            if (c?._id) map.set(String(c._id), c);
+            if (c?.id) map.set(String(c.id), c);
+        }
+        return map;
+    }, [comms]);
+
     // ── Fetch ────────────────────────────────────────────────────────────────
     const fetchAll = useCallback(async () => {
         setLoading(true); setErrors({});
@@ -360,6 +590,36 @@ export default function SectionManager() {
 
     useEffect(() => { fetchAll(); }, [fetchAll]);
 
+    // Pick up newly created Page Sections without a full manual refresh
+    const refreshCustomSections = useCallback(() => {
+        adminFetchJSON('/admin/homepage-sections')
+            .then((sectionData) => {
+                if (sectionData) setCustomSections(Array.isArray(sectionData.sections) ? sectionData.sections : []);
+            })
+            .catch(() => {});
+    }, []);
+
+    useEffect(() => {
+        const onStorage = (e) => {
+            if (e.key === 'admin_data_updated' && e.newValue) fetchAll();
+        };
+        const onAdminUpdated = () => refreshCustomSections();
+        const onFocus = () => refreshCustomSections();
+        const onVisibility = () => {
+            if (document.visibilityState === 'visible') refreshCustomSections();
+        };
+        window.addEventListener('storage', onStorage);
+        window.addEventListener('admin_data_updated', onAdminUpdated);
+        window.addEventListener('focus', onFocus);
+        document.addEventListener('visibilitychange', onVisibility);
+        return () => {
+            window.removeEventListener('storage', onStorage);
+            window.removeEventListener('admin_data_updated', onAdminUpdated);
+            window.removeEventListener('focus', onFocus);
+            document.removeEventListener('visibilitychange', onVisibility);
+        };
+    }, [fetchAll, refreshCustomSections]);
+
     const syncUrl = useCallback((nextMode, nextTab) => {
         setSearchParams({ mode: nextMode, tab: nextTab }, { replace: true });
     }, [setSearchParams]);
@@ -367,6 +627,7 @@ export default function SectionManager() {
     const handleModeChange = useCallback((nextMode) => {
         setMode(nextMode);
         setSearch('');
+        if (nextMode === 'assign') refreshCustomSections();
         const tabs = nextMode === 'assign' ? ASSIGN_TABS : REORDER_TABS;
         setTab((prev) => {
             const nextTab = tabs.some((t) => t.id === prev)
@@ -375,7 +636,7 @@ export default function SectionManager() {
             syncUrl(nextMode, nextTab);
             return nextTab;
         });
-    }, [syncUrl]);
+    }, [syncUrl, refreshCustomSections]);
 
     const handleTabChange = useCallback((nextTab) => {
         setTab(nextTab);
@@ -395,8 +656,9 @@ export default function SectionManager() {
             await adminFetch(url, { method: 'PUT', body: JSON.stringify(body) });
             applyLocal?.();
             flash(key);
-            localStorage.setItem('admin_data_updated', Date.now().toString());
-            setTimeout(() => localStorage.removeItem('admin_data_updated'), 1000);
+            // Clear server-side cache so the public site reflects the change instantly
+            try { await adminFetch('/admin/clear-cache', { method: 'POST' }); } catch (_) { /* non-fatal */ }
+            notifyAdminDataUpdated();
         } catch (e) {
             setSaving(s => ({ ...s, [key]: 'error' }));
             setErrors(prev => ({ ...prev, save: e.message }));
@@ -411,10 +673,58 @@ export default function SectionManager() {
         });
     }, [patch]);
 
-    const saveFestHome = useCallback((id, val) => {
-        if (val === 'movingSlide') saveFest(id, { homeSection: null, showOnHomeSlide: true });
-        else saveFest(id, { homeSection: val || null, showOnHomeSlide: false });
-    }, [saveFest]);
+    const patchCustomSections = useCallback((entityType, id, body, saveSuffix = 'custom') => {
+        if (entityType === 'fest') {
+            patch(`/admin/fests/${id}`, `fest-${id}-${saveSuffix}`, body,
+                () => setFests((prev) => prev.map((f) => ((f._id || f.id) === id ? { ...f, ...body } : f))));
+        } else if (entityType === 'trek') {
+            patch(`/admin/treks/${id}`, `trek-${id}-${saveSuffix}`, body,
+                () => setTreks((prev) => prev.map((t) => (t._id === id ? { ...t, ...body } : t))));
+        } else if (entityType === 'community') {
+            patch(`/admin/trek-communities/${id}`, `comm-${id}-${saveSuffix}`, body,
+                () => setComms((prev) => prev.map((c) => (c._id === id ? { ...c, ...body } : c))));
+        } else if (entityType === 'sport') {
+            patch(`/admin/sports/${id}`, `sports-${id}-${saveSuffix}`, body,
+                () => setSports((prev) => prev.map((s) => (s._id === id ? { ...s, ...body } : s))));
+        } else if (entityType === 'runclub') {
+            patch(`/admin/run-clubs/${id}`, `runclub-${id}-${saveSuffix}`, body,
+                () => setRunClubs((prev) => prev.map((c) => (c._id === id ? { ...c, ...body } : c))));
+        } else if (entityType === 'events') {
+            patch(`/admin/events/${id}`, `events-${id}-${saveSuffix}`, body,
+                () => setEventShows((prev) => prev.map((s) => (s._id === id ? { ...s, ...body } : s))));
+        }
+    }, [patch]);
+
+    const saveEntityHomeMulti = useCallback((entityType, id, entity, slug, checked) => {
+        const current = new Set(getHomeAssignmentSlugs(entity));
+        if (isOnHomeHero(entity)) current.add('movingSlide');
+        if (slug === 'movingSlide') {
+            const withoutSlide = [...current].filter((s) => s !== 'movingSlide');
+            const fields = applyHomeAssignmentSlugs(entity, withoutSlide, { showOnHomeSlide: checked });
+            patchCustomSections(entityType, id, fields, 'home');
+            return;
+        }
+        if (checked) current.add(slug);
+        else current.delete(slug);
+        const slide = current.has('movingSlide');
+        const slugs = [...current].filter((s) => s !== 'movingSlide');
+        const fields = applyHomeAssignmentSlugs(entity, slugs, { showOnHomeSlide: slide });
+        patchCustomSections(entityType, id, fields, 'home');
+    }, [patchCustomSections]);
+
+    const saveEntityCustomToggle = useCallback((entityType, id, entity, pages, key, checked, priorityField) => {
+        const parsed = parseCustomPageValue(key);
+        if (!parsed || !pages.includes(parsed.page)) return;
+        const priority = priorityField ? (entity[priorityField] ?? 999) : 999;
+        const next = toggleCustomPageAssignment(entity, parsed.page, parsed.sectionSlug, checked, priority);
+        patchCustomSections(entityType, id, { customPageSections: next }, 'custom');
+    }, [patchCustomSections]);
+
+    const homeSelected = (entity) => {
+        const slugs = getHomeAssignmentSlugs(entity);
+        if (isOnHomeHero(entity)) return [...slugs, 'movingSlide'];
+        return slugs;
+    };
 
     const saveTrek = useCallback((id, fields) => {
         patch(`/admin/treks/${id}`, `trek-${id}-${Object.keys(fields)[0]}`, fields,
@@ -473,49 +783,25 @@ export default function SectionManager() {
         [fests, treks, comms, sports, runClubs, eventShows],
     );
 
-    const customHomeOpts = useMemo(
-        () => customSections
-            .filter((s) => s.enabled !== false && (s.targetPage || 'home') === 'home')
-            .map((s) => ({ value: s.slug, label: `✨ ${s.title}` })),
+    const homeCheckOpts = useMemo(
+        () => [{ value: 'movingSlide', label: 'Hero Banner' }, ...buildHomeCheckOpts(customSections)],
         [customSections],
     );
-
     const festCustomPageOpts = useMemo(
-        () => buildCustomPageOpts(customSections, FEST_CUSTOM_PAGES),
+        () => buildCustomPageCheckOpts(customSections, FEST_CUSTOM_PAGES),
         [customSections],
     );
     const trekCustomPageOpts = useMemo(
-        () => buildCustomPageOpts(customSections, TREK_CUSTOM_PAGES),
+        () => buildCustomPageCheckOpts(customSections, TREK_CUSTOM_PAGES),
         [customSections],
     );
     const sportsCustomPageOpts = useMemo(
-        () => buildCustomPageOpts(customSections, SPORTS_CUSTOM_PAGES),
+        () => buildCustomPageCheckOpts(customSections, SPORTS_CUSTOM_PAGES),
         [customSections],
     );
     const eventsCustomPageOpts = useMemo(
-        () => buildCustomPageOpts(customSections, EVENTS_CUSTOM_PAGES),
+        () => buildCustomPageCheckOpts(customSections, EVENTS_CUSTOM_PAGES),
         [customSections],
-    );
-
-    const festHomeSelectOpts = useMemo(
-        () => [
-            { value: '', label: '— None —' },
-            { value: 'movingSlide', label: '🎠 Moving Slide' },
-            { value: 'trending', label: 'Ongoing Events' },
-            { value: 'happening', label: '📍 Happening Near You' },
-            ...customHomeOpts,
-        ],
-        [customHomeOpts],
-    );
-
-    const entityHomeSelectOpts = useMemo(
-        () => [...HOME_OPTS, ...customHomeOpts],
-        [customHomeOpts],
-    );
-
-    const sportsHomeSelectOpts = useMemo(
-        () => [...SPORTS_HOME_OPTS, ...customHomeOpts],
-        [customHomeOpts],
     );
 
     const customCarousels = useMemo(
@@ -527,39 +813,6 @@ export default function SectionManager() {
             })),
         [customSections, fests, treks, comms, sports, runClubs, eventShows],
     );
-
-    const saveEntityCustomPage = useCallback((entityType, id, entity, pages, val, priorityField) => {
-        const parsed = parseCustomPageValue(val);
-        const pagesToClear = pages;
-        let next = [...(entity.customPageSections || [])].filter((a) => !pagesToClear.includes(a.page));
-        if (parsed) {
-            next = [...next, {
-                page: parsed.page,
-                sectionSlug: parsed.sectionSlug,
-                priority: priorityField ? (entity[priorityField] ?? 999) : 999,
-            }];
-        }
-        const body = { customPageSections: next };
-        if (entityType === 'fest') {
-            patch(`/admin/fests/${id}`, `fest-${id}-custom`, body,
-                () => setFests((prev) => prev.map((f) => ((f._id || f.id) === id ? { ...f, ...body } : f))));
-        } else if (entityType === 'trek') {
-            patch(`/admin/treks/${id}`, `trek-${id}-custom`, body,
-                () => setTreks((prev) => prev.map((t) => (t._id === id ? { ...t, ...body } : t))));
-        } else if (entityType === 'community') {
-            patch(`/admin/trek-communities/${id}`, `comm-${id}-custom`, body,
-                () => setComms((prev) => prev.map((c) => (c._id === id ? { ...c, ...body } : c))));
-        } else if (entityType === 'sport') {
-            patch(`/admin/sports/${id}`, `sports-${id}-custom`, body,
-                () => setSports((prev) => prev.map((s) => (s._id === id ? { ...s, ...body } : s))));
-        } else if (entityType === 'runclub') {
-            patch(`/admin/run-clubs/${id}`, `runclub-${id}-custom`, body,
-                () => setRunClubs((prev) => prev.map((c) => (c._id === id ? { ...c, ...body } : c))));
-        } else if (entityType === 'events') {
-            patch(`/admin/events/${id}`, `events-${id}-custom`, body,
-                () => setEventShows((prev) => prev.map((s) => (s._id === id ? { ...s, ...body } : s))));
-        }
-    }, [patch]);
 
     const applyLocalCarouselOrder = useCallback((section, orderedItems) => {
         const applyPriority = (prev, id, field, priority, extra = {}) =>
@@ -593,8 +846,7 @@ export default function SectionManager() {
                 body: JSON.stringify({ updates }),
             });
             applyLocal?.();
-            localStorage.setItem('admin_data_updated', Date.now().toString());
-            setTimeout(() => localStorage.removeItem('admin_data_updated'), 1000);
+            notifyAdminDataUpdated();
         } catch (e) {
             setErrors((prev) => ({ ...prev, save: e.message }));
         } finally {
@@ -637,10 +889,80 @@ export default function SectionManager() {
     }, [getCarouselBySection, applyLocalCarouselOrder, persistCarouselOrder, reordering]);
 
     const movingSlideFests = useMemo(
-        () => fests.filter((f) => f.showOnHomeSlide).map((f) => normalizeHomeCarouselItem('fest', f))
+        () => fests.filter((f) => isOnHomeHero(f)).map((f) => normalizeHomeCarouselItem('fest', f))
             .sort((a, b) => a._priority - b._priority),
         [fests],
     );
+
+    const movingSlideEvents = useMemo(
+        () => eventShows.filter((s) => isOnHomeHero(s)).map((s) => normalizeHomeCarouselItem('events', s))
+            .sort((a, b) => a._priority - b._priority),
+        [eventShows],
+    );
+
+    const movingSlideRunClubs = useMemo(
+        () => runClubs.filter((c) => isOnHomeHero(c)).map((c) => normalizeHomeCarouselItem('runclub', c))
+            .sort((a, b) => a._priority - b._priority),
+        [runClubs],
+    );
+
+    const movingSlideTreks = useMemo(
+        () => treks.filter((t) => isOnHomeHero(t)).map((t) => normalizeHomeCarouselItem('trek', t, { communitiesById: communityById }))
+            .sort((a, b) => a._priority - b._priority),
+        [treks, communityById],
+    );
+
+    const movingSlideComms = useMemo(
+        () => comms.filter((c) => isOnHomeHero(c)).map((c) => normalizeHomeCarouselItem('community', c))
+            .sort((a, b) => a._priority - b._priority),
+        [comms],
+    );
+
+    const movingSlideSports = useMemo(
+        () => sports.filter((s) => isOnHomeHero(s)).map((s) => normalizeHomeCarouselItem('sport', s))
+            .sort((a, b) => a._priority - b._priority),
+        [sports],
+    );
+
+    const movingSlideItems = useMemo(
+        () => [
+            ...movingSlideFests,
+            ...movingSlideEvents,
+            ...movingSlideRunClubs,
+            ...movingSlideTreks,
+            ...movingSlideComms,
+            ...movingSlideSports,
+        ].sort((a, b) => a._priority - b._priority),
+        [movingSlideFests, movingSlideEvents, movingSlideRunClubs, movingSlideTreks, movingSlideComms, movingSlideSports],
+    );
+
+    const trekPageCarousels = useMemo(() => {
+        const norm = (t) => ({ ...normalizeHomeCarouselItem('trek', t, { communitiesById: communityById }), _priority: t.trekPagePriority ?? 999 });
+        const inSection = (key) => treks.filter((t) => t.featuredSection === key || t.featuredSection === 'both').map(norm)
+            .sort((a, b) => a._priority - b._priority);
+
+        const normComm = (c) => ({
+            ...normalizeHomeCarouselItem('community', c),
+            _priority: c.trekPagePriority ?? 999,
+        });
+        const inCommSection = (key) => comms
+            .filter((c) => {
+                if (c.status === 'draft') return false;
+                if (c.showOnTreks === false) return false;
+                const sec = c.trekPageSection || 'communities';
+                return sec === key || sec === 'both';
+            })
+            .map(normComm)
+            .sort((a, b) => a._priority - b._priority);
+
+        return {
+            hero: inSection('hero'),
+            weekend: inSection('weekend'),
+            beginner: inSection('beginner'),
+            communities: inCommSection('communities'),
+            comingSoon: inCommSection('comingSoon'),
+        };
+    }, [treks, comms, communityById]);
 
     const festPageCarousels = useMemo(() => {
         const out = {};
@@ -653,39 +975,64 @@ export default function SectionManager() {
         return out;
     }, [fests]);
 
-    const trekPageCarousels = useMemo(() => {
-        const norm = (t) => ({ ...normalizeHomeCarouselItem('trek', t), _priority: t.trekPagePriority ?? 999 });
-        const inSection = (key) => treks.filter((t) => t.featuredSection === key || t.featuredSection === 'both').map(norm)
-            .sort((a, b) => a._priority - b._priority);
-        return { hero: inSection('hero'), weekend: inSection('weekend'), beginner: inSection('beginner') };
-    }, [treks]);
-
     const sportsPageCarousels = useMemo(() => {
         const norm = (s, pri) => ({ ...normalizeHomeCarouselItem('sport', s), _priority: pri });
         const upcoming = sports
-            .filter((s) => s.runClubId && s.showOnSportsPage !== false && (s.showInUpcoming !== false || s.featuredSection === 'upcoming' || s.featuredSection === 'both'))
+            .filter((s) => s.runClubId && s.showOnSportsPage !== false && (s.showInUpcoming !== false || s.featuredSection === 'upcoming' || s.featuredSection === 'both') && s.listingHub !== 'events' && s.runClubId?.listingHub !== 'events')
+            .filter((s) => !isEventHubSportsEvent(s, eventCommunityIdSet(runClubs)))
             .map((s) => norm(s, s.upcomingPriority ?? s.priority ?? 999))
             .sort((a, b) => a._priority - b._priority);
         const runClubCarousel = runClubs
-            .filter((c) => c.showOnSportsPage !== false && c.showInRunClubs !== false)
+            .filter((c) => c.showOnSportsPage !== false && c.showInRunClubs !== false && c.listingHub !== 'events')
             .map((c) => ({ ...normalizeHomeCarouselItem('runclub', c), _priority: c.runClubPriority ?? 999 }))
             .sort((a, b) => a._priority - b._priority);
         return { upcoming, run_clubs: runClubCarousel };
     }, [sports, runClubs]);
 
+    const eventClubIds = useMemo(() => eventCommunityIdSet(runClubs), [runClubs]);
+    const eventCommunities = useMemo(
+        () => runClubs.filter((c) => c.listingHub === 'events'),
+        [runClubs],
+    );
+    const sportsRunClubs = useMemo(
+        () => runClubs.filter((c) => c.listingHub !== 'events'),
+        [runClubs],
+    );
+    const communitySportsEvents = useMemo(
+        () => sports.filter((s) => isEventHubSportsEvent(s, eventClubIds)),
+        [sports, eventClubIds],
+    );
+    const sportsRuns = useMemo(
+        () => sports.filter((s) => s.runClubId && !isEventHubSportsEvent(s, eventClubIds)),
+        [sports, eventClubIds],
+    );
+
     const eventsPageCarousels = useMemo(() => {
-        const norm = (s) => ({ ...normalizeHomeCarouselItem('events', s), _priority: s.pagePriority ?? 999 });
+        const normShow = (s) => ({ ...normalizeHomeCarouselItem('events', s), _priority: s.pagePriority ?? 999 });
         const inSection = (key) => eventShows
             .filter((s) => s.pageSection === key)
-            .map(norm)
+            .map(normShow)
             .sort((a, b) => a._priority - b._priority);
+        const communityClubs = eventCommunities
+            .filter((c) => c.showOnEventsPage !== false)
+            .map((c) => ({
+                ...normalizeHomeCarouselItem('runclub', c),
+                _priority: c.runClubPriority ?? c.priority ?? 999,
+            }));
+        const communityEventsRow = communitySportsEvents
+            .filter((s) => s.showOnEventsPage === true)
+            .map((s) => ({
+                ...normalizeHomeCarouselItem('sport', { ...s, listingHub: 'events' }),
+                _priority: s.priority ?? 999,
+            }));
         return {
             hero: inSection('hero'),
             spotlight: inSection('spotlight'),
             upcoming: inSection('upcoming'),
-            community: inSection('community'),
+            community: [...communityClubs, ...communityEventsRow, ...inSection('community')]
+                .sort((a, b) => a._priority - b._priority),
         };
-    }, [eventShows]);
+    }, [eventShows, eventCommunities, communitySportsEvents]);
 
     const applyLocalFestPageOrder = useCallback((status, ordered) => {
         ordered.forEach((item, index) => {
@@ -697,6 +1044,12 @@ export default function SectionManager() {
     const applyLocalTrekPageOrder = useCallback((ordered) => {
         ordered.forEach((item, index) => {
             setTreks((prev) => prev.map((t) => (t._id === item._id ? { ...t, trekPagePriority: index + 1 } : t)));
+        });
+    }, []);
+
+    const applyLocalCommPageOrder = useCallback((ordered) => {
+        ordered.forEach((item, index) => {
+            setComms((prev) => prev.map((c) => (c._id === item._id ? { ...c, trekPagePriority: index + 1 } : c)));
         });
     }, []);
 
@@ -713,7 +1066,14 @@ export default function SectionManager() {
 
     const applyLocalEventsPageOrder = useCallback((ordered) => {
         ordered.forEach((item, index) => {
-            setEventShows((prev) => prev.map((s) => (s._id === item._id ? { ...s, pagePriority: index + 1 } : s)));
+            const pri = index + 1;
+            if (item._type === 'runclub') {
+                setRunClubs((prev) => prev.map((c) => (c._id === item._id ? { ...c, runClubPriority: pri, priority: pri } : c)));
+            } else if (item._type === 'sport') {
+                setSports((prev) => prev.map((s) => (s._id === item._id ? { ...s, priority: pri } : s)));
+            } else {
+                setEventShows((prev) => prev.map((s) => (s._id === item._id ? { ...s, pagePriority: pri } : s)));
+            }
         });
     }, []);
 
@@ -734,10 +1094,23 @@ export default function SectionManager() {
         const next = [...source];
         const [moved] = next.splice(fromIndex, 1);
         next.splice(toIndex, 0, moved);
+
+        const isCommunitySection = section === 'communities' || section === 'comingSoon';
+        if (isCommunitySection) {
+            const updates = next.map((item, i) => ({
+                type: 'community',
+                id: item._id,
+                fields: { trekPagePriority: i + 1 },
+            }));
+            applyLocalCommPageOrder(next);
+            batchReorder(updates);
+            return;
+        }
+
         const updates = next.map((item, i) => ({ type: 'trek', id: item._id, fields: { trekPagePriority: i + 1 } }));
         applyLocalTrekPageOrder(next);
         batchReorder(updates);
-    }, [trekPageCarousels, reordering, applyLocalTrekPageOrder, batchReorder]);
+    }, [trekPageCarousels, reordering, applyLocalTrekPageOrder, applyLocalCommPageOrder, batchReorder]);
 
     const handleSportsPageReorder = useCallback((section, fromIndex, toIndex) => {
         if (fromIndex === toIndex || reordering) return;
@@ -760,22 +1133,47 @@ export default function SectionManager() {
         const next = [...source];
         const [moved] = next.splice(fromIndex, 1);
         next.splice(toIndex, 0, moved);
-        const updates = next.map((item, i) => ({ type: 'events', id: item._id, fields: { pagePriority: i + 1 } }));
+        const updates = next.map((item, i) => {
+            const pri = i + 1;
+            if (item._type === 'runclub') return { type: 'runclub', id: item._id, fields: { runClubPriority: pri, priority: pri } };
+            if (item._type === 'sport') return { type: 'sport', id: item._id, fields: { priority: pri } };
+            return { type: 'events', id: item._id, fields: { pagePriority: pri } };
+        });
         applyLocalEventsPageOrder(next);
         batchReorder(updates);
     }, [eventsPageCarousels, reordering, applyLocalEventsPageOrder, batchReorder]);
 
     const handleMovingSlideReorder = useCallback((fromIndex, toIndex) => {
         if (fromIndex === toIndex || reordering) return;
-        const next = [...movingSlideFests];
+        const next = [...movingSlideItems];
         const [moved] = next.splice(fromIndex, 1);
         next.splice(toIndex, 0, moved);
-        const updates = next.map((item, i) => ({ type: 'fest', id: item._id, fields: { homePriority: i + 1 } }));
+        const updates = next.map((item, i) => {
+            const fields = { homePriority: i + 1 };
+            if (item._type === 'events') return { type: 'events', id: item._id, fields };
+            if (item._type === 'runclub') return { type: 'runclub', id: item._id, fields: { priority: i + 1 } };
+            return { type: 'fest', id: item._id, fields };
+        });
         next.forEach((item, i) => {
-            setFests((prev) => prev.map((f) => ((f._id || f.id) === item._id ? { ...f, homePriority: i + 1 } : f)));
+            const pri = i + 1;
+            if (item._type === 'events') {
+                setEventShows((prev) => prev.map((s) => (s._id === item._id ? { ...s, homePriority: pri } : s)));
+            } else if (item._type === 'runclub') {
+                setRunClubs((prev) => prev.map((c) => (c._id === item._id ? { ...c, priority: pri } : c)));
+            } else {
+                setFests((prev) => prev.map((f) => ((f._id || f.id) === item._id ? { ...f, homePriority: pri } : f)));
+            }
         });
         batchReorder(updates);
-    }, [movingSlideFests, reordering, batchReorder]);
+    }, [movingSlideItems, reordering, batchReorder]);
+
+    const resolveTrekCommunity = useCallback((trek) => {
+        const raw = trek?.communityId;
+        if (!raw) return null;
+        if (typeof raw === 'object' && (raw.name || raw.title)) return raw;
+        const id = String(raw._id || raw);
+        return communityById.get(id) || null;
+    }, [communityById]);
 
     // ── Filtered lists ───────────────────────────────────────────────────────
     const q = search.trim().toLowerCase();
@@ -784,29 +1182,74 @@ export default function SectionManager() {
              .sort((a, b) => String(a.festName || '').localeCompare(String(b.festName || ''))),
         [fests, q]);
     const filteredTreks = useMemo(() =>
-        treks.filter(t => !q || [t.trekName, t.city, t.destination].some(v => String(v || '').toLowerCase().includes(q)))
-             .sort((a, b) => String(a.trekName || '').localeCompare(String(b.trekName || ''))),
-        [treks, q]);
+        treks.filter((t) => {
+            if (!q) return true;
+            const community = resolveTrekCommunity(t);
+            return [t.trekName, t.city, t.destination, community?.name, community?.basedIn]
+                .some((v) => String(v || '').toLowerCase().includes(q));
+        }).sort((a, b) => String(a.trekName || '').localeCompare(String(b.trekName || ''))),
+        [treks, q, resolveTrekCommunity]);
+
+    const trekAssignGroups = useMemo(() => {
+        const groups = new Map();
+        const unassigned = [];
+        for (const t of filteredTreks) {
+            const community = resolveTrekCommunity(t);
+            if (!community?._id && !community?.id) {
+                unassigned.push(t);
+                continue;
+            }
+            const cid = String(community._id || community.id);
+            if (!groups.has(cid)) {
+                groups.set(cid, {
+                    id: cid,
+                    name: community.name || community.title || 'Community',
+                    basedIn: community.basedIn || '',
+                    coverImage: community.coverImage || community.logo || null,
+                    treks: [],
+                });
+            }
+            groups.get(cid).treks.push(t);
+        }
+        const sorted = [...groups.values()].sort((a, b) => a.name.localeCompare(b.name));
+        if (unassigned.length) {
+            sorted.push({
+                id: '__none__',
+                name: 'No community assigned',
+                basedIn: 'Assign a community on the trek form',
+                coverImage: null,
+                treks: unassigned,
+            });
+        }
+        return sorted;
+    }, [filteredTreks, resolveTrekCommunity]);
+
     const filteredComms = useMemo(() =>
         comms.filter(c => !q || [c.name, c.basedIn].some(v => String(v || '').toLowerCase().includes(q)))
              .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''))),
         [comms, q]);
     const filteredRuns = useMemo(() =>
-        sports
-            .filter((s) => s.runClubId)
+        sportsRuns
             .filter((s) => !q || [s.title, s.city, s.organizer, s.displayType].some((v) => String(v || '').toLowerCase().includes(q)))
             .sort((a, b) => String(a.title || '').localeCompare(String(b.title || ''))),
-        [sports, q]);
+        [sportsRuns, q]);
     const filteredRunClubs = useMemo(() =>
-        runClubs.filter(c => !q || [c.name, c.basedIn, c.organizer].some(v => String(v || '').toLowerCase().includes(q)))
+        sportsRunClubs.filter(c => !q || [c.name, c.basedIn, c.organizer].some(v => String(v || '').toLowerCase().includes(q)))
                 .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''))),
-        [runClubs, q]);
+        [sportsRunClubs, q]);
+    const filteredEventComms = useMemo(() =>
+        eventCommunities.filter(c => !q || [c.name, c.basedIn, c.organizer].some(v => String(v || '').toLowerCase().includes(q)))
+            .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''))),
+        [eventCommunities, q]);
+    const filteredCommunityEvents = useMemo(() =>
+        communitySportsEvents
+            .filter((s) => !q || [s.title, s.city, s.organizer, s.displayType].some((v) => String(v || '').toLowerCase().includes(q)))
+            .sort((a, b) => String(a.title || '').localeCompare(String(b.title || ''))),
+        [communitySportsEvents, q]);
     const filteredEvents = useMemo(() =>
         eventShows.filter(s => !q || [s.title, s.city, s.organizer, s.eventType].some(v => String(v || '').toLowerCase().includes(q)))
             .sort((a, b) => String(a.title || '').localeCompare(String(b.title || ''))),
         [eventShows, q]);
-
-    const getFestHomeVal = (f) => f.homeSection || (f.showOnHomeSlide ? 'movingSlide' : '');
 
     const getRunPageVal = (s) => {
         if (s.showOnSportsPage === false || s.showInUpcoming === false) return 'hidden';
@@ -824,8 +1267,10 @@ export default function SectionManager() {
         fests: fests.length,
         treks: treks.length,
         communities: comms.length,
-        runclubs: runClubs.length,
-        runs: sports.filter((s) => s.runClubId).length,
+        runclubs: sportsRunClubs.length,
+        runs: sportsRuns.length,
+        eventcomms: eventCommunities.length,
+        communityevents: communitySportsEvents.length,
         sports: sportsPageCarousels.upcoming.length + sportsPageCarousels.run_clubs.length,
         events: eventShows.length,
     };
@@ -865,8 +1310,8 @@ export default function SectionManager() {
                     ))}
                     <HomeCarouselPanel
                         title="🎠 Moving Hero Slides"
-                        subtitle="Hero banner slides · fests with Moving Slide enabled"
-                        items={movingSlideFests}
+                        subtitle="Hero banner slides · tick Hero Banner under Home in Assign"
+                        items={movingSlideItems}
                         onReorder={handleMovingSlideReorder}
                         isReordering={reordering}
                     />
@@ -904,6 +1349,16 @@ export default function SectionManager() {
                         </div>
                     )}
                     <p className="text-[11px] text-gray-500">Treks page sections on /treks — drag within each row</p>
+                    {TREK_COMMUNITY_PAGE_SECTIONS.map(({ key, label }) => (
+                        <HomeCarouselPanel
+                            key={key}
+                            title={label}
+                            subtitle="Trek community order on /treks"
+                            items={trekPageCarousels[key] || []}
+                            onReorder={(from, to) => handleTrekPageReorder(key, from, to)}
+                            isReordering={reordering}
+                        />
+                    ))}
                     {TREK_PAGE_SECTIONS.map(({ key, label }) => (
                         <HomeCarouselPanel
                             key={key}
@@ -999,6 +1454,9 @@ export default function SectionManager() {
                 </div>
             </div>
 
+            {/* Editable home carousel headings */}
+            <HomeHeadingsEditor />
+
             {/* Errors */}
             {Object.keys(errors).length > 0 && (
                 <div className="space-y-1.5">
@@ -1042,50 +1500,23 @@ export default function SectionManager() {
                 <div className="flex items-center gap-3 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-gray-600">
                     <span className="w-10 shrink-0" />
                     <span className="flex-1">Name</span>
-                    {tab === 'runs' ? (
-                        <>
-                            <span className="w-44 text-center">🏠 Home page</span>
-                            <span className="w-44 text-center">🏃 Sports page</span>
-                        </>
-                    ) : tab === 'runclubs' ? (
-                        <>
-                            <span className="w-44 text-center">🏠 Home page</span>
-                            <span className="w-44 text-center">👟 Sports page</span>
-                        </>
-                    ) : tab === 'communities' ? (
-                        <>
-                            <span className="w-44 text-center">🏠 Home page</span>
-                            <span className="w-44 text-center">🏔️ Treks page</span>
-                        </>
-                    ) : tab === 'events' ? (
-                        <>
-                            <span className="w-44 text-center">🏠 Home page</span>
-                            <span className="w-44 text-center">🎭 Events page</span>
-                        </>
-                    ) : (
-                        <>
-                            <span className="w-44 text-center">🏠 Home page</span>
-                            <span className="w-44 text-center">
-                                {tab === 'fests' ? '🎭 Fest page' : '🏔️ Own page'}
-                            </span>
-                        </>
-                    )}
-                    {(tab === 'fests' && festCustomPageOpts.length > 1)
-                        || (tab === 'treks' && trekCustomPageOpts.length > 1)
-                        || (tab === 'communities' && trekCustomPageOpts.length > 1)
-                        || (tab === 'events' && eventsCustomPageOpts.length > 1)
-                        || ((tab === 'runs' || tab === 'runclubs') && sportsCustomPageOpts.length > 1) ? (
-                        <span className="w-44 text-center">✨ Custom section</span>
-                    ) : null}
+                    <span className="min-w-[11rem] text-center">Home (multi)</span>
+                    <span className="min-w-[11rem] text-center">
+                        {tab === 'fests' ? 'Fest status'
+                            : tab === 'runs' || tab === 'runclubs' ? 'Sports page'
+                            : tab === 'treks' ? 'Treks page'
+                            : tab === 'communities' ? 'Treks page'
+                            : tab === 'events' || tab === 'eventcomms' || tab === 'communityevents' ? 'Events page'
+                            : 'Own page'}
+                    </span>
+                    <span className="min-w-[11rem] text-center">Custom sections</span>
                 </div>
             )}
 
             {/* Content */}
             <div className="bg-[#17181A] rounded-2xl border border-white/8 overflow-hidden">
                 {loading ? (
-                    <div className="flex items-center justify-center gap-3 py-20 text-gray-500 text-sm">
-                        <Loader2 size={20} className="animate-spin text-[#0ECCEE]" /> Loading…
-                    </div>
+                    <InlinePageLoader label="Loading…" minHeight={false} />
                 ) : mode === 'reorder' ? (
                     <>
                         {renderReorderContent()}
@@ -1126,17 +1557,18 @@ export default function SectionManager() {
                                     {group.fests.map(f => {
                                         const id = f._id || f.id;
                                         return (
-                                            <div key={id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/2 transition-colors">
+                                            <div key={id} className="flex items-start gap-3 px-4 py-2.5 hover:bg-white/2 transition-colors flex-wrap">
                                                 <Thumb src={f.coverImage} icon={Flag} />
                                                 <PreviewLink type="fest" id={id} />
-                                                <div className="flex-1 min-w-0">
+                                                <div className="flex-1 min-w-[8rem]">
                                                     <p className="text-sm font-semibold text-white truncate">{f.festName || 'Untitled'}</p>
                                                     <p className="text-[11px] text-gray-600 truncate">{f.collegeName || '—'}</p>
                                                 </div>
-                                                <AssignPill
-                                                    selectValue={getFestHomeVal(f)}
-                                                    selectOpts={festHomeSelectOpts}
-                                                    onSelect={v => saveFestHome(id, v)}
+                                                <AssignCheckGroup
+                                                    label="Home"
+                                                    options={homeCheckOpts}
+                                                    selected={homeSelected(f)}
+                                                    onToggle={(slug, checked) => saveEntityHomeMulti('fest', id, f, slug, checked)}
                                                     saveKey={`fest-${id}-home`}
                                                     saving={saving}
                                                 />
@@ -1147,15 +1579,17 @@ export default function SectionManager() {
                                                     saveKey={`fest-${id}-page`}
                                                     saving={saving}
                                                 />
-                                                {festCustomPageOpts.length > 1 && (
-                                                    <AssignPill
-                                                        selectValue={getCustomPageValue(f, FEST_CUSTOM_PAGES)}
-                                                        selectOpts={festCustomPageOpts}
-                                                        onSelect={(v) => saveEntityCustomPage('fest', id, f, FEST_CUSTOM_PAGES, v)}
-                                                        saveKey={`fest-${id}-custom`}
-                                                        saving={saving}
-                                                    />
-                                                )}
+                                                <AssignCheckGroup
+                                                    label="Custom"
+                                                    options={festCustomPageOpts}
+                                                    selected={getCustomPageAssignmentKeys(f, FEST_CUSTOM_PAGES)}
+                                                    onToggle={(key, checked) => saveEntityCustomToggle('fest', id, f, FEST_CUSTOM_PAGES, key, checked)}
+                                                    saveKey={`fest-${id}-custom`}
+                                                    saving={saving}
+                                                    emptyHint={(
+                                                        <>Add sections in <Link to="/admin/page-sections" className="text-[#0ECCEE] hover:underline">Page Sections</Link></>
+                                                    )}
+                                                />
                                             </div>
                                         );
                                     })}
@@ -1166,58 +1600,117 @@ export default function SectionManager() {
                         {/* ── TREKS ── */}
                         {tab === 'treks' && (filteredTreks.length === 0
                             ? <EmptyState label="No treks found" />
-                            : filteredTreks.map(t => (
-                                <div key={t._id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/2 transition-colors">
-                                    <Thumb src={t.coverImage || t.images?.[0]} icon={Mountain} />
-                                    <PreviewLink type="trek" id={t._id} />
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold text-white truncate">{t.trekName || 'Untitled'}</p>
-                                        <p className="text-[11px] text-gray-600 truncate">{[t.city, t.difficultyLevel].filter(Boolean).join(' · ') || '—'}</p>
+                            : (
+                                <div className="py-2 space-y-1">
+                                    <div className="px-4 pb-2">
+                                        <p className="text-[11px] text-gray-500 leading-relaxed">
+                                            Treks are grouped by the community they belong to. Search also matches community names.
+                                        </p>
                                     </div>
-                                    <AssignPill
-                                        selectValue={t.homeSection || ''}
-                                        selectOpts={entityHomeSelectOpts}
-                                        onSelect={v => saveTrek(t._id, { homeSection: v || null })}
-                                        saveKey={`trek-${t._id}-home`}
-                                        saving={saving}
-                                    />
-                                    <AssignPill
-                                        selectValue={t.featuredSection || ''}
-                                        selectOpts={TREK_PAGE_OPTS}
-                                        onSelect={v => saveTrek(t._id, { featuredSection: v || null })}
-                                        saveKey={`trek-${t._id}-page`}
-                                        saving={saving}
-                                    />
-                                    {trekCustomPageOpts.length > 1 && (
-                                        <AssignPill
-                                            selectValue={getCustomPageValue(t, TREK_CUSTOM_PAGES)}
-                                            selectOpts={trekCustomPageOpts}
-                                            onSelect={(v) => saveEntityCustomPage('trek', t._id, t, TREK_CUSTOM_PAGES, v)}
-                                            saveKey={`trek-${t._id}-custom`}
-                                            saving={saving}
-                                        />
-                                    )}
+                                    {trekAssignGroups.map((group) => (
+                                        <div key={group.id} className="pb-2">
+                                            <div className="sticky top-0 z-10 flex items-center gap-3 px-4 py-2.5 bg-[#1a1b1d]/95 backdrop-blur border-y border-white/6">
+                                                <Thumb src={group.coverImage} icon={Users} />
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <p className={`text-sm font-bold truncate ${group.id === '__none__' ? 'text-amber-300' : 'text-white'}`}>
+                                                            {group.name}
+                                                        </p>
+                                                        <span className="text-[10px] font-bold text-gray-500 bg-white/5 px-1.5 py-0.5 rounded-full">
+                                                            {group.treks.length} trek{group.treks.length !== 1 ? 's' : ''}
+                                                        </span>
+                                                    </div>
+                                                    {group.basedIn ? (
+                                                        <p className="text-[11px] text-gray-500 truncate mt-0.5">{group.basedIn}</p>
+                                                    ) : null}
+                                                </div>
+                                                {group.id !== '__none__' ? (
+                                                    <PreviewLink type="community" id={group.id} />
+                                                ) : null}
+                                            </div>
+                                            {group.treks.map((t) => {
+                                                const community = resolveTrekCommunity(t);
+                                                return (
+                                                    <AssignEntityRow key={t._id}>
+                                                        <Thumb src={t.coverImage || t.images?.[0]} icon={Mountain} />
+                                                        <PreviewLink type="trek" id={t._id} />
+                                                        <div className="flex-1 min-w-[10rem]">
+                                                            <p className="text-sm font-semibold text-white truncate">{t.trekName || 'Untitled'}</p>
+                                                            <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                                                                {community ? (
+                                                                    <MetaChip tone="sky">
+                                                                        <Users size={10} className="shrink-0" />
+                                                                        <span className="truncate">{community.name || community.title}</span>
+                                                                    </MetaChip>
+                                                                ) : (
+                                                                    <MetaChip tone="amber">No community</MetaChip>
+                                                                )}
+                                                                {t.city ? <MetaChip>{t.city}</MetaChip> : null}
+                                                                {t.difficultyLevel ? <MetaChip tone="emerald">{t.difficultyLevel}</MetaChip> : null}
+                                                                {Number(t.registrationFee) > 0 ? (
+                                                                    <MetaChip>₹{Number(t.registrationFee).toLocaleString('en-IN')}</MetaChip>
+                                                                ) : (
+                                                                    <MetaChip>Free</MetaChip>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <AssignCheckGroup
+                                                            label="Home"
+                                                            options={homeCheckOpts}
+                                                            selected={homeSelected(t)}
+                                                            onToggle={(slug, checked) => saveEntityHomeMulti('trek', t._id, t, slug, checked)}
+                                                            saveKey={`trek-${t._id}-home`}
+                                                            saving={saving}
+                                                        />
+                                                        <AssignCheckGroup
+                                                            label="Treks page"
+                                                            options={TREK_PAGE_CHECK_OPTS}
+                                                            selected={getTrekPageChecks(t.featuredSection)}
+                                                            onToggle={(slug, checked) => {
+                                                                const cur = new Set(getTrekPageChecks(t.featuredSection));
+                                                                if (checked) cur.add(slug);
+                                                                else cur.delete(slug);
+                                                                saveTrek(t._id, { featuredSection: toTrekFeaturedSection([...cur]) });
+                                                            }}
+                                                            saveKey={`trek-${t._id}-page`}
+                                                            saving={saving}
+                                                        />
+                                                        <AssignCheckGroup
+                                                            label="Custom"
+                                                            options={trekCustomPageOpts}
+                                                            selected={getCustomPageAssignmentKeys(t, TREK_CUSTOM_PAGES)}
+                                                            onToggle={(key, checked) => saveEntityCustomToggle('trek', t._id, t, TREK_CUSTOM_PAGES, key, checked)}
+                                                            saveKey={`trek-${t._id}-custom`}
+                                                            saving={saving}
+                                                            emptyHint="Add sections in Page Sections"
+                                                        />
+                                                    </AssignEntityRow>
+                                                );
+                                            })}
+                                        </div>
+                                    ))}
                                 </div>
-                            ))
+                            )
                         )}
 
                         {/* ── SPORTS ── */}
                         {tab === 'runs' && (filteredRuns.length === 0
                             ? <EmptyState label="No runs found — add runs inside a run club in Admin → Run Clubs" />
                             : filteredRuns.map(s => (
-                                <div key={s._id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/2 transition-colors">
+                                <div key={s._id} className="flex items-start gap-3 px-4 py-2.5 hover:bg-white/2 transition-colors flex-wrap">
                                     <Thumb src={s.images?.[0] || s.coverImage} icon={Footprints} />
-                                    <PreviewLink type="sport" id={s._id} />
-                                    <div className="flex-1 min-w-0">
+                                    <PreviewLink type="sport" id={s._id} listingHub={s.listingHub || (isEventHubSportsEvent(s, eventClubIds) ? 'events' : 'sports')} />
+                                    <div className="flex-1 min-w-[8rem]">
                                         <p className="text-sm font-semibold text-white truncate">{s.title || 'Untitled'}</p>
                                         <p className="text-[11px] text-gray-600 truncate">
                                             {[s.runCategory, s.city, s.status].filter(Boolean).join(' · ') || '—'}
                                         </p>
                                     </div>
-                                    <AssignPill
-                                        selectValue={s.homeSection || ''}
-                                        selectOpts={sportsHomeSelectOpts}
-                                        onSelect={v => saveSports(s._id, { homeSection: v || null })}
+                                    <AssignCheckGroup
+                                        label="Home"
+                                        options={homeCheckOpts}
+                                        selected={homeSelected(s)}
+                                        onToggle={(slug, checked) => saveEntityHomeMulti('sport', s._id, s, slug, checked)}
                                         saveKey={`sports-${s._id}-home`}
                                         saving={saving}
                                     />
@@ -1228,15 +1721,15 @@ export default function SectionManager() {
                                         saveKey={`sports-${s._id}-page`}
                                         saving={saving}
                                     />
-                                    {sportsCustomPageOpts.length > 1 && (
-                                        <AssignPill
-                                            selectValue={getCustomPageValue(s, SPORTS_CUSTOM_PAGES)}
-                                            selectOpts={sportsCustomPageOpts}
-                                            onSelect={(v) => saveEntityCustomPage('sport', s._id, s, SPORTS_CUSTOM_PAGES, v)}
-                                            saveKey={`sports-${s._id}-custom`}
-                                            saving={saving}
-                                        />
-                                    )}
+                                    <AssignCheckGroup
+                                        label="Custom"
+                                        options={sportsCustomPageOpts}
+                                        selected={getCustomPageAssignmentKeys(s, SPORTS_CUSTOM_PAGES)}
+                                        onToggle={(key, checked) => saveEntityCustomToggle('sport', s._id, s, SPORTS_CUSTOM_PAGES, key, checked)}
+                                        saveKey={`sports-${s._id}-custom`}
+                                        saving={saving}
+                                        emptyHint="Add sections in Page Sections"
+                                    />
                                 </div>
                             ))
                         )}
@@ -1247,17 +1740,18 @@ export default function SectionManager() {
                             : filteredRunClubs.map(c => {
                                 const pageVal = getRunClubPageVal(c);
                                 return (
-                                    <div key={c._id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/2 transition-colors">
+                                    <div key={c._id} className="flex items-start gap-3 px-4 py-2.5 hover:bg-white/2 transition-colors flex-wrap">
                                         <Thumb src={c.coverImage} icon={Footprints} />
-                                        <PreviewLink type="runclub" id={c._id} />
-                                        <div className="flex-1 min-w-0">
+                                        <PreviewLink type="runclub" id={c._id} listingHub={c.listingHub} />
+                                        <div className="flex-1 min-w-[8rem]">
                                             <p className="text-sm font-semibold text-white truncate">{c.name || 'Untitled'}</p>
                                             <p className="text-[11px] text-gray-600 truncate">{c.basedIn || c.organizer || '—'}</p>
                                         </div>
-                                        <AssignPill
-                                            selectValue={c.homeSection || ''}
-                                            selectOpts={entityHomeSelectOpts}
-                                            onSelect={v => saveRunClub(c._id, { homeSection: v || null })}
+                                        <AssignCheckGroup
+                                            label="Home"
+                                            options={homeCheckOpts}
+                                            selected={homeSelected(c)}
+                                            onToggle={(slug, checked) => saveEntityHomeMulti('runclub', c._id, c, slug, checked)}
                                             saveKey={`runclub-${c._id}-home`}
                                             saving={saving}
                                         />
@@ -1268,15 +1762,100 @@ export default function SectionManager() {
                                             saveKey={`runclub-${c._id}-page`}
                                             saving={saving}
                                         />
-                                        {sportsCustomPageOpts.length > 1 && (
-                                            <AssignPill
-                                                selectValue={getCustomPageValue(c, SPORTS_CUSTOM_PAGES)}
-                                                selectOpts={sportsCustomPageOpts}
-                                                onSelect={(v) => saveEntityCustomPage('runclub', c._id, c, SPORTS_CUSTOM_PAGES, v)}
-                                                saveKey={`runclub-${c._id}-custom`}
-                                                saving={saving}
-                                            />
-                                        )}
+                                        <AssignCheckGroup
+                                            label="Custom"
+                                            options={sportsCustomPageOpts}
+                                            selected={getCustomPageAssignmentKeys(c, SPORTS_CUSTOM_PAGES)}
+                                            onToggle={(key, checked) => saveEntityCustomToggle('runclub', c._id, c, SPORTS_CUSTOM_PAGES, key, checked)}
+                                            saveKey={`runclub-${c._id}-custom`}
+                                            saving={saving}
+                                            emptyHint="Add sections in Page Sections"
+                                        />
+                                    </div>
+                                );
+                            })
+                        )}
+
+                        {/* ── EVENT COMMUNITIES ── */}
+                        {tab === 'eventcomms' && (filteredEventComms.length === 0
+                            ? <EmptyState label="No event communities found — create them in Admin → Event Communities" />
+                            : filteredEventComms.map((c) => (
+                                <div key={c._id} className="flex items-start gap-3 px-4 py-2.5 hover:bg-white/2 transition-colors flex-wrap">
+                                    <Thumb src={c.coverImage} icon={Users2} />
+                                    <PreviewLink type="runclub" id={c._id} listingHub="events" />
+                                    <div className="flex-1 min-w-[8rem]">
+                                        <p className="text-sm font-semibold text-white truncate">{c.name || 'Untitled'}</p>
+                                        <p className="text-[11px] text-gray-600 truncate">{c.basedIn || c.organizer || '—'}</p>
+                                    </div>
+                                    <AssignCheckGroup
+                                        label="Home"
+                                        options={homeCheckOpts}
+                                        selected={homeSelected(c)}
+                                        onToggle={(slug, checked) => saveEntityHomeMulti('runclub', c._id, c, slug, checked)}
+                                        saveKey={`runclub-${c._id}-home`}
+                                        saving={saving}
+                                    />
+                                    <AssignCheckGroup
+                                        label="Events page"
+                                        options={EVENT_HUB_PAGE_CHECK_OPTS}
+                                        selected={c.showOnEventsPage !== false ? ['community'] : []}
+                                        onToggle={(_slug, checked) => saveRunClub(c._id, { showOnEventsPage: checked })}
+                                        saveKey={`runclub-${c._id}-events-page`}
+                                        saving={saving}
+                                    />
+                                    <AssignCheckGroup
+                                        label="Custom"
+                                        options={eventsCustomPageOpts}
+                                        selected={getCustomPageAssignmentKeys(c, EVENT_COMMUNITY_CUSTOM_PAGES)}
+                                        onToggle={(key, checked) => saveEntityCustomToggle('runclub', c._id, c, EVENT_COMMUNITY_CUSTOM_PAGES, key, checked)}
+                                        saveKey={`runclub-${c._id}-custom`}
+                                        saving={saving}
+                                        emptyHint="Add sections in Page Sections → Events"
+                                    />
+                                </div>
+                            ))
+                        )}
+
+                        {/* ── COMMUNITY EVENTS ── */}
+                        {tab === 'communityevents' && (filteredCommunityEvents.length === 0
+                            ? <EmptyState label="No community events found — add events inside an event community" />
+                            : filteredCommunityEvents.map((s) => {
+                                const club = runClubs.find((c) => String(c._id) === String(s.runClubId?._id || s.runClubId));
+                                return (
+                                    <div key={s._id} className="flex items-start gap-3 px-4 py-2.5 hover:bg-white/2 transition-colors flex-wrap">
+                                        <Thumb src={s.images?.[0] || s.coverImage} icon={Calendar} />
+                                        <PreviewLink type="sport" id={s._id} listingHub="events" />
+                                        <div className="flex-1 min-w-[8rem]">
+                                            <p className="text-sm font-semibold text-white truncate">{s.title || 'Untitled'}</p>
+                                            <p className="text-[11px] text-gray-600 truncate">
+                                                {[club?.name, s.city, s.status].filter(Boolean).join(' · ') || '—'}
+                                            </p>
+                                        </div>
+                                        <AssignCheckGroup
+                                            label="Home"
+                                            options={homeCheckOpts}
+                                            selected={homeSelected(s)}
+                                            onToggle={(slug, checked) => saveEntityHomeMulti('sport', s._id, s, slug, checked)}
+                                            saveKey={`sports-${s._id}-home`}
+                                            saving={saving}
+                                        />
+                                        <AssignCheckGroup
+                                            label="Events page"
+                                            options={EVENT_HUB_PAGE_CHECK_OPTS}
+                                            selected={s.showOnEventsPage === true ? ['community'] : []}
+                                            onToggle={(_slug, checked) => saveSports(s._id, { showOnEventsPage: checked })}
+                                            saveKey={`sports-${s._id}-events-page`}
+                                            saving={saving}
+                                        />
+                                        <AssignCheckGroup
+                                            label="Custom"
+                                            options={eventsCustomPageOpts}
+                                            selected={getCustomPageAssignmentKeys(s, EVENT_COMMUNITY_CUSTOM_PAGES)}
+                                            onToggle={(key, checked) => saveEntityCustomToggle('sport', s._id, s, EVENT_COMMUNITY_CUSTOM_PAGES, key, checked)}
+                                            saveKey={`sports-${s._id}-custom`}
+                                            saving={saving}
+                                            emptyHint="Add sections in Page Sections → Events"
+                                        />
                                     </div>
                                 );
                             })
@@ -1285,80 +1864,90 @@ export default function SectionManager() {
                         {/* ── COMMUNITIES ── */}
                         {tab === 'communities' && (filteredComms.length === 0
                             ? <EmptyState label="No communities found" />
-                            : filteredComms.map(c => {
-                                const pageVal = c.showOnTreks === false ? 'hidden' : c.trekPageSection || 'communities';
-                                return (
-                                    <div key={c._id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/2 transition-colors">
-                                        <Thumb src={c.coverImage} icon={Users} />
-                                        <PreviewLink type="community" id={c._id} />
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-semibold text-white truncate">{c.name || 'Untitled'}</p>
-                                            <p className="text-[11px] text-gray-600 truncate">{c.basedIn || '—'}</p>
-                                        </div>
-                                        <AssignPill
-                                            selectValue={c.homeSection || ''}
-                                            selectOpts={entityHomeSelectOpts}
-                                            onSelect={v => saveComm(c._id, { homeSection: v || null })}
-                                            saveKey={`comm-${c._id}-home`}
-                                            saving={saving}
-                                        />
-                                        <AssignPill
-                                            selectValue={pageVal}
-                                            selectOpts={COMM_PAGE_OPTS}
-                                            onSelect={v => saveComm(c._id, { pageSection: v })}
-                                            saveKey={`comm-${c._id}-page`}
-                                            saving={saving}
-                                        />
-                                        {trekCustomPageOpts.length > 1 && (
-                                            <AssignPill
-                                                selectValue={getCustomPageValue(c, TREK_CUSTOM_PAGES)}
-                                                selectOpts={trekCustomPageOpts}
-                                                onSelect={(v) => saveEntityCustomPage('community', c._id, c, TREK_CUSTOM_PAGES, v)}
-                                                saveKey={`comm-${c._id}-custom`}
-                                                saving={saving}
-                                            />
-                                        )}
+                            : filteredComms.map(c => (
+                                <div key={c._id} className="flex items-start gap-3 px-4 py-2.5 hover:bg-white/2 transition-colors flex-wrap">
+                                    <Thumb src={c.coverImage} icon={Users} />
+                                    <PreviewLink type="community" id={c._id} />
+                                    <div className="flex-1 min-w-[8rem]">
+                                        <p className="text-sm font-semibold text-white truncate">{c.name || 'Untitled'}</p>
+                                        <p className="text-[11px] text-gray-600 truncate">{c.basedIn || '—'}</p>
                                     </div>
-                                );
-                            })
+                                    <AssignCheckGroup
+                                        label="Home"
+                                        options={homeCheckOpts}
+                                        selected={homeSelected(c)}
+                                        onToggle={(slug, checked) => saveEntityHomeMulti('community', c._id, c, slug, checked)}
+                                        saveKey={`comm-${c._id}-home`}
+                                        saving={saving}
+                                    />
+                                    <AssignCheckGroup
+                                        label="Treks page"
+                                        options={COMM_PAGE_CHECK_OPTS}
+                                        selected={getCommPageChecks(c)}
+                                        onToggle={(slug, checked) => {
+                                            const cur = new Set(getCommPageChecks(c));
+                                            if (checked) cur.add(slug);
+                                            else cur.delete(slug);
+                                            const next = toCommPageSection([...cur]);
+                                            saveComm(c._id, { pageSection: next || 'hidden' });
+                                        }}
+                                        saveKey={`comm-${c._id}-page`}
+                                        saving={saving}
+                                    />
+                                    <AssignCheckGroup
+                                        label="Custom"
+                                        options={trekCustomPageOpts}
+                                        selected={getCustomPageAssignmentKeys(c, TREK_CUSTOM_PAGES)}
+                                        onToggle={(key, checked) => saveEntityCustomToggle('community', c._id, c, TREK_CUSTOM_PAGES, key, checked)}
+                                        saveKey={`comm-${c._id}-custom`}
+                                        saving={saving}
+                                        emptyHint="Add sections in Page Sections"
+                                    />
+                                </div>
+                            ))
                         )}
 
                         {/* ── EVENTS ── */}
                         {tab === 'events' && (filteredEvents.length === 0
                             ? <EmptyState label="No events found — create events in Admin → Events" />
                             : filteredEvents.map((s) => (
-                                <div key={s._id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/2 transition-colors">
+                                <div key={s._id} className="flex items-start gap-3 px-4 py-2.5 hover:bg-white/2 transition-colors flex-wrap">
                                     <Thumb src={s.poster} icon={Theater} />
                                     <PreviewLink type="events" id={s._id} />
-                                    <div className="flex-1 min-w-0">
+                                    <div className="flex-1 min-w-[8rem]">
                                         <p className="text-sm font-semibold text-white truncate">{s.title || 'Untitled'}</p>
                                         <p className="text-[11px] text-gray-600 truncate">
                                             {[s.city, s.eventType, s.status].filter(Boolean).join(' · ') || '—'}
                                         </p>
                                     </div>
-                                    <AssignPill
-                                        selectValue={s.homeSection || ''}
-                                        selectOpts={entityHomeSelectOpts}
-                                        onSelect={v => saveEventShow(s._id, { homeSection: v || null })}
+                                    <AssignCheckGroup
+                                        label="Home"
+                                        options={homeCheckOpts}
+                                        selected={homeSelected(s)}
+                                        onToggle={(slug, checked) => saveEntityHomeMulti('events', s._id, s, slug, checked)}
                                         saveKey={`events-${s._id}-home`}
                                         saving={saving}
                                     />
-                                    <AssignPill
-                                        selectValue={s.pageSection || ''}
-                                        selectOpts={EVENTS_PAGE_SECTION_OPTS}
-                                        onSelect={v => saveEventShow(s._id, { pageSection: v || null })}
+                                    <AssignCheckGroup
+                                        label="Events page"
+                                        options={EVENTS_PAGE_CHECK_OPTS}
+                                        selected={s.pageSection && s.pageSection !== 'hero' ? [s.pageSection] : []}
+                                        onToggle={(slug, checked) => {
+                                            // Single primary Events-page slot (not Hero — Hero is Home only)
+                                            saveEventShow(s._id, { pageSection: checked ? slug : null });
+                                        }}
                                         saveKey={`events-${s._id}-page`}
                                         saving={saving}
                                     />
-                                    {eventsCustomPageOpts.length > 1 && (
-                                        <AssignPill
-                                            selectValue={getCustomPageValue(s, EVENTS_CUSTOM_PAGES)}
-                                            selectOpts={eventsCustomPageOpts}
-                                            onSelect={(v) => saveEntityCustomPage('events', s._id, s, EVENTS_CUSTOM_PAGES, v, 'pagePriority')}
-                                            saveKey={`events-${s._id}-custom`}
-                                            saving={saving}
-                                        />
-                                    )}
+                                    <AssignCheckGroup
+                                        label="Custom"
+                                        options={eventsCustomPageOpts}
+                                        selected={getCustomPageAssignmentKeys(s, EVENTS_CUSTOM_PAGES)}
+                                        onToggle={(key, checked) => saveEntityCustomToggle('events', s._id, s, EVENTS_CUSTOM_PAGES, key, checked, 'pagePriority')}
+                                        saveKey={`events-${s._id}-custom`}
+                                        saving={saving}
+                                        emptyHint="Add sections in Page Sections"
+                                    />
                                 </div>
                             ))
                         )}
@@ -1370,7 +1959,9 @@ export default function SectionManager() {
                 {!loading && mode === 'assign' && (
                     <div className="px-4 py-2 bg-black/20 border-t border-white/4">
                         <p className="text-[10px] text-gray-600">
-                            Dropdowns save instantly. To change left-to-right order within a section, switch to{' '}
+                            Checkboxes save instantly — tick multiple places for the same card. New sections from{' '}
+                            <Link to="/admin/page-sections" className="text-[#0ECCEE] hover:underline">Page Sections</Link>
+                            {' '}appear here automatically. For left-to-right order, switch to{' '}
                             <button type="button" onClick={() => handleModeChange('reorder')} className="text-[#0ECCEE] hover:underline">Card order</button>.
                         </p>
                     </div>

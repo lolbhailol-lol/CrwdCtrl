@@ -1,33 +1,44 @@
 const express = require('express');
 const router = express.Router();
 const RunClub = require('../model/run_club_model');
+const { findByIdOrSlug } = require('../utils/slug');
+const { sanitizePublicRunClub, RUN_CLUB_LIST_SELECT } = require('../utils/publicEntitySanitize');
 
 router.get('/', async (req, res) => {
     try {
-        const clubs = await RunClub.find({
-            status: 'published',
-            showOnSportsPage: { $ne: false },
-            showInRunClubs: { $ne: false },
-        })
+        const hub = String(req.query.hub || '').toLowerCase();
+        const filter = hub === 'events'
+            ? { status: 'published', listingHub: 'events' }
+            : {
+                status: 'published',
+                showOnSportsPage: { $ne: false },
+                showInRunClubs: { $ne: false },
+                listingHub: { $ne: 'events' },
+            };
+        const clubs = await RunClub.find(filter)
+            .select(RUN_CLUB_LIST_SELECT)
             .sort({ runClubPriority: 1, createdAt: -1 })
             .limit(100)
             .lean();
-        res.json({ clubs });
+        res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+        res.json({ clubs: clubs.map(sanitizePublicRunClub) });
     } catch (err) {
         console.error('publicRunClub getAll error:', err.message);
         res.status(500).json({ message: 'Failed to fetch run clubs' });
     }
 });
 
-router.get('/:id', async (req, res) => {
+router.get('/:idOrSlug', async (req, res) => {
     try {
-        const club = await RunClub.findOne({
-            _id: req.params.id,
+        const club = await findByIdOrSlug(RunClub, req.params.idOrSlug, {
+            baseFilter: {
             status: 'published',
-            showOnSportsPage: { $ne: false },
-        }).lean();
+            },
+            pickName: (row) => row.name,
+            lean: true,
+        });
         if (!club) return res.status(404).json({ message: 'Run club not found' });
-        res.json({ club });
+        res.json({ club: sanitizePublicRunClub(club) });
     } catch (err) {
         console.error('publicRunClub getById error:', err.message);
         res.status(500).json({ message: 'Failed to fetch run club' });

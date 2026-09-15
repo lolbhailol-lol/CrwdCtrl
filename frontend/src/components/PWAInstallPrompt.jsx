@@ -1,6 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { Download, X } from 'lucide-react';
 import { useDarkMode } from '../context/DarkModeContext';
+import { isInAppBrowser } from '../config/apiBase';
+
+function canOfferInstall(pathname = window.location.pathname) {
+    if (isInAppBrowser()) return false;
+    if (pathname.startsWith('/campus-hunt')) return false;
+    return !/(^|\/)(book|register|registration)(\/|$)/i.test(pathname)
+        && !pathname.startsWith('/events/community-event/')
+        && !pathname.startsWith('/sports/run-event/')
+        && !pathname.startsWith('/competitions-view-details/')
+        && !pathname.startsWith('/view-details/');
+}
 
 export default function PWAInstallPrompt() {
     const [deferredPrompt, setDeferredPrompt] = useState(null);
@@ -8,6 +19,8 @@ export default function PWAInstallPrompt() {
     const { isDark } = useDarkMode();
 
     useEffect(() => {
+        if (!canOfferInstall()) return undefined;
+
         // Check if already dismissed
         const dismissed = localStorage.getItem('pwa_install_dismissed');
         if (dismissed) {
@@ -29,7 +42,6 @@ export default function PWAInstallPrompt() {
         if (window.matchMedia('(display-mode: standalone)').matches) {
             setShowBanner(false);
         }
-
         return () => window.removeEventListener('beforeinstallprompt', handler);
     }, []);
 

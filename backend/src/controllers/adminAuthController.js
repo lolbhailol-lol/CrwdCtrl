@@ -33,12 +33,14 @@ async function verifyAdminPassword(password) {
 
 exports.adminLogin = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const email = typeof body.email === 'string' ? body.email.trim() : '';
+    const password = typeof body.password === 'string' ? body.password : '';
     const adminEmail = process.env.ADMIN_EMAIL?.trim();
 
-    if (!adminEmail || !email || email.trim() !== adminEmail) {
+    if (!adminEmail || !email || email !== adminEmail) {
       if (isDev) {
-        console.warn('[admin] Login failed for:', email);
+        console.warn('[admin] Login failed for:', email || '(invalid email)');
       }
       return res.status(401).json({
         success: false,

@@ -56,14 +56,17 @@ export const searchCompetitions = async (query, filters = {}) => {
 
 export const searchAll = async (query, filters = {}) => {
   try {
-    const [fests, competitions] = await Promise.all([
-      searchFests(query, filters),
-      searchCompetitions(query, filters),
-    ]);
-    return { fests, competitions, total: fests.length + competitions.length };
+    const searchParams = new URLSearchParams();
+    if (query?.trim()) searchParams.set('query', query.trim());
+    if (filters.limit) searchParams.set('limit', filters.limit);
+    const response = await publicFetch(`/search/all?${searchParams.toString()}`);
+    if (!response.ok) return { results: [], total: 0 };
+    const data = await response.json();
+    const results = Array.isArray(data?.results) ? data.results : [];
+    return { results, total: results.length };
   } catch (error) {
     console.error('Error in combined search:', error);
-    return { fests: [], competitions: [], total: 0 };
+    return { results: [], total: 0 };
   }
 };
 

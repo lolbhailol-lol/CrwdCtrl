@@ -1,16 +1,19 @@
 import React from 'react';
 import { useDarkMode } from '../../context/DarkModeContext';
-import { ArrowLeft, Shield, Eye, Database, Share2, Lock, Users, FileText, Globe, Mail, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, Shield, Eye, Database, Share2, Lock, Users, FileText, Globe, Mail, Phone, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { LEGAL_EMAIL, LEGAL_NAME, LEGAL_OPERATOR_LINE, LEGAL_PHONE_DISPLAY, LEGAL_PHONE_TEL, WEBSITE_URL } from '../../constants/legalEntity';
+import { useInAppBack } from '../../hooks/useInAppBack';
+import Seo from '../../components/Seo';
+import { breadcrumbSchema, webPageSchema } from '../../utils/seo';
 
 export default function PrivacyPolicy() {
     const { isDark } = useDarkMode();
-    const navigate = useNavigate();
+    const goBack = useInAppBack();
 
     const privacyData = {
-        last_updated: "2026-02-19",
+        last_updated: "2026-08-20",
         introduction: {
-            purpose: "Explains how Crwdctrl collects, uses, stores, and protects user data.",
+            purpose: `${LEGAL_OPERATOR_LINE} This policy explains how CrwdCtrl collects, uses, stores, and protects user data.`,
             scope: [
                 "Websites",
                 "Applications",
@@ -119,19 +122,34 @@ export default function PrivacyPolicy() {
             third_party_links: "Our platform may contain links to other websites. We are not responsible for the privacy practices of third-party sites."
         },
         contact: {
-            website: "https://www.crwdctrl.in",
-            email: "Karan@crwdctrl.in"
+            legal_name: LEGAL_NAME,
+            website: WEBSITE_URL,
+            email: LEGAL_EMAIL,
+            phone: LEGAL_PHONE_DISPLAY,
+            phone_tel: LEGAL_PHONE_TEL,
         }
     };
 
     return (
         <div className="crwdctrl-page crwdctrl-page--content min-h-screen transition-colors duration-300">
+            <Seo
+                title="Privacy Policy"
+                description="Learn how CrwdCtrl collects, uses, stores and protects your personal information when you use our platform and services."
+                canonical="/privacy-policy"
+                jsonLd={[
+                    webPageSchema({ name: 'CrwdCtrl Privacy Policy', url: '/privacy-policy' }),
+                    breadcrumbSchema([
+                        { name: 'Home', path: '/' },
+                        { name: 'Privacy Policy', path: '/privacy-policy' },
+                    ]),
+                ]}
+            />
             {/* Header */}
             <div className={`crwdctrl-sticky-header ${isDark ? 'bg-[#111111] border-gray-800' : 'bg-white border-gray-200'} border-b`}>
                 <div className="max-w-4xl mx-auto px-4 py-4">
                     <div className="flex items-center justify-center relative">
                         <button
-                            onClick={() => navigate(-1)}
+                            onClick={goBack}
                             className={`lg:hidden absolute left-0 p-2 rounded-lg ${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-100'} transition-colors`}
                         >
                             <ArrowLeft className="w-5 h-5" />
@@ -516,6 +534,9 @@ export default function PrivacyPolicy() {
                         </div>
 
                         <div className="space-y-2">
+                            <p className={`text-sm ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>
+                                Legal name: {privacyData.contact.legal_name}
+                            </p>
                             <div className="flex items-center gap-2">
                                 <Globe className="w-4 h-4 text-blue-500" />
                                 <a
@@ -534,6 +555,15 @@ export default function PrivacyPolicy() {
                                     className={`text-sm underline ${isDark ? 'text-blue-300 hover:text-blue-200' : 'text-blue-700 hover:text-blue-800'}`}
                                 >
                                     {privacyData.contact.email}
+                                </a>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Phone className="w-4 h-4 text-blue-500" />
+                                <a
+                                    href={`tel:${privacyData.contact.phone_tel}`}
+                                    className={`text-sm underline ${isDark ? 'text-blue-300 hover:text-blue-200' : 'text-blue-700 hover:text-blue-800'}`}
+                                >
+                                    {privacyData.contact.phone}
                                 </a>
                             </div>
                         </div>

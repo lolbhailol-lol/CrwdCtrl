@@ -1,5 +1,6 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 
 export default function OrganizerProtectedRoute({ children }) {
   const { user, token, isLoading, isAuthenticated } = useAuth();
@@ -18,9 +19,11 @@ export default function OrganizerProtectedRoute({ children }) {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#161718] text-gray-400">
-        Loading...
-      </div>
+      <InlinePageLoader
+        label="Loading scanner"
+        minHeight
+        className="min-h-screen bg-[#161718]"
+      />
     );
   }
 

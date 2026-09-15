@@ -36,6 +36,14 @@ export function saveRecentSearch(term) {
     localStorage.setItem(RECENT_KEY, JSON.stringify([label, ...prev].slice(0, MAX_RECENT)));
 }
 
+export function clearRecentSearches() {
+    try {
+        localStorage.removeItem(RECENT_KEY);
+    } catch {
+        /* ignore */
+    }
+}
+
 export function getSearchResultTitle(result) {
     return result?.title || result?._title || result?.festival_name || result?.name || result?.competitionName || 'Untitled';
 }

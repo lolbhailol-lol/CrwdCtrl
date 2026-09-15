@@ -6,5 +6,6 @@ export function toCardText(text) {
 
     return value
         .toLowerCase()
-        .replace(/(^|[\s\-/&(])([a-z])/g, (_, sep, ch) => sep + ch.toUpperCase());
+        .replace(/(^|[\s\-/&(])([a-z])/g, (_, sep, ch) => sep + ch.toUpperCase())
+        .replace(/\bIit\b/g, 'IIT');
 }

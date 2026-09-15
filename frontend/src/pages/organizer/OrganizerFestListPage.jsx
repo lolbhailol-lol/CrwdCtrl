@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { QrCode, ArrowLeft, Loader, Download } from 'lucide-react';
+import { QrCode, ArrowLeft, Download } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { getApiBaseUrl } from '../../config/apiBase';
+import { InlinePageLoader } from '../../components/DetailPageLoader';
 
 export default function OrganizerFestListPage() {
   const navigate = useNavigate();
@@ -17,7 +18,7 @@ export default function OrganizerFestListPage() {
 
     (async () => {
       try {
-        const res = await fetch(`${getApiBaseUrl()}/fest-organizer/my-fests`, {
+        const res = await fetch(`${getApiBaseUrl()}/organizer/fests/my-fests`, {
           headers: { Authorization: `Bearer ${authToken}` },
         });
         if (!res.ok) {
@@ -53,9 +54,7 @@ export default function OrganizerFestListPage() {
 
       <main className="max-w-2xl mx-auto p-4 space-y-4">
         {loading && (
-          <div className="flex justify-center py-16">
-            <Loader className="animate-spin text-[#0ECCEE]" size={32} />
-          </div>
+          <InlinePageLoader label="Loading fests…" variant="fest" minHeight={false} />
         )}
 
         {error && (
@@ -75,7 +74,7 @@ export default function OrganizerFestListPage() {
 
         {fests.map((fest) => {
           const festId = fest._id || fest.id;
-          const exportHref = `${getApiBaseUrl()}/fest-organizer/${festId}/checkins/export`;
+          const exportHref = `${getApiBaseUrl()}/organizer/fests/${festId}/checkins/export`;
           return (
             <div
               key={festId}

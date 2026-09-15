@@ -17,7 +17,8 @@ import {
 import SportsFormModal from '../../components/admin/SportsFormModal';
 import RunClubFormModal from '../../components/admin/RunClubFormModal';
 import { normalizeImageUrl } from '../../utils/uploadUrls';
-import { adminFetchJSON } from '../../utils/adminApi';
+import { adminFetchJSON } from '../../services/api/admin.api.js';
+import { useDialog } from '../../context/DialogContext';
 
 const STATUS_BADGE = {
     published: 'bg-green-900/60 text-green-300 border border-green-700',
@@ -38,7 +39,7 @@ function formatDate(d) {
     return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-function AdminRunRow({ run, onEdit, onDelete }) {
+export function AdminRunRow({ run, onEdit, onDelete }) {
     const [imgErr, setImgErr] = useState(false);
     const thumb = normalizeImageUrl(run.images?.[0] || run.coverImage);
 
@@ -121,6 +122,7 @@ function AdminRunRow({ run, onEdit, onDelete }) {
 }
 
 export default function SportsPage() {
+    const { confirm } = useDialog();
     const [runs, setRuns] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
@@ -149,7 +151,7 @@ export default function SportsPage() {
         setClubsLoading(true);
         setError('');
         adminFetchJSON('/admin/run-clubs?limit=100')
-            .then((d) => setClubs(d.clubs || []))
+            .then((d) => setClubs((d.clubs || []).filter((c) => c.listingHub !== 'events')))
             .catch((err) => setError(err.message || 'Failed to load run clubs'))
             .finally(() => setClubsLoading(false));
     };
@@ -160,7 +162,7 @@ export default function SportsPage() {
     }, []);
 
     const deleteClub = async (id, name) => {
-        if (!window.confirm(`Delete "${name}"? Runs inside will be removed from this club.`)) return;
+        if (!(await confirm({ title: 'Delete run club?', message: `Delete "${name}"? Runs inside will be removed from this club.`, confirmText: 'Delete', tone: 'danger' }))) return;
         try {
             await adminFetchJSON(`/admin/run-clubs/${id}`, { method: 'DELETE' });
         } catch (err) {
@@ -171,7 +173,7 @@ export default function SportsPage() {
     };
 
     const deleteRun = async (id, title) => {
-        if (!window.confirm(`Delete "${title}"?`)) return;
+        if (!(await confirm({ title: 'Delete run?', message: `Delete "${title}"?`, confirmText: 'Delete', tone: 'danger' }))) return;
         try {
             await adminFetchJSON(`/admin/sports/${id}`, { method: 'DELETE' });
         } catch (err) {

@@ -1,5 +1,17 @@
 const mongoose = require('mongoose');
 const SportsEvent = require('../model/sports_model');
+const RunClub = require('../model/run_club_model');
+const { sanitizeCoverImages, primaryCoverUrl, excludeCoverUrlsFromGallery } = require('../utils/sanitizeCoverImages');
+const {
+    sanitizeSportsTiers,
+    maxTierFee,
+    mirrorRegistrationFeeFromTiers,
+    sanitizeOptionalAddOn,
+} = require('../utils/sportsPricing');
+const { ensureUniqueSlug, toSlug, mergePreviousSlugs } = require('../utils/slug');
+const { contactsFromBody } = require('../utils/runContacts');
+const { sanitizeFormSchema } = require('../utils/formSchemaSanitize');
+const { sanitizeGenderQuotas, sanitizeGenderPhase } = require('../utils/trekGenderRegistration');
 
 const SPORT_TYPES = new Set(['run_club', 'football', 'cricket', 'badminton', 'marathon', 'gymkhana', 'other']);
 const STATUSES = new Set(['draft', 'published', 'completed', 'cancelled']);
@@ -76,6 +88,27 @@ function sanitizeSportsPayload(body = {}) {
     if (body.eventDate !== undefined) payload.eventDate = body.eventDate ? new Date(body.eventDate) : null;
     if (body.reportingTime !== undefined) payload.reportingTime = String(body.reportingTime || '').trim();
     if (body.registrationFee !== undefined) payload.registrationFee = Math.max(0, Number(body.registrationFee) || 0);
+    if (body.pricingMode !== undefined) {
+        payload.pricingMode = body.pricingMode === 'tiers' ? 'tiers' : 'single';
+    }
+    if (body.tiers !== undefined) {
+        payload.tiers = sanitizeSportsTiers(body.tiers);
+    }
+    if (body.optionalAddOn !== undefined) {
+        payload.optionalAddOn = sanitizeOptionalAddOn(body.optionalAddOn);
+    }
+    if (payload.pricingMode === 'tiers' || (body.pricingMode === 'tiers' && payload.tiers)) {
+        const mode = payload.pricingMode || (body.pricingMode === 'tiers' ? 'tiers' : 'single');
+        if (mode === 'tiers') {
+            const tiers = payload.tiers !== undefined ? payload.tiers : sanitizeSportsTiers(body.tiers);
+            if (payload.tiers !== undefined || body.tiers !== undefined) {
+                payload.tiers = tiers;
+            }
+            if (payload.tiers && payload.tiers.length) {
+                payload.registrationFee = mirrorRegistrationFeeFromTiers('tiers', payload.tiers, payload.registrationFee);
+            }
+        }
+    }
     if (body.dressCode !== undefined) payload.dressCode = String(body.dressCode || '').trim();
     if (body.participationType !== undefined && PARTICIPATION_TYPES.has(body.participationType)) {
         payload.participationType = body.participationType;
@@ -85,7 +118,27 @@ function sanitizeSportsPayload(body = {}) {
     if (body.prizes !== undefined) payload.prizes = String(body.prizes || '').trim();
     if (body.routeMap !== undefined) payload.routeMap = String(body.routeMap || '').trim();
     if (body.distance !== undefined) payload.distance = String(body.distance || '').trim();
-    if (body.coverImage !== undefined) payload.coverImage = normalizeImageUrl(body.coverImage);
+    if (body.coverImages !== undefined) {
+        payload.coverImages = sanitizeCoverImages(body.coverImages);
+        payload.coverImage = primaryCoverUrl(payload.coverImages, body.coverImage);
+    } else if (body.coverImage !== undefined) {
+        payload.coverImage = normalizeImageUrl(body.coverImage);
+    }
+    if (body.images !== undefined) {
+        const covers = payload.coverImages !== undefined
+            ? payload.coverImages
+            : (body.coverImages !== undefined ? sanitizeCoverImages(body.coverImages) : null);
+        const legacyCover = payload.coverImage !== undefined
+            ? payload.coverImage
+            : normalizeImageUrl(body.coverImage);
+        // Prefer stripping against covers from this payload; if covers weren't sent, still
+        // strip against body.coverImages / coverImage when present.
+        payload.images = excludeCoverUrlsFromGallery(
+            body.images,
+            covers || sanitizeCoverImages(body.coverImages),
+            legacyCover,
+        );
+    }
     if (body.inclusions !== undefined) {
         payload.inclusions = Array.isArray(body.inclusions)
             ? body.inclusions.map((s) => String(s).trim()).filter(Boolean)
@@ -96,10 +149,36 @@ function sanitizeSportsPayload(body = {}) {
             ? body.termsAndConditions.map((s) => String(s).trim()).filter(Boolean)
             : [];
     }
-    if (body.contactPhone !== undefined) payload.contactPhone = String(body.contactPhone || '').trim();
-    if (body.contactInstagram !== undefined) payload.contactInstagram = String(body.contactInstagram || '').trim();
-    if (body.images !== undefined) {
-        payload.images = normalizeImageList(body.images);
+    if (body.returnTime !== undefined) payload.returnTime = String(body.returnTime || '').trim();
+    if (body.fitnessLevel !== undefined) payload.fitnessLevel = String(body.fitnessLevel || '').trim();
+    if (body.meetingPoint !== undefined) payload.meetingPoint = String(body.meetingPoint || '').trim();
+    if (body.ageLimit !== undefined) payload.ageLimit = String(body.ageLimit || '').trim();
+    if (body.detailBoxes !== undefined) {
+        payload.detailBoxes = Array.isArray(body.detailBoxes)
+            ? body.detailBoxes
+                .map((box, index) => ({
+                    id: String(box?.id || `box_${index}`).trim(),
+                    label: String(box?.label || '').trim(),
+                    value: String(box?.value || '').trim(),
+                    icon: String(box?.icon || 'default').trim() || 'default',
+                    order: Number.isFinite(Number(box?.order)) ? Number(box.order) : index,
+                }))
+                .filter((box) => box.label || box.value)
+                .map((box, index) => ({ ...box, order: index }))
+            : [];
+    }
+    if (body.infoSections !== undefined) {
+        payload.infoSections = Array.isArray(body.infoSections)
+            ? body.infoSections
+                .map((s) => ({ title: String(s?.title || '').trim(), details: String(s?.details || '').trim() }))
+                .filter((s) => s.title || s.details)
+            : [];
+    }
+    if (body.contactPhone !== undefined
+        || body.contactInstagram !== undefined
+        || body.contactPhones !== undefined
+        || body.contactInstagrams !== undefined) {
+        Object.assign(payload, contactsFromBody(body));
     }
     if (body.sponsors !== undefined) {
         payload.sponsors = Array.isArray(body.sponsors)
@@ -107,6 +186,31 @@ function sanitizeSportsPayload(body = {}) {
             : [];
     }
     if (body.registrationLink !== undefined) payload.registrationLink = String(body.registrationLink || '').trim();
+    if (body.registration !== undefined && body.registration && typeof body.registration === 'object') {
+        const r = body.registration;
+        const cleanList = (arr) => (Array.isArray(arr) ? arr.map((s) => String(s || '').trim()).filter(Boolean) : []);
+        payload.registration = {
+            status: ['open', 'closed'].includes(r.status) ? r.status : 'open',
+            mode: ['internal_form', 'external_link', 'organizer_qr'].includes(r.mode) ? r.mode : 'internal_form',
+            googleSheetsUrl: String(r.googleSheetsUrl || '').trim(),
+            organizerEmail: String(r.organizerEmail || '').trim(),
+            formInstructions: String(r.formInstructions || '').trim(),
+            availableDates: cleanList(r.availableDates),
+            timeSlots: cleanList(r.timeSlots),
+            locationOptions: cleanList(r.locationOptions),
+            maxPeoplePerBooking: Math.max(1, Number(r.maxPeoplePerBooking) || 10),
+            paymentQR: String(r.paymentQR || '').trim(),
+            paymentQRMessage: String(r.paymentQRMessage || '').trim(),
+            paymentUpiId: String(r.paymentUpiId || '').trim(),
+            qrAutoConfirm: Boolean(r.qrAutoConfirm),
+            requireLogin: r.requireLogin !== false,
+            genderQuotas: sanitizeGenderQuotas(r.genderQuotas || {}),
+            genderPhase: sanitizeGenderPhase(r.genderPhase || 'all'),
+            formSchema: Array.isArray(r.formSchema)
+                ? sanitizeFormSchema(r.formSchema)
+                : [],
+        };
+    }
     if (body.description !== undefined) payload.description = String(body.description || '');
     if (body.displayType !== undefined) payload.displayType = String(body.displayType || '').trim();
     if (body.featuredSection !== undefined) {
@@ -120,6 +224,7 @@ function sanitizeSportsPayload(body = {}) {
     if (body.runClubPriority !== undefined) payload.runClubPriority = clampPriority(body.runClubPriority);
     if (body.priority !== undefined) payload.priority = clampPriority(body.priority);
     if (body.showOnSportsPage !== undefined) payload.showOnSportsPage = Boolean(body.showOnSportsPage);
+    if (body.showOnEventsPage !== undefined) payload.showOnEventsPage = Boolean(body.showOnEventsPage);
     if (body.homeSection !== undefined) {
         payload.homeSection = body.homeSection && HOME_SECTIONS.has(body.homeSection)
             ? body.homeSection
@@ -127,6 +232,18 @@ function sanitizeSportsPayload(body = {}) {
     }
     if (body.homeSection === '') payload.homeSection = null;
     if (body.homePriority !== undefined) payload.homePriority = clampPriority(body.homePriority);
+    if (body.showOnHomeSlide !== undefined) payload.showOnHomeSlide = Boolean(body.showOnHomeSlide);
+    if (body.customPageSections !== undefined) {
+        payload.customPageSections = Array.isArray(body.customPageSections)
+            ? body.customPageSections
+                .filter((a) => a && a.page && a.sectionSlug)
+                .map((a) => ({
+                    page: String(a.page),
+                    sectionSlug: String(a.sectionSlug),
+                    priority: clampPriority(a.priority),
+                }))
+            : [];
+    }
     if (body.runClubId !== undefined) {
         payload.runClubId = body.runClubId && mongoose.Types.ObjectId.isValid(body.runClubId)
             ? body.runClubId
@@ -159,6 +276,17 @@ function finalizeSportsPayload(payload, existing = null) {
     return payload;
 }
 
+async function applyEventHubListingFlags(payload) {
+    const clubId = payload.runClubId;
+    if (!clubId) return payload;
+    const club = await RunClub.findById(clubId).select('listingHub').lean();
+    if (club?.listingHub === 'events') {
+        payload.showOnSportsPage = false;
+        payload.showInUpcoming = false;
+    }
+    return payload;
+}
+
 function defaultSectionFlags(payload) {
     if (payload.showInUpcoming === undefined) payload.showInUpcoming = true;
     if (payload.showInRunClubs === undefined) {
@@ -171,12 +299,45 @@ function defaultSectionFlags(payload) {
     return payload;
 }
 
+function validateOrganizerQrPayment(payload, existing = null) {
+    const pricingMode = payload.pricingMode
+        || existing?.pricingMode
+        || 'single';
+    const tiers = payload.tiers !== undefined
+        ? payload.tiers
+        : (existing?.tiers || []);
+    const fee = pricingMode === 'tiers'
+        ? maxTierFee(tiers)
+        : (Number(
+            payload.registrationFee !== undefined
+                ? payload.registrationFee
+                : existing?.registrationFee,
+        ) || 0);
+    const mode = payload.registration?.mode
+        || existing?.registration?.mode
+        || 'internal_form';
+    const paymentQR = payload.registration?.paymentQR !== undefined
+        ? payload.registration.paymentQR
+        : existing?.registration?.paymentQR;
+    if (pricingMode === 'tiers' && (!Array.isArray(tiers) || tiers.length < 1)) {
+        return 'Add at least one registration tier when using Custom tiers';
+    }
+    if (mode === 'organizer_qr' && fee > 0 && !String(paymentQR || '').trim()) {
+        return 'Payment QR image is required for Form + QR mode when fee is greater than 0';
+    }
+    return null;
+}
+
 exports.createSportsEvent = async (req, res) => {
     try {
-        const payload = finalizeSportsPayload(defaultSectionFlags(sanitizeSportsPayload(req.body)));
+        const payload = await applyEventHubListingFlags(
+            finalizeSportsPayload(defaultSectionFlags(sanitizeSportsPayload(req.body))),
+        );
         if (!payload.title || !payload.sportType) {
             return res.status(400).json({ message: 'title and sportType are required' });
         }
+        const qrErr = validateOrganizerQrPayment(payload);
+        if (qrErr) return res.status(400).json({ message: qrErr });
         const event = new SportsEvent({ ...payload, createdBy: req.user?._id || null });
         await event.save();
         res.status(201).json({ message: 'Sports event created successfully', event });
@@ -249,7 +410,37 @@ exports.updateSportsEvent = async (req, res) => {
         const existing = await SportsEvent.findById(id).lean();
         if (!existing) return res.status(404).json({ message: 'Sports event not found' });
 
-        const payload = finalizeSportsPayload(sanitizeSportsPayload(req.body), existing);
+        const payload = await applyEventHubListingFlags(
+            finalizeSportsPayload(sanitizeSportsPayload(req.body), existing),
+        );
+        const qrErr = validateOrganizerQrPayment(payload, existing);
+        if (qrErr) return res.status(400).json({ message: qrErr });
+
+        // findByIdAndUpdate skips pre('save') — ensure slug exists; never rewrite a set slug
+        if (!existing.slug) {
+            const titleForSlug = payload.title || existing.title || '';
+            const titleSlug = toSlug(titleForSlug);
+            const slug = await ensureUniqueSlug(SportsEvent, titleForSlug || String(id), {
+                excludeId: id,
+            });
+            if (slug) {
+                payload.slug = slug;
+                if (titleSlug && titleSlug !== slug) {
+                    payload.previousSlugs = mergePreviousSlugs(existing.previousSlugs, titleSlug);
+                }
+            }
+        } else {
+            delete payload.slug;
+            // Title rename: keep old title slug as alias so shared title-URLs still resolve
+            if (payload.title != null && toSlug(payload.title) !== toSlug(existing.title)) {
+                const oldTitleSlug = toSlug(existing.title);
+                const primary = toSlug(existing.slug);
+                if (oldTitleSlug && oldTitleSlug !== primary) {
+                    payload.previousSlugs = mergePreviousSlugs(existing.previousSlugs, oldTitleSlug);
+                }
+            }
+        }
+
         const event = await SportsEvent.findByIdAndUpdate(id, payload, { new: true, runValidators: true });
         if (!event) return res.status(404).json({ message: 'Sports event not found' });
         res.json({ message: 'Sports event updated successfully', event });

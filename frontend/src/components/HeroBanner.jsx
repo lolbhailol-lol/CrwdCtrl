@@ -2,6 +2,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { ArrowUpRight } from 'lucide-react';
 import ContentImage from './ContentImage';
 import { handleImageErrorWithFallback } from '../utils/fallbackImageGenerator';
+import { getImageUrl } from '../utils/imageImports';
+import { optimizeImageUrl } from '../utils/imageOptimizer';
+import { preloadImages } from '../utils/preloadImages';
 
 export default function HeroBanner({
     events = [],
@@ -13,6 +16,17 @@ export default function HeroBanner({
     const scrollRef = useRef(null);
     const pauseAutoUntilRef = useRef(0);
     const items = events.slice(0, 5);
+
+    useEffect(() => {
+        const slice = events.slice(0, 5);
+        if (!slice.length) return;
+        const urls = slice.slice(0, 3).map((item) => {
+            const raw = item.image;
+            if (!raw) return null;
+            return optimizeImageUrl(getImageUrl(raw) || raw, 'hero');
+        });
+        preloadImages(urls, { limit: 3 });
+    }, [events]);
 
     const syncActiveFromScroll = useCallback(() => {
         const el = scrollRef.current;
@@ -64,11 +78,13 @@ export default function HeroBanner({
 
     if (!items.length) return null;
 
-    const active = items[activeIdx];
+    const safeIdx = Math.min(activeIdx, items.length - 1);
+    const active = items[safeIdx];
+    if (!active) return null;
 
     const handleCta = (e) => {
         e.stopPropagation();
-        onEventClick?.(active.id);
+        if (active?.id != null) onEventClick?.(active.id);
     };
 
     const handleEventClick = () => {
@@ -77,24 +93,26 @@ export default function HeroBanner({
 
     return (
         <div className={`hero-banner-shell ${className}`}>
-            <div className="hero-banner-viewport relative rounded-2xl lg:rounded-3xl overflow-hidden hero-banner-height lg:h-70 shadow-md">
+            <div className="hero-banner-viewport relative rounded-2xl lg:rounded-3xl overflow-hidden hero-banner-height shadow-md">
                 <div
                     ref={scrollRef}
                     className="hero-banner-track scrollbar-hide"
                     style={{ WebkitOverflowScrolling: 'touch' }}
                 >
                     {items.map((item, i) => (
-                        <div key={item.id ?? i} className="hero-banner-slide">
+                        <div key={item?.id ?? i} className="hero-banner-slide">
                             <ContentImage
-                                src={item.image}
-                                alt={item.title || 'Featured event'}
+                                src={item?.image}
+                                alt={item?.title || 'Featured event'}
                                 preset="hero"
                                 loading={i === 0 ? 'eager' : 'lazy'}
                                 fetchPriority={i === 0 ? 'high' : 'auto'}
+                                showPlaceholderUntilLoad
+                                placeholderClassName="bg-[#1A1B1D]"
                                 width={560}
                                 height={280}
-                                className="hero-banner-image z-0 pointer-events-none"
-                                onError={(e) => handleImageErrorWithFallback(e, 560, 280, '#0ECCEE', item.title || 'Event')}
+                                className="hero-banner-image z-0 pointer-events-none absolute inset-0"
+                                onError={(e) => handleImageErrorWithFallback(e, 560, 280, '#1A1B1D', item?.title || 'Event')}
                             />
                         </div>
                     ))}
@@ -124,7 +142,7 @@ export default function HeroBanner({
                         className={`pointer-events-auto absolute left-3 max-w-[55%] text-left sm:max-w-[50%] ${items.length > 1 ? 'bottom-7' : 'bottom-2'}`}
                     >
                         <h2 className="text-fluid-lg font-bold leading-snug text-white drop-shadow-md line-clamp-2">
-                            {active.title}
+                            {active.title || 'Featured'}
                         </h2>
                         {active.dateTime && active.dateTime !== 'Date TBA' && (
                             <p className="mt-0.5 line-clamp-1 text-fluid-2xs text-white/70">
@@ -146,10 +164,10 @@ export default function HeroBanner({
                                             scrollToSlide(i);
                                         }}
                                         aria-label={`Go to slide ${i + 1}`}
-                                        aria-current={i === activeIdx ? 'true' : undefined}
+                                        aria-current={i === safeIdx ? 'true' : undefined}
                                         style={{ touchAction: 'manipulation' }}
                                         className={`shrink-0 rounded-full transition-all duration-300 ${
-                                            i === activeIdx
+                                            i === safeIdx
                                                 ? 'h-1.5 w-5 bg-white'
                                                 : 'h-1.5 w-1.5 border border-white bg-transparent'
                                         }`}

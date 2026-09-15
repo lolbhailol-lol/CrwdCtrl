@@ -1,8 +1,17 @@
 const mongoose = require('mongoose');
+const coverImagesSchema = require('./coverImagesSchema');
+const { ensureUniqueSlug, toSlug, mergePreviousSlugs } = require('../utils/slug');
 
 const sportsEventSchema = new mongoose.Schema(
     {
         title: { type: String, required: true, trim: true },
+        /**
+         * Stable URL slug for /sports/run/:slug deep links.
+         * Set once on create — never rewritten on title rename (shared links stay valid).
+         */
+        slug: { type: String, trim: true, lowercase: true },
+        /** Former primary slugs after any intentional slug change — kept for shared-link resolution */
+        previousSlugs: { type: [{ type: String, trim: true, lowercase: true }], default: [] },
         sportType: {
             type: String,
             enum: ['run_club', 'football', 'cricket', 'badminton', 'marathon', 'gymkhana', 'other'],
@@ -14,6 +23,33 @@ const sportsEventSchema = new mongoose.Schema(
         eventDate: { type: Date },
         reportingTime: { type: String, trim: true },
         registrationFee: { type: Number, default: 0 },
+        /**
+         * Pricing style:
+         * - single: use registrationFee only
+         * - tiers: custom tiers[] each with its own fee + inclusions
+         */
+        pricingMode: {
+            type: String,
+            enum: ['single', 'tiers'],
+            default: 'single',
+        },
+        tiers: [{
+            id: { type: String, trim: true, default: '' },
+            name: { type: String, trim: true, default: '' },
+            description: { type: String, trim: true, default: '' },
+            fee: { type: Number, default: 0 },
+            inclusions: { type: [String], default: [] },
+            order: { type: Number, default: 0 },
+        }],
+        /**
+         * Optional booking add-on shown as a checkbox on the run book page.
+         * Fee is charged per person when selected.
+         */
+        optionalAddOn: {
+            enabled: { type: Boolean, default: false },
+            label: { type: String, trim: true, default: '' },
+            fee: { type: Number, default: 0, min: 0 },
+        },
         dressCode: { type: String, trim: true },
         participationType: {
             type: String,
@@ -31,10 +67,35 @@ const sportsEventSchema = new mongoose.Schema(
         /** Run distance label shown on detail page, e.g. "3k-5k Runs" */
         distance: { type: String, trim: true, default: '' },
         coverImage: { type: String, trim: true, default: '' },
+        coverImages: { type: coverImagesSchema, default: () => ({}) },
         inclusions: { type: [String], default: [] },
+        /** Event-detail cards shown in the "Details" tab of the Run Info widget */
+        returnTime: { type: String, trim: true, default: '' },
+        fitnessLevel: { type: String, trim: true, default: '' },
+        meetingPoint: { type: String, trim: true, default: '' },
+        ageLimit: { type: String, trim: true, default: '' },
+        /** Custom white detail cards on run Details tab (label + value + icon) — trek-style */
+        detailBoxes: [{
+            id:    { type: String, trim: true, default: '' },
+            label: { type: String, trim: true, default: '' },
+            value: { type: String, trim: true, default: '' },
+            icon:  { type: String, trim: true, default: 'default' },
+            order: { type: Number, default: 0 },
+        }],
+        /** Repeatable info cards (title + details) shown in the Run Info widget */
+        infoSections: {
+            type: [{
+                title:   { type: String, trim: true, default: '' },
+                details: { type: String, trim: true, default: '' },
+            }],
+            default: [],
+        },
         termsAndConditions: { type: [String], default: [] },
         contactPhone: { type: String, trim: true, default: '' },
         contactInstagram: { type: String, trim: true, default: '' },
+        /** Multiple contact numbers / Instagram handles (first synced to legacy singles) */
+        contactPhones: { type: [String], default: [] },
+        contactInstagrams: { type: [String], default: [] },
         images: { type: [String], default: [] },
         sponsors: { type: [String], default: [] },
         registrationLink: { type: String, trim: true },
@@ -51,8 +112,12 @@ const sportsEventSchema = new mongoose.Schema(
         runClubPriority: { type: Number, default: 999, min: 1, max: 999 },
         priority: { type: Number, default: 999, min: 1, max: 999 },
         showOnSportsPage: { type: Boolean, default: true },
+        /** Events-page Community Events carousel (event-hub activities). Opt-in. */
+        showOnEventsPage: { type: Boolean, default: false },
         homeSection: { type: String, default: null },
         homePriority: { type: Number, default: 999, min: 1, max: 999 },
+        /** Home page hero / moving banner */
+        showOnHomeSlide: { type: Boolean, default: false },
         customPageSections: [{
             page: { type: String, required: true },
             sectionSlug: { type: String, required: true },
@@ -68,7 +133,67 @@ const sportsEventSchema = new mongoose.Schema(
         },
 
         registration: {
+            /** Whether registration is currently accepting bookings */
+            status: { type: String, enum: ['open', 'closed'], default: 'open' },
+            /**
+             * How users register:
+             * - internal_form: in-app form + Cashfree when fee > 0
+             * - external_link: open registrationLink
+             * - organizer_qr: in-app form + organizer UPI QR + screenshot upload
+             */
+            mode: {
+                type: String,
+                enum: ['internal_form', 'external_link', 'organizer_qr'],
+                default: 'internal_form',
+            },
             googleSheetsUrl: { type: String, default: '' },
+            organizerEmail: { type: String, default: '' },
+            formInstructions: { type: String, default: '' },
+            availableDates: { type: [String], default: [] },
+            timeSlots: { type: [String], default: [] },
+            locationOptions: { type: [String], default: [] },
+            maxPeoplePerBooking: { type: Number, default: 10 },
+            /** Organizer UPI / payment QR image URL (organizer_qr mode) */
+            paymentQR: { type: String, default: '' },
+            paymentQRMessage: { type: String, default: '' },
+            /** Structured UPI ID for copy-to-clipboard on booking */
+            paymentUpiId: { type: String, default: '' },
+            /**
+             * organizer_qr + paid only: when true, screenshot submit auto-confirms.
+             * When false (default), stays pending until organizer approves.
+             */
+            qrAutoConfirm: { type: Boolean, default: false },
+            /**
+             * When false, guests can book without an account (name/email/phone on the form).
+             * Default true = login required (existing behaviour).
+             */
+            requireLogin: { type: Boolean, default: true },
+            /** Gender-based seat caps (e.g. 10 women of 28 total). */
+            genderQuotas: {
+                enabled: { type: Boolean, default: false },
+                femaleSeats: { type: Number, default: 0, min: 0 },
+                maleSeats: { type: Number, default: 0, min: 0 },
+                othersSeats: { type: Number, default: 0, min: 0 },
+            },
+            /** closed | women_only | men_only | all — used when genderQuotas.enabled */
+            genderPhase: {
+                type: String,
+                enum: ['closed', 'women_only', 'men_only', 'all'],
+                default: 'all',
+            },
+            formSchema: [{
+                id:          String,
+                label:       String,
+                fieldName:   String,
+                type:        { type: String, enum: ['text','email','tel','number','textarea','select','file','date'], default: 'text' },
+                required:    { type: Boolean, default: false },
+                options:     [String],
+                /** option label → coupon code; booking page 1 auto-applies if coupon rules pass */
+                optionCoupons: { type: mongoose.Schema.Types.Mixed, default: {} },
+                placeholder: String,
+                /** 1 = party size, 2 = details, 3+ = each field is its own wizard step */
+                bookingStep: { type: Number, min: 1, max: 10, default: 2 },
+            }],
         },
 
         /** Volunteer scanner login — event code + password → scan-only access (run clubs & sports events) */
@@ -76,8 +201,6 @@ const sportsEventSchema = new mongoose.Schema(
             enabled: { type: Boolean, default: false },
             code: { type: String, trim: true, uppercase: true },
             passwordHash: { type: String, default: '' },
-            // Admin-retrievable copy so the credential can be re-shared with volunteers
-            password: { type: String, default: '' },
             label: { type: String, default: '', trim: true },
         },
 
@@ -87,6 +210,29 @@ const sportsEventSchema = new mongoose.Schema(
 );
 
 sportsEventSchema.index({ 'scannerAccess.code': 1 }, { unique: true, sparse: true });
+
+sportsEventSchema.pre('save', async function stripLegacyScannerPasswordAndSlug() {
+    if (this.scannerAccess?.password) {
+        this.scannerAccess.password = undefined;
+        this.markModified('scannerAccess');
+        this.$unset('scannerAccess.password');
+    }
+    // Immutable once set — title renames must not break shared /sports/run/:slug links
+    if (!this.slug) {
+        const titleSlug = toSlug(this.title);
+        const nextSlug = await ensureUniqueSlug(this.constructor, this.title, {
+            excludeId: this._id,
+        });
+        if (nextSlug) {
+            this.slug = nextSlug;
+            // If uniquified (title-2), keep plain title slug as alias for shared links
+            if (titleSlug && titleSlug !== nextSlug) {
+                this.previousSlugs = mergePreviousSlugs(this.previousSlugs, titleSlug);
+                this.markModified('previousSlugs');
+            }
+        }
+    }
+});
 
 sportsEventSchema.index({ sportType: 1 });
 sportsEventSchema.index({ status: 1 });
@@ -99,5 +245,7 @@ sportsEventSchema.index({ showOnSportsPage: 1 });
 sportsEventSchema.index({ homeSection: 1 });
 sportsEventSchema.index({ homePriority: 1 });
 sportsEventSchema.index({ runClubId: 1 });
+sportsEventSchema.index({ slug: 1 }, { unique: true, sparse: true });
+sportsEventSchema.index({ previousSlugs: 1 });
 
 module.exports = mongoose.model('SportsEvent', sportsEventSchema);

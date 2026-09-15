@@ -78,16 +78,16 @@ export const handleImageErrorWithFallback = (event, width, height, backgroundCol
 
 // Common fallback generators for different use cases
 export const eventImageFallback = (eventTitle) =>
-    createFallbackImage(300, 160, '#6366f1', eventTitle || 'Event', '#ffffff');
+    createFallbackImage(300, 160, '#2A2B2E', eventTitle || 'Event', '#9CA3AF');
 
 export const competitionImageFallback = (compName) =>
-    createFallbackImage(128, 128, '#0ea5e9', compName || 'Competition', '#ffffff');
+    createFallbackImage(128, 128, '#2A2B2E', compName || 'Competition', '#9CA3AF');
 
 export const artistImageFallback = (artistName) =>
-    createFallbackImage(280, 160, '#8b5cf6', artistName || 'Artist', '#ffffff');
+    createFallbackImage(280, 160, '#2A2B2E', artistName || 'Artist', '#9CA3AF');
 
 export const sponsorImageFallback = (sponsorName) =>
-    createFallbackImage(100, 60, '#4285F4', sponsorName || 'Sponsor', '#ffffff');
+    createFallbackImage(100, 60, '#2A2B2E', sponsorName || 'Sponsor', '#9CA3AF');
 
 export const galleryImageFallback = () =>
-    createFallbackImage(100, 100, '#6366f1', 'Gallery', '#ffffff');
+    createFallbackImage(100, 100, '#2A2B2E', 'Gallery', '#9CA3AF');

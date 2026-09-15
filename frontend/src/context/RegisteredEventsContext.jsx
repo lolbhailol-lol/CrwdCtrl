@@ -13,58 +13,23 @@ export const useRegisteredEvents = () => {
 export const RegisteredEventsProvider = ({ children }) => {
     const [registeredEvents, setRegisteredEvents] = useState([]);
 
-    // Load registered events from localStorage on mount
     useEffect(() => {
         const savedEvents = localStorage.getItem('crwdctrl_registered_events');
         if (savedEvents) {
-            setRegisteredEvents(JSON.parse(savedEvents));
-        } else {
-            // Set some sample registered events for demonstration
-            const sampleEvents = [
-                {
-                    id: 1,
-                    name: 'Tech Summit 2024',
-                    college: 'MIT College',
-                    date: '2025-12-15',
-                    time: '10:00 AM',
-                    venue: 'Main Auditorium',
-                    type: 'tech',
-                    icon: '💻',
-                    status: 'Upcoming',
-                    registeredAt: new Date().toISOString()
-                },
-                {
-                    id: 2,
-                    name: 'Cultural Extravaganza',
-                    college: 'ABC University',
-                    date: '2025-12-20',
-                    time: '6:00 PM',
-                    venue: 'Open Ground',
-                    type: 'cultural',
-                    icon: '🎭',
-                    status: 'Upcoming',
-                    registeredAt: new Date().toISOString()
-                },
-                {
-                    id: 3,
-                    name: 'Sports Championship',
-                    college: 'XYZ Institute',
-                    date: '2025-12-25',
-                    time: '8:00 AM',
-                    venue: 'Sports Complex',
-                    type: 'sports',
-                    icon: '⚽',
-                    status: 'Upcoming',
-                    registeredAt: new Date().toISOString()
-                }
-            ];
-            setRegisteredEvents(sampleEvents);
+            try {
+                setRegisteredEvents(JSON.parse(savedEvents));
+            } catch {
+                setRegisteredEvents([]);
+            }
         }
     }, []);
 
-    // Save to localStorage whenever registeredEvents changes
     useEffect(() => {
-        localStorage.setItem('crwdctrl_registered_events', JSON.stringify(registeredEvents));
+        if (registeredEvents.length > 0) {
+            localStorage.setItem('crwdctrl_registered_events', JSON.stringify(registeredEvents));
+        } else {
+            localStorage.removeItem('crwdctrl_registered_events');
+        }
     }, [registeredEvents]);
 
     const registerForEvent = (event) => {
@@ -83,9 +48,8 @@ export const RegisteredEventsProvider = ({ children }) => {
         };
 
         setRegisteredEvents(prev => {
-            // Check if already registered
             if (prev.some(regEvent => regEvent.id === event.id)) {
-                return prev; // Already registered
+                return prev;
             }
             return [...prev, registrationData];
         });

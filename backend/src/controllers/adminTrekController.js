@@ -2,11 +2,81 @@ const mongoose = require('mongoose');
 const Trek = require('../model/trek_model');
 const TrekBooking = require('../model/trek_booking_model');
 const { sanitizeTrekFilters } = require('../constants/trekFilterOptions');
+const { sanitizeCoverImages, primaryCoverUrl } = require('../utils/sanitizeCoverImages');
+const { sanitizeTrekBatches } = require('../utils/sanitizeTrekBatches');
+const { sanitizeTrekDetailBoxes } = require('../utils/sanitizeTrekDetailBoxes');
+const { sanitizeItinerary } = require('../utils/sanitizeItinerary');
+const { sanitizeTrekRegistrationFee, sanitizeTrekPlatformFeePercent } = require('../utils/trekRegistrationFee');
+const { normalizeAvailableDates, parseTrekDateForIndex } = require('../utils/trekDateNormalize');
+const { sanitizeGenderQuotas, sanitizeGenderPhase } = require('../utils/trekGenderRegistration');
+
+function normalizeImageList(images) {
+    if (!Array.isArray(images)) return [];
+    return images.map((u) => String(u || '').trim()).filter(Boolean);
+}
 
 function normalizeTrekPayload(body) {
     const payload = { ...body };
     if (payload.trekFilters !== undefined) {
         payload.trekFilters = sanitizeTrekFilters(payload.trekFilters);
+    }
+    if (payload.coverImages !== undefined) {
+        payload.coverImages = sanitizeCoverImages(payload.coverImages);
+        payload.coverImage = primaryCoverUrl(payload.coverImages, payload.coverImage) || null;
+    }
+    if (payload.heroImages !== undefined) {
+        payload.heroImages = normalizeImageList(payload.heroImages).slice(0, 5);
+    }
+    if (payload.images !== undefined) {
+        payload.images = normalizeImageList(payload.images);
+    }
+    if (payload.trekBatches !== undefined) {
+        payload.trekBatches = sanitizeTrekBatches(payload.trekBatches);
+        const firstDated = payload.trekBatches.find((b) => b.date);
+        if (firstDated?.date) {
+            const parsed = parseTrekDateForIndex(firstDated.date);
+            if (parsed) payload.trekDate = parsed;
+        }
+    }
+    if (payload.detailBoxes !== undefined) {
+        payload.detailBoxes = sanitizeTrekDetailBoxes(payload.detailBoxes);
+    }
+    if (payload.itinerary !== undefined) {
+        payload.itinerary = sanitizeItinerary(payload.itinerary);
+    }
+    if (payload.dateLabel !== undefined) {
+        payload.dateLabel = String(payload.dateLabel || '').trim();
+    }
+    if (payload.registrationFee !== undefined) {
+        payload.registrationFee = sanitizeTrekRegistrationFee(payload.registrationFee);
+    }
+    if (payload.platformFeePercent !== undefined) {
+        payload.platformFeePercent = sanitizeTrekPlatformFeePercent(payload.platformFeePercent);
+    }
+    if (payload.maxParticipants !== undefined) {
+        payload.maxParticipants = Math.max(0, Number(payload.maxParticipants) || 0);
+    }
+    if (payload.groupLink !== undefined) {
+        payload.groupLink = String(payload.groupLink || '').trim();
+    }
+    if (payload.registration?.availableDates !== undefined) {
+        payload.registration = {
+            ...payload.registration,
+            availableDates: normalizeAvailableDates(payload.registration.availableDates),
+        };
+    }
+    if (payload.registration) {
+        const reg = { ...payload.registration };
+        if (reg.genderQuotas !== undefined) {
+            reg.genderQuotas = sanitizeGenderQuotas(reg.genderQuotas);
+        }
+        if (reg.genderPhase !== undefined) {
+            reg.genderPhase = sanitizeGenderPhase(reg.genderPhase);
+        }
+        if (reg.qrAutoConfirm !== undefined) {
+            reg.qrAutoConfirm = Boolean(reg.qrAutoConfirm);
+        }
+        payload.registration = reg;
     }
     return payload;
 }
@@ -46,9 +116,10 @@ exports.getAllTreks = async (req, res) => {
 
         const total = await Trek.countDocuments(filter);
         const treks = await Trek.find(filter)
-            .sort({ createdAt: -1 })
+            .sort({ communityPriority: 1, trekDate: 1, createdAt: -1 })
             .skip(skip)
             .limit(limit)
+            .populate({ path: 'communityId', select: 'name basedIn', strictPopulate: false })
             .lean();
 
         res.status(200).json({
@@ -92,8 +163,14 @@ exports.updateTrek = async (req, res) => {
         if (body.featuredSection === '') body.featuredSection = null;
         if (body.homeSection === '') body.homeSection = null;
         if (body.trekCategory === '') body.trekCategory = null;
-        const trek = await Trek.findByIdAndUpdate(id, { $set: body }, { new: true, runValidators: false });
+
+        // Use save() so unique slug pre-save runs (findByIdAndUpdate skips hooks)
+        const trek = await Trek.findById(id);
         if (!trek) return res.status(404).json({ message: 'Trek not found' });
+        Object.keys(body).forEach((key) => {
+            trek[key] = body[key];
+        });
+        await trek.save();
         res.json({ message: 'Trek updated successfully', trek });
     } catch (error) {
         console.error('adminTrek updateTrek error:', error);

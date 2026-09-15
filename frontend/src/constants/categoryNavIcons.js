@@ -22,7 +22,7 @@ export const ALL_CATEGORY_NAV_ICON_URLS = [
   ...Object.values(CATEGORY_NAV_ICONS.dark),
 ];
 
-/** Warm browser cache — safe to call multiple times. */
+/** Warm browser cache via Image() — does not use <link rel="preload"> (avoids unused-preload console noise). */
 export function preloadCategoryNavIcons(isDark) {
   const set = isDark ? CATEGORY_NAV_ICONS.dark : CATEGORY_NAV_ICONS.light;
   Object.values(set).forEach((src) => {
@@ -32,7 +32,7 @@ export function preloadCategoryNavIcons(isDark) {
   });
 }
 
-/** Preload both themes (~50 KB total) so icons + theme toggle stay instant. */
+/** Preload both themes after idle — prefer preloadCategoryNavIcons(current) at boot. */
 export function preloadAllCategoryNavIcons() {
   ALL_CATEGORY_NAV_ICON_URLS.forEach((src) => {
     const img = new Image();

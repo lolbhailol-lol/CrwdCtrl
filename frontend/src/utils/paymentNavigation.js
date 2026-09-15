@@ -1,19 +1,82 @@
 /** Shared post-payment navigation — keeps redirects fast and consistent */
 
-export const BOOKING_REDIRECT_MS = 800;
-export const PAYMENT_VERIFY_RETRY_MS = [600, 1000, 1500, 2000];
+import { clearPendingPayment } from './deepLinks';
+import { resolveAuthToken } from './authToken';
+import {
+  classifyVerifyResponse,
+  classifyVerifyError,
+  classifyCheckoutError,
+} from './paymentClassify';
 
-export function goToBookings(navigate) {
-  navigate('/booking', { replace: true, state: { refreshBookings: true } });
+export {
+  classifyVerifyResponse,
+  classifyVerifyError,
+  classifyCheckoutError,
+};
+
+export const BOOKING_REDIRECT_MS = 400;
+/** Per-attempt inner retries inside one verify call. */
+export const PAYMENT_VERIFY_RETRY_MS = [250, 400, 700, 1000];
+/** Max wait on /payment/return before handing off to the booking page. */
+export const PAYMENT_RETURN_MAX_WAIT_MS = 10000;
+/** Background poll on fest/event/booking pages (user sees “Finishing…” overlay). */
+export const PAYMENT_BACKGROUND_MAX_WAIT_MS = 18000;
+/** Gaps between poll rounds (background only). */
+export const PAYMENT_POLL_INTERVAL_MS = [500, 700, 1000, 1500, 2000];
+/** @deprecated use PAYMENT_BACKGROUND_MAX_WAIT_MS */
+export const PAYMENT_POLL_MAX_WAIT_MS = PAYMENT_BACKGROUND_MAX_WAIT_MS;
+/** When to show “View My Bookings / Return to form” on the finishing overlay. */
+export const PAYMENT_ESCAPE_AFTER_MS = 4000;
+/** When finishing overlay should stop spinning and show a hard failure. */
+export const PAYMENT_HARD_TIMEOUT_MS = 20000;
+/** If redirect checkout never leaves the page, unstick after this. */
+export const PAYMENT_REDIRECT_STUCK_MS = 3500;
+
+export function goToBookings(navigate, pendingBooking = null) {
+  navigate('/booking', {
+    replace: true,
+    state: {
+      refreshBookings: true,
+      ...(pendingBooking ? { pendingBooking } : {}),
+    },
+  });
 }
 
 export function scheduleGoToBookings(navigate, delayMs = BOOKING_REDIRECT_MS) {
   window.setTimeout(() => goToBookings(navigate), delayMs);
 }
 
-export function goToTicketOrBookings(navigate, regId) {
+/**
+ * After Cashfree return, sports/event-community tickets must include ?type=sports
+ * (optional &hub=events). Bare /qr-ticket/:id hits the fest Registration API →
+ * "Registration not found".
+ */
+export function ticketQueryForPaymentReturn(returnPath = '', entityType = '') {
+  const kind = String(entityType || '').toLowerCase();
+  const path = String(returnPath || '');
+  if (kind === 'trek' || (/\/trek\//.test(path) && /\/book/.test(path))) {
+    return 'type=trek';
+  }
+  if (
+    kind === 'sports'
+    || /\/events\/community-event\//.test(path)
+    || /\/sports\/run\//.test(path)
+  ) {
+    return /\/events\/community-event\//.test(path)
+      ? 'type=sports&hub=events'
+      : 'type=sports';
+  }
+  if (kind === 'event' || kind === 'event_show' || (/\/events\//.test(path) && /\/register/.test(path))) {
+    return 'type=event';
+  }
+  return '';
+}
+
+export function goToTicketOrBookings(navigate, regId, options = {}) {
   if (regId) {
-    navigate(`/qr-ticket/${regId}`, {
+    const rawQuery = options.ticketQuery || options.query || '';
+    const qs = String(rawQuery).replace(/^\?/, '').trim();
+    navigate(qs ? `/qr-ticket/${regId}?${qs}` : `/qr-ticket/${regId}`, {
       replace: true,
       state: { refreshBookings: true, fromPayment: true },
     });
@@ -22,35 +85,196 @@ export function goToTicketOrBookings(navigate, regId) {
   goToBookings(navigate);
 }
 
-export function scheduleTicketOrBookings(navigate, regId, delayMs = BOOKING_REDIRECT_MS) {
-  window.setTimeout(() => goToTicketOrBookings(navigate, regId), delayMs);
+export function scheduleTicketOrBookings(navigate, regId, delayMs = BOOKING_REDIRECT_MS, options = {}) {
+  window.setTimeout(() => goToTicketOrBookings(navigate, regId, options), delayMs);
+}
+
+export function getCashfreeReturnPaymentId(search = '') {
+  const params = new URLSearchParams(search);
+  return params.get('cf_payment_id') || params.get('payment_id') || null;
+}
+
+export function clearCashfreeReturnAndPending(navigate, location) {
+  clearPendingPayment();
+  try {
+    const pathname = location?.pathname || window.location.pathname;
+    const params = new URLSearchParams(location?.search || window.location.search);
+    ['order_id', 'order_token', 'cf_payment_id', 'payment_id'].forEach((key) => params.delete(key));
+    const nextSearch = params.toString();
+    if (navigate) {
+      navigate(
+        { pathname, search: nextSearch ? `?${nextSearch}` : '' },
+        { replace: true },
+      );
+    } else {
+      const url = nextSearch ? `${pathname}?${nextSearch}` : pathname;
+      window.history.replaceState({}, '', url);
+    }
+  } catch {
+    /* ignore */
+  }
 }
 
 /**
- * Verify Cashfree payment with short retries (webhook / redirect lag).
- * @param {'fest'|'trek'} kind
+ * Verify Cashfree payment with retries (webhook / redirect lag).
+ * @param {'fest'|'trek'|'sports'} kind
  */
-export async function verifyPaymentWithRetry(apiBase, orderId, { token = null, kind = 'fest' } = {}) {
+export async function verifyPaymentWithRetry(
+  apiBase,
+  orderId,
+  { token = null, kind = 'fest', paymentId = null, search = '', customerEmail = '', signature = null } = {},
+) {
   const endpoint =
-    kind === 'trek' ? `${apiBase}/payment/trek-verify` : `${apiBase}/payment/verify`;
-  const headers = { 'Content-Type': 'application/json' };
-  if (token) headers.Authorization = `Bearer ${token}`;
+    kind === 'trek' ? `${apiBase}/payment/trek-verify`
+    : kind === 'sports' ? `${apiBase}/payment/sports-verify`
+    : `${apiBase}/payment/verify`;
+  const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
+  const authToken = token || resolveAuthToken();
+  if (authToken) headers.Authorization = `Bearer ${authToken}`;
+
+  const resolvedPaymentId = paymentId || getCashfreeReturnPaymentId(search);
+  const body = { payment_order_id: orderId };
+  if (resolvedPaymentId) body.payment_id = resolvedPaymentId;
+  if (signature) {
+    body.razorpay_signature = signature;
+    body.razorpay_order_id = orderId;
+    body.razorpay_payment_id = resolvedPaymentId;
+  }
+  // Guest-friendly verify: server binds trek/sports orders to userId when present,
+  // else it falls back to the customerEmail captured at order creation.
+  const email = String(customerEmail || '').trim();
+  if (email) body.customerEmail = email;
 
   const maxAttempts = PAYMENT_VERIFY_RETRY_MS.length + 1;
-  let last = null;
+  let lastData = null;
+  let lastRes = null;
+  let lastClassified = classifyVerifyResponse({}, 0);
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ payment_order_id: orderId }),
-    });
-    last = await res.json().catch(() => ({}));
-    if (last?.verified) return { ok: true, data: last, response: res };
-    const retryable = /pending|ACTIVE|not found|not successful/i.test(last?.message || '');
-    if (!retryable || attempt === maxAttempts - 1) break;
-    await new Promise((r) => setTimeout(r, PAYMENT_VERIFY_RETRY_MS[attempt] || 1500));
+    try {
+      lastRes = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+        credentials: 'include',
+      });
+    } catch (networkErr) {
+      lastClassified = classifyVerifyResponse({
+        verified: false,
+        status: 'failed',
+        code: 'NETWORK_ERROR',
+        message: networkErr?.message || 'Network error during verification',
+        retryable: true,
+      }, 0);
+      if (attempt === maxAttempts - 1) break;
+      await new Promise((r) => setTimeout(r, PAYMENT_VERIFY_RETRY_MS[attempt] || 1500));
+      continue;
+    }
+
+    lastData = await lastRes.json().catch(() => ({}));
+    lastClassified = classifyVerifyResponse(lastData, lastRes.status);
+
+    if (lastClassified.verified) {
+      return {
+        ok: true,
+        verified: true,
+        status: 'paid',
+        code: lastClassified.code,
+        data: lastData,
+        response: lastRes,
+        classified: lastClassified,
+      };
+    }
+
+    if (lastClassified.status === 'cancelled' || (lastClassified.status === 'failed' && !lastClassified.retryable)) {
+      break;
+    }
+
+    if (attempt < maxAttempts - 1 && (lastClassified.status === 'pending' || lastClassified.retryable)) {
+      await new Promise((r) => setTimeout(r, PAYMENT_VERIFY_RETRY_MS[attempt] || 1500));
+      continue;
+    }
+
+    break;
   }
 
-  return { ok: false, data: last };
+  return {
+    ok: false,
+    verified: false,
+    status: lastClassified.status,
+    code: lastClassified.code,
+    data: lastData,
+    response: lastRes,
+    classified: lastClassified,
+  };
+}
+
+const CASHFREE_QUERY_KEYS = ['order_id', 'order_token', 'cf_payment_id', 'payment_id'];
+
+export function stripCashfreeReturnParams(search = '') {
+  const params = new URLSearchParams(search);
+  CASHFREE_QUERY_KEYS.forEach((key) => params.delete(key));
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
+/** Navigate to registration/booking page — finish verify there (fast handoff). */
+export function handoffPaymentToReturnPath(navigate, returnPath, extraState = {}) {
+  if (!returnPath || !navigate) return;
+  const [path, existingQuery = ''] = String(returnPath).split('?');
+  const merged = new URLSearchParams(existingQuery);
+  CASHFREE_QUERY_KEYS.forEach((key) => merged.delete(key));
+  const qs = merged.toString();
+  navigate(qs ? `${path}?${qs}` : path, {
+    replace: true,
+    state: { fromPaymentReturn: true, ...extraState },
+  });
+}
+
+/**
+ * Poll Cashfree verify until paid, cancelled, hard failure, or timeout.
+ * Use after GPay/UPI redirect — settlement often lags 15–90 seconds.
+ */
+export async function pollPaymentUntilVerified(
+  apiBase,
+  orderId,
+  verifyOptions = {},
+  { maxWaitMs = PAYMENT_POLL_MAX_WAIT_MS, onProgress = null } = {},
+) {
+  const started = Date.now();
+  let attempt = 0;
+  let lastResult = null;
+
+  while (Date.now() - started < maxWaitMs) {
+    attempt += 1;
+    if (onProgress) {
+      onProgress({ attempt, elapsedMs: Date.now() - started });
+    }
+
+    lastResult = await verifyPaymentWithRetry(apiBase, orderId, verifyOptions);
+
+    if (lastResult.verified) return lastResult;
+    if (lastResult.status === 'cancelled') return lastResult;
+    if (lastResult.status === 'failed' && !lastResult.classified?.retryable) {
+      return lastResult;
+    }
+
+    const delayIdx = Math.min(Math.max(attempt - 1, 0), PAYMENT_POLL_INTERVAL_MS.length - 1);
+    const delay = PAYMENT_POLL_INTERVAL_MS[delayIdx] || 5000;
+    if (Date.now() - started + delay >= maxWaitMs) break;
+    await new Promise((r) => setTimeout(r, delay));
+  }
+
+  return lastResult || {
+    ok: false,
+    verified: false,
+    status: 'pending',
+    code: 'PAYMENT_PENDING',
+    classified: classifyVerifyResponse({
+      verified: false,
+      status: 'pending',
+      code: 'PAYMENT_PENDING',
+      retryable: true,
+    }),
+  };
 }

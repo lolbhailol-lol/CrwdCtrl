@@ -6,6 +6,8 @@ import {
     filterPopularTerms,
     getSearchResultTitle,
     saveRecentSearch,
+    getRecentSearches,
+    clearRecentSearches,
 } from '../utils/heroSearchSuggestions';
 import { mergeKeywordLists } from '../utils/buildSearchKeywords';
 
@@ -21,7 +23,17 @@ export function useHeroSearch({ quickPickItems = [], keywordCatalog = [], onResu
     const [isSearching, setIsSearching] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
     const [apiKeywords, setApiKeywords] = useState([]);
+    const [recentSearches, setRecentSearches] = useState(() => getRecentSearches());
     const searchRef = useRef(null);
+
+    const refreshRecent = useCallback(() => {
+        setRecentSearches(getRecentSearches());
+    }, []);
+
+    const clearRecent = useCallback(() => {
+        clearRecentSearches();
+        setRecentSearches([]);
+    }, []);
 
     useEffect(() => {
         let cancelled = false;
@@ -67,6 +79,11 @@ export function useHeroSearch({ quickPickItems = [], keywordCatalog = [], onResu
         setIsOpen(Boolean(String(value).trim()));
     }, []);
 
+    const openSuggestions = useCallback(() => {
+        refreshRecent();
+        setIsOpen(true);
+    }, [refreshRecent]);
+
     useEffect(() => {
         const q = searchQuery.trim();
         if (q.length < MIN_SEARCH_CHARS) {
@@ -82,11 +99,7 @@ export function useHeroSearch({ quickPickItems = [], keywordCatalog = [], onResu
             try {
                 const results = await searchAll(q);
                 if (cancelled) return;
-                const combined = [
-                    ...results.fests.map((fest) => ({ ...fest, resultType: 'fest' })),
-                    ...results.competitions.map((comp) => ({ ...comp, resultType: 'competition' })),
-                ];
-                setApiResults(combined);
+                setApiResults(results.results || []);
             } catch {
                 if (!cancelled) setApiResults([]);
             } finally {
@@ -119,11 +132,14 @@ export function useHeroSearch({ quickPickItems = [], keywordCatalog = [], onResu
 
     const handleResultClick = useCallback((result) => {
         const label = getSearchResultTitle(result);
-        if (label && label !== 'Untitled') saveRecentSearch(label);
+        if (label && label !== 'Untitled') {
+            saveRecentSearch(label);
+            refreshRecent();
+        }
         setSearchQueryState('');
         setIsOpen(false);
         onResultNavigate?.(result);
-    }, [onResultNavigate]);
+    }, [onResultNavigate, refreshRecent]);
 
     const handleEnter = useCallback(() => {
         if (mergedResults.length > 0) {
@@ -148,6 +164,10 @@ export function useHeroSearch({ quickPickItems = [], keywordCatalog = [], onResu
         isSearching,
         popularTerms,
         mergedResults,
+        recentSearches,
+        refreshRecent,
+        clearRecent,
+        openSuggestions,
         applySuggestion,
         handleResultClick,
         handleEnter,

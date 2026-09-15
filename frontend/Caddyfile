@@ -1,0 +1,86 @@
+# CrwdCtrl frontend — Railpack/Caddy static + /api reverse proxy
+# Replaces former Vercel /api rewrites for Railway.
+
+{
+	admin off
+	persist_config off
+	auto_https off
+
+	log {
+		format json
+	}
+
+	servers {
+		trusted_proxies static private_ranges 100.0.0.0/8
+	}
+}
+
+:{$PORT:80} {
+	log {
+		format json
+	}
+
+	# Apex is often attached to the API and 404s (Railway train page).
+	# Always send browsers to www, where the SPA + organizer login live.
+	@apex host crwdctrl.in
+	redir @apex https://www.crwdctrl.in{uri} 308
+
+	header {
+		X-Content-Type-Options "nosniff"
+		-Server
+	}
+
+	# Exact health route must be a handle so the SPA catch-all cannot override it.
+	handle /health {
+		respond 200
+	}
+
+	# Proxy all /api traffic (incl. OPTIONS preflight) to the CrwdCtrl backend.
+	# Frontend and backend live in separate Railway projects → public upstream URL.
+	@api path /api /api/*
+	handle @api {
+		reverse_proxy {$API_UPSTREAM:https://crwdctrl-production-9c58.up.railway.app} {
+			header_up Host {http.reverse_proxy.upstream.host}
+			header_up X-Forwarded-Host {host}
+			header_up X-Forwarded-Proto {scheme}
+			header_up X-Real-IP {remote_host}
+			transport http {
+				versions 1.1
+			}
+		}
+	}
+
+	# Social crawlers need Open Graph HTML — SPA index.html only has the site logo.
+	# IMPORTANT: WhatsApp in-app browsers also contain "WhatsApp" in the UA but look like
+	# real browsers (Mozilla/…). Only the link-preview bot uses `WhatsApp/2.x.x A|I|N`
+	# without Mozilla — never send those users to the OG-only HTML shell.
+	@socialbot header_regexp User-Agent (?i)(facebookexternalhit|facebot|twitterbot|^WhatsApp/|slackbot|slack-imgproxy|linkedinbot|discordbot|telegrambot|pinterest|redditbot|googlebot|bingbot|embedly|skypeuripreview|iframely|nuzzel|bitlybot)
+	@sharepath path_regexp sharepath ^/(view-details|competitions-view-details|trek|treks/community|sports/run|sports/run-club|events)/
+	handle @socialbot {
+		handle @sharepath {
+			rewrite * /api/seo/og{uri}
+			reverse_proxy {$API_UPSTREAM:https://crwdctrl-production-9c58.up.railway.app} {
+				header_up Host {http.reverse_proxy.upstream.host}
+				header_up X-Forwarded-Host {host}
+				header_up X-Forwarded-Proto {scheme}
+				header_up X-Real-IP {remote_host}
+				transport http {
+					versions 1.1
+				}
+			}
+		}
+	}
+
+	handle {
+		root * /app/dist
+		encode {
+			gzip
+			zstd
+		}
+		try_files {path} {path}.html {path}/index.html /index.html
+		file_server {
+			hide .git
+			hide .env*
+		}
+	}
+}

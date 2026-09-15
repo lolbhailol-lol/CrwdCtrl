@@ -1,0 +1,37 @@
+=== Station codes (production camera fallback) ===
+
+
+
+After you create an event + checkpoints (seed or admin):
+
+
+
+1. Admin → Campus Hunt → open event → Checkpoints tab
+
+2. Copy codes like:  CH-A1B2C3D4
+
+3. Print under each station QR poster (one code per checkpoint per route)
+
+
+
+Players should scan the poster QR. The short code is only for a camera failure:
+
+- Scan the poster QR normally
+
+- Paste CH-XXXXXXXX only when event staff approve the fallback
+
+
+
+Rules:
+
+- Code only works for that team's route + current checkpoint stage
+
+- All 4 distinct members must still submit (scan or paste) once each
+
+- Treat codes like the QR — do not post publicly / WhatsApp broadcast
+
+
+
+Never distribute the full JSON payload. It is reserved for admin diagnostics
+and has the same privilege as the printed station QR.
+

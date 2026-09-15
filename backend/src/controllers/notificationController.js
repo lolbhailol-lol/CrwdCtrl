@@ -3,16 +3,22 @@ const Notification = require('../model/notification_model');
 // ===== UTILITY: Create a notification (used by other controllers) =====
 const createNotification = async ({ userId, title, message, type = 'system', link = null, metadata = {} }) => {
   try {
+    const safeTitle = String(title || '').trim();
+    const safeMessage = String(message || '').trim();
+    if (!userId || !safeTitle || !safeMessage) {
+      console.warn('⚠️ Skipping notification — missing userId, title, or message');
+      return null;
+    }
     const notification = new Notification({
       user: userId,
-      title,
-      message,
+      title: safeTitle,
+      message: safeMessage,
       type,
       link,
       metadata,
     });
     await notification.save();
-    console.log(`🔔 Notification created for user ${userId}: ${title}`);
+    console.log(`🔔 Notification created for user ${userId}: ${safeTitle}`);
     return notification;
   } catch (error) {
     console.error('❌ Failed to create notification:', error.message);

@@ -12,6 +12,17 @@ const customPageSectionAssignmentSchema = new mongoose.Schema(
     { _id: false },
 );
 
+const featuredItemSchema = new mongoose.Schema(
+    {
+        entityType: {
+            type: String,
+            enum: ['fest', 'trek', 'community', 'sport', 'runclub', 'events'],
+        },
+        entityId: { type: String, trim: true },
+    },
+    { _id: false },
+);
+
 const homepageSectionSchema = new mongoose.Schema(
     {
         slug: {
@@ -45,6 +56,11 @@ const homepageSectionSchema = new mongoose.Schema(
         enabled: {
             type: Boolean,
             default: true,
+        },
+        /** Optional single featured card for this section (hero / featured carousels). */
+        featuredItem: {
+            type: featuredItemSchema,
+            default: null,
         },
     },
     { timestamps: true },

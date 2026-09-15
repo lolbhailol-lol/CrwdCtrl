@@ -3,7 +3,8 @@ import { QrCode, Loader, Mountain, PartyPopper, Copy, Check, Trophy, Search } fr
 import FestScannerSetup from '../../components/admin/FestScannerSetup';
 import TrekScannerSetup from '../../components/admin/TrekScannerSetup';
 import SportScannerSetup from '../../components/admin/SportScannerSetup';
-import { adminFetchJSON } from '../../utils/adminApi';
+import { adminFetchJSON } from '../../services/api/admin.api.js';
+import { publicWebUrl } from '../../utils/publicWebOrigin';
 
 export default function ScannerAccessPage() {
   const [tab, setTab] = useState('fests');
@@ -55,8 +56,7 @@ export default function ScannerAccessPage() {
   const selectedFest = fests.find((f) => f._id === selectedFestId);
   const selectedTrek = treks.find((t) => t._id === selectedTrekId);
   const selectedSport = sportsEvents.find((s) => s._id === selectedSportId);
-  const loginUrl =
-    typeof window !== 'undefined' ? `${window.location.origin}/organizer/login` : '/organizer/login';
+  const loginUrl = publicWebUrl('/organizer/login');
 
   const copyLogin = () => {
     navigator.clipboard?.writeText(loginUrl);

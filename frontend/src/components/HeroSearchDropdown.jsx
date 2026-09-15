@@ -13,6 +13,8 @@ export function getSearchResultSubtitle(result) {
         : type === 'trek' ? 'Trek'
         : type === 'community' ? 'Community'
         : type === 'sport' ? 'Sports'
+        : type === 'runclub' ? 'Run club'
+        : type === 'events' || type === 'event' ? 'Event'
         : 'Fest';
     const org = result.organizing_body || result.collegeName || result.subtitle || result._subtitle || result.basedIn || '';
     return org ? `${kind} · ${org}` : kind;

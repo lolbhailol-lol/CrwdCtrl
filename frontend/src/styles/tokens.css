@@ -27,14 +27,17 @@
     --section-block-gap: 2.5rem;
     --section-block-gap-lg: 3rem;
     --hero-banner-pad-y: 0.75rem;
+    --hero-banner-pad-y-lg: 1.25rem;
     --hero-banner-mb: 2rem;
     --hero-banner-mb-lg: 2.5rem;
     --touch-min: 2.75rem;
     --header-logo: clamp(3.75rem, 13vw, 5.25rem);
-    --safe-top: env(safe-area-inset-top, 0px);
-    --safe-bottom: env(safe-area-inset-bottom, 0px);
-    --safe-left: env(safe-area-inset-left, 0px);
-    --safe-right: env(safe-area-inset-right, 0px);
+    /* Capacitor injects --safe-area-inset-* natively; Android WebView < 140 reports
+       0px for the env() form, so the injected variable has to win where present. */
+    --safe-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+    --safe-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+    --safe-left: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
+    --safe-right: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
 
     --card-carousel: clamp(16.25rem, 78vw, 18.75rem);
     --card-carousel-sm: clamp(12.5rem, 62vw, 13.75rem);
@@ -62,6 +65,14 @@
     --chrome-nav-bg-dark: #0A0A0A;
     --chrome-page-bg-light: #ffffff;
     --chrome-page-bg-dark: #161718;
+
+    /* Desktop laptop — navbar + hero align to same horizontal chrome as Pune → profile */
+    --desktop-chrome-mx: 1rem;
+    --desktop-chrome-px: 1.5rem;
+    --desktop-chrome-pr: 1rem;
+    --desktop-chrome-inset-left: calc(var(--desktop-chrome-mx) + var(--desktop-chrome-px));
+    --desktop-chrome-inset-right: calc(var(--desktop-chrome-mx) + var(--desktop-chrome-px) + var(--desktop-chrome-pr));
+    --desktop-navbar-h: 3.75rem;
 
     --theme-switch-duration: 0.34s;
     --theme-switch-ease: cubic-bezier(0.4, 0, 0.2, 1);

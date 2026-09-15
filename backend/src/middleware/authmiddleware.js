@@ -4,6 +4,12 @@ const { getJwtSecret } = require('../config/jwtSecret');
 
 const isDev = process.env.NODE_ENV === 'development';
 
+function isHuntEnrollmentDecoded(decoded) {
+  if (!decoded?.userId) return false;
+  if (decoded.tokenType === 'hunt' || decoded.aud === 'campus-hunt') return true;
+  return !!(decoded.huntEventId && decoded.huntTeamId);
+}
+
 const authenticateToken = async (req, res, next) => {
     try {
         const authHeader = req.headers.authorization;
@@ -33,6 +39,16 @@ const authenticateToken = async (req, res, next) => {
             });
         }
 
+        const requestPath = String(req.originalUrl || req.url || '');
+        const isCampusHuntRoute = requestPath.includes('/campus-hunt');
+        if (isHuntEnrollmentDecoded(decoded) && !isCampusHuntRoute) {
+            return res.status(403).json({
+                success: false,
+                message: 'Hunt session cannot access this part of CrwdCtrl. Sign in with Google for the main app.',
+                code: 'HUNT_SESSION_ONLY',
+            });
+        }
+
         const user = await User.findById(decoded.userId).select('-password');
         if (!user) {
             return res.status(401).json({
@@ -41,7 +57,14 @@ const authenticateToken = async (req, res, next) => {
             });
         }
 
-        req.user = { userId: decoded.userId, role: user.role };
+        req.user = {
+            userId: decoded.userId,
+            role: user.role,
+            // Campus Hunt session binding (optional; set on team enter)
+            huntTeamId: decoded.huntTeamId || null,
+            huntEventId: decoded.huntEventId || null,
+            huntRole: decoded.huntRole || null,
+        };
         next();
     } catch (error) {
         if (isDev) console.error('User auth error:', error.message);
@@ -67,18 +90,16 @@ const authenticateToken = async (req, res, next) => {
     }
 };
 
-const authorizeRoles = (...roles) => async (req, res, next) => {
+const authorizeRoles = (...roles) => (req, res, next) => {
     try {
-        const user = await User.findById(req.user.userId).select('role');
-
-        if (!user) {
-            return res.status(404).json({
+        if (!req.user?.userId) {
+            return res.status(401).json({
                 success: false,
-                message: 'User not found',
+                message: 'Authentication required',
             });
         }
 
-        if (!roles.includes(user.role)) {
+        if (!roles.includes(req.user.role)) {
             return res.status(403).json({
                 success: false,
                 message: 'Access denied. Insufficient permissions.',
@@ -95,7 +116,41 @@ const authorizeRoles = (...roles) => async (req, res, next) => {
     }
 };
 
+/** Attach req.user when a valid Bearer token is present; otherwise continue as guest. */
+const optionalAuthenticateToken = async (req, res, next) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader?.startsWith('Bearer ')) {
+            return next();
+        }
+        const token = authHeader.substring(7);
+        if (!token) return next();
+
+        const secret = getJwtSecret();
+        const decoded = jwt.verify(token, secret);
+        if (decoded.exp && decoded.exp < Math.floor(Date.now() / 1000)) {
+            return next();
+        }
+        if (!decoded.userId) return next();
+
+        const user = await User.findById(decoded.userId).select('_id role');
+        if (!user) return next();
+
+        req.user = {
+            userId: decoded.userId,
+            role: user.role,
+            huntTeamId: decoded.huntTeamId || null,
+            huntEventId: decoded.huntEventId || null,
+            huntRole: decoded.huntRole || null,
+        };
+        next();
+    } catch {
+        next();
+    }
+};
+
 module.exports = {
     authenticateToken,
     authorizeRoles,
+    optionalAuthenticateToken,
 };

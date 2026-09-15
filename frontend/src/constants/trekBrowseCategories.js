@@ -2,8 +2,8 @@ import HikingBrowseIcon from '../assets/mobile-icons/hiking.png';
 import TrailBrowseIcon from '../assets/mobile-icons/trail walks.png';
 import BackpackingBrowseIcon from '../assets/mobile-icons/backpacking.png';
 import CampingBrowseIcon from '../assets/mobile-icons/camping.png';
-import AdventureBrowseIcon from '../assets/mobile-icons/adventure.svg';
-import NatureBrowseIcon from '../assets/mobile-icons/nature.svg';
+const AdventureBrowseIcon = '/category-icons/adventure.webp';
+const NatureBrowseIcon = '/category-icons/nature.webp';
 
 export const TREK_BROWSE_CATEGORIES = [
     { id: 'hiking', label: 'Hiking', image: HikingBrowseIcon },

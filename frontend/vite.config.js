@@ -1,22 +1,70 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import fs from 'node:fs'
+import path from 'node:path'
+
+/** Inject VITE_FIREBASE_* into public/firebase-messaging-sw.js (no hardcoded keys in source). */
+function firebaseMessagingSwEnvPlugin() {
+  const fileName = 'firebase-messaging-sw.js'
+  let resolvedMode = 'production'
+  const inject = (source, env) => source
+    .replaceAll('__VITE_FIREBASE_API_KEY__', env.VITE_FIREBASE_API_KEY || '')
+    .replaceAll('__VITE_FIREBASE_AUTH_DOMAIN__', env.VITE_FIREBASE_AUTH_DOMAIN || '')
+    .replaceAll('__VITE_FIREBASE_PROJECT_ID__', env.VITE_FIREBASE_PROJECT_ID || '')
+    .replaceAll('__VITE_FIREBASE_STORAGE_BUCKET__', env.VITE_FIREBASE_STORAGE_BUCKET || '')
+    .replaceAll('__VITE_FIREBASE_MESSAGING_SENDER_ID__', env.VITE_FIREBASE_MESSAGING_SENDER_ID || '')
+    .replaceAll('__VITE_FIREBASE_APP_ID__', env.VITE_FIREBASE_APP_ID || '')
+
+  return {
+    name: 'firebase-messaging-sw-env',
+    configResolved(config) {
+      resolvedMode = config.mode
+    },
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (!req.url?.startsWith(`/${fileName}`)) return next()
+        try {
+          const env = loadEnv(server.config.mode, server.config.root, 'VITE_')
+          const template = fs.readFileSync(
+            path.join(server.config.root, 'public', fileName),
+            'utf8',
+          )
+          res.setHeader('Content-Type', 'application/javascript; charset=utf-8')
+          res.setHeader('Service-Worker-Allowed', '/')
+          res.end(inject(template, env))
+        } catch (err) {
+          next(err)
+        }
+      })
+    },
+    closeBundle() {
+      const outDir = path.resolve(process.cwd(), 'dist', fileName)
+      if (!fs.existsSync(outDir)) return
+      const env = loadEnv(resolvedMode, process.cwd(), 'VITE_')
+      const current = fs.readFileSync(outDir, 'utf8')
+      fs.writeFileSync(outDir, inject(current, env), 'utf8')
+    },
+  }
+}
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     tailwindcss(),
+    firebaseMessagingSwEnvPlugin(),
     VitePWA({
       // We'll register the SW in `src/main.jsx` to control update behavior.
       injectRegister: null,
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.png', 'logo-crwdctrl.png', 'crwdctrl-mark.png', 'icon-192x192.png', 'icon-512x512.png', 'robots.txt', 'sitemap.xml', 'category-icons/*.webp'],
+      includeAssets: ['favicon.ico', 'favicon.png', 'favicon-48x48.png', 'logo-crwdctrl.png', 'crwdctrl-mark.png', 'icon-192x192.png', 'icon-512x512.png', 'robots.txt', 'sitemap.xml', 'llms.txt', 'category-icons/*.webp', 'offline-hunt.webmanifest'],
       manifest: {
         name: 'CrwdCtrl — Discover College Fests',
         short_name: 'CrwdCtrl',
         description: 'Discover and register for college fests, competitions, and events near you.',
+        id: '/',
         theme_color: '#0E0E0F',
         background_color: '#ffffff',
         display: 'standalone',
@@ -24,20 +72,16 @@ export default defineConfig(({ mode }) => ({
         scope: '/',
         icons: [
           {
-            src: '/logo-crwdctrl.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any',
-          },
-          {
             src: '/icon-192x192.png',
             sizes: '192x192',
             type: 'image/png',
+            purpose: 'any',
           },
           {
             src: '/icon-512x512.png',
             sizes: '512x512',
             type: 'image/png',
+            purpose: 'any',
           },
           {
             src: '/icon-512x512.png',
@@ -48,37 +92,43 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       workbox: {
-        // Ensure new builds activate quickly and old caches are removed.
+        // SVG/PNG content is handled by the runtime image cache. Keeping it out of
+        // precache avoids forcing a multi-megabyte download during first install.
+        globPatterns: ['**/*.{js,css,html,ico,webp,woff2,webmanifest}'],
+        globIgnores: ['**/firebase-messaging-sw.js'],
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+        cacheId: 'crwdctrl-v12',
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,
-        // Don't precache the firebase messaging sw
+        importScripts: ['/firebase-messaging-sw.js'],
+        // Only the offline hunt shell may use cached HTML. Google / Chrome / in-app
+        // navigations must hit the network — SW-cached index.html was reload-looping phones.
         navigateFallback: 'index.html',
-        navigateFallbackDenylist: [/^\/firebase-messaging-sw\.js$/],
+        navigateFallbackAllowlist: [/^\/campus-hunt\/offline(?:\/|$|\?)/],
+        navigateFallbackDenylist: [
+          /^\/firebase-messaging-sw\.js$/,
+          /^\/api\//,
+          /^\/_vercel\//,
+          /^\/favicon\.ico$/,
+          /^\/favicon\.png$/,
+          /^\/favicon-48x48\.png$/,
+          /^\/icon-\d+x\d+\.png$/,
+          /^\/logo-crwdctrl\.png$/,
+          /^\/robots\.txt$/,
+          /^\/sitemap\.xml$/,
+          /^\/manifest\.webmanifest$/,
+        ],
         runtimeCaching: [
+          // Do NOT NetworkFirst HTML navigations. That handler wins over
+          // navigateFallback, so airplane mode shows a blank/error page.
+          // Intentionally NO /api runtimeCaching rule.
+          // Workbox NetworkOnly/NetworkFirst throw uncaught "no-response" when Railway
+          // is cold/unreachable; that surfaces as SW errors on iPhone/laptop and can
+          // block normal fetch retries. Let API requests bypass the SW entirely.
           {
-            // Always prefer network for HTML navigations after deploy
-            urlPattern: ({ request }) => request.mode === 'navigate',
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'pages-cache',
-              networkTimeoutSeconds: 5,
-              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 },
-            },
-          },
-          {
-            // Cache API responses (NetworkFirst)
-            urlPattern: /^https?:\/\/.*\/api\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              expiration: { maxEntries: 50, maxAgeSeconds: 300 },
-              networkTimeoutSeconds: 10,
-            },
-          },
-          {
-            // Cache images (CacheFirst)
-            urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/i,
+            // Cache images + favicon.ico (CacheFirst)
+            urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp|ico)$/i,
             handler: 'CacheFirst',
             options: {
               cacheName: 'image-cache',
@@ -129,6 +179,7 @@ export default defineConfig(({ mode }) => ({
     // Rollup options for better optimization
     rollupOptions: {
       output: {
+        onlyExplicitManualChunks: true,
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined;
 

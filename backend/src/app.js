@@ -13,6 +13,8 @@ const { isDbReady } = require('./config/db');
 const { getFirebaseAdminStatus } = require('./config/firebaseAdmin');
 const apiRoutes = require('./routes');
 const { handleCashfreeWebhook } = require('./controllers/paymentWebhookController');
+const { handleResendWebhook } = require('./controllers/resendWebhookController');
+const whatsappWebhookRoutes = require('./routers/whatsappWebhookRoute');
 
 require('./models');
 
@@ -23,6 +25,9 @@ app.set('trust proxy', 1);
 app.use(helmet({
   crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
   crossOriginEmbedderPolicy: false,
+  // cross-origin: Instagram / FB / WhatsApp WebViews fetch the Railway host from
+  // www.crwdctrl.in — CORP same-origin surfaces as opaque "Failed to fetch".
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
   contentSecurityPolicy: false,
 }));
 
@@ -35,17 +40,29 @@ app.post(
   handleCashfreeWebhook
 );
 
+// Security: Resend webhook must receive raw body for Svix signature verification
+app.post(
+  '/api/resend/webhook',
+  express.raw({ type: 'application/json' }),
+  handleResendWebhook
+);
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 app.use(compression({
   filter: (req, res) => {
     if (req.headers['x-no-compression']) return false;
+    // SSE must not be gzip-buffered
+    if (String(req.originalUrl || req.url || '').includes('/stream')) return false;
     return compression.filter(req, res);
   },
   level: 6,
   threshold: 1024,
 }));
+
+// Meta WhatsApp webhook — no auth; mount before /api rate limiter
+app.use('/api/whatsapp', whatsappWebhookRoutes);
 
 app.use(securityHeaders);
 app.use(requestLogger);
@@ -60,22 +77,34 @@ app.get('/', (_req, res) => {
   });
 });
 
-app.get('/api/health', (_req, res) => {
+/** Railway / uptime probes sometimes hit /health without the /api prefix */
+app.get('/health', (_req, res) => {
   const dbConnected = mongoose.connection.readyState === 1;
-  const firebase = getFirebaseAdminStatus();
   res.status(dbConnected ? 200 : 503).json({
     success: dbConnected,
     status: dbConnected ? 'OK' : 'DEGRADED',
-    message: dbConnected ? 'CrwdCtrl API is running' : 'Database unavailable',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development',
-    database: dbConnected ? 'connected' : 'disconnected',
-    pushNotifications: firebase.configured ? 'ready' : 'disabled',
-    firebase: {
-      configured: firebase.configured,
-      projectId: firebase.projectId,
-      error: firebase.error,
-    },
+  });
+});
+
+app.get('/ready', (_req, res) => {
+  const dbReady = isDbReady();
+  res.status(dbReady ? 200 : 503).json({
+    success: dbReady,
+    ready: dbReady,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get('/api/health', (_req, res) => {
+  const dbConnected = mongoose.connection.readyState === 1;
+  // Public liveness — do not leak Firebase project ID, environment, or error
+  // details. Detailed status is on `/api/ready` (still public, but returns
+  // booleans only) and dev-only admin endpoints.
+  res.status(dbConnected ? 200 : 503).json({
+    success: dbConnected,
+    status: dbConnected ? 'OK' : 'DEGRADED',
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -95,6 +124,10 @@ app.get('/api/ready', (_req, res) => {
     checks,
     timestamp: new Date().toISOString(),
   });
+});
+
+app.get('/keep-alive', (_req, res) => {
+  res.status(200).json({ success: true, status: 'OK', timestamp: new Date().toISOString() });
 });
 
 app.get('/api/keep-alive', (_req, res) => {

@@ -1,7 +1,11 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import { useInAppBack } from '../../hooks/useInAppBack';
 import { ArrowLeft, IndianRupee, Calendar, Trophy, Mountain, Theater, Users } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
+import Seo from '../../components/Seo';
+import { breadcrumbSchema, webPageSchema } from '../../utils/seo';
+import { LEGAL_EMAIL, LEGAL_NAME, LEGAL_OPERATOR_LINE, LEGAL_PHONE_DISPLAY, LEGAL_PHONE_TEL } from '../../constants/legalEntity';
 
 const SERVICES = [
   {
@@ -51,7 +55,7 @@ const PRICING_EXAMPLES = [
 
 export default function ProductsAndServices() {
   const { isDark } = useDarkMode();
-  const navigate = useNavigate();
+  const goBack = useInAppBack();
 
   const card = isDark ? 'bg-[#111111] border-gray-800' : 'bg-white border-gray-200';
 
@@ -59,12 +63,24 @@ export default function ProductsAndServices() {
     <div
       className="crwdctrl-page crwdctrl-page--content min-h-screen transition-colors duration-300"
     >
+      <Seo
+        title="Products & Services"
+        description="Explore the products and services offered by CrwdCtrl — event discovery and registration for college fests, competitions, treks, runs and more."
+        canonical="/products-and-services"
+        jsonLd={[
+          webPageSchema({ name: 'CrwdCtrl Products & Services', url: '/products-and-services' }),
+          breadcrumbSchema([
+            { name: 'Home', path: '/' },
+            { name: 'Products & Services', path: '/products-and-services' },
+          ]),
+        ]}
+      />
       <div className={`crwdctrl-sticky-header ${isDark ? 'bg-[#111111] border-gray-800' : 'bg-white border-gray-200'} border-b`}>
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex items-center justify-center relative">
             <button
               type="button"
-              onClick={() => navigate(-1)}
+              onClick={goBack}
               className={`lg:hidden absolute left-0 p-2 rounded-lg ${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-100'} transition-colors`}
             >
               <ArrowLeft className="w-5 h-5" />
@@ -86,7 +102,7 @@ export default function ProductsAndServices() {
             <h2 className="text-lg font-semibold">Currency</h2>
           </div>
           <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-            CrwdCtrl operates in India. Every price, fee, and payment on our website and mobile app is
+            CrwdCtrl operates in India. {LEGAL_OPERATOR_LINE} Every price, fee, and payment on our website and mobile app is
             displayed and processed in <strong>Indian Rupees (INR / ₹)</strong> only. The exact amount
             for your registration is always shown on the checkout screen before you pay.
           </p>
@@ -150,6 +166,11 @@ export default function ProductsAndServices() {
 
         <div className={`${isDark ? 'bg-blue-900/20 border-blue-800' : 'bg-blue-50 border-blue-200'} border rounded-lg p-6`}>
           <h3 className="font-semibold mb-3">Browse live events &amp; prices</h3>
+          <p className={`text-sm mb-3 ${isDark ? 'text-blue-200' : 'text-blue-800'}`}>
+            Legal name: {LEGAL_NAME} ·{' '}
+            <a href={`mailto:${LEGAL_EMAIL}`} className="underline">{LEGAL_EMAIL}</a> ·{' '}
+            <a href={`tel:${LEGAL_PHONE_TEL}`} className="underline">{LEGAL_PHONE_DISPLAY}</a>
+          </p>
           <div className="flex flex-wrap gap-3">
             <Link
               to="/fests"

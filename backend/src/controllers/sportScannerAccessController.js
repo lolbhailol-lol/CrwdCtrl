@@ -1,10 +1,10 @@
-const bcrypt = require('bcryptjs');
 const mongoose = require('mongoose');
 const SportsEvent = require('../model/sports_model');
 const CategoryRegistration = require('../model/category_registration_model');
 const FestOrganizer = require('../model/fest_organizer_model');
 const Trek = require('../model/trek_model');
 const { performCheckinFromRaw } = require('../services/checkinService');
+const { hashScannerPassword } = require('../utils/scannerPassword');
 
 const normalizeCode = (code) =>
   String(code || '')
@@ -149,7 +149,6 @@ const getAdminSportScannerAccess = async (req, res) => {
       code: event.scannerAccess?.code || '',
       label: event.scannerAccess?.label || '',
       hasPassword: !!event.scannerAccess?.passwordHash,
-      password: event.scannerAccess?.password || '',
       googleSheetsUrl: event.registration?.googleSheetsUrl || '',
       hasGoogleSheet: !!event.registration?.googleSheetsUrl,
       loginPath: '/organizer/login',
@@ -231,9 +230,13 @@ const setAdminSportScannerAccess = async (req, res) => {
     event.scannerAccess.code = code;
     event.scannerAccess.label = label;
 
+    let generatedPassword = '';
     if (password) {
-      event.scannerAccess.passwordHash = await bcrypt.hash(password, 10);
-      event.scannerAccess.password = password;
+      event.scannerAccess.passwordHash = await hashScannerPassword(password);
+      generatedPassword = password;
+      event.scannerAccess.password = undefined;
+      event.markModified('scannerAccess');
+      event.$unset('scannerAccess.password');
     }
 
     if (googleSheetsUrl !== undefined) {
@@ -250,7 +253,8 @@ const setAdminSportScannerAccess = async (req, res) => {
       enabled: event.scannerAccess.enabled,
       code: event.scannerAccess.code,
       label: event.scannerAccess.label,
-      password: event.scannerAccess.password || '',
+      hasPassword: !!event.scannerAccess.passwordHash,
+      ...(generatedPassword ? { password: generatedPassword } : {}),
       googleSheetsUrl: event.registration?.googleSheetsUrl || '',
       hasGoogleSheet: !!event.registration?.googleSheetsUrl,
       message: password ? 'Sports scanner login updated' : 'Sports scanner settings saved (password unchanged)',

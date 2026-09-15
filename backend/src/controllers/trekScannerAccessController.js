@@ -5,6 +5,7 @@ const TrekBooking = require('../model/trek_booking_model');
 const FestOrganizer = require('../model/fest_organizer_model');
 const SportsEvent = require('../model/sports_model');
 const { performCheckinFromRaw } = require('../services/checkinService');
+const { hashScannerPassword } = require('../utils/scannerPassword');
 
 const normalizeCode = (code) =>
   String(code || '')
@@ -137,7 +138,6 @@ const getAdminTrekScannerAccess = async (req, res) => {
       code: trek.scannerAccess?.code || '',
       label: trek.scannerAccess?.label || '',
       hasPassword: !!trek.scannerAccess?.passwordHash,
-      password: trek.scannerAccess?.password || '',
       googleSheetsUrl: trek.registration?.googleSheetsUrl || '',
       hasGoogleSheet: !!trek.registration?.googleSheetsUrl,
       loginPath: '/organizer/login',
@@ -213,9 +213,13 @@ const setAdminTrekScannerAccess = async (req, res) => {
     trek.scannerAccess.code = code;
     trek.scannerAccess.label = label;
 
+    let generatedPassword = '';
     if (password) {
-      trek.scannerAccess.passwordHash = await bcrypt.hash(password, 10);
-      trek.scannerAccess.password = password;
+      trek.scannerAccess.passwordHash = await hashScannerPassword(password);
+      generatedPassword = password;
+      trek.scannerAccess.password = undefined;
+      trek.markModified('scannerAccess');
+      trek.$unset('scannerAccess.password');
     }
 
     if (googleSheetsUrl !== undefined) {
@@ -232,7 +236,8 @@ const setAdminTrekScannerAccess = async (req, res) => {
       enabled: trek.scannerAccess.enabled,
       code: trek.scannerAccess.code,
       label: trek.scannerAccess.label,
-      password: trek.scannerAccess.password || '',
+      hasPassword: !!trek.scannerAccess.passwordHash,
+      ...(generatedPassword ? { password: generatedPassword } : {}),
       googleSheetsUrl: trek.registration?.googleSheetsUrl || '',
       hasGoogleSheet: !!trek.registration?.googleSheetsUrl,
       message: password ? 'Trek scanner login updated' : 'Trek scanner settings saved (password unchanged)',
