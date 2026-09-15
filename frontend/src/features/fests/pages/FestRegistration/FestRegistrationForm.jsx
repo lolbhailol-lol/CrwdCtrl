@@ -371,18 +371,10 @@ export default function FestRegistrationForm({
               </div>
             )}
 
-            {/* Fee box — amount first, coupon secondary.
-                MindSpark paid comps: show on team-size / team-details / every person step
-                so coupons are not limited to Hackathon (or the last roster step). */}
+            {/* Payment summary and optional codes belong on the final step. */}
             {!paymentFields
               && !onFeeTierStep
-              && (
-                onPersonStep
-                || onParticipantStep
-                || onTeamDetailsStep
-                || !hasParticipantStep?.()
-                || currentStep === getTotalSteps()
-              )
+              && currentStep === getTotalSteps()
               ? (() => {
               if (!priceBreakdown) return null;
               const total = Number(priceBreakdown.totalAmount) || 0;
@@ -446,6 +438,35 @@ export default function FestRegistrationForm({
                       </button>
                     </div>
                     {couponError ? <p className="text-xs text-red-400 mt-1.5">{couponError}</p> : null}
+                    {mindSparkLayout ? (
+                      <div className="mt-4">
+                        <label
+                          htmlFor="mindspark-referred-by"
+                          className={`block text-[11px] mb-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}
+                        >
+                          Referred by <span className="font-normal">(optional)</span>
+                        </label>
+                        <input
+                          id="mindspark-referred-by"
+                          value={formData.referred_by || ''}
+                          onChange={(event) => setFormData((previous) => ({
+                            ...previous,
+                            referred_by: event.target.value,
+                          }))}
+                          placeholder="Campus ambassador's name"
+                          autoComplete="off"
+                          maxLength={100}
+                          className={`w-full px-3 py-2 rounded-lg border text-sm outline-none focus:border-[#0ECCEE] ${
+                            isDark
+                              ? 'bg-[#1D1E20] border-gray-700 text-white placeholder:text-gray-600'
+                              : 'bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400'
+                          }`}
+                        />
+                        <p className={`text-[10px] mt-1.5 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
+                          Enter the campus ambassador who referred your team.
+                        </p>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               );

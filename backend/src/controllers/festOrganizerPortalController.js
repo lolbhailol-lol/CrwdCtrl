@@ -1118,6 +1118,7 @@ exports.listParticipants = async (req, res) => {
                 { 'responses.contact_no': regex },
                 { 'responses.college': regex },
                 { 'responses.team_name': regex },
+                { 'responses.referred_by': regex },
                 { 'responses.team_members': regex },
                 { 'responses.team_members.name': regex },
                 { 'responses.team_members.email': regex },

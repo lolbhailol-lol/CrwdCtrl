@@ -35,6 +35,7 @@ test('sanitizeFestCompetitionDraft keeps MindSpark roster objects', () => {
         { name: 'Bharat', email: 'b@example.com' },
       ],
       team_responses: { category: 'Open' },
+      referred_by: 'Tanvi Sharma',
       photo: { uploaded: true, fileName: 'id.png', ready: true },
       photo_file: {},
     },
@@ -50,12 +51,14 @@ test('sanitizeFestCompetitionDraft keeps MindSpark roster objects', () => {
   assert.equal(draft.formData.team_members.length, 2);
   assert.equal(draft.formData.team_members[0].name, 'Asha');
   assert.equal(draft.formData.team_responses.category, 'Open');
+  assert.equal(draft.formData.referred_by, 'Tanvi Sharma');
   assert.equal(draft.formData.photo, undefined);
   assert.equal(draft.couponCode, 'SPARK');
 
   const responses = draftToResponses(draft);
   assert.equal(responses.team_name, 'Ctrl');
   assert.equal(responses.team_members[1].name, 'Bharat');
+  assert.equal(responses.referred_by, 'Tanvi Sharma');
 });
 
 test('empty draft sanitizes to null', () => {
