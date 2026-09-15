@@ -563,7 +563,7 @@ export default function EventCommunityDetailPage() {
             <ScrollProgress />
             <div className="mx-auto w-full md:max-w-2xl flex flex-col flex-1">
             {/* ── Cover image carousel (full width, 396px tall — matches trek community page) ── */}
-            <div className="relative w-full h-[396px] shrink-0 overflow-hidden">
+            <div className="relative w-full h-[396px] shrink-0 overflow-hidden bg-[#1A1B1D]">
                 <div
                     ref={imgRef}
                     className="overflow-x-auto scrollbar-hide snap-x snap-mandatory w-full h-full"
@@ -588,9 +588,9 @@ export default function EventCommunityDetailPage() {
                                             <div aria-hidden className="absolute inset-0 bg-[#1A1B1D]" />
                                         )}
                                         <img
-                                            src={getImageUrl(img, { preset: 'hero' })}
+                                            src={getImageUrl(img, { preset: 'eventHeroFit' })}
                                             alt={name}
-                                            className={`w-full h-full object-cover pointer-events-none select-none ${
+                                            className={`w-full h-full object-contain object-center pointer-events-none select-none ${
                                                 i === 0 && !heroLoaded ? 'opacity-0' : 'opacity-100'
                                             }`}
                                             draggable={false}

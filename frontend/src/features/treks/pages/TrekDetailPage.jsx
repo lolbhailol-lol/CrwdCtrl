@@ -498,7 +498,7 @@ export default function TrekDetailPage() {
             <div className="mx-auto w-full md:max-w-2xl flex flex-col flex-1">
 
             {/* ── HERO IMAGE ── */}
-            <div className="relative w-full h-[396px] shrink-0 overflow-hidden">
+            <div className="relative w-full h-[396px] shrink-0 overflow-hidden bg-[#1A1B1D]">
                 <div
                     ref={imgRef}
                     className="overflow-x-auto scrollbar-hide snap-x snap-mandatory w-full h-full"
@@ -508,11 +508,11 @@ export default function TrekDetailPage() {
                     <div className="flex h-full">
                         {images.map((img, i) => {
                             const raw = typeof img === 'string' ? img : (img?.url || img?.secure_url || '');
-                            const src = getImageUrl(raw, { preset: 'communityBanner' }) || getImageUrl(raw) || raw || null;
+                            const src = getImageUrl(raw, { preset: 'eventHeroFit' }) || getImageUrl(raw) || raw || null;
                             return (
                             <div key={i} className="shrink-0 w-full h-full snap-start">
                                 {src
-                                    ? <img src={src} alt={trek.trekName} className="w-full h-full object-cover content-image"
+                                    ? <img src={src} alt={trek.trekName} className="w-full h-full object-contain object-center content-image"
                                         loading={i === 0 ? 'eager' : 'lazy'} fetchPriority={i === 0 ? 'high' : 'auto'} decoding="async"
                                         onError={e => {
                                             if (raw && e.currentTarget.src !== raw) {

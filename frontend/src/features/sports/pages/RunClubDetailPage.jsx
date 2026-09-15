@@ -532,9 +532,9 @@ export default function RunClubDetailPage() {
                                             <div aria-hidden className="absolute inset-0 bg-[#1A1B1D]" />
                                         )}
                                         <img
-                                            src={getImageUrl(img, { preset: 'hero' })}
+                                            src={getImageUrl(img, { preset: 'eventHeroFit' })}
                                             alt={name}
-                                            className={`w-full h-full object-cover pointer-events-none select-none ${
+                                            className={`w-full h-full object-contain object-center pointer-events-none select-none ${
                                                 i === 0 && !heroLoaded ? 'opacity-0' : 'opacity-100'
                                             }`}
                                             draggable={false}

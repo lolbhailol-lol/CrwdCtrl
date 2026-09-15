@@ -507,9 +507,9 @@ export default function EventCommunityEventPage() {
                                             </div>
                                         )}
                                         <img
-                                        src={getImageUrl(img, { preset: 'hero' })}
+                                        src={getImageUrl(img, { preset: 'eventHeroFit' })}
                                         alt={event.title}
-                                        className={`absolute inset-0 w-full h-full object-cover object-top content-image pointer-events-none select-none ${
+                                        className={`absolute inset-0 w-full h-full object-contain object-center content-image pointer-events-none select-none ${
                                             i === 0 && !heroLoaded ? 'opacity-0' : 'opacity-100'
                                         }`}
                                         draggable={false}
@@ -692,9 +692,7 @@ export default function EventCommunityEventPage() {
                                         ? 'Register now'
                                         : hasPricingSnapshot(event) && Number(event.registrationFee) <= 0
                                             ? 'Register free'
-                                            : event.registration?.mode === 'organizer_qr'
-                                                ? 'Pay via UPI'
-                                                : 'Book now'}
+                                            : 'Book now'}
                                 {hasPricingSnapshot(event) || extLink ? (
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                     <path d="m9 18 6-6-6-6" />

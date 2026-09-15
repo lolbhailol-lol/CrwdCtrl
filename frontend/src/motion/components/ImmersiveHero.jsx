@@ -13,6 +13,7 @@ export default function ImmersiveHero({
     fallback = null,
     onImageError,
     className = '',
+    imageFit = 'cover',
 }) {
     const imgRef = useRef(null);
     const [loaded, setLoaded] = useState(!imageSrc);
@@ -40,7 +41,7 @@ export default function ImmersiveHero({
                         ref={imgRef}
                         src={imageSrc}
                         alt={imageAlt}
-                        className={`absolute inset-0 w-full h-full object-cover ${
+                        className={`absolute inset-0 w-full h-full ${imageFit === 'contain' ? 'object-contain object-center bg-[#1A1B1D]' : 'object-cover'} ${
                             loaded ? 'opacity-100' : 'opacity-0'
                         }`}
                         loading="eager"

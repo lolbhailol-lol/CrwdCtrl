@@ -467,7 +467,7 @@ function EventDetailsPage() {
   const kshitijPage = festPlugin.id === 'kshitij';
   // Techfest fest hero: brand logo contained & centered (URL from fest cover / admin)
   const heroShellClass = 'bg-[#1A1B1D]';
-  const heroImageClass = 'object-cover object-center';
+  const heroImageClass = 'object-contain object-center';
 
   const prefetchCompetition = (competition) => {
     const payload = buildCompetitionNavPayload(competition, pageEvent);
@@ -642,7 +642,7 @@ function EventDetailsPage() {
                 <div className={`relative rounded-2xl overflow-hidden ${heroShellClass}`}>
                   {heroImage ? (
                   <img
-                    src={getImageUrl(heroImage, { preset: 'hero' })}
+                    src={getImageUrl(heroImage, { preset: 'eventHeroFit' })}
                     alt={pageEvent.title}
                     className={`w-full ${heroImageClass} ${mindSparkDesktop ? 'h-72 lg:h-[22rem] xl:h-[26rem]' : 'h-64 sm:h-80 xl:h-96'}`}
                   />
@@ -1113,11 +1113,9 @@ function EventDetailsPage() {
             </div>
           ) : mobileHeroImage ? (
           <img
-            src={getImageUrl(mobileHeroImage, { preset: kshitijPage ? 'eventHeroFit' : 'hero' })}
+            src={getImageUrl(mobileHeroImage, { preset: 'eventHeroFit' })}
             alt={pageEvent.title}
-            className={`absolute inset-0 w-full h-full object-cover ${
-              kshitijPage ? 'object-center scale-[1.28] sm:scale-[1.12]' : 'object-[center_30%]'
-            }`}
+            className="absolute inset-0 w-full h-full object-contain object-center"
           />
           ) : null}
           <div

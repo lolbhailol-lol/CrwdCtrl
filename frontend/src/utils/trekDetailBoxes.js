@@ -145,6 +145,14 @@ function displayVenueName(event) {
     return venue || String(event?.meetingPoint || event?.city || '').trim();
 }
 
+function activityFactLabel(event, value, fallback = 'Sport') {
+    const text = [value, event?.displayType, event?.runCategory, event?.title]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+    return /workshop|class|masterclass/.test(text) ? 'Workshop' : fallback;
+}
+
 export function eventMapSideFacts(event) {
     if (!event) return [];
     const boxes = normalizeRunDetailBoxes(event.detailBoxes, event);
@@ -165,7 +173,7 @@ export function eventMapSideFacts(event) {
             return [
                 date ? { key: 'date', label: 'Date', value: date, icon: 'calendar' } : null,
                 time ? { key: 'time', label: 'Time', value: time, icon: 'clock' } : null,
-                sport ? { key: 'sport', label: 'Sport', value: sport, icon: 'star' } : null,
+                sport ? { key: 'sport', label: activityFactLabel(event, sport), value: sport, icon: 'star' } : null,
             ].filter(Boolean);
         }
         const venue = String(
@@ -210,7 +218,9 @@ export function eventMapSideFacts(event) {
         if (!value) return null;
         return {
             key: rule.key,
-            label: box?.label || rule.label,
+            label: rule.key === 'sport'
+                ? activityFactLabel(event, value, box?.label || rule.label)
+                : (box?.label || rule.label),
             value,
             icon: box?.icon || rule.icon,
         };

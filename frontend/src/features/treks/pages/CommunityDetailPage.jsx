@@ -444,9 +444,10 @@ export default function CommunityDetailPage() {
             {/* Full-bleed on phones, centered & aligned with content on larger screens (matches events) */}
             <div className="mx-auto w-full md:max-w-2xl flex flex-col flex-1">
             <ImmersiveHero
-                imageSrc={getCoverImageUrl(community, 'communityBanner') || getCoverImageUrl(community, 'hero') || getCoverImageUrl(community, 'cardPortrait') || null}
+                imageSrc={getCoverImageUrl(community, 'page') || getCoverImageUrl(community, 'cardPortrait') || null}
                 imageAlt={name}
                 height="396px"
+                imageFit="contain"
                 onImageError={(e) => handleImageErrorWithFallback(e, 393, 396, '#1a3a2a', name)}
                 fallback={
                     <div className="absolute inset-0 bg-[#1A1B1D]" />
