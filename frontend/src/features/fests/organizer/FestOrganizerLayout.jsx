@@ -98,10 +98,15 @@ export default function FestOrganizerLayout() {
         ? session?.fests?.find((f) => String(f._id) === String(festId))
         : null;
     const plugin = getFestPlugin(festId, activeFest);
+    const simplePortal = Boolean(festId && plugin.simpleOrganizerPortal);
     const hideStallLeads = Boolean(festId && plugin.hideStallLeads);
     const hideProShow = Boolean(festId && plugin.hideProShow);
     const showFestDayDesk = plugin.id === 'mindspark';
-    const fullNav = festId ? navForFest(festId, { hideStallLeads, hideProShow, showFestDayDesk }) : [];
+    const fullNav = festId
+        ? navForFest(festId, { hideStallLeads, hideProShow, showFestDayDesk }).filter((item) => (
+            !simplePortal || ['Overview', 'Competitions', 'Participants'].includes(item.label)
+        ))
+        : [];
     const nav = session?.organizer?.portalRole === 'desk'
         ? fullNav.filter((item) => item.label === 'Fest Day Desk')
         : fullNav;

@@ -144,6 +144,61 @@ function MetaLine({ college, city, year, course }) {
     );
 }
 
+function SimpleCompetitionWorkspace({ competition, participants, query, setQuery, festId, navigate, reload, loading }) {
+    const q = query.trim().toLowerCase();
+    const rows = (participants || []).filter((participant) => {
+        if (!q) return true;
+        const haystack = `${participant.userName || ''} ${participant.teamName || ''} ${participant.college || ''} ${participant.city || ''} ${participant.userPhone || ''} ${participant.userEmail || ''}`.toLowerCase();
+        return haystack.includes(q);
+    });
+
+    return (
+        <div className="max-w-3xl mx-auto space-y-4 pb-10">
+            <div className="flex items-center gap-3">
+                <button type="button" onClick={() => navigate(`/fest-organizer/fests/${festId}/competitions`)} className="p-2 rounded-xl border border-white/10 text-gray-300" aria-label="Back to competitions">
+                    <ArrowLeft size={17} />
+                </button>
+                <div className="min-w-0 flex-1">
+                    <p className="text-[10px] uppercase tracking-[0.14em] text-[#0ECCEE] font-semibold">Competition</p>
+                    <h1 className="text-xl font-bold text-white truncate">{competition?.name || 'Competition'}</h1>
+                </div>
+                <button type="button" onClick={reload} className="p-2 rounded-xl border border-white/10 text-gray-400" aria-label="Refresh participants">
+                    <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+                </button>
+            </div>
+
+            <div className="rounded-2xl border border-[#0ECCEE]/20 bg-[#0ECCEE]/8 p-4">
+                <p className="text-3xl font-bold text-white">{participants?.length || 0}</p>
+                <p className="text-sm text-gray-400 mt-1">Participants</p>
+            </div>
+
+            <div className="relative">
+                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search participants" className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#161718] border border-white/10 text-sm text-white placeholder:text-gray-600" />
+            </div>
+
+            <div className="space-y-2.5">
+                {rows.map((participant) => (
+                    <div key={participant.id} className="rounded-2xl border border-white/10 bg-[#161718] p-4 flex items-start gap-3">
+                        <div className="size-10 rounded-full bg-[#0ECCEE]/10 text-[#0ECCEE] flex items-center justify-center shrink-0 font-semibold">
+                            {(participant.userName || '?').trim().charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <p className="font-semibold text-white truncate">{participant.userName || 'Unnamed participant'}</p>
+                            {participant.teamName ? <p className="text-xs text-[#0ECCEE] mt-0.5 truncate">Team · {participant.teamName}</p> : null}
+                            <MetaLine college={participant.college} city={participant.city} year={participant.year} course={participant.course} />
+                            <p className="text-xs text-gray-500 mt-1 truncate">{[participant.userPhone, participant.userEmail].filter(Boolean).join(' · ') || 'No contact details'}</p>
+                            <OrganizerRosterPreview teamMembers={participant.teamMembers} teamSize={participant.teamSize || participant.memberCount} />
+                        </div>
+                        <ContactIcons phone={participant.userPhone} email={participant.userEmail} />
+                    </div>
+                ))}
+                {!rows.length ? <p className="text-center text-sm text-gray-500 py-12">{q ? 'No participants found' : 'No participants yet'}</p> : null}
+            </div>
+        </div>
+    );
+}
+
 function SoloEntryCard({
     p,
     busyId,
@@ -1118,6 +1173,21 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                 <p className="text-sm text-red-400">{error}</p>
                 <button type="button" onClick={load} className="text-sm text-[#0ECCEE]">Retry</button>
             </div>
+        );
+    }
+
+    if (plugin.simpleOrganizerPortal) {
+        return (
+            <SimpleCompetitionWorkspace
+                competition={competition}
+                participants={data?.participants || solo}
+                query={listQuery}
+                setQuery={setListQuery}
+                festId={festId}
+                navigate={navigate}
+                reload={() => load({ quiet: true })}
+                loading={loading}
+            />
         );
     }
 

@@ -40,6 +40,62 @@ function ProgressBar({ value, max, tone = 'cyan' }) {
     );
 }
 
+function SimpleTechfestDashboard({ fest, stats, competitions, festId, navigate, reload }) {
+    const totalParticipants = Number(stats.totalRegistrations || stats.allActive) || 0;
+
+    return (
+        <div className="max-w-4xl mx-auto space-y-6">
+            <section className="rounded-3xl border border-white/10 bg-[#121314] p-6 sm:p-8">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#0ECCEE]">Organizer dashboard</p>
+                        <h1 className="mt-2 text-2xl sm:text-3xl font-bold text-white">{fest.festName}</h1>
+                        <p className="mt-2 text-sm text-gray-400">Manage free competitions and their participants.</p>
+                    </div>
+                    <button type="button" onClick={reload} className="p-2.5 rounded-xl border border-white/10 bg-white/5 text-gray-300" aria-label="Refresh dashboard">
+                        <RefreshCw size={17} />
+                    </button>
+                </div>
+            </section>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+                <button type="button" onClick={() => navigate(`/fest-organizer/fests/${festId}/competitions`)} className="rounded-3xl border border-[#0ECCEE]/25 bg-[#0ECCEE]/8 p-6 text-left hover:border-[#0ECCEE]/50 transition">
+                    <Trophy size={22} className="text-[#0ECCEE]" />
+                    <p className="mt-5 text-3xl font-bold text-white">{stats.competitionCount || competitions.length}</p>
+                    <p className="mt-1 font-semibold text-white">Competitions</p>
+                    <p className="mt-1 text-sm text-gray-500">View events and open participant lists</p>
+                    <span className="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-[#0ECCEE]">Open competitions <ArrowRight size={15} /></span>
+                </button>
+
+                <button type="button" onClick={() => navigate(`/fest-organizer/fests/${festId}/participants`)} className="rounded-3xl border border-white/10 bg-[#161718] p-6 text-left hover:border-[#0ECCEE]/40 transition">
+                    <Users size={22} className="text-[#0ECCEE]" />
+                    <p className="mt-5 text-3xl font-bold text-white">{totalParticipants}</p>
+                    <p className="mt-1 font-semibold text-white">Participants</p>
+                    <p className="mt-1 text-sm text-gray-500">Search and view registrations</p>
+                    <span className="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-[#0ECCEE]">View participants <ArrowRight size={15} /></span>
+                </button>
+            </div>
+
+            <section>
+                <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-base font-semibold text-white">Competitions</h2>
+                    <button type="button" onClick={() => navigate(`/fest-organizer/fests/${festId}/competitions`)} className="text-xs font-semibold text-[#0ECCEE]">View all</button>
+                </div>
+                <div className="divide-y divide-white/8 overflow-hidden rounded-2xl border border-white/10 bg-[#161718]">
+                    {competitions.slice(0, 5).map((competition) => (
+                        <button key={competition.id} type="button" onClick={() => navigate(`/fest-organizer/fests/${festId}/competitions/${competition.id}`)} className="w-full flex items-center gap-3 p-4 text-left hover:bg-white/4">
+                            <div className="size-10 rounded-xl bg-[#0ECCEE]/10 flex items-center justify-center"><Trophy size={16} className="text-[#0ECCEE]" /></div>
+                            <div className="min-w-0 flex-1"><p className="font-medium text-white truncate">{competition.name}</p><p className="text-xs text-gray-500 mt-0.5">{Number(competition.total) || 0} participants</p></div>
+                            <ArrowRight size={15} className="text-gray-600" />
+                        </button>
+                    ))}
+                    {!competitions.length ? <p className="p-6 text-center text-sm text-gray-500">No competitions yet</p> : null}
+                </div>
+            </section>
+        </div>
+    );
+}
+
 export default function FestOrganizerDashboardPage() {
     const { festId } = useParams();
     const navigate = useNavigate();
@@ -93,7 +149,8 @@ export default function FestOrganizerDashboardPage() {
 
     const { fest, stats, recent = [] } = data;
     const payments = stats.payments || {};
-    const hideProShow = getFestPlugin(festId, fest).hideProShow;
+    const plugin = getFestPlugin(festId, fest);
+    const hideProShow = plugin.hideProShow;
     const unpaidCount = Number(payments.pending || 0);
     const publicUrl = fest.slug
         ? `${window.location.origin}/view-details/${fest.slug}`
@@ -119,6 +176,10 @@ export default function FestOrganizerDashboardPage() {
     ];
 
     const qrComps = comps.filter((c) => c.id);
+
+    if (plugin.simpleOrganizerPortal) {
+        return <SimpleTechfestDashboard fest={fest} stats={stats} competitions={comps} festId={festId} navigate={navigate} reload={load} />;
+    }
 
     return (
         <div className="max-w-5xl mx-auto space-y-5">

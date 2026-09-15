@@ -16,6 +16,7 @@ import FestOrganizerParticipantModal from './FestOrganizerParticipantModal';
 import { OrganizerRosterPreview } from './OrganizerTeamRoster';
 import { getFestPlugin } from '../plugins/registry';
 import { InlinePageLoader } from '../../../components/DetailPageLoader';
+import { getFestOrganizerSession } from '../../../utils/festOrganizerSession';
 
 function waLink(phone) {
     const digits = String(phone || '').replace(/\D/g, '');
@@ -94,6 +95,7 @@ export default function FestOrganizerParticipantsPage() {
 
     const [rows, setRows] = useState([]);
     const [competitions, setCompetitions] = useState([]);
+    const [fest, setFest] = useState(null);
     const [summary, setSummary] = useState({
         pending: 0, approved: 0, rejected: 0, checkedIn: 0, notCheckedIn: 0,
         unpaid: 0, collected: 0, active: 0, waJoined: 0, waNotJoined: 0,
@@ -108,7 +110,10 @@ export default function FestOrganizerParticipantsPage() {
     const competitionId = searchParams.get('competitionId') || '';
     const checkInStatus = searchParams.get('checkInStatus') || '';
     const paymentStatus = searchParams.get('paymentStatus') || '';
-    const noReview = getFestPlugin(festId).skipRegistrationReview;
+    const sessionFest = getFestOrganizerSession()?.fests?.find((item) => String(item._id || item.id) === String(festId));
+    const plugin = getFestPlugin(festId, fest || sessionFest);
+    const noReview = plugin.skipRegistrationReview;
+    const simplePortal = plugin.simpleOrganizerPortal;
 
     useEffect(() => {
         if (!noReview) return;
@@ -132,6 +137,7 @@ export default function FestOrganizerParticipantsPage() {
             if (checkInStatus) params.checkInStatus = checkInStatus;
             if (paymentStatus) params.paymentStatus = paymentStatus;
             const data = await fetchFestOrganizerParticipants(festId, params);
+            setFest(data.fest || data.festMeta || null);
             setRows(data.participants || []);
             setCompetitions(data.competitions || []);
             setSummary(data.summary || {
@@ -261,6 +267,57 @@ export default function FestOrganizerParticipantsPage() {
         return noReview ? 'All registrations' : 'Active guests';
     })();
 
+    if (simplePortal) {
+        return (
+            <div className="max-w-3xl mx-auto space-y-4 pb-10">
+                <div className="flex items-start justify-between gap-3">
+                    <div>
+                        <h1 className="text-xl font-bold text-white">Participants</h1>
+                        <p className="text-sm text-gray-500 mt-1">{pagination.total || rows.length} registered</p>
+                    </div>
+                    <button type="button" onClick={() => load(pagination.page)} className="p-2 rounded-xl border border-white/10 text-gray-400" aria-label="Refresh">
+                        <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+                    </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <select value={competitionId} onChange={(event) => setParams({ competitionId: event.target.value })} className="w-full px-3 py-2.5 rounded-xl bg-[#161718] border border-white/10 text-sm text-white">
+                        <option value="">All competitions</option>
+                        {competitions.map((competition) => <option key={competition.id} value={competition.id}>{competition.name}</option>)}
+                    </select>
+                    <form onSubmit={(event) => { event.preventDefault(); load(1); }} className="relative">
+                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, phone or email" className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#161718] border border-white/10 text-sm text-white placeholder:text-gray-600" />
+                    </form>
+                </div>
+
+                {loading && !rows.length ? <InlinePageLoader label="Loading participants…" variant="fest" minHeight={false} /> : (
+                    <div className="space-y-2.5">
+                        {rows.map((participant) => {
+                            const meta = [participant.college, participant.city, participant.year].filter(Boolean).join(' · ');
+                            return (
+                                <div key={participant.id} className="rounded-xl border border-white/10 bg-[#161718] px-4 py-3">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0 flex-1">
+                                            <p className="font-semibold text-white truncate">{participant.userName || 'Unnamed participant'}</p>
+                                            <p className="text-xs text-[#0ECCEE] mt-0.5 truncate">
+                                                {participant.competitionName || 'General'}{participant.teamName ? ` · ${participant.teamName}` : ''}
+                                            </p>
+                                        </div>
+                                        <span className="text-xs text-gray-500 shrink-0">{participant.userPhone || ''}</span>
+                                    </div>
+                                    {participant.userEmail ? <p className="text-xs text-gray-500 mt-1 truncate">{participant.userEmail}</p> : null}
+                                    {meta ? <p className="text-xs text-gray-600 mt-1 truncate">{meta}</p> : null}
+                                </div>
+                            );
+                        })}
+                        {!rows.length ? <p className="text-center text-sm text-gray-500 py-12">No participants found</p> : null}
+                    </div>
+                )}
+            </div>
+        );
+    }
+
     return (
         <div className="max-w-3xl mx-auto space-y-4 pb-10">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -268,17 +325,19 @@ export default function FestOrganizerParticipantsPage() {
                     <p className="text-[10px] uppercase tracking-[0.14em] text-[#0ECCEE] font-semibold">Fest-wide roster</p>
                     <h1 className="text-xl font-bold text-white mt-0.5">Participants</h1>
                     <p className="text-xs text-gray-500 mt-1">
-                        Cross-competition guest list — contact, export, check payment. Mark WhatsApp joins on each competition desk.
+                        {simplePortal
+                            ? 'All competition registrations in one simple list.'
+                            : 'Cross-competition guest list — contact, export, check payment. Mark WhatsApp joins on each competition desk.'}
                     </p>
                 </div>
                 <div className="flex gap-2 shrink-0">
-                    <button
+                    {!simplePortal ? <button
                         type="button"
                         onClick={() => navigate(`/fest-organizer/fests/${festId}/scan`)}
                         className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-emerald-400/25 bg-emerald-500/10 text-sm text-emerald-200"
                     >
                         <QrCode size={14} /> Scan
-                    </button>
+                    </button> : null}
                     <button
                         type="button"
                         onClick={exportExcel}
@@ -297,7 +356,7 @@ export default function FestOrganizerParticipantsPage() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            {!simplePortal ? <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 {noReview ? (
                     <PulseBox
                         label="Still outside"
@@ -319,7 +378,7 @@ export default function FestOrganizerParticipantsPage() {
                         onClick={() => setParams({ status: 'pending', checkInStatus: '', paymentStatus: '' })}
                     />
                 )}
-                <PulseBox
+                {!simplePortal ? <PulseBox
                     label={noReview ? 'Registered' : 'Approved'}
                     value={summary.approved}
                     hint={`${summary.active} active total`}
@@ -327,8 +386,8 @@ export default function FestOrganizerParticipantsPage() {
                     icon={Users}
                     active={status === 'approved' && !checkInStatus && !paymentStatus}
                     onClick={() => setParams({ status: 'approved', checkInStatus: '', paymentStatus: '' })}
-                />
-                <PulseBox
+                /> : null}
+                {!simplePortal ? <PulseBox
                     label="Checked in"
                     value={summary.checkedIn}
                     hint={noReview ? `${summary.notCheckedIn} outside` : `${summary.notCheckedIn} still outside`}
@@ -336,7 +395,7 @@ export default function FestOrganizerParticipantsPage() {
                     icon={UserCheck}
                     active={checkInStatus === 'checked_in'}
                     onClick={() => setParams({ checkInStatus: 'checked_in', status: 'approved', paymentStatus: '' })}
-                />
+                /> : null}
                 <PulseBox
                     label={noReview ? 'Paid / free' : 'Unpaid'}
                     value={noReview ? (summary.collected || 0) : summary.unpaid}
@@ -352,7 +411,7 @@ export default function FestOrganizerParticipantsPage() {
                         checkInStatus: '',
                     })}
                 />
-            </div>
+            </div> : null}
 
             <div className="rounded-2xl border border-white/10 bg-[#161718] p-3 space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
@@ -374,7 +433,7 @@ export default function FestOrganizerParticipantsPage() {
                     ) : null}
                 </div>
 
-                <div className="flex flex-wrap gap-1.5">
+                {!simplePortal ? <div className="flex flex-wrap gap-1.5">
                     {(noReview
                         ? [
                             { id: '', label: 'All active' },
@@ -437,7 +496,7 @@ export default function FestOrganizerParticipantsPage() {
                     >
                         Outside
                     </button>
-                </div>
+                </div> : null}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {competitions.length ? (
@@ -477,7 +536,9 @@ export default function FestOrganizerParticipantsPage() {
             <div className="rounded-xl border border-[#0ECCEE]/15 bg-[#0ECCEE]/5 px-3.5 py-2.5 flex flex-wrap items-center gap-2 text-xs text-gray-400">
                 <Trophy size={13} className="text-[#0ECCEE] shrink-0" />
                 <span className="min-w-0 flex-1">
-                    Need slots or team roster detail? Use the competition desk — this page is the full-fest guest book.
+                    {simplePortal
+                        ? 'Open a competition to view and manage only its participants.'
+                        : 'Need slots or team roster detail? Use the competition desk — this page is the full-fest guest book.'}
                 </span>
                 <Link
                     to={`/fest-organizer/fests/${festId}/competitions`}
@@ -572,7 +633,7 @@ export default function FestOrganizerParticipantsPage() {
                                             </div>
                                         ) : null}
                                         <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                                            {noReview ? (
+                                            {simplePortal ? null : noReview ? (
                                                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300">
                                                     registered
                                                 </span>
@@ -581,15 +642,15 @@ export default function FestOrganizerParticipantsPage() {
                                                     {p.status}
                                                 </span>
                                             )}
-                                            <span className={`text-[10px] capitalize ${payTone(p.paymentStatus)}`}>
+                                            {!simplePortal ? <span className={`text-[10px] capitalize ${payTone(p.paymentStatus)}`}>
                                                 {p.paymentStatus}
                                                 {Number(p.amountPaid) > 0 ? ` · ₹${Number(p.amountPaid).toLocaleString('en-IN')}` : ''}
-                                            </span>
-                                            {p.checkedIn ? (
+                                            </span> : null}
+                                            {!simplePortal && (p.checkedIn ? (
                                                 <span className="text-[10px] text-emerald-400">checked in</span>
                                             ) : (noReview || p.status === 'approved') ? (
                                                 <span className="text-[10px] text-gray-600">not checked in</span>
-                                            ) : null}
+                                            ) : null)}
                                             <span className="text-[10px] text-gray-600 ml-auto tabular-nums">
                                                 {formatWhen(p.submittedAt || p.createdAt)}
                                             </span>

@@ -142,6 +142,7 @@ export default function FestOrganizerCompetitionsPage() {
 
     const plugin = getFestPlugin(festId, fest);
     const noReview = plugin.skipRegistrationReview;
+    const simplePortal = plugin.simpleOrganizerPortal;
 
     const categories = useMemo(() => {
         const set = new Set();
@@ -215,9 +216,11 @@ export default function FestOrganizerCompetitionsPage() {
                         </div>
                         <h1 className="text-xl font-bold tracking-tight text-white">{fest?.festName || 'Competitions'}</h1>
                         <p className="text-sm text-gray-400 mt-1">
-                            {noReview ? 'Rosters, slots, gate' : 'Review entries, set capacity, open ops desk'}
+                            {simplePortal ? 'Competitions and participants' : (noReview ? 'Rosters, slots, gate' : 'Review entries, set capacity, open ops desk')}
                         </p>
-                        {noReview ? (
+                        {simplePortal ? (
+                            <p className="text-sm mt-1 text-gray-500">{stats?.totalRegistrations || 0} total participants</p>
+                        ) : noReview ? (
                             <p className="text-sm mt-1 text-gray-500">
                                 {outsideHub > 0 ? (
                                     <span className="text-emerald-200/90 font-medium">{outsideHub} still outside</span>
@@ -254,14 +257,14 @@ export default function FestOrganizerCompetitionsPage() {
                         )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                        <button
+                        {!simplePortal ? <button
                             type="button"
                             onClick={() => setQrOpen(true)}
                             disabled={!filtered.length && !rows.some((r) => r.id)}
                             className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-[#0ECCEE]/30 bg-[#0ECCEE]/10 text-xs font-semibold text-[#0ECCEE] disabled:opacity-40"
                         >
                             <QrCode size={14} /> QRs
-                        </button>
+                        </button> : null}
                         <button
                             type="button"
                             onClick={load}
@@ -276,7 +279,7 @@ export default function FestOrganizerCompetitionsPage() {
 
             {error ? <p className="text-sm text-red-400">{error}</p> : null}
 
-            <button
+            {!simplePortal ? <button
                 type="button"
                 onClick={() => navigate(`/fest-organizer/fests/${festId}/competitions/probables`)}
                 className="w-full rounded-2xl border border-amber-400/30 bg-linear-to-r from-amber-500/15 to-[#161718] p-4 text-left hover:border-amber-400/50 transition flex items-center gap-3"
@@ -291,7 +294,7 @@ export default function FestOrganizerCompetitionsPage() {
                     </p>
                 </div>
                 <ChevronRight size={18} className="text-amber-300/80 shrink-0" />
-            </button>
+            </button> : null}
 
             <div className="relative">
                 <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
@@ -379,27 +382,27 @@ export default function FestOrganizerCompetitionsPage() {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-4 gap-1.5 mt-3">
+                                <div className={`grid ${simplePortal ? 'grid-cols-1' : 'grid-cols-4'} gap-1.5 mt-3`}>
                                     <MiniBox label="Entries" value={total} tone="accent" />
-                                    {noReview ? (
+                                    {!simplePortal && noReview ? (
                                         <MiniBox
                                             label="Outside"
                                             value={Math.max(0, (Number(c.approved) || total) - checkedIn)}
                                             tone={Math.max(0, (Number(c.approved) || total) - checkedIn) > 0 ? 'warn' : 'default'}
                                         />
-                                    ) : (
+                                    ) : !simplePortal ? (
                                         <MiniBox label="Review" value={pending} tone={pending > 0 ? 'warn' : 'default'} />
-                                    )}
-                                    <MiniBox label="Check-in" value={checkedIn} tone="ok" />
-                                    <MiniBox
+                                    ) : null}
+                                    {!simplePortal ? <MiniBox label="Check-in" value={checkedIn} tone="ok" /> : null}
+                                    {!simplePortal ? <MiniBox
                                         label="Remain"
                                         value={slotsLabel}
                                         tone={slotsAllotted > 0 && slotsLeft === 0 ? 'warn' : 'default'}
-                                    />
+                                    /> : null}
                                 </div>
                             </button>
                             <div className="mt-3 pt-3 border-t border-white/8 space-y-2">
-                                <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#121314] px-3 py-2.5">
+                                {!simplePortal ? <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#121314] px-3 py-2.5">
                                     <div className="min-w-0">
                                         <p className="text-xs font-medium text-white">
                                             {c.registrationsOpen === false ? 'Registrations closed' : 'Registrations open'}
@@ -432,7 +435,7 @@ export default function FestOrganizerCompetitionsPage() {
                                             />
                                         )}
                                     </button>
-                                </div>
+                                </div> : null}
                                 {noReview ? (
                                     <>
                                         <button
@@ -489,15 +492,15 @@ export default function FestOrganizerCompetitionsPage() {
                                         </div>
                                     </>
                                 ) : null}
-                                <div className="grid grid-cols-3 gap-2">
-                                    <button
+                                <div className={`grid ${simplePortal ? 'grid-cols-1' : 'grid-cols-3'} gap-2`}>
+                                    {!simplePortal ? <button
                                         type="button"
                                         onClick={() => navigate(`/fest-organizer/fests/${festId}/competitions/${id}`)}
                                         className="inline-flex items-center justify-center gap-1 px-2 py-2 rounded-xl border border-white/10 text-xs font-medium text-gray-300"
                                     >
                                         Desk <ChevronRight size={14} />
-                                    </button>
-                                    <button
+                                    </button> : null}
+                                    {!simplePortal ? <button
                                         type="button"
                                         disabled={qrBusyId === id}
                                         onClick={async () => {
@@ -515,14 +518,14 @@ export default function FestOrganizerCompetitionsPage() {
                                     >
                                         {qrBusyId === id ? <Loader size={13} className="animate-spin" /> : <Download size={13} />}
                                         QR
-                                    </button>
-                                    <button
+                                    </button> : null}
+                                    {!simplePortal ? <button
                                         type="button"
                                         onClick={() => navigate(`/fest-organizer/fests/${festId}/scan?competitionId=${id}`)}
                                         className="inline-flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl border border-emerald-400/25 bg-emerald-500/10 text-xs font-medium text-emerald-200"
                                     >
                                         <QrCode size={14} /> Scan
-                                    </button>
+                                    </button> : null}
                                 </div>
                             </div>
                         </div>

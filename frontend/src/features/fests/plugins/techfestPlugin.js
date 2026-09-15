@@ -12,6 +12,7 @@ import TechfestAccommodationBadge from '../techfest/TechfestAccommodationBadge';
  */
 export const techfestPlugin = {
   id: 'techfest',
+  simpleOrganizerPortal: true,
   hideProShow: true,
   hideStallLeads: true,
   skipRegistrationReview: false,
