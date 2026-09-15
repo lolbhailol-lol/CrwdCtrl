@@ -178,9 +178,10 @@
   <meta name="color-scheme" content="light dark" />
   <link rel="canonical" href="https://www.crwdctrl.in/" />
 
-  <!-- Favicon: PNG first (reliable), ICO for browsers/crawlers that request /favicon.ico -->
-  <link rel="icon" type="image/png" sizes="192x192" href="/favicon.png" />
+  <!-- Stable, square search favicon first; larger app icon remains available below. -->
+  <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png" />
   <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192x192.png" />
   <link rel="apple-touch-icon" href="/icon-192x192.png" />
 
   <!-- Open Graph / social -->
@@ -250,8 +251,9 @@
       {
         "@type": "WebSite",
         "@id": "https://www.crwdctrl.in/#website",
-        "url": "https://www.crwdctrl.in",
+        "url": "https://www.crwdctrl.in/",
         "name": "CrwdCtrl",
+        "alternateName": ["Crwd Ctrl", "crwdctrl.in"],
         "description": "Discover college fests, sports events, running clubs, treks and student communities near you.",
         "inLanguage": "en-IN",
         "publisher": { "@id": "https://www.crwdctrl.in/#organization" }
