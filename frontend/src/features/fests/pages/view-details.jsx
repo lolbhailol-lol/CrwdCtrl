@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, Suspense, lazy } from 'react';
-import { Calendar, MapPin, Heart } from "lucide-react";
+import { Calendar, MapPin, Heart, Sparkles } from "lucide-react";
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { Phone, Instagram, Mail, ArrowLeft, Share, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
@@ -874,11 +874,11 @@ function EventDetailsPage() {
                     <button
                       type="button"
                       onClick={handleOpenMindSparkBundle}
-                      className="mb-4 w-full rounded-xl border border-[#0ECCEE]/35 bg-[#0ECCEE]/10 p-3 text-left hover:border-[#0ECCEE]/70 transition"
+                      className="group relative mb-4 w-full overflow-hidden rounded-2xl border border-[#0ECCEE]/35 bg-gradient-to-br from-[#0ECCEE]/20 via-[#12191c] to-emerald-400/10 p-4 text-left shadow-[0_10px_35px_rgba(14,204,238,.10)] transition hover:-translate-y-0.5 hover:border-[#0ECCEE]/70"
                     >
-                      <span className="block text-[10px] font-semibold uppercase tracking-[.16em] text-[#0ECCEE]">MindSpark competition bundle</span>
-                      <span className={`mt-1 block text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>1 Technical + 2 Non-Technical</span>
-                      <span className={`block text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>70% off · Open registration →</span>
+                      <span className="absolute -right-5 -top-8 size-24 rounded-full bg-[#0ECCEE]/15 blur-2xl" />
+                      <span className="relative flex items-start justify-between gap-3"><span><span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[.16em] text-[#0ECCEE]"><Sparkles size={13} />MindSpark bundle</span><span className={`mt-1.5 block text-base font-black ${isDark ? 'text-white' : 'text-gray-900'}`}>Pick 3. Pay only 30%.</span><span className={`mt-0.5 block text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>1 Technical + 2 Non-Technical</span></span><span className="rounded-full bg-emerald-400 px-2.5 py-1 text-xs font-black text-[#071014]">70% OFF</span></span>
+                      <span className="relative mt-3 flex items-center justify-center rounded-xl bg-[#0ECCEE] py-2.5 text-sm font-bold text-[#071014] transition group-hover:bg-white">Register bundle →</span>
                     </button>
                   ) : null}
 
@@ -1317,16 +1317,12 @@ function EventDetailsPage() {
             <button
               type="button"
               onClick={handleOpenMindSparkBundle}
-              className="flex w-full items-center justify-between gap-3 rounded-xl border border-[#0ECCEE]/30 bg-[#0ECCEE]/10 px-3 py-2 text-left transition hover:border-[#0ECCEE]/60 active:scale-[0.99]"
+              className="group relative w-full overflow-hidden rounded-2xl border border-[#0ECCEE]/35 bg-gradient-to-r from-[#0ECCEE]/20 via-[#12191c] to-emerald-400/10 p-4 text-left shadow-[0_10px_35px_rgba(14,204,238,.10)] transition active:scale-[0.99]"
               aria-label="Open MindSpark Competition Bundle registration and get 70% off"
             >
-              <span className="flex min-w-0 items-center gap-2 text-[11px] font-semibold tracking-wide text-[#0ECCEE]">
-                <span className="size-2 shrink-0 rounded-full bg-[#0ECCEE]" />
-                <span>MindSpark Bundle · Get 70% off</span>
-              </span>
-              <span className="shrink-0 rounded-lg bg-[#0ECCEE] px-2.5 py-1.5 text-[11px] font-bold text-[#071014]">
-                Tap to register →
-              </span>
+              <span className="absolute -right-6 -top-10 size-28 rounded-full bg-[#0ECCEE]/20 blur-2xl" />
+              <span className="relative flex items-start justify-between gap-3"><span className="min-w-0"><span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[.15em] text-[#0ECCEE]"><Sparkles size={13} />MindSpark competition bundle</span><span className="mt-1 block text-base font-black text-white">Pick 3. Pay only 30%.</span><span className="mt-0.5 block text-xs text-gray-400">1 Technical + 2 Non-Technical</span></span><span className="shrink-0 rounded-full bg-emerald-400 px-2.5 py-1 text-xs font-black text-[#071014]">70% OFF</span></span>
+              <span className="relative mt-3 flex items-center justify-center rounded-xl bg-[#0ECCEE] py-2.5 text-sm font-bold text-[#071014]">Register bundle →</span>
             </button>
           </div>
         ) : null}
@@ -1591,14 +1587,6 @@ function EventDetailsPage() {
       {showMindSparkBundle ? (
         <div className="fixed inset-0 z-50 overflow-hidden bg-[#090b0d]" role="dialog" aria-modal="true" aria-label="MindSpark bundle registration">
           <div className="relative h-dvh w-full overflow-y-auto overscroll-contain bg-[#090b0d]">
-            <button
-              type="button"
-              onClick={() => setShowMindSparkBundle(false)}
-              className="fixed right-3 top-3 z-30 rounded-full border border-white/15 bg-black/90 p-2 text-white shadow-lg"
-              aria-label="Close bundle registration"
-            >
-              <X size={20} />
-            </button>
             <Suspense fallback={<div className="p-12 text-center text-gray-400">Opening bundle registration…</div>}>
               <MindSparkBundlePage embedded onClose={() => setShowMindSparkBundle(false)} />
             </Suspense>
