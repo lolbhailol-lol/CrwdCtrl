@@ -1,4 +1,4 @@
-import { communityPath, competitionPath, eventShowPath, festPath, runClubPath, sportRunPath, trekPath } from './slugRoutes';
+import { communityPath, competitionPath, eventShowPath, festPath, runClubPath, sportRunPath, trekPath } from './slugRoutes.js';
 
 /**
  * Navigate to the correct page from a unified search result.
@@ -9,15 +9,15 @@ export function navigateToSearchResult(navigate, result) {
   const id = result.id || result._id;
 
   if (type === 'competition') {
-    navigate(competitionPath({ _id: id, id, name: result.title, title: result.title }));
+    navigate(competitionPath({ ...result, _id: id, id, name: result.title, title: result.title }));
     return;
   }
   if (type === 'fest') {
-    navigate(festPath({ _id: id, id, festName: result.title, title: result.title }));
+    navigate(festPath({ ...result, _id: id, id, festName: result.title, title: result.title }));
     return;
   }
   if (type === 'trek') {
-    navigate(trekPath({ _id: id, id, trekName: result.title, title: result.title }), {
+    navigate(trekPath({ ...result, _id: id, id, trekName: result.title, title: result.title }), {
       state: {
         trek: {
           ...result,
@@ -29,7 +29,7 @@ export function navigateToSearchResult(navigate, result) {
     return;
   }
   if (type === 'community') {
-    navigate(communityPath({ _id: id, id, name: result.title, title: result.title }), {
+    navigate(communityPath({ ...result, _id: id, id, name: result.title, title: result.title }), {
       state: {
         community: {
           id,
@@ -43,7 +43,7 @@ export function navigateToSearchResult(navigate, result) {
     return;
   }
   if (type === 'runclub') {
-    navigate(runClubPath({ _id: id, id, name: result.title, title: result.title }), {
+    navigate(runClubPath({ ...result, _id: id, id, name: result.title, title: result.title }), {
       state: {
         club: {
           _id: id,
@@ -57,6 +57,7 @@ export function navigateToSearchResult(navigate, result) {
   }
   if (type === 'sport') {
     navigate(sportRunPath({
+      ...result,
       _id: id,
       id,
       title: result.title,
@@ -75,7 +76,7 @@ export function navigateToSearchResult(navigate, result) {
     return;
   }
   if (type === 'events' || type === 'event') {
-    navigate(eventShowPath({ _id: id, id, title: result.title }));
+    navigate(eventShowPath({ ...result, _id: id, id, title: result.title }));
     return;
   }
   if (id) {

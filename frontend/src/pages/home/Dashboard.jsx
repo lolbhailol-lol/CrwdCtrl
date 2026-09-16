@@ -43,7 +43,8 @@ import { API_BASE_URL } from '../../services/api/client';
 import { fetchCatalogJSON, invalidateCatalogCache } from '../../services/api/catalogCache';
 import { seedPublicConfigCache } from '../../services/api/config.api';
 import { usePublicConfig } from '../../hooks/usePublicConfig';
-import { communityPath, competitionPath, eventShowPath, festPath, runClubPath, sportRunPath, trekPath } from '../../utils/slugRoutes';
+import { communityPath, eventShowPath, festPath, runClubPath, sportRunPath, trekPath } from '../../utils/slugRoutes';
+import { navigateToSearchResult } from '../../utils/searchNavigation';
 import { buildFestDetailNavState } from '../../utils/detailPageCache';
 import { prefetchFestDetail } from '../../services/api/fests.api';
 import { shouldShowHomeSectionLoading } from '../../utils/homeFeedLoading';
@@ -1239,18 +1240,8 @@ const Dashboard = () => {
     );
 
     const handleSearchNavigate = useCallback((result) => {
-        const type = result.resultType || result._type;
-        const id = result.id || result._id;
-        if (type === 'competition') {
-            navigate(competitionPath({ _id: id, id, name: result.title, title: result.title }));
-        } else if (type === 'fest') {
-            navigateToFestDetail({ id, _id: id, festName: result.title, title: result.title });
-        } else if (type === 'trek' || type === 'community' || type === 'sport') {
-            navigateToHomeItem(result);
-        } else {
-            navigate(`/view-details/${id}`);
-        }
-    }, [navigate, navigateToHomeItem, navigateToFestDetail]);
+        navigateToSearchResult(navigate, result);
+    }, [navigate]);
 
     const searchKeywordCatalog = useMemo(
         () => buildSearchKeywordsFromCatalog({
