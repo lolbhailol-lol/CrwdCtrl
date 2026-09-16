@@ -50,6 +50,8 @@ import {
   TrekCategoryPage,
   PaymentCheckoutPage,
   DeskPaymentPage,
+  MindSparkBundlePage,
+  MindSparkBundlePaymentPage,
   FestStallInterestPage,
 } from './lazyPages';
 import {
@@ -65,6 +67,8 @@ export const publicRoutes = (
       <Route path="/s/:festSlugOrId" element={<FestStallInterestPage />} />
       <Route path="/payment/checkout" element={<PaymentCheckoutPage />} />
       <Route path="/desk-payment/:token" element={<DeskPaymentPage />} />
+      <Route path="/mindspark/bundle" element={<MindSparkBundlePage />} />
+      <Route path="/mindspark/bundle-pay/:token" element={<MindSparkBundlePaymentPage />} />
       {paymentReturnRedirect}
       <Route path="/" element={<Dashboard />} />
       {dashboardRedirect}

@@ -68,6 +68,8 @@ const apiLimiter = rateLimit({
     // Do not also charge them to the shared venue-IP bucket during a fest rush.
     if (req.method === 'POST' && /^\/payment\/(order|verify|quote|coupon-validate)$/.test(path)) return true;
     if (req.method === 'POST' && /^\/registrations\/(fests|competitions)\/[^/]+\/(register|custom|pay-and-register)$/.test(path)) return true;
+    // Bundle routes use token/user-aware limits below; venue Wi-Fi must not share one bucket.
+    if (path.startsWith('/mindspark/bundle/')) return true;
     // Campus Hunt has route-specific identity/team/admin limiters. A shared college
     // NAT plus release-boundary polling would otherwise exhaust this IP bucket.
     if (path.startsWith('/campus-hunt/')) return true;
@@ -164,6 +166,23 @@ const registrationLimiter = rateLimit({
   message: { success: false, message: 'Too many registration requests, please try again later.' },
 });
 
+const bundleQuoteLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 3000 : Number(process.env.BUNDLE_QUOTE_RATE_LIMIT_MAX) || 1200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many bundle price requests. Please try again shortly.' },
+});
+
+const bundlePaymentLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 1000 : Number(process.env.BUNDLE_PAYMENT_RATE_LIMIT_MAX) || 400,
+  keyGenerator: (req) => `bundle:${String(req.params?.token || ipKeyGenerator(req.ip)).slice(0, 100)}`,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many status checks for this bundle. Please wait a moment.' },
+});
+
 /**
  * Scanner / QR check-in.
  * A gate rush is hundreds of scans from one venue IP (all volunteers share the WiFi NAT),
@@ -246,6 +265,8 @@ module.exports = {
   paymentLimiter,
   competitionRegisterLimiter,
   registrationLimiter,
+  bundleQuoteLimiter,
+  bundlePaymentLimiter,
   scannerCheckinLimiter,
   stallLeadLimiter,
   campusHuntAnswerLimiter,

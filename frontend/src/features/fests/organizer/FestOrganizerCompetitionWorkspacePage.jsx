@@ -34,6 +34,7 @@ import { InlinePageLoader } from '../../../components/DetailPageLoader';
 const TABS = [
     { id: 'solo', label: 'Solo entries' },
     { id: 'teams', label: 'Team entries' },
+    { id: 'bundle', label: 'MindSpark Bundle' },
 ];
 
 const LIST_FILTERS = [
@@ -680,6 +681,12 @@ export default function FestOrganizerCompetitionWorkspacePage() {
     const festMeta = data?.fest || null;
     const plugin = getFestPlugin(festId, festMeta);
     const noReview = plugin.skipRegistrationReview;
+    const showBundleTab = plugin.id === 'mindspark';
+    const visibleTabs = showBundleTab ? TABS : TABS.filter((item) => item.id !== 'bundle');
+    const bundleSolo = solo.filter((participant) => participant.isMindSparkBundle);
+    const bundleTeams = teams.filter((team) => team.isMindSparkBundle);
+    const regularSolo = solo.filter((participant) => !participant.isMindSparkBundle);
+    const regularTeams = teams.filter((team) => !team.isMindSparkBundle);
     const listFilters = useMemo(
         () => (noReview
             ? LIST_FILTERS.filter((f) => f.id !== 'pending' && f.id !== 'unpaid')
@@ -699,13 +706,13 @@ export default function FestOrganizerCompetitionWorkspacePage() {
 
     const tab = useMemo(() => {
         const raw = tabParam || '';
-        if (raw === 'solo' || raw === 'teams') return raw;
+        if (raw === 'solo' || raw === 'teams' || (raw === 'bundle' && showBundleTab)) return raw;
         // Legacy URLs
         if (raw === 'people' || raw === 'pending') return 'solo';
         if (solo.length && !teams.length) return 'solo';
         if (teams.length) return 'teams';
         return 'solo';
-    }, [tabParam, solo.length, teams.length]);
+    }, [tabParam, solo.length, teams.length, showBundleTab]);
 
     useEffect(() => {
         if (noReview && (listFilter === 'pending' || listFilter === 'unpaid')) setListFilter('all');
@@ -735,7 +742,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
         : (p.members || []).join(' '));
 
     const filteredSolo = useMemo(() => {
-        let list = solo;
+        let list = regularSolo;
         if (listFilter === 'pending') list = list.filter((p) => p.status === 'pending');
         if (listFilter === 'paid') list = list.filter((p) => p.paymentStatus === 'paid' || p.paymentStatus === 'free');
         if (listFilter === 'unpaid') list = list.filter((p) => p.paymentStatus === 'pending' || p.paymentStatus === 'failed');
@@ -748,10 +755,10 @@ export default function FestOrganizerCompetitionWorkspacePage() {
             const hay = `${p.userName} ${p.teamName} ${p.college} ${p.city} ${p.userPhone} ${p.userEmail} ${memberHay(p)}`.toLowerCase();
             return hay.includes(q);
         });
-    }, [solo, q, listFilter]);
+    }, [regularSolo, q, listFilter]);
 
     const filteredTeams = useMemo(() => {
-        let list = teams;
+        let list = regularTeams;
         if (listFilter === 'pending') list = list.filter((t) => t.pendingCount > 0 || t.status === 'pending');
         if (listFilter === 'paid') list = list.filter((t) => t.paymentStatus === 'paid' || t.paymentStatus === 'free');
         if (listFilter === 'unpaid') list = list.filter((t) => t.paymentStatus === 'pending' || t.paymentStatus === 'failed');
@@ -784,7 +791,22 @@ export default function FestOrganizerCompetitionWorkspacePage() {
             const hay = `${t.teamName} ${t.captainName} ${t.college} ${t.city} ${memberHay(t)} ${(t.members || []).join(' ')}`.toLowerCase();
             return hay.includes(q);
         });
-    }, [teams, q, listFilter]);
+    }, [regularTeams, q, listFilter]);
+
+    const filterBundleRows = (list) => {
+        let rows = list;
+        if (listFilter === 'pending') rows = rows.filter((entry) => entry.pendingCount > 0 || entry.status === 'pending');
+        if (listFilter === 'paid') rows = rows.filter((entry) => entry.paymentStatus === 'paid' || entry.paymentStatus === 'free');
+        if (listFilter === 'unpaid') rows = rows.filter((entry) => entry.paymentStatus === 'pending' || entry.paymentStatus === 'failed');
+        if (listFilter === 'in') rows = rows.filter((entry) => entry.checkedIn || entry.checkedInCount > 0);
+        if (listFilter === 'out') rows = rows.filter((entry) => !entry.checkedIn);
+        if (listFilter === 'wa_in') rows = rows.filter((entry) => entry.whatsappGroupJoined);
+        if (listFilter === 'wa_out') rows = rows.filter((entry) => !entry.whatsappGroupJoined);
+        if (!q) return rows;
+        return rows.filter((entry) => `${entry.userName || ''} ${entry.teamName || ''} ${entry.captainName || ''} ${entry.college || ''} ${entry.userPhone || ''} ${entry.userEmail || ''} ${entry.mindsparkBundleId || ''} ${memberHay(entry)}`.toLowerCase().includes(q));
+    };
+    const filteredBundleSolo = filterBundleRows(bundleSolo);
+    const filteredBundleTeams = filterBundleRows(bundleTeams);
 
     const soloPendingPaidIds = useMemo(
         () => filteredSolo
@@ -1203,6 +1225,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
         teams: noReview
             ? '2+ people from the form — expand for roster. No approve step; payment is on Connect if needed.'
             : '2+ people from the form — expand a card for the full roster.',
+        bundle: 'Registrations created through the 1 Tech + 2 Non-Tech MindSpark bundle. These are already included in competition totals.',
     };
 
     const soloPendingCount = noReview ? 0 : solo.filter((p) => p.status === 'pending').length;
@@ -1628,10 +1651,10 @@ export default function FestOrganizerCompetitionWorkspacePage() {
 
             {/* Work area box */}
             <section className="rounded-2xl border border-white/10 bg-[#161718] overflow-hidden">
-                <div className="grid grid-cols-2 border-b border-white/10">
-                    {TABS.map((t) => {
-                        const count = t.id === 'solo' ? solo.length : teams.length;
-                        const pendingHint = t.id === 'solo' ? soloPendingCount : teamPendingCount;
+                <div className={`grid ${showBundleTab ? 'grid-cols-3' : 'grid-cols-2'} border-b border-white/10`}>
+                    {visibleTabs.map((t) => {
+                        const count = t.id === 'solo' ? regularSolo.length : t.id === 'teams' ? regularTeams.length : bundleSolo.length + bundleTeams.length;
+                        const pendingHint = t.id === 'solo' ? soloPendingCount : t.id === 'teams' ? teamPendingCount : 0;
                         const active = tab === t.id;
                         return (
                             <button
@@ -1752,6 +1775,14 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                                     </p>
                                 </div>
                             ) : null}
+                        </div>
+                    ) : null}
+
+                    {tab === 'bundle' ? (
+                        <div className="space-y-5">
+                            {filteredBundleSolo.length ? <div className="space-y-2.5"><p className="text-xs font-semibold uppercase tracking-wide text-[#0ECCEE]">Solo bundle entries · {filteredBundleSolo.length}</p>{filteredBundleSolo.map((p) => <SoloEntryCard key={p.id} p={p} busyId={busyId} hideReview={noReview} onApprove={(id) => setStatus(id, 'approved')} onReject={(id) => setStatus(id, 'rejected')} onNotify={openNotify} onDelete={deleteEntry} onWhatsappToggle={noReview ? toggleWhatsappGroup : undefined} />)}</div> : null}
+                            {filteredBundleTeams.length ? <div className="space-y-3"><p className="text-xs font-semibold uppercase tracking-wide text-[#0ECCEE]">Team bundle entries · {filteredBundleTeams.length}</p>{filteredBundleTeams.map((t) => <TeamCard key={t.id || t.teamName} team={t} busyId={busyId} hideReview={noReview} onApproveIds={approveIds} onRejectIds={rejectIds} onDelete={deleteTeam} onNotify={openNotify} onWhatsappToggle={noReview ? toggleWhatsappGroup : undefined} />)}</div> : null}
+                            {!filteredBundleSolo.length && !filteredBundleTeams.length ? <div className="rounded-2xl border border-dashed border-white/10 py-12 text-center px-4"><Users className="mx-auto text-gray-600 mb-2" size={28} /><p className="text-sm text-gray-500">{q || listFilter !== 'all' ? 'No bundle registrations match these filters' : 'No paid MindSpark bundle registrations for this competition yet'}</p></div> : null}
                         </div>
                     ) : null}
                 </div>

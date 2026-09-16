@@ -96,12 +96,12 @@ exports.handleCashfreeWebhook = async (req, res) => {
           const refundStatus = String(finance.status || '').toUpperCase();
           if (refundStatus === 'SUCCESS') {
             await Registration.updateMany(
-              { payment_order_id: finance.orderId },
+              { $or: [{ payment_order_id: finance.orderId }, { 'responses.bundle_cashfree_order_id': finance.orderId }] },
               { $set: { status: 'rejected', 'responses.refund_status': 'refunded' } },
             ).catch(() => {});
           } else if (['FAILED', 'CANCELLED'].includes(refundStatus)) {
             await Registration.updateMany(
-              { payment_order_id: finance.orderId, 'responses.refund_status': 'pending' },
+              { $and: [{ $or: [{ payment_order_id: finance.orderId }, { 'responses.bundle_cashfree_order_id': finance.orderId }] }, { 'responses.refund_status': 'pending' }] },
               { $set: { status: 'approved', 'responses.refund_status': refundStatus.toLowerCase() } },
             ).catch(() => {});
           }
@@ -168,6 +168,12 @@ exports.handleCashfreeWebhook = async (req, res) => {
               '[paymentWebhook] Fest/competition fulfill failed:',
               fulfillErr?.message || fulfillErr,
             );
+          });
+        }
+        if (updated?.entityType === 'competition_bundle') {
+          const { fulfillMindSparkBundle } = require('../services/mindsparkBundleService');
+          fulfillMindSparkBundle(updated).catch((fulfillErr) => {
+            console.error('[paymentWebhook] MindSpark bundle fulfill failed:', fulfillErr?.message || fulfillErr);
           });
         }
         if (updated?.entityType === 'sports' && updated?.orderTags?.formData) {

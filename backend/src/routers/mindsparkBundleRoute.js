@@ -1,0 +1,11 @@
+const router = require('express').Router();
+const ctrl = require('../controllers/mindsparkBundleController');
+const { authenticateToken } = require('../middleware/authmiddleware');
+const { bundlePaymentLimiter, bundleQuoteLimiter, registrationLimiter } = require('../middleware/rateLimiter');
+router.get('/offer', ctrl.offer);
+router.post('/quote', bundleQuoteLimiter, ctrl.quote);
+router.post('/orders', authenticateToken, registrationLimiter, ctrl.create('public'));
+router.get('/pay/:token', bundlePaymentLimiter, ctrl.payment);
+router.post('/pay/:token/verify', bundlePaymentLimiter, ctrl.verify);
+router.post('/pay/:token/reissue', bundlePaymentLimiter, ctrl.reissue);
+module.exports = router;

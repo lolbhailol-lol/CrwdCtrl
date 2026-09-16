@@ -9,6 +9,7 @@ import {
   WifiOff,
   X,
   QrCode,
+  ShoppingCart,
 } from "lucide-react";
 import {
   fetchFestDayDesk,
@@ -28,6 +29,8 @@ const statusLabels = {
   paid: "Paid",
   failed: "Failed",
   expired: "Expired",
+  pending: "Payment pending",
+  paid_review: "Paid — review required",
   refund_pending: "Refund pending",
   refunded: "Refunded",
   refund_failed: "Refund failed",
@@ -40,6 +43,8 @@ const statusClasses = {
   paid: "bg-emerald-500/15 text-emerald-300 border-emerald-400/20",
   failed: "bg-red-500/15 text-red-300 border-red-400/20",
   expired: "bg-white/5 text-gray-400 border-white/10",
+  pending: "bg-amber-500/15 text-amber-300 border-amber-400/20",
+  paid_review: "bg-orange-500/15 text-orange-300 border-orange-400/20",
   refund_pending: "bg-violet-500/15 text-violet-300 border-violet-400/20",
   refunded: "bg-gray-500/15 text-gray-300 border-gray-400/20",
   refund_failed: "bg-red-500/15 text-red-300 border-red-400/20",
@@ -271,6 +276,7 @@ export default function FestOrganizerFestDayDeskPage() {
   const canRefund = organizerSession?.organizer?.portalRole !== "desk";
   const [competitions, setCompetitions] = useState([]);
   const [activity, setActivity] = useState([]);
+  const [bundleActivity, setBundleActivity] = useState([]);
   const [query, setQuery] = useState("");
   const [activityQuery, setActivityQuery] = useState("");
   const [selected, setSelected] = useState(null);
@@ -291,6 +297,7 @@ export default function FestOrganizerFestDayDeskPage() {
         );
         setCompetitions(data.competitions || []);
         setActivity(data.activity || []);
+        setBundleActivity(data.bundleActivity || []);
       } catch (error) {
         if (!quiet) toast(error.message || "Could not load Fest Day Desk");
       } finally {
@@ -339,9 +346,9 @@ export default function FestOrganizerFestDayDeskPage() {
     try {
       const result = await refreshFestDayDeskOrder(festId, orderId);
       toast(
-        result.verified
+        result.issued
           ? "Payment verified and registration issued"
-          : result.message || "Latest payment status loaded",
+          : result.message || (result.verified ? "Payment received; ticket issuance is still confirming" : "Latest payment status loaded"),
       );
       await load({ quiet: true });
     } catch (error) {
@@ -411,6 +418,69 @@ export default function FestOrganizerFestDayDeskPage() {
             <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
             Refresh
           </button>
+        </div>
+      </section>
+      <Link to="/mindspark/bundle?desk=1" className="block rounded-2xl border border-emerald-400/25 bg-emerald-500/10 p-4 hover:border-emerald-300/50">
+        <p className="font-bold text-emerald-200">Create 1 Tech + 2 Non-Tech bundle</p>
+        <p className="text-sm text-gray-400 mt-1">Enter three separate rosters, apply 70% off, and show one Cashfree payment QR.</p>
+      </Link>
+
+      <section className="rounded-2xl border border-[#0ECCEE]/20 bg-[#121314] p-4">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <span className="rounded-xl bg-[#0ECCEE]/10 p-2.5 text-[#0ECCEE]"><ShoppingCart size={20} /></span>
+            <div>
+              <h2 className="font-semibold text-white">Bundle registrations</h2>
+              <p className="text-xs text-gray-500">One payment covering exactly three competition registrations</p>
+            </div>
+          </div>
+          <div className="flex gap-2 text-xs">
+            <span className="rounded-full border border-white/10 px-3 py-1.5 text-gray-300">{bundleActivity.length} shown</span>
+            <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1.5 text-emerald-300">{bundleActivity.filter((row) => row.status === "paid").length} paid</span>
+          </div>
+        </div>
+        <div className="space-y-2">
+          {bundleActivity.length ? bundleActivity.map((row) => (
+            <article key={row.bundleId} className="rounded-xl border border-white/10 bg-[#1A1B1D] p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-white">{row.participantName}</p>
+                  <p className="mt-0.5 text-xs text-gray-400">{row.competitionNames.join(" + ")}</p>
+                </div>
+                <span className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-semibold ${statusClasses[row.status] || statusClasses.expired}`}>
+                  {statusLabels[row.status] || row.status}
+                </span>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-gray-500">
+                <span className="font-semibold text-gray-300">₹{Number(row.amount).toLocaleString("en-IN")}</span>
+                <span>Saved ₹{Number(row.discountAmount).toLocaleString("en-IN")}</span>
+                <span>{row.source === "desk" ? "Desk" : "Public"}</span>
+                <span>{formatWhen(row.createdAt)}</span>
+                <span className="font-mono">{row.activeOrderId || row.bundleId}</span>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {row.activeOrderId ? (
+                  <button type="button" onClick={() => refreshOrder(row.activeOrderId)} disabled={busyOrder === row.activeOrderId || !online} className="desk-action">
+                    {busyOrder === row.activeOrderId ? <Loader size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                    Check payment
+                  </button>
+                ) : null}
+                {row.status === "paid" && row.registrationIds?.[0] ? (
+                  <Link to={`/fest-organizer/fests/${festId}/participants?q=${encodeURIComponent(row.registrationIds[0])}`} className="desk-action">
+                    <ExternalLink size={14} /> Open registrations
+                  </Link>
+                ) : row.paymentPath ? (
+                  <a href={row.paymentPath} target="_blank" rel="noreferrer" className="desk-action">
+                    <QrCode size={14} /> Payment page
+                  </a>
+                ) : null}
+              </div>
+            </article>
+          )) : (
+            <div className="rounded-xl border border-dashed border-white/10 py-8 text-center text-sm text-gray-500">
+              No bundle registrations yet. Use “Create bundle” above to start one.
+            </div>
+          )}
         </div>
       </section>
 

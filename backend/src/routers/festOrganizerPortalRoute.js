@@ -2,6 +2,7 @@ const express = require('express');
 const { updateTeamMembers } = require('../controllers/registrationController');
 const ctrl = require('../controllers/festOrganizerPortalController');
 const assistedCtrl = require('../controllers/festDayAssistedController');
+const bundleCtrl = require('../controllers/mindsparkBundleController');
 const stallCtrl = require('../controllers/festStallLeadController');
 const probableCtrl = require('../controllers/festCompetitionProbableController');
 const proShowCtrl = require('../controllers/festProShowController');
@@ -39,6 +40,7 @@ router.post(
 router.get('/fests/:festId/dashboard', authenticateFestOrganizer, requireFestAccess, ctrl.getDashboard);
 router.get('/fests/:festId/fest-day-desk', authenticateFestOrganizer, requireFestAccess, ctrl.getFestDayDesk);
 router.post('/fests/:festId/fest-day-desk/registrations', authenticateFestOrganizer, requireFestAccess, assistedCtrl.createAssistedRegistration);
+router.post('/fests/:festId/fest-day-desk/bundles', authenticateFestOrganizer, requireFestAccess, bundleCtrl.create('desk'));
 router.post('/fests/:festId/fest-day-desk/orders/:orderId/refresh', authenticateFestOrganizer, requireFestAccess, ctrl.refreshFestDayDeskOrder);
 router.post('/fests/:festId/fest-day-desk/orders/:orderId/refund', authenticateFestOrganizer, requireFestAccess, ctrl.refundFestDayDeskOrder);
 router.get('/fests/:festId/details', authenticateFestOrganizer, requireFestAccess, ctrl.getFestDetails);

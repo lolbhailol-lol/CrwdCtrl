@@ -46,11 +46,13 @@ const mindsparkPaymentsRoutes = require('../routers/mindsparkPaymentsRoute');
 const communityFollowRoutes = require('../routers/communityFollowRoute');
 const campusHuntRoutes = require('../routers/campusHuntRoute');
 const seoOgRoutes = require('../routers/seoOgRoute');
+const mindsparkBundleRoutes = require('../routers/mindsparkBundleRoute');
 const { authLimiter, paymentLimiter } = require('../middleware/rateLimiter');
 
 const router = express.Router();
 
 router.use('/seo', seoOgRoutes);
+router.use('/mindspark/bundle', mindsparkBundleRoutes);
 router.use('/users', authLimiter, userRoutes);
 router.use('/students', studentRoutes);
 // Legacy User-role fest CRUD + check-in (scanner account portal)

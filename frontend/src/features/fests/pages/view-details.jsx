@@ -38,6 +38,7 @@ import { trackFestView } from '../../../services/analyticsService';
 
 const CrwdCtrlLogin = lazy(() => import('../../../pages/auth/login'));
 const CrwdCtrlRegister = lazy(() => import('../../../pages/auth/register'));
+const MindSparkBundlePage = lazy(() => import('../mindspark/MindSparkBundlePage'));
 function formatCompFee(compOrFee) {
   if (compOrFee && typeof compOrFee === 'object') {
     return resolveCompetitionFee(compOrFee).label;
@@ -179,6 +180,8 @@ function EventDetailsPage() {
   const [currentArtist, setCurrentArtist] = useState(0);
   const [showLogin, setShowLogin] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
+  const [showMindSparkBundle, setShowMindSparkBundle] = useState(false);
+  const [openBundleAfterLogin, setOpenBundleAfterLogin] = useState(false);
   const [showFullOverview, setShowFullOverview] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -353,7 +356,11 @@ function EventDetailsPage() {
     if (isAuthenticated && showRegister) {
       setShowRegister(false);
     }
-  }, [isAuthenticated, showLogin, showRegister]);
+    if (isAuthenticated && openBundleAfterLogin) {
+      setOpenBundleAfterLogin(false);
+      setShowMindSparkBundle(true);
+    }
+  }, [isAuthenticated, showLogin, showRegister, openBundleAfterLogin]);
 
   // Get available competition tabs based on event data
   const availableTabs = fetchDone ? Object.keys(eventData?.competitions || {}) : [];
@@ -376,7 +383,17 @@ function EventDetailsPage() {
   // Handle login modal close
   const handleCloseLogin = () => {
     setShowLogin(false);
+    setOpenBundleAfterLogin(false);
     setSearchParams({}); // Clear URL parameters
+  };
+
+  const handleOpenMindSparkBundle = () => {
+    if (!isAuthenticated) {
+      setOpenBundleAfterLogin(true);
+      setShowLogin(true);
+      return;
+    }
+    setShowMindSparkBundle(true);
   };
 
   // Handle register modal close
@@ -853,6 +870,18 @@ function EventDetailsPage() {
                     {LiveBadge ? <LiveBadge /> : null}
                   </div>
 
+                  {mindSparkDesktop ? (
+                    <button
+                      type="button"
+                      onClick={handleOpenMindSparkBundle}
+                      className="mb-4 w-full rounded-xl border border-[#0ECCEE]/35 bg-[#0ECCEE]/10 p-3 text-left hover:border-[#0ECCEE]/70 transition"
+                    >
+                      <span className="block text-[10px] font-semibold uppercase tracking-[.16em] text-[#0ECCEE]">MindSpark competition bundle</span>
+                      <span className={`mt-1 block text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>1 Technical + 2 Non-Technical</span>
+                      <span className={`block text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>70% off · Open registration →</span>
+                    </button>
+                  ) : null}
+
                   <div className={mindSparkDesktop ? 'space-y-2 mb-3' : 'space-y-3 sm:space-y-4 mb-4 sm:mb-6'}>
                     {dateLabel ? (
                     <div className="flex items-center space-x-3">
@@ -898,13 +927,15 @@ function EventDetailsPage() {
                     ) : null}
                   </div>
                   {mindSparkDesktop ? (
-                    <button
-                      type="button"
-                      onClick={() => eventsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                      className="mt-3 w-full h-11 rounded-xl bg-[#0ECCEE] text-black font-semibold hover:bg-[#0ECCEE]/90 transition"
-                    >
-                      Browse events
-                    </button>
+                    <div className="mt-3 grid gap-2">
+                      <button
+                        type="button"
+                        onClick={() => eventsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                        className="w-full h-10 rounded-xl border border-white/15 text-white font-medium hover:bg-white/5 transition"
+                      >
+                        Browse individual events
+                      </button>
+                    </div>
                   ) : null}
                 </div>
 
@@ -1225,6 +1256,7 @@ function EventDetailsPage() {
             </p>
           </div>
           ) : null}
+
         </div>
 
         {/* Artists Over the Years */}
@@ -1278,6 +1310,24 @@ function EventDetailsPage() {
         {festPlugin.showLiveStrip ? (
           <div className="px-4 mb-6">
             <FestPublicLiveStrip festId={pageEvent.id || eventId} isDark={isDark} />
+          </div>
+        ) : null}
+        {mindSparkDesktop ? (
+          <div className="px-4 mb-4">
+            <button
+              type="button"
+              onClick={handleOpenMindSparkBundle}
+              className="flex w-full items-center justify-between gap-3 rounded-xl border border-[#0ECCEE]/30 bg-[#0ECCEE]/10 px-3 py-2 text-left transition hover:border-[#0ECCEE]/60 active:scale-[0.99]"
+              aria-label="Open MindSpark Competition Bundle registration and get 70% off"
+            >
+              <span className="flex min-w-0 items-center gap-2 text-[11px] font-semibold tracking-wide text-[#0ECCEE]">
+                <span className="size-2 shrink-0 rounded-full bg-[#0ECCEE]" />
+                <span>MindSpark Bundle · Get 70% off</span>
+              </span>
+              <span className="shrink-0 rounded-lg bg-[#0ECCEE] px-2.5 py-1.5 text-[11px] font-bold text-[#071014]">
+                Tap to register →
+              </span>
+            </button>
           </div>
         ) : null}
         {!fetchDone ? (
@@ -1537,6 +1587,24 @@ function EventDetailsPage() {
           )}
         </div>
       )}
+
+      {showMindSparkBundle ? (
+        <div className="fixed inset-0 z-50 overflow-hidden bg-[#090b0d]" role="dialog" aria-modal="true" aria-label="MindSpark bundle registration">
+          <div className="relative h-dvh w-full overflow-y-auto overscroll-contain bg-[#090b0d]">
+            <button
+              type="button"
+              onClick={() => setShowMindSparkBundle(false)}
+              className="fixed right-3 top-3 z-30 rounded-full border border-white/15 bg-black/90 p-2 text-white shadow-lg"
+              aria-label="Close bundle registration"
+            >
+              <X size={20} />
+            </button>
+            <Suspense fallback={<div className="p-12 text-center text-gray-400">Opening bundle registration…</div>}>
+              <MindSparkBundlePage embedded onClose={() => setShowMindSparkBundle(false)} />
+            </Suspense>
+          </div>
+        </div>
+      ) : null}
 
       {/* Login Modal */}
       {showLogin && (

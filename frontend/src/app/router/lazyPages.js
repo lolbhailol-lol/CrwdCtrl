@@ -62,6 +62,8 @@ export const EventCommunityOrganizerNotificationsPage = lazyWithRetry(() => impo
 export const TrekCategoryPage = lazyWithRetry(() => import('../../features/treks/pages/TrekCategoryPage'));
   export const PaymentCheckoutPage = lazyWithRetry(() => import('../../pages/payment/PaymentCheckoutPage'));
   export const DeskPaymentPage = lazyWithRetry(() => import('../../pages/payment/DeskPaymentPage'));
+  export const MindSparkBundlePage = lazyWithRetry(() => import('../../features/fests/mindspark/MindSparkBundlePage'));
+  export const MindSparkBundlePaymentPage = lazyWithRetry(() => import('../../pages/payment/MindSparkBundlePaymentPage'));
 
 export const AdminLayout = lazyWithRetry(() => import('../../pages/admin/AdminLayout'));
 export const AdminDashboardPage = lazyWithRetry(() => import('../../pages/admin/AdminDashboardPage'));

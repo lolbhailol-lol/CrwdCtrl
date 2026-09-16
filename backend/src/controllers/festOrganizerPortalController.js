@@ -278,6 +278,8 @@ function formatParticipant(reg) {
         highlights: buildHighlights(responses),
         note: pickResponse(responses, ['organizer_note', 'note', 'remarks']),
         isManual: /^(yes|true|1)$/i.test(String(responses.manual_entry || responses.added_by_organizer || '')),
+        isMindSparkBundle: Boolean(responses.mindspark_bundle_id),
+        mindsparkBundleId: responses.mindspark_bundle_id || null,
         submittedAt: reg.submittedAt || reg.createdAt,
         createdAt: reg.createdAt,
         updatedAt: reg.updatedAt,
@@ -347,6 +349,8 @@ function buildSingleRegTeamCard(p) {
         submittedAt: p.submittedAt || p.createdAt,
         highlights: p.highlights || [],
         isManual: Boolean(p.isManual),
+        isMindSparkBundle: Boolean(p.isMindSparkBundle),
+        mindsparkBundleId: p.mindsparkBundleId || null,
         memberCount: size,
         checkedIn: Boolean(p.checkedIn),
         whatsappGroupJoined: Boolean(p.whatsappGroupJoined),
@@ -405,6 +409,8 @@ function groupParticipantsIntoTeams(participants) {
                 submittedAt: p.submittedAt || p.createdAt,
                 highlights: p.highlights || [],
                 isManual: Boolean(p.isManual),
+                isMindSparkBundle: Boolean(p.isMindSparkBundle),
+                mindsparkBundleId: p.mindsparkBundleId || null,
                 entryType: 'team',
             });
         }
@@ -446,6 +452,10 @@ function groupParticipantsIntoTeams(participants) {
             t.highlights = p.highlights;
         }
         if (p.isManual) t.isManual = true;
+        if (p.isMindSparkBundle) {
+            t.isMindSparkBundle = true;
+            t.mindsparkBundleId = t.mindsparkBundleId || p.mindsparkBundleId || null;
+        }
         const submitted = p.submittedAt || p.createdAt;
         if (submitted && (!t.submittedAt || new Date(submitted) < new Date(t.submittedAt))) {
             t.submittedAt = submitted;
@@ -2947,7 +2957,74 @@ exports.getFestDayDesk = async (req, res) => {
         activity.sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
         activity.splice(60);
 
-        res.json({ success: true, competitions: competitionRows, activity, refreshedAt: new Date().toISOString() });
+        const MindSparkBundle = require('../model/mindspark_bundle_model');
+        const bundleFilter = { fest: req.festId };
+        if (search) {
+            const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(escaped, 'i');
+            const User = require('../model/usermodel');
+            const [matchingUsers, matchingBundleOrders, matchingBundleRegistrations] = await Promise.all([
+                User.find({ $or: [{ name: regex }, { email: regex }, { phone: regex }, { phoneNumber: regex }] }).select('_id').limit(200).lean(),
+                PaymentOrder.find({ entityType: 'competition_bundle', $or: [{ orderId: regex }, { customerEmail: regex }, { customerPhone: regex }] }).select('entityId').limit(200).lean(),
+                Registration.find({
+                    $or: [
+                        ...(mongoose.Types.ObjectId.isValid(search) ? [{ _id: search }] : []),
+                        { 'responses.mindspark_bundle_id': regex },
+                        { 'responses.bundle_cashfree_order_id': regex },
+                    ],
+                }).select('responses').limit(200).lean(),
+            ]);
+            const registrationBundleIds = matchingBundleRegistrations
+                .map((row) => row.responses?.mindspark_bundle_id)
+                .filter((value) => mongoose.Types.ObjectId.isValid(String(value)))
+                .map((value) => new mongoose.Types.ObjectId(String(value)));
+            bundleFilter.$or = [
+                ...(mongoose.Types.ObjectId.isValid(search) ? [{ _id: search }] : []),
+                { user: { $in: matchingUsers.map((user) => user._id) } },
+                { activeOrderId: regex },
+                { orderIds: regex },
+                { 'items.competitionName': regex },
+                { _id: { $in: matchingBundleOrders.map((order) => order.entityId).filter(Boolean) } },
+                { _id: { $in: registrationBundleIds } },
+            ];
+        }
+        const recentBundles = await MindSparkBundle.find(bundleFilter)
+            .select('+paymentToken')
+            .populate('user', 'name email phone phoneNumber')
+            .sort({ createdAt: -1 })
+            .limit(60)
+            .lean();
+        const bundleActivity = recentBundles.map((bundle) => {
+            const user = bundle.user && typeof bundle.user === 'object' ? bundle.user : null;
+            const roster = bundle.items?.[0]?.roster || {};
+            const participantName = user?.name || roster.full_name || roster.name || 'Participant';
+            const phone = user?.phoneNumber || user?.phone || roster.phone || '';
+            const email = user?.email || roster.email || '';
+            const registrationIds = (bundle.items || [])
+                .map((item) => item.registrationId ? String(item.registrationId) : '')
+                .filter(Boolean);
+            return {
+                bundleId: String(bundle._id),
+                source: bundle.source,
+                status: bundle.status,
+                participantName,
+                phone,
+                email,
+                competitionNames: (bundle.items || []).map((item) => item.competitionName),
+                registrationIds,
+                subtotal: Number(bundle.subtotal) || 0,
+                discountAmount: Number(bundle.discountAmount) || 0,
+                amount: Number(bundle.totalAmount) || 0,
+                activeOrderId: bundle.activeOrderId || '',
+                orderIds: bundle.orderIds || [],
+                paymentPath: bundle.paymentToken ? `/mindspark/bundle-pay/${bundle.paymentToken}` : null,
+                expiresAt: bundle.expiresAt,
+                createdAt: bundle.createdAt,
+                updatedAt: bundle.updatedAt,
+            };
+        });
+
+        res.json({ success: true, competitions: competitionRows, activity, bundleActivity, refreshedAt: new Date().toISOString() });
     } catch (error) {
         console.error('[festOrganizerPortal.getFestDayDesk]', error);
         res.status(500).json({ success: false, message: 'Failed to load Fest Day Desk' });
@@ -2959,38 +3036,71 @@ exports.refreshFestDayDeskOrder = async (req, res) => {
     try {
         if (!requireMindSparkDesk(req, res)) return;
         const orderId = String(req.params.orderId || '').trim();
-        const order = await PaymentOrder.findOne({ orderId, entityType: 'competition' });
+        const order = await PaymentOrder.findOne({ orderId, entityType: { $in: ['competition', 'competition_bundle'] } });
         if (!order) return res.status(404).json({ success: false, message: 'Payment order not found' });
-        const Competition = mongoose.model('Competition');
-        const competition = await Competition.findOne({ _id: order.entityId, fest: req.festId }).select('_id').lean();
-        if (!competition) return res.status(403).json({ success: false, message: 'Order does not belong to this fest' });
+        let bundle = null;
+        if (order.entityType === 'competition_bundle') {
+            const MindSparkBundle = require('../model/mindspark_bundle_model');
+            bundle = await MindSparkBundle.findOne({ _id: order.entityId, fest: req.festId });
+            if (!bundle) return res.status(403).json({ success: false, message: 'Order does not belong to this fest' });
+        } else {
+            const Competition = mongoose.model('Competition');
+            const competition = await Competition.findOne({ _id: order.entityId, fest: req.festId }).select('_id').lean();
+            if (!competition) return res.status(403).json({ success: false, message: 'Order does not belong to this fest' });
+        }
 
         const result = await verifyCashfreePayment({
             orderId,
             paymentId: order.paymentId || undefined,
             merchant: order.cashfreeMerchant === 'events' ? 'events' : 'platform',
         });
+        let fulfillment = null;
         if (result.verified) {
             order.status = 'PAID';
             if (result.paymentId) order.paymentId = String(result.paymentId);
             await order.save();
-            const { fulfillFestCompetitionFromPaidOrder } = require('../services/festCompetitionPaymentFulfillment');
-            await fulfillFestCompetitionFromPaidOrder(order);
+            if (order.entityType === 'competition_bundle') {
+                const { fulfillMindSparkBundle } = require('../services/mindsparkBundleService');
+                fulfillment = await fulfillMindSparkBundle(order);
+            } else {
+                const { fulfillFestCompetitionFromPaidOrder } = require('../services/festCompetitionPaymentFulfillment');
+                await fulfillFestCompetitionFromPaidOrder(order);
+            }
         } else if (['failed', 'cancelled'].includes(result.status)) {
             order.status = result.status === 'cancelled' ? 'EXPIRED' : 'FAILED';
             await order.save();
-            if (order.orderTags?.slotReservationToken) {
+            if (bundle) {
+                bundle.status = result.status === 'cancelled' ? 'expired' : 'failed';
+                const { releaseCompetitionSlot } = require('../services/competitionSlotReservationService');
+                await Promise.all(bundle.items.map((item) => releaseCompetitionSlot(item.reservationToken).catch(() => {})));
+                await bundle.save();
+            } else if (order.orderTags?.slotReservationToken) {
                 const { releaseCompetitionSlot } = require('../services/competitionSlotReservationService');
                 await releaseCompetitionSlot(order.orderTags.slotReservationToken).catch(() => {});
             }
         }
-        const registration = await Registration.findOne({ payment_order_id: orderId }).select('_id').lean();
+        if (order.entityType === 'competition_bundle') {
+            const MindSparkBundle = require('../model/mindspark_bundle_model');
+            bundle = await MindSparkBundle.findById(bundle._id).lean();
+        }
+        const registration = order.entityType === 'competition_bundle'
+            ? await Registration.findOne({ _id: { $in: bundle?.items?.map((item) => item.registrationId).filter(Boolean) || [] } }).select('_id').lean()
+            : await Registration.findOne({ payment_order_id: orderId }).select('_id').lean();
+        const issued = order.entityType === 'competition_bundle'
+            ? bundle?.status === 'paid' && (bundle.items || []).every((item) => item.registrationId)
+            : Boolean(registration);
         res.json({
             success: true,
             verified: Boolean(result.verified),
-            status: registration ? 'paid' : (result.status || String(order.status).toLowerCase()),
+            issued,
+            paidReview: bundle?.status === 'paid_review' || Boolean(fulfillment?.paidReview),
+            status: issued ? 'paid' : (bundle?.status || result.status || String(order.status).toLowerCase()),
             registrationId: registration?._id ? String(registration._id) : null,
-            message: result.message || '',
+            message: issued
+                ? 'Payment verified and all registrations issued'
+                : bundle?.status === 'paid_review'
+                    ? 'Payment received, but registrations require review before tickets can be issued'
+                    : result.message || '',
         });
     } catch (error) {
         console.error('[festOrganizerPortal.refreshFestDayDeskOrder]', error);
@@ -3002,11 +3112,17 @@ exports.refundFestDayDeskOrder = async (req, res) => {
     try {
         if (!requireMindSparkDesk(req, res)) return;
         const orderId = String(req.params.orderId || '').trim();
-        const order = await PaymentOrder.findOne({ orderId, entityType: 'competition', status: 'PAID' });
+        const order = await PaymentOrder.findOne({ orderId, entityType: { $in: ['competition', 'competition_bundle'] }, status: 'PAID' });
         if (!order) return res.status(404).json({ success: false, message: 'Paid order not found' });
-        const Competition = mongoose.model('Competition');
-        const competition = await Competition.findOne({ _id: order.entityId, fest: req.festId }).select('_id').lean();
-        if (!competition) return res.status(403).json({ success: false, message: 'Order does not belong to this fest' });
+        if (order.entityType === 'competition_bundle') {
+            const MindSparkBundle = require('../model/mindspark_bundle_model');
+            const bundle = await MindSparkBundle.findOne({ _id: order.entityId, fest: req.festId }).select('_id').lean();
+            if (!bundle) return res.status(403).json({ success: false, message: 'Order does not belong to this fest' });
+        } else {
+            const Competition = mongoose.model('Competition');
+            const competition = await Competition.findOne({ _id: order.entityId, fest: req.festId }).select('_id').lean();
+            if (!competition) return res.status(403).json({ success: false, message: 'Order does not belong to this fest' });
+        }
         const existing = await PaymentRefund.findOne({ orderId, status: { $in: ['SUCCESS', 'PENDING', 'INITIATED'] } }).lean();
         if (existing) {
             return res.status(409).json({ success: false, message: `Refund already ${String(existing.status).toLowerCase()}` });
@@ -3029,9 +3145,13 @@ exports.refundFestDayDeskOrder = async (req, res) => {
         const normalized = normalizeRefundPayload(payload, { orderId });
         await upsertRefund({ normalized, source: 'api', raw: payload, actor: `fest_organizer:${req.organizerId}` });
         await Registration.updateMany(
-            { payment_order_id: orderId },
+            { $or: [{ payment_order_id: orderId }, { 'responses.bundle_cashfree_order_id': orderId }] },
             { $set: { status: 'rejected', 'responses.refund_status': 'pending' } },
         );
+        if (order.entityType === 'competition_bundle') {
+            const MindSparkBundle = require('../model/mindspark_bundle_model');
+            await MindSparkBundle.updateOne({ _id: order.entityId }, { $set: { status: 'refunded' } });
+        }
         return res.json({ success: true, status: normalized?.status || 'PENDING', refundId });
     } catch (error) {
         console.error('[festOrganizerPortal.refundFestDayDeskOrder]', error.response?.data || error);
