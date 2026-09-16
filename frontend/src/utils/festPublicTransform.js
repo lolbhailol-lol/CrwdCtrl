@@ -4,6 +4,7 @@
  */
 
 import { getFestPlugin } from '../features/fests/plugins';
+import { pickBestCardImage, normalizeCoverImages } from './coverImages';
 
 import {
   sanitizeCompetitionFeeTiers,
@@ -186,12 +187,26 @@ export function isFestPlaceholderCopy(value) {
   return /^(untitled event|unknown college|no description available|date tba|venue tba|tbd|tba|-)$/i.test(text);
 }
 
+/** Full-width fest hero. Never use the portrait legacy cover when a hero/wide crop exists. */
+export function festHeroUrl(fest) {
+  if (!fest) return '';
+  return (
+    pickBestCardImage(fest, 'hero')
+    || fest.heroImage
+    || fest.image
+    || fest.coverImage
+    || ''
+  );
+}
+
 export function transformFestPublicData(festData) {
   if (!festData || !(festData._id || festData.id)) return null;
 
   const registration = mapFestRegistration(festData.registration);
   const externalLink = registration.externalLink || festData.registrationLink || '';
-  const cover = festData.coverImage || '';
+  const coverImages = normalizeCoverImages(festData.coverImages);
+  const cover = festData.coverImage || pickBestCardImage(festData, 'portrait') || '';
+  const hero = festHeroUrl({ ...festData, coverImages, coverImage: cover });
 
   return {
     id: festData._id || festData.id,
@@ -211,8 +226,8 @@ export function transformFestPublicData(festData) {
     location: festData.venue || '',
     image: cover,
     coverImage: cover,
-    coverImages: festData.coverImages || {},
-    heroImage: cover,
+    coverImages,
+    heroImage: hero,
     galleryImages: festData.galleryImages || [],
     ticketPrice: formatTicketPrice(festData),
     feeAmount: festData.feeAmount || 0,

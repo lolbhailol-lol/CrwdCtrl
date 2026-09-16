@@ -13,8 +13,8 @@ const CLOUDINARY_UPLOAD = '/upload/';
 export const IMAGE_PRESETS = {
     thumb: { width: 128, height: 128, crop: 'fill', quality: 'eco' },
     square: { width: 360, height: 360, crop: 'fill', quality: 'eco' },
-    /** Portrait cards — .card-portrait-image ~160×208 CSS */
-    cardPortrait: { width: 360, height: 468, crop: 'fill', quality: 'eco' },
+    /** Portrait cards — .card-portrait-image ~160×208 CSS. g_auto fills wordmarks (The Rush) and faces. */
+    cardPortrait: { width: 360, height: 468, crop: 'fill', quality: 'eco', gravity: 'auto' },
     /** Wide activity cards — .card-wide-image ~320×224 CSS */
     cardWide: { width: 720, height: 504, crop: 'fill', quality: 'eco' },
     /** Full-width community row — aspect 5:3 */
@@ -69,11 +69,11 @@ export function isCloudinaryUrl(url) {
 // g_auto is only valid with cropping modes; it errors with limit/fit/scale/pad
 const GRAVITY_SAFE_CROPS = ['fill', 'lfill', 'fill_pad', 'crop', 'thumb', 'auto'];
 
-function buildTransform({ width, height, crop, quality = 'eco', dpr = '2.0' }) {
+function buildTransform({ width, height, crop, quality = 'eco', dpr = '2.0', gravity }) {
     const parts = [`c_${crop}`, `w_${width}`];
     if (height) parts.push(`h_${height}`);
-    // Center crop — predictable for logos/posters (g_auto was chopping fest covers)
-    if (GRAVITY_SAFE_CROPS.includes(crop)) parts.push('g_center');
+    // Center crop is default — g_auto is better for wordmarks/photos in portrait cards
+    if (GRAVITY_SAFE_CROPS.includes(crop)) parts.push(`g_${gravity || 'center'}`);
     // eco for cards (faster), good for heroes; cap DPR so 3× phones don't download 3× pixels
     parts.push(`q_auto:${quality}`, 'f_auto');
     if (dpr) parts.push(`dpr_${dpr}`);

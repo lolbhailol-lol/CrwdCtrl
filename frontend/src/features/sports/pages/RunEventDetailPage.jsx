@@ -19,6 +19,7 @@ import { getSportsTiers, isTiersPricing, minSportsFee, formatInr, hasPricingSnap
 import { groupTermsAndConditions } from '../../../utils/termsAndConditions';
 import { useInAppBack } from '../../../hooks/useInAppBack';
 import { resolveAuthToken, getBearerAuthHeaders } from '../../../utils/authToken';
+import { resolveCoverImage } from '../../../utils/coverImages';
 
 import { publicFetchJSONRetry } from '../../../services/api/client';
 import { DETAIL_FETCH_OPTS, classifyDetailLoadError } from '../../../utils/detailPageLoad';
@@ -26,7 +27,7 @@ import { trackBookNowClick } from '../../../services/analyticsService';
 import { useDetailLoaderFailsafe } from '../../../hooks/useDetailLoaderFailsafe';
 import { signalDetailPageReady } from '../../../utils/bootSplash';
 
-const RUN_DETAIL_CACHE_PREFIX = 'crwdctrl_run_detail_v1_';
+const RUN_DETAIL_CACHE_PREFIX = 'crwdctrl_run_detail_v2_';
 const readRunDetailCache = (key) => {
     try {
         const raw = sessionStorage.getItem(`${RUN_DETAIL_CACHE_PREFIX}${key}`);
@@ -269,7 +270,7 @@ export default function RunEventDetailPage() {
     }
 
     const club = event.runClub || null;
-    const coverImg = event.coverImage || event.coverImages?.hero || event.coverImages?.portrait || null;
+    const coverImg = resolveCoverImage(event, 'hero') || event.coverImage || null;
     // Gallery uploads only — strip any card/cover URLs that leaked into images[]
     const coverSlots = event.coverImages || {};
     const coverSet = new Set(

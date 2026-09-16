@@ -36,6 +36,7 @@ function toSlimRelatedFest(fest, sampleCompetitions = []) {
     festName: fest.festName || '',
     collegeName: fest.collegeName || '',
     coverImage: fest.coverImage || '',
+    coverImages: fest.coverImages || {},
     slug: fest.slug || '',
     festType: fest.festType || '',
     festDate: fest.festDate || '',
@@ -107,7 +108,7 @@ async function resolveRelatedFests(fest, { limit = RELATED_FESTS_LIMIT, seedComp
       ...publicFilter,
       _id: { $in: pinnedIds },
     })
-      .select('festName collegeName coverImage slug festType festDate priority feeAmount registration.mode registration.externalLink')
+      .select('festName collegeName coverImage coverImages slug festType festDate priority feeAmount registration.mode registration.externalLink')
       .lean();
 
     const byId = new Map(pinned.map((f) => [String(f._id), f]));
@@ -128,7 +129,7 @@ async function resolveRelatedFests(fest, { limit = RELATED_FESTS_LIMIT, seedComp
       festType: fest.festType,
       _id: { $nin: [...used].map((id) => new mongoose.Types.ObjectId(id)) },
     })
-      .select('festName collegeName coverImage slug festType festDate priority feeAmount registration.mode registration.externalLink')
+      .select('festName collegeName coverImage coverImages slug festType festDate priority feeAmount registration.mode registration.externalLink')
       .sort({ priority: 1, createdAt: -1 })
       .limit(limit - result.length)
       .lean();

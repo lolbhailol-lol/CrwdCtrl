@@ -1,4 +1,5 @@
 import { normalizeImageList, normalizeImageUrl } from './uploadUrls';
+import { resolveCoverImage } from './coverImages';
 
 /**
  * Detail-page top slider images (4–5). Falls back to legacy cover + images merge.
@@ -8,12 +9,7 @@ export function resolveTrekHeroSlides(trek) {
     const dedicated = normalizeImageList(trek.heroImages);
     if (dedicated.length) return dedicated;
 
-    const cover =
-        normalizeImageUrl(trek.coverImage)
-        || normalizeImageUrl(trek.coverImages?.hero)
-        || normalizeImageUrl(trek.coverImages?.portrait)
-        || normalizeImageUrl(trek.image)
-        || '';
+    const cover = resolveCoverImage(trek, 'hero') || normalizeImageUrl(trek.image) || '';
     const extras = normalizeImageList(trek.images);
     const slides = [];
     if (cover) slides.push(cover);

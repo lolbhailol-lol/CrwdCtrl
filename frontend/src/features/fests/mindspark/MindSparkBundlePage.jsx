@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Loader, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Loader, ShieldCheck } from 'lucide-react';
 import { apiUtils } from '../../../utils/api';
 import { useAuth } from '../../../context/AuthContext';
+import { useDarkMode } from '../../../context/DarkModeContext';
 import CrwdCtrlLogin from '../../../pages/auth/login';
 import { createMindSparkBundle, fetchMindSparkBundleOffer, quoteMindSparkBundle, reissueMindSparkBundlePayment } from '../../../services/api/mindsparkBundle.api';
 import { openCashfreeCheckout } from '../../../utils/useCashfree';
@@ -10,10 +11,19 @@ import { openCashfreeCheckout } from '../../../utils/useCashfree';
 const STEPS = ['Your details', 'Choose events', 'Participants', 'Pay'];
 const memberNames = value => (Array.isArray(value) ? value : String(value || '').split(/[,;\n]+/)).map(x => String(x || '').trim()).filter(Boolean);
 
+function fieldClass(isDark) {
+  return `w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${
+    isDark
+      ? 'bg-[#1D1E20] border-gray-600 hover:border-gray-500 text-white placeholder-gray-400 [color-scheme:dark]'
+      : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900 placeholder-gray-500 [color-scheme:light]'
+  }`;
+}
+
 export default function MindSparkBundlePage({ embedded = false, onClose }) {
   const [params] = useSearchParams();
   const desk = params.get('desk') === '1';
   const navigate = useNavigate();
+  const { isDark } = useDarkMode();
   const { isAuthenticated, user } = useAuth();
   const [showLogin, setShowLogin] = useState(false);
   const [step, setStep] = useState(1);
@@ -26,6 +36,8 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const submissionKey = useRef(crypto.randomUUID());
+  const scrollRef = useRef(null);
+  const inputCls = fieldClass(isDark);
 
   useEffect(() => { fetchMindSparkBundleOffer().then(setOffer).catch(e => setError(e.message)); }, []);
   useEffect(() => {
@@ -37,6 +49,12 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
     }));
     setShowLogin(false);
   }, [isAuthenticated, user]);
+  useEffect(() => {
+    const overlay = document.querySelector('.mindspark-bundle-overlay__scroll');
+    if (overlay) overlay.scrollTo({ top: 0, behavior: 'smooth' });
+    else window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [step, formIndex]);
+
   const comps = useMemo(() => selected.map((id, i) => (i === 0 ? offer?.technical : offer?.nonTechnical)?.find(c => c._id === id)), [offer, selected]);
   const items = useMemo(() => selected.map((competitionId, i) => ({
     competitionId,
@@ -121,31 +139,316 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
     } catch (e) { setError(e.message); } finally { setBusy(false); }
   };
 
-  if (!offer) return <main className="min-h-dvh bg-[#090b0d] text-white grid place-items-center"><Loader className="animate-spin text-[#0ECCEE]" /></main>;
+  const pageClass = `crwdctrl-page crwdctrl-page--content ${embedded ? 'min-h-full' : 'min-h-dvh'} pt-[calc(var(--safe-top)+1.25rem)] sm:pt-[calc(var(--safe-top)+1.5rem)] pb-24`;
+  if (!offer) {
+    return (
+      <main className={`${pageClass} grid place-items-center`}>
+        <Loader className="animate-spin text-[#0ECCEE]" />
+      </main>
+    );
+  }
+
   const activeCompetition = comps[formIndex];
   const activeNames = Array.isArray(forms[formIndex]?.memberNames) ? forms[formIndex].memberNames : [customer.name];
   const activeMin = Math.max(1, Number(activeCompetition?.teamSizeMin) || 1);
   const activeMax = Math.max(activeMin, Number(activeCompetition?.teamSizeMax) || activeMin);
-  const content = <div className={`mx-auto w-full min-w-0 max-w-2xl overflow-x-hidden ${embedded ? 'p-4 sm:p-6' : ''}`}>
-    <div className="mb-5 flex items-center justify-between gap-3">
-      <button type="button" onClick={goBack} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-[#121416] px-3 py-2 text-sm font-semibold"><ArrowLeft size={17} />Back</button>
-      <div className="rounded-full bg-emerald-500/15 px-3 py-1.5 text-sm font-bold text-emerald-300">70% OFF</div>
+  const needsLogin = step === 1 && !desk && !isAuthenticated;
+  const labelCls = `block text-sm font-medium mb-1.5 ${isDark ? 'text-white' : 'text-gray-900'}`;
+  const muted = isDark ? 'text-gray-400' : 'text-gray-500';
+  const titleCls = isDark ? 'text-white' : 'text-gray-900';
+
+  const content = (
+    <div ref={scrollRef} className={`mx-auto w-full min-w-0 max-w-4xl px-4 sm:px-6 lg:px-8 ${embedded ? 'pb-[max(1.25rem,env(safe-area-inset-bottom))]' : ''}`}>
+      <div className="flex items-start gap-3 sm:gap-4 mb-5 sm:mb-6 mt-1">
+        <button
+          type="button"
+          onClick={goBack}
+          className={`p-2 rounded-lg transition-colors shrink-0 mt-1 ${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-200'}`}
+        >
+          <ArrowLeft className={`w-5 h-5 sm:w-6 sm:h-6 ${titleCls}`} />
+        </button>
+        <div className="min-w-0 flex-1">
+          <h1 className={`text-lg sm:text-xl lg:text-2xl font-bold leading-tight ${titleCls}`}>
+            MindSpark bundle
+          </h1>
+          <p className={`text-sm mt-0.5 ${muted}`}>1 technical + 2 non-technical · 70% off</p>
+        </div>
+        <span className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold ${isDark ? 'bg-emerald-500/15 text-emerald-300' : 'bg-emerald-50 text-emerald-700'}`}>
+          70% OFF
+        </span>
+      </div>
+
+      <div className={`rounded-2xl p-4 sm:p-6 md:p-8 border transition-all duration-300 ${
+        isDark ? 'bg-[#1D1E20] border-gray-700/40' : 'bg-white border-gray-200 shadow-sm'
+      }`}>
+        <div className={`rounded-lg p-4 mb-5 ${isDark ? 'bg-[#111213]' : 'bg-gray-50'}`}>
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <h3 className={`text-sm font-semibold ${titleCls}`}>Progress</h3>
+            <span className={`text-xs ${muted}`}>
+              {STEPS[step - 1]}
+              {step === 3 ? ` · ${formIndex + 1}/3` : ''}
+              {' · '}
+              Step {step} of {STEPS.length}
+            </span>
+          </div>
+          <div className={`w-full rounded-full h-2 mb-3 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
+            <div
+              className="bg-[#0ECCEE] h-2 rounded-full transition-all duration-300"
+              style={{ width: `${((step - 1 + (step === 3 ? (formIndex + 1) / 3 : 0)) / STEPS.length) * 100}%` }}
+            />
+          </div>
+          <div className="flex justify-between gap-2 overflow-x-auto pb-1">
+            {STEPS.map((label, i) => {
+              const n = i + 1;
+              const done = n < step;
+              const current = n === step;
+              return (
+                <div key={label} className="flex flex-col items-center min-w-0 flex-1">
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
+                    current
+                      ? 'bg-[#0ECCEE] text-black'
+                      : done
+                        ? 'bg-green-600 text-white'
+                        : isDark ? 'bg-gray-600 text-gray-300' : 'bg-gray-300 text-gray-600'
+                  }`}>
+                    {done ? '✓' : n}
+                  </div>
+                  <span className={`text-xs mt-1 text-center max-w-24 truncate ${muted}`}>{label}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div key={`${step}-${formIndex}`} className="space-y-4 animate-detail-enter">
+          {step === 1 ? (
+            <div className={`rounded-xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-gray-50 border-gray-200'}`}>
+              <h3 className={`text-xs font-bold uppercase tracking-widest mb-1 ${muted}`}>Your details</h3>
+              <p className={`text-sm mb-4 ${muted}`}>Team leader contact — used for all 3 registrations.</p>
+              <div className={`border-b mb-4 ${isDark ? 'border-gray-700/70' : 'border-gray-200'}`} />
+              {needsLogin ? (
+                <p className={`text-sm ${muted}`}>Sign in with Google to fill the form and continue.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+                  <div className="md:col-span-2">
+                    <label className={labelCls}>Full name <span className="text-red-400">*</span></label>
+                    <input value={customer.name} onChange={e => setCustomer(v => ({ ...v, name: e.target.value }))} placeholder="Team leader’s full name" className={inputCls} />
+                  </div>
+                  <div>
+                    <label className={labelCls}>WhatsApp number <span className="text-red-400">*</span></label>
+                    <input inputMode="numeric" value={customer.phone} onChange={e => setCustomer(v => ({ ...v, phone: e.target.value }))} placeholder="10-digit number" className={inputCls} />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Email <span className="text-red-400">*</span></label>
+                    <input required type="email" value={customer.email} onChange={e => setCustomer(v => ({ ...v, email: e.target.value }))} placeholder="name@example.com" className={inputCls} />
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          {step === 2 ? (
+            <div className={`rounded-xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-gray-50 border-gray-200'}`}>
+              <div className="flex items-end justify-between gap-3 mb-1">
+                <h3 className={`text-xs font-bold uppercase tracking-widest ${muted}`}>Choose 3 competitions</h3>
+                <span className="text-xs font-bold text-[#0ECCEE]">{selected.filter(Boolean).length}/3</span>
+              </div>
+              <p className={`text-sm mb-4 ${muted}`}>Select one from each box.</p>
+              <div className={`border-b mb-4 ${isDark ? 'border-gray-700/70' : 'border-gray-200'}`} />
+              <div className="space-y-4">
+                {[0, 1, 2].map(i => {
+                  const list = i === 0 ? offer.technical : offer.nonTechnical;
+                  return (
+                    <label key={i} className="block">
+                      <span className={labelCls}>{i === 0 ? 'Technical competition' : `Non-technical competition ${i}`} <span className="text-red-400">*</span></span>
+                      <select
+                        aria-label={i === 0 ? 'Select technical competition' : 'Select non-technical competition'}
+                        value={selected[i]}
+                        onChange={e => setSelected(all => all.map((id, index) => index === i ? e.target.value : id))}
+                        className={inputCls}
+                      >
+                        <option value="">Select competition</option>
+                        {list.map(c => (
+                          <option key={c._id} value={c._id} disabled={selected.some((id, index) => index !== i && id === c._id)}>
+                            {c.name} · {c.registrationFee}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
+          {step === 3 && activeCompetition ? (
+            <div>
+              <div className="mb-4 flex gap-2">
+                {comps.map((competition, index) => (
+                  <button
+                    key={competition._id}
+                    type="button"
+                    onClick={() => { setError(''); setFormIndex(index); }}
+                    className={`min-w-0 flex-1 rounded-xl border px-2 py-2 text-xs font-semibold transition-colors ${
+                      index === formIndex
+                        ? 'border-[#0ECCEE]/50 bg-[#0ECCEE]/10 text-[#0ECCEE]'
+                        : isDark ? 'border-gray-700 text-gray-400' : 'border-gray-200 text-gray-500'
+                    }`}
+                  >
+                    {index + 1}. <span className="hidden sm:inline">{competition.name}</span><span className="sm:hidden">Event</span>
+                  </button>
+                ))}
+              </div>
+              <div className={`rounded-xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-gray-50 border-gray-200'}`}>
+                <p className="text-xs font-bold uppercase tracking-widest text-[#0ECCEE]">Competition {formIndex + 1} of 3</p>
+                <h2 className={`mt-1 text-lg font-bold ${titleCls}`}>{activeCompetition.name}</h2>
+                <p className={`mt-1 text-xs mb-4 ${muted}`}>
+                  {activeMin === activeMax ? `${activeMin} participant${activeMin > 1 ? 's' : ''} required` : `${activeMin}–${activeMax} participants allowed`}
+                </p>
+                <div className={`border-b mb-4 ${isDark ? 'border-gray-700/70' : 'border-gray-200'}`} />
+                <div className="space-y-4">
+                  {activeMax > 1 ? (
+                    <label className="block">
+                      <span className={labelCls}>Team name</span>
+                      <input value={forms[formIndex].teamName || ''} onChange={e => setForm(formIndex, 'teamName', e.target.value)} placeholder="Your team name" className={inputCls} />
+                    </label>
+                  ) : null}
+                  {activeNames.map((name, index) => (
+                    <div key={index} className="flex items-end gap-2">
+                      <label className="min-w-0 flex-1">
+                        <span className={labelCls}>{index === 0 ? 'Team leader' : `Participant ${index + 1}`} {index < activeMin ? <span className="text-red-400">*</span> : null}</span>
+                        <input value={name} onChange={e => setForm(formIndex, 'memberNames', activeNames.map((item, n) => n === index ? e.target.value : item))} placeholder="Full name" className={inputCls} />
+                      </label>
+                      {index >= activeMin ? (
+                        <button type="button" onClick={() => setForm(formIndex, 'memberNames', activeNames.filter((_, n) => n !== index))} className={`rounded-xl border px-3 py-2.5 text-sm ${isDark ? 'border-gray-700 text-red-300' : 'border-gray-300 text-red-600'}`}>
+                          Remove
+                        </button>
+                      ) : null}
+                    </div>
+                  ))}
+                  {activeNames.length < activeMax ? (
+                    <button type="button" onClick={() => setForm(formIndex, 'memberNames', [...activeNames, ''])} className="w-full rounded-xl border border-dashed border-[#0ECCEE]/40 py-3 text-sm font-semibold text-[#0ECCEE]">
+                      + Add participant
+                    </button>
+                  ) : null}
+                  {activeCompetition.feeTiers?.length ? (
+                    <label className="block">
+                      <span className={labelCls}>Category <span className="text-red-400">*</span></span>
+                      <select value={forms[formIndex].feeTierId || ''} onChange={e => setForm(formIndex, 'feeTierId', e.target.value)} className={inputCls}>
+                        <option value="">Select category</option>
+                        {activeCompetition.feeTiers.map(t => <option key={t.id} value={t.id}>{t.label} · ₹{t.amount}</option>)}
+                      </select>
+                    </label>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {step === 4 ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className={`text-xs font-bold uppercase tracking-widest ${muted}`}>Review and pay</h3>
+                <button type="button" onClick={() => { setFormIndex(0); setStep(2); }} className="text-sm font-semibold text-[#0ECCEE]">Edit</button>
+              </div>
+              <div className={`overflow-hidden rounded-xl border ${isDark ? 'border-gray-700/50' : 'border-gray-200'}`}>
+                {comps.map((c, i) => {
+                  const names = memberNames(forms[i].memberNames || forms[i].members);
+                  const priced = quote?.items?.find(item => String(item.competitionId) === String(c._id));
+                  return (
+                    <div key={c._id} className={`flex items-start justify-between gap-3 p-4 ${i > 0 ? (isDark ? 'border-t border-gray-700/50' : 'border-t border-gray-200') : ''}`}>
+                      <div className="min-w-0">
+                        <p className={`truncate font-semibold ${titleCls}`}>{c.name}</p>
+                        <p className={`mt-1 text-xs ${muted}`}>{forms[i].teamName || names.join(', ')}</p>
+                        <p className={`text-xs ${muted}`}>{names.length} participant{names.length === 1 ? '' : 's'}</p>
+                      </div>
+                      <span className={`shrink-0 text-sm ${titleCls}`}>₹{Number(priced?.amount || 0).toLocaleString('en-IN')}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className={`rounded-xl border p-4 ${isDark ? 'border-emerald-400/25 bg-emerald-500/8' : 'border-emerald-200 bg-emerald-50'}`}>
+                <div className={`flex justify-between text-sm ${muted}`}>
+                  <span>Original total</span>
+                  <span className="line-through">₹{Number(quote?.subtotal || 0).toLocaleString('en-IN')}</span>
+                </div>
+                <div className={`mt-2 flex justify-between text-sm font-semibold ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
+                  <span>You save 70%</span>
+                  <span>₹{Number(quote?.discountAmount || 0).toLocaleString('en-IN')}</span>
+                </div>
+                <div className={`mt-3 flex justify-between border-t pt-3 text-xl font-black ${isDark ? 'border-white/10' : 'border-emerald-200'} ${titleCls}`}>
+                  <span>Pay now</span>
+                  <span>₹{Number(quote?.totalAmount || 0).toLocaleString('en-IN')}</span>
+                </div>
+                {quote ? (
+                  <button
+                    type="button"
+                    onClick={submit}
+                    disabled={busy}
+                    className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#0ECCEE] px-6 py-3 font-bold text-black hover:bg-[#0ECCEE]/90 active:scale-[0.98] transition-all disabled:opacity-50 shadow-lg shadow-[#0ECCEE]/10"
+                  >
+                    {busy ? <Loader className="w-4 h-4 animate-spin" /> : <ShieldCheck size={18} />}
+                    {busy ? 'Opening Cashfree…' : `Pay ₹${Number(quote.totalAmount).toLocaleString('en-IN')} & Book`}
+                  </button>
+                ) : (
+                  <div className={`mt-4 flex items-center justify-center gap-2 rounded-xl py-3 text-sm ${muted}`}>
+                    <Loader size={16} className="animate-spin" />Calculating price…
+                  </div>
+                )}
+                <p className={`mt-2 text-center text-[11px] ${muted}`}>One secure payment for all 3 registrations</p>
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        {error ? (
+          <div className={`rounded-lg p-3 mt-4 text-sm border ${isDark ? 'bg-red-900/20 border-red-800 text-red-400' : 'bg-red-50 border-red-300 text-red-600'}`}>
+            {error}
+          </div>
+        ) : null}
+
+        {step < 4 ? (
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-4 sm:pt-6 pb-2">
+            <button
+              type="button"
+              onClick={goBack}
+              className={`px-4 sm:px-6 py-3 rounded-xl border font-medium transition-colors text-sm sm:text-base ${isDark ? 'border-gray-700 text-white hover:bg-gray-800/60' : 'border-gray-300 text-gray-900 hover:bg-gray-100'}`}
+            >
+              {step > 1 || formIndex > 0 ? 'Previous Step' : 'Cancel'}
+            </button>
+            <button
+              type="button"
+              onClick={needsLogin ? () => setShowLogin(true) : goNext}
+              className="flex-1 px-4 sm:px-6 py-3 rounded-xl bg-[#0ECCEE] text-black font-bold hover:bg-[#0ECCEE]/90 active:scale-[0.98] transition-all text-sm sm:text-base flex items-center justify-center gap-2 shadow-lg shadow-[#0ECCEE]/10"
+            >
+              {needsLogin ? 'Continue with Google' : step === 3 && formIndex >= 2 ? 'Review and pay' : 'Next Step'}
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-4 sm:pt-6 pb-2">
+            <button
+              type="button"
+              onClick={goBack}
+              disabled={busy}
+              className={`px-4 sm:px-6 py-3 rounded-xl border font-medium transition-colors text-sm sm:text-base ${isDark ? 'border-gray-700 text-white hover:bg-gray-800/60' : 'border-gray-300 text-gray-900 hover:bg-gray-100'}`}
+            >
+              Previous Step
+            </button>
+          </div>
+        )}
+      </div>
+
+      {showLogin ? (
+        <CrwdCtrlLogin
+          googleOnly
+          title="Sign in to register"
+          subtitle="Sign in once — you stay signed in on this device"
+          onClose={() => setShowLogin(false)}
+        />
+      ) : null}
     </div>
-    <header className="mb-5"><p className="text-xs font-semibold uppercase tracking-wider text-[#0ECCEE]">MindSpark bundle</p><h1 className="mt-1 text-2xl font-black">1 Tech + 2 Non-Tech</h1></header>
-    <nav className="mb-6 flex gap-2" aria-label="Registration progress">{STEPS.map((label, i) => <div key={label} className="min-w-0 flex-1"><div className={`h-1 rounded-full ${i + 1 <= step ? 'bg-[#0ECCEE]' : 'bg-white/10'}`} /><p className={`mt-1.5 truncate text-[10px] sm:text-xs ${i + 1 === step ? 'font-semibold text-white' : 'text-gray-600'}`}>{label}</p></div>)}</nav>
+  );
 
-    {step === 1 ? <section className="rounded-2xl border border-white/10 bg-[#121416] p-4 sm:p-5"><h2 className="mb-4 text-lg font-bold">Your details</h2>{!desk && !isAuthenticated ? <button type="button" onClick={() => setShowLogin(true)} className="w-full rounded-xl bg-[#0ECCEE] py-3.5 font-bold text-black">Continue with Google</button> : <div className="space-y-3"><label className="block"><span className="mb-1 block text-sm text-gray-300">Full name</span><input value={customer.name} onChange={e => setCustomer(v => ({ ...v, name: e.target.value }))} placeholder="Team leader’s full name" className="w-full rounded-xl border border-white/10 bg-[#1b1e20] p-3" /></label><label className="block"><span className="mb-1 block text-sm text-gray-300">WhatsApp number</span><input inputMode="numeric" value={customer.phone} onChange={e => setCustomer(v => ({ ...v, phone: e.target.value }))} placeholder="10-digit number" className="w-full rounded-xl border border-white/10 bg-[#1b1e20] p-3" /></label><label className="block"><span className="mb-1 block text-sm text-gray-300">Email</span><input required type="email" value={customer.email} onChange={e => setCustomer(v => ({ ...v, email: e.target.value }))} placeholder="name@example.com" className="w-full rounded-xl border border-white/10 bg-[#1b1e20] p-3" /></label></div>}</section> : null}
-
-    {step === 2 ? <section className="rounded-2xl border border-white/10 bg-[#121416] p-4 sm:p-5"><div className="mb-4 flex items-end justify-between gap-3"><div><h2 className="text-lg font-bold">Choose 3 competitions</h2><p className="mt-1 text-sm text-gray-500">Select one from each box.</p></div><span className="text-sm font-bold text-[#0ECCEE]">{selected.filter(Boolean).length}/3</span></div><div className="space-y-3">{[0, 1, 2].map(i => { const list = i === 0 ? offer.technical : offer.nonTechnical; return <label key={i} className="block"><span className="mb-1.5 block text-sm font-semibold text-gray-300">{i === 0 ? 'Technical competition' : `Non-technical competition ${i}`}</span><select aria-label={i === 0 ? 'Select technical competition' : 'Select non-technical competition'} value={selected[i]} onChange={e => setSelected(all => all.map((id, index) => index === i ? e.target.value : id))} className={`w-full rounded-xl border p-3 ${selected[i] ? 'border-emerald-400/30 bg-emerald-500/5 text-white' : 'border-white/10 bg-[#1b1e20]'}`}><option value="">Select competition</option>{list.map(c => <option key={c._id} value={c._id} disabled={selected.some((id, index) => index !== i && id === c._id)}>{c.name} · {c.registrationFee}</option>)}</select></label>; })}</div></section> : null}
-
-    {step === 3 && activeCompetition ? <section><div className="mb-4 flex gap-2">{comps.map((competition, index) => <button key={competition._id} type="button" onClick={() => setFormIndex(index)} className={`min-w-0 flex-1 rounded-xl border px-2 py-2 text-xs font-semibold ${index === formIndex ? 'border-[#0ECCEE]/50 bg-[#0ECCEE]/10 text-[#0ECCEE]' : currentFormValid || index < formIndex ? 'border-white/10 text-gray-400' : 'border-white/10 text-gray-500'}`}>{index + 1}. <span className="hidden sm:inline">{competition.name}</span><span className="sm:hidden">Event</span></button>)}</div><div className="rounded-2xl border border-white/10 bg-[#121416] p-4 sm:p-5"><div className="mb-4"><p className="text-xs text-[#0ECCEE]">Competition {formIndex + 1} of 3</p><h2 className="mt-1 text-lg font-bold">{activeCompetition.name}</h2><p className="mt-1 text-xs text-gray-500">{activeMin === activeMax ? `${activeMin} participant${activeMin > 1 ? 's' : ''} required` : `${activeMin}–${activeMax} participants allowed`}</p></div><div className="space-y-3">{activeMax > 1 ? <label className="block"><span className="mb-1 block text-sm text-gray-300">Team name</span><input value={forms[formIndex].teamName || ''} onChange={e => setForm(formIndex, 'teamName', e.target.value)} placeholder="Your team name" className="w-full rounded-xl border border-white/10 bg-[#1b1e20] p-3" /></label> : null}{activeNames.map((name, index) => <div key={index} className="flex items-end gap-2"><label className="min-w-0 flex-1"><span className="mb-1 block text-sm text-gray-300">{index === 0 ? 'Team leader' : `Participant ${index + 1}`}</span><input value={name} onChange={e => setForm(formIndex, 'memberNames', activeNames.map((item, n) => n === index ? e.target.value : item))} placeholder="Full name" className="w-full rounded-xl border border-white/10 bg-[#1b1e20] p-3" /></label>{index >= activeMin ? <button type="button" onClick={() => setForm(formIndex, 'memberNames', activeNames.filter((_, n) => n !== index))} className="rounded-xl border border-white/10 px-3 py-3 text-sm text-red-300">Remove</button> : null}</div>)}{activeNames.length < activeMax ? <button type="button" onClick={() => setForm(formIndex, 'memberNames', [...activeNames, ''])} className="w-full rounded-xl border border-dashed border-[#0ECCEE]/30 py-3 text-sm font-semibold text-[#0ECCEE]">+ Add participant</button> : null}{activeCompetition.feeTiers?.length ? <label className="block"><span className="mb-1 block text-sm text-gray-300">Category</span><select value={forms[formIndex].feeTierId || ''} onChange={e => setForm(formIndex, 'feeTierId', e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#1b1e20] p-3"><option value="">Select category</option>{activeCompetition.feeTiers.map(t => <option key={t.id} value={t.id}>{t.label} · ₹{t.amount}</option>)}</select></label> : null}</div></div></section> : null}
-
-    {step === 4 ? <section><div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-bold">Review and pay</h2><button type="button" onClick={() => { setFormIndex(0); setStep(2); }} className="text-sm font-semibold text-[#0ECCEE]">Edit</button></div><div className="overflow-hidden rounded-2xl border border-white/10 bg-[#121416]">{comps.map((c, i) => { const names = memberNames(forms[i].memberNames || forms[i].members); const priced = quote?.items?.find(item => String(item.competitionId) === String(c._id)); return <div key={c._id} className="flex items-start justify-between gap-3 border-b border-white/8 p-4 last:border-0"><div className="min-w-0"><p className="truncate font-semibold">{c.name}</p><p className="mt-1 text-xs text-gray-500">{forms[i].teamName || names.join(', ')}</p><p className="text-xs text-gray-600">{names.length} participant{names.length === 1 ? '' : 's'}</p></div><span className="shrink-0 text-sm text-gray-300">₹{Number(priced?.amount || 0).toLocaleString('en-IN')}</span></div>; })}</div><div className="mt-4 rounded-2xl border border-emerald-400/25 bg-emerald-500/8 p-4"><div className="flex justify-between text-sm text-gray-400"><span>Original total</span><span className="line-through">₹{Number(quote?.subtotal || 0).toLocaleString('en-IN')}</span></div><div className="mt-2 flex justify-between text-sm font-semibold text-emerald-300"><span>You save 70%</span><span>₹{Number(quote?.discountAmount || 0).toLocaleString('en-IN')}</span></div><div className="mt-3 flex justify-between border-t border-white/10 pt-3 text-xl font-black"><span>Pay now</span><span>₹{Number(quote?.totalAmount || 0).toLocaleString('en-IN')}</span></div>{quote ? <button onClick={submit} disabled={busy} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#0ECCEE] px-6 py-3.5 font-bold text-black disabled:opacity-50"><ShieldCheck size={18} />{busy ? 'Opening Cashfree…' : `Pay ₹${quote.totalAmount}`}</button> : <div className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-white/5 py-3 text-sm text-gray-400"><Loader size={16} className="animate-spin" />Calculating price…</div>}<p className="mt-2 text-center text-[11px] text-gray-500">One secure payment for all 3 registrations</p></div></section> : null}
-
-    {error ? <p className="mt-4 rounded-xl border border-red-400/20 bg-red-500/10 p-3 text-sm text-red-300">{error}</p> : null}
-    {step < 4 && !(step === 1 && !desk && !isAuthenticated) ? <button type="button" onClick={goNext} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-[#0ECCEE] px-6 py-3.5 font-bold text-black">{step === 3 ? (formIndex < 2 ? 'Next competition' : 'Review and pay') : 'Continue'}<ArrowRight size={17} /></button> : null}
-    {showLogin ? <CrwdCtrlLogin googleOnly title="Sign in for MindSpark Bundle" subtitle="Continue with Google to register" onClose={() => setShowLogin(false)} /> : null}
-  </div>;
-  if (embedded) return content;
-  return <main className="min-h-dvh overflow-x-hidden bg-[#090b0d] p-4 text-white sm:p-8">{content}</main>;
+  if (embedded) return <div className={pageClass}>{content}</div>;
+  return <main className={pageClass}>{content}</main>;
 }

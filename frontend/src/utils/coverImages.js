@@ -46,6 +46,19 @@ export function normalizeCoverImages(raw) {
     return base;
 }
 
+function logoWordmarkUrl(covers = {}) {
+    const order = ['page', 'square', 'wide', 'portrait', 'hero'];
+    for (const key of order) {
+        const url = covers[key];
+        if (url && /logo/i.test(url)) return url;
+    }
+    return '';
+}
+
+/**
+ * Legacy single-field cover (cards / admin save). Portrait first on purpose —
+ * full-width heroes must use pickBestCardImage(entity, 'hero') / resolveCoverImage(..., 'hero').
+ */
 export function primaryCoverUrl(coverImages = {}, fallback = '') {
     const preferred = ['portrait', 'wide', 'hero', 'landscape', 'video', 'square', 'page'];
     for (const key of preferred) {
@@ -114,7 +127,8 @@ export function pickBestCardImage(entity, layout = 'tall') {
 
     if (layout === 'portrait') {
         return (
-            covers.portrait
+            logoWordmarkUrl(covers)
+            || covers.portrait
             || covers.page
             || covers.square
             || gallery[0]
@@ -158,6 +172,10 @@ export function resolveCoverImage(entity, preset = 'cardPortrait') {
     if (!entity) return '';
     const key = PRESET_ALIASES[preset] || 'portrait';
     const covers = normalizeCoverImages(entity.coverImages);
+    if (key === 'portrait') {
+        const wordmark = logoWordmarkUrl(covers);
+        if (wordmark) return wordmark;
+    }
     if (covers[key]) return covers[key];
 
     // Prefer layout-friendly slots before forcing a mismatched crop of the main cover

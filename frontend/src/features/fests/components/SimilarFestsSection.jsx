@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { festPath, competitionDetailNavPath } from '../../../utils/slugRoutes';
 import { getImageUrl } from '../../../utils/imageImports';
+import { getCoverImageUrl } from '../../../utils/coverImages';
 import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
 import {
   buildCompetitionNavPayload,
@@ -230,10 +231,10 @@ export default function SimilarFestsSection({
           const id = fest._id || fest.id;
           const festName = fest.festName || 'Fest';
           const college = String(fest.collegeName || '').trim();
-          const cover = fest.coverImage || '';
-          const src = cover
-            ? getImageUrl(cover, { preset: 'detail' }) || getImageUrl(cover, { preset: 'thumb' })
-            : null;
+          const src = getCoverImageUrl(fest, 'cardWide')
+            || (fest.coverImage
+              ? getImageUrl(fest.coverImage, { preset: 'detail' }) || getImageUrl(fest.coverImage, { preset: 'thumb' })
+              : null);
           const path = festPath({
             id,
             _id: id,

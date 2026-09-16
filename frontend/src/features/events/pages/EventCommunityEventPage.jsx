@@ -10,7 +10,7 @@ import Seo from '../../../components/Seo';
 import LazyMap from '../../../components/LazyMap';
 import TrekDetailIcon from '../../../components/TrekDetailIcon';
 import DetailPageLoader, { DetailLoader3DIcon } from '../../../components/DetailPageLoader';
-import { primaryCoverUrl } from '../../../utils/coverImages';
+import { primaryCoverUrl, resolveCoverImage } from '../../../utils/coverImages';
 import { absoluteUrl, breadcrumbSchema, eventSchema } from '../../../utils/seo';
 import { shareContent } from '../../../utils/externalLink';
 import { eventCommunityEventPath, entityMatchesRouteParam } from '../../../utils/slugRoutes';
@@ -32,7 +32,7 @@ import { getExternalBrowserTargetUrl } from '../../../utils/openInExternalBrowse
 import { isInAppBrowser } from '../../../config/apiBase';
 import { signalDetailPageReady } from '../../../utils/bootSplash';
 
-const RUN_DETAIL_CACHE_PREFIX = 'crwdctrl_event_community_detail_v18_';
+const RUN_DETAIL_CACHE_PREFIX = 'crwdctrl_event_community_detail_v19_';
 const readRunDetailCache = (key) => {
     try {
         const raw = sessionStorage.getItem(`${RUN_DETAIL_CACHE_PREFIX}${key}`);
@@ -55,7 +55,8 @@ function seedEventFromNav(navEvent) {
 function eventCoverHint(ev) {
     if (!ev) return '';
     return (
-        primaryCoverUrl(ev.coverImages || {}, ev.coverImage || ev.image)
+        resolveCoverImage(ev, 'hero')
+        || primaryCoverUrl(ev.coverImages || {}, ev.coverImage || ev.image)
         || (Array.isArray(ev.images) ? ev.images.find(Boolean) : '')
         || ''
     );
@@ -405,8 +406,10 @@ export default function EventCommunityEventPage() {
             },
         });
     };
-    const shareImage = primaryCoverUrl(event.coverImages || {}, event.coverImage || event.image);
-    const coverImg = shareImage || null;
+    const coverImg = resolveCoverImage(event, 'hero')
+        || primaryCoverUrl(event.coverImages || {}, event.coverImage || event.image)
+        || null;
+    const shareImage = coverImg;
     // Gallery uploads only — strip any card/cover URLs that leaked into images[]
     const coverSlots = event.coverImages || {};
     const coverSet = new Set(

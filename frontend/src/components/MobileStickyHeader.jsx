@@ -21,7 +21,7 @@ export default function MobileStickyHeader({
         <header
             ref={headerRef}
             data-scrolling="false"
-            className={`lg:hidden sticky top-0 z-40 mobile-header-shell overflow-hidden ${shellClassName}`}
+            className={`lg:hidden sticky top-0 z-40 mobile-header-shell overflow-visible ${shellClassName}`}
         >
             <div
                 className={`mobile-header-inner px-(--page-gutter) ${innerClassName}`}

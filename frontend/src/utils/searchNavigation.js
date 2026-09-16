@@ -36,6 +36,8 @@ export function navigateToSearchResult(navigate, result) {
           title: result.title || result.name,
           subtitle: result.subtitle || result.basedIn,
           image: result.image || result.coverImage,
+          coverImage: result.coverImage || result.image,
+          coverImages: result.coverImages,
           trekCategories: result.trekCategories || [],
         },
       },
@@ -49,7 +51,8 @@ export function navigateToSearchResult(navigate, result) {
           _id: id,
           name: result.title || result.name,
           basedIn: result.basedIn || result.subtitle,
-          coverImage: result.image || result.coverImage,
+          coverImage: result.coverImage || result.image,
+          coverImages: result.coverImages,
         },
       },
     });

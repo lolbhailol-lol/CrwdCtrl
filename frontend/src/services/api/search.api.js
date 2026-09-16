@@ -2,6 +2,7 @@
  * Search API — fest/competition search and public listing endpoints.
  */
 import { publicFetch } from './client.js';
+import { pickBestCardImage } from '../../utils/coverImages';
 
 const transformFestData = (fest) => ({
   id: fest._id,
@@ -14,7 +15,10 @@ const transformFestData = (fest) => ({
   category: fest.festType,
   type: fest.festType,
   tags: fest.highlights || [],
-  image: fest.coverImage,
+  coverImage: fest.coverImage,
+  coverImages: fest.coverImages || {},
+  image: pickBestCardImage(fest, 'portrait') || fest.coverImage,
+  heroImage: pickBestCardImage(fest, 'hero') || fest.coverImage,
   startDate: fest.startDate,
   endDate: fest.endDate,
 });

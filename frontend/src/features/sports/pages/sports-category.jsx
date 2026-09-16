@@ -4,7 +4,7 @@ import { MapPin, Bell } from 'lucide-react';
 import { useDarkMode } from '../../../context/DarkModeContext';
 import { useFavorites } from '../../../context/FavoritesContext';
 import { useNotifications } from '../../../context/NotificationsContext';
-import { getCoverImageUrl } from '../../../utils/coverImages';
+import { getCoverImageUrl, pickBestCardImage } from '../../../utils/coverImages';
 import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
 import { toCardText } from '../../../utils/cardText';
 import { openExternalUrl, shareContent } from '../../../utils/externalLink';
@@ -46,7 +46,7 @@ import { SPORTS_FAQ } from '../../../constants/faqs';
 const SPORTS_DESCRIPTION =
     'Discover sports events, running clubs and gym communities near you. Find runs, tournaments and sports fests, and join active communities on CrwdCtrl.';
 
-const SPORTS_CACHE_KEY = 'crwdctrl_sports_page_v1';
+const SPORTS_CACHE_KEY = 'crwdctrl_sports_page_v2';
 const readSportsCache = () => {
     try {
         const raw = sessionStorage.getItem(SPORTS_CACHE_KEY);
@@ -289,7 +289,7 @@ export default function SportsCategoryPage() {
                 subtitle: c.basedIn || c.organizer || 'Based in',
                 coverImage: normalizeImageUrl(c.coverImage) || null,
                 coverImages: c.coverImages || null,
-                image: normalizeImageUrl(c.coverImage) || null,
+                image: pickBestCardImage(c, 'portrait') || normalizeImageUrl(c.coverImage) || null,
                 registrationLink: c.registrationLink,
                 sortKey: c.runClubPriority ?? 999,
             }))

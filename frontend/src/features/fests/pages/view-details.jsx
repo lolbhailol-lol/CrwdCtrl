@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, Suspense, lazy } from 'react';
-import { Calendar, MapPin, Heart, Sparkles } from "lucide-react";
+import { createPortal } from 'react-dom';
+import { Calendar, MapPin, Heart } from "lucide-react";
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { Phone, Instagram, Mail, ArrowLeft, Share, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
@@ -20,6 +21,7 @@ import {
   resolveCompetitionFee,
   isFestPlaceholderCopy,
   festHasCompetitionGroups,
+  festHeroUrl,
 } from '../../../utils/festPublicTransform';
 import { publicFetchJSONRetry as fetchJSON } from '../../../services/api/client';
 import Seo from '../../../components/Seo';
@@ -188,7 +190,7 @@ function EventDetailsPage() {
   const [eventData, setEventData] = useState(() => resolveSeededFest(eventId, location));
   const [currentHeroImage, setCurrentHeroImage] = useState(() => {
     const seed = resolveSeededFest(eventId, location);
-    return seed?.heroImage || seed?.image || '';
+    return festHeroUrl(seed);
   });
   const [fetchDone, setFetchDone] = useState(false);
   const [error, setError] = useState(null);
@@ -205,7 +207,7 @@ function EventDetailsPage() {
     const seed = resolveSeededFest(eventId, location);
     fetchGenRef.current += 1;
     setEventData(seed);
-    setCurrentHeroImage(seed?.heroImage || seed?.image || '');
+    setCurrentHeroImage(festHeroUrl(seed));
     // Cached fest data can paint the stable shell immediately, but its competition
     // categories may be outdated. Keep them hidden until this route refreshes.
     setFetchDone(false);
@@ -253,7 +255,7 @@ function EventDetailsPage() {
         if (gen !== fetchGenRef.current) return;
         if (transformedData) {
           setEventData(transformedData);
-          setCurrentHeroImage(transformedData.heroImage || transformedData.image);
+          setCurrentHeroImage(festHeroUrl(transformedData));
           saveFestDetailCache(eventId, transformedData);
           setBodyReady(true);
         } else {
@@ -266,7 +268,7 @@ function EventDetailsPage() {
         const cached = eventId ? loadFestDetailCache(eventId) : null;
         if (cached && entityMatchesRouteParam(cached, eventId, ['title', 'festName', 'festival_name'])) {
           setEventData(cached);
-          setCurrentHeroImage(cached.heroImage || cached.image);
+          setCurrentHeroImage(festHeroUrl(cached));
           setBodyReady(true);
         } else if (err.response?.status === 404) {
           setError('Fest not found - it may not be approved yet or the link might be incorrect');
@@ -315,7 +317,7 @@ function EventDetailsPage() {
             const transformedData = transformFestPublicData(response.data);
             if (transformedData) {
               setEventData(transformedData);
-              setCurrentHeroImage(transformedData.heroImage || transformedData.image);
+              setCurrentHeroImage(festHeroUrl(transformedData));
               saveFestDetailCache(eventId, transformedData);
             }
           } catch (err) {
@@ -375,8 +377,9 @@ function EventDetailsPage() {
 
   // Update hero image when event data changes
   useEffect(() => {
-    if (eventData?.heroImage) {
-      setCurrentHeroImage(eventData.heroImage);
+    const nextHero = festHeroUrl(eventData);
+    if (nextHero) {
+      setCurrentHeroImage(nextHero);
     }
   }, [eventData]);
 
@@ -388,6 +391,7 @@ function EventDetailsPage() {
   };
 
   const handleOpenMindSparkBundle = () => {
+    void import('../mindspark/MindSparkBundlePage');
     if (!isAuthenticated) {
       setOpenBundleAfterLogin(true);
       setShowLogin(true);
@@ -395,6 +399,22 @@ function EventDetailsPage() {
     }
     setShowMindSparkBundle(true);
   };
+
+  useLayoutEffect(() => {
+    if (!showMindSparkBundle && !showLogin) return undefined;
+    const html = document.documentElement;
+    const body = document.body;
+    const prevHtmlOverflow = html.style.overflow;
+    const prevBodyOverflow = body.style.overflow;
+    html.style.overflow = 'hidden';
+    body.style.overflow = 'hidden';
+    body.classList.add('mindspark-bundle-open');
+    return () => {
+      html.style.overflow = prevHtmlOverflow;
+      body.style.overflow = prevBodyOverflow;
+      body.classList.remove('mindspark-bundle-open');
+    };
+  }, [showMindSparkBundle, showLogin]);
 
   // Handle register modal close
   const handleCloseRegister = () => {
@@ -547,8 +567,9 @@ function EventDetailsPage() {
       festName: pageEvent.title,
       subtitle: pageEvent.collegeName || pageEvent.subtitle,
       collegeName: pageEvent.collegeName || pageEvent.subtitle,
-      heroImage: pageEvent.heroImage || pageEvent.image,
-      coverImage: pageEvent.heroImage || pageEvent.image,
+      heroImage: festHeroUrl(pageEvent),
+      coverImage: pageEvent.coverImage || pageEvent.image,
+      coverImages: pageEvent.coverImages,
       venue: pageEvent.venue,
       dateTime: pageEvent.dateTime,
     });
@@ -565,9 +586,10 @@ function EventDetailsPage() {
   const canonicalPath = festPath({ id: pageEvent.id, _id: pageEvent.id, festName: pageEvent.title, title: pageEvent.title });
   const festDescription = `${pageEvent.title}${!isFestPlaceholderCopy(pageEvent.collegeName) ? ` by ${pageEvent.collegeName}` : ''}${pageEvent.description ? ` — ${pageEvent.description}` : ''}`;
   // Techfest: always use fest cover from admin/DB (logo); other fests allow gallery swap
+  const defaultHero = festHeroUrl(pageEvent);
   const heroImage = techfestPage
-    ? (pageEvent.heroImage || pageEvent.image || '')
-    : (currentHeroImage || pageEvent.heroImage || pageEvent.image);
+    ? defaultHero
+    : (currentHeroImage || defaultHero);
   const techfestHeroSrc = heroImage ? getImageUrl(heroImage, { preset: 'hero' }) : '';
   const mobileHeroImage = kshitijPage
     ? (pageEvent.coverImages?.portrait || heroImage)
@@ -590,7 +612,7 @@ function EventDetailsPage() {
         title={pageEvent.title}
         description={festDescription}
         canonical={canonicalPath}
-        image={pageEvent.heroImage || pageEvent.image}
+        image={festHeroUrl(pageEvent)}
         type="article"
         jsonLd={[
           breadcrumbSchema([
@@ -602,7 +624,7 @@ function EventDetailsPage() {
             name: pageEvent.title,
             description: pageEvent.description,
             url: canonicalPath,
-            image: pageEvent.heroImage || pageEvent.image,
+            image: festHeroUrl(pageEvent),
             location: venueLabel || undefined,
             price: pageEvent.ticketPrice,
             organizerName: collegeLabel || undefined,
@@ -874,11 +896,10 @@ function EventDetailsPage() {
                     <button
                       type="button"
                       onClick={handleOpenMindSparkBundle}
-                      className="group relative mb-4 w-full overflow-hidden rounded-2xl border border-[#0ECCEE]/35 bg-gradient-to-br from-[#0ECCEE]/20 via-[#12191c] to-emerald-400/10 p-4 text-left shadow-[0_10px_35px_rgba(14,204,238,.10)] transition hover:-translate-y-0.5 hover:border-[#0ECCEE]/70"
+                      className="mb-4 flex w-full items-center justify-between gap-3 rounded-xl border border-[#0ECCEE]/35 bg-[#0ECCEE]/10 px-4 py-3 text-left transition hover:border-[#0ECCEE]/70"
                     >
-                      <span className="absolute -right-5 -top-8 size-24 rounded-full bg-[#0ECCEE]/15 blur-2xl" />
-                      <span className="relative flex items-start justify-between gap-3"><span><span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[.16em] text-[#0ECCEE]"><Sparkles size={13} />MindSpark bundle</span><span className={`mt-1.5 block text-base font-black ${isDark ? 'text-white' : 'text-gray-900'}`}>Pick 3. Pay only 30%.</span><span className={`mt-0.5 block text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>1 Technical + 2 Non-Technical</span></span><span className="rounded-full bg-emerald-400 px-2.5 py-1 text-xs font-black text-[#071014]">70% OFF</span></span>
-                      <span className="relative mt-3 flex items-center justify-center rounded-xl bg-[#0ECCEE] py-2.5 text-sm font-bold text-[#071014] transition group-hover:bg-white">Register bundle →</span>
+                      <span className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>MindSpark Competition Bundle</span>
+                      <span className="shrink-0 text-xs font-bold text-[#0ECCEE]">70% OFF →</span>
                     </button>
                   ) : null}
 
@@ -1317,12 +1338,11 @@ function EventDetailsPage() {
             <button
               type="button"
               onClick={handleOpenMindSparkBundle}
-              className="group relative w-full overflow-hidden rounded-2xl border border-[#0ECCEE]/35 bg-gradient-to-r from-[#0ECCEE]/20 via-[#12191c] to-emerald-400/10 p-4 text-left shadow-[0_10px_35px_rgba(14,204,238,.10)] transition active:scale-[0.99]"
+              className="flex w-full items-center justify-between gap-3 rounded-xl border border-[#0ECCEE]/35 bg-[#0ECCEE]/10 px-4 py-3 text-left transition active:scale-[0.99]"
               aria-label="Open MindSpark Competition Bundle registration and get 70% off"
             >
-              <span className="absolute -right-6 -top-10 size-28 rounded-full bg-[#0ECCEE]/20 blur-2xl" />
-              <span className="relative flex items-start justify-between gap-3"><span className="min-w-0"><span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[.15em] text-[#0ECCEE]"><Sparkles size={13} />MindSpark competition bundle</span><span className="mt-1 block text-base font-black text-white">Pick 3. Pay only 30%.</span><span className="mt-0.5 block text-xs text-gray-400">1 Technical + 2 Non-Technical</span></span><span className="shrink-0 rounded-full bg-emerald-400 px-2.5 py-1 text-xs font-black text-[#071014]">70% OFF</span></span>
-              <span className="relative mt-3 flex items-center justify-center rounded-xl bg-[#0ECCEE] py-2.5 text-sm font-bold text-[#071014]">Register bundle →</span>
+              <span className="text-sm font-bold text-white">MindSpark Competition Bundle</span>
+              <span className="shrink-0 text-xs font-bold text-[#0ECCEE]">70% OFF →</span>
             </button>
           </div>
         ) : null}
@@ -1584,29 +1604,46 @@ function EventDetailsPage() {
         </div>
       )}
 
-      {showMindSparkBundle ? (
-        <div className="fixed inset-0 z-50 overflow-hidden bg-[#090b0d]" role="dialog" aria-modal="true" aria-label="MindSpark bundle registration">
-          <div className="relative h-dvh w-full overflow-y-auto overscroll-contain bg-[#090b0d]">
-            <Suspense fallback={<div className="p-12 text-center text-gray-400">Opening bundle registration…</div>}>
-              <MindSparkBundlePage embedded onClose={() => setShowMindSparkBundle(false)} />
-            </Suspense>
-          </div>
-        </div>
-      ) : null}
+      {showMindSparkBundle && typeof document !== 'undefined'
+        ? createPortal(
+          <div
+            className="mindspark-bundle-overlay"
+            role="dialog"
+            aria-modal="true"
+            aria-label="MindSpark bundle registration"
+          >
+            <div className="mindspark-bundle-overlay__scroll">
+              <Suspense
+                fallback={(
+                  <div className="mindspark-bundle-overlay__loader">
+                    Opening bundle registration…
+                  </div>
+                )}
+              >
+                <MindSparkBundlePage embedded onClose={() => setShowMindSparkBundle(false)} />
+              </Suspense>
+            </div>
+          </div>,
+          document.body,
+        )
+        : null}
 
       {/* Login Modal */}
-      {showLogin && (
-        <div className="fixed inset-0 z-50">
-          <Suspense fallback={null}>
-            <CrwdCtrlLogin
-              googleOnly
-              title="Sign in to register"
-              subtitle="One tap with Google — then finish registration"
-              onClose={handleCloseLogin}
-            />
-          </Suspense>
-        </div>
-      )}
+      {showLogin && typeof document !== 'undefined'
+        ? createPortal(
+          <div className="mindspark-bundle-overlay" role="dialog" aria-modal="true" aria-label="Sign in">
+            <Suspense fallback={<div className="mindspark-bundle-overlay__loader">Opening sign in…</div>}>
+              <CrwdCtrlLogin
+                googleOnly
+                title="Sign in to register"
+                subtitle="One tap with Google — then finish registration"
+                onClose={handleCloseLogin}
+              />
+            </Suspense>
+          </div>,
+          document.body,
+        )
+        : null}
 
       {/* Register Modal */}
       {showRegister && (

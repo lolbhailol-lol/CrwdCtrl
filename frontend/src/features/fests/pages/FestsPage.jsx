@@ -14,11 +14,11 @@ import { usePageSectionHandlers } from '../../../utils/pageSectionHandlers';
 import MobileStickyHeader from '../../../components/MobileStickyHeader';
 import CategorySearchRow from '../../../components/CategorySearchRow';
 import MobileHeroSearchField from '../../../components/MobileHeroSearchField';
-import HeroBanner from '../../../components/HeroBanner';
 import AppLogo from '../../../components/AppLogo';
 import { useInAppBack } from '../../../hooks/useInAppBack';
 import CardShareButton from '../../../components/CardShareButton';
 import { shareContent } from '../../../utils/externalLink';
+import { pickBestCardImage } from '../../../utils/coverImages';
 import { FestCardsRowSkeleton } from '../../../components/HomeEventCardSkeleton';
 import { buildSearchKeywordsFromCatalog } from '../../../utils/buildSearchKeywords';
 import { navigateToSearchResult } from '../../../utils/searchNavigation';
@@ -73,7 +73,7 @@ const SubcategoryTile = ({ cat, isDark, onClick }) => (
 
 // ── Fest Event Card ──────────────────────────────────────────────────────────
 const FestEventCard = ({ fest, isDark, isFavorite, onToggleFavorite, onViewDetails }) => {
-    const img = fest.coverImage || fest.galleryImages?.[0] || fest.festImages?.[0];
+    const img = pickBestCardImage(fest, 'wide') || fest.coverImage || fest.galleryImages?.[0] || fest.festImages?.[0];
 
     const handleShare = (e) => {
         e.stopPropagation();
@@ -243,7 +243,9 @@ export default function FestsPage() {
             title: fest.festName,
             subtitle: fest.collegeName,
             description: fest.description,
-            image: fest.coverImage || fest.galleryImages?.[0],
+            image: pickBestCardImage(fest, 'portrait') || fest.coverImage || fest.galleryImages?.[0],
+            coverImages: fest.coverImages,
+            coverImage: fest.coverImage,
             resultType: 'fest',
         })),
         [fests],
@@ -260,7 +262,7 @@ export default function FestsPage() {
     );
 
     return (
-        <div className="crwdctrl-page crwdctrl-page--hub fests-page min-h-screen">
+        <div className="crwdctrl-page fests-page min-h-screen">
             <Seo
                 title="College Fests"
                 description={FESTS_DESCRIPTION}
@@ -336,24 +338,6 @@ export default function FestsPage() {
 
             <main className="pb-8 lg:pb-12">
                 <h1 className="sr-only">College fests and competitions</h1>
-                <HeroBanner
-                    events={[...ongoingFests, ...upcomingFests]
-                        .filter(f => f.image || f.heroImage)
-                        .slice(0, 5)
-                        .map(f => ({
-                            id: f._id,
-                            image: f.heroImage || f.image,
-                            title: f.festName,
-                            dateTime: f.festDate,
-                            status: f.status || 'ongoing',
-                        }))}
-                    onEventClick={(id) => {
-                        const selected = [...ongoingFests, ...upcomingFests].find((f) => f._id === id || f.id === id);
-                        navigate(festPath(selected || { _id: id }));
-                    }}
-                    isDark={isDark}
-                />
-
                 <AnnouncementBanner announcement={publicConfig.announcement} />
 
                 <div className="crwdctrl-hub-body">

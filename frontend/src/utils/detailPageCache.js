@@ -1,7 +1,7 @@
 import { transformFestPublicData, festHasCompetitionGroups } from './festPublicTransform';
 import { toSlug } from './slugRoutes';
 
-const FEST_PREFIX = 'crwdctrl_detail_fest:';
+const FEST_PREFIX = 'crwdctrl_detail_fest_v2:';
 const COMP_PREFIX = 'crwdctrl_detail_comp:';
 const TTL_MS = 45 * 60 * 1000;
 

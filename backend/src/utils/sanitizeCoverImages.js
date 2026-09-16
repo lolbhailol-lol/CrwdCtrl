@@ -28,6 +28,31 @@ function primaryCoverUrl(coverImages = {}, fallback = '') {
     return normalizeUrl(fallback);
 }
 
+/**
+ * Layout-specific URL. Never prefer portrait for hero/wide when a matching crop exists.
+ * `fallback` is the legacy coverImage field (often the portrait crop).
+ */
+function layoutCoverUrl(coverImages = {}, layout = 'portrait', fallback = '') {
+    const covers = sanitizeCoverImages(coverImages);
+    const legacy = normalizeUrl(fallback);
+
+    if (layout === 'hero' || layout === 'wide') {
+        const order = layout === 'hero'
+            ? ['hero', 'wide', 'video', 'landscape', 'page']
+            : ['wide', 'video', 'landscape', 'hero', 'page'];
+        for (const key of order) {
+            if (covers[key]) return covers[key];
+        }
+        return legacy || covers.portrait || covers.square || '';
+    }
+
+    const portraitOrder = ['portrait', 'page', 'square'];
+    for (const key of portraitOrder) {
+        if (covers[key]) return covers[key];
+    }
+    return legacy || covers.wide || covers.hero || covers.landscape || covers.video || '';
+}
+
 function collectCoverUrls(coverImages = {}, legacyCover = '') {
     const covers = sanitizeCoverImages(coverImages);
     const urls = new Set();
@@ -49,6 +74,7 @@ module.exports = {
     COVER_KEYS,
     sanitizeCoverImages,
     primaryCoverUrl,
+    layoutCoverUrl,
     normalizeUrl,
     collectCoverUrls,
     excludeCoverUrlsFromGallery,

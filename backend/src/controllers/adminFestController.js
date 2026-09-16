@@ -11,6 +11,7 @@ const {
   buildCompetitionFromImportRow,
 } = require('../services/rulebookImportService');
 const { normalizeRelatedFestIds } = require('../utils/relatedFests');
+const { sanitizeCoverImages, primaryCoverUrl } = require('../utils/sanitizeCoverImages');
 
 // ✅ In-memory cache for fests (same as in festOrganizerController)
 const festsCache = {
@@ -112,6 +113,9 @@ exports.createFest = async (req, res) => {
       finalCoverImage = galleryImages[0];
     }
 
+    const covers = sanitizeCoverImages(req.body.coverImages);
+    const finalCover = primaryCoverUrl(covers, finalCoverImage);
+
     const normalizedRelated = normalizeRelatedFestIds(relatedFestIds);
 
     // 3. Initialize Model
@@ -127,7 +131,8 @@ exports.createFest = async (req, res) => {
       feeAmount: Number(feeAmount) || 0,
       platformFeePercent: platformFeePercent ?? 3,
       description,
-      coverImage: finalCoverImage,
+      coverImage: finalCover,
+      coverImages: covers,
       galleryImages,
       registrationLink,
       status: status || 'upcoming',
@@ -273,6 +278,14 @@ exports.updateFest = async (req, res) => {
       && galleryImages.length > 0
     ) {
       updateData.coverImage = galleryImages[0];
+    }
+
+    if (Object.prototype.hasOwnProperty.call(req.body, 'coverImages')) {
+      updateData.coverImages = sanitizeCoverImages(req.body.coverImages);
+      updateData.coverImage = primaryCoverUrl(
+        updateData.coverImages,
+        coverInBody ? (coverImage || '') : (updateData.coverImage || existingFest.coverImage),
+      );
     }
 
     // 4. Update the database
