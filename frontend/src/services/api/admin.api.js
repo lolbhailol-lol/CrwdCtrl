@@ -111,14 +111,15 @@ export async function getAdminToken({ redirectOnFail = true } = {}) {
 }
 
 export async function adminFetch(path, options = {}) {
-  const token = await getAdminToken();
+  const { redirectOnFail = true, ...fetchOptions } = options;
+  const token = await getAdminToken({ redirectOnFail });
   if (!token) throw new Error('Admin session expired');
 
   const buildOptions = (accessToken) => ({
-    ...options,
+    ...fetchOptions,
     headers: {
-      ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
-      ...(options.headers || {}),
+      ...(fetchOptions.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+      ...(fetchOptions.headers || {}),
       Authorization: `Bearer ${accessToken}`,
     },
   });
@@ -130,11 +131,11 @@ export async function adminFetch(path, options = {}) {
       const freshToken = await refreshAdminToken();
       response = await fetchAcrossBases(path, () => buildOptions(freshToken));
     } catch {
-      redirectToAdminLogin();
+      if (redirectOnFail) redirectToAdminLogin();
       throw new Error('Admin session expired');
     }
     if (response.status === 401 || response.status === 403) {
-      redirectToAdminLogin();
+      if (redirectOnFail) redirectToAdminLogin();
       throw new Error('Admin session expired');
     }
   }

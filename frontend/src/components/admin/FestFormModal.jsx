@@ -766,7 +766,8 @@ export default function FestFormModal({ fest, onClose, onSaved, api, allFests = 
     setFormInitialized(false);
   }, [fest?._id]); // Reset when fest ID changes
 
-  // Prefer parent-provided fest list; otherwise load a slim public list for the picker
+  // Prefer parent-provided fest list; otherwise load a slim public list for the picker.
+  // Never call admin APIs when `api` is set (fest organizer portal) — that redirects to /admin/login.
   useEffect(() => {
     if (Array.isArray(allFests) && allFests.length > 0) {
       setRelatedFestOptions(allFests);
@@ -774,14 +775,16 @@ export default function FestFormModal({ fest, onClose, onSaved, api, allFests = 
     }
     let cancelled = false;
     (async () => {
-      try {
-        const data = await adminFetchJSON('/admin/fests?limit=500').catch(() => null);
-        const list = Array.isArray(data?.fests) ? data.fests : Array.isArray(data) ? data : [];
-        if (!cancelled && list.length > 0) {
-          setRelatedFestOptions(list);
-          return;
-        }
-      } catch (_) { /* fall through */ }
+      if (!api) {
+        try {
+          const data = await adminFetchJSON('/admin/fests?limit=500').catch(() => null);
+          const list = Array.isArray(data?.fests) ? data.fests : Array.isArray(data) ? data : [];
+          if (!cancelled && list.length > 0) {
+            setRelatedFestOptions(list);
+            return;
+          }
+        } catch (_) { /* fall through to public list */ }
+      }
       try {
         const data = await publicFetchJSON('/fests/all?limit=200');
         const list = Array.isArray(data?.fests) ? data.fests : [];
@@ -791,7 +794,7 @@ export default function FestFormModal({ fest, onClose, onSaved, api, allFests = 
       }
     })();
     return () => { cancelled = true; };
-  }, [allFests]);
+  }, [allFests, api]);
 
   const applyDefaultRegistrationFields = () => {
     const mk = (id, type, label, fieldName, opts = {}) => ({
@@ -2315,6 +2318,10 @@ export default function FestFormModal({ fest, onClose, onSaved, api, allFests = 
                           
                           setUploadingImage(true);
                           try {
+                            if (api) {
+                              setError('Sheet connection test is only available in main admin. Save the URL here and ask CrwdCtrl admin to verify if needed.');
+                              return;
+                            }
                             const result = await adminFetchJSON('/registrations/admin/test-google-sheets', {
                               method: 'POST',
                               body: JSON.stringify({ googleSheetsUrl: form.googleSheetsUrl }),
