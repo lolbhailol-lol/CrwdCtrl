@@ -887,7 +887,20 @@ function EventDetailsPage() {
                         ) : null}
                       </h1>
                     ) : (
-                      <h1 className={`text-lg sm:text-2xl font-bold min-w-0 ${isDark ? 'text-white' : 'text-gray-900'}`}>{pageEvent.title}{collegeLabel ? <><br />{collegeLabel}</> : null}</h1>
+                      <h1
+                        className={`text-lg sm:text-2xl font-bold min-w-0 ${isDark ? 'text-white' : 'text-gray-900'}`}
+                        aria-label={collegeLabel ? `${pageEvent.title} — ${collegeLabel}` : pageEvent.title}
+                      >
+                        {pageEvent.title}
+                        {collegeLabel ? (
+                          <>
+                            <br />
+                            <span className={`text-sm sm:text-base font-semibold ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                              {collegeLabel}
+                            </span>
+                          </>
+                        ) : null}
+                      </h1>
                     )}
                     {LiveBadge ? <LiveBadge /> : null}
                   </div>
