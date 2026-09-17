@@ -143,6 +143,7 @@ export default function FestOrganizerCompetitionsPage() {
     const plugin = getFestPlugin(festId, fest);
     const noReview = plugin.skipRegistrationReview;
     const simplePortal = plugin.simpleOrganizerPortal;
+    const hideProbables = Boolean(plugin.hideCompetitionProbables);
 
     const categories = useMemo(() => {
         const set = new Set();
@@ -281,7 +282,7 @@ export default function FestOrganizerCompetitionsPage() {
 
             {error ? <p className="text-sm text-red-400">{error}</p> : null}
 
-            {!simplePortal ? <button
+            {!simplePortal && !hideProbables ? <button
                 type="button"
                 onClick={() => navigate(`/fest-organizer/fests/${festId}/competitions/probables`)}
                 className="w-full rounded-2xl border border-amber-400/30 bg-linear-to-r from-amber-500/15 to-[#161718] p-4 text-left hover:border-amber-400/50 transition flex items-center gap-3"
@@ -384,8 +385,8 @@ export default function FestOrganizerCompetitionsPage() {
                                     </div>
                                 </div>
 
-                                <div className={`grid ${simplePortal ? 'grid-cols-1' : noReview ? 'grid-cols-5' : 'grid-cols-4'} gap-1.5 mt-3`}>
-                                    <MiniBox label="Entries" value={total} tone="accent" />
+                                <div className={`grid ${simplePortal ? 'grid-cols-1' : noReview ? 'grid-cols-3' : 'grid-cols-4'} gap-1.5 mt-3`}>
+                                    <MiniBox label="Entries" value={noReview ? (Number(c.approved) || total) : total} tone="accent" />
                                     {!simplePortal && noReview ? (
                                         <MiniBox
                                             label="People"
@@ -402,8 +403,8 @@ export default function FestOrganizerCompetitionsPage() {
                                     ) : !simplePortal ? (
                                         <MiniBox label="Review" value={pending} tone={pending > 0 ? 'warn' : 'default'} />
                                     ) : null}
-                                    {!simplePortal ? <MiniBox label="Check-in" value={checkedIn} tone="ok" /> : null}
-                                    {!simplePortal ? <MiniBox
+                                    {!simplePortal && !noReview ? <MiniBox label="Check-in" value={checkedIn} tone="ok" /> : null}
+                                    {!simplePortal && !noReview ? <MiniBox
                                         label="Remain"
                                         value={slotsLabel}
                                         tone={slotsAllotted > 0 && slotsLeft === 0 ? 'warn' : 'default'}
@@ -446,60 +447,60 @@ export default function FestOrganizerCompetitionsPage() {
                                     </button>
                                 </div> : null}
                                 {noReview ? (
-                                    <>
-                                        <button
-                                            type="button"
-                                            onClick={() => navigate(`/fest-organizer/fests/${festId}/competitions/${id}?focus=wa`)}
-                                            className="w-full flex items-center justify-between gap-3 rounded-xl border border-emerald-400/20 bg-emerald-500/8 px-3 py-2.5 text-left hover:border-emerald-400/40 transition"
-                                        >
-                                            <div className="min-w-0 flex items-center gap-2">
-                                                <MessageCircle size={14} className="text-emerald-300 shrink-0" />
-                                                <div className="min-w-0">
-                                                    <p className="text-xs font-medium text-white">WA group</p>
-                                                    <p className="text-[10px] text-gray-500 mt-0.5 truncate">
-                                                        {Number(c.waNotJoined) > 0
-                                                            ? `${c.waNotJoined} not in · Invite →`
-                                                            : (c.whatsappGroupLink
-                                                                ? `${c.waJoined || 0} in group`
-                                                                : 'Add invite link on desk')}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            <ChevronRight size={14} className="text-emerald-300/80 shrink-0" />
-                                        </button>
-                                        <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#121314] px-3 py-2.5">
+                                    <button
+                                        type="button"
+                                        onClick={() => navigate(`/fest-organizer/fests/${festId}/competitions/${id}?focus=wa`)}
+                                        className="w-full flex items-center justify-between gap-3 rounded-xl border border-emerald-400/20 bg-emerald-500/8 px-3 py-2.5 text-left hover:border-emerald-400/40 transition"
+                                    >
+                                        <div className="min-w-0 flex items-center gap-2">
+                                            <MessageCircle size={14} className="text-emerald-300 shrink-0" />
                                             <div className="min-w-0">
-                                                <p className="text-xs font-medium text-white">Show slots on public page</p>
+                                                <p className="text-xs font-medium text-white">WA group</p>
                                                 <p className="text-[10px] text-gray-500 mt-0.5 truncate">
-                                                    {showSlotsPublic
-                                                        ? 'Students see remaining slots'
-                                                        : 'Slots hidden on public page'}
+                                                    {Number(c.waNotJoined) > 0
+                                                        ? `${c.waNotJoined} not in · Invite →`
+                                                        : (c.whatsappGroupLink
+                                                            ? `${c.waJoined || 0} in group`
+                                                            : 'Add invite link on desk')}
                                                 </p>
                                             </div>
-                                            <button
-                                                type="button"
-                                                role="switch"
-                                                aria-checked={showSlotsPublic}
-                                                disabled={slotsBusyId === id}
-                                                onClick={() => toggleShowSlotsPublic(c, !showSlotsPublic)}
-                                                className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border transition disabled:opacity-50 ${
-                                                    showSlotsPublic
-                                                        ? 'bg-emerald-500 border-emerald-400/50'
-                                                        : 'bg-white/10 border-white/15'
-                                                }`}
-                                            >
-                                                {slotsBusyId === id ? (
-                                                    <Loader className="absolute inset-0 m-auto animate-spin text-white" size={12} />
-                                                ) : (
-                                                    <span
-                                                        className={`absolute top-0.5 size-5 rounded-full bg-white transition ${
-                                                            showSlotsPublic ? 'left-5' : 'left-0.5'
-                                                        }`}
-                                                    />
-                                                )}
-                                            </button>
                                         </div>
-                                    </>
+                                        <ChevronRight size={14} className="text-emerald-300/80 shrink-0" />
+                                    </button>
+                                ) : null}
+                                {!noReview ? (
+                                    <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#121314] px-3 py-2.5">
+                                        <div className="min-w-0">
+                                            <p className="text-xs font-medium text-white">Show slots on public page</p>
+                                            <p className="text-[10px] text-gray-500 mt-0.5 truncate">
+                                                {showSlotsPublic
+                                                    ? 'Students see remaining slots'
+                                                    : 'Slots hidden on public page'}
+                                            </p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            role="switch"
+                                            aria-checked={showSlotsPublic}
+                                            disabled={slotsBusyId === id}
+                                            onClick={() => toggleShowSlotsPublic(c, !showSlotsPublic)}
+                                            className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border transition disabled:opacity-50 ${
+                                                showSlotsPublic
+                                                    ? 'bg-emerald-500 border-emerald-400/50'
+                                                    : 'bg-white/10 border-white/15'
+                                            }`}
+                                        >
+                                            {slotsBusyId === id ? (
+                                                <Loader className="absolute inset-0 m-auto animate-spin text-white" size={12} />
+                                            ) : (
+                                                <span
+                                                    className={`absolute top-0.5 size-5 rounded-full bg-white transition ${
+                                                        showSlotsPublic ? 'left-5' : 'left-0.5'
+                                                    }`}
+                                                />
+                                            )}
+                                        </button>
+                                    </div>
                                 ) : null}
                                 <div className={`grid ${simplePortal ? 'grid-cols-1' : 'grid-cols-3'} gap-2`}>
                                     {!simplePortal ? <button

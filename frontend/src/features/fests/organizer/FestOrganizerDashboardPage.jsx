@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
     Users, UserCheck, Clock, IndianRupee, Bell, QrCode, ExternalLink, RefreshCw,
     Trophy, Calendar, MapPin, Building2, ArrowRight, AlertCircle, CheckCircle2, Mic2, Radio,
-    Pencil, Download,
+    Pencil, Download, ScanLine,
 } from 'lucide-react';
 import { fetchFestOrganizerDashboard } from '../../../services/api/festOrganizer.api';
 import { getImageUrl } from '../../../utils/imageImports';
@@ -171,18 +171,21 @@ export default function FestOrganizerDashboardPage() {
     const pendingCheckIn = Number(stats.pendingCheckIn) || 0;
     const checkInRate = Number(stats.checkInRate) || 0;
 
-    const quickOps = [
-        { label: 'Live feed', desc: 'Fest day updates', to: 'live', icon: Radio, glow: 'from-red-500/15' },
-        { label: 'Competitions', desc: `${stats.competitionCount || comps.length} ops desks`, to: 'competitions', icon: Trophy, glow: 'from-[#0ECCEE]/15' },
-        ...(!hideProShow
-            ? [{ label: 'Pro Show', desc: 'Sold · passes · gate', to: 'pro-show', icon: Mic2, glow: 'from-fuchsia-500/10' }]
-            : []),
-        { label: 'Scan', desc: 'Gate check-in', to: 'scan', icon: QrCode, glow: 'from-emerald-500/15' },
-        { label: 'Connect', desc: 'WA · call · push', to: 'notifications', icon: Bell, glow: 'from-amber-500/10' },
-        ...(!hideProShow
-            ? [{ label: 'Edit listing', desc: 'Fest & comps', to: 'edit-listing', icon: Pencil, glow: 'from-[#0ECCEE]/12' }]
-            : []),
-    ];
+    const quickOps = hideProShow
+        ? [
+            { label: 'Competitions', desc: `${stats.competitionCount || comps.length} desks`, to: 'competitions', icon: Trophy, glow: 'from-[#0ECCEE]/15' },
+            { label: 'Fest Day Desk', desc: 'Pay · issue · assist', to: 'fest-day-desk', icon: ScanLine, glow: 'from-sky-500/10' },
+            { label: 'Scan', desc: 'Gate check-in', to: 'scan', icon: QrCode, glow: 'from-emerald-500/15' },
+            { label: 'Connect', desc: 'WA · call · push', to: 'notifications', icon: Bell, glow: 'from-amber-500/10' },
+        ]
+        : [
+            { label: 'Live feed', desc: 'Fest day updates', to: 'live', icon: Radio, glow: 'from-red-500/15' },
+            { label: 'Competitions', desc: `${stats.competitionCount || comps.length} ops desks`, to: 'competitions', icon: Trophy, glow: 'from-[#0ECCEE]/15' },
+            { label: 'Pro Show', desc: 'Sold · passes · gate', to: 'pro-show', icon: Mic2, glow: 'from-fuchsia-500/10' },
+            { label: 'Scan', desc: 'Gate check-in', to: 'scan', icon: QrCode, glow: 'from-emerald-500/15' },
+            { label: 'Connect', desc: 'WA · call · push', to: 'notifications', icon: Bell, glow: 'from-amber-500/10' },
+            { label: 'Edit listing', desc: 'Fest & comps', to: 'edit-listing', icon: Pencil, glow: 'from-[#0ECCEE]/12' },
+        ];
 
     const qrComps = comps.filter((c) => c.id);
 
@@ -368,7 +371,7 @@ export default function FestOrganizerDashboardPage() {
                 </button>
             </div>
 
-            {/* Quick ops + small edit shortcut */}
+            {/* Quick ops */}
             <div className={`grid grid-cols-2 ${hideProShow ? 'sm:grid-cols-4' : 'sm:grid-cols-5'} gap-2`}>
                 {quickOps.map((item) => (
                     <button
@@ -384,7 +387,79 @@ export default function FestOrganizerDashboardPage() {
                 ))}
             </div>
 
-            {qrComps.length ? (
+            {hideProShow ? (
+                <section className="space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                        <div>
+                            <h2 className="text-sm font-semibold text-white">Competitions</h2>
+                            <p className="text-[11px] text-gray-500 mt-0.5">
+                                Entries · people · outside gate
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => navigate(`/fest-organizer/fests/${festId}/competitions`)}
+                            className="text-xs text-[#0ECCEE] inline-flex items-center gap-1"
+                        >
+                            View all <ArrowRight size={12} />
+                        </button>
+                    </div>
+                    <div className="space-y-2">
+                        {[...comps]
+                            .sort((a, b) => (Number(b.participants) || Number(b.approved) || 0) - (Number(a.participants) || Number(a.approved) || 0))
+                            .slice(0, 12)
+                            .map((c) => {
+                                const approved = Number(c.approved) || 0;
+                                const people = Number(c.participants) || approved;
+                                const outside = Math.max(0, approved - (Number(c.checkedIn) || 0));
+                                return (
+                                    <button
+                                        key={String(c.id)}
+                                        type="button"
+                                        onClick={() => navigate(`/fest-organizer/fests/${festId}/competitions/${c.id}`)}
+                                        className="w-full rounded-2xl border border-white/10 bg-[#161718] p-3 text-left hover:border-[#0ECCEE]/40 transition"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0 bg-[#1a1b1d] ring-1 ring-white/10">
+                                                <img
+                                                    src={getImageUrl(c.coverImage, { preset: 'cardSm' })}
+                                                    alt=""
+                                                    className="absolute inset-0 w-full h-full object-cover"
+                                                    onError={(e) => handleImageErrorWithFallback(e, 48, 48, '#0ea5e9', c.name || 'C')}
+                                                />
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <p className="text-sm font-semibold text-white truncate">{c.name}</p>
+                                                <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+                                                    <div className="rounded-lg bg-white/4 border border-white/8 px-2 py-1.5 text-center">
+                                                        <p className="text-sm font-bold tabular-nums text-white">{approved}</p>
+                                                        <p className="text-[9px] uppercase tracking-wide text-gray-500">Entries</p>
+                                                    </div>
+                                                    <div className="rounded-lg bg-[#0ECCEE]/8 border border-[#0ECCEE]/20 px-2 py-1.5 text-center">
+                                                        <p className="text-sm font-bold tabular-nums text-[#0ECCEE]">{people}</p>
+                                                        <p className="text-[9px] uppercase tracking-wide text-gray-500">People</p>
+                                                    </div>
+                                                    <div className={`rounded-lg border px-2 py-1.5 text-center ${
+                                                        outside > 0
+                                                            ? 'bg-amber-500/10 border-amber-400/25'
+                                                            : 'bg-white/4 border-white/8'
+                                                    }`}>
+                                                        <p className={`text-sm font-bold tabular-nums ${outside > 0 ? 'text-amber-200' : 'text-white'}`}>{outside}</p>
+                                                        <p className="text-[9px] uppercase tracking-wide text-gray-500">Outside</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <ArrowRight size={14} className="text-gray-600 shrink-0" />
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        {!comps.length ? (
+                            <p className="text-sm text-gray-500 py-8 text-center">No competitions yet</p>
+                        ) : null}
+                    </div>
+                </section>
+            ) : qrComps.length ? (
                 <button
                     type="button"
                     onClick={() => setQrOpen(true)}

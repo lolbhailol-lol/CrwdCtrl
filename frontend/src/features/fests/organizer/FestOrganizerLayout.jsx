@@ -7,10 +7,18 @@ import {
 import { clearFestOrganizerSession, getFestOrganizerSession } from '../../../utils/festOrganizerSession';
 import { getFestPlugin } from '../plugins/registry';
 
-const navForFest = (festId, { hideStallLeads = false, hideProShow = false, showFestDayDesk = false } = {}) => [
+const navForFest = (festId, {
+    hideStallLeads = false,
+    hideProShow = false,
+    showFestDayDesk = false,
+    hideLiveNav = false,
+    hideFestInfoNav = false,
+} = {}) => [
     { label: 'Overview', path: `/fest-organizer/fests/${festId}`, icon: LayoutDashboard, end: true, short: 'Home', group: 'ops' },
     { label: 'Edit fest & comps', path: `/fest-organizer/fests/${festId}/edit-listing`, icon: Pencil, short: 'Edit', group: 'edit' },
-    { label: 'Live', path: `/fest-organizer/fests/${festId}/live`, icon: Radio, short: 'Live', group: 'ops' },
+    ...(!hideLiveNav
+        ? [{ label: 'Live', path: `/fest-organizer/fests/${festId}/live`, icon: Radio, short: 'Live', group: 'ops' }]
+        : []),
     ...(showFestDayDesk
         ? [{ label: 'Fest Day Desk', path: `/fest-organizer/fests/${festId}/fest-day-desk`, icon: ScanLine, short: 'Desk', group: 'ops' }]
         : []),
@@ -28,7 +36,9 @@ const navForFest = (festId, { hideStallLeads = false, hideProShow = false, showF
         : []),
     { label: 'Revenue', path: `/fest-organizer/fests/${festId}/revenue`, icon: IndianRupee, short: '₹', group: 'ops' },
     { label: 'Connect', path: `/fest-organizer/fests/${festId}/notifications`, icon: Bell, short: 'Msg', group: 'ops' },
-    { label: 'Fest info', path: `/fest-organizer/fests/${festId}/info`, icon: Info, short: 'Info', group: 'ops' },
+    ...(!hideFestInfoNav
+        ? [{ label: 'Fest info', path: `/fest-organizer/fests/${festId}/info`, icon: Info, short: 'Info', group: 'ops' }]
+        : []),
 ];
 
 function pathIsActive(pathname, to, end = false) {
@@ -103,7 +113,13 @@ export default function FestOrganizerLayout() {
     const hideProShow = Boolean(festId && plugin.hideProShow);
     const showFestDayDesk = plugin.id === 'mindspark';
     const fullNav = festId
-        ? navForFest(festId, { hideStallLeads, hideProShow, showFestDayDesk }).filter((item) => (
+        ? navForFest(festId, {
+            hideStallLeads,
+            hideProShow,
+            showFestDayDesk,
+            hideLiveNav: Boolean(plugin.hideLiveNav),
+            hideFestInfoNav: Boolean(plugin.hideFestInfoNav),
+        }).filter((item) => (
             !simplePortal || ['Overview', 'Competitions', 'Participants'].includes(item.label)
         ))
         : [];
@@ -156,6 +172,20 @@ export default function FestOrganizerLayout() {
             navigate(`/fest-organizer/fests/${festId}`, { replace: true });
         }
     }, [hideProShow, festId, location.pathname, navigate]);
+
+    useEffect(() => {
+        if (!plugin.hideLiveNav || !festId) return;
+        if (location.pathname.includes(`/fests/${festId}/live`)) {
+            navigate(`/fest-organizer/fests/${festId}`, { replace: true });
+        }
+    }, [plugin.hideLiveNav, festId, location.pathname, navigate]);
+
+    useEffect(() => {
+        if (!plugin.hideFestInfoNav || !festId) return;
+        if (location.pathname.includes(`/fests/${festId}/info`)) {
+            navigate(`/fest-organizer/fests/${festId}/edit-listing`, { replace: true });
+        }
+    }, [plugin.hideFestInfoNav, festId, location.pathname, navigate]);
 
     useEffect(() => {
         if (!isDeskOnly || !festId || !showFestDayDesk) return;
