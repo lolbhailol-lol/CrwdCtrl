@@ -133,7 +133,7 @@ const FIXES = {
     teamSizeMax: 8,
     teamSizeLabel: 'Team of 8',
     feeAmount: 1000,
-    registrationStatus: 'internal_form',
+    registrationStatus: 'not_started',
   },
   'Box Cricket': {
     competitionType: 'sports',
@@ -143,7 +143,7 @@ const FIXES = {
     teamSizeMax: 7,
     teamSizeLabel: 'Team of 7',
     feeAmount: 1000,
-    registrationStatus: 'internal_form',
+    registrationStatus: 'not_started',
   },
   BGMI: {
     competitionType: 'esports',
@@ -153,7 +153,7 @@ const FIXES = {
     teamSizeMax: 4,
     teamSizeLabel: 'Squad of 4',
     feeAmount: null,
-    registrationStatus: 'internal_form',
+    registrationStatus: 'not_started',
   },
   'REAL CRICKET 24': {
     competitionType: 'esports',
@@ -163,7 +163,7 @@ const FIXES = {
     teamSizeMax: 1,
     teamSizeLabel: 'Solo',
     feeAmount: null,
-    registrationStatus: 'internal_form',
+    registrationStatus: 'not_started',
   },
   VALORANT: {
     competitionType: 'esports',
@@ -173,7 +173,7 @@ const FIXES = {
     teamSizeMax: 5,
     teamSizeLabel: 'Team of 5',
     feeAmount: 999,
-    registrationStatus: 'internal_form',
+    registrationStatus: 'not_started',
   },
   FIFA: {
     competitionType: 'esports',
@@ -183,7 +183,7 @@ const FIXES = {
     teamSizeMax: 1,
     teamSizeLabel: 'Solo',
     feeAmount: null,
-    registrationStatus: 'internal_form',
+    registrationStatus: 'not_started',
   },
   'Solo Smash': {
     competitionType: 'sports',
@@ -193,7 +193,7 @@ const FIXES = {
     teamSizeMax: 1,
     teamSizeLabel: 'Solo',
     feeAmount: 300,
-    registrationStatus: 'internal_form',
+    registrationStatus: 'not_started',
   },
   'Shuttle Synergy': {
     competitionType: 'sports',
@@ -203,7 +203,7 @@ const FIXES = {
     teamSizeMax: 2,
     teamSizeLabel: 'Duo',
     feeAmount: 500,
-    registrationStatus: 'internal_form',
+    registrationStatus: 'not_started',
   },
   'Velocity Table': {
     competitionType: 'sports',
@@ -213,7 +213,7 @@ const FIXES = {
     teamSizeMax: 1,
     teamSizeLabel: 'Solo',
     feeAmount: 250,
-    registrationStatus: 'internal_form',
+    registrationStatus: 'not_started',
   },
   Euphony: {
     competitionType: 'music',
@@ -306,8 +306,13 @@ async function main() {
 
     set.registrationType = 'custom';
     set['registration.mode'] = 'internal_form';
-    set['registration.status'] = 'internal_form';
+    set['registration.status'] = fix.registrationStatus || 'internal_form';
     set['registration.formType'] = c.registration?.formType || 'SINGLE_STEP';
+    if (fix.registrationStatus === 'not_started') {
+      set.registrationsOpen = false;
+    } else if (fix.registrationStatus === 'internal_form') {
+      set.registrationsOpen = true;
+    }
     set['registration.formSchema'] = schema.map((f) => {
       let next = { ...f };
       if (/instagram/i.test(String(f.label || ''))) {
