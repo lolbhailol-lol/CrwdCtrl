@@ -36,7 +36,28 @@ export const IMAGE_PRESETS = {
     /** Community detail header */
     communityBanner: { width: 786, height: 792, crop: 'fill', quality: 'good' },
     /** Event/community detail top — full poster fit, no crop */
-    eventHeroFit: { width: 960, height: 960, crop: 'fit', quality: 'good' },
+    eventHeroFit: { width: 960, height: 1280, crop: 'fit', quality: 'good' },
+    /**
+     * Event hero — full vertical poster + side pads in predominant colours.
+     * 3:4 matches the vertical hero frame.
+     */
+    eventHeroPad: {
+        width: 720,
+        height: 960,
+        crop: 'pad',
+        quality: 'good',
+        background: 'auto:predominant',
+    },
+    /** Portrait cards that must show full artwork (posters) — no crop */
+    cardPortraitFit: { width: 360, height: 468, crop: 'fit', quality: 'eco' },
+    /** Portrait cards — full poster + colour-matched side pads (10:13) */
+    cardPortraitPad: {
+        width: 360,
+        height: 468,
+        crop: 'pad',
+        quality: 'eco',
+        background: 'auto:predominant',
+    },
     detail: { width: 1200, height: 675, crop: 'limit', quality: 'good' },
 };
 
@@ -57,6 +78,9 @@ export const IMAGE_PRESET_SIZES = {
     eventPage: '(min-width: 768px) 672px, 100vw',
     communityBanner: '100vw',
     eventHeroFit: '(min-width: 768px) 672px, 100vw',
+    eventHeroPad: '(min-width: 768px) 672px, 100vw',
+    cardPortraitFit: '(min-width: 1024px) 160px, 42vw',
+    cardPortraitPad: '(min-width: 1024px) 160px, 42vw',
     detail: '(min-width: 1024px) 1200px, 100vw',
 };
 
@@ -68,12 +92,17 @@ export function isCloudinaryUrl(url) {
 
 // g_auto is only valid with cropping modes; it errors with limit/fit/scale/pad
 const GRAVITY_SAFE_CROPS = ['fill', 'lfill', 'fill_pad', 'crop', 'thumb', 'auto'];
+const PAD_CROPS = ['pad', 'lpad', 'mpad'];
 
-function buildTransform({ width, height, crop, quality = 'eco', dpr = '2.0', gravity }) {
+function buildTransform({ width, height, crop, quality = 'eco', dpr = '2.0', gravity, background }) {
     const parts = [`c_${crop}`, `w_${width}`];
     if (height) parts.push(`h_${height}`);
     // Center crop is default — g_auto is better for wordmarks/photos in portrait cards
     if (GRAVITY_SAFE_CROPS.includes(crop)) parts.push(`g_${gravity || 'center'}`);
+    // Colour-matched / AI pads for letterboxing (e.g. b_auto:predominant, b_gen_fill)
+    if (background && PAD_CROPS.includes(crop)) {
+        parts.push(`b_${background}`);
+    }
     // eco for cards (faster), good for heroes; cap DPR so 3× phones don't download 3× pixels
     parts.push(`q_auto:${quality}`, 'f_auto');
     if (dpr) parts.push(`dpr_${dpr}`);

@@ -1,6 +1,7 @@
 import ContentImage from './ContentImage';
 import CardFavoriteButton from './CardFavoriteButton';
 import CardShareButton from './CardShareButton';
+import PosterFitImage from './PosterFitImage';
 import { handleImageErrorWithFallback } from '../utils/fallbackImageGenerator';
 import { toCardText } from '../utils/cardText';
 import { shareContent } from '../utils/externalLink';
@@ -29,6 +30,11 @@ function CardCoverImage({
             onError={onError}
         />
     );
+}
+
+function isEventShowEntity(event) {
+    const t = String(event?._type || event?.type || event?.entityType || '').toLowerCase();
+    return t === 'events' || t === 'event' || t === 'event_show' || t === 'show';
 }
 
 export default function HomeEventCard({
@@ -136,6 +142,8 @@ export default function HomeEventCard({
                     ? 'cardTrending'
                     : 'cardWide';
 
+    const usePosterFit = portraitCard && isEventShowEntity(event) && Boolean(event.image);
+
     return (
         <div
             className={`card-surface cursor-pointer overflow-hidden min-w-0 ${cardRadius}
@@ -160,21 +168,34 @@ export default function HomeEventCard({
                         }`
                 }`}
             >
-                <CardCoverImage
-                    src={event.image}
-                    alt={event.title}
-                    preset={imagePreset}
-                    loading={loading}
-                    fetchPriority={fetchPriority}
-                    className="absolute inset-0 h-full w-full object-cover object-center"
-                    onError={(e) => handleImageErrorWithFallback(
-                        e,
-                        portraitCard ? 160 : prominentImage ? (heroCard ? 400 : 300) : 300,
-                        portraitCard ? 200 : prominentImage ? (heroCard ? 200 : (tallImage ? 273 : 200)) : 225,
-                        FALLBACK_BG,
-                        event.title || 'Event',
-                    )}
-                />
+                {usePosterFit ? (
+                    <PosterFitImage
+                        src={event.image}
+                        alt={event.title}
+                        preset="cardPortraitPad"
+                        loading={loading}
+                        fetchPriority={fetchPriority}
+                        fallbackW={160}
+                        fallbackH={208}
+                        fallbackBg={FALLBACK_BG}
+                    />
+                ) : (
+                    <CardCoverImage
+                        src={event.image}
+                        alt={event.title}
+                        preset={imagePreset}
+                        loading={loading}
+                        fetchPriority={fetchPriority}
+                        className="absolute inset-0 h-full w-full object-cover object-center"
+                        onError={(e) => handleImageErrorWithFallback(
+                            e,
+                            portraitCard ? 160 : prominentImage ? (heroCard ? 400 : 300) : 300,
+                            portraitCard ? 200 : prominentImage ? (heroCard ? 200 : (tallImage ? 273 : 200)) : 225,
+                            FALLBACK_BG,
+                            event.title || 'Event',
+                        )}
+                    />
+                )}
                 {onToggleFavorite && (
                     <CardFavoriteButton isFavorite={isFavorite} onClick={handleFav} />
                 )}

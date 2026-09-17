@@ -316,7 +316,7 @@ export default function EventRegistrationPage() {
         ? 0
         : selectedAddOns.reduce((sum, addOn) => sum + addOn.fee, 0);
     const ticketPrice = packagePrice + addOnTotal;
-    const platformFeePercent = isOrganizerQr ? 0 : resolveTrekPlatformFeePercent(event?.platformFeePercent, 2.5);
+    const platformFeePercent = isOrganizerQr ? 0 : resolveTrekPlatformFeePercent(event?.platformFeePercent, 2);
     const breakdown = useMemo(
         () => buildEventPriceBreakdown(ticketPrice, platformFeePercent),
         [ticketPrice, platformFeePercent],
@@ -405,8 +405,18 @@ export default function EventRegistrationPage() {
             });
         }
 
-        // Trackday packages only when they want Trackday (skip for Drive-only / Spectators)
-        if (tiersMode && !driveOnlyPath && !spectatorPath) {
+        // Trackday packages only when they want Trackday (skip for Drive-only / Spectators).
+        // If tier already chosen on the event page (?tier=), skip in-form package picker — change via Back only.
+        let tierFromDetail = '';
+        try {
+            tierFromDetail = String(
+                new URLSearchParams(window.location.search).get('tier') || location.state?.tierId || '',
+            ).trim();
+        } catch { /* ignore */ }
+        const tierAlreadyChosen = Boolean(
+            tierFromDetail && findEventShowTier({ ...event, pricingMode: 'tiers', tiers: event?.tiers || packages }, tierFromDetail),
+        );
+        if (tiersMode && !driveOnlyPath && !spectatorPath && !tierAlreadyChosen) {
             steps.push({
                 title: 'Trackday package',
                 description: skippingDrive
@@ -427,7 +437,11 @@ export default function EventRegistrationPage() {
         }
 
         const count = Math.max(1, spectatorPath ? 1 : (driverCount || 1));
-        const isGroupPackage = count > 1 && !driveOnlyPath && !spectatorPath;
+        // Multi-person forms only for Trackday / Independence Day style flows.
+        // Concert / Garba tickets (incl. couple & group of 10): one person registers for the whole party.
+        const ticketBookedOnEventPage = Boolean(tierFromDetail);
+        const hasDriveFlow = driveFields.length > 0;
+        const isGroupPackage = count > 1 && !driveOnlyPath && !spectatorPath && hasDriveFlow && !ticketBookedOnEventPage;
 
         const defaultDetailFields = [
             { id: 'f_name', label: 'Full Name', fieldName: 'name', type: 'text', required: true, placeholder: 'Your full name', options: [] },
@@ -545,20 +559,23 @@ export default function EventRegistrationPage() {
             labeledDetailFields = [...fields, ...extras];
         }
 
+        const partySize = count > 1 && !isGroupPackage ? count : 0;
         steps.push({
-            title: driveOnlyPath || spectatorPath ? 'Your details' : (isGroupPackage ? 'Driver details' : 'Your Details'),
+            title: 'Your Details',
             description: driveOnlyPath
                 ? 'Free Independence Day Drive registration — no Trackday fee.'
                 : spectatorPath
                     ? 'Just your name and contact — then register free.'
-                    : (isGroupPackage
-                        ? `Group package for ${count} drivers — name, phone, email & blood group are required for all ${count} drivers.`
-                        : ''),
+                    : partySize > 1
+                        ? `You're booking for ${partySize} people — only your details are needed (registering on behalf of the group).`
+                        : (isGroupPackage
+                            ? `Group package for ${count} drivers — name, phone, email & blood group are required for all ${count} drivers.`
+                            : ''),
             fields: labeledDetailFields,
         });
 
         return steps;
-    }, [reg.formType, reg.steps, reg.formSchema, tiersMode, driverCount, driveOnlyPath, spectatorPath, skippingDrive, addOns.length]);
+    }, [reg.formType, reg.steps, reg.formSchema, tiersMode, driverCount, driveOnlyPath, spectatorPath, skippingDrive, addOns.length, event, packages, location.search, location.state?.tierId]);
 
     // Sync tier from query; clear drive-only if they answered No
     useEffect(() => {
@@ -837,6 +854,8 @@ export default function EventRegistrationPage() {
         }
 
         if (driverCount > 1 && !isDriveOnlyTier(tierToUse) && !isSpectatorTier(tierToUse)) {
+            // Party size for couple / group tickets (one person registers on behalf of all)
+            submissionValues.guest_count = String(driverCount);
             submissionValues.driver_count = String(driverCount);
             submissionValues.leader_name = submissionValues.name || submissionValues.leader_name || '';
         }
@@ -856,7 +875,7 @@ export default function EventRegistrationPage() {
                 textResponses[f.fieldName] = submissionValues[f.fieldName];
             }
         });
-        ['name', 'email', 'phone', 'blood_group', 'vehicle_details', 'join_drive', 'driver_count', 'leader_name', 'package_name', 'registration_type', 'payment_screenshot_url', 'transaction_id'].forEach((key) => {
+        ['name', 'email', 'phone', 'blood_group', 'vehicle_details', 'join_drive', 'driver_count', 'guest_count', 'leader_name', 'package_name', 'registration_type', 'payment_screenshot_url', 'transaction_id'].forEach((key) => {
             if (submissionValues[key] !== undefined && textResponses[key] === undefined) {
                 textResponses[key] = submissionValues[key];
             }
@@ -1312,9 +1331,23 @@ export default function EventRegistrationPage() {
         setError('');
         if (!isAuthed()) { openLogin(); setError('Please log in to register.'); return; }
         if (!validateStep(step)) return;
-        if (step < allSteps.length - 1) setStep((s) => s + 1);
+        if (step < allSteps.length - 1) {
+            setStep((s) => s + 1);
+            try {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            } catch { /* ignore */ }
+        }
     };
-    const back = () => (step === 0 ? goBack() : setStep((s) => s - 1));
+    const back = () => {
+        if (step === 0) {
+            goBack();
+            return;
+        }
+        setStep((s) => s - 1);
+        try {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        } catch { /* ignore */ }
+    };
 
     const isPaymentStepPreview = !!allSteps[step]?.payment;
     const suggestedCoupon = getSuggestedCouponCode(event, {
@@ -1423,7 +1456,7 @@ export default function EventRegistrationPage() {
 
     if (done) {
         return (
-            <div className="crwdctrl-page crwdctrl-page--flat min-h-screen flex items-center justify-center px-4">
+            <div className="crwdctrl-page crwdctrl-page--flat min-h-screen flex items-center justify-center px-4 animate-detail-enter">
                 <div className="text-center max-w-md mx-auto p-8 w-full">
                     <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-6" />
                     <h1 className={`text-3xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -1455,18 +1488,18 @@ export default function EventRegistrationPage() {
                     <p className={`text-sm mb-6 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                         {isOrganizerQr && ticketPrice > 0 && !reg.qrAutoConfirm
                             ? 'Your registration is pending organizer approval. You can track status in My Bookings.'
-                            : 'Download your ticket or view all bookings whenever you&apos;re ready.'}
+                            : "Download your ticket or view all bookings whenever you're ready."}
                     </p>
-                    <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-3 animate-step-enter">
                         {registrationId && (
-                            <button type="button" onClick={() => navigate(`/qr-ticket/${registrationId}?type=event`, { state: { refreshBookings: true } })} className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition">
+                            <button type="button" onClick={() => navigate(`/qr-ticket/${registrationId}?type=event`, { state: { refreshBookings: true } })} className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 active:scale-[0.98] transition-all duration-200">
                                 Download Ticket
                             </button>
                         )}
-                        <button type="button" onClick={() => goToBookings(navigate)} className={`w-full py-3.5 rounded-xl font-semibold transition ${registrationId ? (isDark ? 'border border-gray-600 text-gray-200 hover:bg-gray-800' : 'border border-gray-300 text-gray-800 hover:bg-gray-100') : 'text-black bg-[#0ECCEE] hover:opacity-90'}`}>
+                        <button type="button" onClick={() => goToBookings(navigate)} className={`w-full py-3.5 rounded-xl font-semibold transition-all duration-200 active:scale-[0.98] ${registrationId ? (isDark ? 'border border-gray-600 text-gray-200 hover:bg-gray-800' : 'border border-gray-300 text-gray-800 hover:bg-gray-100') : 'text-black bg-[#0ECCEE] hover:opacity-90'}`}>
                             View My Bookings
                         </button>
-                        <button type="button" onClick={() => navigate('/events')} className={`w-full py-2.5 rounded-xl text-sm font-medium transition ${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'}`}>
+                        <button type="button" onClick={() => navigate('/events')} className={`w-full py-2.5 rounded-xl text-sm font-medium transition-colors duration-200 ${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'}`}>
                             Browse more events
                         </button>
                     </div>
@@ -1479,7 +1512,7 @@ export default function EventRegistrationPage() {
     const isPaymentStep = !!current?.payment;
 
     return (
-        <div className="crwdctrl-page crwdctrl-page--content min-h-dvh pt-[calc(var(--safe-top)+0.5rem)] pb-[max(6rem,var(--safe-bottom)+5rem)]">
+        <div className="crwdctrl-page crwdctrl-page--content min-h-dvh pt-[calc(var(--safe-top)+0.5rem)] pb-[max(6rem,var(--safe-bottom)+5rem)] animate-detail-enter">
             <PaymentErrorModal
                 open={paymentModal.open}
                 message={paymentModal.message}
@@ -1489,7 +1522,11 @@ export default function EventRegistrationPage() {
             />
             <div className="max-w-lg mx-auto px-4 sm:px-6">
                 <div className="flex items-start gap-3 mb-4 pt-10">
-                    <button onClick={back} className={`p-2 rounded-lg shrink-0 mt-1 ${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-200'}`}>
+                    <button
+                        type="button"
+                        onClick={back}
+                        className={`p-2 rounded-lg shrink-0 mt-1 transition-colors duration-200 ${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-200'}`}
+                    >
                         <ArrowLeft className={`w-5 h-5 ${isDark ? 'text-white' : 'text-gray-900'}`} />
                     </button>
                     <div className="min-w-0 flex-1">
@@ -1507,112 +1544,88 @@ export default function EventRegistrationPage() {
                 </div>
 
                 {error && (
-                    <div className={`rounded-lg p-3 mb-4 text-sm border ${isDark ? 'bg-red-900/20 border-red-800 text-red-400' : 'bg-red-50 border-red-300 text-red-600'}`}>{error}</div>
+                    <div className={`rounded-lg p-3 mb-4 text-sm border animate-step-enter ${isDark ? 'bg-red-900/20 border-red-800 text-red-400' : 'bg-red-50 border-red-300 text-red-600'}`}>{error}</div>
                 )}
 
                 {!isAuthed() && (
-                    <div className={`rounded-2xl p-4 mb-4 border text-center ${isDark ? 'bg-[#111213] border-gray-700' : 'bg-white border-gray-100 shadow-md'}`}>
+                    <div className={`rounded-2xl p-4 mb-4 border text-center animate-step-enter ${isDark ? 'bg-[#111213] border-gray-700' : 'bg-white border-gray-100 shadow-md'}`}>
                         <p className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                            Sign in with Google to continue registration.
+                            Sign in with Google to fill your details and continue.
                         </p>
-                        <button type="button" onClick={() => openLogin()} className="px-5 py-2.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition">
+                        <button type="button" onClick={() => openLogin()} className="px-5 py-2.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 active:scale-[0.98] transition-all duration-200">
                             Sign in with Google
                         </button>
                     </div>
                 )}
 
-                <div className={`space-y-4 ${!isAuthed() ? 'opacity-50 pointer-events-none' : ''}`}>
+                <div className="space-y-4">
                     {/* Progress (trek-style stepper) */}
                     <div className={`rounded-2xl p-4 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-100 shadow-md'}`}>
                         <div className="flex items-center justify-between mb-3">
                             <h3 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Progress</h3>
                             <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Step {step + 1} of {allSteps.length}</span>
                         </div>
-                        <div className={`w-full rounded-full h-2 mb-3 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                            <div className="bg-[#0ECCEE] h-2 rounded-full transition-all duration-300" style={{ width: `${((step + 1) / allSteps.length) * 100}%` }} />
+                        <div className={`w-full rounded-full h-2 mb-3 overflow-hidden ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                            <div
+                                className="bg-[#0ECCEE] h-2 rounded-full transition-all duration-500 ease-out"
+                                style={{ width: `${((step + 1) / allSteps.length) * 100}%` }}
+                            />
                         </div>
                         <div className="flex justify-between">
                             {allSteps.map((s, i) => (
                                 <div key={s.title + i} className="flex flex-col items-center">
-                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
-                                        i === step ? 'bg-[#0ECCEE] text-black'
+                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
+                                        i === step ? 'bg-[#0ECCEE] text-black scale-110'
                                         : i < step ? 'bg-green-600 text-white'
                                         : isDark ? 'bg-gray-600 text-gray-300'
                                         : 'bg-gray-300 text-gray-600'
                                     }`}>
                                         {i < step ? '✓' : i + 1}
                                     </div>
-                                    <span className={`text-xs mt-1 text-center max-w-20 truncate ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{s.title}</span>
+                                    <span className={`text-xs mt-1 text-center max-w-20 truncate transition-colors duration-200 ${
+                                        i === step
+                                            ? (isDark ? 'text-white' : 'text-gray-800')
+                                            : (isDark ? 'text-gray-400' : 'text-gray-500')
+                                    }`}>{s.title}</span>
                                 </div>
                             ))}
                         </div>
                     </div>
 
-                    {/* Selected package summary — run-club style, shown on every step once chosen */}
+                    {/* Selected ticket summary — show price; fees breakdown at checkout */}
                     {selectedTier && !current?.packageSelect && (
-                        <div className={`rounded-2xl border overflow-hidden ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-100 shadow-md'}`}>
-                            <div className={`px-4 py-3 border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
-                                <p className={`text-[11px] font-semibold uppercase tracking-wider ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                    Registration
-                                </p>
-                                <p className={`text-sm font-semibold mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                    {title}
-                                </p>
-                            </div>
-                            <div className="px-4 py-3 space-y-2.5">
+                        <div className={`rounded-2xl border px-4 py-3 animate-step-enter ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-100 shadow-sm'}`}>
+                            <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
-                                    <p className={`text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Package</p>
-                                    <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                        {selectedTier.name}
+                                    <p className={`text-[11px] font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                        Price
                                     </p>
-                                    {selectedTier.description ? (
-                                        <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                            {selectedTier.description}
+                                    <p className={`text-sm font-semibold tabular-nums ${
+                                        packagePrice > 0
+                                            ? (isDark ? 'text-white' : 'text-gray-900')
+                                            : 'text-green-500'
+                                    }`}>
+                                        {packagePrice > 0 ? formatInr(packagePrice) : 'Free'}
+                                    </p>
+                                    {selectedTier.name ? (
+                                        <p className={`text-[11px] mt-0.5 truncate ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                            {selectedTier.name}
+                                            {driverCount > 1 ? ` · ${driverCount} guests` : ''}
+                                        </p>
+                                    ) : driverCount > 1 ? (
+                                        <p className={`text-[11px] mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                            {driverCount} guests · you register for the group
                                         </p>
                                     ) : null}
+                                    <p className={`text-[11px] mt-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                        Use Back to change ticket · fees at checkout
+                                    </p>
                                 </div>
-                                {tiersMode && !spectatorPath ? (
-                                <div className={`flex justify-between text-sm py-2 border-t ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
-                                    <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Drivers</span>
-                                    <span className={`font-semibold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                                        {driverCount} {driverCount === 1 ? 'driver' : 'drivers'}
-                                    </span>
-                                </div>
-                                ) : null}
-                                <div className="flex justify-between text-sm">
-                                    <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>{tiersMode ? 'Package fee' : 'Entry fee'}</span>
-                                    <span className={`font-semibold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                                        {packagePrice > 0 ? formatInr(packagePrice) : 'Free'}
-                                    </span>
-                                </div>
-                                {selectedAddOns.map((addOn) => (
-                                    <div key={addOn.id} className="flex justify-between gap-3 text-sm">
-                                        <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>{addOn.name}</span>
-                                        <span className={`font-semibold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                                            +{formatInr(addOn.fee)}
-                                        </span>
-                                    </div>
-                                ))}
-                                {ticketPrice > 0 && breakdown.platformFee > 0 ? (
-                                    <div className="flex justify-between text-sm">
-                                        <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>
-                                            CrwdCtrl platform fee ({platformFeePercent}%)
-                                        </span>
-                                        <span className={`font-semibold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                                            {formatInr(breakdown.platformFee)}
-                                        </span>
-                                    </div>
-                                ) : null}
-                                {ticketPrice > 0 ? (
-                                    <div className={`flex justify-between text-sm pt-2 border-t font-bold text-[#0ECCEE] ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
-                                        <span>Total</span>
-                                        <span>₹{payableAmount.toLocaleString('en-IN')}</span>
-                                    </div>
-                                ) : null}
                             </div>
                         </div>
                     )}
 
+                    <div key={`step-${step}`} className={`space-y-4 animate-step-enter ${!isAuthed() ? 'opacity-50 pointer-events-none' : ''}`}>
                     {/* Package / form step */}
                     {!isPaymentStep && current?.packageSelect && (
                         <div className={`rounded-2xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-100 shadow-md'}`}>
@@ -1837,20 +1850,23 @@ export default function EventRegistrationPage() {
                                 amountHint={
                                     couponInfo?.couponApplied
                                         ? `Was ₹${Number(couponInfo.amountBeforeDiscount ?? breakdown.totalAmount).toLocaleString('en-IN')}`
-                                        : selectedTier?.name || 'Registration fee'
+                                        : packagePrice > 0
+                                            ? `${formatInr(packagePrice)}${selectedTier?.name ? ` · ${selectedTier.name}` : ''}`
+                                            : 'Free registration'
                                 }
                                 extraLineItems={[
-                                    selectedTier ? { label: 'Package', value: selectedTier.name } : null,
-                                    tiersMode && selectedTier
-                                        ? { label: 'Drivers', value: `${driverCount} ${driverCount === 1 ? 'driver' : 'drivers'}` }
-                                        : null,
+                                    packagePrice > 0
+                                        ? { label: 'Price', value: formatInr(packagePrice) }
+                                        : selectedTier
+                                            ? { label: 'Ticket', value: 'Free' }
+                                            : null,
                                     ...selectedAddOns.map((addOn) => ({
                                         label: addOn.name,
                                         value: `₹${addOn.fee.toLocaleString('en-IN')}`,
                                     })),
                                     breakdown.platformFee > 0
                                         ? {
-                                            label: `CrwdCtrl platform fee (${platformFeePercent}%)`,
+                                            label: `Platform fee (${platformFeePercent}%)`,
                                             value: `₹${breakdown.platformFee}`,
                                             tone: 'muted',
                                         }
@@ -1946,6 +1962,7 @@ export default function EventRegistrationPage() {
                             </button>
                         )}
                     </div>
+                    </div>
                 </div>
             </div>
 
@@ -1954,7 +1971,7 @@ export default function EventRegistrationPage() {
                     <CrwdCtrlLogin
                         googleOnly
                         title="Sign in to register"
-                        subtitle="Tap Sign in with Google — then pick your package"
+                        subtitle="Tap Sign in with Google — then complete your details"
                         onClose={() => {
                             setShowLogin(false);
                             setLoginDismissed(true);

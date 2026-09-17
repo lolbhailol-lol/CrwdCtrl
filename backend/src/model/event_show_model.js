@@ -116,6 +116,9 @@ const eventShowSchema = new mongoose.Schema(
         duration: { type: String, trim: true },
         language: { type: String, trim: true },
         ageRating: { type: String, trim: true },
+        /** Optional schedule chips on the detail page */
+        gatesOpen: { type: String, trim: true },
+        endsAt: { type: String, trim: true },
         ticketPrice: { type: Number, default: 0 },
         /**
          * Pricing style:
@@ -166,6 +169,8 @@ const eventShowSchema = new mongoose.Schema(
         whatsIncluded: { type: String, trim: true },
         benefits: { type: String, trim: true },
         eligibility: { type: String, trim: true },
+        /** Dress code copy shown on the event detail “Dress Code” tab */
+        dressCode: { type: String, trim: true },
         slots: { type: String, trim: true },
         registrationProcess: { type: String, trim: true },
         registrationLink: { type: String, trim: true },

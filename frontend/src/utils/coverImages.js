@@ -19,6 +19,7 @@ export const PRESET_TO_COVER_KEY = Object.fromEntries(
 /** Cloudinary preset names that map to coverImages keys */
 export const PRESET_ALIASES = {
     cardPortrait: 'portrait',
+    cardPortraitFit: 'portrait',
     cardWide: 'wide',
     cardLandscape: 'landscape',
     cardVideo: 'video',
@@ -30,6 +31,9 @@ export const PRESET_ALIASES = {
     hero: 'hero',
     communityBanner: 'hero',
     eventPage: 'page',
+    eventHeroFit: 'page',
+    eventHeroPad: 'page',
+    cardPortraitPad: 'portrait',
     square: 'square',
     thumb: 'square',
 };

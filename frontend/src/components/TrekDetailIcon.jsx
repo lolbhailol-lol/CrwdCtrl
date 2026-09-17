@@ -18,6 +18,14 @@ const ICONS = {
             <path d="M14 20 Q14 15.5 17 15.5 Q21 15.5 21 20" fill="#0D9488" opacity="0.7" />
         </svg>
     ),
+    gates: ({ size }) => (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+            <circle cx="9" cy="6.5" r="3" fill="#F472B6" />
+            <path d="M3.5 20 Q3.5 14.2 9 14.2 Q14.5 14.2 14.5 20" fill="#EC4899" />
+            <circle cx="16.5" cy="7.2" r="2.4" fill="#FB7185" opacity="0.95" />
+            <path d="M13.2 20 Q13.2 15.6 16.5 15.6 Q20.5 15.6 20.5 20" fill="#DB2777" opacity="0.85" />
+        </svg>
+    ),
     sun: ({ size }) => (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
             <circle cx="12" cy="12" r="5" fill="#FCD34D" />
@@ -44,6 +52,7 @@ const ICONS = {
     moon: ({ size }) => (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
             <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="#A78BFA" />
+            <path d="M17.2 5.2l.55 1.35 1.4.2-1.05.95.3 1.4-1.2-.75-1.2.75.3-1.4-1.05-.95 1.4-.2.55-1.35z" fill="#C4B5FD" />
         </svg>
     ),
     'map-pin': ({ size }) => (
