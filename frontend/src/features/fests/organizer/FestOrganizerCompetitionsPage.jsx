@@ -230,7 +230,9 @@ export default function FestOrganizerCompetitionsPage() {
                                 {stats ? (
                                     <span>
                                         {' · '}
-                                        {stats.totalRegistrations || 0} entries · {stats.checkedIn || 0} checked in
+                                        {stats.totalRegistrations || 0} registrations ·{' '}
+                                        {(stats.totalParticipants || stats.totalRegistrations || 0).toLocaleString('en-IN')} people ·{' '}
+                                        {stats.checkedIn || 0} checked in
                                     </span>
                                 ) : null}
                             </p>
@@ -382,8 +384,15 @@ export default function FestOrganizerCompetitionsPage() {
                                     </div>
                                 </div>
 
-                                <div className={`grid ${simplePortal ? 'grid-cols-1' : 'grid-cols-4'} gap-1.5 mt-3`}>
+                                <div className={`grid ${simplePortal ? 'grid-cols-1' : noReview ? 'grid-cols-5' : 'grid-cols-4'} gap-1.5 mt-3`}>
                                     <MiniBox label="Entries" value={total} tone="accent" />
+                                    {!simplePortal && noReview ? (
+                                        <MiniBox
+                                            label="People"
+                                            value={Number(c.participants) || Number(c.approved) || total}
+                                            tone="accent"
+                                        />
+                                    ) : null}
                                     {!simplePortal && noReview ? (
                                         <MiniBox
                                             label="Outside"

@@ -158,6 +158,7 @@ export default function FestOrganizerDashboardPage() {
 
     const totalPending = Number(stats.pendingRegistrations) || 0;
     const totalApproved = Number(stats.totalRegistrations) || 0;
+    const totalParticipants = Number(stats.totalParticipants) || totalApproved;
     const checkedIn = Number(stats.checkedIn) || 0;
     const pendingCheckIn = Number(stats.pendingCheckIn) || 0;
     const checkInRate = Number(stats.checkInRate) || 0;
@@ -238,7 +239,7 @@ export default function FestOrganizerDashboardPage() {
             </section>
 
             {/* Pulse stats */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className={`grid grid-cols-2 ${hideProShow ? 'lg:grid-cols-5' : 'lg:grid-cols-4'} gap-3`}>
                 {hideProShow ? (
                     <button
                         type="button"
@@ -285,10 +286,31 @@ export default function FestOrganizerDashboardPage() {
                     <Users size={16} className="text-[#0ECCEE] mb-2" />
                     <p className="text-2xl font-bold tabular-nums text-white">{totalApproved}</p>
                     <p className="text-xs text-[#0ECCEE]/90 mt-1">
-                        {hideProShow ? 'Registered' : 'Participants in'}
+                        {hideProShow ? 'Total registrations' : 'Participants in'}
                     </p>
-                    <p className="text-[11px] text-gray-500 mt-1">{stats.allActive || 0} active total</p>
+                    <p className="text-[11px] text-gray-500 mt-1">
+                        {hideProShow
+                            ? `${totalParticipants.toLocaleString('en-IN')} people overall`
+                            : `${stats.allActive || 0} active total`}
+                    </p>
                 </button>
+
+                {hideProShow ? (
+                    <button
+                        type="button"
+                        onClick={() => navigate(`/fest-organizer/fests/${festId}/participants?status=approved`)}
+                        className="rounded-2xl border border-sky-400/30 bg-linear-to-br from-sky-500/15 to-[#161718] p-4 text-left hover:scale-[1.01] active:scale-[0.99] transition"
+                    >
+                        <Users size={16} className="text-sky-300 mb-2" />
+                        <p className="text-2xl font-bold tabular-nums text-white">
+                            {totalParticipants.toLocaleString('en-IN')}
+                        </p>
+                        <p className="text-xs text-sky-200/90 mt-1">Total participants</p>
+                        <p className="text-[11px] text-gray-500 mt-1">
+                            All names on paid / approved rosters
+                        </p>
+                    </button>
+                ) : null}
 
                 <button
                     type="button"

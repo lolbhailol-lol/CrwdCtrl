@@ -116,6 +116,30 @@ function responsesToObject(responses) {
     return { ...responses };
 }
 
+/** Mongo expression: people on a registration roster (team_size / team_members / solo = 1). */
+function registrationPeopleCountExpr() {
+    return {
+        $max: [
+            {
+                $convert: {
+                    input: '$responses.team_size',
+                    to: 'int',
+                    onError: 0,
+                    onNull: 0,
+                },
+            },
+            {
+                $cond: [
+                    { $isArray: '$responses.team_members' },
+                    { $size: '$responses.team_members' },
+                    0,
+                ],
+            },
+            1,
+        ],
+    };
+}
+
 function pickResponse(responses, keys) {
     for (const key of keys) {
         const v = responses[key];
@@ -737,6 +761,7 @@ exports.getDashboard = async (req, res) => {
         const baseApproved = { fest: festId, status: 'approved', isProShow: { $ne: true } };
         const notProShow = { fest: festId, isProShow: { $ne: true } };
 
+        const peopleExpr = registrationPeopleCountExpr();
         const [
             totalRegistrations,
             pendingRegistrations,
@@ -745,6 +770,7 @@ exports.getDashboard = async (req, res) => {
             paidRegs,
             todayRegistrations,
             allActiveCount,
+            peopleHeadcount,
             competitions,
             byCompetition,
             paymentBreakdown,
@@ -760,12 +786,26 @@ exports.getDashboard = async (req, res) => {
                 createdAt: { $gte: today, $lt: tomorrow },
             }),
             Registration.countDocuments({ ...notProShow, status: { $in: ['pending', 'approved'] } }),
+            Registration.aggregate([
+                { $match: { fest: festOid, status: 'approved', isProShow: { $ne: true } } },
+                {
+                    $group: {
+                        _id: null,
+                        totalParticipants: { $sum: peopleExpr },
+                    },
+                },
+            ]),
             Competition.find({ fest: festId })
                 .select('name competitionType category module coverImage subtitle feeAmount registrationFee feeTiers slotsAllotted showSlotsPublic registration.whatsappGroupLink registration.status')
                 .sort({ name: 1 })
                 .lean(),
             Registration.aggregate([
                 { $match: { fest: festOid, isProShow: { $ne: true } } },
+                {
+                    $addFields: {
+                        _people: peopleExpr,
+                    },
+                },
                 {
                     $group: {
                         _id: '$competitionId',
@@ -778,6 +818,11 @@ exports.getDashboard = async (req, res) => {
                         },
                         rejected: {
                             $sum: { $cond: [{ $eq: ['$status', 'rejected'] }, 1, 0] },
+                        },
+                        participants: {
+                            $sum: {
+                                $cond: [{ $eq: ['$status', 'approved'] }, '$_people', 0],
+                            },
                         },
                         checkedIn: {
                             $sum: {
@@ -843,6 +888,8 @@ exports.getDashboard = async (req, res) => {
                 .lean(),
         ]);
 
+        const totalParticipants = Number(peopleHeadcount[0]?.totalParticipants) || totalRegistrations;
+
         let revenue = paidRegs.reduce((sum, r) => sum + (Number(r.amountPaid) || 0), 0);
         let grossCollected = revenue;
         let gatewayFees = 0;
@@ -862,6 +909,7 @@ exports.getDashboard = async (req, res) => {
             const waJoined = Number(row.waJoined) || 0;
             const waNotJoined = Math.max(0, active - waJoined);
             const whatsappGroupLink = String(c.registration?.whatsappGroupLink || '').trim();
+            const participants = Number(row.participants) || approved;
             return {
                 id: c._id,
                 name: c.name || 'Competition',
@@ -884,6 +932,7 @@ exports.getDashboard = async (req, res) => {
                 waNotJoined,
                 total: Number(row.total) || 0,
                 approved,
+                participants,
                 pending: Number(row.pending) || 0,
                 rejected: Number(row.rejected) || 0,
                 checkedIn: checked,
@@ -1012,6 +1061,7 @@ exports.getDashboard = async (req, res) => {
             },
             stats: {
                 totalRegistrations,
+                totalParticipants,
                 pendingRegistrations,
                 rejectedRegistrations,
                 allActive: allActiveCount,
@@ -1154,11 +1204,21 @@ exports.listParticipants = async (req, res) => {
             Registration.aggregate([
                 { $match: { fest: festOid, isProShow: { $ne: true } } },
                 {
+                    $addFields: {
+                        _people: registrationPeopleCountExpr(),
+                    },
+                },
+                {
                     $group: {
                         _id: null,
                         pending: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] } },
                         approved: { $sum: { $cond: [{ $eq: ['$status', 'approved'] }, 1, 0] } },
                         rejected: { $sum: { $cond: [{ $eq: ['$status', 'rejected'] }, 1, 0] } },
+                        totalParticipants: {
+                            $sum: {
+                                $cond: [{ $eq: ['$status', 'approved'] }, '$_people', 0],
+                            },
+                        },
                         checkedIn: {
                             $sum: {
                                 $cond: [
@@ -1232,6 +1292,7 @@ exports.listParticipants = async (req, res) => {
             waJoined: s.waJoined || 0,
             waNotJoined: Math.max(0, (s.active || 0) - (s.waJoined || 0)),
             active: s.active || 0,
+            totalParticipants: Number(s.totalParticipants) || Number(s.approved) || 0,
         };
 
         res.json({

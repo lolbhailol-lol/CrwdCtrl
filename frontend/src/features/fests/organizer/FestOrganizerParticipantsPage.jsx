@@ -98,7 +98,7 @@ export default function FestOrganizerParticipantsPage() {
     const [fest, setFest] = useState(null);
     const [summary, setSummary] = useState({
         pending: 0, approved: 0, rejected: 0, checkedIn: 0, notCheckedIn: 0,
-        unpaid: 0, collected: 0, active: 0, waJoined: 0, waNotJoined: 0,
+        unpaid: 0, collected: 0, active: 0, waJoined: 0, waNotJoined: 0, totalParticipants: 0,
     });
     const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
     const [loading, setLoading] = useState(true);
@@ -356,7 +356,7 @@ export default function FestOrganizerParticipantsPage() {
                 </div>
             </div>
 
-            {!simplePortal ? <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            {!simplePortal ? <div className={`grid grid-cols-2 ${noReview ? 'sm:grid-cols-5' : 'sm:grid-cols-4'} gap-2.5`}>
                 {noReview ? (
                     <PulseBox
                         label="Still outside"
@@ -379,14 +379,27 @@ export default function FestOrganizerParticipantsPage() {
                     />
                 )}
                 {!simplePortal ? <PulseBox
-                    label={noReview ? 'Registered' : 'Approved'}
+                    label={noReview ? 'Total registrations' : 'Approved'}
                     value={summary.approved}
-                    hint={`${summary.active} active total`}
+                    hint={noReview
+                        ? `${(summary.totalParticipants || summary.approved || 0).toLocaleString('en-IN')} people`}
+                        : `${summary.active} active total`}
                     tone="cyan"
                     icon={Users}
                     active={status === 'approved' && !checkInStatus && !paymentStatus}
                     onClick={() => setParams({ status: 'approved', checkInStatus: '', paymentStatus: '' })}
                 /> : null}
+                {noReview ? (
+                    <PulseBox
+                        label="Total participants"
+                        value={summary.totalParticipants || summary.approved || 0}
+                        hint="All names on rosters"
+                        tone="cyan"
+                        icon={Users}
+                        active={status === 'approved' && !checkInStatus && !paymentStatus}
+                        onClick={() => setParams({ status: 'approved', checkInStatus: '', paymentStatus: '' })}
+                    />
+                ) : null}
                 {!simplePortal ? <PulseBox
                     label="Checked in"
                     value={summary.checkedIn}
