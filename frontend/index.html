@@ -175,22 +175,29 @@
   </script>
   <meta name="description" content="CrwdCtrl helps you find college fests, tech and sports events, running clubs, gym communities, and meetups near you." />
   <meta name="application-name" content="CrwdCtrl" />
+  <meta name="apple-mobile-web-app-title" content="CrwdCtrl" />
   <meta name="color-scheme" content="light dark" />
   <link rel="canonical" href="https://www.crwdctrl.in/" />
 
-  <!-- Stable, square search favicon first; larger app icon remains available below. -->
-  <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png" />
-  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192x192.png" />
-  <link rel="apple-touch-icon" href="/icon-192x192.png" />
+  <!-- Google Search favicon: multiples of 48px, real PNG files (not SPA HTML). Absolute URLs help Googlebot. -->
+  <link rel="icon" href="https://www.crwdctrl.in/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="48x48" href="https://www.crwdctrl.in/favicon-48x48.png" />
+  <link rel="icon" type="image/png" sizes="96x96" href="https://www.crwdctrl.in/favicon-96x96.png" />
+  <link rel="icon" type="image/png" sizes="144x144" href="https://www.crwdctrl.in/favicon-144x144.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="https://www.crwdctrl.in/favicon-192x192.png" />
+  <link rel="apple-touch-icon" sizes="192x192" href="https://www.crwdctrl.in/icon-192x192.png" />
+  <link rel="shortcut icon" href="https://www.crwdctrl.in/favicon.ico" />
 
   <!-- Open Graph / social -->
   <meta property="og:type" content="website" />
+  <meta property="og:locale" content="en_IN" />
   <meta property="og:site_name" content="CrwdCtrl" />
   <meta property="og:title" content="CrwdCtrl — Discover fests, clubs &amp; events" />
   <meta property="og:description" content="Find college fests, tech and sports events, running clubs, gym communities, and meetups near you on CrwdCtrl." />
   <meta property="og:url" content="https://www.crwdctrl.in/" />
   <meta property="og:image" content="https://www.crwdctrl.in/logo-crwdctrl.png" />
+  <meta property="og:image:width" content="500" />
+  <meta property="og:image:height" content="500" />
   <meta property="og:image:alt" content="CrwdCtrl logo" />
 
   <!-- Twitter -->
@@ -203,9 +210,8 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="CrwdCtrl" />
 
-  <!-- Structured data for Google (brand + logo) -->
+  <!-- Structured data for Google (site name + logo in SERPs) -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -215,14 +221,18 @@
         "@id": "https://www.crwdctrl.in/#organization",
         "name": "CrwdCtrl",
         "legalName": "KARAN BAPURAO JADHAV",
-        "alternateName": ["crwdctrl", "Crwd Ctrl"],
-        "url": "https://www.crwdctrl.in",
+        "alternateName": ["crwdctrl", "Crwd Ctrl", "crwdctrl.in"],
+        "url": "https://www.crwdctrl.in/",
         "logo": {
           "@type": "ImageObject",
+          "@id": "https://www.crwdctrl.in/#logo",
           "url": "https://www.crwdctrl.in/icon-512x512.png",
+          "contentUrl": "https://www.crwdctrl.in/icon-512x512.png",
           "width": 512,
-          "height": 512
+          "height": 512,
+          "caption": "CrwdCtrl"
         },
+        "image": { "@id": "https://www.crwdctrl.in/#logo" },
         "description": "CrwdCtrl is an Indian community and event discovery platform to find and register for college fests, competitions, tech and sports events, running clubs, gym communities, treks and local meetups.",
         "slogan": "Discover fests, clubs & events near you",
         "email": "crwdctrl.work@gmail.com",
@@ -253,10 +263,11 @@
         "@id": "https://www.crwdctrl.in/#website",
         "url": "https://www.crwdctrl.in/",
         "name": "CrwdCtrl",
-        "alternateName": ["Crwd Ctrl", "crwdctrl.in"],
+        "alternateName": ["Crwd Ctrl", "crwdctrl", "crwdctrl.in"],
         "description": "Discover college fests, sports events, running clubs, treks and student communities near you.",
         "inLanguage": "en-IN",
-        "publisher": { "@id": "https://www.crwdctrl.in/#organization" }
+        "publisher": { "@id": "https://www.crwdctrl.in/#organization" },
+        "copyrightHolder": { "@id": "https://www.crwdctrl.in/#organization" }
       }
     ]
   }

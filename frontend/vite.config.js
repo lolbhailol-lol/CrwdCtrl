@@ -59,9 +59,9 @@ export default defineConfig(({ mode }) => ({
       // We'll register the SW in `src/main.jsx` to control update behavior.
       injectRegister: null,
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'favicon.png', 'favicon-48x48.png', 'logo-crwdctrl.png', 'crwdctrl-mark.png', 'icon-192x192.png', 'icon-512x512.png', 'robots.txt', 'sitemap.xml', 'llms.txt', 'category-icons/*.webp', 'offline-hunt.webmanifest'],
+      includeAssets: ['favicon.ico', 'favicon.png', 'favicon-48x48.png', 'favicon-96x96.png', 'favicon-144x144.png', 'favicon-192x192.png', 'logo-crwdctrl.png', 'crwdctrl-mark.png', 'icon-192x192.png', 'icon-512x512.png', 'robots.txt', 'sitemap.xml', 'llms.txt', 'category-icons/*.webp', 'offline-hunt.webmanifest'],
       manifest: {
-        name: 'CrwdCtrl — Discover College Fests',
+        name: 'CrwdCtrl',
         short_name: 'CrwdCtrl',
         description: 'Discover and register for college fests, competitions, and events near you.',
         id: '/',
@@ -71,6 +71,18 @@ export default defineConfig(({ mode }) => ({
         start_url: '/',
         scope: '/',
         icons: [
+          {
+            src: '/favicon-48x48.png',
+            sizes: '48x48',
+            type: 'image/png',
+            purpose: 'any',
+          },
+          {
+            src: '/favicon-96x96.png',
+            sizes: '96x96',
+            type: 'image/png',
+            purpose: 'any',
+          },
           {
             src: '/icon-192x192.png',
             sizes: '192x192',
@@ -112,7 +124,7 @@ export default defineConfig(({ mode }) => ({
           /^\/_vercel\//,
           /^\/favicon\.ico$/,
           /^\/favicon\.png$/,
-          /^\/favicon-48x48\.png$/,
+          /^\/favicon-\d+x\d+\.png$/,
           /^\/icon-\d+x\d+\.png$/,
           /^\/logo-crwdctrl\.png$/,
           /^\/robots\.txt$/,

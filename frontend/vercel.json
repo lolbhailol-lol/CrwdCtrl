@@ -119,7 +119,7 @@
       ]
     },
     {
-      "source": "/favicon-48x48.png",
+      "source": "/favicon-:size.png",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=86400" }
       ]
@@ -143,7 +143,7 @@
       "destination": "https://crwdctrl-production-9c58.up.railway.app/api/:path*"
     },
     {
-      "source": "/((?!api/|_vercel/|assets/|favicon\\.ico|favicon\\.png|favicon-48x48\\.png|icon-192x192\\.png|icon-512x512\\.png|logo-crwdctrl\\.png|crwdctrl-mark\\.png|robots\\.txt|sitemap\\.xml|llms\\.txt|manifest\\.webmanifest|offline-hunt\\.webmanifest|firebase-messaging-sw\\.js|sw\\.js|workbox-.*).*)",
+      "source": "/((?!api/|_vercel/|assets/|favicon\\.ico|favicon\\.png|favicon-\\d+x\\d+\\.png|icon-\\d+x\\d+\\.png|logo-crwdctrl\\.png|crwdctrl-mark\\.png|robots\\.txt|sitemap\\.xml|llms\\.txt|manifest\\.webmanifest|offline-hunt\\.webmanifest|firebase-messaging-sw\\.js|sw\\.js|workbox-.*).*)",
       "destination": "/index.html"
     }
   ],

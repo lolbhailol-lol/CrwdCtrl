@@ -100,3 +100,11 @@ TREK_ORGANIZER_PORTAL.md
 TREK_RUNCLUB_BUSINESS_MODEL_DEEP_ANALYSIS.md
 favicon-google-test.png
 google-favicon-16.png
+
+# Local partnership MoU drafts (keep out of repo)
+MoU*.docx
+MoU*.pdf
+docs/MoU*
+docs/assets/mou/
+docs/_delulu_*
+docs/build_*_mou_*.py

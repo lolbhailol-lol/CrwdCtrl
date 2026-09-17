@@ -77,6 +77,15 @@
 			gzip
 			zstd
 		}
+
+		# Never SPA-fallback image/font/asset URLs to index.html.
+		# Googlebot probing /favicon-96x96.png was getting HTML → globe icon in SERPs.
+		@missingAsset {
+			not file {path}
+			path_regexp assetext (?i)\.(?:png|ico|svg|jpe?g|webp|gif|css|js|map|woff2?|ttf|txt|xml|webmanifest|json)$
+		}
+		respond @missingAsset 404
+
 		try_files {path} {path}.html {path}/index.html /index.html
 		file_server {
 			hide .git
