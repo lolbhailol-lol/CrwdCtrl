@@ -158,7 +158,15 @@ export default function FestOrganizerDashboardPage() {
 
     const totalPending = Number(stats.pendingRegistrations) || 0;
     const totalApproved = Number(stats.totalRegistrations) || 0;
-    const totalParticipants = Number(stats.totalParticipants) || totalApproved;
+    const peopleFromComps = comps.reduce(
+        (sum, c) => sum + (Number(c.participants) || 0),
+        0,
+    );
+    const totalParticipants = Math.max(
+        Number(stats.totalParticipants) || 0,
+        peopleFromComps,
+        totalApproved,
+    );
     const checkedIn = Number(stats.checkedIn) || 0;
     const pendingCheckIn = Number(stats.pendingCheckIn) || 0;
     const checkInRate = Number(stats.checkInRate) || 0;

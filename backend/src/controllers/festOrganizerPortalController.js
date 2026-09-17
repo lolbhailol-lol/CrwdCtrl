@@ -788,10 +788,12 @@ exports.getDashboard = async (req, res) => {
             Registration.countDocuments({ ...notProShow, status: { $in: ['pending', 'approved'] } }),
             Registration.aggregate([
                 { $match: { fest: festOid, status: 'approved', isProShow: { $ne: true } } },
+                { $addFields: { _people: peopleExpr } },
                 {
                     $group: {
                         _id: null,
-                        totalParticipants: { $sum: peopleExpr },
+                        totalParticipants: { $sum: '$_people' },
+                        totalRegistrations: { $sum: 1 },
                     },
                 },
             ]),
@@ -888,7 +890,11 @@ exports.getDashboard = async (req, res) => {
                 .lean(),
         ]);
 
-        const totalParticipants = Number(peopleHeadcount[0]?.totalParticipants) || totalRegistrations;
+        const head = peopleHeadcount[0] || {};
+        const totalParticipants = Math.max(
+            Number(head.totalParticipants) || 0,
+            Number(totalRegistrations) || 0,
+        );
 
         let revenue = paidRegs.reduce((sum, r) => sum + (Number(r.amountPaid) || 0), 0);
         let grossCollected = revenue;
