@@ -971,9 +971,8 @@ const updateTeamMembers = async (req, res) => {
     const responsesObj = registration.responses?.get
       ? Object.fromEntries(registration.responses)
       : (registration.responses || {});
-    const existingMembers = Array.isArray(responsesObj.team_members)
-      ? responsesObj.team_members.filter((m) => m && typeof m === 'object')
-      : [];
+    const { normalizeTeamMembersList } = require('../../utils/rosterResponses');
+    const existingMembers = normalizeTeamMembersList(responsesObj.team_members);
 
     const leadFromResponses = {
       name: String(responsesObj.full_name || responsesObj.name || '').trim(),
@@ -1016,7 +1015,20 @@ const updateTeamMembers = async (req, res) => {
       });
       for (const field of requiredFields) {
         const key = field.key || field.id;
-        if (!member[key] && !member[field.label?.toLowerCase()]) {
+        const value = member[key]
+          || member[field.label?.toLowerCase()]
+          || (key === 'name' ? member.full_name : '')
+          || (key === 'phone' ? member.mobile : '');
+        // Legacy MindSpark bundle slots are name-only — only enforce newly submitted members
+        const wasExisting = existingMembers.some((current) => {
+          const sameName = String(current?.name || '').trim().toLowerCase()
+            === String(member?.name || '').trim().toLowerCase();
+          const sameEmail = String(current?.email || '').trim().toLowerCase()
+            && String(current?.email || '').trim().toLowerCase() === String(member?.email || '').trim().toLowerCase();
+          return sameEmail || sameName;
+        });
+        if (wasExisting && !String(value || '').trim()) continue;
+        if (!String(value || '').trim()) {
           return res.status(400).json({
             error: `Member ${i + 1} is missing required field: ${field.label || key}`,
           });
@@ -1024,11 +1036,13 @@ const updateTeamMembers = async (req, res) => {
       }
     }
 
-    // Persist
+    // Persist (always as objects so booking UI can show names)
     if (typeof registration.responses.set === 'function') {
       registration.responses.set('team_members', newMembers);
+      registration.responses.set('team_size', newMembers.length);
     } else {
       registration.responses.team_members = newMembers;
+      registration.responses.team_size = newMembers.length;
     }
     registration.markModified('responses');
     await registration.save();

@@ -71,7 +71,13 @@ function mapFestRegistrations(internalRegistrations = []) {
                 ? Object.fromEntries(reg.responses)
                 : (reg.responses || {});
             const teamMembersArr = Array.isArray(responses.team_members) ? responses.team_members : [];
-            const memberCount = teamMembersArr.length || 1;
+            const memberCount = teamMembersArr.filter((m) => {
+                if (typeof m === 'string') return Boolean(m.trim());
+                if (m && typeof m === 'object') {
+                    return Boolean(m.name || m.full_name || m.email || m.phone || m.mobile);
+                }
+                return false;
+            }).length || 1;
             const teamSizeMax = reg.competitionId?.teamSizeMax || 1;
             return {
                 id: reg._id,

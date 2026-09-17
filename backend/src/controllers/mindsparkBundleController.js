@@ -48,7 +48,27 @@ async function validateItems(rawItems) {
     const competition = byId.get(String(raw.competitionId)); await assertCompetitionAcceptsRegistration(competition);
     const roster = raw.roster && typeof raw.roster === 'object' ? raw.roster : {};
     if (!clean(roster.full_name, 100) || phone(roster.phone).length !== 10 || !validEmail(roster.email)) { const e = new Error(`${competition.name}: team leader name, valid WhatsApp number, and email are required.`); e.status = 400; throw e; }
-    const members = Array.isArray(roster.team_members) ? roster.team_members.map(x => clean(x, 100)).filter(Boolean) : [];
+    const members = Array.isArray(roster.team_members)
+      ? roster.team_members.map((entry) => {
+          if (typeof entry === 'string') {
+            const name = clean(entry, 100);
+            return name ? { name } : null;
+          }
+          if (entry && typeof entry === 'object') {
+            const name = clean(entry.name || entry.full_name, 100);
+            if (!name) return null;
+            const member = { name };
+            const email = clean(entry.email, 120).toLowerCase();
+            const mobile = phone(entry.phone || entry.mobile);
+            const college = clean(entry.college || entry.college_name, 120);
+            if (email && validEmail(email)) member.email = email;
+            if (mobile.length === 10) member.phone = mobile;
+            if (college) member.college = college;
+            return member;
+          }
+          return null;
+        }).filter(Boolean)
+      : [];
     const min = Math.max(1, Number(competition.teamSizeMin) || 1); const max = Math.max(min, Number(competition.teamSizeMax) || min);
     if (members.length < min || members.length > max) { const e = new Error(`${competition.name}: team size must be ${min === max ? min : `${min}-${max}`}.`); e.status = 400; throw e; }
     const priced = resolveCompetitionTicketPrice(competition, clean(raw.feeTierId, 80));

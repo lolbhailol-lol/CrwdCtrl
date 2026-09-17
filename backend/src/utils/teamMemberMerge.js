@@ -1,3 +1,5 @@
+const { normalizeTeamMembersList, normalizeTeamMemberEntry } = require('./rosterResponses');
+
 function normalizedEmail(member) {
   return String(member?.email || '').trim().toLowerCase();
 }
@@ -23,11 +25,14 @@ function isSameMember(left, right) {
 /**
  * User booking pages submit additions only; organizer editors submit the full roster.
  * Preserve existing teammates for additions and make repeated submissions idempotent.
+ * Accepts legacy string name slots from MindSpark bundle checkouts.
  */
 function mergeUpdatedTeamMembers({ existingMembers = [], lead, submittedMembers = [] }) {
-  const existing = existingMembers.filter((member) => member && typeof member === 'object');
-  const submitted = submittedMembers.filter((member) => member && typeof member === 'object');
-  const preservedLead = existing[0] || lead || {};
+  const existing = normalizeTeamMembersList(existingMembers);
+  const submitted = submittedMembers
+    .map((member, index) => normalizeTeamMemberEntry(member, index))
+    .filter(Boolean);
+  const preservedLead = existing[0] || normalizeTeamMemberEntry(lead, 0) || {};
 
   if (submitted[0] && isSameMember(submitted[0], preservedLead)) {
     return [preservedLead, ...submitted.slice(1)];

@@ -49,12 +49,21 @@ test('a full roster submission can still replace organizer-edited teammates', ()
   );
 });
 
-test('legacy registration without an embedded roster keeps its response-derived lead', () => {
-  const lead = person('Lead', 'lead@example.com');
-  const teammate = person('Teammate', 'member@example.com');
+test('legacy MindSpark bundle string names are preserved when adding a teammate', () => {
+  const lead = { name: 'Aarsh Zawar' };
+  const existingFriend = 'SHUBH';
+  const another = { name: 'Riya', email: 'riya@example.com', phone: '9876543210' };
 
   assert.deepEqual(
-    mergeUpdatedTeamMembers({ existingMembers: [], lead, submittedMembers: [teammate] }),
-    [lead, teammate],
+    mergeUpdatedTeamMembers({
+      existingMembers: [lead.name, existingFriend],
+      lead,
+      submittedMembers: [another],
+    }),
+    [
+      { name: 'Aarsh Zawar' },
+      { name: 'SHUBH' },
+      another,
+    ],
   );
 });

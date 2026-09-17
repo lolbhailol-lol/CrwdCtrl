@@ -23,6 +23,28 @@ function normalizeResponses(responses) {
   return {};
 }
 
+/** MindSpark bundle historically saved teammates as plain name strings. */
+function normalizeRosterMembers(rawMembers) {
+  if (!Array.isArray(rawMembers)) return [];
+  return rawMembers
+    .map((member, index) => {
+      if (typeof member === 'string') {
+        const name = member.trim();
+        return name ? { name } : null;
+      }
+      if (!member || typeof member !== 'object') return null;
+      const name = String(member.name || member.full_name || member.fullName || '').trim();
+      if (!name && !member.email && !member.phone && !member.mobile && !member.college) {
+        return null;
+      }
+      return {
+        ...member,
+        name: name || `Person ${index + 1}`,
+      };
+    })
+    .filter(Boolean);
+}
+
 function labelToFieldId(label) {
   if (!label) return '';
   return `field_${label.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')}`;
@@ -43,10 +65,16 @@ function pickAliasValue(responses, alias) {
     if (value !== undefined && value !== null && String(value).trim() !== '') return value;
   }
   const members = r.team_members;
-  if (Array.isArray(members) && members[0] && typeof members[0] === 'object') {
-    const memberKey = alias === 'name' ? 'name' : alias;
-    const value = members[0][memberKey];
-    if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+  if (Array.isArray(members) && members[0]) {
+    if (typeof members[0] === 'string' && alias === 'name') {
+      const value = members[0].trim();
+      if (value) return value;
+    }
+    if (typeof members[0] === 'object') {
+      const memberKey = alias === 'name' ? 'name' : alias;
+      const value = members[0][memberKey] || (alias === 'name' ? members[0].full_name : undefined);
+      if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+    }
   }
   return undefined;
 }
@@ -415,11 +443,7 @@ export default function RegistrationDetails() {
     : [];
 
   const rosterTeamMembers = !isTrekBooking && !isEventRegistration && !treatAsSports
-    ? (Array.isArray(normalizeResponses(registration.responses).team_members)
-      ? normalizeResponses(registration.responses).team_members.filter(
-        (member) => member && typeof member === 'object',
-      )
-      : [])
+    ? normalizeRosterMembers(normalizeResponses(registration.responses).team_members)
     : [];
 
   const rosterPersonFields = !isTrekBooking && !isEventRegistration && !treatAsSports
