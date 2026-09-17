@@ -1217,6 +1217,11 @@ export default function FestOrganizerCompetitionWorkspacePage() {
         ? Math.round(((stats.checkedIn || 0) / stats.approved) * 100)
         : (stats?.checkInRate || 0);
     const pendingGate = Math.max(0, (stats?.approved || 0) - (stats?.checkedIn || 0));
+    const peopleOnDesk = (Array.isArray(data?.participants) ? data.participants : []).reduce((sum, p) => {
+        const roster = Array.isArray(p?.teamMembers) ? p.teamMembers.filter(Boolean).length : 0;
+        const size = Number(p?.teamSize) || Number(p?.memberCount) || roster || 1;
+        return sum + Math.max(1, size);
+    }, 0);
 
     const tabHelp = {
         solo: noReview
@@ -1283,10 +1288,51 @@ export default function FestOrganizerCompetitionWorkspacePage() {
             {stats ? (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                     <div className="rounded-2xl border border-[#0ECCEE]/35 bg-linear-to-br from-[#0ECCEE]/20 to-[#161718] p-3.5">
-                        <p className="text-[10px] uppercase tracking-wide text-[#0ECCEE]/90">Total entries</p>
-                        <p className="text-2xl font-bold tabular-nums text-white mt-1">{stats.total}</p>
+                        <p className="text-[10px] uppercase tracking-wide text-[#0ECCEE]/90">
+                            {noReview ? 'Entries' : 'Total entries'}
+                        </p>
+                        <p className="text-2xl font-bold tabular-nums text-white mt-1">
+                            {noReview ? stats.approved : stats.total}
+                        </p>
                         <p className="text-[11px] text-gray-500 mt-1">
-                            {noReview ? `${stats.approved} registered` : `${stats.approved} approved`}
+                            {noReview
+                                ? `${stats.teamCount || 0} teams · ${stats.soloCount || 0} solo`
+                                : `${stats.approved} approved`}
+                        </p>
+                    </div>
+                    {noReview ? (
+                        <div className="rounded-2xl border border-sky-400/30 bg-linear-to-br from-sky-500/15 to-[#161718] p-3.5">
+                            <p className="text-[10px] uppercase tracking-wide text-sky-200/80">People</p>
+                            <p className="text-2xl font-bold tabular-nums text-white mt-1">
+                                {peopleOnDesk.toLocaleString('en-IN')}
+                            </p>
+                            <p className="text-[11px] text-gray-500 mt-1">Names on this roster</p>
+                        </div>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={() => setListFilter('pending')}
+                            className="rounded-2xl border border-amber-400/35 bg-linear-to-br from-amber-500/20 to-[#161718] p-3.5 text-left hover:scale-[1.01] active:scale-[0.99] transition"
+                        >
+                            <p className="text-[10px] uppercase tracking-wide text-amber-200/80">To review</p>
+                            <p className="text-2xl font-bold tabular-nums text-white mt-1">{stats.pending}</p>
+                            <p className="text-[11px] text-gray-500 mt-1">Tap to filter queue</p>
+                        </button>
+                    )}
+                    <div className={`rounded-2xl border p-3.5 ${
+                        stats.slotsAllotted > 0 && (stats.slotsLeft ?? 0) === 0
+                            ? 'border-amber-400/35 bg-linear-to-br from-amber-500/15 to-[#161718]'
+                            : 'border-white/15 bg-linear-to-br from-white/8 to-[#161718]'
+                    }`}>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-400">Slots left</p>
+                        <p className="text-2xl font-bold tabular-nums text-white mt-1">
+                            {stats.slotsAllotted > 0 ? (stats.slotsLeft ?? 0) : '∞'}
+                        </p>
+                        <p className="text-[11px] text-gray-500 mt-1">
+                            {stats.slotsAllotted > 0
+                                ? `${stats.slotsFilled ?? stats.approved}/${stats.slotsAllotted} filled`
+                                : 'No limit set'}
+                            {data?.competition?.showSlotsPublic === false ? ' · hidden on site' : ''}
                         </p>
                     </div>
                     {noReview ? (
@@ -1295,9 +1341,11 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                             onClick={() => setListFilter('out')}
                             className="rounded-2xl border border-amber-400/35 bg-linear-to-br from-amber-500/20 to-[#161718] p-3.5 text-left hover:scale-[1.01] active:scale-[0.99] transition"
                         >
-                            <p className="text-[10px] uppercase tracking-wide text-amber-200/80">Still outside</p>
+                            <p className="text-[10px] uppercase tracking-wide text-amber-200/80">Outside</p>
                             <p className="text-2xl font-bold tabular-nums text-white mt-1">{pendingGate}</p>
-                            <p className="text-[11px] text-gray-500 mt-1">Tap to filter roster</p>
+                            <p className="text-[11px] text-gray-500 mt-1">
+                                {stats.checkedIn || 0} checked in · tap to filter
+                            </p>
                             {unpaidCount > 0 ? (
                                 <Link
                                     to={`/fest-organizer/fests/${festId}/notifications?competitionId=${competitionId}&audience=unpaid&tab=connect`}
@@ -1311,40 +1359,17 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                     ) : (
                         <button
                             type="button"
-                            onClick={() => setListFilter('pending')}
-                            className="rounded-2xl border border-amber-400/35 bg-linear-to-br from-amber-500/20 to-[#161718] p-3.5 text-left hover:scale-[1.01] active:scale-[0.99] transition"
+                            onClick={() => navigate(`/fest-organizer/fests/${festId}/scan?competitionId=${competitionId}`)}
+                            className="rounded-2xl border border-emerald-400/35 bg-linear-to-br from-emerald-500/20 to-[#161718] p-3.5 text-left hover:scale-[1.01] active:scale-[0.99] transition"
                         >
-                            <p className="text-[10px] uppercase tracking-wide text-amber-200/80">To review</p>
-                            <p className="text-2xl font-bold tabular-nums text-white mt-1">{stats.pending}</p>
-                            <p className="text-[11px] text-gray-500 mt-1">Tap to filter queue</p>
+                            <p className="text-[10px] uppercase tracking-wide text-emerald-200/80">Check-in</p>
+                            <p className="text-2xl font-bold tabular-nums text-white mt-1">{stats.checkedIn}</p>
+                            <div className="mt-2 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                                <div className="h-full bg-emerald-400 rounded-full" style={{ width: `${checkInRate}%` }} />
+                            </div>
+                            <p className="text-[11px] text-gray-500 mt-1">{checkInRate}% · {pendingGate} outside</p>
                         </button>
                     )}
-                    <button
-                        type="button"
-                        onClick={() => navigate(`/fest-organizer/fests/${festId}/scan?competitionId=${competitionId}`)}
-                        className="rounded-2xl border border-emerald-400/35 bg-linear-to-br from-emerald-500/20 to-[#161718] p-3.5 text-left hover:scale-[1.01] active:scale-[0.99] transition"
-                    >
-                        <p className="text-[10px] uppercase tracking-wide text-emerald-200/80">Check-in</p>
-                        <p className="text-2xl font-bold tabular-nums text-white mt-1">{stats.checkedIn}</p>
-                        <div className="mt-2 h-1.5 rounded-full bg-white/10 overflow-hidden">
-                            <div className="h-full bg-emerald-400 rounded-full" style={{ width: `${checkInRate}%` }} />
-                        </div>
-                        <p className="text-[11px] text-gray-500 mt-1">{checkInRate}% · {pendingGate} outside</p>
-                    </button>
-                    <div className="rounded-2xl border border-white/15 bg-linear-to-br from-white/8 to-[#161718] p-3.5">
-                        <p className="text-[10px] uppercase tracking-wide text-gray-400">Slots remain</p>
-                        <p className="text-2xl font-bold tabular-nums text-white mt-1">
-                            {stats.slotsAllotted > 0
-                                ? (stats.slotsLeft ?? 0)
-                                : '—'}
-                        </p>
-                        <p className="text-[11px] text-gray-500 mt-1">
-                            {stats.slotsAllotted > 0
-                                ? `${stats.slotsFilled ?? stats.approved}/${stats.slotsAllotted} filled`
-                                : 'No limit set yet'}
-                            {data?.competition?.showSlotsPublic === false ? ' · unlimited on site' : ''}
-                        </p>
-                    </div>
                 </div>
             ) : null}
 

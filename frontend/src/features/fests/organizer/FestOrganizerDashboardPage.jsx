@@ -266,7 +266,7 @@ export default function FestOrganizerDashboardPage() {
                             ) : null}
                         </div>
                         <p className="text-2xl font-bold tabular-nums text-white">{pendingCheckIn}</p>
-                        <p className="text-xs text-amber-200/80 mt-1">Still outside</p>
+                        <p className="text-xs text-amber-200/80 mt-1">Outside</p>
                         <p className="text-[11px] text-gray-500 mt-1">{stats.todayRegistrations || 0} new today</p>
                     </button>
                 ) : (
@@ -297,7 +297,7 @@ export default function FestOrganizerDashboardPage() {
                     <Users size={16} className="text-[#0ECCEE] mb-2" />
                     <p className="text-2xl font-bold tabular-nums text-white">{totalApproved}</p>
                     <p className="text-xs text-[#0ECCEE]/90 mt-1">
-                        {hideProShow ? 'Total registrations' : 'Participants in'}
+                        {hideProShow ? 'Registrations' : 'Participants in'}
                     </p>
                     <p className="text-[11px] text-gray-500 mt-1">
                         {hideProShow
@@ -316,7 +316,7 @@ export default function FestOrganizerDashboardPage() {
                         <p className="text-2xl font-bold tabular-nums text-white">
                             {totalParticipants.toLocaleString('en-IN')}
                         </p>
-                        <p className="text-xs text-sky-200/90 mt-1">Total participants</p>
+                        <p className="text-xs text-sky-200/90 mt-1">People</p>
                         <p className="text-[11px] text-gray-500 mt-1">
                             All names on paid / approved rosters
                         </p>
@@ -393,7 +393,7 @@ export default function FestOrganizerDashboardPage() {
                         <div>
                             <h2 className="text-sm font-semibold text-white">Competitions</h2>
                             <p className="text-[11px] text-gray-500 mt-0.5">
-                                Entries · people · outside gate
+                                Entries · people · slots left
                             </p>
                         </div>
                         <button
@@ -412,6 +412,10 @@ export default function FestOrganizerDashboardPage() {
                                 const approved = Number(c.approved) || 0;
                                 const people = Number(c.participants) || approved;
                                 const outside = Math.max(0, approved - (Number(c.checkedIn) || 0));
+                                const slotsAllotted = Math.max(0, Number(c.slotsAllotted) || 0);
+                                const slotsLeft = slotsAllotted > 0
+                                    ? Math.max(0, Number(c.slotsLeft ?? (slotsAllotted - (c.slotsFilled ?? approved))))
+                                    : null;
                                 return (
                                     <button
                                         key={String(c.id)}
@@ -429,7 +433,14 @@ export default function FestOrganizerDashboardPage() {
                                                 />
                                             </div>
                                             <div className="min-w-0 flex-1">
-                                                <p className="text-sm font-semibold text-white truncate">{c.name}</p>
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <p className="text-sm font-semibold text-white truncate">{c.name}</p>
+                                                    {outside > 0 ? (
+                                                        <span className="text-[10px] font-medium text-amber-300 shrink-0">
+                                                            {outside} outside
+                                                        </span>
+                                                    ) : null}
+                                                </div>
                                                 <div className="mt-1.5 grid grid-cols-3 gap-1.5">
                                                     <div className="rounded-lg bg-white/4 border border-white/8 px-2 py-1.5 text-center">
                                                         <p className="text-sm font-bold tabular-nums text-white">{approved}</p>
@@ -440,12 +451,14 @@ export default function FestOrganizerDashboardPage() {
                                                         <p className="text-[9px] uppercase tracking-wide text-gray-500">People</p>
                                                     </div>
                                                     <div className={`rounded-lg border px-2 py-1.5 text-center ${
-                                                        outside > 0
+                                                        slotsLeft === 0 && slotsAllotted > 0
                                                             ? 'bg-amber-500/10 border-amber-400/25'
                                                             : 'bg-white/4 border-white/8'
                                                     }`}>
-                                                        <p className={`text-sm font-bold tabular-nums ${outside > 0 ? 'text-amber-200' : 'text-white'}`}>{outside}</p>
-                                                        <p className="text-[9px] uppercase tracking-wide text-gray-500">Outside</p>
+                                                        <p className={`text-sm font-bold tabular-nums ${slotsLeft === 0 && slotsAllotted > 0 ? 'text-amber-200' : 'text-white'}`}>
+                                                            {slotsAllotted > 0 ? slotsLeft : '∞'}
+                                                        </p>
+                                                        <p className="text-[9px] uppercase tracking-wide text-gray-500">Slots left</p>
                                                     </div>
                                                 </div>
                                             </div>

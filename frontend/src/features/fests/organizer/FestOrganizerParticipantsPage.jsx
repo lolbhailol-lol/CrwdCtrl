@@ -327,7 +327,9 @@ export default function FestOrganizerParticipantsPage() {
                     <p className="text-xs text-gray-500 mt-1">
                         {simplePortal
                             ? 'All competition registrations in one simple list.'
-                            : 'Cross-competition guest list — contact, export, check payment. Mark WhatsApp joins on each competition desk.'}
+                            : noReview
+                                ? 'Search anyone · see team names · call / WhatsApp'
+                                : 'Cross-competition guest list — contact, export, check payment.'}
                     </p>
                 </div>
                 <div className="flex gap-2 shrink-0">
@@ -343,7 +345,7 @@ export default function FestOrganizerParticipantsPage() {
                         onClick={exportExcel}
                         className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/10 text-sm text-gray-300"
                     >
-                        <Download size={14} /> Export Excel
+                        <Download size={14} /> Export
                     </button>
                     <button
                         type="button"
@@ -356,18 +358,8 @@ export default function FestOrganizerParticipantsPage() {
                 </div>
             </div>
 
-            {!simplePortal ? <div className={`grid grid-cols-2 ${noReview ? 'sm:grid-cols-5' : 'sm:grid-cols-4'} gap-2.5`}>
-                {noReview ? (
-                    <PulseBox
-                        label="Still outside"
-                        value={summary.notCheckedIn}
-                        hint={`${summary.checkedIn} already in`}
-                        tone="amber"
-                        icon={Clock}
-                        active={checkInStatus === 'not_in'}
-                        onClick={() => setParams({ checkInStatus: 'not_in', status: '', paymentStatus: '' })}
-                    />
-                ) : (
+            {!simplePortal ? <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                {!noReview ? (
                     <PulseBox
                         label="Need review"
                         value={summary.pending}
@@ -377,21 +369,19 @@ export default function FestOrganizerParticipantsPage() {
                         active={status === 'pending' && !checkInStatus && !paymentStatus}
                         onClick={() => setParams({ status: 'pending', checkInStatus: '', paymentStatus: '' })}
                     />
-                )}
-                {!simplePortal ? <PulseBox
-                    label={noReview ? 'Total registrations' : 'Approved'}
+                ) : null}
+                <PulseBox
+                    label={noReview ? 'Registrations' : 'Approved'}
                     value={summary.approved}
-                    hint={noReview
-                        ? `${(summary.totalParticipants || summary.approved || 0).toLocaleString('en-IN')} people`}
-                        : `${summary.active} active total`}
+                    hint={noReview ? 'Teams / entries' : `${summary.active} active total`}
                     tone="cyan"
                     icon={Users}
                     active={status === 'approved' && !checkInStatus && !paymentStatus}
                     onClick={() => setParams({ status: 'approved', checkInStatus: '', paymentStatus: '' })}
-                /> : null}
+                />
                 {noReview ? (
                     <PulseBox
-                        label="Total participants"
+                        label="People"
                         value={summary.totalParticipants || summary.approved || 0}
                         hint="All names on rosters"
                         tone="cyan"
@@ -400,7 +390,18 @@ export default function FestOrganizerParticipantsPage() {
                         onClick={() => setParams({ status: 'approved', checkInStatus: '', paymentStatus: '' })}
                     />
                 ) : null}
-                {!simplePortal ? <PulseBox
+                {noReview ? (
+                    <PulseBox
+                        label="Outside"
+                        value={summary.notCheckedIn}
+                        hint={`${summary.checkedIn} already in`}
+                        tone="amber"
+                        icon={Clock}
+                        active={checkInStatus === 'not_in'}
+                        onClick={() => setParams({ checkInStatus: 'not_in', status: '', paymentStatus: '' })}
+                    />
+                ) : null}
+                <PulseBox
                     label="Checked in"
                     value={summary.checkedIn}
                     hint={noReview ? `${summary.notCheckedIn} outside` : `${summary.notCheckedIn} still outside`}
@@ -408,22 +409,22 @@ export default function FestOrganizerParticipantsPage() {
                     icon={UserCheck}
                     active={checkInStatus === 'checked_in'}
                     onClick={() => setParams({ checkInStatus: 'checked_in', status: 'approved', paymentStatus: '' })}
-                /> : null}
-                <PulseBox
-                    label={noReview ? 'Paid / free' : 'Unpaid'}
-                    value={noReview ? (summary.collected || 0) : summary.unpaid}
-                    hint={noReview ? 'Payment collected' : 'Payment pending'}
-                    tone="rose"
-                    icon={Clock}
-                    active={noReview
-                        ? (paymentStatus === 'collected' || paymentStatus === 'paid')
-                        : paymentStatus === 'pending'}
-                    onClick={() => setParams({
-                        paymentStatus: noReview ? 'collected' : 'pending',
-                        status: '',
-                        checkInStatus: '',
-                    })}
                 />
+                {!noReview ? (
+                    <PulseBox
+                        label="Unpaid"
+                        value={summary.unpaid}
+                        hint="Payment pending"
+                        tone="rose"
+                        icon={Clock}
+                        active={paymentStatus === 'pending'}
+                        onClick={() => setParams({
+                            paymentStatus: 'pending',
+                            status: '',
+                            checkInStatus: '',
+                        })}
+                    />
+                ) : null}
             </div> : null}
 
             <div className="rounded-2xl border border-white/10 bg-[#161718] p-3 space-y-3">
@@ -503,7 +504,7 @@ export default function FestOrganizerParticipantsPage() {
                         })}
                         className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
                             checkInStatus === 'not_in'
-                                ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-400/30'
+                                ? 'bg-amber-500/15 text-amber-200 border border-amber-400/30'
                                 : 'text-gray-500 border border-transparent hover:text-gray-300'
                         }`}
                     >
@@ -550,14 +551,16 @@ export default function FestOrganizerParticipantsPage() {
                 <Trophy size={13} className="text-[#0ECCEE] shrink-0" />
                 <span className="min-w-0 flex-1">
                     {simplePortal
-                        ? 'Open a competition to view and manage only its participants.'
-                        : 'Need slots or team roster detail? Use the competition desk — this page is the full-fest guest book.'}
+                        ? 'Open a competition to view only its participants.'
+                        : noReview
+                            ? 'Tap a row for full team roster · use competition desk for slots'
+                            : 'Full-fest guest book — open a competition desk for slots & roster detail.'}
                 </span>
                 <Link
                     to={`/fest-organizer/fests/${festId}/competitions`}
                     className="text-[#0ECCEE] font-medium shrink-0"
                 >
-                    Open hub →
+                    Competitions →
                 </Link>
             </div>
 

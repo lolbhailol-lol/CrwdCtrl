@@ -217,24 +217,20 @@ export default function FestOrganizerCompetitionsPage() {
                         </div>
                         <h1 className="text-xl font-bold tracking-tight text-white">{fest?.festName || 'Competitions'}</h1>
                         <p className="text-sm text-gray-400 mt-1">
-                            {simplePortal ? 'Competitions and participants' : (noReview ? 'Rosters, slots, gate' : 'Review entries, set capacity, open ops desk')}
+                            {simplePortal ? 'Competitions and participants' : (noReview ? 'Open a desk · see people & slots' : 'Review entries, set capacity, open ops desk')}
                         </p>
                         {simplePortal ? (
                             <p className="text-sm mt-1 text-gray-500">{stats?.totalRegistrations || 0} total participants</p>
                         ) : noReview ? (
                             <p className="text-sm mt-1 text-gray-500">
+                                <span className="text-white font-medium tabular-nums">
+                                    {(stats.totalParticipants || stats.totalRegistrations || 0).toLocaleString('en-IN')}
+                                </span>
+                                {' people · '}
+                                <span className="tabular-nums">{stats.totalRegistrations || 0}</span>
+                                {' entries'}
                                 {outsideHub > 0 ? (
-                                    <span className="text-emerald-200/90 font-medium">{outsideHub} still outside</span>
-                                ) : (
-                                    <span className="text-emerald-300/90">Gate clear</span>
-                                )}
-                                {stats ? (
-                                    <span>
-                                        {' · '}
-                                        {stats.totalRegistrations || 0} registrations ·{' '}
-                                        {(stats.totalParticipants || stats.totalRegistrations || 0).toLocaleString('en-IN')} people ·{' '}
-                                        {stats.checkedIn || 0} checked in
-                                    </span>
+                                    <span className="text-amber-200/90"> · {outsideHub} still outside</span>
                                 ) : null}
                             </p>
                         ) : needsReview > 0 ? (
@@ -396,9 +392,11 @@ export default function FestOrganizerCompetitionsPage() {
                                     ) : null}
                                     {!simplePortal && noReview ? (
                                         <MiniBox
-                                            label="Outside"
-                                            value={Math.max(0, (Number(c.approved) || total) - checkedIn)}
-                                            tone={Math.max(0, (Number(c.approved) || total) - checkedIn) > 0 ? 'warn' : 'default'}
+                                            label="Slots left"
+                                            value={slotsAllotted > 0
+                                                ? (slotsLeft ?? Math.max(0, slotsAllotted - (c.slotsFilled ?? c.approved ?? 0)))
+                                                : '∞'}
+                                            tone={slotsAllotted > 0 && slotsLeft === 0 ? 'warn' : 'default'}
                                         />
                                     ) : !simplePortal ? (
                                         <MiniBox label="Review" value={pending} tone={pending > 0 ? 'warn' : 'default'} />
@@ -410,6 +408,11 @@ export default function FestOrganizerCompetitionsPage() {
                                         tone={slotsAllotted > 0 && slotsLeft === 0 ? 'warn' : 'default'}
                                     /> : null}
                                 </div>
+                                {noReview && Math.max(0, (Number(c.approved) || total) - checkedIn) > 0 ? (
+                                    <p className="text-[11px] text-amber-200/80 mt-2">
+                                        {Math.max(0, (Number(c.approved) || total) - checkedIn)} still outside gate
+                                    </p>
+                                ) : null}
                             </button>
                             <div className="mt-3 pt-3 border-t border-white/8 space-y-2">
                                 {!simplePortal ? <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#121314] px-3 py-2.5">
