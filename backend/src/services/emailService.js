@@ -1848,27 +1848,47 @@ module.exports = {
     previewWelcomeEmailHTML: generateWelcomeEmailHTML,
 };
 
-async function sendMindSparkBundleConfirmationEmail({ email, name, bundleId, paymentToken, items = [] }) {
+async function sendMindSparkBundleConfirmationEmail({
+    email,
+    name,
+    bundleId,
+    paymentToken,
+    items = [],
+    resend = false,
+}) {
     if (!email || items.length !== 3) throw new Error('A bundle confirmation requires an email and three registrations');
     const frontend = String(process.env.FRONTEND_URL || 'https://www.crwdctrl.in').replace(/\/$/, '');
     const rows = items.map((item, index) => {
         const roster = Array.isArray(item.roster?.team_members) ? item.roster.team_members : [];
         const ticketUrl = `${frontend}/qr-ticket/${encodeURIComponent(item.registrationId)}`;
+        const whatsappHtml = buildWhatsAppJoinBlock(
+            item.whatsappGroupLink,
+            item.competitionName,
+            { product: 'competition' },
+        );
         return `<div style="margin:12px 0;padding:16px;border:1px solid #dbeafe;border-radius:14px;background:#f8fafc;">
             <p style="margin:0;font-size:16px;font-weight:700;color:#111827;">${index + 1}. ${escapeHtml(item.competitionName)}</p>
             <p style="margin:6px 0;color:#475569;font-size:13px;">Registration ID: <strong>${escapeHtml(item.registrationId)}</strong></p>
             <p style="margin:6px 0;color:#475569;font-size:13px;">Participants: ${escapeHtml(roster.join(', ') || name || 'Team leader')}</p>
             <a href="${escapeHtml(ticketUrl)}" style="display:inline-block;margin-top:8px;padding:10px 14px;border-radius:10px;background:#0ECCEE;color:#071014;text-decoration:none;font-weight:700;">Open ticket QR</a>
+            ${whatsappHtml}
         </div>`;
     }).join('');
     const statusUrl = `${frontend}/mindspark/bundle-pay/${encodeURIComponent(paymentToken)}`;
+    const intro = resend
+        ? `<p>Hi ${escapeHtml(name || 'there')}, here are your three MindSpark tickets again, <strong>including WhatsApp group links</strong> for each competition.</p>`
+        : `<p>Hi ${escapeHtml(name || 'there')}, your payment is verified and all three registrations are ready.</p>`;
+    const title = resend ? 'MindSpark bundle — WhatsApp links' : 'MindSpark bundle confirmed';
+    const subject = resend
+        ? 'MindSpark bundle — WhatsApp groups for your 3 competitions'
+        : '✅ MindSpark bundle confirmed — 3 competition tickets';
     return sendEmail({
         from: getDefaultFrom(),
         to: email,
-        subject: '✅ MindSpark bundle confirmed — 3 competition tickets',
+        subject,
         html: `<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;padding:24px;color:#111827;">
-            <h1 style="margin:0 0 8px;">MindSpark bundle confirmed</h1>
-            <p>Hi ${escapeHtml(name || 'there')}, your payment is verified and all three registrations are ready.</p>
+            <h1 style="margin:0 0 8px;">${escapeHtml(title)}</h1>
+            ${intro}
             ${rows}
             <p style="margin-top:18px;font-size:13px;color:#64748b;">Bundle ID: ${escapeHtml(bundleId)}</p>
             <a href="${escapeHtml(statusUrl)}" style="color:#0369a1;">Open complete bundle</a>

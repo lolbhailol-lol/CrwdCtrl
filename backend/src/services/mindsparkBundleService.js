@@ -4,6 +4,7 @@ const Registration = require('../model/registration_model');
 const Bundle = require('../model/mindspark_bundle_model');
 const User = require('../model/usermodel');
 const Competition = require('../model/competition_model');
+const FestOrganizer = require('../model/fest_organizer_model');
 const CompetitionSlotReservation = require('../model/competition_slot_reservation_model');
 const { acquireCompetitionSlot, releaseCompetitionSlot } = require('./competitionSlotReservationService');
 const { cashfreeSettlementFields } = require('../utils/cashfreeGatewayFee');
@@ -31,32 +32,78 @@ async function markReview(bundleId, message) {
   return { ok: false, error: message, paidReview: true };
 }
 
+async function buildMindSparkBundleEmailItems(bundle) {
+  const competitionIds = bundle.items.map((item) => item.competitionId).filter(Boolean);
+  const [fest, competitions] = await Promise.all([
+    FestOrganizer.findById(bundle.fest).select('registration.whatsappCommunityLink').lean(),
+    Competition.find({ _id: { $in: competitionIds } })
+      .select('registration.whatsappGroupLink')
+      .lean(),
+  ]);
+  const festWhatsApp = String(fest?.registration?.whatsappCommunityLink || '').trim();
+  const whatsAppByCompetitionId = new Map(
+    competitions.map((row) => [
+      String(row._id),
+      String(row.registration?.whatsappGroupLink || '').trim(),
+    ]),
+  );
+  return bundle.items.map((item) => ({
+    competitionName: item.competitionName,
+    roster: item.roster,
+    registrationId: String(item.registrationId),
+    whatsappGroupLink: whatsAppByCompetitionId.get(String(item.competitionId)) || festWhatsApp,
+  }));
+}
+
+async function deliverMindSparkBundleConfirmationEmail(bundle, user, { resend = false } = {}) {
+  const email = String(user?.email || '').trim().toLowerCase();
+  if (!email || email.endsWith('@crwdctrl.local')) {
+    return { sent: false, reason: 'no_email' };
+  }
+  if (!bundle.items?.every((item) => item.registrationId)) {
+    return { sent: false, reason: 'incomplete_registrations' };
+  }
+  const { sendMindSparkBundleConfirmationEmail } = require('./emailService');
+  await sendMindSparkBundleConfirmationEmail({
+    email,
+    name: user?.name,
+    bundleId: String(bundle._id),
+    paymentToken: bundle.paymentToken,
+    items: await buildMindSparkBundleEmailItems(bundle),
+    resend,
+  });
+  return { sent: true, email };
+}
+
 async function sendBundleEmailOnce(bundleId) {
   const claimed = await Bundle.findOneAndUpdate(
     { _id: bundleId, status: 'paid', confirmationEmailSentAt: null },
     { $set: { confirmationEmailSentAt: new Date() } },
     { new: true },
   ).select('+paymentToken').populate('user', 'name email');
-  if (!claimed) return;
-  const email = String(claimed.user?.email || '');
-  if (!email || email.endsWith('@crwdctrl.local')) return;
+  if (!claimed) return { sent: false, reason: 'already_sent_or_not_paid' };
   try {
-    const { sendMindSparkBundleConfirmationEmail } = require('./emailService');
-    await sendMindSparkBundleConfirmationEmail({
-      email,
-      name: claimed.user?.name,
-      bundleId: String(claimed._id),
-      paymentToken: claimed.paymentToken,
-      items: claimed.items.map((item) => ({
-        competitionName: item.competitionName,
-        roster: item.roster,
-        registrationId: String(item.registrationId),
-      })),
-    });
+    const result = await deliverMindSparkBundleConfirmationEmail(claimed, claimed.user);
+    if (!result.sent) {
+      await Bundle.updateOne({ _id: bundleId }, { $set: { confirmationEmailSentAt: null } }).catch(() => {});
+    }
+    return result;
   } catch (error) {
     await Bundle.updateOne({ _id: bundleId }, { $set: { confirmationEmailSentAt: null } }).catch(() => {});
     throw error;
   }
+}
+
+/** Resend bundle confirmation (e.g. after template fix). Does not require confirmationEmailSentAt to be null. */
+async function resendMindSparkBundleConfirmationEmail(bundleId) {
+  const bundle = await Bundle.findById(bundleId)
+    .select('+paymentToken')
+    .populate('user', 'name email');
+  if (!bundle) return { sent: false, reason: 'not_found' };
+  if (!['paid', 'paid_review'].includes(bundle.status)) {
+    return { sent: false, reason: 'not_paid' };
+  }
+  return deliverMindSparkBundleConfirmationEmail(bundle, bundle.user, { resend: true });
 }
 
 async function fulfillMindSparkBundle(paymentOrder) {
@@ -175,4 +222,8 @@ async function fulfillMindSparkBundle(paymentOrder) {
   return { ok: true, issued: true, registrationIds: registrations.map((registration) => registration._id) };
 }
 
-module.exports = { allocate, fulfillMindSparkBundle };
+module.exports = {
+  allocate,
+  fulfillMindSparkBundle,
+  resendMindSparkBundleConfirmationEmail,
+};
