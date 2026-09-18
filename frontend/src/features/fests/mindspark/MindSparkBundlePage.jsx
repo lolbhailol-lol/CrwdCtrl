@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Loader, ShieldCheck } from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, CheckCircle2, Loader, ShieldCheck } from 'lucide-react';
 import { apiUtils } from '../../../utils/api';
 import { useAuth } from '../../../context/AuthContext';
 import { useDarkMode } from '../../../context/DarkModeContext';
 import CrwdCtrlLogin from '../../../pages/auth/login';
-import { createMindSparkBundle, fetchMindSparkBundleOffer, quoteMindSparkBundle, reissueMindSparkBundlePayment } from '../../../services/api/mindsparkBundle.api';
+import { createMindSparkBundle, fetchMindSparkBundleOffer, quoteMindSparkBundle, reissueMindSparkBundlePayment, verifyMindSparkBundlePayment } from '../../../services/api/mindsparkBundle.api';
 import { openCashfreeCheckout } from '../../../utils/useCashfree';
+import { buildBrandedCompetitionQrDataUrl } from '../../../utils/competitionPublicQr';
+import { PUBLIC_WEB_ORIGIN } from '../../../utils/publicWebOrigin';
+import LocalQRCode from '../../../components/LocalQRCode';
 
 const STEPS = ['Your details', 'Choose events', 'Participants', 'Pay'];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -67,11 +70,43 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
   const [quote, setQuote] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [deskPay, setDeskPay] = useState(null);
+  const [deskPayQr, setDeskPayQr] = useState('');
   const submissionKey = useRef(crypto.randomUUID());
   const scrollRef = useRef(null);
   const inputCls = fieldClass(isDark);
 
   useEffect(() => { fetchMindSparkBundleOffer().then(setOffer).catch(e => setError(e.message)); }, []);
+  useEffect(() => {
+    if (!deskPay?.paymentUrl) {
+      setDeskPayQr('');
+      return undefined;
+    }
+    let cancelled = false;
+    buildBrandedCompetitionQrDataUrl(deskPay.paymentUrl, { size: 900 }).then((url) => {
+      if (!cancelled) setDeskPayQr(url);
+    });
+    return () => { cancelled = true; };
+  }, [deskPay?.paymentUrl]);
+
+  useEffect(() => {
+    if (!desk || !deskPay?.paymentToken || deskPay.status === 'paid') return undefined;
+    const timer = window.setInterval(async () => {
+      try {
+        const next = await verifyMindSparkBundlePayment(deskPay.paymentToken);
+        setDeskPay((prev) => ({
+          ...prev,
+          ...next,
+          paymentToken: prev.paymentToken,
+          paymentUrl: prev.paymentUrl,
+          status: next.status || prev.status,
+        }));
+      } catch {
+        /* keep polling */
+      }
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [desk, deskPay?.paymentToken, deskPay?.status]);
   useEffect(() => {
     if (!isAuthenticated || !user) return;
     setCustomer(current => ({
@@ -165,7 +200,18 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
     setBusy(true); setError('');
     try {
       let result = await createMindSparkBundle({ festId: offer.festId, submissionKey: submissionKey.current, customer, items }, desk);
-      if (desk || result.status === 'paid') {
+      if (desk) {
+        const paymentToken = String(result.paymentUrl || '')
+          .split('/bundle-pay/')[1]
+          ?.split(/[?#]/)[0] || '';
+        setDeskPay({
+          ...result,
+          paymentToken,
+          paymentUrl: result.paymentUrl || (paymentToken ? `${PUBLIC_WEB_ORIGIN}/mindspark/bundle-pay/${paymentToken}` : ''),
+        });
+        return;
+      }
+      if (result.status === 'paid') {
         window.location.assign(result.paymentUrl);
         return;
       }
@@ -190,12 +236,90 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
   };
 
   const pageClass = `crwdctrl-page crwdctrl-page--content ${embedded ? 'min-h-full' : 'min-h-dvh'} pt-[calc(var(--safe-top)+1.25rem)] sm:pt-[calc(var(--safe-top)+1.5rem)] pb-24`;
+  const titleCls = isDark ? 'text-white' : 'text-gray-900';
+  const muted = isDark ? 'text-gray-400' : 'text-gray-500';
+
   if (!offer) {
     return (
       <main className={`${pageClass} grid place-items-center`}>
         <Loader className="animate-spin text-[#0ECCEE]" />
       </main>
     );
+  }
+
+  if (desk && deskPay) {
+    const paid = deskPay.status === 'paid';
+    const deskFestId = offer.festId || '6a7f1010ed26d983b34e55c2';
+    const deskContent = (
+      <div className="mx-auto w-full max-w-lg px-4 py-6 space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-wider text-[#0ECCEE]">Fest Day Desk · Bundle</p>
+            <h1 className={`text-xl font-bold mt-1 ${titleCls}`}>Any 3 · {discountPercent}% off</h1>
+          </div>
+          <Link
+            to={`/fest-organizer/fests/${deskFestId}/fest-day-desk`}
+            className={`text-sm font-semibold ${isDark ? 'text-[#0ECCEE]' : 'text-cyan-700'}`}
+          >
+            Back to desk
+          </Link>
+        </div>
+        <div className={`rounded-xl border px-3 py-2 text-center text-sm font-semibold ${
+          paid
+            ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-200'
+            : 'border-amber-400/30 bg-amber-500/10 text-amber-100'
+        }`}>
+          {paid ? 'PAID — tickets issued · confirmation emails sent' : 'PAYMENT QR — not for gate entry'}
+        </div>
+        <div className="rounded-3xl bg-white p-4 flex items-center justify-center min-h-[300px]">
+          {paid ? (
+            <CheckCircle2 className="text-emerald-600" size={54} />
+          ) : deskPayQr ? (
+            <img src={deskPayQr} alt="Scan to pay bundle" className="w-full max-w-[420px] aspect-square" />
+          ) : (
+            <Loader className="animate-spin text-black" />
+          )}
+        </div>
+        <div className="text-center space-y-1">
+          <p className={`text-3xl font-bold ${titleCls}`}>₹{Number(deskPay.amount || 0).toLocaleString('en-IN')}</p>
+          <p className={paid ? 'text-sm text-emerald-300' : 'text-sm text-amber-300'}>
+            {paid
+              ? 'Bundle confirmed'
+              : deskPay.status === 'confirming' || deskPay.status === 'paid_review'
+                ? 'Payment confirming…'
+                : 'Student scans this QR and pays on their phone'}
+          </p>
+          <p className={`font-mono text-xs ${muted}`}>{deskPay.orderId}</p>
+        </div>
+        {paid && Array.isArray(deskPay.tickets) && deskPay.tickets.length ? (
+          <div className="space-y-2">
+            {deskPay.tickets.map((ticket) => (
+              <div key={ticket.registrationId || ticket.competitionName} className={`rounded-xl border p-3 ${isDark ? 'border-white/10' : 'border-gray-200'}`}>
+                <p className={`text-sm font-semibold ${titleCls}`}>{ticket.competitionName}</p>
+                <p className={`text-xs font-mono ${muted}`}>{ticket.registrationId}</p>
+                {ticket.ticketQr || ticket.ticketUrl ? (
+                  <div className="mt-2 rounded-xl bg-white p-2 w-fit mx-auto">
+                    <LocalQRCode data={ticket.ticketQr || ticket.ticketUrl} size={140} printSafe />
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {paid ? (
+          <Link
+            to={`/fest-organizer/fests/${deskFestId}/fest-day-desk`}
+            className="block text-center rounded-xl bg-[#0ECCEE] text-black py-3 font-semibold"
+          >
+            Done — back to Fest Day Desk
+          </Link>
+        ) : (
+          <p className={`text-center text-xs ${muted}`}>Keep this tablet open. Status updates automatically.</p>
+        )}
+      </div>
+    );
+    if (embedded) return <div className={pageClass}>{deskContent}</div>;
+    return <main className={pageClass}>{deskContent}</main>;
   }
 
   const activeCompetition = comps[formIndex];
@@ -211,8 +335,6 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
   const activeMax = Math.max(activeMin, Number(activeCompetition?.teamSizeMax) || activeMin);
   const needsLogin = step === 1 && !desk && !isAuthenticated;
   const labelCls = `block text-sm font-medium mb-1.5 ${isDark ? 'text-white' : 'text-gray-900'}`;
-  const muted = isDark ? 'text-gray-400' : 'text-gray-500';
-  const titleCls = isDark ? 'text-white' : 'text-gray-900';
 
   const content = (
     <div ref={scrollRef} className={`mx-auto w-full min-w-0 max-w-4xl px-4 sm:px-6 lg:px-8 ${embedded ? 'pb-[max(1.25rem,env(safe-area-inset-bottom))]' : ''}`}>

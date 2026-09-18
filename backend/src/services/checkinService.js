@@ -705,6 +705,20 @@ async function performCheckinFromRaw(raw, options = {}) {
     };
   }
 
+  const regStatus = String(registration.status || '').toLowerCase();
+  if (regStatus && regStatus !== 'approved') {
+    return {
+      status: 403,
+      body: {
+        success: false,
+        status: 'invalid',
+        message: regStatus === 'rejected'
+          ? 'This ticket was cancelled or refunded and cannot be checked in.'
+          : 'This registration is not approved for entry.',
+      },
+    };
+  }
+
   registration.checkedIn = true;
   registration.checkedInAt = new Date();
   await registration.save();

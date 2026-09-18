@@ -10,28 +10,76 @@ const { buildPriceBreakdown } = require('../utils/platformFee');
 const { resolveTrekPlatformFeePercent } = require('../utils/trekRegistrationFee');
 const { createCashfreeOrder, verifyCashfreePayment, getCashfreeClientMode } = require('../services/cashfreeService');
 const { acquireCompetitionSlot, attachReservationToOrder, releaseCompetitionSlot } = require('../services/competitionSlotReservationService');
+const {
+  findApprovedCompetitionDuplicate,
+} = require('../utils/competitionDuplicateGuard');
+const { findOpenMindSparkCheckout } = require('../utils/openMindSparkCheckout');
 
-const FRONTEND = () => String(process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+const FRONTEND = () => String(
+  process.env.PRODUCTION_FRONTEND_URL
+  || process.env.PUBLIC_FRONTEND_URL
+  || process.env.FRONTEND_URL
+  || 'https://www.crwdctrl.in',
+).replace(/\/$/, '');
 const ORDER_TTL_MS = 30 * 60 * 1000;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 const clean = (value, max = 160) => String(value || '').trim().replace(/\s+/g, ' ').slice(0, max);
 const phoneDigits = (value) => String(value || '').replace(/\D/g, '').slice(-10);
+const validEmail = (value) => EMAIL_RE.test(clean(value).toLowerCase());
 
-function publicState(entry, order, issuedRegistration = null) {
+function publicState(entry, order, issuedRegistration = null, competitionName = '') {
   const raw = String(order?.status || '').toUpperCase();
   const completed = entry.status === 'paid' && Boolean(issuedRegistration);
   const timedOut = raw === 'PENDING' && Date.now() - new Date(order?.createdAt || 0).getTime() >= ORDER_TTL_MS;
   return {
     registrationId: issuedRegistration?._id ? String(issuedRegistration._id) : null,
     orderId: order?.orderId || null,
-    status: completed ? 'paid' : raw === 'FAILED' ? 'failed' : (raw === 'EXPIRED' || timedOut) ? 'expired' : raw === 'PAID' ? 'confirming' : 'pending',
+    status: completed
+      ? 'paid'
+      : order?.orderTags?.paidReview || order?.orderTags?.retired
+        ? 'paid_review'
+        : raw === 'FAILED'
+          ? 'failed'
+          : (raw === 'EXPIRED' || timedOut)
+            ? 'expired'
+            : raw === 'PAID'
+              ? 'confirming'
+              : 'pending',
     amount: Number(order?.totalAmount) || 0,
     paymentSessionId: raw === 'PENDING' && !timedOut ? order?.paymentSessionId || null : null,
     cashfreeMode: getCashfreeClientMode(),
+    paymentUrl: `${FRONTEND()}/desk-payment/${entry.paymentToken}`,
     ticketUrl: completed ? `${FRONTEND()}/desk-payment/${entry.paymentToken}` : null,
     ticketQr: completed ? issuedRegistration.qrCodeData || null : null,
+    competitionName: competitionName || '',
     participantName: clean(entry.responses?.get?.('full_name') || entry.responses?.full_name),
     teamName: clean(entry.responses?.get?.('team_name') || entry.responses?.team_name),
   };
+}
+
+function normalizeMembers(rawMembers, captainName) {
+  const list = Array.isArray(rawMembers) ? rawMembers : [];
+  return list.map((entry) => {
+    if (typeof entry === 'string') {
+      const name = clean(entry, 100);
+      return name ? { name, email: '' } : null;
+    }
+    if (entry && typeof entry === 'object') {
+      const name = clean(entry.name || entry.full_name, 100);
+      if (!name) return null;
+      return {
+        name,
+        email: clean(entry.email, 120).toLowerCase(),
+        phone: phoneDigits(entry.phone || entry.mobile),
+        college: clean(entry.college || entry.college_name, 120),
+      };
+    }
+    return null;
+  }).filter((row) => row && row.name && row.name.toLowerCase() !== String(captainName || '').toLowerCase());
+}
+
+async function findApprovedDuplicate({ festId, competitionId, userId, phone, email }) {
+  return findApprovedCompetitionDuplicate({ festId, competitionId, userId, phone, email });
 }
 
 async function createOrderForEntry({ entry, competition, user }) {
@@ -81,14 +129,14 @@ async function createOrderForEntry({ entry, competition, user }) {
   }
 }
 
-async function responseFor(entry, order = null) {
+async function responseFor(entry, order = null, competitionName = '') {
   const issued = entry.registrationId
     ? await Registration.findById(entry.registrationId)
     : order?.orderId ? await Registration.findOne({ payment_order_id: order.orderId }) : null;
   if (issued && entry.status !== 'paid') {
     entry.status = 'paid'; entry.registrationId = issued._id; await entry.save();
   }
-  return publicState(entry, order, issued);
+  return publicState(entry, order, issued, competitionName);
 }
 
 exports.createAssistedRegistration = async (req, res) => {
@@ -98,26 +146,165 @@ exports.createAssistedRegistration = async (req, res) => {
     if (submissionKey.length < 8) return res.status(400).json({ success: false, message: 'Invalid submission key' });
     let entry = await DeskEntry.findOne({ fest: req.festId, submissionKey }).select('+paymentToken');
     if (entry) {
-      const order = entry.paymentOrderId ? await PaymentOrder.findOne({ orderId: entry.paymentOrderId }) : null;
-      return res.json({ success: true, paymentUrl: `${FRONTEND()}/desk-payment/${entry.paymentToken}`, ...(await responseFor(entry, order)) });
+      const [order, competition] = await Promise.all([
+        entry.paymentOrderId ? PaymentOrder.findOne({ orderId: entry.paymentOrderId }) : null,
+        Competition.findById(entry.competitionId).select('name').lean(),
+      ]);
+      return res.json({
+        success: true,
+        ...(await responseFor(entry, order, competition?.name || '')),
+      });
     }
+
     const competition = await Competition.findOne({ _id: req.body.competitionId, fest: req.festId }).populate('fest');
     if (!competition) return res.status(404).json({ success: false, message: 'Competition not found' });
-    const name = clean(req.body.name, 100); const phone = phoneDigits(req.body.phone); const email = clean(req.body.email, 180).toLowerCase();
-    if (!name || phone.length !== 10) return res.status(400).json({ success: false, message: 'Captain name and valid 10-digit phone are required' });
-    const members = Array.isArray(req.body.members) ? req.body.members.map((x) => clean(x, 100)).filter(Boolean) : [];
-    const min = Math.max(1, Number(competition.teamSizeMin) || 1); const max = Math.max(min, Number(competition.teamSizeMax) || min);
-    if (1 + members.length < min || 1 + members.length > max) return res.status(400).json({ success: false, message: `Team size must be between ${min} and ${max}` });
+
+    const name = clean(req.body.name, 100);
+    const phone = phoneDigits(req.body.phone);
+    const email = clean(req.body.email, 180).toLowerCase();
+    if (!name || phone.length !== 10) {
+      return res.status(400).json({ success: false, message: 'Captain name and valid 10-digit phone are required' });
+    }
+    if (!validEmail(email)) {
+      return res.status(400).json({ success: false, message: 'Captain email is required for confirmation and ticket delivery' });
+    }
+
+    const memberRows = normalizeMembers(req.body.members, name);
+    const min = Math.max(1, Number(competition.teamSizeMin) || 1);
+    const max = Math.max(min, Number(competition.teamSizeMax) || min);
+    if (1 + memberRows.length < min || 1 + memberRows.length > max) {
+      return res.status(400).json({ success: false, message: `Team size must be between ${min} and ${max}` });
+    }
+    const missingMemberEmail = memberRows.find((m) => !validEmail(m.email));
+    if (missingMemberEmail) {
+      return res.status(400).json({
+        success: false,
+        message: `Every teammate needs a valid email (missing for ${missingMemberEmail.name})`,
+      });
+    }
+    for (const member of memberRows) {
+      const memberDup = await findApprovedDuplicate({
+        festId: req.festId,
+        competitionId: competition._id,
+        phone: member.phone,
+        email: member.email,
+      });
+      if (memberDup) {
+        return res.status(409).json({
+          success: false,
+          message: `${member.name} is already registered for this competition.`,
+          registrationId: String(memberDup._id),
+          alreadyRegistered: true,
+        });
+      }
+    }
+
     resolveCompetitionTicketPrice(competition, clean(req.body.feeTierId, 80));
-    let user = await User.findOne({ $or: [{ phoneNumber: phone }, ...(email ? [{ email }] : [])] });
-    if (!user) user = await User.create({ name, email: email || `desk+${crypto.randomBytes(8).toString('hex')}@crwdctrl.local`, phoneNumber: phone, password: crypto.randomBytes(24).toString('hex'), isVerified: true, signupMethod: 'password' });
+
+    let user = await User.findOne({ phoneNumber: phone });
+    if (!user) user = await User.findOne({ email });
+    if (user && user.email && validEmail(user.email) && user.email !== email && String(user.phoneNumber || '') !== phone) {
+      return res.status(409).json({ success: false, message: 'This email is linked to a different phone number. Use the correct email or phone.' });
+    }
+    if (!user) {
+      user = await User.create({
+        name,
+        email,
+        phoneNumber: phone,
+        password: crypto.randomBytes(24).toString('hex'),
+        isVerified: true,
+        signupMethod: 'password',
+      });
+    } else {
+      let dirty = false;
+      if (!user.phoneNumber) { user.phoneNumber = phone; dirty = true; }
+      if (!user.email || String(user.email).endsWith('@crwdctrl.local')) { user.email = email; dirty = true; }
+      if (dirty) await user.save();
+    }
+
+    const duplicate = await findApprovedDuplicate({
+      festId: req.festId,
+      competitionId: competition._id,
+      userId: user._id,
+      phone,
+      email,
+    });
+    if (duplicate) {
+      return res.status(409).json({
+        success: false,
+        message: 'This participant is already registered for this competition.',
+        registrationId: String(duplicate._id),
+        alreadyRegistered: true,
+      });
+    }
+
+    // One open payment QR per person across the whole fest (desk / bundle / website)
+    const openCheckout = await findOpenMindSparkCheckout({
+      festId: req.festId,
+      userId: user._id,
+      phone,
+    });
+    if (openCheckout) {
+      const sameComp = openCheckout.kind === 'desk'
+        && String(openCheckout.competitionId) === String(competition._id);
+      if (sameComp && openCheckout.paymentToken) {
+        const pendingEntry = await DeskEntry.findById(openCheckout.entryId).select('+paymentToken');
+        const pendingOrder = await PaymentOrder.findOne({ orderId: openCheckout.orderId });
+        if (pendingEntry && pendingOrder) {
+          return res.json({
+            success: true,
+            reused: true,
+            message: 'Reusing this person’s open payment QR — only one at a time.',
+            ...(await responseFor(pendingEntry, pendingOrder, competition.name)),
+          });
+        }
+      }
+      const paymentUrl = openCheckout.kind === 'bundle' && openCheckout.paymentToken
+        ? `${FRONTEND()}/mindspark/bundle-pay/${openCheckout.paymentToken}`
+        : openCheckout.kind === 'desk' && openCheckout.paymentToken
+          ? `${FRONTEND()}/desk-payment/${openCheckout.paymentToken}`
+          : null;
+      return res.status(409).json({
+        success: false,
+        openPayment: true,
+        kind: openCheckout.kind,
+        competitionName: openCheckout.competitionName,
+        competitionId: openCheckout.competitionId || null,
+        orderId: openCheckout.orderId,
+        paymentUrl,
+        paymentToken: openCheckout.paymentToken || null,
+        amount: openCheckout.amount,
+        message: `This person already has an open ${openCheckout.kind === 'bundle' ? 'bundle' : ''} payment QR for ${openCheckout.competitionName}. Finish that payment (or wait for it to expire) before starting another.`,
+      });
+    }
+
+    const rosterMembers = [
+      { name, email, phone, college: clean(req.body.college) },
+      ...memberRows,
+    ];
     entry = await DeskEntry.create({
-      fest: req.festId, competitionId: competition._id, user: user._id, submissionKey,
+      fest: req.festId,
+      competitionId: competition._id,
+      user: user._id,
+      submissionKey,
       paymentToken: crypto.randomBytes(32).toString('hex'),
-      responses: { full_name: name, phone, email, college: clean(req.body.college), team_name: clean(req.body.teamName), team_members: [name, ...members], team_size: 1 + members.length, feeTierId: clean(req.body.feeTierId, 80), manual_entry: 'assisted_cashfree' },
+      responses: {
+        full_name: name,
+        phone,
+        email,
+        college: clean(req.body.college),
+        team_name: clean(req.body.teamName),
+        team_members: rosterMembers,
+        team_size: rosterMembers.length,
+        feeTierId: clean(req.body.feeTierId, 80),
+        manual_entry: 'assisted_cashfree',
+      },
     });
     const created = await createOrderForEntry({ entry, competition, user });
-    return res.status(201).json({ success: true, paymentUrl: `${FRONTEND()}/desk-payment/${entry.paymentToken}`, ...publicState(created.entry, created.order, created.issued) });
+    return res.status(201).json({
+      success: true,
+      ...publicState(created.entry, created.order, created.issued, competition.name),
+    });
   } catch (error) {
     console.error('[festDayAssisted.create]', error);
     return res.status(error.status || (error.code === 11000 ? 409 : 500)).json({ success: false, message: error.message || 'Could not create assisted registration' });
@@ -137,7 +324,7 @@ async function loadPublic(token) {
 exports.getAssistedPayment = async (req, res) => {
   const { entry, order, competition } = await loadPublic(req.params.token);
   if (!entry) return res.status(404).json({ success: false, message: 'Payment link not found' });
-  return res.json({ success: true, competitionName: competition?.name || 'Competition', ...(await responseFor(entry, order)) });
+  return res.json({ success: true, ...(await responseFor(entry, order, competition?.name || 'Competition')) });
 };
 
 exports.verifyAssistedPayment = async (req, res) => {
@@ -157,7 +344,8 @@ exports.verifyAssistedPayment = async (req, res) => {
       }
     }
     const freshOrder = order ? await PaymentOrder.findById(order._id) : null;
-    return res.json({ success: true, competitionName: competition?.name || 'Competition', ...(await responseFor(entry, freshOrder)) });
+    const freshEntry = await DeskEntry.findById(entry._id).select('+paymentToken');
+    return res.json({ success: true, ...(await responseFor(freshEntry, freshOrder, competition?.name || 'Competition')) });
   } catch {
     return res.status(500).json({ success: false, message: 'Could not verify payment' });
   }
@@ -168,19 +356,39 @@ exports.reissueAssistedPayment = async (req, res) => {
     const { entry, order } = await loadPublic(req.params.token);
     if (!entry) return res.status(404).json({ success: false, message: 'Payment link not found' });
     const timedOut = order?.status === 'PENDING' && Date.now() - new Date(order.createdAt).getTime() >= ORDER_TTL_MS;
-    if (entry.status === 'paid' || !order || (order.status === 'PENDING' && !timedOut)) return res.json({ success: true, ...(await responseFor(entry, order)) });
-    if (timedOut) { order.status = 'EXPIRED'; await order.save(); if (order.orderTags?.slotReservationToken) await releaseCompetitionSlot(order.orderTags.slotReservationToken).catch(() => {}); }
-    // Retire the old draft before replacement so a very late old payment cannot fulfill twice.
+    if (entry.status === 'paid' || !order || (order.status === 'PENDING' && !timedOut)) {
+      const competition = await Competition.findById(entry.competitionId).select('name').lean();
+      return res.json({ success: true, ...(await responseFor(entry, order, competition?.name || '')) });
+    }
+    if (timedOut) {
+      order.status = 'EXPIRED';
+      await order.save();
+      if (order.orderTags?.slotReservationToken) await releaseCompetitionSlot(order.orderTags.slotReservationToken).catch(() => {});
+    }
+    // Keep draft on the retired order so ops can recover, but mark retired so late CF pay refunds instead of double-issuing.
     await PaymentOrder.updateOne(
       { _id: order._id, status: { $in: ['FAILED', 'EXPIRED'] } },
-      { $unset: { 'orderTags.registrationDraft': 1 } },
+      {
+        $set: {
+          'orderTags.retired': true,
+          'orderTags.retiredAt': new Date().toISOString(),
+        },
+      },
     );
-    const competition = await Competition.findById(entry.competitionId).populate('fest'); const user = await User.findById(entry.user);
-    entry.status = 'pending'; const created = await createOrderForEntry({ entry, competition, user });
-    return res.json({ success: true, ...publicState(created.entry, created.order, created.issued) });
+    const competition = await Competition.findById(entry.competitionId).populate('fest');
+    const user = await User.findById(entry.user);
+    entry.status = 'pending';
+    const created = await createOrderForEntry({ entry, competition, user });
+    if (created.order?.orderId) {
+      await PaymentOrder.updateOne(
+        { _id: order._id },
+        { $set: { 'orderTags.supersededBy': created.order.orderId } },
+      ).catch(() => {});
+    }
+    return res.json({ success: true, ...publicState(created.entry, created.order, created.issued, competition.name) });
   } catch (error) {
     return res.status(error.status || 500).json({ success: false, message: error.message || 'Could not reissue payment' });
   }
 };
 
-exports._test = { publicState, ORDER_TTL_MS, phoneDigits };
+exports._test = { publicState, ORDER_TTL_MS, phoneDigits, normalizeMembers, validEmail, findApprovedDuplicate };

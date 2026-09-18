@@ -68,6 +68,29 @@ const submitCustomCompetitionRegistration = async (req, res) => {
       return res.status(404).json({ error: 'Competition not found' });
     }
 
+    {
+      const { findApprovedCompetitionDuplicate, phoneDigits } = require('../../utils/competitionDuplicateGuard');
+      const User = require('../../model/usermodel');
+      const userDoc = await User.findById(userId).select('email phoneNumber').lean();
+      const responsePhone = phoneDigits(
+        responses.phone || responses.mobile || responses.contact_no || '',
+      );
+      const duplicate = await findApprovedCompetitionDuplicate({
+        festId: competition.fest?._id || competition.fest,
+        competitionId: competition._id,
+        userId,
+        phone: responsePhone || phoneDigits(userDoc?.phoneNumber),
+        email: responses.email || userDoc?.email,
+      });
+      if (duplicate) {
+        return res.status(409).json({
+          error: 'You are already registered for this competition.',
+          alreadyRegistered: true,
+          registrationId: String(duplicate._id),
+        });
+      }
+    }
+
     logger.debug('🔍 Competition found:', {
       name: competition.name,
       registrationType: competition.registrationType,

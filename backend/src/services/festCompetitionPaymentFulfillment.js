@@ -19,6 +19,32 @@ const {
 const { normalizeLeadIdentityFromRoster } = require('../utils/rosterResponses');
 const { saveRegistrationIdempotent } = require('../utils/registrationIdempotency');
 const { cashfreeSettlementFields } = require('../utils/cashfreeGatewayFee');
+const {
+  findApprovedCompetitionDuplicate,
+  identityFromDraft,
+  phoneDigits,
+} = require('../utils/competitionDuplicateGuard');
+const { queueAutomaticCompetitionRefund } = require('./autoRefundCompetitionPayment');
+
+async function restoreDraftFromDeskEntry(paymentOrder) {
+  const deskEntryId = paymentOrder.orderTags?.deskEntryId;
+  if (!deskEntryId) return null;
+  try {
+    const DeskEntry = require('../model/fest_day_assisted_registration_model');
+    const entry = await DeskEntry.findById(deskEntryId).lean();
+    if (!entry) return null;
+    const formData = entry.responses instanceof Map
+      ? Object.fromEntries(entry.responses)
+      : (entry.responses || {});
+    return sanitizeFestCompetitionDraft({
+      festId: String(entry.fest || ''),
+      competitionId: String(entry.competitionId || ''),
+      formData,
+    });
+  } catch {
+    return null;
+  }
+}
 
 async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides = {}) {
   const orderId = paymentOrderInput?.orderId || paymentOrderInput;
@@ -43,13 +69,50 @@ async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides 
     }
   }
 
+  // Retired / superseded desk payment — refund, never issue a second ticket
+  if (paymentOrder.orderTags?.retired) {
+    const refund = await queueAutomaticCompetitionRefund(paymentOrder, {
+      reason: 'retired_desk_order_late_pay',
+      actor: 'system:retired_order',
+    });
+    return {
+      ok: false,
+      retired: true,
+      paidReview: true,
+      refundQueued: Boolean(refund.ok),
+      error: 'This payment was replaced by a newer attempt and will be refunded.',
+    };
+  }
+
   const userId = overrides.userId || paymentOrder.userId;
   if (!userId) return { ok: false, error: 'Missing user on payment order' };
 
   const storedDraft = sanitizeFestCompetitionDraft(paymentOrder.orderTags?.registrationDraft);
   const overrideDraft = sanitizeFestCompetitionDraft(overrides.registrationDraft);
-  const draft = overrideDraft || storedDraft;
-  if (!draft) return { ok: false, error: 'No registration draft available for this payment' };
+  let draft = overrideDraft || storedDraft;
+  if (!draft && paymentOrder.entityType === 'competition') {
+    draft = await restoreDraftFromDeskEntry(paymentOrder);
+    if (draft) {
+      paymentOrder.orderTags = {
+        ...(paymentOrder.orderTags || {}),
+        registrationDraft: draft,
+      };
+      paymentOrder.markModified('orderTags');
+      await paymentOrder.save().catch(() => {});
+    }
+  }
+  if (!draft) {
+    const refund = await queueAutomaticCompetitionRefund(paymentOrder, {
+      reason: 'missing_registration_draft',
+      actor: 'system:missing_draft',
+    });
+    return {
+      ok: false,
+      paidReview: true,
+      refundQueued: Boolean(refund.ok),
+      error: 'No registration draft available for this payment',
+    };
+  }
 
   const payment_order_id = paymentOrder.orderId;
   const payment_id = paymentOrder.paymentId || overrides.paymentId || null;
@@ -73,6 +136,75 @@ async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides 
 
     const user = await User.findById(userId);
     if (!user) return { ok: false, error: 'User not found' };
+
+    const draftIdentity = identityFromDraft(draft);
+    const priorApproved = await findApprovedCompetitionDuplicate({
+      festId: competition.fest._id,
+      competitionId: competition._id,
+      userId,
+      phone: draftIdentity.phone || phoneDigits(user.phoneNumber || paymentOrder.customerPhone),
+      email: draftIdentity.email || user.email || paymentOrder.customerEmail,
+    });
+    if (priorApproved && String(priorApproved.payment_order_id || '') !== String(payment_order_id)) {
+      logger.error('Duplicate competition payment after prior approved registration', {
+        orderId: payment_order_id,
+        existingRegistrationId: String(priorApproved._id),
+        competitionId: String(competition._id),
+        userId: String(userId),
+      });
+      const refund = await queueAutomaticCompetitionRefund(paymentOrder, {
+        reason: 'duplicate_competition_payment',
+        actor: 'system:duplicate_pay',
+      });
+      return {
+        ok: true,
+        registrationId: priorApproved._id,
+        alreadyExists: true,
+        duplicatePayment: true,
+        refundQueued: Boolean(refund.ok),
+      };
+    }
+
+    // Re-acquire capacity if the 30m reservation expired before payment settled
+    const {
+      acquireCompetitionSlot,
+      releaseCompetitionSlot: releaseSlot,
+    } = require('./competitionSlotReservationService');
+    const CompetitionSlotReservation = require('../model/competition_slot_reservation_model');
+    const heldToken = paymentOrder.orderTags?.slotReservationToken || '';
+    let activeReservation = heldToken
+      ? await CompetitionSlotReservation.findOne({ token: heldToken, expiresAt: { $gt: new Date() } }).lean()
+      : null;
+    if (!activeReservation) {
+      try {
+        const replacement = await acquireCompetitionSlot({ competition, userId });
+        if (replacement?.token) {
+          paymentOrder.orderTags = {
+            ...(paymentOrder.orderTags || {}),
+            slotReservationToken: replacement.token,
+          };
+          paymentOrder.markModified('orderTags');
+          await paymentOrder.save().catch(() => {});
+          activeReservation = replacement;
+        }
+      } catch (capacityError) {
+        logger.error('Competition fulfill after capacity expired — holding for refund review', {
+          orderId: payment_order_id,
+          message: capacityError.message,
+          competitionId: String(competition._id),
+        });
+        const refund = await queueAutomaticCompetitionRefund(paymentOrder, {
+          reason: 'capacity_expired_paid_review',
+          actor: 'system:capacity_review',
+        });
+        return {
+          ok: false,
+          paidReview: true,
+          refundQueued: Boolean(refund.ok),
+          error: capacityError.message || 'Paid after capacity expired; refund queued',
+        };
+      }
+    }
 
     const competitionTicketPrice = parseTicketPrice(competition.feeAmount)
       || parseTicketPrice(competition.registrationFee);

@@ -2,20 +2,21 @@ import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { useDarkMode } from '../context/DarkModeContext';
 
-export default function LocalQRCode({ data, size = 200, className = '' }) {
+export default function LocalQRCode({ data, size = 200, className = '', printSafe = false }) {
   const { isDark } = useDarkMode();
   const [src, setSrc] = useState('');
 
   useEffect(() => {
     let cancelled = false;
     const payload = typeof data === 'string' ? data : JSON.stringify(data);
+    const usePrint = printSafe || !isDark;
 
     QRCode.toDataURL(payload, {
       width: size,
       margin: 2,
-      color: isDark
-        ? { dark: '#ffffff', light: '#111213' }
-        : { dark: '#111213', light: '#ffffff' },
+      color: usePrint
+        ? { dark: '#111213', light: '#ffffff' }
+        : { dark: '#ffffff', light: '#111213' },
     })
       .then((url) => {
         if (!cancelled) setSrc(url);
@@ -25,7 +26,7 @@ export default function LocalQRCode({ data, size = 200, className = '' }) {
       });
 
     return () => { cancelled = true; };
-  }, [data, size, isDark]);
+  }, [data, size, isDark, printSafe]);
 
   if (!src) {
     return (

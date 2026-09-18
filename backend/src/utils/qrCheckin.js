@@ -7,6 +7,18 @@ function parseQrPayload(raw) {
   const trimmed = String(raw || '').trim();
   if (!trimmed) return null;
 
+  // Allow scanning ticket page URLs printed/shown from desk bundle cards
+  try {
+    const asUrl = new URL(trimmed);
+    const ticketMatch = asUrl.pathname.match(/\/qr-ticket\/([a-f0-9]{24})/i);
+    if (ticketMatch) {
+      return { registrationId: ticketMatch[1], type: 'ticket_url' };
+    }
+  } catch {
+    const bare = trimmed.match(/(?:^|\/)qr-ticket\/([a-f0-9]{24})(?:[/?#]|$)/i);
+    if (bare) return { registrationId: bare[1], type: 'ticket_url' };
+  }
+
   try {
     const parsed = JSON.parse(trimmed);
     if (typeof parsed === 'string') {

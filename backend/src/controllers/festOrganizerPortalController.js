@@ -30,6 +30,25 @@ const { isMindSparkFestId } = require('../modules/fest/plugins/mindspark');
 const { verifyCashfreePayment } = require('../services/cashfreeService');
 
 const TOKEN_TTL = '7d';
+const FRONTEND_BASE = () => String(
+    process.env.PRODUCTION_FRONTEND_URL
+    || process.env.PUBLIC_FRONTEND_URL
+    || process.env.FRONTEND_URL
+    || 'https://www.crwdctrl.in',
+).replace(/\/$/, '');
+
+function startOfTodayIst() {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    }).formatToParts(new Date());
+    const y = parts.find((part) => part.type === 'year')?.value;
+    const m = parts.find((part) => part.type === 'month')?.value;
+    const d = parts.find((part) => part.type === 'day')?.value;
+    return new Date(`${y}-${m}-${d}T00:00:00+05:30`);
+}
 
 function requireMindSparkDesk(req, res) {
     if (isMindSparkFestId(req.festId)) return true;
@@ -2879,7 +2898,7 @@ exports.getFestDayDesk = async (req, res) => {
             { $group: { _id: '$competitionId', count: { $sum: 1 } } },
         ]);
         const reservedByCompetition = new Map(reservedRows.map((row) => [String(row._id), Number(row.count) || 0]));
-        const competitionRows = competitions.map((competition) => {
+        const competitionRowsBase = competitions.map((competition) => {
             const slotsAllotted = Math.max(0, Number(competition.slotsAllotted) || 0);
             const slotsFilled = (filledByCompetition.get(String(competition._id)) || 0)
                 + (reservedByCompetition.get(String(competition._id)) || 0);
@@ -2890,6 +2909,8 @@ exports.getFestDayDesk = async (req, res) => {
                 slotsFilled,
                 slotsLeft: slotsAllotted > 0 ? Math.max(0, slotsAllotted - slotsFilled) : null,
                 registrationsOpen: registrationStatus.toLowerCase() !== 'registration_closed',
+                pendingToday: 0,
+                paidToday: 0,
             };
         });
         const orderFilter = {
@@ -2958,6 +2979,14 @@ exports.getFestDayDesk = async (req, res) => {
             const userId = order.userId?._id || order.userId || '';
             return `${String(order.entityId)}:${String(userId)}`;
         }));
+        const todayStart = startOfTodayIst();
+        const pendingTodayByComp = new Map();
+        const paidTodayByComp = new Map();
+        const bump = (map, competitionId) => {
+            const key = String(competitionId || '');
+            if (!key) return;
+            map.set(key, (map.get(key) || 0) + 1);
+        };
         const activity = orders.map((order) => {
             const registration = registrationByOrder.get(String(order.orderId));
             const competition = competitionById.get(String(order.entityId));
@@ -2966,11 +2995,17 @@ exports.getFestDayDesk = async (req, res) => {
             const user = order.userId && typeof order.userId === 'object' ? order.userId : null;
             const draftIdentity = deskDraftIdentity(order);
             const rawStatus = String(order.status || 'PENDING').toUpperCase();
-            const assistedExpired = Boolean(order.orderTags?.assistedRegistrationId)
+            const assistedExpired = Boolean(
+                order.orderTags?.assistedRegistrationId
+                || order.orderTags?.deskEntryId
+                || assistedEntry,
+            )
                 && rawStatus === 'PENDING'
                 && Date.now() - new Date(order.createdAt).getTime() >= 30 * 60 * 1000;
             const status = registration?.paymentStatus === 'paid' && registration?.status === 'approved'
                 ? 'paid'
+                : order.orderTags?.paidReview || order.orderTags?.retired
+                    ? 'paid_review'
                 : rawStatus === 'PAID'
                     ? 'confirming'
                     : rawStatus === 'EXPIRED' || assistedExpired
@@ -2978,22 +3013,34 @@ exports.getFestDayDesk = async (req, res) => {
                         : rawStatus === 'FAILED'
                             ? 'failed'
                             : 'payment_pending';
+            const source = assistedEntry || order.orderTags?.deskEntryId || order.orderTags?.assistedDesk === 'yes'
+                ? 'desk'
+                : order.orderTags?.mindspark_bundle_id || order.entityType === 'competition_bundle'
+                    ? 'bundle'
+                    : 'website';
+            const competitionId = String(order.entityId || '');
+            if (new Date(order.createdAt) >= todayStart) {
+                if (status === 'paid') bump(paidTodayByComp, competitionId);
+                else if (['payment_pending', 'confirming', 'pending'].includes(status)) bump(pendingTodayByComp, competitionId);
+            }
             return {
                 orderId: order.orderId,
                 status,
+                source,
                 amount: Number(order.totalAmount) || 0,
-                competitionId: String(order.entityId || ''),
+                competitionId,
                 competitionName: competition?.name || order.orderTags?.competitionName || 'Competition',
                 participantName: user?.name || draftIdentity.name || 'Participant',
                 phone: user?.phoneNumber || user?.phone || order.customerPhone || draftIdentity.phone || '',
                 email: user?.email || draftIdentity.email || order.customerEmail || '',
                 teamName: draftIdentity.teamName,
                 registrationId: registration?._id ? String(registration._id) : null,
+                ticketQr: registration?.qrCodeData || null,
                 refundStatus: refund ? String(refund.status || '').toLowerCase() : '',
                 resumeUrl: assistedEntry?.paymentToken
-                    ? `https://www.crwdctrl.in/desk-payment/${assistedEntry.paymentToken}`
+                    ? `${FRONTEND_BASE()}/desk-payment/${assistedEntry.paymentToken}`
                     : order.paymentSessionId
-                    ? `https://www.crwdctrl.in/payment/checkout?payment_session_id=${encodeURIComponent(order.paymentSessionId)}&order_id=${encodeURIComponent(order.orderId)}`
+                    ? `${FRONTEND_BASE()}/payment/checkout?payment_session_id=${encodeURIComponent(order.paymentSessionId)}&order_id=${encodeURIComponent(order.orderId)}`
                     : null,
                 createdAt: order.createdAt,
                 updatedAt: order.updatedAt,
@@ -3023,6 +3070,12 @@ exports.getFestDayDesk = async (req, res) => {
         }
         activity.sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
         activity.splice(60);
+
+        const competitionRows = competitionRowsBase.map((competition) => ({
+            ...competition,
+            pendingToday: pendingTodayByComp.get(String(competition._id)) || 0,
+            paidToday: paidTodayByComp.get(String(competition._id)) || 0,
+        }));
 
         const MindSparkBundle = require('../model/mindspark_bundle_model');
         const bundleFilter = { fest: req.festId };
@@ -3084,7 +3137,7 @@ exports.getFestDayDesk = async (req, res) => {
                 amount: Number(bundle.totalAmount) || 0,
                 activeOrderId: bundle.activeOrderId || '',
                 orderIds: bundle.orderIds || [],
-                paymentPath: bundle.paymentToken ? `/mindspark/bundle-pay/${bundle.paymentToken}` : null,
+                paymentPath: bundle.paymentToken ? `${FRONTEND_BASE()}/mindspark/bundle-pay/${bundle.paymentToken}` : null,
                 expiresAt: bundle.expiresAt,
                 createdAt: bundle.createdAt,
                 updatedAt: bundle.updatedAt,
@@ -3151,8 +3204,8 @@ exports.refreshFestDayDeskOrder = async (req, res) => {
             bundle = await MindSparkBundle.findById(bundle._id).lean();
         }
         const registration = order.entityType === 'competition_bundle'
-            ? await Registration.findOne({ _id: { $in: bundle?.items?.map((item) => item.registrationId).filter(Boolean) || [] } }).select('_id').lean()
-            : await Registration.findOne({ payment_order_id: orderId }).select('_id').lean();
+            ? await Registration.findOne({ _id: { $in: bundle?.items?.map((item) => item.registrationId).filter(Boolean) || [] } }).select('_id qrCodeData').lean()
+            : await Registration.findOne({ payment_order_id: orderId }).select('_id qrCodeData').lean();
         const issued = order.entityType === 'competition_bundle'
             ? bundle?.status === 'paid' && (bundle.items || []).every((item) => item.registrationId)
             : Boolean(registration);
@@ -3163,6 +3216,7 @@ exports.refreshFestDayDeskOrder = async (req, res) => {
             paidReview: bundle?.status === 'paid_review' || Boolean(fulfillment?.paidReview),
             status: issued ? 'paid' : (bundle?.status || result.status || String(order.status).toLowerCase()),
             registrationId: registration?._id ? String(registration._id) : null,
+            ticketQr: registration?.qrCodeData || null,
             message: issued
                 ? 'Payment verified and all registrations issued'
                 : bundle?.status === 'paid_review'

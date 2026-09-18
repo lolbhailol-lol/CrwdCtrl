@@ -99,6 +99,14 @@ async function festOrganizerFetch(path, options = {}) {
                 const err = new Error(data.message || 'Request failed');
                 err.code = data.code;
                 err.status = res.status;
+                err.openPayment = Boolean(data.openPayment);
+                err.paymentUrl = data.paymentUrl || null;
+                err.paymentToken = data.paymentToken || null;
+                err.orderId = data.orderId || null;
+                err.amount = data.amount;
+                err.competitionName = data.competitionName || null;
+                err.alreadyRegistered = Boolean(data.alreadyRegistered);
+                err.registrationId = data.registrationId || null;
                 // Retry transient gateway / overload, or static-host miss (no /api proxy)
                 if ((res.status === 404 || res.status === 405 || res.status === 408 || res.status === 425
                     || res.status === 429 || res.status >= 500)

@@ -11,7 +11,12 @@ const { createCashfreeOrder, verifyCashfreePayment, getCashfreeClientMode } = re
 const { fulfillMindSparkBundle } = require('../services/mindsparkBundleService');
 
 const TTL = 30 * 60 * 1000;
-const FRONTEND = () => String(process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+const FRONTEND = () => String(
+  process.env.PRODUCTION_FRONTEND_URL
+  || process.env.PUBLIC_FRONTEND_URL
+  || process.env.FRONTEND_URL
+  || 'https://www.crwdctrl.in',
+).replace(/\/$/, '');
 const PAYABLE_RATIO = (100 - DISCOUNT_PERCENT) / 100;
 const ORDER_NOTE = `MindSpark Any ${BUNDLE_SIZE} Bundle (${DISCOUNT_PERCENT}% off)`;
 const clean = (v, n = 180) => String(v || '').trim().replace(/\s+/g, ' ').slice(0, n);
@@ -25,8 +30,29 @@ function serialize(bundle, order) {
     amount: bundle.totalAmount, orderId: order?.orderId || bundle.activeOrderId,
     paymentSessionId: order?.status === 'PENDING' && bundle.expiresAt > new Date() ? order.paymentSessionId : null,
     cashfreeMode: getCashfreeClientMode(), expiresAt: bundle.expiresAt,
-    tickets: bundle.status === 'paid' ? bundle.items.map(i => ({ competitionName: i.competitionName, registrationId: i.registrationId, ticketUrl: `${FRONTEND()}/qr-ticket/${i.registrationId}` })) : [],
+    tickets: [],
   };
+}
+
+async function serializeWithTickets(bundle, order) {
+  const base = serialize(bundle, order);
+  if (bundle.status !== 'paid') return base;
+  const ids = (bundle.items || []).map((i) => i.registrationId).filter(Boolean);
+  const Registration = require('../model/registration_model');
+  const regs = ids.length
+    ? await Registration.find({ _id: { $in: ids } }).select('_id qrCodeData').lean()
+    : [];
+  const byId = new Map(regs.map((r) => [String(r._id), r]));
+  base.tickets = (bundle.items || []).map((i) => {
+    const reg = byId.get(String(i.registrationId || ''));
+    return {
+      competitionName: i.competitionName,
+      registrationId: i.registrationId,
+      ticketUrl: i.registrationId ? `${FRONTEND()}/qr-ticket/${i.registrationId}` : null,
+      ticketQr: reg?.qrCodeData || null,
+    };
+  });
+  return base;
 }
 
 async function competitions() {
@@ -192,9 +218,41 @@ exports.create = source => async (req, res) => {
         await fulfillMindSparkBundle(order);
         existing = await Bundle.findById(existing._id).select('+paymentToken');
       }
-      return res.json({ success: true, paymentUrl: `${FRONTEND()}/mindspark/bundle-pay/${existing.paymentToken}`, ...serialize(existing, order) });
+      return res.json({ success: true, paymentUrl: `${FRONTEND()}/mindspark/bundle-pay/${existing.paymentToken}`, ...await serializeWithTickets(existing, order) });
     }
     const valid = await validateItems(req.body.items);
+    const { findOpenMindSparkCheckout } = require('../utils/openMindSparkCheckout');
+    const openCheckout = await findOpenMindSparkCheckout({
+      festId: FEST_ID,
+      userId: user._id,
+      phone: user.phoneNumber,
+    });
+    if (openCheckout) {
+      await Promise.all(reservations.filter(Boolean).map((r) => releaseCompetitionSlot(r.token).catch(() => {})));
+      if (openCheckout.kind === 'bundle' && openCheckout.paymentToken) {
+        const existingBundle = await Bundle.findById(openCheckout.bundleId).select('+paymentToken');
+        const order = await PaymentOrder.findOne({ orderId: openCheckout.orderId });
+        return res.json({
+          success: true,
+          reused: true,
+          message: 'Reusing this person’s open bundle payment QR — only one at a time.',
+          paymentUrl: `${FRONTEND()}/mindspark/bundle-pay/${openCheckout.paymentToken}`,
+          ...await serializeWithTickets(existingBundle, order),
+        });
+      }
+      const paymentUrl = openCheckout.kind === 'desk' && openCheckout.paymentToken
+        ? `${FRONTEND()}/desk-payment/${openCheckout.paymentToken}`
+        : null;
+      return res.status(409).json({
+        success: false,
+        openPayment: true,
+        kind: openCheckout.kind,
+        competitionName: openCheckout.competitionName,
+        orderId: openCheckout.orderId,
+        paymentUrl,
+        message: `This person already has an open payment for ${openCheckout.competitionName}. Finish that payment before starting a bundle.`,
+      });
+    }
     for (const item of valid) reservations.push(await acquireCompetitionSlot({ competition: item.competition, userId: user._id }));
     const subtotal = valid.reduce((s, x) => s + x.originalAmount, 0);
     const totalAmount = Math.round(subtotal * PAYABLE_RATIO);
@@ -223,19 +281,19 @@ exports.create = source => async (req, res) => {
     });
     const order = await createOrderForBundle(bundle, user);
     const fresh = await Bundle.findById(bundle._id).select('+paymentToken');
-    res.status(201).json({ success: true, paymentUrl: `${FRONTEND()}/mindspark/bundle-pay/${token}`, ...serialize(fresh, order) });
+    res.status(201).json({ success: true, paymentUrl: `${FRONTEND()}/mindspark/bundle-pay/${token}`, ...await serializeWithTickets(fresh, order) });
   } catch (e) { await Promise.all(reservations.filter(Boolean).map(r => releaseCompetitionSlot(r.token).catch(() => {}))); res.status(e.status || (e.code === 11000 ? 409 : 500)).json({ success: false, message: e.message || 'Could not create bundle.' }); }
 };
 
 async function load(token) { const bundle = await Bundle.findOne({ paymentToken: clean(token, 100) }).select('+paymentToken'); const order = bundle?.activeOrderId ? await PaymentOrder.findOne({ orderId: bundle.activeOrderId }) : null; return { bundle, order }; }
-exports.payment = async (req, res) => { const { bundle, order } = await load(req.params.token); if (!bundle) return res.status(404).json({ success: false, message: 'Bundle not found.' }); res.json({ success: true, ...serialize(bundle, order) }); };
+exports.payment = async (req, res) => { const { bundle, order } = await load(req.params.token); if (!bundle) return res.status(404).json({ success: false, message: 'Bundle not found.' }); res.json({ success: true, ...await serializeWithTickets(bundle, order) }); };
 exports.verify = async (req, res) => {
   try {
     const { bundle, order } = await load(req.params.token);
     if (!bundle || !order) return res.status(404).json({ success: false, message: 'Bundle not found.' });
     let fulfillment = null;
     if (bundle.status === 'paid_review') {
-      return res.json({ success: true, paidReview: true, issued: false, ...serialize(bundle, order) });
+      return res.json({ success: true, paidReview: true, issued: false, ...await serializeWithTickets(bundle, order) });
     }
     if (order.status === 'PAID') {
       fulfillment = await fulfillMindSparkBundle(order);
@@ -258,7 +316,7 @@ exports.verify = async (req, res) => {
       }
     }
     const fresh = await Bundle.findById(bundle._id).select('+paymentToken');
-    res.json({ success: true, issued: fresh.status === 'paid', paidReview: fresh.status === 'paid_review', inProgress: fulfillment?.inProgress || fresh.fulfillmentState === 'processing', ...serialize(fresh, await PaymentOrder.findById(order._id)) });
+    res.json({ success: true, issued: fresh.status === 'paid', paidReview: fresh.status === 'paid_review', inProgress: fulfillment?.inProgress || fresh.fulfillmentState === 'processing', ...await serializeWithTickets(fresh, await PaymentOrder.findById(order._id)) });
   } catch (_error) {
     res.status(500).json({ success: false, message: 'Could not verify payment.' });
   }
@@ -270,7 +328,7 @@ exports.reissue = async (req, res) => {
     const { bundle, order } = await load(req.params.token);
     if (!bundle || !order) return res.status(404).json({ success: false, message: 'Bundle not found.' });
     const timedOut = order.status === 'PENDING' && bundle.expiresAt <= new Date();
-    if (bundle.status === 'paid' || (order.status === 'PENDING' && !timedOut)) return res.json({ success: true, ...serialize(bundle, order) });
+    if (bundle.status === 'paid' || (order.status === 'PENDING' && !timedOut)) return res.json({ success: true, ...await serializeWithTickets(bundle, order) });
     if (!['FAILED','EXPIRED'].includes(order.status) && !timedOut) return res.status(409).json({ success: false, message: 'The existing payment is still being confirmed.' });
     order.status = timedOut ? 'EXPIRED' : order.status; order.orderTags = { ...(order.orderTags || {}), retired: true }; await order.save();
     const docs = await Competition.find({ _id: { $in: bundle.items.map(i => i.competitionId) }, fest: FEST_ID }).populate('fest');
@@ -281,7 +339,7 @@ exports.reissue = async (req, res) => {
     const replacement = await PaymentOrder.create({ orderId: cashfree.order_id, paymentSessionId: cashfree.payment_session_id, entityType: 'competition_bundle', entityId: bundle._id, userId: bundle.user, ticketPrice: bundle.subtotal, couponDiscount: bundle.discountAmount, amountBeforeDiscount: bundle.subtotal, amountAfterDiscount: bundle.totalAmount, totalAmount: bundle.totalAmount, status: 'PENDING', customerEmail: user.email, customerPhone: user.phoneNumber, orderTags: { bundleId: String(bundle._id), festId: FEST_ID } });
     bundle.items.forEach((item, i) => { item.reservationToken = reservations[i]?.token || ''; }); bundle.activeOrderId = replacement.orderId; bundle.orderIds.push(replacement.orderId); bundle.status = 'pending'; bundle.expiresAt = new Date(Date.now() + TTL); await bundle.save();
     await Promise.all(reservations.filter(Boolean).map(r => attachReservationToOrder(r.token, replacement.orderId)));
-    res.json({ success: true, ...serialize(bundle, replacement) });
+    res.json({ success: true, ...await serializeWithTickets(bundle, replacement) });
   } catch (e) { await Promise.all(reservations.filter(Boolean).map(r => releaseCompetitionSlot(r.token).catch(() => {}))); res.status(e.status || 500).json({ success: false, message: e.message || 'Could not create replacement payment.' }); }
 };
 

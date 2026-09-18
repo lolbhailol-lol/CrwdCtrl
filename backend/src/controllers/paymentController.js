@@ -556,9 +556,48 @@ exports.createOrder = async (req, res) => {
 
     if (pricing.entityType === 'competition') {
       const { acquireCompetitionSlot } = require('../services/competitionSlotReservationService');
+      const { findApprovedCompetitionDuplicate, identityFromDraft, phoneDigits } = require('../utils/competitionDuplicateGuard');
       const competition = await Competition.findById(entityId)
-        .select('slotsAllotted registration.maxRegistrations registration.settings.maxRegistrations registration.status')
+        .select('slotsAllotted registration.maxRegistrations registration.settings.maxRegistrations registration.status fest name')
         .lean();
+      const draftIdentity = identityFromDraft(festCompDraft || {});
+      const duplicate = await findApprovedCompetitionDuplicate({
+        festId: competition?.fest || festCompDraft?.festId || pricing.notes?.festId,
+        competitionId: entityId,
+        userId,
+        phone: draftIdentity.phone || phoneDigits(customerDetails.customerPhone),
+        email: draftIdentity.email || customerDetails.customerEmail,
+      });
+      if (duplicate) {
+        return res.status(409).json({
+          message: 'You are already registered for this competition.',
+          alreadyRegistered: true,
+          registrationId: String(duplicate._id),
+        });
+      }
+      const { isMindSparkFestId } = require('../modules/fest/plugins/mindspark');
+      const festIdForOpen = competition?.fest || festCompDraft?.festId || pricing.notes?.festId;
+      if (isMindSparkFestId(festIdForOpen) && userId) {
+        const { findOpenMindSparkCheckout } = require('../utils/openMindSparkCheckout');
+        const openCheckout = await findOpenMindSparkCheckout({
+          festId: festIdForOpen,
+          userId,
+          phone: customerDetails.customerPhone,
+        });
+        if (openCheckout) {
+          const sameComp = openCheckout.kind === 'website'
+            && String(openCheckout.competitionId) === String(entityId);
+          if (!sameComp) {
+            return res.status(409).json({
+              openPayment: true,
+              kind: openCheckout.kind,
+              competitionName: openCheckout.competitionName,
+              orderId: openCheckout.orderId,
+              message: `You already have an open payment for ${openCheckout.competitionName}. Complete or cancel that payment before starting another.`,
+            });
+          }
+        }
+      }
       slotReservation = await acquireCompetitionSlot({ competition, userId });
     }
 
