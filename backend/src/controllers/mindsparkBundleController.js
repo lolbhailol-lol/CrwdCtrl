@@ -3,7 +3,7 @@ const Bundle = require('../model/mindspark_bundle_model');
 const Competition = require('../model/competition_model');
 const PaymentOrder = require('../model/payment_order_model');
 const User = require('../model/usermodel');
-const { FEST_ID, TECH_IDS, NON_TECH_IDS, groupFor, DISCOUNT_PERCENT } = require('../modules/fest/plugins/mindsparkBundle');
+const { FEST_ID, BUNDLE_COMPETITION_IDS, DISCOUNT_PERCENT, BUNDLE_SIZE, BUNDLE_GROUP, isBundleEligible, groupFor } = require('../modules/fest/plugins/mindsparkBundle');
 const { resolveCompetitionTicketPrice } = require('../utils/competitionFeeTiers');
 const { assertCompetitionAcceptsRegistration } = require('../utils/competitionSlots');
 const { acquireCompetitionSlot, attachReservationToOrder, releaseCompetitionSlot } = require('../services/competitionSlotReservationService');
@@ -12,6 +12,8 @@ const { fulfillMindSparkBundle } = require('../services/mindsparkBundleService')
 
 const TTL = 30 * 60 * 1000;
 const FRONTEND = () => String(process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+const PAYABLE_RATIO = (100 - DISCOUNT_PERCENT) / 100;
+const ORDER_NOTE = `MindSpark Any ${BUNDLE_SIZE} Bundle (${DISCOUNT_PERCENT}% off)`;
 const clean = (v, n = 180) => String(v || '').trim().replace(/\s+/g, ' ').slice(0, n);
 const phone = v => String(v || '').replace(/\D/g, '').slice(-10);
 const validEmail = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean(v).toLowerCase());
@@ -28,21 +30,38 @@ function serialize(bundle, order) {
 }
 
 async function competitions() {
-  return Competition.find({ _id: { $in: [...TECH_IDS, ...NON_TECH_IDS] }, fest: FEST_ID }).select('name feeAmount feeTiers registrationFee teamSizeMin teamSizeMax personFields slotsAllotted registrationsOpen').lean();
+  return Competition.find({ _id: { $in: BUNDLE_COMPETITION_IDS }, fest: FEST_ID }).select('name feeAmount feeTiers registrationFee teamSizeMin teamSizeMax personFields slotsAllotted registrationsOpen').lean();
 }
 
 exports.offer = async (_req, res) => {
   const list = await competitions();
-  const shape = c => ({ ...c, group: groupFor(c._id) });
-  res.json({ success: true, festId: FEST_ID, discountPercent: DISCOUNT_PERCENT, technical: list.filter(c => groupFor(c._id) === 'technical').map(shape), nonTechnical: list.filter(c => groupFor(c._id) === 'non_technical').map(shape) });
+  const shaped = list.map(c => ({ ...c, group: groupFor(c._id) }));
+  res.json({
+    success: true,
+    festId: FEST_ID,
+    discountPercent: DISCOUNT_PERCENT,
+    bundleSize: BUNDLE_SIZE,
+    competitions: shaped,
+    // Back-compat for older clients
+    technical: shaped,
+    nonTechnical: shaped,
+  });
 };
 
 async function validateItems(rawItems) {
-  if (!Array.isArray(rawItems) || rawItems.length !== 3) { const e = new Error('Select exactly 1 technical and 2 non-technical competitions.'); e.status = 400; throw e; }
+  if (!Array.isArray(rawItems) || rawItems.length !== BUNDLE_SIZE) {
+    const e = new Error(`Select exactly ${BUNDLE_SIZE} different competitions from the bundle list.`);
+    e.status = 400;
+    throw e;
+  }
   const ids = rawItems.map(i => String(i.competitionId || ''));
-  if (new Set(ids).size !== 3 || ids.filter(id => groupFor(id) === 'technical').length !== 1 || ids.filter(id => groupFor(id) === 'non_technical').length !== 2) { const e = new Error('Bundle must contain 1 technical and 2 different non-technical competitions.'); e.status = 400; throw e; }
+  if (new Set(ids).size !== BUNDLE_SIZE || ids.some(id => !isBundleEligible(id))) {
+    const e = new Error(`Bundle must contain ${BUNDLE_SIZE} different competitions from the approved list.`);
+    e.status = 400;
+    throw e;
+  }
   const docs = await Competition.find({ _id: { $in: ids }, fest: FEST_ID }).populate('fest');
-  if (docs.length !== 3) { const e = new Error('One or more competitions are unavailable.'); e.status = 404; throw e; }
+  if (docs.length !== BUNDLE_SIZE) { const e = new Error('One or more competitions are unavailable.'); e.status = 404; throw e; }
   const byId = new Map(docs.map(c => [String(c._id), c]));
   return Promise.all(rawItems.map(async raw => {
     const competition = byId.get(String(raw.competitionId)); await assertCompetitionAcceptsRegistration(competition);
@@ -52,7 +71,7 @@ async function validateItems(rawItems) {
       ? roster.team_members.map((entry) => {
           if (typeof entry === 'string') {
             const name = clean(entry, 100);
-            return name ? { name } : null;
+            return name ? { name, email: '' } : null;
           }
           if (entry && typeof entry === 'object') {
             const name = clean(entry.name || entry.full_name, 100);
@@ -61,7 +80,7 @@ async function validateItems(rawItems) {
             const email = clean(entry.email, 120).toLowerCase();
             const mobile = phone(entry.phone || entry.mobile);
             const college = clean(entry.college || entry.college_name, 120);
-            if (email && validEmail(email)) member.email = email;
+            member.email = email;
             if (mobile.length === 10) member.phone = mobile;
             if (college) member.college = college;
             return member;
@@ -71,14 +90,31 @@ async function validateItems(rawItems) {
       : [];
     const min = Math.max(1, Number(competition.teamSizeMin) || 1); const max = Math.max(min, Number(competition.teamSizeMax) || min);
     if (members.length < min || members.length > max) { const e = new Error(`${competition.name}: team size must be ${min === max ? min : `${min}-${max}`}.`); e.status = 400; throw e; }
+    const missingEmail = members.find((m) => !validEmail(m.email));
+    if (missingEmail) {
+      const e = new Error(`${competition.name}: every participant needs a valid email (missing for ${missingEmail.name}).`);
+      e.status = 400;
+      throw e;
+    }
     const priced = resolveCompetitionTicketPrice(competition, clean(raw.feeTierId, 80));
-    return { competition, group: groupFor(competition._id), feeTierId: priced.tier?.id || '', roster: { ...roster, team_members: members, team_size: members.length, feeTierId: priced.tier?.id || '' }, originalAmount: priced.ticketPrice };
+    return { competition, group: BUNDLE_GROUP, feeTierId: priced.tier?.id || '', roster: { ...roster, team_members: members, team_size: members.length, feeTierId: priced.tier?.id || '' }, originalAmount: priced.ticketPrice };
   }));
 }
 
 exports.quote = async (req, res) => {
-  try { const items = await validateItems(req.body.items); const subtotal = items.reduce((s, x) => s + x.originalAmount, 0); const totalAmount = Math.round(subtotal * .3); res.json({ success: true, subtotal, discountPercent: 70, discountAmount: subtotal - totalAmount, totalAmount, items: items.map(x => ({ competitionId: x.competition._id, name: x.competition.name, amount: x.originalAmount })) }); }
-  catch (e) { res.status(e.status || 500).json({ success: false, message: e.message }); }
+  try {
+    const items = await validateItems(req.body.items);
+    const subtotal = items.reduce((s, x) => s + x.originalAmount, 0);
+    const totalAmount = Math.round(subtotal * PAYABLE_RATIO);
+    res.json({
+      success: true,
+      subtotal,
+      discountPercent: DISCOUNT_PERCENT,
+      discountAmount: subtotal - totalAmount,
+      totalAmount,
+      items: items.map(x => ({ competitionId: x.competition._id, name: x.competition.name, amount: x.originalAmount })),
+    });
+  } catch (e) { res.status(e.status || 500).json({ success: false, message: e.message }); }
 };
 
 async function resolveCustomer(req, source) {
@@ -120,7 +156,7 @@ async function createOrderForBundle(bundle, user) {
       orderTags: { bundleId: String(bundle._id), festId: FEST_ID, zeroFee: true },
     });
   } else {
-    const cashfree = await createCashfreeOrder({ orderAmount: bundle.totalAmount, customerDetails: { customerId: String(user._id), customerName: user.name, customerEmail: user.email, customerPhone: user.phoneNumber }, orderMeta: { return_url: `${FRONTEND()}/mindspark/bundle-pay/${bundle.paymentToken}?returned=1` }, orderNote: 'MindSpark 1 Tech + 2 Non-Tech Bundle', orderTags: { entityType: 'competition_bundle', bundleId: String(bundle._id) } });
+    const cashfree = await createCashfreeOrder({ orderAmount: bundle.totalAmount, customerDetails: { customerId: String(user._id), customerName: user.name, customerEmail: user.email, customerPhone: user.phoneNumber }, orderMeta: { return_url: `${FRONTEND()}/mindspark/bundle-pay/${bundle.paymentToken}?returned=1` }, orderNote: ORDER_NOTE, orderTags: { entityType: 'competition_bundle', bundleId: String(bundle._id) } });
     order = await PaymentOrder.create({ orderId: cashfree.order_id, paymentSessionId: cashfree.payment_session_id, entityType: 'competition_bundle', entityId: bundle._id, userId: user._id, ticketPrice: bundle.subtotal, couponDiscount: bundle.discountAmount, amountBeforeDiscount: bundle.subtotal, amountAfterDiscount: bundle.totalAmount, totalAmount: bundle.totalAmount, status: 'PENDING', customerEmail: user.email, customerPhone: user.phoneNumber, orderTags: { bundleId: String(bundle._id), festId: FEST_ID } });
   }
   bundle.activeOrderId = order.orderId;
@@ -160,9 +196,31 @@ exports.create = source => async (req, res) => {
     }
     const valid = await validateItems(req.body.items);
     for (const item of valid) reservations.push(await acquireCompetitionSlot({ competition: item.competition, userId: user._id }));
-    const subtotal = valid.reduce((s, x) => s + x.originalAmount, 0), totalAmount = Math.round(subtotal * .3);
+    const subtotal = valid.reduce((s, x) => s + x.originalAmount, 0);
+    const totalAmount = Math.round(subtotal * PAYABLE_RATIO);
     const token = crypto.randomBytes(32).toString('hex');
-    const bundle = await Bundle.create({ fest: FEST_ID, source, user: user._id, createdByOrganizer: source === 'desk' ? req.organizerId : null, submissionKey: key, paymentToken: token, subtotal, discountAmount: subtotal - totalAmount, totalAmount, expiresAt: new Date(Date.now() + TTL), items: valid.map((x, i) => ({ competitionId: x.competition._id, competitionName: x.competition.name, group: x.group, feeTierId: x.feeTierId, roster: x.roster, originalAmount: x.originalAmount, reservationToken: reservations[i]?.token || '' })) });
+    const bundle = await Bundle.create({
+      fest: FEST_ID,
+      source,
+      user: user._id,
+      createdByOrganizer: source === 'desk' ? req.organizerId : null,
+      submissionKey: key,
+      paymentToken: token,
+      subtotal,
+      discountPercent: DISCOUNT_PERCENT,
+      discountAmount: subtotal - totalAmount,
+      totalAmount,
+      expiresAt: new Date(Date.now() + TTL),
+      items: valid.map((x, i) => ({
+        competitionId: x.competition._id,
+        competitionName: x.competition.name,
+        group: x.group,
+        feeTierId: x.feeTierId,
+        roster: x.roster,
+        originalAmount: x.originalAmount,
+        reservationToken: reservations[i]?.token || '',
+      })),
+    });
     const order = await createOrderForBundle(bundle, user);
     const fresh = await Bundle.findById(bundle._id).select('+paymentToken');
     res.status(201).json({ success: true, paymentUrl: `${FRONTEND()}/mindspark/bundle-pay/${token}`, ...serialize(fresh, order) });
@@ -219,7 +277,7 @@ exports.reissue = async (req, res) => {
     const byId = new Map(docs.map(c => [String(c._id), c]));
     for (const item of bundle.items) reservations.push(await acquireCompetitionSlot({ competition: byId.get(String(item.competitionId)), userId: bundle.user }));
     const user = await User.findById(bundle.user); const token = bundle.paymentToken;
-    const cashfree = await createCashfreeOrder({ orderAmount: bundle.totalAmount, customerDetails: { customerId: String(user._id), customerName: user.name, customerEmail: user.email, customerPhone: user.phoneNumber }, orderMeta: { return_url: `${FRONTEND()}/mindspark/bundle-pay/${token}?returned=1` }, orderNote: 'MindSpark 1 Tech + 2 Non-Tech Bundle', orderTags: { entityType: 'competition_bundle', bundleId: String(bundle._id) } });
+    const cashfree = await createCashfreeOrder({ orderAmount: bundle.totalAmount, customerDetails: { customerId: String(user._id), customerName: user.name, customerEmail: user.email, customerPhone: user.phoneNumber }, orderMeta: { return_url: `${FRONTEND()}/mindspark/bundle-pay/${token}?returned=1` }, orderNote: ORDER_NOTE, orderTags: { entityType: 'competition_bundle', bundleId: String(bundle._id) } });
     const replacement = await PaymentOrder.create({ orderId: cashfree.order_id, paymentSessionId: cashfree.payment_session_id, entityType: 'competition_bundle', entityId: bundle._id, userId: bundle.user, ticketPrice: bundle.subtotal, couponDiscount: bundle.discountAmount, amountBeforeDiscount: bundle.subtotal, amountAfterDiscount: bundle.totalAmount, totalAmount: bundle.totalAmount, status: 'PENDING', customerEmail: user.email, customerPhone: user.phoneNumber, orderTags: { bundleId: String(bundle._id), festId: FEST_ID } });
     bundle.items.forEach((item, i) => { item.reservationToken = reservations[i]?.token || ''; }); bundle.activeOrderId = replacement.orderId; bundle.orderIds.push(replacement.orderId); bundle.status = 'pending'; bundle.expiresAt = new Date(Date.now() + TTL); await bundle.save();
     await Promise.all(reservations.filter(Boolean).map(r => attachReservationToOrder(r.token, replacement.orderId)));

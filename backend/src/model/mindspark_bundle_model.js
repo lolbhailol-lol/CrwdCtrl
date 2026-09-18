@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const itemSchema = new mongoose.Schema({
   competitionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Competition', required: true },
-  group: { type: String, enum: ['technical', 'non_technical'], required: true },
+  group: { type: String, enum: ['technical', 'non_technical', 'bundle'], required: true },
   feeTierId: { type: String, default: '' },
   competitionName: { type: String, required: true },
   roster: { type: mongoose.Schema.Types.Mixed, default: {} },
@@ -25,7 +25,7 @@ const schema = new mongoose.Schema({
   confirmationEmailSentAt: { type: Date, default: null },
   items: { type: [itemSchema], validate: v => Array.isArray(v) && v.length === 3 },
   subtotal: { type: Number, required: true },
-  discountPercent: { type: Number, default: 70 },
+  discountPercent: { type: Number, default: 65 },
   discountAmount: { type: Number, required: true },
   totalAmount: { type: Number, required: true },
   activeOrderId: { type: String, default: '' },

@@ -9,7 +9,39 @@ import { createMindSparkBundle, fetchMindSparkBundleOffer, quoteMindSparkBundle,
 import { openCashfreeCheckout } from '../../../utils/useCashfree';
 
 const STEPS = ['Your details', 'Choose events', 'Participants', 'Pay'];
-const memberNames = value => (Array.isArray(value) ? value : String(value || '').split(/[,;\n]+/)).map(x => String(x || '').trim()).filter(Boolean);
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const emptyMember = () => ({ name: '', email: '' });
+
+/** Normalize legacy string names or {name,email} rows into member objects. */
+function normalizeMembers(value) {
+  if (!Array.isArray(value)) {
+    return String(value || '')
+      .split(/[,;\n]+/)
+      .map((x) => String(x || '').trim())
+      .filter(Boolean)
+      .map((name) => ({ name, email: '' }));
+  }
+  return value
+    .map((entry) => {
+      if (typeof entry === 'string') {
+        const name = entry.trim();
+        return name ? { name, email: '' } : null;
+      }
+      if (entry && typeof entry === 'object') {
+        return {
+          name: String(entry.name || entry.full_name || '').trim(),
+          email: String(entry.email || '').trim().toLowerCase(),
+        };
+      }
+      return null;
+    })
+    .filter((row) => row && (row.name || row.email));
+}
+
+function membersComplete(members, min, max) {
+  if (members.length < min || members.length > max) return false;
+  return members.every((m) => m.name.trim() && EMAIL_RE.test(m.email.trim()));
+}
 
 function fieldClass(isDark) {
   return `w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${
@@ -55,29 +87,40 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
     else window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [step, formIndex]);
 
-  const comps = useMemo(() => selected.map((id, i) => (i === 0 ? offer?.technical : offer?.nonTechnical)?.find(c => c._id === id)), [offer, selected]);
+  const comps = useMemo(() => {
+    const list = offer?.competitions || [...(offer?.technical || []), ...(offer?.nonTechnical || [])];
+    const byId = new Map(list.map(c => [String(c._id), c]));
+    return selected.map(id => byId.get(String(id)));
+  }, [offer, selected]);
+  const discountPercent = Number(offer?.discountPercent) || 65;
   const items = useMemo(() => selected.map((competitionId, i) => ({
     competitionId,
     feeTierId: forms[i].feeTierId || '',
-    roster: { full_name: customer.name, phone: customer.phone, email: customer.email, team_name: forms[i].teamName || '', team_members: memberNames(forms[i].memberNames || forms[i].members) },
+    roster: {
+      full_name: customer.name,
+      phone: customer.phone,
+      email: customer.email,
+      team_name: forms[i].teamName || '',
+      team_members: normalizeMembers(forms[i].members || forms[i].memberNames),
+    },
   })), [selected, forms, customer]);
   const detailsValid = Boolean(customer.name.trim())
     && customer.phone.replace(/\D/g, '').length === 10
-    && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email.trim());
+    && EMAIL_RE.test(customer.email.trim());
   const selectionValid = selected.every(Boolean) && new Set(selected).size === 3;
   const formsValid = selectionValid && comps.every((c, i) => {
-    const count = memberNames(forms[i].memberNames || forms[i].members).length;
+    const members = normalizeMembers(forms[i].members || forms[i].memberNames);
     const min = Math.max(1, Number(c?.teamSizeMin) || 1);
     const max = Math.max(min, Number(c?.teamSizeMax) || min);
-    return count >= min && count <= max && (!c?.feeTiers?.length || Boolean(forms[i].feeTierId));
+    return membersComplete(members, min, max) && (!c?.feeTiers?.length || Boolean(forms[i].feeTierId));
   });
   const currentFormValid = (() => {
     const competition = comps[formIndex];
     if (!competition) return false;
-    const count = memberNames(forms[formIndex]?.memberNames || forms[formIndex]?.members).length;
+    const members = normalizeMembers(forms[formIndex]?.members || forms[formIndex]?.memberNames);
     const min = Math.max(1, Number(competition.teamSizeMin) || 1);
     const max = Math.max(min, Number(competition.teamSizeMax) || min);
-    return count >= min && count <= max && (!competition.feeTiers?.length || Boolean(forms[formIndex]?.feeTierId));
+    return membersComplete(members, min, max) && (!competition.feeTiers?.length || Boolean(forms[formIndex]?.feeTierId));
   })();
 
   useEffect(() => {
@@ -90,15 +133,22 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
     setError('');
     if (step === 1 && !desk && !isAuthenticated) { setShowLogin(true); return; }
     if (step === 1 && !detailsValid) return setError('Enter the team leader’s name, 10-digit WhatsApp number, and valid email.');
-    if (step === 2 && !selectionValid) return setError('Select 1 technical and 2 different non-technical competitions.');
+    if (step === 2 && !selectionValid) return setError('Select any 3 different competitions from the bundle list.');
     if (step === 2) setForms(all => all.map((form, i) => {
       const min = Math.max(1, Number(comps[i]?.teamSizeMin) || 1);
-      const existing = Array.isArray(form.memberNames) ? [...form.memberNames] : memberNames(form.members);
-      if (!existing.length) existing.push(customer.name);
-      while (existing.length < min) existing.push('');
-      return { ...form, memberNames: existing.slice(0, Math.max(min, existing.length)) };
+      const existing = normalizeMembers(form.members || form.memberNames);
+      if (!existing.length) {
+        existing.push({ name: customer.name.trim(), email: customer.email.trim().toLowerCase() });
+      } else if (!existing[0].email && customer.email) {
+        existing[0] = { ...existing[0], email: customer.email.trim().toLowerCase() };
+      }
+      if (!existing[0].name && customer.name) {
+        existing[0] = { ...existing[0], name: customer.name.trim() };
+      }
+      while (existing.length < min) existing.push(emptyMember());
+      return { ...form, members: existing.slice(0, Math.max(min, existing.length)), memberNames: undefined };
     }));
-    if (step === 3 && !currentFormValid) return setError('Complete the required participant details for this competition.');
+    if (step === 3 && !currentFormValid) return setError('Every participant needs a full name and a valid email.');
     if (step === 3 && formIndex < 2) { setFormIndex(index => index + 1); return; }
     if (step === 3 && !formsValid) return setError('Complete the required participant details for every competition.');
     setStep(current => Math.min(4, current + 1));
@@ -149,7 +199,14 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
   }
 
   const activeCompetition = comps[formIndex];
-  const activeNames = Array.isArray(forms[formIndex]?.memberNames) ? forms[formIndex].memberNames : [customer.name];
+  const activeMembers = normalizeMembers(forms[formIndex]?.members || forms[formIndex]?.memberNames);
+  const activeNames = activeMembers.length
+    ? activeMembers
+    : [{ name: customer.name, email: customer.email }];
+  const setActiveMember = (index, field, value) => {
+    const next = activeNames.map((row, n) => (n === index ? { ...row, [field]: value } : row));
+    setForm(formIndex, 'members', next);
+  };
   const activeMin = Math.max(1, Number(activeCompetition?.teamSizeMin) || 1);
   const activeMax = Math.max(activeMin, Number(activeCompetition?.teamSizeMax) || activeMin);
   const needsLogin = step === 1 && !desk && !isAuthenticated;
@@ -171,10 +228,10 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
           <h1 className={`text-lg sm:text-xl lg:text-2xl font-bold leading-tight ${titleCls}`}>
             MindSpark bundle
           </h1>
-          <p className={`text-sm mt-0.5 ${muted}`}>1 technical + 2 non-technical · 70% off</p>
+          <p className={`text-sm mt-0.5 ${muted}`}>Any 3 from the list · {discountPercent}% off</p>
         </div>
         <span className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold ${isDark ? 'bg-emerald-500/15 text-emerald-300' : 'bg-emerald-50 text-emerald-700'}`}>
-          70% OFF
+          {discountPercent}% OFF
         </span>
       </div>
 
@@ -253,16 +310,16 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
                 <h3 className={`text-xs font-bold uppercase tracking-widest ${muted}`}>Choose 3 competitions</h3>
                 <span className="text-xs font-bold text-[#0ECCEE]">{selected.filter(Boolean).length}/3</span>
               </div>
-              <p className={`text-sm mb-4 ${muted}`}>Select one from each box.</p>
+              <p className={`text-sm mb-4 ${muted}`}>Pick any 3 different competitions from the approved list.</p>
               <div className={`border-b mb-4 ${isDark ? 'border-gray-700/70' : 'border-gray-200'}`} />
               <div className="space-y-4">
                 {[0, 1, 2].map(i => {
-                  const list = i === 0 ? offer.technical : offer.nonTechnical;
+                  const list = offer.competitions || offer.technical || [];
                   return (
                     <label key={i} className="block">
-                      <span className={labelCls}>{i === 0 ? 'Technical competition' : `Non-technical competition ${i}`} <span className="text-red-400">*</span></span>
+                      <span className={labelCls}>Competition {i + 1} <span className="text-red-400">*</span></span>
                       <select
-                        aria-label={i === 0 ? 'Select technical competition' : 'Select non-technical competition'}
+                        aria-label={`Select competition ${i + 1}`}
                         value={selected[i]}
                         onChange={e => setSelected(all => all.map((id, index) => index === i ? e.target.value : id))}
                         className={inputCls}
@@ -304,6 +361,7 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
                 <h2 className={`mt-1 text-lg font-bold ${titleCls}`}>{activeCompetition.name}</h2>
                 <p className={`mt-1 text-xs mb-4 ${muted}`}>
                   {activeMin === activeMax ? `${activeMin} participant${activeMin > 1 ? 's' : ''} required` : `${activeMin}–${activeMax} participants allowed`}
+                  {' · '}name and email required for each
                 </p>
                 <div className={`border-b mb-4 ${isDark ? 'border-gray-700/70' : 'border-gray-200'}`} />
                 <div className="space-y-4">
@@ -313,21 +371,51 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
                       <input value={forms[formIndex].teamName || ''} onChange={e => setForm(formIndex, 'teamName', e.target.value)} placeholder="Your team name" className={inputCls} />
                     </label>
                   ) : null}
-                  {activeNames.map((name, index) => (
-                    <div key={index} className="flex items-end gap-2">
-                      <label className="min-w-0 flex-1">
-                        <span className={labelCls}>{index === 0 ? 'Team leader' : `Participant ${index + 1}`} {index < activeMin ? <span className="text-red-400">*</span> : null}</span>
-                        <input value={name} onChange={e => setForm(formIndex, 'memberNames', activeNames.map((item, n) => n === index ? e.target.value : item))} placeholder="Full name" className={inputCls} />
+                  {activeNames.map((member, index) => (
+                    <div key={index} className={`rounded-xl border p-3 space-y-3 ${isDark ? 'border-gray-700/60 bg-[#0f1011]' : 'border-gray-200 bg-white'}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className={`text-sm font-semibold ${titleCls}`}>
+                          {index === 0 ? 'Team leader' : `Participant ${index + 1}`}
+                          {index < activeMin ? <span className="text-red-400"> *</span> : null}
+                        </p>
+                        {index >= activeMin ? (
+                          <button
+                            type="button"
+                            onClick={() => setForm(formIndex, 'members', activeNames.filter((_, n) => n !== index))}
+                            className={`rounded-lg border px-3 py-1.5 text-sm ${isDark ? 'border-gray-700 text-red-300' : 'border-gray-300 text-red-600'}`}
+                          >
+                            Remove
+                          </button>
+                        ) : null}
+                      </div>
+                      <label className="block">
+                        <span className={labelCls}>Full name <span className="text-red-400">*</span></span>
+                        <input
+                          value={member.name}
+                          onChange={(e) => setActiveMember(index, 'name', e.target.value)}
+                          placeholder="Full name"
+                          className={inputCls}
+                        />
                       </label>
-                      {index >= activeMin ? (
-                        <button type="button" onClick={() => setForm(formIndex, 'memberNames', activeNames.filter((_, n) => n !== index))} className={`rounded-xl border px-3 py-2.5 text-sm ${isDark ? 'border-gray-700 text-red-300' : 'border-gray-300 text-red-600'}`}>
-                          Remove
-                        </button>
-                      ) : null}
+                      <label className="block">
+                        <span className={labelCls}>Email <span className="text-red-400">*</span></span>
+                        <input
+                          type="email"
+                          required
+                          value={member.email}
+                          onChange={(e) => setActiveMember(index, 'email', e.target.value)}
+                          placeholder="name@example.com"
+                          className={inputCls}
+                        />
+                      </label>
                     </div>
                   ))}
                   {activeNames.length < activeMax ? (
-                    <button type="button" onClick={() => setForm(formIndex, 'memberNames', [...activeNames, ''])} className="w-full rounded-xl border border-dashed border-[#0ECCEE]/40 py-3 text-sm font-semibold text-[#0ECCEE]">
+                    <button
+                      type="button"
+                      onClick={() => setForm(formIndex, 'members', [...activeNames, emptyMember()])}
+                      className="w-full rounded-xl border border-dashed border-[#0ECCEE]/40 py-3 text-sm font-semibold text-[#0ECCEE]"
+                    >
                       + Add participant
                     </button>
                   ) : null}
@@ -353,14 +441,14 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
               </div>
               <div className={`overflow-hidden rounded-xl border ${isDark ? 'border-gray-700/50' : 'border-gray-200'}`}>
                 {comps.map((c, i) => {
-                  const names = memberNames(forms[i].memberNames || forms[i].members);
+                  const members = normalizeMembers(forms[i].members || forms[i].memberNames);
                   const priced = quote?.items?.find(item => String(item.competitionId) === String(c._id));
                   return (
                     <div key={c._id} className={`flex items-start justify-between gap-3 p-4 ${i > 0 ? (isDark ? 'border-t border-gray-700/50' : 'border-t border-gray-200') : ''}`}>
                       <div className="min-w-0">
                         <p className={`truncate font-semibold ${titleCls}`}>{c.name}</p>
-                        <p className={`mt-1 text-xs ${muted}`}>{forms[i].teamName || names.join(', ')}</p>
-                        <p className={`text-xs ${muted}`}>{names.length} participant{names.length === 1 ? '' : 's'}</p>
+                        <p className={`mt-1 text-xs ${muted}`}>{forms[i].teamName || members.map((m) => m.name).filter(Boolean).join(', ')}</p>
+                        <p className={`text-xs ${muted}`}>{members.length} participant{members.length === 1 ? '' : 's'}</p>
                       </div>
                       <span className={`shrink-0 text-sm ${titleCls}`}>₹{Number(priced?.amount || 0).toLocaleString('en-IN')}</span>
                     </div>
@@ -373,7 +461,7 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
                   <span className="line-through">₹{Number(quote?.subtotal || 0).toLocaleString('en-IN')}</span>
                 </div>
                 <div className={`mt-2 flex justify-between text-sm font-semibold ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
-                  <span>You save 70%</span>
+                  <span>You save {discountPercent}%</span>
                   <span>₹{Number(quote?.discountAmount || 0).toLocaleString('en-IN')}</span>
                 </div>
                 <div className={`mt-3 flex justify-between border-t pt-3 text-xl font-black ${isDark ? 'border-white/10' : 'border-emerald-200'} ${titleCls}`}>

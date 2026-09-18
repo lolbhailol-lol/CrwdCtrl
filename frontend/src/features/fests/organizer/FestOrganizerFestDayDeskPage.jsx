@@ -421,8 +421,8 @@ export default function FestOrganizerFestDayDeskPage() {
         </div>
       </section>
       <Link to="/mindspark/bundle?desk=1" className="block rounded-2xl border border-emerald-400/25 bg-emerald-500/10 p-4 hover:border-emerald-300/50">
-        <p className="font-bold text-emerald-200">Create 1 Tech + 2 Non-Tech bundle</p>
-        <p className="text-sm text-gray-400 mt-1">Enter three separate rosters, apply 70% off, and show one Cashfree payment QR.</p>
+        <p className="font-bold text-emerald-200">Create any-3 MindSpark bundle</p>
+        <p className="text-sm text-gray-400 mt-1">Enter three separate rosters from the approved list, apply 65% off, and show one Cashfree payment QR.</p>
       </Link>
 
       <section className="rounded-2xl border border-[#0ECCEE]/20 bg-[#121314] p-4">

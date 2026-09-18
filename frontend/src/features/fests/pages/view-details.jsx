@@ -912,7 +912,7 @@ function EventDetailsPage() {
                       className="mb-4 flex w-full items-center justify-between gap-3 rounded-xl border border-[#0ECCEE]/35 bg-[#0ECCEE]/10 px-4 py-3 text-left transition hover:border-[#0ECCEE]/70"
                     >
                       <span className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>MindSpark Competition Bundle</span>
-                      <span className="shrink-0 text-xs font-bold text-[#0ECCEE]">70% OFF →</span>
+                      <span className="shrink-0 text-xs font-bold text-[#0ECCEE]">65% OFF →</span>
                     </button>
                   ) : null}
 
@@ -1352,10 +1352,10 @@ function EventDetailsPage() {
               type="button"
               onClick={handleOpenMindSparkBundle}
               className="flex w-full items-center justify-between gap-3 rounded-xl border border-[#0ECCEE]/35 bg-[#0ECCEE]/10 px-4 py-3 text-left transition active:scale-[0.99]"
-              aria-label="Open MindSpark Competition Bundle registration and get 70% off"
+              aria-label="Open MindSpark Competition Bundle registration and get 65% off"
             >
               <span className="text-sm font-bold text-white">MindSpark Competition Bundle</span>
-              <span className="shrink-0 text-xs font-bold text-[#0ECCEE]">70% OFF →</span>
+              <span className="shrink-0 text-xs font-bold text-[#0ECCEE]">65% OFF →</span>
             </button>
           </div>
         ) : null}

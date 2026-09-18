@@ -1230,7 +1230,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
         teams: noReview
             ? '2+ people from the form — expand for roster. No approve step; payment is on Connect if needed.'
             : '2+ people from the form — expand a card for the full roster.',
-        bundle: 'Registrations created through the 1 Tech + 2 Non-Tech MindSpark bundle. These are already included in competition totals.',
+        bundle: 'Registrations created through the MindSpark any-3 competition bundle. These are already included in competition totals.',
     };
 
     const soloPendingCount = noReview ? 0 : solo.filter((p) => p.status === 'pending').length;
