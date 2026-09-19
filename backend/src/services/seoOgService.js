@@ -31,8 +31,8 @@ function cleanDescription(text, max = 160) {
   return `${normalized.slice(0, max - 1).trimEnd()}…`;
 }
 
-/** Share cards prefer the portrait listing artwork, with landscape fallbacks. */
-function pickShareImage(entity, { preferPortrait = true } = {}) {
+/** Share cards prefer landscape/wide (WhatsApp ~1.91:1); portrait only when asked. */
+function pickShareImage(entity, { preferPortrait = false } = {}) {
   if (!entity || typeof entity !== 'object') return undefined;
   const covers = entity.coverImages && typeof entity.coverImages === 'object' ? entity.coverImages : {};
   const landscapeCandidates = [
@@ -68,17 +68,19 @@ function pickShareImage(entity, { preferPortrait = true } = {}) {
   return undefined;
 }
 
-/** WhatsApp prefers ~1200×630 JPEG; Cloudinary can crop on the fly. */
-function toOgImageUrl(url, { contain = true } = {}) {
+/** WhatsApp prefers ~1200×630 JPEG; Cloudinary can pad/fill on the fly. */
+function toOgImageUrl(url, { contain = true, padColor } = {}) {
   if (!url || typeof url !== 'string') return DEFAULT_IMAGE;
   const trimmed = url.trim();
   if (!trimmed) return DEFAULT_IMAGE;
   if (/res\.cloudinary\.com\/[^/]+\/image\/upload\//i.test(trimmed) && !/\/upload\/[^/]+,/.test(trimmed)) {
+    const bg = padColor || (contain ? 'auto' : null);
+    const padBg = contain ? `,b_${bg}` : '';
     return trimmed.replace(
       /\/image\/upload\//i,
       contain
-        ? '/image/upload/c_pad,w_1200,h_630,b_auto,f_jpg,q_auto/'
-        : '/image/upload/c_fill,w_1200,h_630,f_jpg,q_auto/',
+        ? `/image/upload/c_pad,w_1200,h_630${padBg},f_jpg,q_auto/`
+        : '/image/upload/c_fill,w_1200,h_630,g_center,f_jpg,q_auto/',
     );
   }
   return trimmed;
@@ -91,6 +93,13 @@ function absoluteUrl(pathOrUrl) {
   return `${SITE_URL}${path}`;
 }
 
+function isBrandLogoFest(fest) {
+  const name = String(fest?.festName || fest?.title || '').toLowerCase();
+  const slug = String(fest?.slug || '').toLowerCase();
+  return name.includes('kshitij') || slug.includes('kshitij')
+    || name.includes('techfest') || slug.includes('techfest');
+}
+
 const ROUTES = [
   {
     test: /^\/view-details\/([^/]+)\/?$/,
@@ -101,10 +110,14 @@ const ROUTES = [
         lean: true,
       });
       if (!fest) return null;
+      const logoFest = isBrandLogoFest(fest);
       return {
         title: fest.festName,
         description: fest.description,
-        image: pickShareImage(fest),
+        // Wide/hero first so WhatsApp shows the horizontal brand mark, not the tall portrait card.
+        image: pickShareImage(fest, { preferPortrait: false }),
+        containShareImage: true,
+        padColor: logoFest ? 'rgb:ffffff' : 'auto',
       };
     },
   },
@@ -119,7 +132,8 @@ const ROUTES = [
       return {
         title: competition.name,
         description: competition.description,
-        image: pickShareImage(competition),
+        image: pickShareImage(competition, { preferPortrait: true }),
+        containShareImage: true,
       };
     },
   },
@@ -135,7 +149,7 @@ const ROUTES = [
       return {
         title: trek.trekName || trek.title,
         description: trek.description,
-        image: pickShareImage(trek),
+        image: pickShareImage(trek, { preferPortrait: false }),
       };
     },
   },
@@ -151,7 +165,7 @@ const ROUTES = [
       return {
         title: `${community.name} — Trek Community`,
         description: community.aboutUs,
-        image: pickShareImage(community),
+        image: pickShareImage(community, { preferPortrait: false }),
       };
     },
   },
@@ -183,7 +197,7 @@ const ROUTES = [
       return {
         title: show.displayName || show.title,
         description: show.description || show.about,
-        image: pickShareImage(show),
+        image: pickShareImage(show, { preferPortrait: false }),
       };
     },
   },
@@ -213,15 +227,15 @@ async function loadRunClub(id, suffix) {
   return {
     title: `${club.name} — ${suffix}`,
     description: club.aboutUs || club.tagline || club.description,
-    image: pickShareImage(club),
+    image: pickShareImage(club, { preferPortrait: false }),
   };
 }
 
-function buildOgHtml({ title, description, image, path, containShareImage = true }) {
+function buildOgHtml({ title, description, image, path, containShareImage = true, padColor }) {
   const safeTitle = title || SITE_NAME;
   const desc = cleanDescription(description || `${safeTitle} on ${SITE_NAME}.`);
   const pageUrl = absoluteUrl(path);
-  const imageUrl = toOgImageUrl(image, { contain: containShareImage });
+  const imageUrl = toOgImageUrl(image, { contain: containShareImage, padColor });
   const fullTitle = safeTitle.includes(SITE_NAME) ? safeTitle : `${safeTitle} | ${SITE_NAME}`;
 
   return `<!DOCTYPE html>
@@ -275,6 +289,7 @@ async function resolveOgHtml(pathname) {
     description: item.description,
     image: item.image,
     containShareImage: item.containShareImage,
+    padColor: item.padColor,
     path,
   });
 }
