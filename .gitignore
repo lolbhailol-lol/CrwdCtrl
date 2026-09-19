@@ -78,11 +78,17 @@ Resume_*.pdf
 *.pyc
 __pycache__/
 
-# Legacy / internal dumps (keep out of public clones)
+# Legacy / internal dumps (keep out of public clones — not for interns)
 treks/
 business/
 content-strategy/
 preview/
+.agents/
+ARCHITECTURE.md
+AUDIT_BACKLOG.md
+DEPLOYMENT.md
+RUNBOOK.md
+SECURITY.md
 SECURITY_FIXES_PHASE1.md
 AUDIT_FINDINGS.md
 BUGS_HOLES_ERRORS_AUDIT.md
@@ -100,6 +106,11 @@ TREK_ORGANIZER_PORTAL.md
 TREK_RUNCLUB_BUSINESS_MODEL_DEEP_ANALYSIS.md
 favicon-google-test.png
 google-favicon-16.png
+
+# Internal docs / QA / chat dumps (owner-only; not for interns)
+docs/
+backend/docs/
+frontend/docs/
 
 # Local partnership MoU drafts (keep out of repo)
 MoU*.docx
