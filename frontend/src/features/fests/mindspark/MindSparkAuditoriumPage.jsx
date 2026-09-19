@@ -45,12 +45,26 @@ async function uploadTicketPhoto(file, token) {
   const fd = new FormData();
   fd.append('image', file);
   fd.append('folder', 'auditorium-tickets');
+  // Do NOT set Content-Type — browser must add multipart boundary.
+  // getBearerAuthHeaders() forces application/json and breaks FormData uploads.
+  const auth = getBearerAuthHeaders(token);
   const res = await fetch(resolveUrl('/mindspark/auditorium/upload-photo'), {
     method: 'POST',
-    headers: { ...getBearerAuthHeaders(token) },
+    headers: auth.Authorization ? { Authorization: auth.Authorization } : {},
     body: fd,
+    credentials: 'include',
   });
-  const data = await res.json().catch(() => ({}));
+  const raw = await res.text();
+  let data = {};
+  try {
+    data = raw ? JSON.parse(raw) : {};
+  } catch {
+    throw new Error(
+      res.ok
+        ? 'Upload returned a bad response'
+        : (raw.slice(0, 120) || `Upload failed (${res.status})`),
+    );
+  }
   if (!res.ok) throw new Error(data.error || data.message || 'Photo upload failed');
   return data.url || data.secure_url || data.data?.url || '';
 }
