@@ -2015,9 +2015,9 @@ function EventPage() {
                                         key={`${competitionId}-${eventData.image || 'placeholder'}`}
                                         src={showHeroImage ? eventData.image : null}
                                         alt={eventData.title || 'Competition'}
-                                        preset="festHeroFit"
+                                        preset="hero"
                                         containerClassName="absolute inset-0 w-full h-full"
-                                        className="absolute inset-0 w-full h-full object-contain object-center animate-detail-enter"
+                                        className="absolute inset-0 w-full h-full object-cover object-center animate-detail-enter"
                                         loaderSize="hero"
                                         eager={showHeroImage}
                                         placeholder={showHeroImage ? 'trophy' : 'muted'}
@@ -2228,8 +2228,7 @@ function EventPage() {
                                         key={`${competitionId}-${eventData.image || 'placeholder'}`}
                                         src={showHeroImage ? eventData.image : null}
                                         alt={eventData.title || 'Competition'}
-                                        preset="eventHeroPad"
-                                        fillBox
+                                        preset="hero"
                                         containerClassName="w-full h-full"
                                         className="w-full h-full object-cover object-center animate-detail-enter"
                                         loaderSize="hero"

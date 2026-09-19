@@ -268,7 +268,7 @@ export default function SimilarFestsSection({
                     <img
                       src={src}
                       alt={festName}
-                      className="absolute inset-0 w-full h-full object-contain object-center"
+                      className="absolute inset-0 w-full h-full object-cover object-center"
                       onError={(e) => handleImageErrorWithFallback(e, festName, 'fest')}
                     />
                   ) : (

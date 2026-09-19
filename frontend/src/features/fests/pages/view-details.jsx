@@ -33,10 +33,12 @@ import { useDetailLoaderFailsafe } from '../../../hooks/useDetailLoaderFailsafe'
 import DetailPageLoader from '../../../components/DetailPageLoader';
 import CompetitionCoverImage from '../../../components/CompetitionCoverImage';
 import FestPublicLiveStrip from '../components/FestPublicLiveStrip';
+import FestPublicAuditoriumTicketBox from '../components/FestPublicAuditoriumTicketBox';
 import SimilarFestsSection from '../components/SimilarFestsSection';
 import { getFestPlugin } from '../plugins/registry';
 import { useInAppBack } from '../../../hooks/useInAppBack';
 import { trackFestView } from '../../../services/analyticsService';
+import { isMindSparkFest } from '../mindspark/isMindSparkFest';
 
 const CrwdCtrlLogin = lazy(() => import('../../../pages/auth/login'));
 const CrwdCtrlRegister = lazy(() => import('../../../pages/auth/register'));
@@ -196,6 +198,7 @@ function EventDetailsPage() {
   const [error, setError] = useState(null);
   const [bodyReady, setBodyReady] = useState(() => Boolean(resolveSeededFest(eventId, location)));
   const [openingCompetition, setOpeningCompetition] = useState(false);
+  const [auditoriumMeta, setAuditoriumMeta] = useState(null);
   const openingCompetitionRef = useRef(false);
   const eventsRef = useRef(null);
   const fetchGenRef = useRef(0);
@@ -344,6 +347,27 @@ function EventDetailsPage() {
       window.removeEventListener('storage', handleStorageChange);
     };
   }, [eventId]);
+
+  useEffect(() => {
+    if (!isMindSparkFest(eventId) && !isMindSparkFest(eventData?.id)) {
+      setAuditoriumMeta(null);
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetchJSON('/mindspark/auditorium/meta');
+        // publicFetchJSONRetry → { data: apiBody }; apiBody → { success, data: meta }
+        const body = res?.data || res;
+        const meta = body?.data || body;
+        if (!cancelled) setAuditoriumMeta(meta && typeof meta === 'object' ? meta : null);
+      } catch {
+        if (!cancelled) setAuditoriumMeta(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [eventId, eventData?.id]);
+
   useEffect(() => {
     if (searchParams.get('showLogin') === 'true') {
       setShowLogin(true);
@@ -502,8 +526,8 @@ function EventDetailsPage() {
   const mindSparkDesktop = festPlugin.id === 'mindspark';
   const techfestPage = festPlugin.id === 'techfest';
   const kshitijPage = festPlugin.id === 'kshitij';
-  // Natural image size (no colour pads). Techfest keeps logo contain box.
-  const heroShellClass = kshitijPage ? 'bg-white' : 'bg-[#1A1B1D]';
+  // Fill hero box edge-to-edge (no letterbox gaps). Techfest keeps logo contain.
+  const heroShellClass = 'bg-[#1A1B1D]';
   const festHeroRaw = (() => {
     if (techfestPage) return festHeroUrl(pageEvent) || '';
     return (
@@ -515,9 +539,19 @@ function EventDetailsPage() {
     );
   })();
   const festHeroSrc = festHeroRaw
-    ? getImageUrl(festHeroRaw, { preset: techfestPage ? 'hero' : 'festHeroFit' })
+    ? getImageUrl(festHeroRaw, { preset: 'hero' })
     : '';
   const techfestHeroSrc = techfestPage ? festHeroSrc : '';
+  const festHeroBoxClass = mindSparkDesktop || kshitijPage
+    ? 'h-72 lg:h-[22rem] xl:h-[26rem]'
+    : 'h-64 sm:h-80 xl:h-96';
+  const festHeroMobileH = techfestPage
+    ? 'h-[320px]'
+    : mindSparkDesktop
+      ? 'h-[380px]'
+      : kshitijPage
+        ? 'h-[300px]'
+        : 'h-[280px]';
 
   const prefetchCompetition = (competition) => {
     const payload = buildCompetitionNavPayload(competition, pageEvent);
@@ -804,6 +838,11 @@ function EventDetailsPage() {
 
                 {festPlugin.showLiveStrip ? (
                   <FestPublicLiveStrip festId={pageEvent.id || eventId} isDark={isDark} />
+                ) : null}
+                {(festPlugin.id === 'mindspark' || isMindSparkFest(pageEvent?.id || eventId)) ? (
+                  <div className="mt-3">
+                    <FestPublicAuditoriumTicketBox meta={auditoriumMeta} isDark={isDark} />
+                  </div>
                 ) : null}
 
                 {/* Competitions */}
@@ -1185,18 +1224,8 @@ function EventDetailsPage() {
 
       {/* Mobile Version - Show below 768px */}
       <div className={`md:hidden pb-8 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
-        {/* Hero — natural image size; techfest logo box; MindSpark photo frame */}
-        <div
-          className={`relative w-full shrink-0 overflow-hidden ${
-            kshitijPage ? 'bg-white' : 'bg-[#0B0C0D]'
-          } ${
-            techfestPage
-              ? 'h-[320px]'
-              : mindSparkDesktop
-                ? 'h-[380px]'
-                : ''
-          }`}
-        >
+        {/* Hero — edge-to-edge cover (techfest: logo contain) */}
+        <div className={`relative w-full shrink-0 overflow-hidden bg-[#0B0C0D] ${festHeroMobileH}`}>
           {techfestPage ? (
             <div className="absolute inset-0 flex items-center justify-center px-8 pb-6 pt-14">
               {techfestHeroSrc ? (
@@ -1207,77 +1236,47 @@ function EventDetailsPage() {
               />
               ) : null}
             </div>
-          ) : mindSparkDesktop && festHeroSrc ? (
+          ) : festHeroSrc ? (
             <img
               src={festHeroSrc}
               alt={pageEvent.title}
               className="absolute inset-0 w-full h-full object-cover object-center"
             />
-          ) : festHeroSrc ? (
-            <div className={`w-full flex items-center justify-center px-3 ${
-              kshitijPage ? 'pt-16 pb-10' : 'pt-14 pb-6'
-            }`}>
-              <img
-                src={festHeroSrc}
-                alt={pageEvent.title}
-                className="w-full h-auto object-contain object-center"
-              />
-            </div>
           ) : null}
           <div
             className={`absolute inset-x-0 top-0 flex items-center justify-between px-4 z-10 ${
-              techfestPage || kshitijPage
+              techfestPage
                 ? ''
                 : 'pt-[max(0.75rem,var(--safe-top))] pb-3 bg-linear-to-b from-black/35 to-transparent'
             }`}
-            style={
-              techfestPage || kshitijPage
-                ? { paddingTop: 'calc(max(var(--safe-top), 0px) + 2.5rem)' }
-                : undefined
-            }
+            style={techfestPage ? { paddingTop: 'calc(max(var(--safe-top), 0px) + 2.5rem)' } : undefined}
           >
             <button
               type="button"
               onClick={goBack}
-              className={
-                techfestPage || kshitijPage
-                  ? 'size-11 rounded-full bg-black/40 flex items-center justify-center'
-                  : 'p-2 rounded-full bg-black/30 backdrop-blur-sm text-white'
-              }
+              className={techfestPage
+                ? 'size-11 rounded-full bg-black/40 flex items-center justify-center'
+                : 'p-2 rounded-full bg-black/30 backdrop-blur-sm text-white'}
               aria-label="Back to fests"
             >
-              <ArrowLeft
-                size={techfestPage || kshitijPage ? 22 : 20}
-                strokeWidth={techfestPage || kshitijPage ? 2.25 : undefined}
-                className="text-white"
-              />
+              <ArrowLeft size={techfestPage ? 22 : 20} strokeWidth={techfestPage ? 2.25 : undefined} className="text-white" />
             </button>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={handleShare}
-                className={
-                  techfestPage || kshitijPage
-                    ? 'size-11 rounded-full bg-black/40 flex items-center justify-center'
-                    : 'p-2 rounded-full bg-black/30 backdrop-blur-sm text-white'
-                }
+                className={techfestPage
+                  ? 'size-11 rounded-full bg-black/40 flex items-center justify-center'
+                  : 'p-2 rounded-full bg-black/30 backdrop-blur-sm text-white'}
                 aria-label="Share"
               >
-                <Share
-                  size={20}
-                  strokeWidth={techfestPage || kshitijPage ? 2.25 : undefined}
-                  className="text-white"
-                />
+                <Share size={20} strokeWidth={techfestPage ? 2.25 : undefined} className="text-white" />
               </button>
               {!techfestPage ? (
               <button
                 type="button"
                 onClick={handleFestFavorite}
-                className={
-                  kshitijPage
-                    ? 'size-11 rounded-full bg-black/40 flex items-center justify-center'
-                    : 'p-2 rounded-full bg-black/30 backdrop-blur-sm'
-                }
+                className="p-2 rounded-full bg-black/30 backdrop-blur-sm"
                 aria-label={isFavorite(pageEvent.id) ? 'Remove from favourites' : 'Add to favourites'}
               >
                 <Heart
@@ -1291,9 +1290,7 @@ function EventDetailsPage() {
         </div>
 
         {/* Content sheet — overlaps hero like competition detail */}
-        <div className={`relative z-10 overflow-hidden px-5 pt-6 pb-4 rounded-t-3xl ${
-          kshitijPage ? '-mt-4' : '-mt-10'
-        } ${
+        <div className={`relative z-10 overflow-hidden px-5 pt-6 pb-4 -mt-10 rounded-t-3xl ${
           isDark ? 'bg-[#161718]' : 'bg-white'
         }`}>
           <div className="flex items-start justify-between gap-3 mb-5">
@@ -1409,6 +1406,11 @@ function EventDetailsPage() {
         {festPlugin.showLiveStrip ? (
           <div className="px-4 mb-6">
             <FestPublicLiveStrip festId={pageEvent.id || eventId} isDark={isDark} />
+          </div>
+        ) : null}
+        {(festPlugin.id === 'mindspark' || isMindSparkFest(pageEvent?.id || eventId)) ? (
+          <div className="px-4 mb-6">
+            <FestPublicAuditoriumTicketBox meta={auditoriumMeta} isDark={isDark} />
           </div>
         ) : null}
         {mindSparkDesktop ? (

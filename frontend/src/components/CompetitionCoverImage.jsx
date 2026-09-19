@@ -11,7 +11,7 @@ export default function CompetitionCoverImage({
   src,
   alt = 'Competition',
   preset = 'cardSm',
-  className = 'absolute inset-0 w-full h-full object-contain object-center',
+  className = 'absolute inset-0 w-full h-full object-cover object-center',
   containerClassName = '',
   loaderSize = 'compact',
   eager = false,
