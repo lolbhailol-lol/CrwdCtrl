@@ -1599,11 +1599,17 @@ exports.checkin = async (req, res) => {
             || req.body.proShow === true
             || req.body.proShow === 'true'
             || req.body.proShow === '1';
+        const confirmYear = req.body.confirmYear === true
+            || req.body.confirmYear === 'true'
+            || req.body.confirmYear === '1'
+            || req.body.yearAcknowledged === true
+            || req.body.yearAcknowledged === 'true';
 
         const result = await performCheckinFromRaw(raw, {
             festId: req.festId,
             competitionId: proShowOnly ? null : competitionId,
             proShowOnly,
+            confirmYear,
             allowTrek: false,
             allowSports: false,
             scannedBy: `fest_organizer:${req.organizer.username || req.organizer.name}`,

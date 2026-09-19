@@ -75,6 +75,20 @@ const registrationSchema = new mongoose.Schema({
     default: null,
   },
 
+  /** Face photo URL for auditorium / photo-ticket events (Cloudinary) */
+  ticketPhotoUrl: {
+    type: String,
+    default: '',
+    trim: true,
+  },
+
+  /** College ID card photo — name + year visible (auditorium soft verify) */
+  idCardPhotoUrl: {
+    type: String,
+    default: '',
+    trim: true,
+  },
+
   // Reminder tracking
   reminderSent: {
     type: Boolean,

@@ -8,7 +8,13 @@ export default function LocalQRCode({ data, size = 200, className = '', printSaf
 
   useEffect(() => {
     let cancelled = false;
-    const payload = typeof data === 'string' ? data : JSON.stringify(data);
+    const payload = data == null || data === ''
+      ? ''
+      : (typeof data === 'string' ? data : JSON.stringify(data));
+    if (!payload) {
+      setSrc('');
+      return undefined;
+    }
     const usePrint = printSafe || !isDark;
 
     QRCode.toDataURL(payload, {

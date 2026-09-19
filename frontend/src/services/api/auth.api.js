@@ -171,6 +171,8 @@ export async function userFetchJSONStrict(path, options = {}) {
     credentials: options.credentials ?? 'include',
     mode: 'cors',
     headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
       ...getBearerAuthHeaders(bearerToken),
       ...(options.headers || {}),
     },
@@ -195,9 +197,13 @@ export async function userFetchJSONStrict(path, options = {}) {
     throw err;
   }
   if (!response.ok) {
-    const err = new Error(`Failed to fetch (${response.status})`);
-    err.code = response.status === 404 ? 'NOT_FOUND' : `HTTP_${response.status}`;
+    const data = await response.json().catch(() => ({}));
+    const err = new Error(data.message || data.error || `Failed to fetch (${response.status})`);
+    err.code = data.code || (response.status === 404 ? 'NOT_FOUND' : `HTTP_${response.status}`);
     err.status = response.status;
+    err.data = data.data ?? data;
+    err.ticket = data.ticket;
+    err.expectedCategoryId = data.expectedCategoryId;
     throw err;
   }
   return response.json();

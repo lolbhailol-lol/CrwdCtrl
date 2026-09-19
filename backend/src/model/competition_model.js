@@ -361,6 +361,26 @@ const competitionSchema = new mongoose.Schema(
     instagram: String,
   },
 
+  /** MindSpark Auditorium night — category quotas + public ticket box toggles */
+  auditorium: {
+    enabled: { type: Boolean, default: false },
+    showPublicTicketBox: { type: Boolean, default: false },
+    registrationOpen: { type: Boolean, default: false },
+    requireTicketPhoto: { type: Boolean, default: true },
+    requireIdAtGate: { type: Boolean, default: true },
+    enforceMisYear: { type: Boolean, default: true },
+    categories: [{
+      id: { type: String, trim: true },
+      label: { type: String, trim: true },
+      seats: { type: Number, default: 0, min: 0 },
+      channel: {
+        type: String,
+        enum: ['public', 'invite', 'desk'],
+        default: 'public',
+      },
+    }],
+  },
+
   isApproved: {
     type: Boolean,
     default: true,

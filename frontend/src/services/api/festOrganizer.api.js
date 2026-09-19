@@ -107,6 +107,7 @@ async function festOrganizerFetch(path, options = {}) {
                 err.competitionName = data.competitionName || null;
                 err.alreadyRegistered = Boolean(data.alreadyRegistered);
                 err.registrationId = data.registrationId || null;
+                err.ticket = data.ticket || null;
                 // Retry transient gateway / overload, or static-host miss (no /api proxy)
                 if ((res.status === 404 || res.status === 405 || res.status === 408 || res.status === 425
                     || res.status === 429 || res.status >= 500)
@@ -622,6 +623,53 @@ export async function exportFestOrganizerLeads(festId, params = {}) {
         throw new Error(data.message || 'Export failed');
     }
     return res.blob();
+}
+
+/* ── MindSpark Auditorium ─────────────────────────────────────────── */
+
+export async function fetchFestOrganizerAuditorium(festId) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/auditorium`);
+}
+
+export async function updateFestOrganizerAuditorium(festId, body) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/auditorium`, {
+        method: 'PATCH',
+        body,
+    });
+}
+
+export async function fetchFestOrganizerAuditoriumRoster(festId, params = {}) {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== '') qs.set(k, v);
+    });
+    const q = qs.toString();
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/auditorium/roster${q ? `?${q}` : ''}`);
+}
+
+export async function lookupFestOrganizerAuditoriumPhone(festId, phone) {
+    const qs = new URLSearchParams({ phone: String(phone || '') });
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/auditorium/lookup?${qs}`);
+}
+
+export async function createFestOrganizerAuditoriumInvite(festId, body) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/auditorium/invites`, {
+        method: 'POST',
+        body,
+    });
+}
+
+export async function deactivateFestOrganizerAuditoriumInvite(festId, inviteId) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/auditorium/invites/${inviteId}/deactivate`, {
+        method: 'POST',
+    });
+}
+
+export async function issueFestOrganizerAuditoriumDesk(festId, body) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/auditorium/desk`, {
+        method: 'POST',
+        body,
+    });
 }
 
 export function applyFestOrganizerAuthPayload(data) {

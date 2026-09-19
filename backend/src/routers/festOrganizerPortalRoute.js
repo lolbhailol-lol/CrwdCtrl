@@ -8,6 +8,7 @@ const probableCtrl = require('../controllers/festCompetitionProbableController')
 const proShowCtrl = require('../controllers/festProShowController');
 const liveCtrl = require('../controllers/festLiveUpdateController');
 const couponCtrl = require('../controllers/festOrganizerCouponController');
+const auditoriumCtrl = require('../controllers/mindsparkAuditoriumController');
 const uploadCtrl = require('../controllers/uploadController');
 const { authenticateFestOrganizer, requireFestAccess } = require('../middleware/festOrganizerAuth');
 const { authLimiter } = require('../middleware/rateLimiter');
@@ -38,6 +39,13 @@ router.post(
 );
 
 router.get('/fests/:festId/dashboard', authenticateFestOrganizer, requireFestAccess, ctrl.getDashboard);
+router.get('/fests/:festId/auditorium', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.getOrganizerOps);
+router.patch('/fests/:festId/auditorium', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.updateOrganizerConfig);
+router.get('/fests/:festId/auditorium/roster', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.listRoster);
+router.get('/fests/:festId/auditorium/lookup', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.lookupByPhone);
+router.post('/fests/:festId/auditorium/invites', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.createInvite);
+router.post('/fests/:festId/auditorium/invites/:inviteId/deactivate', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.deactivateInvite);
+router.post('/fests/:festId/auditorium/desk', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.deskIssue);
 router.get('/fests/:festId/fest-day-desk', authenticateFestOrganizer, requireFestAccess, ctrl.getFestDayDesk);
 router.post('/fests/:festId/fest-day-desk/registrations', authenticateFestOrganizer, requireFestAccess, assistedCtrl.createAssistedRegistration);
 router.post('/fests/:festId/fest-day-desk/bundles', authenticateFestOrganizer, requireFestAccess, bundleCtrl.create('desk'));

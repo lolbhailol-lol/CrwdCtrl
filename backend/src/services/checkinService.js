@@ -10,6 +10,10 @@ const { parseQrPayload, resolveCheckinRecord } = require('../utils/qrCheckin');
 const { appendCheckinToGoogleSheets } = require('./googleSheetsService');
 const { decryptRegistrationPii } = require('../utils/runClubPiiCrypto');
 const { buildSportsCheckinGuestPayload } = require('../utils/runClubOrganizerFormat');
+const {
+  normalizeAuditoriumConfig,
+  YEAR_CATEGORY_IDS,
+} = require('../modules/fest/plugins/mindsparkAuditorium');
 
 function matchesFestScope(recordFestId, festId) {
   if (!festId) return true;
@@ -99,6 +103,8 @@ async function performCheckinFromRaw(raw, options = {}) {
     competitionId = null,
     /** When true with festId, only accept Pro Show tickets */
     proShowOnly = false,
+    /** Gate volunteer confirmed year matches college ID (auditorium) */
+    confirmYear = false,
     allowTrek = true,
     allowSports = true,
     scannedBy = 'Admin',
@@ -624,9 +630,29 @@ async function performCheckinFromRaw(raw, options = {}) {
   }
 
   const registration = await Registration.findById(resolved.record._id)
-    .populate('user', 'name email profilePic')
+    .populate('user', 'name email profilePic phone phoneNumber')
     .populate('fest', 'festName festDate registration.googleSheetsUrl')
-    .populate('competitionId', 'name registration.googleSheetsUrl');
+    .populate('competitionId', 'name registration.googleSheetsUrl auditorium module');
+
+  const responseVal = (key) => {
+    const r = registration.responses;
+    if (!r) return '';
+    if (typeof r.get === 'function') return r.get(key) || '';
+    return r[key] || '';
+  };
+  const ticketPhotoUrl = String(registration.ticketPhotoUrl || responseVal('ticket_photo') || '').trim();
+  const idCardPhotoUrl = String(registration.idCardPhotoUrl || responseVal('id_card_photo') || '').trim();
+  const auditoriumCategoryId = String(responseVal('auditorium_category_id') || '').trim();
+  const auditoriumCategory = String(responseVal('auditorium_category_label') || '').trim();
+  const college = String(responseVal('college') || '').trim();
+  const responsePhone = String(responseVal('phone') || responseVal('contact_no') || '').trim();
+  const responseName = String(responseVal('full_name') || responseVal('name') || '').trim();
+  // Only regs that actually claimed an auditorium category — not every ticket
+  // on a competition that happens to have auditorium.enabled.
+  const isAuditoriumTicket = Boolean(auditoriumCategoryId);
+  const auditoriumCfg = isAuditoriumTicket
+    ? normalizeAuditoriumConfig(registration.competitionId?.auditorium || {})
+    : null;
 
   if (festId && !matchesFestScope(registration.fest?._id || registration.fest, festId)) {
     return {
@@ -693,13 +719,18 @@ async function performCheckinFromRaw(raw, options = {}) {
         status: 'already_checked_in',
         message: 'Already checked in',
         data: {
-          userName: registration.user?.name,
-          userPhone: registration.user?.phone || registration.user?.phoneNumber || '',
+          userName: registration.user?.name || responseName,
+          userPhone: registration.user?.phone || registration.user?.phoneNumber || responsePhone || '',
           userEmail: registration.user?.email || '',
           festName,
           competitionName,
           ticketType,
           checkedInAt: registration.checkedInAt,
+          ticketPhotoUrl,
+          idCardPhotoUrl,
+          auditoriumCategory,
+          college,
+          registrationId: registration._id,
         },
       },
     };
@@ -715,6 +746,56 @@ async function performCheckinFromRaw(raw, options = {}) {
         message: regStatus === 'rejected'
           ? 'This ticket was cancelled or refunded and cannot be checked in.'
           : 'This registration is not approved for entry.',
+      },
+    };
+  }
+
+  if (isAuditoriumTicket && (auditoriumCfg?.requireIdAtGate !== false) && !idCardPhotoUrl) {
+    return {
+      status: 403,
+      body: {
+        success: false,
+        status: 'invalid',
+        code: 'ID_REQUIRED_AT_GATE',
+        message: 'No college ID on this ticket — send them to desk to upload ID before entry.',
+        data: {
+          userName: registration.user?.name || responseName,
+          userPhone: registration.user?.phone || registration.user?.phoneNumber || responsePhone || '',
+          ticketPhotoUrl,
+          auditoriumCategory,
+          college,
+          registrationId: registration._id,
+        },
+      },
+    };
+  }
+
+  const needsYearAck = isAuditoriumTicket
+    && YEAR_CATEGORY_IDS.has(auditoriumCategoryId)
+    && !confirmYear;
+
+  if (needsYearAck) {
+    return {
+      status: 200,
+      body: {
+        success: false,
+        status: 'needs_year_confirm',
+        code: 'NEEDS_YEAR_CONFIRM',
+        message: 'Match face + ID year, then confirm entry',
+        data: {
+          userName: registration.user?.name || responseName,
+          userPhone: registration.user?.phone || registration.user?.phoneNumber || responsePhone || '',
+          userEmail: registration.user?.email || '',
+          festName,
+          competitionName,
+          ticketType,
+          ticketPhotoUrl,
+          idCardPhotoUrl,
+          auditoriumCategory,
+          auditoriumCategoryId,
+          college,
+          registrationId: registration._id,
+        },
       },
     };
   }
@@ -770,10 +851,15 @@ async function performCheckinFromRaw(raw, options = {}) {
       status: 'checked_in',
       message: 'Check-in successful!',
       data: {
-        userName: registration.user?.name,
-        userPhone: registration.user?.phone || registration.user?.phoneNumber || '',
+        userName: registration.user?.name || responseName,
+        userPhone: registration.user?.phone || registration.user?.phoneNumber || responsePhone || '',
         userEmail: registration.user?.email,
         userProfilePic: registration.user?.profilePic,
+        ticketPhotoUrl,
+        idCardPhotoUrl,
+        auditoriumCategory,
+        auditoriumCategoryId,
+        college,
         festName,
         competitionName,
         ticketType,

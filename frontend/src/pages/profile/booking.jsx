@@ -70,6 +70,18 @@ function mapFestRegistrations(internalRegistrations = []) {
             const responses = reg.responses instanceof Map
                 ? Object.fromEntries(reg.responses)
                 : (reg.responses || {});
+            const auditoriumCategory = String(
+                responses.auditorium_category_label || responses.auditorium_category_id || '',
+            ).trim();
+            const ticketPhotoUrl = String(
+                reg.ticketPhotoUrl || responses.ticket_photo || responses.ticketPhoto || '',
+            ).trim();
+            const isAuditorium = Boolean(
+                responses.auditorium_category_id
+                || responses.auditorium_category_label
+                || reg.competitionId?.auditorium?.enabled
+                || (reg.competitionId?.auditorium && typeof reg.competitionId.auditorium === 'object'),
+            );
             const teamMembersArr = Array.isArray(responses.team_members) ? responses.team_members : [];
             const memberCount = teamMembersArr.filter((m) => {
                 if (typeof m === 'string') return Boolean(m.trim());
@@ -78,11 +90,14 @@ function mapFestRegistrations(internalRegistrations = []) {
                 }
                 return false;
             }).length || 1;
-            const teamSizeMax = reg.competitionId?.teamSizeMax || 1;
+            const teamSizeMax = isAuditorium ? 1 : (reg.competitionId?.teamSizeMax || 1);
+            const competitionName = reg.competitionId?.name || 'Competition';
             return {
                 id: reg._id,
-                name: reg.competitionId?.name || 'Competition',
-                image: reg.competitionId?.coverImage || reg.fest?.coverImage,
+                name: isAuditorium && auditoriumCategory
+                    ? `${competitionName} · ${auditoriumCategory}`
+                    : competitionName,
+                image: ticketPhotoUrl || reg.competitionId?.coverImage || reg.fest?.coverImage,
                 date: reg.fest?.festDate,
                 venue: reg.fest?.venue,
                 type: 'competition',
@@ -92,9 +107,14 @@ function mapFestRegistrations(internalRegistrations = []) {
                 registrationStatus: reg.status,
                 registrationType: 'internal',
                 isCompetition: true,
+                isAuditorium,
+                auditoriumCategory,
+                ticketPhotoUrl: ticketPhotoUrl || null,
                 isTrek: false,
                 isSports: false,
-                paymentAmount: reg.competitionId?.registrationFee || reg.fest?.ticketPrice || 'N/A',
+                paymentAmount: isAuditorium
+                    ? 'Free'
+                    : (reg.competitionId?.registrationFee || reg.fest?.ticketPrice || 'N/A'),
                 paymentStatus: reg.paymentStatus,
                 amountPaid: reg.amountPaid || 0,
                 paymentId: reg.payment_id || '',
@@ -102,7 +122,7 @@ function mapFestRegistrations(internalRegistrations = []) {
                 registeredAt: reg.submittedAt,
                 teamSizeMax,
                 memberCount,
-                slotsLeft: Math.max(0, teamSizeMax - memberCount),
+                slotsLeft: isAuditorium ? 0 : Math.max(0, teamSizeMax - memberCount),
             };
         }
         return {
@@ -322,9 +342,10 @@ function BookingCard({ item, isDark, onViewBooking, onDownloadTicket, onAddToCal
                     {item.isCompetition && item.festName && (
                         <p className={`mt-1 text-xs line-clamp-1 ${isDark ? 'text-gray-500' : 'text-gray-600'}`}>
                             {item.festName}
+                            {item.isAuditorium ? ' · Free entry' : ''}
                         </p>
                     )}
-                    {item.isCompetition && item.slotsLeft > 0 && item.registrationStatus !== 'rejected' && (
+                    {item.isCompetition && !item.isAuditorium && item.slotsLeft > 0 && item.registrationStatus !== 'rejected' && (
                         <span className="mt-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium bg-[#0ECCEE]/15 text-[#0ECCEE]">
                             + {item.slotsLeft} slot{item.slotsLeft !== 1 ? 's' : ''} open
                         </span>
@@ -375,7 +396,7 @@ function BookingCard({ item, isDark, onViewBooking, onDownloadTicket, onAddToCal
                 >
                     View Booking
                 </button>
-                {item.isCompetition && item.slotsLeft > 0 && item.registrationStatus !== 'rejected' && (
+                {item.isCompetition && !item.isAuditorium && item.slotsLeft > 0 && item.registrationStatus !== 'rejected' && (
                     <button
                         type="button"
                         onClick={() => onViewBooking({ ...item, _autoAddMembers: true })}
@@ -604,6 +625,10 @@ function Booking() {
         }
         if (item.isEvent) {
             navigate(`/qr-ticket/${item.id}?type=event`);
+            return;
+        }
+        if (item.isAuditorium) {
+            navigate(`/qr-ticket/${item.id}?auditorium=1`);
             return;
         }
         navigate(`/qr-ticket/${item.id}`);

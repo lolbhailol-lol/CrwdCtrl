@@ -17,6 +17,8 @@ import {
     FestOrganizerRevenuePage,
     FestOrganizerProShowPage,
     FestOrganizerLiveUpdatesPage,
+    FestOrganizerAuditoriumPage,
+    FestOrganizerAuditoriumScanPage,
     FestOrganizerInfoPage,
     FestOrganizerListingEditPage,
     FestOrganizerLeadsPage,
@@ -49,6 +51,8 @@ export const festOrganizerRoutes = (
             <Route path="fests/:festId/coupons" element={<FestOrganizerCouponsPage />} />
             <Route path="fests/:festId/pro-show" element={<FestOrganizerProShowPage />} />
             <Route path="fests/:festId/live" element={<FestOrganizerLiveUpdatesPage />} />
+            <Route path="fests/:festId/auditorium" element={<FestOrganizerAuditoriumPage />} />
+            <Route path="fests/:festId/auditorium/scan" element={<FestOrganizerAuditoriumScanPage />} />
             <Route path="fests/:festId/notifications" element={<FestOrganizerNotificationsPage />} />
             <Route path="fests/:festId/edit-listing" element={<FestOrganizerListingEditPage />} />
             <Route path="fests/:festId/info" element={<FestOrganizerInfoPage />} />

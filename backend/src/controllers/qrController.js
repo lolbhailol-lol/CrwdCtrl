@@ -29,18 +29,35 @@ const generateQR = async (req, res) => {
       await registration.save();
     }
 
+    const responses = registration.responses instanceof Map
+      ? Object.fromEntries(registration.responses)
+      : (registration.responses || {});
+    const ticketPhotoUrl = String(
+      registration.ticketPhotoUrl || responses.ticket_photo || '',
+    ).trim();
+    const idCardPhotoUrl = String(
+      registration.idCardPhotoUrl || responses.id_card_photo || '',
+    ).trim();
+    const auditoriumCategory = String(
+      responses.auditorium_category_label || '',
+    ).trim();
+
     res.json({
       success: true,
       data: {
         registrationId: registration._id,
         qrHash: registration.qrCodeData,
-        userName: registration.user?.name || null,
+        userName: registration.user?.name || responses.full_name || responses.name || null,
         festName: registration.fest?.festName || 'Unknown',
         festDate: registration.fest?.festDate || null,
         venue: registration.fest?.venue || null,
         competitionName: registration.competitionId?.name || null,
         checkedIn: registration.checkedIn || false,
         checkedInAt: registration.checkedInAt || null,
+        ticketPhotoUrl: ticketPhotoUrl || null,
+        idCardPhotoUrl: idCardPhotoUrl || null,
+        auditoriumCategory: auditoriumCategory || null,
+        college: responses.college || null,
       },
     });
   } catch (error) {

@@ -103,6 +103,7 @@ function buildBookingTicketBlock({
     bookingHref = '',
     product = 'event',
     extraRows = [],
+    ticketPhotoUrl = '',
 }) {
     if (!qrHash) return '';
     const qrSrc = buildQrImageUrl(qrHash);
@@ -124,6 +125,7 @@ function buildBookingTicketBlock({
 
     const ticketUrl = resolveTicketHref(ticketHref);
     const bookingUrl = bookingHref ? resolveTicketHref(bookingHref) : ticketUrl;
+    const photo = String(ticketPhotoUrl || '').trim();
 
     return `
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:20px 0 8px;border:1px solid #e5e7eb;border-radius:16px;overflow:hidden;background:#fafafa;">
@@ -133,6 +135,12 @@ function buildBookingTicketBlock({
                     <p style="margin:6px 0 0;font-size:18px;line-height:1.3;color:#ffffff;font-weight:700;">${escapeHtml(eventTitle || 'Your booking')}</p>
                 </td>
             </tr>
+            ${photo ? `
+            <tr>
+                <td style="padding:18px 18px 0;text-align:center;background:#ffffff;">
+                    <img src="${escapeHtml(photo)}" alt="Ticket photo" width="160" height="160" style="display:block;margin:0 auto;width:160px;height:160px;object-fit:cover;border-radius:12px;border:1px solid #e5e7eb;" />
+                </td>
+            </tr>` : ''}
             <tr>
                 <td style="padding:18px;text-align:center;background:#ffffff;">
                     <img src="${qrSrc}" alt="Check-in QR code" width="220" height="220" style="display:block;margin:0 auto;width:220px;height:220px;border:1px solid #e5e7eb;border-radius:12px;" />
@@ -155,7 +163,7 @@ function buildBookingTicketBlock({
                         </tr>
                         <tr>
                             <td align="center">
-                                <a href="${bookingUrl}" style="font-size:13px;color:#2563eb;text-decoration:underline;">View booking details</a>
+                                <a href="${bookingUrl}" style="font-size:13px;color:#2563eb;text-decoration:underline;">View My Bookings</a>
                             </td>
                         </tr>
                     </table>
@@ -994,9 +1002,10 @@ function generateCompetitionRegistrationEmailHTML({
             participantName: userName,
             qrHash,
             ticketHref: ticketLink,
-            bookingHref: ticketLink,
+            bookingHref: '/booking',
             product: 'competition',
             extraRows: rows.filter((row) => row.label !== 'Name'),
+            ticketPhotoUrl: paymentContext.ticketPhotoUrl || '',
         })
         : '';
 
@@ -1009,6 +1018,10 @@ function generateCompetitionRegistrationEmailHTML({
         ? ''
         : buildWhatsAppJoinBlock(paymentContext.groupLink, paymentContext.communityName, { product: 'competition' });
 
+    const heroUrl = paymentContext.ticketPhotoUrl && coverImageUrl === paymentContext.ticketPhotoUrl
+        ? ''
+        : coverImageUrl;
+
     return buildEmailShell({
         preheader: isTechfest
             ? `You're in for ${competitionName || 'Techfest'} at IIT Bombay — show your QR at check-in.`
@@ -1018,7 +1031,7 @@ function generateCompetitionRegistrationEmailHTML({
         subtitle: isTechfest
             ? (competitionName ? `${competitionName} · Techfest IIT Bombay` : 'Techfest IIT Bombay')
             : (competitionName ? `${competitionName} · ${festName}` : festName),
-        heroImageUrl: resolveEmailHeroImageUrl(coverImageUrl),
+        heroImageUrl: resolveEmailHeroImageUrl(heroUrl),
         bodyHtml: `
             <p style="margin:0 0 12px;">Hi <strong>${escapeHtml(userName || 'there')}</strong>,</p>
             ${intro}
@@ -1046,7 +1059,7 @@ const sendCompetitionRegistrationEmail = async ({
 }) => {
     try {
         const email = String(userEmail || '').trim().toLowerCase();
-        if (!email || !EMAIL_ADDRESS_REGEX.test(email)) {
+        if (!email || !EMAIL_ADDRESS_REGEX.test(email) || /@crwdctrl\.local$/i.test(email)) {
             console.error('❌ Competition registration email skipped: invalid user email', userEmail);
             return { success: false, error: 'User email missing or invalid' };
         }
@@ -1085,6 +1098,7 @@ async function sendCompetitionRegistrationEmailForRecord({
     fest,
     competition,
     registration,
+    extras = {},
 }) {
     if (!user?.email || !registration?._id) {
         return { success: false, error: 'Missing user email or registration id' };
@@ -1092,11 +1106,13 @@ async function sendCompetitionRegistrationEmailForRecord({
 
     const { isTechfestFest, getFestPlugin } = require('../modules/fest/plugins');
     const isTechfest = isTechfestFest(fest) || getFestPlugin(fest).omitWhatsAppInEmail === true;
-    const ticketLink = `/qr-ticket/${registration._id}`;
+    const ticketLink = extras.ticketLink || `/qr-ticket/${registration._id}`;
     const amountPaid = Number(registration.amountPaid) || 0;
     const paymentStatus = registration.paymentStatus || 'free';
     const festName = fest?.festName || fest?.name || (isTechfest ? 'Techfest IIT Bombay' : 'Fest');
     const venue = String(fest?.venue || (isTechfest ? 'IIT Bombay, Mumbai' : '')).trim();
+    const baseDetails = amountPaid > 0 ? [{ label: 'Amount paid', value: `₹${amountPaid}` }] : [];
+    const extraDetails = Array.isArray(extras.details) ? extras.details : [];
 
     return sendCompetitionRegistrationEmail({
         userEmail: user.email,
@@ -1105,14 +1121,17 @@ async function sendCompetitionRegistrationEmailForRecord({
         competitionName: competition?.name || '',
         registrationId: String(registration._id),
         qrHash: registration.qrCodeData || '',
-        coverImageUrl: competition?.coverImage || competition?.image || fest?.coverImage || '',
+        coverImageUrl: competition?.coverImage
+            || competition?.image
+            || fest?.coverImage
+            || '',
         submissionDate: formatSubmissionDateIST(registration.submittedAt || new Date()),
         paymentContext: {
             status: paymentStatus,
             method: paymentStatus === 'paid' ? (registration.payment_gateway || 'cashfree') : '',
             type: 'competition',
             ticketLink,
-            // Techfest / IIT Bombay — no WhatsApp group in confirmation email
+            ticketPhotoUrl: extras.ticketPhotoUrl || registration.ticketPhotoUrl || '',
             groupLink: isTechfest
                 ? ''
                 : (String(competition?.registration?.whatsappGroupLink || '').trim()
@@ -1121,7 +1140,7 @@ async function sendCompetitionRegistrationEmailForRecord({
             omitWhatsApp: isTechfest,
             isTechfest,
             venue,
-            details: amountPaid > 0 ? [{ label: 'Amount paid', value: `₹${amountPaid}` }] : [],
+            details: [...extraDetails, ...baseDetails],
         },
     });
 }

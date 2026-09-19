@@ -12,6 +12,9 @@ import { useAuth } from '../../context/AuthContext';
 import { InlinePageLoader } from '../../components/DetailPageLoader';
 import { useDetailLoaderFailsafe } from '../../hooks/useDetailLoaderFailsafe';
 import { signalDetailPageReady } from '../../utils/bootSplash';
+import AuditoriumTicketPass, {
+  ensureAuditoriumFonts,
+} from '../../features/fests/mindspark/AuditoriumTicketPass';
 
 const ticketCacheKey = (type, id) => `crwdctrl_ticket_${type || 'fest'}_${id}`;
 
@@ -86,10 +89,15 @@ export default function QRTicketPage() {
   const isSportsTicket = ticketType === 'sports' || ticketHub === 'events';
   const isEventTicket = ticketType === 'event';
   const fromPayment = Boolean(location.state?.fromPayment);
+  const isAuditoriumQuery = searchParams.get('auditorium') === '1';
   const [ticket, setTicket] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [fromCache, setFromCache] = useState(false);
+
+  useEffect(() => {
+    if (isAuditoriumQuery) ensureAuditoriumFonts();
+  }, [isAuditoriumQuery]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -302,6 +310,72 @@ export default function QRTicketPage() {
         }. Show your QR ticket at the venue for check-in.`,
       })
     : null;
+
+  const isAuditoriumTicket = Boolean(
+    isAuditoriumQuery
+    || ticket.ticketPhotoUrl
+    || ticket.auditoriumCategory
+    || /auditorium/i.test(String(ticket.competitionName || '')),
+  );
+
+  if (isAuditoriumTicket) {
+    ensureAuditoriumFonts();
+    const audTicket = {
+      ...ticket,
+      fullName: ticket.userName || ticket.fullName,
+      categoryLabel: ticket.auditoriumCategory || ticket.categoryLabel,
+      qrCodeData: ticket.qrHash || ticket.qrCodeData,
+      idCardPhotoUrl: ticket.idCardPhotoUrl,
+      id: ticket.registrationId || registrationId,
+    };
+    return (
+      <div
+        className="min-h-screen pt-[max(2rem,calc(var(--safe-top)+1rem))] pb-10 px-4"
+        style={{
+          background:
+            'radial-gradient(ellipse 100% 60% at 50% -10%, rgba(14,204,238,0.16), transparent 50%), #070809',
+          fontFamily: 'Outfit, Poppins, sans-serif',
+        }}
+      >
+        <div className="max-w-md mx-auto space-y-5">
+          <Link
+            to="/booking"
+            className="inline-flex items-center gap-1.5 text-sm text-white/45 hover:text-white/80 transition"
+          >
+            <ArrowLeft size={16} />
+            Back to Bookings
+          </Link>
+          <div className="text-center space-y-1">
+            <p className="text-[10px] uppercase tracking-[0.28em] text-[#0ECCEE] font-semibold">
+              Gate pass
+            </p>
+            <h1
+              className="text-3xl text-white leading-none"
+              style={{ fontFamily: '"Bebas Neue", Impact, sans-serif', letterSpacing: '0.06em' }}
+            >
+              AUDITORIUM
+            </h1>
+          </div>
+          <AuditoriumTicketPass ticket={audTicket} />
+          {fromCache ? (
+            <p className="text-center text-[11px] text-amber-300/80">
+              Saved offline — works at the gate without reload
+            </p>
+          ) : null}
+          {calendarUrl ? (
+            <button
+              type="button"
+              onClick={() => openExternalUrl(calendarUrl)}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-2xl border border-white/12 py-3 text-sm text-white/70 hover:border-white/25 transition"
+            >
+              <CalendarPlus size={16} />
+              Add to calendar
+            </button>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="crwdctrl-page crwdctrl-page--content min-h-screen pt-[max(2rem,calc(var(--safe-top)+1rem))] pb-8 px-4">
