@@ -35,6 +35,7 @@ const TABS = [
     { id: 'solo', label: 'Solo entries' },
     { id: 'teams', label: 'Team entries' },
     { id: 'bundle', label: 'MindSpark Bundle' },
+    { id: 'desk', label: 'Fest Day Desk' },
 ];
 
 const LIST_FILTERS = [
@@ -247,7 +248,9 @@ function SoloEntryCard({
                         {p.checkedIn ? (
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300">checked in</span>
                         ) : null}
-                        {p.isManual ? (
+                        {p.isFestDayDesk ? (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300">Desk</span>
+                        ) : p.isManual ? (
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-gray-400">Walk-in</span>
                         ) : null}
                     </div>
@@ -402,7 +405,9 @@ function TeamCard({ team, busyId, onApproveIds, onRejectIds, onDelete, onNotify,
                                 {team.checkedInCount} checked in
                             </span>
                         ) : null}
-                        {team.isManual ? (
+                        {team.isFestDayDesk ? (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300">Desk</span>
+                        ) : team.isManual ? (
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-gray-400">Walk-in</span>
                         ) : null}
                     </div>
@@ -682,11 +687,17 @@ export default function FestOrganizerCompetitionWorkspacePage() {
     const plugin = getFestPlugin(festId, festMeta);
     const noReview = plugin.skipRegistrationReview;
     const showBundleTab = plugin.id === 'mindspark';
-    const visibleTabs = showBundleTab ? TABS : TABS.filter((item) => item.id !== 'bundle');
-    const bundleSolo = solo.filter((participant) => participant.isMindSparkBundle);
-    const bundleTeams = teams.filter((team) => team.isMindSparkBundle);
-    const regularSolo = solo.filter((participant) => !participant.isMindSparkBundle);
-    const regularTeams = teams.filter((team) => !team.isMindSparkBundle);
+    const visibleTabs = showBundleTab
+        ? TABS
+        : TABS.filter((item) => item.id !== 'bundle');
+    const deskSolo = solo.filter((participant) => participant.isFestDayDesk && !participant.isMindSparkBundle);
+    const deskTeams = teams.filter((team) => team.isFestDayDesk && !team.isMindSparkBundle);
+    const deskBundleSolo = solo.filter((participant) => participant.isFestDayDesk && participant.isMindSparkBundle);
+    const deskBundleTeams = teams.filter((team) => team.isFestDayDesk && team.isMindSparkBundle);
+    const bundleSolo = solo.filter((participant) => participant.isMindSparkBundle && !participant.isFestDayDesk);
+    const bundleTeams = teams.filter((team) => team.isMindSparkBundle && !team.isFestDayDesk);
+    const regularSolo = solo.filter((participant) => !participant.isMindSparkBundle && !participant.isFestDayDesk);
+    const regularTeams = teams.filter((team) => !team.isMindSparkBundle && !team.isFestDayDesk);
     const listFilters = useMemo(
         () => (noReview
             ? LIST_FILTERS.filter((f) => f.id !== 'pending' && f.id !== 'unpaid')
@@ -706,7 +717,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
 
     const tab = useMemo(() => {
         const raw = tabParam || '';
-        if (raw === 'solo' || raw === 'teams' || (raw === 'bundle' && showBundleTab)) return raw;
+        if (raw === 'solo' || raw === 'teams' || raw === 'desk' || (raw === 'bundle' && showBundleTab)) return raw;
         // Legacy URLs
         if (raw === 'people' || raw === 'pending') return 'solo';
         if (solo.length && !teams.length) return 'solo';
@@ -807,6 +818,11 @@ export default function FestOrganizerCompetitionWorkspacePage() {
     };
     const filteredBundleSolo = filterBundleRows(bundleSolo);
     const filteredBundleTeams = filterBundleRows(bundleTeams);
+    const filteredDeskSolo = filterBundleRows(deskSolo);
+    const filteredDeskTeams = filterBundleRows(deskTeams);
+    const filteredDeskBundleSolo = filterBundleRows(deskBundleSolo);
+    const filteredDeskBundleTeams = filterBundleRows(deskBundleTeams);
+    const deskTotalCount = deskSolo.length + deskTeams.length + deskBundleSolo.length + deskBundleTeams.length;
 
     const soloPendingPaidIds = useMemo(
         () => filteredSolo
@@ -1230,11 +1246,12 @@ export default function FestOrganizerCompetitionWorkspacePage() {
         teams: noReview
             ? '2+ people from the form — expand for roster. No approve step; payment is on Connect if needed.'
             : '2+ people from the form — expand a card for the full roster.',
-        bundle: 'Registrations created through the MindSpark any-3 competition bundle. These are already included in competition totals.',
+        bundle: 'Website MindSpark any-3 bundle registrations for this competition (not Fest Day Desk).',
+        desk: 'Walk-up Fest Day Desk registrations — solo, team, and desk bundle — paid via Cashfree QR at the counter.',
     };
 
-    const soloPendingCount = noReview ? 0 : solo.filter((p) => p.status === 'pending').length;
-    const teamPendingCount = noReview ? 0 : teams.reduce((n, t) => n + (Number(t.pendingCount) || 0), 0);
+    const soloPendingCount = noReview ? 0 : regularSolo.filter((p) => p.status === 'pending').length;
+    const teamPendingCount = noReview ? 0 : regularTeams.reduce((n, t) => n + (Number(t.pendingCount) || 0), 0);
 
     return (
         <div className="max-w-2xl mx-auto space-y-4 pb-10">
@@ -1676,9 +1693,15 @@ export default function FestOrganizerCompetitionWorkspacePage() {
 
             {/* Work area box */}
             <section className="rounded-2xl border border-white/10 bg-[#161718] overflow-hidden">
-                <div className={`grid ${showBundleTab ? 'grid-cols-3' : 'grid-cols-2'} border-b border-white/10`}>
+                <div className={`grid ${showBundleTab ? 'grid-cols-4' : 'grid-cols-3'} border-b border-white/10`}>
                     {visibleTabs.map((t) => {
-                        const count = t.id === 'solo' ? regularSolo.length : t.id === 'teams' ? regularTeams.length : bundleSolo.length + bundleTeams.length;
+                        const count = t.id === 'solo'
+                            ? regularSolo.length
+                            : t.id === 'teams'
+                                ? regularTeams.length
+                                : t.id === 'bundle'
+                                    ? bundleSolo.length + bundleTeams.length
+                                    : deskTotalCount;
                         const pendingHint = t.id === 'solo' ? soloPendingCount : t.id === 'teams' ? teamPendingCount : 0;
                         const active = tab === t.id;
                         return (
@@ -1729,7 +1752,13 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                         <input
                             value={listQuery}
                             onChange={(e) => setListQuery(e.target.value)}
-                            placeholder={tab === 'teams' ? 'Search team, college, captain…' : 'Search name, phone, college…'}
+                            placeholder={
+                                tab === 'teams'
+                                    ? 'Search team, college, captain…'
+                                    : tab === 'desk'
+                                        ? 'Search desk walk-up…'
+                                        : 'Search name, phone, college…'
+                            }
                             className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#121314] border border-white/10 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-[#0ECCEE]/40"
                         />
                     </div>
@@ -1808,6 +1837,97 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                             {filteredBundleSolo.length ? <div className="space-y-2.5"><p className="text-xs font-semibold uppercase tracking-wide text-[#0ECCEE]">Solo bundle entries · {filteredBundleSolo.length}</p>{filteredBundleSolo.map((p) => <SoloEntryCard key={p.id} p={p} busyId={busyId} hideReview={noReview} onApprove={(id) => setStatus(id, 'approved')} onReject={(id) => setStatus(id, 'rejected')} onNotify={openNotify} onDelete={deleteEntry} onWhatsappToggle={noReview ? toggleWhatsappGroup : undefined} />)}</div> : null}
                             {filteredBundleTeams.length ? <div className="space-y-3"><p className="text-xs font-semibold uppercase tracking-wide text-[#0ECCEE]">Team bundle entries · {filteredBundleTeams.length}</p>{filteredBundleTeams.map((t) => <TeamCard key={t.id || t.teamName} team={t} busyId={busyId} hideReview={noReview} onApproveIds={approveIds} onRejectIds={rejectIds} onDelete={deleteTeam} onNotify={openNotify} onWhatsappToggle={noReview ? toggleWhatsappGroup : undefined} />)}</div> : null}
                             {!filteredBundleSolo.length && !filteredBundleTeams.length ? <div className="rounded-2xl border border-dashed border-white/10 py-12 text-center px-4"><Users className="mx-auto text-gray-600 mb-2" size={28} /><p className="text-sm text-gray-500">{q || listFilter !== 'all' ? 'No bundle registrations match these filters' : 'No paid MindSpark bundle registrations for this competition yet'}</p></div> : null}
+                        </div>
+                    ) : null}
+
+                    {tab === 'desk' ? (
+                        <div className="space-y-5">
+                            {filteredDeskSolo.length ? (
+                                <div className="space-y-2.5">
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-amber-300">
+                                        Desk solo · {filteredDeskSolo.length}
+                                    </p>
+                                    {filteredDeskSolo.map((p) => (
+                                        <SoloEntryCard
+                                            key={p.id}
+                                            p={p}
+                                            busyId={busyId}
+                                            hideReview={noReview}
+                                            onApprove={(id) => setStatus(id, 'approved')}
+                                            onReject={(id) => setStatus(id, 'rejected')}
+                                            onNotify={openNotify}
+                                            onDelete={deleteEntry}
+                                            onWhatsappToggle={noReview ? toggleWhatsappGroup : undefined}
+                                        />
+                                    ))}
+                                </div>
+                            ) : null}
+                            {filteredDeskTeams.length ? (
+                                <div className="space-y-3">
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-amber-300">
+                                        Desk teams · {filteredDeskTeams.length}
+                                    </p>
+                                    {filteredDeskTeams.map((t) => (
+                                        <TeamCard
+                                            key={t.id || t.teamName}
+                                            team={t}
+                                            busyId={busyId}
+                                            hideReview={noReview}
+                                            onApproveIds={approveIds}
+                                            onRejectIds={rejectIds}
+                                            onDelete={deleteTeam}
+                                            onNotify={openNotify}
+                                            onWhatsappToggle={noReview ? toggleWhatsappGroup : undefined}
+                                        />
+                                    ))}
+                                </div>
+                            ) : null}
+                            {(showBundleTab && (filteredDeskBundleSolo.length || filteredDeskBundleTeams.length)) ? (
+                                <div className="space-y-3">
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-amber-300">
+                                        Desk bundle · {filteredDeskBundleSolo.length + filteredDeskBundleTeams.length}
+                                    </p>
+                                    {filteredDeskBundleSolo.map((p) => (
+                                        <SoloEntryCard
+                                            key={p.id}
+                                            p={p}
+                                            busyId={busyId}
+                                            hideReview={noReview}
+                                            onApprove={(id) => setStatus(id, 'approved')}
+                                            onReject={(id) => setStatus(id, 'rejected')}
+                                            onNotify={openNotify}
+                                            onDelete={deleteEntry}
+                                            onWhatsappToggle={noReview ? toggleWhatsappGroup : undefined}
+                                        />
+                                    ))}
+                                    {filteredDeskBundleTeams.map((t) => (
+                                        <TeamCard
+                                            key={t.id || t.teamName}
+                                            team={t}
+                                            busyId={busyId}
+                                            hideReview={noReview}
+                                            onApproveIds={approveIds}
+                                            onRejectIds={rejectIds}
+                                            onDelete={deleteTeam}
+                                            onNotify={openNotify}
+                                            onWhatsappToggle={noReview ? toggleWhatsappGroup : undefined}
+                                        />
+                                    ))}
+                                </div>
+                            ) : null}
+                            {!filteredDeskSolo.length
+                            && !filteredDeskTeams.length
+                            && !filteredDeskBundleSolo.length
+                            && !filteredDeskBundleTeams.length ? (
+                                <div className="rounded-2xl border border-dashed border-white/10 py-12 text-center px-4">
+                                    <Users className="mx-auto text-gray-600 mb-2" size={28} />
+                                    <p className="text-sm text-gray-500">
+                                        {q || listFilter !== 'all'
+                                            ? 'No desk registrations match these filters'
+                                            : 'Fest Day Desk walk-ups for this competition will show here after payment'}
+                                    </p>
+                                </div>
+                            ) : null}
                         </div>
                     ) : null}
                 </div>

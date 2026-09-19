@@ -9,6 +9,7 @@ const PaymentRefund = require('../model/payment_refund_model');
 const FestDayFormSession = require('../model/fest_day_form_session_model');
 const FestDayAssistedRegistration = require('../model/fest_day_assisted_registration_model');
 const CompetitionSlotReservation = require('../model/competition_slot_reservation_model');
+const MindSparkBundle = require('../model/mindspark_bundle_model');
 const { getJwtSecret } = require('../config/jwtSecret');
 const { performCheckinFromRaw } = require('../services/checkinService');
 const { notifyFestParticipants, notifyFestParticipant, parseNotifyChannels } = require('../utils/festParticipantOutreach');
@@ -321,6 +322,8 @@ function formatParticipant(reg) {
         highlights: buildHighlights(responses),
         note: pickResponse(responses, ['organizer_note', 'note', 'remarks']),
         isManual: /^(yes|true|1)$/i.test(String(responses.manual_entry || responses.added_by_organizer || '')),
+        isFestDayDesk: String(responses.manual_entry || '') === 'assisted_cashfree'
+            || String(responses.mindspark_bundle_source || '').toLowerCase() === 'desk',
         isMindSparkBundle: Boolean(responses.mindspark_bundle_id),
         mindsparkBundleId: responses.mindspark_bundle_id || null,
         submittedAt: reg.submittedAt || reg.createdAt,
@@ -392,6 +395,7 @@ function buildSingleRegTeamCard(p) {
         submittedAt: p.submittedAt || p.createdAt,
         highlights: p.highlights || [],
         isManual: Boolean(p.isManual),
+        isFestDayDesk: Boolean(p.isFestDayDesk),
         isMindSparkBundle: Boolean(p.isMindSparkBundle),
         mindsparkBundleId: p.mindsparkBundleId || null,
         memberCount: size,
@@ -452,6 +456,7 @@ function groupParticipantsIntoTeams(participants) {
                 submittedAt: p.submittedAt || p.createdAt,
                 highlights: p.highlights || [],
                 isManual: Boolean(p.isManual),
+                isFestDayDesk: Boolean(p.isFestDayDesk),
                 isMindSparkBundle: Boolean(p.isMindSparkBundle),
                 mindsparkBundleId: p.mindsparkBundleId || null,
                 entryType: 'team',
@@ -495,6 +500,7 @@ function groupParticipantsIntoTeams(participants) {
             t.highlights = p.highlights;
         }
         if (p.isManual) t.isManual = true;
+        if (p.isFestDayDesk) t.isFestDayDesk = true;
         if (p.isMindSparkBundle) {
             t.isMindSparkBundle = true;
             t.mindsparkBundleId = t.mindsparkBundleId || p.mindsparkBundleId || null;
@@ -1875,6 +1881,27 @@ exports.getCompetitionOps = async (req, res) => {
 
         const participants = activeRows.map(formatParticipant);
         const pending = pendingRows.map(formatParticipant);
+
+        const bundleIdStrings = [...new Set(
+            [...participants, ...pending]
+                .map((p) => p.mindsparkBundleId)
+                .filter(Boolean)
+                .map((id) => String(id)),
+        )];
+        if (bundleIdStrings.length) {
+            const deskBundleIds = new Set(
+                (await MindSparkBundle.find({
+                    _id: { $in: bundleIdStrings.filter((id) => mongoose.Types.ObjectId.isValid(id)) },
+                    source: 'desk',
+                }).select('_id').lean()).map((b) => String(b._id)),
+            );
+            for (const p of [...participants, ...pending]) {
+                if (p.mindsparkBundleId && deskBundleIds.has(String(p.mindsparkBundleId))) {
+                    p.isFestDayDesk = true;
+                }
+            }
+        }
+
         const { teams, solo } = groupParticipantsIntoTeams(participants);
 
         const approved = paidApproved.length;
