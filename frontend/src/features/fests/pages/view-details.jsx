@@ -32,7 +32,6 @@ import { signalDetailPageReady } from '../../../utils/bootSplash';
 import { useDetailLoaderFailsafe } from '../../../hooks/useDetailLoaderFailsafe';
 import DetailPageLoader from '../../../components/DetailPageLoader';
 import CompetitionCoverImage from '../../../components/CompetitionCoverImage';
-import PosterFitImage from '../../../components/PosterFitImage';
 import FestPublicLiveStrip from '../components/FestPublicLiveStrip';
 import SimilarFestsSection from '../components/SimilarFestsSection';
 import { getFestPlugin } from '../plugins/registry';
@@ -503,8 +502,8 @@ function EventDetailsPage() {
   const mindSparkDesktop = festPlugin.id === 'mindspark';
   const techfestPage = festPlugin.id === 'techfest';
   const kshitijPage = festPlugin.id === 'kshitij';
-  // Fixed hero box: pad any aspect to fill; techfest keeps logo contain
-  const heroShellClass = 'bg-[#1A1B1D]';
+  // Natural image size (no colour pads). Techfest keeps logo contain box.
+  const heroShellClass = kshitijPage ? 'bg-white' : 'bg-[#1A1B1D]';
   const festHeroRaw = (() => {
     if (techfestPage) return festHeroUrl(pageEvent) || '';
     return (
@@ -515,9 +514,10 @@ function EventDetailsPage() {
       || ''
     );
   })();
-  const techfestHeroSrc = festHeroRaw && techfestPage
-    ? getImageUrl(festHeroRaw, { preset: 'hero' })
+  const festHeroSrc = festHeroRaw
+    ? getImageUrl(festHeroRaw, { preset: techfestPage ? 'hero' : 'festHeroFit' })
     : '';
+  const techfestHeroSrc = techfestPage ? festHeroSrc : '';
 
   const prefetchCompetition = (competition) => {
     const payload = buildCompetitionNavPayload(competition, pageEvent);
@@ -666,7 +666,7 @@ function EventDetailsPage() {
             }>
               {/* Left Column - Event Details */}
               <div className={mindSparkDesktop ? 'order-2 md:order-1 space-y-4 min-w-0' : 'md:col-span-2 space-y-4 sm:space-y-6'}>
-                {/* Hero — fixed box; any image pads+fills (techfest: logo contain) */}
+                {/* Hero — natural image size; techfest logo box; MindSpark photo frame */}
                 {techfestPage ? (
                 <div className={`relative rounded-3xl overflow-hidden shadow-sm ${isDark ? 'bg-[#111213]' : 'bg-white'} p-2`}>
                   <button
@@ -688,42 +688,49 @@ function EventDetailsPage() {
                     ) : null}
                   </div>
                 </div>
-                ) : (
-                <div className={`relative rounded-2xl overflow-hidden ${heroShellClass} ${
-                  mindSparkDesktop ? 'h-72 lg:h-[22rem] xl:h-[26rem]' : 'h-64 sm:h-80 xl:h-96'
-                }`}>
-                  {festHeroRaw ? (
-                    <PosterFitImage
-                      src={festHeroRaw}
+                ) : mindSparkDesktop ? (
+                <div className={`relative rounded-2xl overflow-hidden ${heroShellClass} h-72 lg:h-[22rem] xl:h-[26rem]`}>
+                  {festHeroSrc ? (
+                    <img
+                      src={festHeroSrc}
                       alt={pageEvent.title}
-                      preset="festHeroPad"
-                      loading="eager"
-                      fetchPriority="high"
-                      fallbackBg="#1A1B1D"
+                      className="absolute inset-0 w-full h-full object-cover object-center"
                     />
                   ) : null}
-                  {mindSparkDesktop ? (
-                    <>
-                      <div className="pointer-events-none absolute inset-0 bg-linear-to-t from-black/75 via-black/15 to-black/25" />
-                      <button
-                        type="button"
-                        onClick={goBack}
-                        className="absolute top-4 left-4 z-10 inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-black/70 backdrop-blur-sm text-white text-sm font-medium hover:bg-black/80 transition"
-                      >
-                        <ArrowLeft size={15} />
-                        Back
-                      </button>
-                      <div className="absolute bottom-4 left-4 right-4 z-10">
-                        <h1 className="text-2xl xl:text-3xl font-bold leading-tight text-white drop-shadow-sm">
-                          {pageEvent.title}
-                        </h1>
-                        <p className="mt-1 text-sm xl:text-base text-white/80">
-                          {[collegeLabel, dateLabel, venueLabel].filter(Boolean).join(' · ')}
-                        </p>
-                      </div>
-                    </>
-                  ) : null}
-                  {!mindSparkDesktop && pageEvent.galleryImages?.length ? (
+                  <div className="pointer-events-none absolute inset-0 bg-linear-to-t from-black/75 via-black/15 to-black/25" />
+                  <button
+                    type="button"
+                    onClick={goBack}
+                    className="absolute top-4 left-4 z-10 inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-black/70 backdrop-blur-sm text-white text-sm font-medium hover:bg-black/80 transition"
+                  >
+                    <ArrowLeft size={15} />
+                    Back
+                  </button>
+                  <div className="absolute bottom-4 left-4 right-4 z-10">
+                    <h1 className="text-2xl xl:text-3xl font-bold leading-tight text-white drop-shadow-sm">
+                      {pageEvent.title}
+                    </h1>
+                    <p className="mt-1 text-sm xl:text-base text-white/80">
+                      {[collegeLabel, dateLabel, venueLabel].filter(Boolean).join(' · ')}
+                    </p>
+                  </div>
+                </div>
+                ) : (
+                <div className={`relative rounded-2xl overflow-hidden ${heroShellClass}`}>
+                  <div className={`w-full flex items-center justify-center ${
+                    kshitijPage ? 'px-3 sm:px-5 py-8 sm:py-10 lg:py-12' : 'px-4 sm:px-6 py-5 sm:py-6'
+                  }`}>
+                    {festHeroSrc ? (
+                    <img
+                      src={festHeroSrc}
+                      alt={pageEvent.title}
+                      className="w-full h-auto object-contain object-center"
+                    />
+                    ) : (
+                      <div className="w-full h-40" />
+                    )}
+                  </div>
+                  {pageEvent.galleryImages?.length ? (
                   <div className="absolute top-3 sm:top-4 right-3 sm:right-4 flex flex-col space-y-2 max-h-64 overflow-y-auto z-10">
                     {pageEvent.galleryImages.slice(0, 6).map((img, idx) => (
                       <button
@@ -1178,14 +1185,16 @@ function EventDetailsPage() {
 
       {/* Mobile Version - Show below 768px */}
       <div className={`md:hidden pb-8 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
-        {/* Hero — fixed box; any image pads+fills (techfest: logo contain) */}
+        {/* Hero — natural image size; techfest logo box; MindSpark photo frame */}
         <div
-          className={`relative w-full shrink-0 overflow-hidden bg-[#0B0C0D] ${
+          className={`relative w-full shrink-0 overflow-hidden ${
+            kshitijPage ? 'bg-white' : 'bg-[#0B0C0D]'
+          } ${
             techfestPage
               ? 'h-[320px]'
               : mindSparkDesktop
                 ? 'h-[380px]'
-                : 'h-[280px]'
+                : ''
           }`}
         >
           {techfestPage ? (
@@ -1198,50 +1207,77 @@ function EventDetailsPage() {
               />
               ) : null}
             </div>
-          ) : festHeroRaw ? (
-            <PosterFitImage
-              src={festHeroRaw}
+          ) : mindSparkDesktop && festHeroSrc ? (
+            <img
+              src={festHeroSrc}
               alt={pageEvent.title}
-              preset="festHeroPad"
-              loading="eager"
-              fetchPriority="high"
-              fallbackBg="#0B0C0D"
+              className="absolute inset-0 w-full h-full object-cover object-center"
             />
+          ) : festHeroSrc ? (
+            <div className={`w-full flex items-center justify-center px-3 ${
+              kshitijPage ? 'pt-16 pb-10' : 'pt-14 pb-6'
+            }`}>
+              <img
+                src={festHeroSrc}
+                alt={pageEvent.title}
+                className="w-full h-auto object-contain object-center"
+              />
+            </div>
           ) : null}
           <div
             className={`absolute inset-x-0 top-0 flex items-center justify-between px-4 z-10 ${
-              techfestPage
+              techfestPage || kshitijPage
                 ? ''
                 : 'pt-[max(0.75rem,var(--safe-top))] pb-3 bg-linear-to-b from-black/35 to-transparent'
             }`}
-            style={techfestPage ? { paddingTop: 'calc(max(var(--safe-top), 0px) + 2.5rem)' } : undefined}
+            style={
+              techfestPage || kshitijPage
+                ? { paddingTop: 'calc(max(var(--safe-top), 0px) + 2.5rem)' }
+                : undefined
+            }
           >
             <button
               type="button"
               onClick={goBack}
-              className={techfestPage
-                ? 'size-11 rounded-full bg-black/40 flex items-center justify-center'
-                : 'p-2 rounded-full bg-black/30 backdrop-blur-sm text-white'}
+              className={
+                techfestPage || kshitijPage
+                  ? 'size-11 rounded-full bg-black/40 flex items-center justify-center'
+                  : 'p-2 rounded-full bg-black/30 backdrop-blur-sm text-white'
+              }
               aria-label="Back to fests"
             >
-              <ArrowLeft size={techfestPage ? 22 : 20} strokeWidth={techfestPage ? 2.25 : undefined} className="text-white" />
+              <ArrowLeft
+                size={techfestPage || kshitijPage ? 22 : 20}
+                strokeWidth={techfestPage || kshitijPage ? 2.25 : undefined}
+                className="text-white"
+              />
             </button>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={handleShare}
-                className={techfestPage
-                  ? 'size-11 rounded-full bg-black/40 flex items-center justify-center'
-                  : 'p-2 rounded-full bg-black/30 backdrop-blur-sm text-white'}
+                className={
+                  techfestPage || kshitijPage
+                    ? 'size-11 rounded-full bg-black/40 flex items-center justify-center'
+                    : 'p-2 rounded-full bg-black/30 backdrop-blur-sm text-white'
+                }
                 aria-label="Share"
               >
-                <Share size={20} strokeWidth={techfestPage ? 2.25 : undefined} className="text-white" />
+                <Share
+                  size={20}
+                  strokeWidth={techfestPage || kshitijPage ? 2.25 : undefined}
+                  className="text-white"
+                />
               </button>
               {!techfestPage ? (
               <button
                 type="button"
                 onClick={handleFestFavorite}
-                className="p-2 rounded-full bg-black/30 backdrop-blur-sm"
+                className={
+                  kshitijPage
+                    ? 'size-11 rounded-full bg-black/40 flex items-center justify-center'
+                    : 'p-2 rounded-full bg-black/30 backdrop-blur-sm'
+                }
                 aria-label={isFavorite(pageEvent.id) ? 'Remove from favourites' : 'Add to favourites'}
               >
                 <Heart
@@ -1255,7 +1291,9 @@ function EventDetailsPage() {
         </div>
 
         {/* Content sheet — overlaps hero like competition detail */}
-        <div className={`relative z-10 overflow-hidden px-5 pt-6 pb-4 -mt-10 rounded-t-3xl ${
+        <div className={`relative z-10 overflow-hidden px-5 pt-6 pb-4 rounded-t-3xl ${
+          kshitijPage ? '-mt-4' : '-mt-10'
+        } ${
           isDark ? 'bg-[#161718]' : 'bg-white'
         }`}>
           <div className="flex items-start justify-between gap-3 mb-5">
