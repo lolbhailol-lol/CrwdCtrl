@@ -119,3 +119,8 @@ docs/MoU*
 docs/assets/mou/
 docs/_delulu_*
 docs/build_*_mou_*.py
+
+# Personal college attendance letters (owner-only)
+Karan_Jadhav_Attendance*.docx
+*Attendance*Request*.docx
+
