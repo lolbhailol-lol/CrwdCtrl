@@ -1,25 +1,53 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Camera, CheckCircle, Loader, Ticket, ArrowLeft, Sparkles, IdCard } from 'lucide-react';
-import { API_BASE_URL, publicFetchJSON, resolveUrl } from '../../../services/api/client';
+import { Camera, CheckCircle, Loader, Ticket, ArrowLeft, Sparkles, IdCard, Image as ImageIcon } from 'lucide-react';
+import { publicFetchJSON, resolveUrl } from '../../../services/api/client';
 import { authenticatedFetchJSON, userFetchJSONStrict } from '../../../services/api/auth.api';
+import { getBearerAuthHeaders } from '../../../utils/authToken';
 import { useAuth } from '../../../context/AuthContext';
 import { useDialog } from '../../../context/DialogContext';
 import { InlinePageLoader } from '../../../components/DetailPageLoader';
 import CrwdCtrlLogin from '../../../pages/auth/login';
 import AuditoriumTicketPass, { ensureAuditoriumFonts } from './AuditoriumTicketPass';
 
-const MIN_PHOTO_PX = 240;
+const MIN_PHOTO_PX = 160;
 const MINDSPARK_FEST = '6a7f1010ed26d983b34e55c2';
+const DRAFT_KEY = 'mindspark_auditorium_draft_v1';
+const COEP_COLLEGE = 'COEP';
+
+function readDraft() {
+  try {
+    const raw = sessionStorage.getItem(DRAFT_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeDraft(payload) {
+  try {
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
+  } catch {
+    /* ignore */
+  }
+}
+
+function clearDraft() {
+  try {
+    sessionStorage.removeItem(DRAFT_KEY);
+  } catch {
+    /* ignore */
+  }
+}
 
 async function uploadTicketPhoto(file, token) {
   if (!token) throw new Error('Sign in required to upload');
   const fd = new FormData();
   fd.append('image', file);
   fd.append('folder', 'auditorium-tickets');
-  const res = await fetch(`${API_BASE_URL}/mindspark/auditorium/upload-photo`, {
+  const res = await fetch(resolveUrl('/mindspark/auditorium/upload-photo'), {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { ...getBearerAuthHeaders(token) },
     body: fd,
   });
   const data = await res.json().catch(() => ({}));
@@ -27,14 +55,25 @@ async function uploadTicketPhoto(file, token) {
   return data.url || data.secure_url || data.data?.url || '';
 }
 
+function looksLikeImageFile(file) {
+  if (!file) return false;
+  const mime = String(file.type || '').toLowerCase();
+  if (mime.startsWith('image/')) return true;
+  // iOS / some Androids leave MIME blank for camera / HEIC gallery picks
+  if (!mime || mime === 'application/octet-stream') {
+    return /\.(jpe?g|png|gif|webp|heic|heif|avif|bmp)$/i.test(file.name || '');
+  }
+  return false;
+}
+
 function validatePhotoFile(file, { kind = 'face' } = {}) {
   return new Promise((resolve, reject) => {
-    if (!file || !file.type?.startsWith('image/')) {
+    if (!looksLikeImageFile(file)) {
       reject(new Error('Choose an image from camera or gallery'));
       return;
     }
-    if (file.size > 8 * 1024 * 1024) {
-      reject(new Error('Photo must be under 8 MB'));
+    if (file.size > 20 * 1024 * 1024) {
+      reject(new Error('Photo must be under 20 MB'));
       return;
     }
     const url = URL.createObjectURL(file);
@@ -53,10 +92,114 @@ function validatePhotoFile(file, { kind = 'face' } = {}) {
     };
     img.onerror = () => {
       URL.revokeObjectURL(url);
-      reject(new Error('Could not read photo'));
+      // HEIC often fails Image() decode in browser but Cloudinary accepts it
+      if (/\.hei[cf]$/i.test(file.name || '') || /heic|heif/i.test(file.type || '')) {
+        resolve(true);
+        return;
+      }
+      reject(new Error('Could not read photo — try Gallery JPG/PNG'));
     };
     img.src = url;
   });
+}
+
+function PhotoSourcePicker({
+  preview,
+  uploadedUrl,
+  busy,
+  kind = 'id',
+  onPick,
+  emptyLabel,
+  onBeforeOpen,
+}) {
+  const cameraRef = useRef(null);
+  const galleryRef = useRef(null);
+
+  const handleChange = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return; // camera cancelled — stay on this step
+    onPick(file);
+  };
+
+  const openPicker = (ref) => {
+    onBeforeOpen?.();
+    // Defer so draft flush lands before OS camera takes over the WebView
+    requestAnimationFrame(() => ref.current?.click());
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="relative flex flex-col items-center justify-center gap-3 rounded-3xl border border-dashed border-white/20 bg-white/3 py-6 overflow-hidden min-h-[180px]">
+        {busy ? (
+          <div className="flex flex-col items-center gap-2 py-8">
+            <Loader className="animate-spin text-[#0ECCEE]" size={28} />
+            <span className="text-sm text-white/55">Uploading…</span>
+          </div>
+        ) : (preview || uploadedUrl) ? (
+          <div className={`w-full px-4 space-y-2 ${kind === 'face' ? 'flex flex-col items-center' : ''}`}>
+            {kind === 'face' ? (
+              <div className="size-40 rounded-full overflow-hidden border-2 border-[#0ECCEE]/50 shadow-[0_0_40px_-10px_rgba(14,204,238,0.7)]">
+                <img src={preview || uploadedUrl} alt="" className="h-full w-full object-cover" />
+              </div>
+            ) : (
+              <img
+                src={preview || uploadedUrl}
+                alt="ID card"
+                className="w-full max-h-52 object-contain rounded-xl bg-black/40 border border-white/10"
+              />
+            )}
+            <span className="block text-center text-[10px] text-emerald-300/90 font-semibold uppercase tracking-wide">
+              Ready — pick again to change
+            </span>
+          </div>
+        ) : (
+          <>
+            <div className="size-16 rounded-full border border-[#0ECCEE]/30 bg-[#0ECCEE]/10 flex items-center justify-center">
+              {kind === 'face' ? <Camera className="text-[#0ECCEE]" size={26} /> : <IdCard className="text-[#0ECCEE]" size={26} />}
+            </div>
+            <span className="text-sm text-white/55">{emptyLabel}</span>
+          </>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => openPicker(cameraRef)}
+          className="inline-flex items-center justify-center gap-2 py-3 rounded-2xl border border-white/12 bg-white/4 text-sm font-medium text-white disabled:opacity-40"
+        >
+          <Camera size={16} className="text-[#0ECCEE]" /> Camera
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => openPicker(galleryRef)}
+          className="inline-flex items-center justify-center gap-2 py-3 rounded-2xl border border-[#0ECCEE]/35 bg-[#0ECCEE]/10 text-sm font-semibold text-[#0ECCEE] disabled:opacity-40"
+        >
+          <ImageIcon size={16} /> Gallery
+        </button>
+      </div>
+
+      {/* capture forces camera; gallery input has no capture so Photos/Files opens */}
+      <input
+        ref={cameraRef}
+        type="file"
+        accept="image/*"
+        capture={kind === 'face' ? 'user' : 'environment'}
+        className="hidden"
+        onChange={handleChange}
+      />
+      <input
+        ref={galleryRef}
+        type="file"
+        accept="image/*,.heic,.heif"
+        className="hidden"
+        onChange={handleChange}
+      />
+    </div>
+  );
 }
 
 function cloudinaryPathKey(url) {
@@ -109,25 +252,99 @@ export default function MindSparkAuditoriumPage() {
   const [showLogin, setShowLogin] = useState(false);
   const [meta, setMeta] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [step, setStep] = useState(1);
-  const [categoryId, setCategoryId] = useState('');
-  const [form, setForm] = useState({
-    name: '', phone: '', email: '', college: '', misId: '', honorConfirmed: false,
-  });
-  const [photoUrl, setPhotoUrl] = useState('');
+  const draftBoot = useMemo(() => readDraft(), []);
+  const [step, setStep] = useState(() => Math.min(5, Math.max(1, Number(draftBoot?.step) || 1)));
+  const [categoryId, setCategoryId] = useState(() => String(draftBoot?.categoryId || ''));
+  const [form, setForm] = useState(() => ({
+    name: draftBoot?.form?.name || '',
+    phone: draftBoot?.form?.phone || '',
+    email: draftBoot?.form?.email || '',
+    misId: draftBoot?.form?.misId || '',
+    honorConfirmed: Boolean(draftBoot?.form?.honorConfirmed),
+  }));
+  const [photoUrl, setPhotoUrl] = useState(() => String(draftBoot?.photoUrl || ''));
   const [photoPreview, setPhotoPreview] = useState('');
-  const [idCardUrl, setIdCardUrl] = useState('');
+  const [idCardUrl, setIdCardUrl] = useState(() => String(draftBoot?.idCardUrl || ''));
   const [idCardPreview, setIdCardPreview] = useState('');
   const [busy, setBusy] = useState(false);
+  const [uploadingKind, setUploadingKind] = useState(null); // 'id' | 'face' | null
   const [ticket, setTicket] = useState(null);
   const [issuedFresh, setIssuedFresh] = useState(false);
+  const bootedAuthRef = useRef(Boolean(draftBoot?.step > 1 || draftBoot?.categoryId));
+  const draftSnapshotRef = useRef({
+    step: Math.min(5, Math.max(1, Number(draftBoot?.step) || 1)),
+    categoryId: String(draftBoot?.categoryId || ''),
+    form: {
+      name: draftBoot?.form?.name || '',
+      phone: draftBoot?.form?.phone || '',
+      email: draftBoot?.form?.email || '',
+      misId: draftBoot?.form?.misId || '',
+      honorConfirmed: Boolean(draftBoot?.form?.honorConfirmed),
+    },
+    photoUrl: String(draftBoot?.photoUrl || ''),
+    idCardUrl: String(draftBoot?.idCardUrl || ''),
+  });
 
   useEffect(() => {
     ensureAuditoriumFonts();
   }, []);
 
+  const flushDraft = useCallback((override = {}) => {
+    const next = {
+      ...draftSnapshotRef.current,
+      ...override,
+      form: { ...draftSnapshotRef.current.form, ...(override.form || {}) },
+    };
+    draftSnapshotRef.current = next;
+    writeDraft(next);
+  }, []);
+
+  // Keep step/form across camera open/close (mobile often remounts / auth-flickers)
+  useEffect(() => {
+    if (ticket) {
+      clearDraft();
+      return;
+    }
+    flushDraft({ step, categoryId, form, photoUrl, idCardUrl });
+  }, [step, categoryId, form, photoUrl, idCardUrl, ticket, flushDraft]);
+
+  // After camera/gallery returns, restore draft if React remounted or auth flickered
+  useEffect(() => {
+    const restore = () => {
+      const d = readDraft();
+      if (!d) return;
+      const restoredStep = Math.min(5, Math.max(1, Number(d.step) || 1));
+      // Only jump forward when we lost state (landed on step 1 after camera remount)
+      setStep((s) => (s <= 1 && restoredStep > 1 ? restoredStep : s));
+      if (d.categoryId) setCategoryId((c) => c || String(d.categoryId));
+      if (d.form) {
+        setForm((f) => ({
+          name: f.name || d.form.name || '',
+          phone: f.phone || d.form.phone || '',
+          email: f.email || d.form.email || '',
+          misId: f.misId || d.form.misId || '',
+          honorConfirmed: f.honorConfirmed || Boolean(d.form.honorConfirmed),
+        }));
+      }
+      if (d.photoUrl) setPhotoUrl((u) => u || String(d.photoUrl));
+      if (d.idCardUrl) setIdCardUrl((u) => u || String(d.idCardUrl));
+      if (restoredStep > 1 || d.categoryId) bootedAuthRef.current = true;
+    };
+    const onVis = () => {
+      if (document.visibilityState === 'visible') restore();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('pageshow', restore);
+    restore();
+    return () => {
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('pageshow', restore);
+    };
+  }, []);
+
   const loadMeta = useCallback(async () => {
-    setLoading(true);
+    // Don't flash full-page loader on soft refreshes once we have meta
+    if (!meta) setLoading(true);
     try {
       const qs = inviteCode ? `?code=${encodeURIComponent(inviteCode)}` : '';
       const res = await publicFetchJSON(`/mindspark/auditorium/meta${qs}`);
@@ -137,9 +354,9 @@ export default function MindSparkAuditoriumPage() {
     } finally {
       setLoading(false);
     }
-  }, [inviteCode, toast]);
+  }, [inviteCode, toast, meta]);
 
-  useEffect(() => { loadMeta(); }, [loadMeta]);
+  useEffect(() => { loadMeta(); }, [inviteCode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!user) return;
@@ -153,7 +370,10 @@ export default function MindSparkAuditoriumPage() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (isAuthenticated) setShowLogin(false);
+    if (isAuthenticated) {
+      bootedAuthRef.current = true;
+      setShowLogin(false);
+    }
   }, [authLoading, isAuthenticated]);
 
   useEffect(() => {
@@ -180,7 +400,14 @@ export default function MindSparkAuditoriumPage() {
 
   const onFacePhoto = async (file) => {
     if (!file) return;
+    if (!token) {
+      setShowLogin(true);
+      toast('Sign in to upload');
+      return;
+    }
+    setUploadingKind('face');
     setBusy(true);
+    flushDraft({ step: 4, categoryId, form, photoUrl, idCardUrl });
     try {
       await validatePhotoFile(file, { kind: 'face' });
       const preview = URL.createObjectURL(file);
@@ -191,6 +418,7 @@ export default function MindSparkAuditoriumPage() {
         throw new Error('Face photo and college ID must be different pictures');
       }
       setPhotoUrl(url);
+      flushDraft({ step: 4, categoryId, form, photoUrl: url, idCardUrl });
       toast('Face photo ready');
     } catch (e) {
       toast(e.message || 'Photo failed');
@@ -198,12 +426,20 @@ export default function MindSparkAuditoriumPage() {
       setPhotoPreview('');
     } finally {
       setBusy(false);
+      setUploadingKind(null);
     }
   };
 
   const onIdCardPhoto = async (file) => {
     if (!file) return;
+    if (!token) {
+      setShowLogin(true);
+      toast('Sign in to upload');
+      return;
+    }
+    setUploadingKind('id');
     setBusy(true);
+    flushDraft({ step: 3, categoryId, form, photoUrl, idCardUrl });
     try {
       await validatePhotoFile(file, { kind: 'id' });
       const preview = URL.createObjectURL(file);
@@ -214,6 +450,7 @@ export default function MindSparkAuditoriumPage() {
         throw new Error('Face photo and college ID must be different pictures');
       }
       setIdCardUrl(url);
+      flushDraft({ step: 3, categoryId, form, photoUrl, idCardUrl: url });
       toast('ID card ready');
     } catch (e) {
       toast(e.message || 'ID upload failed');
@@ -221,6 +458,7 @@ export default function MindSparkAuditoriumPage() {
       setIdCardPreview('');
     } finally {
       setBusy(false);
+      setUploadingKind(null);
     }
   };
 
@@ -242,7 +480,7 @@ export default function MindSparkAuditoriumPage() {
         name: form.name,
         phone: form.phone,
         email: form.email,
-        college: form.college,
+        college: COEP_COLLEGE,
         misId: form.misId,
         ticketPhotoUrl: photoUrl,
         idCardPhotoUrl: idCardUrl,
@@ -281,11 +519,14 @@ export default function MindSparkAuditoriumPage() {
     }
   };
 
-  if (authLoading || (loading && !meta)) {
+  const hasFormProgress = step > 1 || Boolean(categoryId) || Boolean(photoUrl) || Boolean(idCardUrl);
+  const holdSession = bootedAuthRef.current || hasFormProgress || Boolean(readDraft()?.step > 1);
+
+  if ((authLoading || (loading && !meta)) && !holdSession) {
     return <InlinePageLoader label="Loading auditorium…" />;
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !holdSession) {
     return (
       <StageShell>
         <button
@@ -446,7 +687,7 @@ export default function MindSparkAuditoriumPage() {
           <span className="text-[#0ECCEE]">PASS</span>
         </h1>
         <p className="text-sm text-white/45 max-w-[300px]">
-          Free night entry · college ID with name + year · then a clear face photo
+          COEP students only · free night entry · ID card + face photo
         </p>
       </header>
 
@@ -577,16 +818,13 @@ export default function MindSparkAuditoriumPage() {
                 Using your Google account email
               </p>
             ) : null}
-            <input
-              value={form.college}
-              onChange={(e) => setForm((f) => ({ ...f, college: e.target.value }))}
-              placeholder="College"
-              className={fieldClass}
-            />
+            <p className="text-[11px] text-white/40 px-1">
+              College locked to <span className="text-white/70 font-medium">COEP</span> — MindSpark auditorium is for COEP students only
+            </p>
             <input
               value={form.misId}
               onChange={(e) => setForm((f) => ({ ...f, misId: e.target.value }))}
-              placeholder="MIS / college ID number"
+              placeholder="MIS number"
               className={fieldClass}
             />
             <div className="flex gap-2 pt-1">
@@ -610,7 +848,7 @@ export default function MindSparkAuditoriumPage() {
                   }
                   const mis = form.misId.replace(/[^a-zA-Z0-9]/g, '');
                   if (mis.length < 5) {
-                    toast('Enter your MIS / college ID number (min 5 characters)');
+                    toast('Enter your MIS number (min 5 characters)');
                     return;
                   }
                   setStep(3);
@@ -626,45 +864,26 @@ export default function MindSparkAuditoriumPage() {
         {step === 3 ? (
           <div className="space-y-4">
             <div>
-              <p className="text-sm text-white/70">College ID card</p>
+              <p className="text-sm text-white/70">COEP ID card</p>
               <p className="text-[11px] text-white/35 mt-1">
-                Full card visible · name + year / class readable · no blur
+                Full card visible · name + year readable · Camera or Gallery
               </p>
             </div>
 
             <div className="rounded-2xl border border-amber-400/25 bg-amber-500/10 px-3.5 py-3 text-[12px] leading-relaxed text-amber-100/90">
-              If your college ID and face photo don’t match, or the year on your ID doesn’t
-              match the category you picked, <strong className="text-amber-50">entry may be restricted</strong> at the gate.
+              If your ID and face don’t match, or the year on your ID doesn’t match the category
+              you picked, <strong className="text-amber-50">entry may be restricted</strong> at the gate.
             </div>
 
-            <label className="relative flex flex-col items-center justify-center gap-3 rounded-3xl border border-dashed border-white/20 bg-white/3 py-8 cursor-pointer hover:border-[#0ECCEE]/40 transition overflow-hidden">
-              {(idCardPreview || idCardUrl) ? (
-                <div className="w-full px-4 space-y-2">
-                  <img
-                    src={idCardPreview || idCardUrl}
-                    alt="ID card"
-                    className="w-full max-h-52 object-contain rounded-xl bg-black/40 border border-white/10"
-                  />
-                  <span className="block text-center text-[10px] text-[#0ECCEE] font-semibold uppercase tracking-wide">
-                    Tap to retake
-                  </span>
-                </div>
-              ) : (
-                <>
-                  <div className="size-16 rounded-full border border-[#0ECCEE]/30 bg-[#0ECCEE]/10 flex items-center justify-center">
-                    <IdCard className="text-[#0ECCEE]" size={26} />
-                  </div>
-                  <span className="text-sm text-white/55">Capture college ID</span>
-                </>
-              )}
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="hidden"
-                onChange={(e) => onIdCardPhoto(e.target.files?.[0])}
-              />
-            </label>
+            <PhotoSourcePicker
+              kind="id"
+              preview={idCardPreview}
+              uploadedUrl={idCardUrl}
+              busy={busy && uploadingKind === 'id'}
+              emptyLabel="Add your COEP ID"
+              onBeforeOpen={() => flushDraft({ step: 3, categoryId, form, photoUrl, idCardUrl })}
+              onPick={onIdCardPhoto}
+            />
 
             <div className="flex gap-2">
               <button
@@ -680,7 +899,7 @@ export default function MindSparkAuditoriumPage() {
                 onClick={() => setStep(4)}
                 className="flex-1 py-3 rounded-2xl bg-[#0ECCEE] text-black text-sm font-bold disabled:opacity-40"
               >
-                {busy ? 'Uploading…' : 'Next'}
+                {busy && uploadingKind === 'id' ? 'Uploading…' : 'Next'}
               </button>
             </div>
           </div>
@@ -691,7 +910,7 @@ export default function MindSparkAuditoriumPage() {
             <div>
               <p className="text-sm text-white/70">Face photo for the gate</p>
               <p className="text-[11px] text-white/35 mt-1">
-                Fill the frame · good light · just you — same person as on your college ID
+                Fill the frame · good light · just you — same person as on your ID
               </p>
             </div>
 
@@ -700,36 +919,15 @@ export default function MindSparkAuditoriumPage() {
               {' '}<strong className="text-amber-50">entry may be restricted</strong>.
             </div>
 
-            <label className="relative flex flex-col items-center justify-center gap-3 rounded-3xl border border-dashed border-white/20 bg-white/3 py-8 cursor-pointer hover:border-[#0ECCEE]/40 transition overflow-hidden">
-              {(photoPreview || photoUrl) ? (
-                <div className="relative">
-                  <div className="size-40 rounded-full overflow-hidden border-2 border-[#0ECCEE]/50 shadow-[0_0_40px_-10px_rgba(14,204,238,0.7)]">
-                    <img
-                      src={photoPreview || photoUrl}
-                      alt=""
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                  <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-full bg-[#0ECCEE] px-2.5 py-0.5 text-[10px] font-bold text-black">
-                    Tap to change
-                  </span>
-                </div>
-              ) : (
-                <>
-                  <div className="size-16 rounded-full border border-[#0ECCEE]/30 bg-[#0ECCEE]/10 flex items-center justify-center">
-                    <Camera className="text-[#0ECCEE]" size={26} />
-                  </div>
-                  <span className="text-sm text-white/55">Camera or gallery</span>
-                </>
-              )}
-              <input
-                type="file"
-                accept="image/*"
-                capture="user"
-                className="hidden"
-                onChange={(e) => onFacePhoto(e.target.files?.[0])}
-              />
-            </label>
+            <PhotoSourcePicker
+              kind="face"
+              preview={photoPreview}
+              uploadedUrl={photoUrl}
+              busy={busy && uploadingKind === 'face'}
+              emptyLabel="Add your face photo"
+              onBeforeOpen={() => flushDraft({ step: 4, categoryId, form, photoUrl, idCardUrl })}
+              onPick={onFacePhoto}
+            />
 
             <div className="flex gap-2">
               <button
@@ -745,7 +943,7 @@ export default function MindSparkAuditoriumPage() {
                 onClick={() => setStep(5)}
                 className="flex-1 py-3 rounded-2xl bg-[#0ECCEE] text-black text-sm font-bold disabled:opacity-40"
               >
-                {busy ? 'Uploading…' : 'Next'}
+                {busy && uploadingKind === 'face' ? 'Uploading…' : 'Next'}
               </button>
             </div>
           </div>
@@ -816,6 +1014,17 @@ export default function MindSparkAuditoriumPage() {
           </div>
         ) : null}
       </div>
+
+      {(!isAuthenticated || showLogin) ? (
+        <CrwdCtrlLogin
+          googleOnly
+          title="Sign in to continue"
+          subtitle="Session paused — sign in again. Your progress is saved."
+          onClose={() => {
+            if (isAuthenticated) setShowLogin(false);
+          }}
+        />
+      ) : null}
     </StageShell>
   );
 }

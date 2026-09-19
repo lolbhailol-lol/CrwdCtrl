@@ -81,6 +81,7 @@ function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick
     location.pathname.startsWith('/fest-organizer') ||
     location.pathname.startsWith('/mindspark-payments') ||
     location.pathname.startsWith('/mindspark/bundle') ||
+    location.pathname.startsWith('/mindspark/auditorium') ||
     location.pathname.startsWith('/stall') ||
     location.pathname.startsWith('/s/') ||
     location.pathname.startsWith('/run-club-organizer') ||
@@ -133,6 +134,7 @@ function ConditionalFooter() {
     location.pathname.startsWith('/fest-organizer') ||
     location.pathname.startsWith('/mindspark-payments') ||
     location.pathname.startsWith('/mindspark/bundle') ||
+    location.pathname.startsWith('/mindspark/auditorium') ||
     location.pathname.startsWith('/stall') ||
     location.pathname.startsWith('/s/') ||
     location.pathname.startsWith('/run-club-organizer') ||
