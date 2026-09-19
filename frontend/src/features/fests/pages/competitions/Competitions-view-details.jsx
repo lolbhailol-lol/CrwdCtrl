@@ -2015,10 +2015,9 @@ function EventPage() {
                                         key={`${competitionId}-${eventData.image || 'placeholder'}`}
                                         src={showHeroImage ? eventData.image : null}
                                         alt={eventData.title || 'Competition'}
-                                        preset="eventHeroPad"
-                                        fillBox
+                                        preset="festHeroFit"
                                         containerClassName="absolute inset-0 w-full h-full"
-                                        className="absolute inset-0 w-full h-full object-cover object-center animate-detail-enter"
+                                        className="absolute inset-0 w-full h-full object-contain object-center animate-detail-enter"
                                         loaderSize="hero"
                                         eager={showHeroImage}
                                         placeholder={showHeroImage ? 'trophy' : 'muted'}
