@@ -502,12 +502,12 @@ function EventDetailsPage() {
   const mindSparkDesktop = festPlugin.id === 'mindspark';
   const techfestPage = festPlugin.id === 'techfest';
   const kshitijPage = festPlugin.id === 'kshitij';
-  // Techfest / Kshitij: brand marks contained & centered; others use dark shell
-  const heroShellClass = kshitijPage ? 'bg-white' : 'bg-[#1A1B1D]';
+  // Brand-logo fests (techfest box) vs fill-width centered heroes for everyone else
+  const heroShellClass = 'bg-[#1A1B1D]';
   const heroImageClass = 'object-contain object-center';
-  const kshitijHeroSrc = (() => {
-    const src = festHeroUrl(pageEvent) || pageEvent.coverImages?.wide || pageEvent.coverImages?.hero || '';
-    return src ? getImageUrl(src, { preset: 'detail' }) : '';
+  const festHeroSrc = (() => {
+    const src = (techfestPage ? festHeroUrl(pageEvent) : (currentHeroImage || festHeroUrl(pageEvent) || pageEvent.coverImages?.wide || pageEvent.coverImages?.hero || '')) || '';
+    return src ? getImageUrl(src, { preset: techfestPage ? 'hero' : 'detail' }) : '';
   })();
 
   const prefetchCompetition = (competition) => {
@@ -594,8 +594,8 @@ function EventDetailsPage() {
   const heroImage = techfestPage
     ? defaultHero
     : (currentHeroImage || defaultHero);
-  const techfestHeroSrc = heroImage ? getImageUrl(heroImage, { preset: 'hero' }) : '';
-  // Kshitij mark is horizontal — never use portrait crop (shrinks logo + off-center)
+  const techfestHeroSrc = festHeroSrc;
+  // Always prefer wide/hero artwork — portrait crops shrink horizontal marks
   const mobileHeroImage = heroImage;
   const overviewText = isFestPlaceholderCopy(pageEvent.overview) ? '' : pageEvent.overview;
   const dateLabel = isFestPlaceholderCopy(pageEvent.dateTime) ? '' : pageEvent.dateTime;
@@ -658,7 +658,7 @@ function EventDetailsPage() {
             }>
               {/* Left Column - Event Details */}
               <div className={mindSparkDesktop ? 'order-2 md:order-1 space-y-4 min-w-0' : 'md:col-span-2 space-y-4 sm:space-y-6'}>
-                {/* Hero — Techfest / Kshitij brand marks contained & centered; others full cover */}
+                {/* Hero — fill width, contain & center (techfest: logo box) */}
                 {techfestPage ? (
                 <div className={`relative rounded-3xl overflow-hidden shadow-sm ${isDark ? 'bg-[#111213]' : 'bg-white'} p-2`}>
                   <button
@@ -680,12 +680,41 @@ function EventDetailsPage() {
                     ) : null}
                   </div>
                 </div>
-                ) : kshitijPage ? (
+                ) : mindSparkDesktop ? (
+                <div className={`relative rounded-2xl overflow-hidden ${heroShellClass}`}>
+                  {festHeroSrc ? (
+                  <img
+                    src={festHeroSrc}
+                    alt={pageEvent.title}
+                    className={`w-full ${heroImageClass} h-72 lg:h-[22rem] xl:h-[26rem]`}
+                  />
+                  ) : (
+                    <div className="w-full h-72 lg:h-[22rem] xl:h-[26rem]" />
+                  )}
+                  <div className="pointer-events-none absolute inset-0 bg-linear-to-t from-black/75 via-black/15 to-black/25" />
+                  <button
+                    type="button"
+                    onClick={goBack}
+                    className="absolute top-4 left-4 z-10 inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-black/70 backdrop-blur-sm text-white text-sm font-medium hover:bg-black/80 transition"
+                  >
+                    <ArrowLeft size={15} />
+                    Back
+                  </button>
+                  <div className="absolute bottom-4 left-4 right-4 z-10">
+                    <h1 className="text-2xl xl:text-3xl font-bold leading-tight text-white drop-shadow-sm">
+                      {pageEvent.title}
+                    </h1>
+                    <p className="mt-1 text-sm xl:text-base text-white/80">
+                      {[collegeLabel, dateLabel, venueLabel].filter(Boolean).join(' · ')}
+                    </p>
+                  </div>
+                </div>
+                ) : (
                 <div className={`relative rounded-2xl overflow-hidden ${heroShellClass}`}>
                   <div className="w-full flex items-center justify-center px-4 sm:px-6 lg:px-8 py-5 sm:py-6">
-                    {kshitijHeroSrc ? (
+                    {festHeroSrc ? (
                     <img
-                      src={kshitijHeroSrc}
+                      src={festHeroSrc}
                       alt={pageEvent.title}
                       className="w-full h-auto object-contain object-center"
                     />
@@ -693,42 +722,9 @@ function EventDetailsPage() {
                       <div className="w-full h-40" />
                     )}
                   </div>
-                </div>
-                ) : (
-                <div className={`relative rounded-2xl overflow-hidden ${heroShellClass}`}>
-                  {heroImage ? (
-                  <img
-                    src={getImageUrl(heroImage, { preset: 'eventHeroFit' })}
-                    alt={pageEvent.title}
-                    className={`w-full ${heroImageClass} ${mindSparkDesktop ? 'h-72 lg:h-[22rem] xl:h-[26rem]' : 'h-64 sm:h-80 xl:h-96'}`}
-                  />
-                  ) : (
-                    <div className={`w-full ${mindSparkDesktop ? 'h-72 lg:h-[22rem] xl:h-[26rem]' : 'h-64 sm:h-80 xl:h-96'}`} />
-                  )}
-                  {mindSparkDesktop ? (
-                    <>
-                      <div className="pointer-events-none absolute inset-0 bg-linear-to-t from-black/75 via-black/15 to-black/25" />
-                      <button
-                        type="button"
-                        onClick={goBack}
-                        className="absolute top-4 left-4 z-10 inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-black/70 backdrop-blur-sm text-white text-sm font-medium hover:bg-black/80 transition"
-                      >
-                        <ArrowLeft size={15} />
-                        Back
-                      </button>
-                      <div className="absolute bottom-4 left-4 right-4 z-10">
-                        <h1 className="text-2xl xl:text-3xl font-bold leading-tight text-white drop-shadow-sm">
-                          {pageEvent.title}
-                        </h1>
-                        <p className="mt-1 text-sm xl:text-base text-white/80">
-                          {[collegeLabel, dateLabel, venueLabel].filter(Boolean).join(' · ')}
-                        </p>
-                      </div>
-                    </>
-                  ) : null}
-                  {!mindSparkDesktop && (
+                  {pageEvent.galleryImages?.length ? (
                   <div className="absolute top-3 sm:top-4 right-3 sm:right-4 flex flex-col space-y-2 max-h-64 overflow-y-auto">
-                    {pageEvent.galleryImages?.slice(0, 6).map((img, idx) => (
+                    {pageEvent.galleryImages.slice(0, 6).map((img, idx) => (
                       <button
                         key={idx}
                         type="button"
@@ -747,7 +743,7 @@ function EventDetailsPage() {
                       </button>
                     ))}
                   </div>
-                  )}
+                  ) : null}
                 </div>
                 )}
                 {!techfestPage && mindSparkDesktop && galleryPreview.length > 0 ? (
@@ -1181,18 +1177,14 @@ function EventDetailsPage() {
 
       {/* Mobile Version - Show below 768px */}
       <div className={`md:hidden pb-8 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
-        {/* Hero — Techfest / Kshitij: brand mark centered; others: full-bleed cover */}
+        {/* Hero — fill width, contain & center (techfest: logo box) */}
         <div
-          className={`relative w-full shrink-0 overflow-hidden ${
-            kshitijPage ? 'bg-white' : 'bg-[#0B0C0D]'
-          } ${
+          className={`relative w-full shrink-0 overflow-hidden bg-[#0B0C0D] ${
             techfestPage
               ? 'h-[320px]'
-              : kshitijPage
-                ? 'min-h-[200px]'
-                : mindSparkDesktop
-                  ? 'h-[380px]'
-                  : 'h-[320px]'
+              : mindSparkDesktop
+                ? 'h-[380px]'
+                : 'min-h-[200px]'
           }`}
         >
           {techfestPage ? (
@@ -1205,31 +1197,29 @@ function EventDetailsPage() {
               />
               ) : null}
             </div>
-          ) : kshitijPage ? (
-            <div className="w-full flex items-center justify-center px-4 pt-16 pb-6">
-              {kshitijHeroSrc ? (
-              <img
-                src={kshitijHeroSrc}
-                alt={pageEvent.title}
-                className="w-full h-auto object-contain object-center"
-              />
-              ) : null}
-            </div>
-          ) : mobileHeroImage ? (
+          ) : mindSparkDesktop && festHeroSrc ? (
           <img
-            src={getImageUrl(mobileHeroImage, { preset: 'eventHeroFit' })}
+            src={festHeroSrc}
             alt={pageEvent.title}
             className="absolute inset-0 w-full h-full object-contain object-center"
           />
+          ) : festHeroSrc ? (
+            <div className="w-full flex items-center justify-center px-4 pt-16 pb-6">
+              <img
+                src={festHeroSrc}
+                alt={pageEvent.title}
+                className="w-full h-auto object-contain object-center"
+              />
+            </div>
           ) : null}
           <div
             className={`absolute inset-x-0 top-0 flex items-center justify-between px-4 z-10 ${
-              techfestPage || kshitijPage
+              techfestPage || !mindSparkDesktop
                 ? ''
                 : 'pt-[max(0.75rem,var(--safe-top))] pb-3 bg-linear-to-b from-black/35 to-transparent'
             }`}
             style={
-              techfestPage || kshitijPage
+              techfestPage || !mindSparkDesktop
                 ? { paddingTop: 'calc(max(var(--safe-top), 0px) + 2.5rem)' }
                 : undefined
             }
@@ -1238,15 +1228,15 @@ function EventDetailsPage() {
               type="button"
               onClick={goBack}
               className={
-                techfestPage || kshitijPage
+                techfestPage || !mindSparkDesktop
                   ? 'size-11 rounded-full bg-black/40 flex items-center justify-center'
                   : 'p-2 rounded-full bg-black/30 backdrop-blur-sm text-white'
               }
               aria-label="Back to fests"
             >
               <ArrowLeft
-                size={techfestPage || kshitijPage ? 22 : 20}
-                strokeWidth={techfestPage || kshitijPage ? 2.25 : undefined}
+                size={techfestPage || !mindSparkDesktop ? 22 : 20}
+                strokeWidth={techfestPage || !mindSparkDesktop ? 2.25 : undefined}
                 className="text-white"
               />
             </button>
@@ -1255,7 +1245,7 @@ function EventDetailsPage() {
                 type="button"
                 onClick={handleShare}
                 className={
-                  techfestPage || kshitijPage
+                  techfestPage || !mindSparkDesktop
                     ? 'size-11 rounded-full bg-black/40 flex items-center justify-center'
                     : 'p-2 rounded-full bg-black/30 backdrop-blur-sm text-white'
                 }
@@ -1263,7 +1253,7 @@ function EventDetailsPage() {
               >
                 <Share
                   size={20}
-                  strokeWidth={techfestPage || kshitijPage ? 2.25 : undefined}
+                  strokeWidth={techfestPage || !mindSparkDesktop ? 2.25 : undefined}
                   className="text-white"
                 />
               </button>
@@ -1272,7 +1262,7 @@ function EventDetailsPage() {
                 type="button"
                 onClick={handleFestFavorite}
                 className={
-                  kshitijPage
+                  !mindSparkDesktop
                     ? 'size-11 rounded-full bg-black/40 flex items-center justify-center'
                     : 'p-2 rounded-full bg-black/30 backdrop-blur-sm'
                 }
@@ -1290,7 +1280,7 @@ function EventDetailsPage() {
 
         {/* Content sheet — overlaps hero like competition detail */}
         <div className={`relative z-10 overflow-hidden px-5 pt-6 pb-4 rounded-t-3xl ${
-          kshitijPage ? '-mt-4' : '-mt-10'
+          mindSparkDesktop ? '-mt-10' : '-mt-4'
         } ${
           isDark ? 'bg-[#161718]' : 'bg-white'
         }`}>

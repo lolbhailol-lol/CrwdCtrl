@@ -97,7 +97,8 @@ function isBrandLogoFest(fest) {
   const name = String(fest?.festName || fest?.title || '').toLowerCase();
   const slug = String(fest?.slug || '').toLowerCase();
   return name.includes('kshitij') || slug.includes('kshitij')
-    || name.includes('techfest') || slug.includes('techfest');
+    || name.includes('techfest') || slug.includes('techfest')
+    || name.includes('mindspark') || slug.includes('mindspark');
 }
 
 const ROUTES = [
@@ -114,7 +115,7 @@ const ROUTES = [
       return {
         title: fest.festName,
         description: fest.description,
-        // Wide/hero first so WhatsApp shows the horizontal brand mark, not the tall portrait card.
+        // Wide/hero first so WhatsApp shows horizontal artwork, not tall portrait cards.
         image: pickShareImage(fest, { preferPortrait: false }),
         containShareImage: true,
         padColor: logoFest ? 'rgb:ffffff' : 'auto',
@@ -132,8 +133,10 @@ const ROUTES = [
       return {
         title: competition.name,
         description: competition.description,
-        image: pickShareImage(competition, { preferPortrait: true }),
+        // Same as fests: prefer wide when present; pad to 1200×630 without cropping.
+        image: pickShareImage(competition, { preferPortrait: false }),
         containShareImage: true,
+        padColor: 'auto',
       };
     },
   },

@@ -78,7 +78,8 @@ function isBrandLogoFest(fest) {
   const name = String(fest?.festName || fest?.title || '').toLowerCase();
   const slug = String(fest?.slug || '').toLowerCase();
   return name.includes('kshitij') || slug.includes('kshitij')
-    || name.includes('techfest') || slug.includes('techfest');
+    || name.includes('techfest') || slug.includes('techfest')
+    || name.includes('mindspark') || slug.includes('mindspark');
 }
 
 const ROUTES = [
@@ -102,31 +103,41 @@ const ROUTES = [
     test: /^\/competitions-view-details\/([^/]+)\/?$/,
     api: (id) => `/fests/competitions/${id}/public`,
     pick: (j) => j?.data || j?.competition || j,
-    build: (c, path) => buildEvent(c.name, c.description, pickShareImage(c), c.venue, c.registrationFee ?? c.feeAmount, c.fest?.festName, path, 'Fests', '/fests'),
+    build: (c, path) => buildEvent(
+      c.name,
+      c.description,
+      toOgImageUrl(pickShareImage(c), { padColor: 'auto' }),
+      c.venue,
+      c.registrationFee ?? c.feeAmount,
+      c.fest?.festName,
+      path,
+      'Fests',
+      '/fests',
+    ),
   },
   {
     test: /^\/trek\/([^/]+)\/?$/,
     api: (id) => `/treks/${id}`,
     pick: (j) => j?.trek || j?.data || j,
-    build: (t, path) => buildEvent(t.trekName || t.title, t.description, pickShareImage(t), t.city || t.destination || t.startingPoint, t.registrationFee, t.communityName, path, 'Treks', '/treks'),
+    build: (t, path) => buildEvent(t.trekName || t.title, t.description, toOgImageUrl(pickShareImage(t)), t.city || t.destination || t.startingPoint, t.registrationFee, t.communityName, path, 'Treks', '/treks'),
   },
   {
     test: /^\/treks\/community\/([^/]+)\/?$/,
     api: (id) => `/trek-communities/${id}`,
     pick: (j) => j?.community || j?.data || j,
-    build: (c, path) => buildPage(`${c.name} — Trek Community`, c.aboutUs, pickShareImage(c), path, 'Treks', '/treks', c.name),
+    build: (c, path) => buildPage(`${c.name} — Trek Community`, c.aboutUs, toOgImageUrl(pickShareImage(c)), path, 'Treks', '/treks', c.name),
   },
   {
     test: /^\/sports\/run\/([^/]+)\/?$/,
     api: (id) => `/sports/${id}`,
     pick: (j) => j?.event || j?.data || j,
-    build: (e, path) => buildEvent(e.title, e.description, pickShareImage(e), e.venue || e.city, e.registrationFee, e.runClub?.name || e.organizer, path, 'Sports', '/sports'),
+    build: (e, path) => buildEvent(e.title, e.description, toOgImageUrl(pickShareImage(e)), e.venue || e.city, e.registrationFee, e.runClub?.name || e.organizer, path, 'Sports', '/sports'),
   },
   {
     test: /^\/sports\/run-club\/([^/]+)\/?$/,
     api: (id) => `/run-clubs/${id}`,
     pick: (j) => j?.club || j?.data || j,
-    build: (c, path) => buildPage(`${c.name} — Running Club`, c.aboutUs, pickShareImage(c), path, 'Sports', '/sports', c.name),
+    build: (c, path) => buildPage(`${c.name} — Running Club`, c.aboutUs, toOgImageUrl(pickShareImage(c)), path, 'Sports', '/sports', c.name),
   },
   {
     test: /^\/events\/community-event\/([^/]+)\/?$/,
@@ -135,7 +146,7 @@ const ROUTES = [
     build: (e, path) => buildEvent(
       e.title,
       e.description,
-      pickShareImage(e),
+      toOgImageUrl(pickShareImage(e)),
       e.venue || e.city,
       e.registrationFee,
       e.runClub?.name || e.organizer,
@@ -151,7 +162,7 @@ const ROUTES = [
     build: (c, path) => buildPage(
       `${c.name} — Community`,
       c.aboutUs || c.tagline || c.description,
-      pickShareImage(c),
+      toOgImageUrl(pickShareImage(c)),
       path,
       'Events',
       '/events',
@@ -165,7 +176,7 @@ const ROUTES = [
     build: (e, path) => buildEvent(
       e.displayName || e.title,
       e.description || e.about,
-      pickShareImage(e),
+      toOgImageUrl(pickShareImage(e)),
       e.venue || e.city,
       e.ticketPrice,
       e.organizer,
