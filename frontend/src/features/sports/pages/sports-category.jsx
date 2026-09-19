@@ -127,7 +127,7 @@ function RunClubCard({ club, isDark, isFavorite, onToggleFavorite, onClick, eage
                         loading={eager ? 'eager' : 'lazy'}
                         fetchPriority={eager ? 'high' : undefined}
                         showPlaceholderUntilLoad
-                        className="absolute inset-0 w-full h-full object-cover"
+                        className="absolute inset-0 z-0 w-full h-full object-cover pointer-events-none"
                         onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#2A2B2E', club.title || 'Run Club')}
                     />
                 ) : (

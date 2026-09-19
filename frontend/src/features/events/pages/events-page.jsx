@@ -19,7 +19,7 @@ import { usePageContentLoading } from '../../../hooks/usePageContentLoading';
 import AppLogo from '../../../components/AppLogo';
 import CardFavoriteButton from '../../../components/CardFavoriteButton';
 import CardShareButton from '../../../components/CardShareButton';
-import PosterFitImage from '../../../components/PosterFitImage';
+import ContentImage from '../../../components/ContentImage';
 import CarouselDotPagination from '../../../components/CarouselDotPagination';
 import HeroBanner from '../../../components/HeroBanner';
 import {
@@ -70,13 +70,12 @@ function SpotlightCard({ show, isDark, isFavorite, onToggleFavorite, onClick }) 
         >
             <div className={`card-portrait-image relative overflow-hidden ${isDark ? 'bg-[#1A1B1D]' : 'bg-gray-100'}`}>
                 {show.image ? (
-                    <PosterFitImage
+                    <ContentImage
                         src={show.image}
                         alt={show.title}
-                        preset="cardPortraitPad"
-                        fallbackW={160}
-                        fallbackH={208}
-                        fallbackBg="#5c0a12"
+                        preset="cardPortrait"
+                        className="absolute inset-0 z-0 h-full w-full object-cover object-center pointer-events-none"
+                        onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#5c0a12', show.title || 'Event')}
                     />
                 ) : (
                     <div className="w-full h-full bg-linear-to-br from-purple-800 to-indigo-600 flex items-center justify-center">
@@ -118,7 +117,7 @@ function UpcomingShowCard({ show, isDark, isFavorite, onToggleFavorite, onClick 
                     <img
                         src={getCoverImageUrl(show, 'cardWide') || getImageUrl(show.image, { preset: 'cardWide' })}
                         alt={show.title}
-                        className="w-full h-full object-cover"
+                        className="absolute inset-0 z-0 w-full h-full object-cover pointer-events-none"
                         onError={(e) => handleImageErrorWithFallback(e, 320, 224, '#2a1a3a', show.title || 'Event')}
                     />
                 ) : (
@@ -158,13 +157,12 @@ function CommunityEventCard({ show, isDark, isFavorite, onToggleFavorite, onClic
         >
             <div className={`card-portrait-image relative overflow-hidden ${isDark ? 'bg-[#1A1B1D]' : 'bg-gray-100'}`}>
                 {show.image ? (
-                    <PosterFitImage
+                    <ContentImage
                         src={show.image}
                         alt={show.title}
-                        preset="cardPortraitPad"
-                        fallbackW={160}
-                        fallbackH={208}
-                        fallbackBg="#5c0a12"
+                        preset="cardPortrait"
+                        className="absolute inset-0 z-0 h-full w-full object-cover object-center pointer-events-none"
+                        onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#5c0a12', show.title || 'Event')}
                     />
                 ) : (
                     <div className="w-full h-full bg-linear-to-br from-purple-800 to-indigo-600 flex items-center justify-center">

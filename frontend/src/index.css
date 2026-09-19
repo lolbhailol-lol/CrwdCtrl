@@ -596,6 +596,7 @@
     .overlay-fav-btn,
     .card-fav-btn {
         position: absolute;
+        z-index: 20;
         display: inline-flex;
         align-items: center;
         justify-content: center;

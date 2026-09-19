@@ -5,7 +5,7 @@ import { DetailLoader3DIcon } from './DetailPageLoader';
 /**
  * Competition thumbnail / hero.
  * placeholder: 'trophy' (default hero) | 'muted' (quiet cards, no 3D flash) | 'none'
- * Keeps natural image proportions — no colour-pad fill.
+ * Cover stays under overlays (favorite) — no z-index fight, no pointer steal.
  */
 export default function CompetitionCoverImage({
   src,
@@ -27,6 +27,7 @@ export default function CompetitionCoverImage({
       return undefined;
     }
     setStatus('loading');
+    // Cached images often finish before onLoad binds — sync from the DOM node.
     const id = window.requestAnimationFrame(() => {
       const img = imgRef.current;
       if (img?.complete && img.naturalWidth > 0) {
@@ -42,26 +43,27 @@ export default function CompetitionCoverImage({
     placeholder === 'muted' && (status === 'loading' || status === 'error' || status === 'empty');
 
   return (
-    <div className={`relative overflow-hidden bg-[#1A1B1D] ${containerClassName}`.trim()}>
+    <div className={`relative z-0 overflow-hidden bg-[#1A1B1D] ${containerClassName}`.trim()}>
       {showTrophy ? (
-        <div className="absolute inset-0 z-0 flex items-center justify-center">
+        <div className="absolute inset-0 z-0 flex items-center justify-center pointer-events-none">
           <DetailLoader3DIcon variant="competition" size={loaderSize} tone="dark" />
         </div>
       ) : null}
       {showMuted ? (
-        <div className="absolute inset-0 z-0 bg-[#1A1B1D]" aria-hidden="true" />
+        <div className="absolute inset-0 z-0 bg-[#1A1B1D] pointer-events-none" aria-hidden="true" />
       ) : null}
       {imageUrl ? (
         <img
           ref={imgRef}
           src={imageUrl}
           alt={alt}
-          className={`z-10 ${className} ${status === 'loaded' ? 'opacity-100' : 'opacity-0'} ${
-            placeholder === 'muted' ? '' : 'transition-opacity duration-200'
-          }`}
+          className={`z-0 pointer-events-none select-none ${className} ${
+            status === 'loaded' ? 'opacity-100' : 'opacity-0'
+          } ${placeholder === 'muted' ? '' : 'transition-opacity duration-200'}`}
           loading={eager ? 'eager' : 'lazy'}
           fetchPriority={eager ? 'high' : undefined}
           decoding="async"
+          draggable={false}
           onLoad={() => setStatus('loaded')}
           onError={() => setStatus('error')}
         />
