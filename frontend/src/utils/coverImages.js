@@ -33,6 +33,8 @@ export const PRESET_ALIASES = {
     eventPage: 'page',
     eventHeroFit: 'page',
     eventHeroPad: 'page',
+    festHeroFit: 'hero',
+    festHeroPad: 'hero',
     cardPortraitPad: 'portrait',
     square: 'square',
     thumb: 'square',

@@ -48,6 +48,15 @@ export const IMAGE_PRESETS = {
         quality: 'good',
         background: 'auto:predominant',
     },
+    /** Fest detail hero — landscape frame; logos/photos pad to fill, never crop subject */
+    festHeroFit: { width: 1200, height: 630, crop: 'fit', quality: 'good' },
+    festHeroPad: {
+        width: 1200,
+        height: 630,
+        crop: 'pad',
+        quality: 'good',
+        background: 'auto:predominant',
+    },
     /** Portrait cards that must show full artwork (posters) — no crop */
     cardPortraitFit: { width: 360, height: 468, crop: 'fit', quality: 'eco' },
     /** Portrait cards — full poster + colour-matched side pads (10:13) */
@@ -79,6 +88,8 @@ export const IMAGE_PRESET_SIZES = {
     communityBanner: '100vw',
     eventHeroFit: '(min-width: 768px) 672px, 100vw',
     eventHeroPad: '(min-width: 768px) 672px, 100vw',
+    festHeroFit: '(min-width: 768px) 672px, 100vw',
+    festHeroPad: '(min-width: 768px) 672px, 100vw',
     cardPortraitFit: '(min-width: 1024px) 160px, 42vw',
     cardPortraitPad: '(min-width: 1024px) 160px, 42vw',
     detail: '(min-width: 1024px) 1200px, 100vw',
