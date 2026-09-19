@@ -44,7 +44,7 @@ async function uploadTicketPhoto(file, token) {
   if (!token) throw new Error('Sign in required to upload');
   const fd = new FormData();
   fd.append('image', file);
-  fd.append('folder', 'auditorium-tickets');
+  fd.append('folder', 'crwdctrl/auditorium-tickets');
   // Do NOT set Content-Type — browser must add multipart boundary.
   // getBearerAuthHeaders() forces application/json and breaks FormData uploads.
   const auth = getBearerAuthHeaders(token);

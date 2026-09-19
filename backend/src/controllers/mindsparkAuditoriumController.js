@@ -107,11 +107,17 @@ function assertTrustedPhotoUrl(value, label = 'Photo', { requireAuditoriumFolder
     err.code = 'UNTRUSTED_PHOTO';
     throw err;
   }
-  if (requireAuditoriumFolder && !/auditorium-tickets/i.test(u.pathname)) {
-    const err = new Error(`${label} must be uploaded via the auditorium form`);
-    err.status = 400;
-    err.code = 'UNTRUSTED_PHOTO';
-    throw err;
+  if (requireAuditoriumFolder) {
+    const path = u.pathname.toLowerCase();
+    // Prefer dedicated folder; also accept legacy uploads that landed in /crwdctrl/
+    // before auditorium-tickets was allowlisted (sanitize used to rewrite the folder).
+    const okFolder = path.includes('auditorium-tickets') || path.includes('/crwdctrl');
+    if (!okFolder) {
+      const err = new Error(`${label} must be uploaded via the auditorium form`);
+      err.status = 400;
+      err.code = 'UNTRUSTED_PHOTO';
+      throw err;
+    }
   }
   return raw;
 }

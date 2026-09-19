@@ -131,11 +131,16 @@ const ALLOWED_UPLOAD_FOLDERS = new Set([
   'crwdctrl/registrations',
   'crwdctrl/admin',
   'crwdctrl/gallery',
+  'crwdctrl/auditorium-tickets',
 ]);
 
 function sanitizeUploadFolder(folder) {
   if (typeof folder !== 'string' || !folder.trim()) return 'crwdctrl';
   const normalized = folder.trim().replace(/\\/g, '/').replace(/^\/+/, '');
+  // Map legacy short name used by auditorium client
+  if (/^auditorium-tickets$/i.test(normalized)) {
+    return 'crwdctrl/auditorium-tickets';
+  }
   if (!normalized.startsWith('crwdctrl')) return 'crwdctrl';
   if (normalized.includes('..')) return 'crwdctrl';
   const base = normalized.split('/').filter(Boolean).join('/');

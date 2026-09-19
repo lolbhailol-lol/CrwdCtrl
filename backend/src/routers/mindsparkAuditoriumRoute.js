@@ -20,7 +20,7 @@ router.post(
   uploadCtrl.multerErrorHandler,
   (req, res, next) => {
     req.body = req.body || {};
-    req.body.folder = 'auditorium-tickets';
+    req.body.folder = 'crwdctrl/auditorium-tickets';
     next();
   },
   uploadCtrl.uploadImage,
