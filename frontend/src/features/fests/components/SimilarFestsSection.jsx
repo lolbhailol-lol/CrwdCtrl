@@ -263,7 +263,7 @@ export default function SimilarFestsSection({
                 }}
                 className="w-full text-left active:scale-[0.99] transition"
               >
-                <div className={`relative aspect-[16/10] w-full ${isDark ? 'bg-[#0B0C0D]' : 'bg-gray-100'}`}>
+                <div className={`relative aspect-[16/9] w-full ${isDark ? 'bg-[#0B0C0D]' : 'bg-gray-100'}`}>
                   {src ? (
                     <img
                       src={src}
