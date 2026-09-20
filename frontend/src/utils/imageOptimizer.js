@@ -31,6 +31,8 @@ export const IMAGE_PRESETS = {
     cardLg: { width: 560, height: 728, crop: 'fill', quality: 'eco' },
     /** Home / hub hero — mobile-first; still sharp on desktop via dpr_2 */
     hero: { width: 960, height: 448, crop: 'fill', quality: 'good' },
+    /** Competition detail heroes for landscape event photos (Kshitij etc.) — keep subject with g_auto */
+    competitionHeroWide: { width: 1200, height: 675, crop: 'fill', quality: 'good', gravity: 'auto' },
     /** Event detail page top image (5:4) */
     eventPage: { width: 960, height: 768, crop: 'fill', quality: 'good' },
     /** Community detail header */
@@ -84,6 +86,7 @@ export const IMAGE_PRESET_SIZES = {
     card: '(min-width: 1024px) 200px, 50vw',
     cardLg: '(min-width: 1024px) 280px, 70vw',
     hero: '(min-width: 1024px) 960px, 100vw',
+    competitionHeroWide: '(min-width: 768px) 560px, 100vw',
     eventPage: '(min-width: 768px) 672px, 100vw',
     communityBanner: '100vw',
     eventHeroFit: '(min-width: 768px) 672px, 100vw',

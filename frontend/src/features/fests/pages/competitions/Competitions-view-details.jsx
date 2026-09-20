@@ -1150,6 +1150,18 @@ function EventPage() {
         || String(festName).toLowerCase().includes('kshitij pune regionals')
         || String(festName).toLowerCase().includes('kshitij pune multicity');
     const showDiscovery = Boolean(fetchDone && !isKshitijPuneRegionals);
+    const competitionHeroPreset = isKshitijPuneRegionals ? 'competitionHeroWide' : 'hero';
+    const competitionHeroObjectClass = isKshitijPuneRegionals
+        ? 'object-cover object-[center_28%]'
+        : 'object-cover object-center';
+    const competitionHeroMobileH = showHeroImage
+        ? (isKshitijPuneRegionals ? 'aspect-[16/10] h-auto max-h-[280px] min-h-[200px]' : 'h-[396px]')
+        : 'h-52';
+    const competitionHeroDesktopH = isKshitijPuneRegionals
+        ? 'h-64 lg:h-[18rem] xl:h-[20rem]'
+        : isMindSparkCompetition
+            ? 'h-80 lg:h-[24rem] xl:h-[26rem]'
+            : 'h-72 lg:h-[20rem] xl:h-[22rem]';
 
     // Function to get common rules based on fest context
     const getCommonRules = () => {
@@ -2010,17 +2022,15 @@ function EventPage() {
                     <div className="block md:hidden w-full">
                             <div className="mx-auto w-full flex flex-col flex-1 overflow-x-clip">
                                 <div
-                                    className={`relative w-full shrink-0 overflow-hidden bg-[#1A1B1D] ${
-                                        showHeroImage ? 'h-[396px]' : 'h-52'
-                                    }`}
+                                    className={`relative w-full shrink-0 overflow-hidden bg-[#1A1B1D] ${competitionHeroMobileH}`}
                                 >
                                     <CompetitionCoverImage
                                         key={`${competitionId}-${eventData.image || 'placeholder'}`}
                                         src={showHeroImage ? eventData.image : null}
                                         alt={eventData.title || 'Competition'}
-                                        preset="hero"
+                                        preset={competitionHeroPreset}
                                         containerClassName="absolute inset-0 w-full h-full"
-                                        className="absolute inset-0 w-full h-full object-cover object-center animate-detail-enter"
+                                        className={`absolute inset-0 w-full h-full ${competitionHeroObjectClass} animate-detail-enter`}
                                         loaderSize="hero"
                                         eager={showHeroImage}
                                         placeholder={showHeroImage ? 'trophy' : 'muted'}
@@ -2214,14 +2224,14 @@ function EventPage() {
                                         <ArrowLeft size={15} />
                                         Back
                                     </button>
-                                    <div className={`rounded-2xl overflow-hidden bg-[#1A1B1D] ${isMindSparkCompetition ? 'h-80 lg:h-[24rem] xl:h-[26rem]' : 'h-72 lg:h-[20rem] xl:h-[22rem]'}`}>
+                                    <div className={`rounded-2xl overflow-hidden bg-[#1A1B1D] ${competitionHeroDesktopH}`}>
                                     <CompetitionCoverImage
                                         key={`${competitionId}-${eventData.image || 'placeholder'}`}
                                         src={showHeroImage ? eventData.image : null}
                                         alt={eventData.title || 'Competition'}
-                                        preset="hero"
+                                        preset={competitionHeroPreset}
                                         containerClassName="w-full h-full"
-                                        className="w-full h-full object-cover object-center animate-detail-enter"
+                                        className={`w-full h-full ${competitionHeroObjectClass} animate-detail-enter`}
                                         loaderSize="hero"
                                         eager={showHeroImage}
                                         placeholder={showHeroImage ? 'trophy' : 'muted'}
