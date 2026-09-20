@@ -60,15 +60,21 @@ function pickShareImage(entity) {
   return undefined;
 }
 
-/** Match backend seoOgService — WhatsApp wants ~1200×630; pad logos, don't crop. */
-function toOgImageUrl(url, { padColor = 'auto' } = {}) {
+/** Match backend seoOgService — WhatsApp wants ~1200×630; pad logos, fill photos. */
+function toOgImageUrl(url, { contain = true, padColor = 'auto' } = {}) {
   if (!url || typeof url !== 'string') return undefined;
   const trimmed = url.trim();
   if (!trimmed) return undefined;
   if (/res\.cloudinary\.com\/[^/]+\/image\/upload\//i.test(trimmed) && !/\/upload\/[^/]+,/.test(trimmed)) {
+    if (contain) {
+      return trimmed.replace(
+        /\/image\/upload\//i,
+        `/image/upload/c_pad,w_1200,h_630,b_${padColor},f_jpg,q_auto/`,
+      );
+    }
     return trimmed.replace(
       /\/image\/upload\//i,
-      `/image/upload/c_pad,w_1200,h_630,b_${padColor},f_jpg,q_auto/`,
+      '/image/upload/c_fill,w_1200,h_630,g_auto,f_jpg,q_auto/',
     );
   }
   return trimmed;
@@ -77,8 +83,8 @@ function toOgImageUrl(url, { padColor = 'auto' } = {}) {
 function isBrandLogoFest(fest) {
   const name = String(fest?.festName || fest?.title || '').toLowerCase();
   const slug = String(fest?.slug || '').toLowerCase();
-  return name.includes('kshitij') || slug.includes('kshitij')
-    || name.includes('techfest') || slug.includes('techfest')
+  // Techfest / MindSpark still use logo artwork; Kshitij now uses a photo cover.
+  return name.includes('techfest') || slug.includes('techfest')
     || name.includes('mindspark') || slug.includes('mindspark');
 }
 
@@ -87,17 +93,23 @@ const ROUTES = [
     test: /^\/view-details\/([^/]+)\/?$/,
     api: (id) => `/fests/${id}/public`,
     pick: (j) => j?.data || j,
-    build: (f, path) => buildEvent(
-      f.festName,
-      f.description,
-      toOgImageUrl(pickShareImage(f), { padColor: isBrandLogoFest(f) ? 'rgb:ffffff' : 'auto' }),
-      f.venue,
-      f.ticketPrice ?? f.feeAmount,
-      f.collegeName,
-      path,
-      'Fests',
-      '/fests',
-    ),
+    build: (f, path) => {
+      const logoFest = isBrandLogoFest(f);
+      return buildEvent(
+        f.festName,
+        f.description,
+        toOgImageUrl(pickShareImage(f), {
+          contain: logoFest,
+          padColor: logoFest ? 'rgb:ffffff' : 'auto',
+        }),
+        f.venue,
+        f.ticketPrice ?? f.feeAmount,
+        f.collegeName,
+        path,
+        'Fests',
+        '/fests',
+      );
+    },
   },
   {
     test: /^\/competitions-view-details\/([^/]+)\/?$/,
@@ -106,7 +118,7 @@ const ROUTES = [
     build: (c, path) => buildEvent(
       c.name,
       c.description,
-      toOgImageUrl(pickShareImage(c), { padColor: 'auto' }),
+      toOgImageUrl(pickShareImage(c), { contain: false, padColor: 'auto' }),
       c.venue,
       c.registrationFee ?? c.feeAmount,
       c.fest?.festName,

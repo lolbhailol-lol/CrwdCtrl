@@ -80,7 +80,7 @@ function toOgImageUrl(url, { contain = true, padColor } = {}) {
       /\/image\/upload\//i,
       contain
         ? `/image/upload/c_pad,w_1200,h_630${padBg},f_jpg,q_auto/`
-        : '/image/upload/c_fill,w_1200,h_630,g_center,f_jpg,q_auto/',
+        : '/image/upload/c_fill,w_1200,h_630,g_auto,f_jpg,q_auto/',
     );
   }
   return trimmed;
@@ -96,8 +96,8 @@ function absoluteUrl(pathOrUrl) {
 function isBrandLogoFest(fest) {
   const name = String(fest?.festName || fest?.title || '').toLowerCase();
   const slug = String(fest?.slug || '').toLowerCase();
-  return name.includes('kshitij') || slug.includes('kshitij')
-    || name.includes('techfest') || slug.includes('techfest')
+  // Techfest / MindSpark still use logo artwork; Kshitij now uses a photo cover.
+  return name.includes('techfest') || slug.includes('techfest')
     || name.includes('mindspark') || slug.includes('mindspark');
 }
 
@@ -117,7 +117,8 @@ const ROUTES = [
         description: fest.description,
         // Wide/hero first so WhatsApp shows horizontal artwork, not tall portrait cards.
         image: pickShareImage(fest, { preferPortrait: false }),
-        containShareImage: true,
+        // Logos → pad; photo covers (Kshitij etc.) → fill 1200×630 for clean WhatsApp cards.
+        containShareImage: logoFest,
         padColor: logoFest ? 'rgb:ffffff' : 'auto',
       };
     },
@@ -133,9 +134,9 @@ const ROUTES = [
       return {
         title: competition.name,
         description: competition.description,
-        // Same as fests: prefer wide when present; pad to 1200×630 without cropping.
         image: pickShareImage(competition, { preferPortrait: false }),
-        containShareImage: true,
+        // Competition covers are photos — fill the WhatsApp frame (no colour pads).
+        containShareImage: false,
         padColor: 'auto',
       };
     },

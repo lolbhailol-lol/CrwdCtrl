@@ -25,7 +25,7 @@ import {
 } from '../../../utils/festPublicTransform';
 import { publicFetchJSONRetry as fetchJSON } from '../../../services/api/client';
 import Seo from '../../../components/Seo';
-import { breadcrumbSchema, eventSchema } from '../../../utils/seo';
+import { breadcrumbSchema, eventSchema, toOgShareImageUrl } from '../../../utils/seo';
 import { festPath, competitionPath, entityMatchesRouteParam } from '../../../utils/slugRoutes';
 import { loadFestDetailCache, saveFestDetailCache, saveCompetitionDetailCache } from '../../../utils/detailPageCache';
 import { signalDetailPageReady } from '../../../utils/bootSplash';
@@ -657,7 +657,10 @@ function EventDetailsPage() {
         title={pageEvent.title}
         description={festDescription}
         canonical={canonicalPath}
-        image={festHeroUrl(pageEvent)}
+        image={toOgShareImageUrl(festHeroUrl(pageEvent), {
+          contain: techfestPage,
+          padColor: techfestPage ? 'rgb:ffffff' : 'auto',
+        })}
         type="article"
         jsonLd={[
           breadcrumbSchema([
@@ -669,7 +672,10 @@ function EventDetailsPage() {
             name: pageEvent.title,
             description: pageEvent.description,
             url: canonicalPath,
-            image: festHeroUrl(pageEvent),
+            image: toOgShareImageUrl(festHeroUrl(pageEvent), {
+              contain: techfestPage,
+              padColor: techfestPage ? 'rgb:ffffff' : 'auto',
+            }),
             location: venueLabel || undefined,
             price: pageEvent.ticketPrice,
             organizerName: collegeLabel || undefined,

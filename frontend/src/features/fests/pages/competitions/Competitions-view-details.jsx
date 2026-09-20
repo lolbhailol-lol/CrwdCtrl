@@ -10,7 +10,7 @@ import CrwdCtrlLogin from '../../../../pages/auth/login';
 import CrwdCtrlRegister from '../../../../pages/auth/register';
 import { publicFetchJSONRetry as fetchJSON } from '../../../../services/api/client';
 import Seo from '../../../../components/Seo';
-import { breadcrumbSchema, eventSchema } from '../../../../utils/seo';
+import { breadcrumbSchema, eventSchema, toOgShareImageUrl } from '../../../../utils/seo';
 import { openExternalUrl, shareContent } from '../../../../utils/externalLink';
 import { competitionPath, competitionRegistrationPath, festRegisterPath, festPath, entityMatchesRouteParam, isObjectId } from '../../../../utils/slugRoutes';
 import { resolveCompetitionFee, buildRegistrationPrefetch, saveRegistrationPrefetch } from '../../../../utils/festPublicTransform';
@@ -1993,7 +1993,7 @@ function EventPage() {
                 title={eventData.title}
                 description={competitionDescription}
                 canonical={canonicalPath}
-                image={eventData.image}
+                image={toOgShareImageUrl(eventData.image, { contain: false })}
                 type="article"
                 jsonLd={[
                     breadcrumbSchema([
@@ -2005,7 +2005,7 @@ function EventPage() {
                         name: eventData.title,
                         description: competitionDescription,
                         url: canonicalPath,
-                        image: eventData.image,
+                        image: toOgShareImageUrl(eventData.image, { contain: false }),
                         location: eventData.venue && eventData.venue !== 'TBD' ? eventData.venue : undefined,
                         price: eventData.entryFee,
                         organizerName: festName || undefined,

@@ -22,6 +22,25 @@ export function absoluteUrl(pathOrUrl) {
   return `${SITE_URL}${path}`;
 }
 
+/**
+ * WhatsApp / OG share image — force 1200×630 JPEG on Cloudinary.
+ * Photos: fill. Logos: pass { contain: true, padColor: 'rgb:ffffff' }.
+ */
+export function toOgShareImageUrl(url, { contain = false, padColor = 'auto' } = {}) {
+  if (!url || typeof url !== 'string') return DEFAULT_IMAGE;
+  const trimmed = url.trim();
+  if (!trimmed) return DEFAULT_IMAGE;
+  if (/res\.cloudinary\.com\/[^/]+\/image\/upload\//i.test(trimmed) && !/\/upload\/[^/]+,/.test(trimmed)) {
+    return trimmed.replace(
+      /\/image\/upload\//i,
+      contain
+        ? `/image/upload/c_pad,w_1200,h_630,b_${padColor},f_jpg,q_auto/`
+        : '/image/upload/c_fill,w_1200,h_630,g_auto,f_jpg,q_auto/',
+    );
+  }
+  return absoluteUrl(trimmed);
+}
+
 /** Build the document <title>, appending the brand unless asked not to. */
 export function buildTitle(title, { withBrand = true } = {}) {
   if (!title) return `${SITE_NAME} — Discover fests, clubs & events`;
