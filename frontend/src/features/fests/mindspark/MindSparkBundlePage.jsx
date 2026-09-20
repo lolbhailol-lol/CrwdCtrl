@@ -15,7 +15,9 @@ const STEPS = ['Your details', 'Choose events', 'Participants', 'Pay'];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const emptyMember = () => ({ name: '', email: '' });
 
-/** Normalize legacy string names or {name,email} rows into member objects. */
+/** Normalize legacy string names or {name,email} rows into member objects.
+ *  Keeps blank rows so “Add participant” can open an empty slot before the user types.
+ */
 function normalizeMembers(value) {
   if (!Array.isArray(value)) {
     return String(value || '')
@@ -38,7 +40,7 @@ function normalizeMembers(value) {
       }
       return null;
     })
-    .filter((row) => row && (row.name || row.email));
+    .filter((row) => row != null);
 }
 
 function membersComplete(members, min, max) {
@@ -535,12 +537,19 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
                   {activeNames.length < activeMax ? (
                     <button
                       type="button"
-                      onClick={() => setForm(formIndex, 'members', [...activeNames, emptyMember()])}
-                      className="w-full rounded-xl border border-dashed border-[#0ECCEE]/40 py-3 text-sm font-semibold text-[#0ECCEE]"
+                      onClick={() => {
+                        setError('');
+                        setForm(formIndex, 'members', [...activeNames, emptyMember()]);
+                      }}
+                      className="relative z-10 w-full rounded-xl border border-dashed border-[#0ECCEE]/50 bg-[#0ECCEE]/5 py-3.5 text-sm font-semibold text-[#0ECCEE] hover:bg-[#0ECCEE]/10 active:scale-[0.99] cursor-pointer transition"
                     >
                       + Add participant
                     </button>
-                  ) : null}
+                  ) : (
+                    <p className={`text-center text-xs ${muted}`}>
+                      Max {activeMax} participant{activeMax === 1 ? '' : 's'} for this event
+                    </p>
+                  )}
                   {activeCompetition.feeTiers?.length ? (
                     <label className="block">
                       <span className={labelCls}>Category <span className="text-red-400">*</span></span>
