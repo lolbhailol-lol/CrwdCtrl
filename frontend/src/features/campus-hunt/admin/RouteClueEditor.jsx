@@ -15,6 +15,7 @@ import {
   deriveClueGeometry,
   fourthStopArrivalPlan,
   fourthStopForLocalTeam,
+  fifthStopArrivalPlan,
   globalTeamNumber,
   propCodeForTeam,
   resolveStations,
@@ -79,7 +80,7 @@ function pathLabel(route, starts = CAMPUS_STARTS) {
 }
 
 function blankForm(number, takesTo, teamSize = 4) {
-  const people = Math.max(2, Math.min(8, Number(teamSize) || 4));
+  const people = Math.max(2, Math.min(12, Number(teamSize) || 4));
   const defaults = routeClueDefaults(number, takesTo, people);
   return {
     prompt: defaults.prompt,
@@ -89,7 +90,7 @@ function blankForm(number, takesTo, teamSize = 4) {
     hintText: defaults.hintText || '',
     destinationInstruction: defaults.destinationInstruction
       || (takesTo
-        ? `Go to ${takesTo}. Find the shared QR. All ${people} scan, then enter your team code.`
+        ? `Go to ${takesTo}. Find the shared QR. Leader scans once, then enters your team code.`
         : ''),
     basePoints: number === 3 || number === 5 ? 50 : 0,
     maxAttempts: 3,
@@ -106,7 +107,9 @@ function isGenericRoutePrompt(prompt, number) {
   if (/^Solve this to learn where/i.test(text)) return true;
   if (/^Clue 2 — find the marked code/i.test(text)) return true;
   if (/^Clue 3 at .+ — decode the Caesar/i.test(text)) return true;
+  if (/^THE LOCKBOX/i.test(text)) return true;
   if (/^CRAZY PROP HUNT at /i.test(text)) return true;
+  if (/^FIELD TERMINAL at /i.test(text)) return true;
   if (/^Final clue at .+ — combine all \d+ pieces/i.test(text)) return true;
   if (number === 5 && /^Combine all \d+ pieces/i.test(text)) return true;
   if (number === 5 && /^Each teammate has a code fragment/i.test(text)) return true;
@@ -114,7 +117,7 @@ function isGenericRoutePrompt(prompt, number) {
 }
 
 /**
- * Edit Clue 2 / 3 / 4 (prop) / Final for each start path — shows where that path takes you.
+ * Edit Clue 2 / 3 (Lockbox) / 4 (Field Terminal) / Final for each start path — shows where that path takes you.
  */
 export default function RouteClueEditor({
   eventId,
@@ -131,7 +134,7 @@ export default function RouteClueEditor({
   teamsPerStation,
 }) {
   const number = Number(challengeNumber);
-  const people = Math.max(2, Math.min(8, Number(teamSize) || 4));
+  const people = Math.max(2, Math.min(12, Number(teamSize) || 4));
   const geometry = useMemo(
     () => deriveClueGeometry(teamCapacity, teamSize),
     [teamCapacity, teamSize],
@@ -186,28 +189,11 @@ export default function RouteClueEditor({
     () => {
       if (number === 2) return secondStopArrivalPlan(stations, perWait, starts);
       if (number === 4) return fourthStopArrivalPlan(stations, perWait, starts);
+      if (number === 5) return fifthStopArrivalPlan(stations, perWait, starts);
       return [];
     },
     [number, stations, perWait, starts],
   );
-
-  const returnPlan = useMemo(() => {
-    if (number !== 5) return [];
-    return starts.map((start) => {
-      const waitIndex = waitIndexForStart(start.code);
-      return {
-        code: start.code,
-        name: start.name,
-        word: clue5WordForStart(start.code),
-        teamCount: perWait,
-        arrivals: teamSlots.map((slot) => ({
-          teamNumber: globalTeamNumber(waitIndex, slot.localTeamNumber, perWait),
-          localTeamNumber: slot.localTeamNumber,
-        })),
-      };
-    });
-  }, [number, starts, perWait, teamSlots]);
-
   const startTeamRows = useMemo(() => {
     if ((number !== 2 && number !== 4) || !selectedRoute) return [];
     return teamSlots.map((slot) => {
@@ -282,7 +268,8 @@ export default function RouteClueEditor({
       const blank = blankForm(number, place, people);
       if (number === 5) {
         blank.destinationInstruction =
-          `Report to your start — ${takesTo}. Ask the organizer to mark your team reached.`;
+          `Word solved — go to your 5th campus stop. Find the shared red FIFTH SCAN QR. `
+          + `Leader scans once, then enters your team code to unlock Clue 6.`;
         blank.basePoints = 50;
       }
       setForm(blank);
@@ -295,37 +282,40 @@ export default function RouteClueEditor({
     const membersEmpty = memberPrompts.every((p) => !String(p).trim());
     setForm({
       prompt: existing.prompt || defaults.prompt,
-      answer: existing.answer || (number === 2 || number === 4 ? '' : place),
+      answer: existing.answer || (number === 2 || number === 4 ? '' : (number === 3 ? defaults.answer : place)),
       hintText: existing.hintText || defaults.hintText || '',
       destinationInstruction:
         existing.destinationInstruction
         || (number === 2
           ? (
             'Go to your next location now. Find the shared green SECOND SCAN QR — '
-            + `all ${people} members scan, then enter your team code to unlock Clue 3.`
+            + `leader scans once, then enters your team code to unlock Clue 3.`
           )
           : number === 3
             ? (
               defaults.destinationInstruction
-              || 'Riddle solved — go find the shared blue THIRD SCAN QR at that place. '
-                + `All ${people} members scan, then enter your team code to unlock the prop hunt.`
+              || `Lockbox open — go to ${place}. Find the shared blue THIRD SCAN QR. `
+                + `Leader scans once, then enters your team code to unlock Field Terminal.`
             )
           : number === 4
             ? (
               defaults.destinationInstruction
-              || `Prop found — stay at ${place}. Find the shared purple FOURTH SCAN QR. `
-                + `All ${people} members scan, then enter your team code to unlock Final.`
+              || `Terminal cleared — stay at ${place}. Find the shared purple FOURTH SCAN QR. `
+                + `Leader scans once, then enters your team code to unlock Clue 5.`
             )
           : number === 5
-            ? `Report to your start — ${takesTo}. Ask the organizer to mark your team reached.`
+            ? (
+              `Word solved — go to your 5th campus stop. Find the shared red FIFTH SCAN QR. `
+              + `Leader scans once, then enters your team code to unlock Clue 6.`
+            )
             : defaults.destinationInstruction
-              || `Go to ${place}. Find the shared QR. All ${people} scan, then enter your team code.`),
+              || `Go to ${place}. Find the shared QR. Leader scans once, then enters your team code.`),
       basePoints: existing.basePoints ?? (number === 3 || number === 5 ? 50 : 0),
       maxAttempts: existing.maxAttempts ?? 3,
       timerSeconds: existing.timerSeconds
         ?? (number === 2 || number === 4 ? 180 : number === 5 ? 300 : 0),
       hintCost: existing.hintCost ?? 15,
-      memberPrompts: number === 5 && membersEmpty
+      memberPrompts: (number === 5 || number === 3) && membersEmpty
         ? (defaults.memberPrompts || memberPrompts)
         : memberPrompts,
       active: existing.active !== false,
@@ -349,7 +339,7 @@ export default function RouteClueEditor({
       if (number === 4) {
         const prompt = form.prompt.trim();
         if (!prompt) {
-          setMessage('Enter clue text for the prop hunt');
+          setMessage('Enter clue text for Field Terminal');
           setBusy(false);
           return;
         }
@@ -362,7 +352,7 @@ export default function RouteClueEditor({
           const station = stations.find((s) => s.name === place);
           const answer = String(propCodes[codeKey] || form.answer || '').trim().toUpperCase();
           if (!answer) {
-            failures.push(`Team ${globalTeamNumber(selectedWait, slot.localTeamNumber, perWait)}: prop code required`);
+            failures.push(`Team ${globalTeamNumber(selectedWait, slot.localTeamNumber, perWait)}: GRID code required`);
             continue;
           }
           const fourthCp = resolveFourthCheckpoint(checkpoints, {
@@ -388,7 +378,7 @@ export default function RouteClueEditor({
             destinationInstruction: (
               form.destinationInstruction
               || `Prop found — stay at ${place}. Find the shared purple FOURTH SCAN QR. `
-                + `All ${people} members scan, then enter your team code to unlock Final.`
+                + `Leader scans once, then enters your team code to unlock Clue 5.`
             ).trim(),
             basePoints: Number(form.basePoints) || 0,
             maxAttempts: Number(form.maxAttempts) || 3,
@@ -406,7 +396,7 @@ export default function RouteClueEditor({
         const sync = await syncAfterClueSave(eventId, { roundId });
         const bound = sync?.data?.updated ?? sync?.data?.teamsUpdated ?? 0;
         setMessage(
-          `Saved ${saved} prop codes · ${pathLabel(selectedRoute, starts)} · bound ${bound} teams`
+          `Saved ${saved} GRID codes · ${pathLabel(selectedRoute, starts)} · bound ${bound} teams`
           + (failures.length ? ` (${failures.length} skipped)` : ''),
         );
         await refresh();
@@ -419,7 +409,7 @@ export default function RouteClueEditor({
       if (!answer) {
         setMessage(
           number === 5
-            ? `Enter the Final word (usually ${clue5Word})`
+            ? `Enter the Clue 5 word (usually ${clue5Word})`
             : 'Enter the answer',
         );
         setBusy(false);
@@ -438,8 +428,11 @@ export default function RouteClueEditor({
         destinationInstruction: (
           form.destinationInstruction
           || (number === 5
-            ? `Report to your start — ${takesTo}. Ask the organizer to mark your team reached.`
-            : `Go to ${takesTo}. All ${people} members scan there.`)
+            ? (
+              `Word solved — go to your 5th campus stop. Find the shared red FIFTH SCAN QR. `
+              + `Leader scans once, then enters your team code to unlock Clue 6.`
+            )
+            : `Go to ${takesTo}. Leader scans once there.`)
         ).trim(),
         basePoints: Number(form.basePoints) || 0,
         maxAttempts: Number(form.maxAttempts) || 3,
@@ -453,13 +446,13 @@ export default function RouteClueEditor({
           .map((value) => String(value || '').trim());
         while (body.memberPrompts.length < people) body.memberPrompts.push('');
         body.prompt = body.prompt
-          || `Combine all ${people} pieces to form the answer.`;
+          || `Pieces appear on the leader phone — rebuild the answer.`;
         body.startingPointId = id(startingPoint);
       }
       await adminUpsertChallenge(eventId, body);
       setMessage(
         number === 5
-          ? `Saved · ${pathLabel(selectedRoute, starts)} word ${clue5Word} → return ${takesTo}`
+          ? `Saved · ${pathLabel(selectedRoute, starts)} word ${clue5Word} → red scan ${takesTo}`
           : `Saved · ${pathLabel(selectedRoute, starts)} → ${takesTo}`,
       );
       await refresh();
@@ -489,22 +482,22 @@ export default function RouteClueEditor({
           ) : number === 4 ? (
             <>
               <p className="mt-1 text-sm text-[#0ECCEE]">
-                {stations.length} places · crazy prop hunt · ~{perStation} teams each
+                {stations.length} places · Field Terminal · ~{perStation} teams each
               </p>
               <p className="mt-1 text-xs text-white/50">
-                Timed search for a planted prop code at the fourth campus stop, then purple QR.
+                Timed Field Terminal / GRID code at the fourth campus stop, then purple QR.
               </p>
             </>
           ) : number === 5 ? (
             <>
               <p className="mt-1 text-sm text-[#0ECCEE]">
                 One word · <span className="font-bold">{clue5Word}</span>
-                {' '}→ return to <span className="font-bold">{takesTo}</span>
+                {' '}→ red scan at <span className="font-bold">{takesTo}</span>
                 {selectedRoute ? ` (${pathLabel(selectedRoute, starts)})` : ''}
               </p>
               <p className="mt-1 text-xs text-white/50">
-                All {people} get code fragments. After the word, ~{perWait} teams come back to this
-                start — organizer marks each team number reached.
+                All {people} get code fragments. After the word, go to the 5th campus stop
+                (red FIFTH SCAN), then unlock Clue 6 → Finale Assembly.
               </p>
             </>
           ) : (
@@ -526,14 +519,15 @@ export default function RouteClueEditor({
         </span>
       </div>
 
-      {(number === 2 || number === 4) && (
+      {(number === 2 || number === 4 || number === 5) && (
         <section className="rounded-2xl border border-white/15 bg-white/5 p-4">
           <h3 className="text-sm font-semibold text-white">
-            Who goes where · {number === 4 ? 'fourth stop' : 'second stop'}
+            Who goes where · {number === 5 ? 'fifth stop' : number === 4 ? 'fourth stop' : 'second stop'}
           </h3>
           <p className="mt-1 text-xs text-white/50">
             Same fan-out as Clue 1: each place gets ~{perStation} teams
-            ({number === 4 ? 'three' : 'one'} station{number === 4 ? 's' : ''} after their first stop).
+            ({number === 5 ? 'four' : number === 4 ? 'three' : 'one'} station
+            {number === 2 ? '' : 's'} after their first stop).
           </p>
           <div className="mt-3 grid gap-2 md:grid-cols-2">
             {arrivalPlan.map((place) => (
@@ -563,34 +557,6 @@ export default function RouteClueEditor({
                     </div>
                   ))}
                 </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {number === 5 && (
-        <section className="rounded-2xl border border-white/15 bg-white/5 p-4">
-          <h3 className="text-sm font-semibold text-white">Who returns where · Final</h3>
-          <p className="mt-1 text-xs text-white/50">
-            After Clue 5 / the one-word Final, teams report back to their own start
-            ({starts.length} active). Mark them on Live → Finish desk.
-          </p>
-          <div className="mt-3 grid gap-2 md:grid-cols-2">
-            {returnPlan.map((place) => (
-              <div
-                key={place.code}
-                className="rounded-xl border border-white/10 bg-black/20 px-3 py-3"
-              >
-                <div className="flex items-baseline justify-between gap-2">
-                  <p className="font-semibold text-white">{place.name}</p>
-                  <p className="text-xs font-semibold text-[#0ECCEE]">
-                    {place.word} · {place.teamCount} teams
-                  </p>
-                </div>
-                <p className="mt-2 text-[11px] text-white/45">
-                  Teams {place.arrivals.map((a) => a.teamNumber).join(', ')}
-                </p>
               </div>
             ))}
           </div>
@@ -650,7 +616,7 @@ export default function RouteClueEditor({
               {starts[selectedWait]?.name || CAMPUS_STARTS[selectedWait]?.name || pathLabel(selectedRoute, starts)}
             </span>
             {' '}— {number === 4 ? 'fourth' : 'second'} stops
-            {number === 4 ? ' · prop codes' : ''}:
+            {number === 4 ? ' · GRID codes' : ''}:
           </p>
           <div className="space-y-1">
             {startTeamRows.map((row) => {
@@ -702,20 +668,20 @@ export default function RouteClueEditor({
             ) : number === 4 ? (
               <>
                 <p className="font-semibold text-[#0ECCEE]">
-                  {pathLabel(selectedRoute, starts)} · crazy prop hunt → {takesTo}
+                  {pathLabel(selectedRoute, starts)} · Field Terminal → {takesTo}
                 </p>
                 <p className="mt-1 text-[11px] text-white/60">
-                  Timed prop code for Teams {globalTeamNumber(selectedWait, 1, perWait)}–
+                  Timed GRID code for Teams {globalTeamNumber(selectedWait, 1, perWait)}–
                   {globalTeamNumber(selectedWait, perWait, perWait)}. Then purple FOURTH SCAN.
                 </p>
               </>
             ) : number === 5 ? (
               <>
                 <p className="font-semibold text-[#0ECCEE]">
-                  {pathLabel(selectedRoute, starts)} · Final word {clue5Word} → return {takesTo}
+                  {pathLabel(selectedRoute, starts)} · Clue 5 word {clue5Word} → red scan {takesTo}
                 </p>
                 <p className="mt-1 text-[11px] text-white/60">
-                  {people} code fragments (one per teammate). After the word, teams report to this start.
+                  {people} code fragments (one per teammate). After the word → red FIFTH SCAN → Clue 6 → Finale Assembly.
                 </p>
               </>
             ) : (
@@ -740,7 +706,7 @@ export default function RouteClueEditor({
                 className={`mt-1 min-h-24 ${inputClass}`}
                 placeholder={
                   number === 4
-                    ? 'CRAZY PROP HUNT — find the planted prop code…'
+                    ? 'FIELD TERMINAL — type GRID-XXXX…'
                     : `Clue that leads toward ${takesTo}`
                 }
               />
@@ -785,7 +751,7 @@ export default function RouteClueEditor({
           )}
           {number === 4 && (
             <p className="text-[11px] text-white/45">
-              Set each team&apos;s prop sticker code in the board above (e.g. WOOF, NEON).
+              Set each team&apos;s GRID-XXXX code in the board above (e.g. GRID-A7K2).
             </p>
           )}
           <label className="block text-xs text-white/55">
@@ -800,8 +766,8 @@ export default function RouteClueEditor({
                 number === 4
                   ? `Stay at your fourth stop. Find the shared purple FOURTH SCAN QR.`
                   : number === 5
-                    ? `Report to your start — ${takesTo}. Ask the organizer to mark your team reached.`
-                    : `Go to ${takesTo}. All ${people} members scan there.`
+                    ? `Word solved — go to your 5th stop. Find the shared red FIFTH SCAN QR.`
+                    : `Go to ${takesTo}. Leader scans once there.`
               }
               className={`mt-1 ${inputClass}`}
             />
@@ -873,9 +839,9 @@ export default function RouteClueEditor({
             {busy
               ? 'Saving…'
               : number === 4
-                ? `Save · ${pathLabel(selectedRoute, starts)} prop hunt (${teamSlots.length} teams)`
+                ? `Save · ${pathLabel(selectedRoute, starts)} Field Terminal (${teamSlots.length} teams)`
                 : number === 5
-                  ? `Save · ${clue5Word} → return ${takesTo}`
+                  ? `Save · ${clue5Word} → red ${takesTo}`
                   : `Save · → ${takesTo}`}
           </button>
         </form>

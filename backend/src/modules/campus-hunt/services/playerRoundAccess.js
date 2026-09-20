@@ -1,9 +1,8 @@
 /**
- * Player-facing Round 1 / Survival / Finals access.
- * Event flags = overall open/locked. Team locks override to force lock.
+ * Player hub — single game only (no Survival / Finals).
  */
 
-const ROUND_IDS = ['round1', 'survival', 'finale'];
+const ROUND_IDS = ['round1'];
 
 const DEFAULT_ACCESS = {
   round1: true,
@@ -11,12 +10,11 @@ const DEFAULT_ACCESS = {
   finale: false,
 };
 
-function normalizeAccess(raw) {
-  const src = raw && typeof raw === 'object' ? raw : {};
+function normalizeAccess(_raw) {
   return {
-    round1: src.round1 !== false,
-    survival: src.survival === true,
-    finale: src.finale === true,
+    round1: true,
+    survival: false,
+    finale: false,
   };
 }
 
@@ -30,73 +28,36 @@ function normalizeTeamLocks(raw) {
 }
 
 /**
- * Build hub cards for a player after login.
+ * Build hub cards for a player after login — one hunt card only.
  */
 function buildPlayerRoundsHub({
   event,
   team,
   round1Status = null,
-  finaleStatus = null,
-  hasFinaleEntry = false,
 }) {
   const access = normalizeAccess(event?.playerRoundAccess);
   const teamLocks = normalizeTeamLocks(team?.playerRoundLocks);
-  const phase = team?.competitionPhase || 'round1';
-  const finaleEligible = phase === 'finale' || Boolean(hasFinaleEntry || team?.finaleEntryId);
-
   const round1Live = String(round1Status || '').toLowerCase() === 'live';
+  const huntName = String(event?.roundPlan?.round1Name || event?.name || 'Campus Hunt').trim()
+    || 'Campus Hunt';
+
   const cards = [
     {
       id: 'round1',
-      label: 'Round 1',
-      subtitle: 'Campus Hunt',
-      detail: 'Clues, checkpoints, campus scan.',
+      label: 'The Hunt',
+      subtitle: huntName,
+      detail: 'Clues, checkpoints, finish at the lobby. One phone (leader).',
       globallyOpen: access.round1,
       teamLocked: Boolean(teamLocks.round1),
       eligible: true,
       open: access.round1 && !teamLocks.round1 && round1Live,
       statusHint: String(round1Status || '').toLowerCase() || null,
       lockedReason: !access.round1
-        ? 'Organizers have locked Round 1'
+        ? 'Organizers have locked the hunt'
         : teamLocks.round1
           ? 'Locked for your team'
           : !round1Live
-            ? 'Round 1 is not live yet — wait for organizers to start'
-            : null,
-    },
-    {
-      id: 'survival',
-      label: 'Survival',
-      subtitle: 'Round 2',
-      detail: 'Top teams after Round 1.',
-      globallyOpen: access.survival,
-      teamLocked: Boolean(teamLocks.survival),
-      eligible: true,
-      open: access.survival && !teamLocks.survival,
-      statusHint: null,
-      lockedReason: !access.survival
-        ? 'Survival is locked — wait for organizers'
-        : teamLocks.survival
-          ? 'Locked for your team'
-          : null,
-      comingSoon: true,
-    },
-    {
-      id: 'finale',
-      label: 'Finals',
-      subtitle: 'Final round',
-      detail: '12 teams · four missions.',
-      globallyOpen: access.finale,
-      teamLocked: Boolean(teamLocks.finale),
-      eligible: finaleEligible,
-      open: access.finale && !teamLocks.finale && finaleEligible,
-      statusHint: String(finaleStatus || '').toLowerCase() || null,
-      lockedReason: !finaleEligible
-        ? 'Your team is not in the Finals yet'
-        : !access.finale
-          ? 'Finals are locked — wait for organizers'
-          : teamLocks.finale
-            ? 'Locked for your team'
+            ? 'Not live yet — wait for organizers to start'
             : null,
     },
   ];
@@ -112,21 +73,17 @@ async function loadPlayerHubState(eventId, team) {
   const CampusHuntEvent = require('../models/CampusHuntEvent');
   const CampusHuntRound = require('../models/CampusHuntRound');
   const event = await CampusHuntEvent.findById(eventId)
-    .select('slug name college playerRoundAccess teamSize teamCapacity finaleCapacity')
+    .select('slug name college playerRoundAccess teamSize teamCapacity finaleCapacity roundPlan')
     .lean();
   const rounds = await CampusHuntRound.find({ eventId })
     .select('name roundNumber status')
     .lean();
   const round1Doc = rounds.find((r) => Number(r.roundNumber) === 1)
     || rounds.find((r) => /hunt|round\s*1/i.test(String(r.name || '')));
-  const finaleRound = rounds.find((r) => /finale/i.test(String(r.name || '')))
-    || rounds.find((r) => Number(r.roundNumber) >= 4);
   const hub = buildPlayerRoundsHub({
     event,
     team,
     round1Status: round1Doc?.status,
-    finaleStatus: finaleRound?.status,
-    hasFinaleEntry: Boolean(team?.finaleEntryId),
   });
   return { event, hub };
 }
@@ -138,14 +95,20 @@ function publicEventView(event, access) {
     slug: event.slug,
     name: event.name,
     college: event.college,
-    teamSize: Math.max(2, Math.min(8, Number(event.teamSize) || 4)),
-    teamCapacity: Math.max(2, Math.min(200, Number(event.teamCapacity) || 40)),
-    finaleCapacity: Math.max(1, Math.min(200, Number(event.finaleCapacity) || 12)),
-    playerRoundAccess: access || event.playerRoundAccess || DEFAULT_ACCESS,
+    teamSize: Math.max(2, Math.min(12, Number(event.teamSize) || 4)),
+    teamCapacity: Math.max(2, Math.min(200, Number(event.teamCapacity) || 20)),
+    finaleCapacity: 0,
+    playerRoundAccess: access || DEFAULT_ACCESS,
   };
 }
 
 function assertRoundPlayable(hub, roundId) {
+  if (roundId !== 'round1') {
+    const err = new Error('This event is a single game — only the hunt is available');
+    err.status = 403;
+    err.code = 'SINGLE_GAME_ONLY';
+    throw err;
+  }
   const card = (hub.cards || []).find((c) => c.id === roundId);
   if (!card) {
     const err = new Error('Unknown round');
@@ -154,15 +117,9 @@ function assertRoundPlayable(hub, roundId) {
     throw err;
   }
   if (!card.open) {
-    const err = new Error(card.lockedReason || 'This round is locked');
+    const err = new Error(card.lockedReason || 'The hunt is locked');
     err.status = 403;
     err.code = 'ROUND_LOCKED';
-    throw err;
-  }
-  if (card.comingSoon) {
-    const err = new Error('Survival stage is not open for play yet');
-    err.status = 403;
-    err.code = 'ROUND_COMING_SOON';
     throw err;
   }
   return card;

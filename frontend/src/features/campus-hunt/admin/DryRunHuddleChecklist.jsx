@@ -17,8 +17,9 @@ const T = STAGE_THEMES;
 const QR_COLS = [
   { key: 'orange', theme: T.clue1, when: 'After Clue 1 solved', unlocks: 'Clue 2' },
   { key: 'green', theme: T.clue2, when: 'After Clue 2 solved', unlocks: 'Clue 3' },
-  { key: 'blue', theme: T.clue3, when: 'After Clue 3 solved', unlocks: 'Prop hunt (Clue 4)' },
-  { key: 'purple', theme: T.clue4, when: 'After prop code typed', unlocks: 'Final (Clue 5)' },
+  { key: 'blue', theme: T.clue3, when: 'After Clue 3 (Lockbox) solved', unlocks: 'Field Terminal (Clue 4)' },
+  { key: 'purple', theme: T.clue4, when: 'After prop code typed', unlocks: 'Clue 5 word' },
+  { key: 'red', theme: T.final, when: 'After Clue 5 word', unlocks: 'Clue 6 destination' },
 ];
 
 function CheckRow({ children, id, accent }) {
@@ -305,7 +306,7 @@ function LocationWriteHereBox({ codesHere, propsHere, plantFragments = [], joine
           style={{ borderColor: `${T.clue4.hex}55`, background: `${T.clue4.hex}14` }}
         >
           <p className="text-[10px] font-bold print:text-[9px]" style={{ color: T.clue4.hex }}>
-            Optional · PURPLE prop sticker (if using prop hunt)
+            Optional · PURPLE terminal / GRID sticker (if using Field Terminal)
           </p>
           <ul className="mt-1.5 space-y-1">
             {propsHere.map((p) => (
@@ -367,7 +368,7 @@ function LocationPlantCard({
             </span>
           </h4>
           <p className="mt-0.5 text-[10px] text-white/45 print:text-[8px] print:text-black/50">
-            Walk this spot · tape 4 QR colors · plant shared written fragments
+            Walk this spot · tape 5 QR colors · plant shared written fragments
           </p>
         </div>
         <label className="huddle-check flex items-center gap-1.5 text-[10px] font-semibold print:text-[9px]">
@@ -415,11 +416,11 @@ function LocationPlantCard({
                   />
                   <span className="mt-1 block text-white/80 print:text-black/80">
                     {col.key === 'purple'
-                      ? `After prop CODE typed on phone · then all ${people} scan + team code → Final`
+                      ? 'After prop CODE typed on phone · leader scans once + team code → Clue 5'
                       : col.key === 'green'
-                        ? `Hide each team’s 3-digit mark near this green QR · leader finds code · then all ${people} scan`
+                        ? 'Hide each team’s 3-digit mark near this green QR · leader finds code · scans once'
                       : col.key === 'blue'
-                        ? `No 3-digit mark here · teams solve Clue 3 riddle on phone · then all ${people} scan + team code`
+                        ? 'No 3-digit mark here · teams solve Lockbox on phone · leader scans once + team code'
                       : `After ${col.when.toLowerCase().replace(/^after /, '')} · unlocks ${col.unlocks}`}
                   </span>
                   {teams.length > 0 ? (
@@ -461,7 +462,7 @@ function LocationPlantCard({
       </ul>
 
       <div className="mb-1.5 rounded border border-purple-400/25 bg-purple-500/10 px-2 py-1.5 text-[10px] leading-snug text-purple-100 print:border-purple-800 print:bg-purple-50 print:text-[8.5px] print:text-purple-950">
-        <strong>Step 2 — Plant props (Clue 4)</strong>
+        <strong>Step 2 — Plant Field Terminal cards (Clue 4)</strong>
         {' '}
         Hide silly objects with sticker words · place within arm’s reach of
         {' '}
@@ -544,7 +545,7 @@ export default function DryRunHuddleChecklist({
     [stations],
   );
   const starts = useMemo(() => resolveStarts(campusStarts), [campusStarts]);
-  const people = Math.max(2, Math.min(8, Number(teamSize) || 3));
+  const people = Math.max(2, Math.min(12, Number(teamSize) || 3));
 
   const [loading, setLoading] = useState(Boolean(eventId));
   const [error, setError] = useState('');
@@ -576,15 +577,16 @@ export default function DryRunHuddleChecklist({
         .map((c) => [String(c.id || c._id), c]),
     );
     const layoutTeams = teams
-      .filter((t) => /^CC00[1-8]$/i.test(String(t.teamCode || '')))
+      .filter((t) => /^CC\d+$/i.test(String(t.teamCode || '')))
       .sort((a, b) => String(a.teamCode).localeCompare(String(b.teamCode)));
-    const source = layoutTeams.length ? layoutTeams : teams.slice(0, 12);
+    const source = layoutTeams.length ? layoutTeams.slice(0, 20) : teams.slice(0, 20);
 
     return source.map((t) => {
       const prop = clue4ById.get(String(t.clue4ChallengeId || ''));
       const clue2 = clue2ById.get(String(t.clue2ChallengeId || ''));
       const purple = placeLabel(cpById.get(String(t.fourthCheckpointId || '')));
       const purpleCode = placeKey(purple);
+      const red = placeLabel(cpById.get(String(t.fifthCheckpointId || '')));
       return {
         teamCode: t.teamCode,
         teamNumber: teamNumberFromCode(t.teamCode),
@@ -592,6 +594,7 @@ export default function DryRunHuddleChecklist({
         green: placeLabel(cpById.get(String(t.secondCheckpointId || ''))),
         blue: placeLabel(cpById.get(String(t.thirdCheckpointId || ''))),
         purple,
+        red,
         purpleOutOfLayout: Boolean(purpleCode && !activeStationCodes.has(purpleCode)),
         clue2Code: String(clue2?.answer || '').trim() || '—',
         propCode: String(prop?.answer || '').toUpperCase() || '—',
@@ -621,6 +624,7 @@ export default function DryRunHuddleChecklist({
         green: false,
         blue: false,
         purple: false,
+        red: false,
       });
     }
     for (const c of checkpoints) {
@@ -633,6 +637,7 @@ export default function DryRunHuddleChecklist({
       if (prog === '2') row.green = true;
       if (prog === '3') row.blue = true;
       if (prog === '4') row.purple = true;
+      if (prog === '5') row.red = true;
     }
 
     return { rows, qrRows: [...byStation.values()] };
@@ -687,7 +692,7 @@ export default function DryRunHuddleChecklist({
       setExportWarnings(warnings);
       setExportMessage(
         data.teamCount
-          ? `Ready: ${data.teamCount} team install link${data.teamCount === 1 ? '' : 's'}. WhatsApp each link to that team. They open it once on Wi‑Fi, then airplane mode at the fest.`
+          ? `Ready: ${data.teamCount} team pack${data.teamCount === 1 ? '' : 's'}. WhatsApp each leader — install Hunt on their phone on Wi‑Fi before start so offline works at the fest.`
           : 'No complete team packs — finish Round 1 bindings and team passwords first.',
       );
     } catch (err) {
@@ -770,6 +775,7 @@ export default function DryRunHuddleChecklist({
         green: false,
         blue: false,
         purple: false,
+        red: false,
       }));
 
     return base.map((row) => {
@@ -805,7 +811,7 @@ export default function DryRunHuddleChecklist({
   }, [qrByPlace, stations, propRows]);
 
   const posterCount = placeRows.reduce(
-    (sum, row) => sum + [row.orange, row.green, row.blue, row.purple].filter(Boolean).length,
+    (sum, row) => sum + [row.orange, row.green, row.blue, row.purple, row.red].filter(Boolean).length,
     0,
   );
   const stalePurpleCount = propRows.filter((row) => row.purpleOutOfLayout).length;
@@ -825,7 +831,7 @@ export default function DryRunHuddleChecklist({
             {' '}
             <strong>{stations.length} place QR posters</strong>
             {' '}
-            (one shared QR per stop — not per team, not 4 colors) + plant
+            (5 shared stage QRs per place — orange→red, not per team) + plant
             {' '}
             <strong>{teamSize || 4} written clue fragments per stop</strong>
             {' '}
@@ -865,7 +871,7 @@ export default function DryRunHuddleChecklist({
           <strong className="text-white">How teams play (no laptop at venue):</strong>
           {' '}
           Click <strong>Create team install links</strong> → or use the <strong>Send links</strong> tab.
-          WhatsApp each team one link. Leader opens once on Wi‑Fi. Play: find written clues → join word → type → scan once.
+          WhatsApp each team leader one pack link. They install Hunt on their phone on Wi‑Fi before start (~9–10 members walk with that one phone). Play: find written clues → join word → type → scan once.
         </p>
         <OfflineInstallCards installs={installs} />
         <label className="mt-2 flex cursor-pointer items-center gap-2 text-[11px] text-white/60">
@@ -945,7 +951,7 @@ export default function DryRunHuddleChecklist({
               {' '}
               {stations.map((s) => `${s.code} ${s.name}`).join(' · ') || '—'}
               .
-              Print ~{posterCount || (loading ? '…' : 0)} posters from Station QR (orange + green + blue + purple).
+              Print ~{posterCount || (loading ? '…' : 0)} posters from Station QR (orange + green + blue + purple + red).
             </p>
             <ol className="list-decimal space-y-1.5 pl-4 print:space-y-1">
               <li>
@@ -983,9 +989,9 @@ export default function DryRunHuddleChecklist({
               <li>
                 Solve
                 {' '}
-                <ColorChip theme={T.final} short="Final" />
+                <ColorChip theme={T.final} short="Clue 5" />
                 {' '}
-                on phone → return to START → organizer marks finish.
+                → red FIFTH SCAN → Clue 6 → Finale Assembly (organizer marks finish).
                 {' '}
                 <strong>No player finish QR.</strong>
               </li>
@@ -999,7 +1005,7 @@ export default function DryRunHuddleChecklist({
 
           <div className="mt-2 huddle-prep-grid grid gap-x-4 md:grid-cols-2">
             <CheckRow id="m1" accent="#0ECCEE">
-              Printed {stations.length} place QR posters (1 shared QR per campus stop)
+              Printed stage QR posters for {stations.length} places × 5 colors (orange→red)
             </CheckRow>
             <CheckRow id="m1b" accent="#0ECCEE">
               Planted {people} shared fragments + joined word at each stop (Clues tab)
@@ -1328,7 +1334,7 @@ export default function DryRunHuddleChecklist({
             </tbody>
           </table>
           <p className="mt-2 text-[10px] text-white/45 print:mt-1.5 print:text-[8px] print:text-black/50">
-            After Final word → back to START → desk marks finish. Desk: keep play screens open · paste codes only if camera fails · if stuck, check poster COLOR vs phone stage.
+            After Clue 5 word → red FIFTH SCAN → Clue 6 → Finale Assembly (desk marks finish). Desk: keep play screens open · paste codes only if camera fails · if stuck, check poster COLOR vs phone stage.
           </p>
         </section>
       </div>

@@ -90,8 +90,13 @@ async function createEvent(req, res, next) {
       qualifyFromRound2: plan.qualifyFromRound2,
       qualifyFromRound3: plan.qualifyFromRound3,
     };
-    payload.finaleCapacity = plan.finaleCapacity || payload.finaleCapacity || 12;
-    payload.finaleDirectFromR1 = plan.qualifyFromRound1;
+    payload.finaleCapacity = 0;
+    payload.finaleDirectFromR1 = 0;
+    payload.playerRoundAccess = {
+      round1: true,
+      survival: false,
+      finale: false,
+    };
     const event = await CampusHuntEvent.create(payload);
     const round = await CampusHuntRound.create({
       eventId: event._id,
@@ -138,6 +143,8 @@ async function updateEvent(req, res, next) {
       'startCount',
       'stationCount',
       'campusStarts',
+      'destinationName',
+      'organizerFinishCode',
       'startingScore',
       'featureNotes',
       'scoringConfig',
@@ -149,8 +156,13 @@ async function updateEvent(req, res, next) {
     for (const key of fields) {
       if (req.body[key] !== undefined) allowed[key] = req.body[key];
     }
-    if (allowed.publicLeaderboardLive !== undefined) {
-      allowed.publicLeaderboardLive = allowed.publicLeaderboardLive === true;
+    if (allowed.organizerFinishCode !== undefined) {
+      allowed.organizerFinishCode = String(allowed.organizerFinishCode || '')
+        .trim()
+        .toUpperCase() || 'MSFINISH';
+    }
+    if (allowed.destinationName !== undefined) {
+      allowed.destinationName = String(allowed.destinationName || '').trim() || 'Mindspark Lobby';
     }
     if (allowed.publicLoginLive !== undefined) {
       allowed.publicLoginLive = allowed.publicLoginLive === true;
@@ -198,8 +210,13 @@ async function updateEvent(req, res, next) {
         qualifyFromRound2: plan.qualifyFromRound2,
         qualifyFromRound3: plan.qualifyFromRound3,
       };
-      allowed.finaleCapacity = format.finaleTeams || plan.finaleCapacity;
-      allowed.finaleDirectFromR1 = format.directFromR1;
+      allowed.finaleCapacity = 0;
+      allowed.finaleDirectFromR1 = 0;
+      allowed.playerRoundAccess = {
+        round1: true,
+        survival: false,
+        finale: false,
+      };
       syncQualification = format.qualification;
     }
     const event = await CampusHuntEvent.findByIdAndUpdate(
@@ -287,7 +304,7 @@ async function getEventOverview(req, res, next) {
     const [rounds, teams, issues, checkpoints, routes, challenges, volunteers, startingPoints] = await Promise.all([
       CampusHuntRound.find({ eventId }),
       CampusHuntTeam.find({ eventId })
-        .select('status currentStage currentScore finishedAt routeId startingPointId scheduledStartAt clue1ChallengeId firstCheckpointId clue2ChallengeId secondCheckpointId clue3ChallengeId thirdCheckpointId clue4ChallengeId fourthCheckpointId leaderUserId memberUserIds accessPack'),
+        .select('status currentStage currentScore finishedAt routeId startingPointId scheduledStartAt clue1ChallengeId firstCheckpointId clue2ChallengeId secondCheckpointId clue3ChallengeId thirdCheckpointId clue4ChallengeId fourthCheckpointId clue5ChallengeId fifthCheckpointId clue6ChallengeId leaderUserId memberUserIds accessPack'),
       CampusHuntIssueReport.countDocuments({ eventId, status: 'open' }),
       CampusHuntCheckpoint.find({ eventId }).select('checkpointKey progressionKey active locationName routeId'),
       CampusHuntRoute.find({ eventId }).select('routeKey name teamSlots active'),
@@ -315,6 +332,16 @@ async function getEventOverview(req, res, next) {
         String(checkpoint.routeId) === routeId
         && /Route\s+[A-Z0-9]+\s+(Checkpoint|Finish Zone)/i.test(checkpoint.locationName || '')
       )).length;
+      const progressionStages = new Set(
+        [...checkpointKeys].map((key) => {
+          const text = String(key || '').trim().toUpperCase();
+          if (/^[1-5]$/.test(text)) return text;
+          const match = text.match(/^([1-5])[-_]/);
+          return match ? match[1] : text;
+        }),
+      );
+      const hasPathClues = [1, 2, 3, 4, 5, 6].every((n) => challengeNumbers.has(n));
+      const hasPathStops = ['1', '2', '3', '4', '5'].every((k) => progressionStages.has(k));
       return {
         id: routeId,
         routeKey: route.routeKey,
@@ -326,8 +353,8 @@ async function getEventOverview(req, res, next) {
         checkpointsConfigured: checkpointKeys.size,
         placeholderLocations,
         ready: route.active
-          && challengeNumbers.size >= 5
-          && checkpointKeys.size >= 5
+          && hasPathClues
+          && hasPathStops
           && placeholderLocations === 0,
       };
     });
@@ -356,6 +383,9 @@ async function getEventOverview(req, res, next) {
       && team.thirdCheckpointId
       && team.clue4ChallengeId
       && team.fourthCheckpointId
+      && team.clue5ChallengeId
+      && team.fifthCheckpointId
+      && team.clue6ChallengeId
     )).length;
     // Player scan is primary — volunteers are optional ops help, not a go-live gate.
     const startingPointsReady = startingPoints.filter((p) => p.active !== false).length
@@ -1177,7 +1207,7 @@ async function manualReleaseTeam(req, res, next) {
   }
 }
 
-/** After Final (Clue 5): organizer marks team reached at their start → score locked. */
+/** After Clue 6: organizer marks team reached at Finale Assembly → score locked. */
 async function markTeamStartReached(req, res, next) {
   try {
     const { markTeamReachedAtStart } = require('../services/finishService');
@@ -1201,7 +1231,7 @@ async function getStartDashboard(req, res, next) {
     if (round?.status === 'live') {
       await releaseDueTeams({ eventId: round.eventId, roundId: round._id });
     }
-    const [points, teams, checkpoints] = await Promise.all([
+    const [points, teams, checkpoints, eventDoc] = await Promise.all([
       CampusHuntStartingPoint.find({ eventId: req.params.eventId }).sort({ displayOrder: 1 }),
       CampusHuntTeam.find({ eventId: req.params.eventId })
         .populate('routeId', 'routeKey name')
@@ -1209,6 +1239,9 @@ async function getStartDashboard(req, res, next) {
         .populate('clue1ChallengeId', 'variantKey')
         .sort({ scheduledStartAt: 1, teamCode: 1 }),
       CampusHuntCheckpointVerification.find({ eventId: req.params.eventId }),
+      CampusHuntEvent.findById(req.params.eventId)
+        .select('destinationName organizerFinishCode teamCapacity startCount teamSize')
+        .lean(),
     ]);
     const cp1Done = new Set(
       checkpoints
@@ -1238,7 +1271,7 @@ async function getStartDashboard(req, res, next) {
       const assigned = rows.filter((team) => String(team.startingPoint?._id) === String(point._id));
       const count = (status) => assigned.filter((team) => team.startStatus === status).length;
       const returning = assigned.filter((team) => (
-        ['CLUE_5_COMPLETED', 'CLUE_5_FAILED'].includes(team.currentStage)
+        ['CLUE_6_COMPLETED', 'CLUE_6_FAILED'].includes(team.currentStage)
       )).length;
       const finishLocked = assigned.filter((team) => (
         ['SCORE_LOCKED', 'FINISH_COMPLETED'].includes(team.currentStage)
@@ -1266,7 +1299,14 @@ async function getStartDashboard(req, res, next) {
     });
     return res.json({
       success: true,
-      data: { round, startingPoints: grouped, teams: rows, serverTime: new Date() },
+      data: {
+        round,
+        startingPoints: grouped,
+        teams: rows,
+        serverTime: new Date(),
+        destinationName: eventDoc?.destinationName || 'Mindspark Lobby',
+        organizerFinishCode: String(eventDoc?.organizerFinishCode || 'MSFINISH').toUpperCase(),
+      },
     });
   } catch (err) {
     return next(err);
@@ -1907,7 +1947,7 @@ async function updateTeam(req, res, next) {
     const eventForSize = await CampusHuntEvent.findById(team.eventId)
       .select('teamSize')
       .lean();
-    const people = Math.max(2, Math.min(8, Number(eventForSize?.teamSize) || 4));
+    const people = Math.max(2, Math.min(12, Number(eventForSize?.teamSize) || 4));
     const scannersNeeded = Math.max(1, people - 1);
 
     if (Array.isArray(req.body.memberNames)) {
@@ -2399,14 +2439,14 @@ async function upsertCheckpoint(req, res, next) {
     }
 
     const normalizedKey = String(checkpointKey).trim().toUpperCase();
-    // Wave keys like 1-T1 / 2-T3 must keep progressionKey as 1|2|3|4|FINISH (not 2-T1).
+    // Wave keys like 1-T1 / 2-T3 must keep progressionKey as 1|2|3|4|5|FINISH (not 2-T1).
     const rawProg = String(progressionKey || '').trim().toUpperCase();
     let normalizedProgression = rawProg;
-    if (!['1', '2', '3', '4', 'FINISH'].includes(normalizedProgression)) {
+    if (!['1', '2', '3', '4', '5', 'FINISH'].includes(normalizedProgression)) {
       if (normalizedKey === 'FINISH' || normalizedKey.startsWith('FINISH')) {
         normalizedProgression = 'FINISH';
       } else {
-        const match = normalizedKey.match(/^([1234])(?:-|$)/);
+        const match = normalizedKey.match(/^([12345])(?:-|$)/);
         normalizedProgression = match ? match[1] : '1';
       }
     }
@@ -2558,8 +2598,8 @@ async function updateCheckpoint(req, res, next) {
  */
 function progressionStage(raw) {
   const text = String(raw || '').trim().toUpperCase();
-  if (/^[1-4]$/.test(text)) return text;
-  const fromKey = text.match(/^([1-4])[-_]/);
+  if (/^[1-5]$/.test(text)) return text;
+  const fromKey = text.match(/^([1-5])[-_]/);
   return fromKey ? fromKey[1] : text;
 }
 
@@ -2671,9 +2711,10 @@ async function listStationQr(req, res, next) {
           { secondCheckpointId: { $exists: true, $ne: null } },
           { thirdCheckpointId: { $exists: true, $ne: null } },
           { fourthCheckpointId: { $exists: true, $ne: null } },
+          { fifthCheckpointId: { $exists: true, $ne: null } },
         ],
       })
-        .select('teamCode teamName firstCheckpointId secondCheckpointId thirdCheckpointId fourthCheckpointId startingPointId routeId')
+        .select('teamCode teamName firstCheckpointId secondCheckpointId thirdCheckpointId fourthCheckpointId fifthCheckpointId startingPointId routeId')
         .lean(),
     ]);
     const routeById = new Map(routes.map((r) => [String(r._id), r]));
@@ -2682,6 +2723,7 @@ async function listStationQr(req, res, next) {
     const teamsBySecondCheckpoint = new Map();
     const teamsByThirdCheckpoint = new Map();
     const teamsByFourthCheckpoint = new Map();
+    const teamsByFifthCheckpoint = new Map();
     for (const team of assignedTeams) {
       if (team.firstCheckpointId) {
         const key = String(team.firstCheckpointId);
@@ -2702,6 +2744,11 @@ async function listStationQr(req, res, next) {
         const key = String(team.fourthCheckpointId);
         if (!teamsByFourthCheckpoint.has(key)) teamsByFourthCheckpoint.set(key, []);
         teamsByFourthCheckpoint.get(key).push(team);
+      }
+      if (team.fifthCheckpointId) {
+        const key = String(team.fifthCheckpointId);
+        if (!teamsByFifthCheckpoint.has(key)) teamsByFifthCheckpoint.set(key, []);
+        teamsByFifthCheckpoint.get(key).push(team);
       }
     }
 
@@ -2727,13 +2774,15 @@ async function listStationQr(req, res, next) {
         .filter(Boolean)
         .map(teamPosterLabel);
       const fromAssignment = (
-        prog === '4'
-          ? (teamsByFourthCheckpoint.get(String(c._id)) || [])
-          : prog === '3'
-            ? (teamsByThirdCheckpoint.get(String(c._id)) || [])
-            : prog === '2'
-              ? (teamsBySecondCheckpoint.get(String(c._id)) || [])
-              : (teamsByFirstCheckpoint.get(String(c._id)) || [])
+        prog === '5'
+          ? (teamsByFifthCheckpoint.get(String(c._id)) || [])
+          : prog === '4'
+            ? (teamsByFourthCheckpoint.get(String(c._id)) || [])
+            : prog === '3'
+              ? (teamsByThirdCheckpoint.get(String(c._id)) || [])
+              : prog === '2'
+                ? (teamsBySecondCheckpoint.get(String(c._id)) || [])
+                : (teamsByFirstCheckpoint.get(String(c._id)) || [])
       ).map(teamPosterLabel);
       // Prefer allow-list; fall back to teams whose checkpointId points here
       const seen = new Set();
@@ -2806,20 +2855,30 @@ async function listStationQr(req, res, next) {
       progressionKey: '4',
       targetPosters: TARGET_POSTERS,
     });
+    const fifth = buildSharedPrintPacks({
+      stations,
+      huntStations,
+      waitNameSet,
+      progressionKey: '5',
+      targetPosters: TARGET_POSTERS,
+    });
 
     const firstStopPrintPacks = first.printPacks;
     const secondStopPrintPacks = second.printPacks;
     const thirdStopPrintPacks = third.printPacks;
     const fourthStopPrintPacks = fourth.printPacks;
+    const fifthStopPrintPacks = fifth.printPacks;
     const skippedUnwanted = first.skipped;
     const skippedSecond = second.skipped;
     const skippedThird = third.skipped;
     const skippedFourth = fourth.skipped;
+    const skippedFifth = fifth.skipped;
 
     const totalPosters = firstStopPrintPacks.reduce((sum, pack) => sum + pack.posterCount, 0);
     const totalSecondPosters = secondStopPrintPacks.reduce((sum, pack) => sum + pack.posterCount, 0);
     const totalThirdPosters = thirdStopPrintPacks.reduce((sum, pack) => sum + pack.posterCount, 0);
     const totalFourthPosters = fourthStopPrintPacks.reduce((sum, pack) => sum + pack.posterCount, 0);
+    const totalFifthPosters = fifthStopPrintPacks.reduce((sum, pack) => sum + pack.posterCount, 0);
 
     return res.json({
       success: true,
@@ -2829,6 +2888,7 @@ async function listStationQr(req, res, next) {
         secondStopPrintPacks,
         thirdStopPrintPacks,
         fourthStopPrintPacks,
+        fifthStopPrintPacks,
         campusStations: huntStations,
         printSummary: {
           places: firstStopPrintPacks.length,
@@ -2844,10 +2904,14 @@ async function listStationQr(req, res, next) {
           fourthPlaces: fourthStopPrintPacks.length,
           fourthPosters: totalFourthPosters,
           fourthSkipped: skippedFourth,
+          fifthPlaces: fifthStopPrintPacks.length,
+          fifthPosters: totalFifthPosters,
+          fifthSkipped: skippedFifth,
         },
         hint:
-          'Clue 1: orange shared QRs. Clue 2: green. Clue 3: blue. '
-          + 'Clue 4: purple. After full roster scans, teams enter their team code.',
+          'Clue 1: orange · Clue 2: green · Clue 3: blue · Clue 4: purple · Clue 5: red (FIFTH SCAN). '
+          + 'Each campus place gets 5 shared stage QRs (not per team). After scans, enter team code. '
+          + 'Clue 6 → Finale Assembly.',
       },
     });
   } catch (err) {
@@ -3156,25 +3220,25 @@ async function manualVerifyCheckpoint(req, res, next) {
 }
 
 /**
- * Playtest helper: force team onto the scan stage for orange/green/blue/purple, then complete full roster scan.
- * scan: '1' | '2' | '3' | '4' | 'all'
+ * Playtest helper: force team onto the scan stage for orange/green/blue/purple/red, then complete full roster scan.
+ * scan: '1' | '2' | '3' | '4' | '5' | 'all'
  */
 async function playtestCompleteScan(req, res, next) {
   try {
     const scanRaw = String(req.body.scan || '').trim().toLowerCase();
-    const scans = scanRaw === 'all' ? ['1', '2', '3', '4'] : [scanRaw];
-    if (!scans.every((s) => ['1', '2', '3', '4'].includes(s))) {
+    const scans = scanRaw === 'all' ? ['1', '2', '3', '4', '5'] : [scanRaw];
+    if (!scans.every((s) => ['1', '2', '3', '4', '5'].includes(s))) {
       return res.status(400).json({
         success: false,
-        message: 'scan must be 1 (orange), 2 (green), 3 (blue), 4 (purple), or all',
+        message: 'scan must be 1 (orange), 2 (green), 3 (blue), 4 (purple), 5 (red), or all',
       });
     }
 
     let team = await CampusHuntTeam.findById(req.params.teamId);
     if (!team) return res.status(404).json({ success: false, message: 'Team not found' });
 
-    const event = await CampusHuntEvent.findById(team.eventId).select('teamSize').lean();
-    const people = Math.max(2, Math.min(8, Number(event?.teamSize) || 4));
+    const { CHECKPOINT_SCAN_REQUIRED } = require('../constants');
+    const scanRequired = CHECKPOINT_SCAN_REQUIRED;
 
     const stageForScan = {
       1: 'CLUE_1_COMPLETED',
@@ -3182,14 +3246,16 @@ async function playtestCompleteScan(req, res, next) {
       // Blue only after Clue 3 riddle (green auto-opens Clue 3)
       3: 'CLUE_3_COMPLETED',
       4: 'CLUE_4_COMPLETED',
+      5: 'CLUE_5_COMPLETED',
     };
     const checkpointField = {
       1: 'firstCheckpointId',
       2: 'secondCheckpointId',
       3: 'thirdCheckpointId',
       4: 'fourthCheckpointId',
+      5: 'fifthCheckpointId',
     };
-    const labelFor = { 1: 'Orange', 2: 'Green', 3: 'Blue', 4: 'Purple' };
+    const labelFor = { 1: 'Orange', 2: 'Green', 3: 'Blue', 4: 'Purple', 5: 'Red' };
     const done = [];
 
     for (const scan of scans) {
@@ -3225,15 +3291,15 @@ async function playtestCompleteScan(req, res, next) {
         checkpoint,
         volunteer: { ...adminActor(req), actorType: 'admin' },
         source: 'manual',
-        notes: `Playtest ${people}/${people} ${labelFor[scan]}`,
-        forceMemberIds: team.allMemberIds(),
+        notes: `Playtest leader-only ${labelFor[scan]}`,
+        forceMemberIds: [String(team.leaderUserId)],
       });
       done.push({
         scan,
         label: labelFor[scan],
         teamStage: result.teamStage,
         alreadyProcessed: Boolean(result.alreadyProcessed),
-        requiredCount: people,
+        requiredCount: scanRequired,
       });
       // eslint-disable-next-line no-await-in-loop
       team = await CampusHuntTeam.findById(team._id);
@@ -3776,6 +3842,44 @@ async function startRound(req, res, next) {
     const round = await CampusHuntRound.findById(req.params.roundId);
     if (!round) return res.status(404).json({ success: false, message: 'Round not found' });
     assertCanStart(round.status);
+
+    // One-tap start: auto generate + lock schedule when organizer skipped that step.
+    if (round.scheduleStatus !== 'locked') {
+      try {
+        await generateSchedule({
+          eventId: String(round.eventId),
+          roundId: String(round._id),
+          startsAt: new Date().toISOString(),
+          releaseIntervalMinutes: Number(req.body.releaseIntervalMinutes) > 0
+            ? Number(req.body.releaseIntervalMinutes)
+            : 1,
+          assignmentStrategy: req.body.assignmentStrategy || 'route_balanced',
+          confirm: true,
+          forceResetProgress: false,
+          reason: 'Auto-prepared on Start hunt',
+          actor: adminActor(req),
+        });
+        await lockSchedule({
+          eventId: String(round.eventId),
+          roundId: String(round._id),
+          actor: adminActor(req),
+          reason: 'Auto-locked on Start hunt',
+        });
+        const refreshed = await CampusHuntRound.findById(round._id);
+        if (refreshed) {
+          round.scheduleStatus = refreshed.scheduleStatus;
+          round.startsAt = refreshed.startsAt || round.startsAt;
+        }
+      } catch (prepErr) {
+        return res.status(prepErr.status || 409).json({
+          success: false,
+          message: prepErr.message
+            || 'Could not prepare start schedule — bootstrap clues and teams first',
+          code: prepErr.code || 'SCHEDULE_AUTO_PREP_FAILED',
+        });
+      }
+    }
+
     if (round.scheduleStatus !== 'locked') {
       return res.status(409).json({
         success: false,
@@ -3859,6 +3963,7 @@ async function startRound(req, res, next) {
         activateWaitingOnly,
         readyTeams: ready.modifiedCount,
         immediatelyReleasedTeams: due.released,
+        autoPreparedSchedule: true,
       },
     });
 

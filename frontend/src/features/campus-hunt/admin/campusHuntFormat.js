@@ -1,63 +1,270 @@
 /**
- * Campus Hunt Round 1 format
+ * Campus Hunt Round 1 — simple layout
  *
- * STARTING POINTS (4) — teams gather here, then leave:
- *   Library · Chanakya Porch · Design · Vyas Parking
+ *   20 teams · 20 campus locations · 5 clues · 6th clue → destination
  *
- * CHECKPOINTS (10) — hunt scan places on campus (not the starting points).
- *   One shared QR per place per scan stage. About 4 teams visit each station
- *   (40 ÷ 10) across waves; all scan the same poster, then enter team code.
+ * Each team walks a unique 5-stop path (one location per clue 1–5).
+ * Clue 6 sends every team to the shared destination.
  *
- * Clue 1: first stops are shuffled by starting point so simultaneous releases
- * do not pile into one place (e.g. Library T1 → Food Court,
- * Chanakya T1 → Amphitheatre, Design T1 → Main Gate, …).
+ * One phone per team (leader only): solve clues, scan posters, enter codes.
+ * Teammates walk along — no member phones required.
+ *
+ * Optional starting points (default: 1 gather point) are hold-only.
  */
 
-/** 4 starting points only — never used as hunt destinations by default. */
+/** Shared finale after Clue 6 (Neurosprint 25 final lobby). */
+export const DESTINATION_PLACE = {
+  code: 'DEST',
+  name: 'Mindspark Lobby',
+  description: 'All teams check in here after Clue 6 — above the auditorium.',
+};
+
+/** How many campus stops before the destination clue. */
+export const PATH_STOP_COUNT = 5;
+
+/** Default event size for the simple layout. */
+export const DEFAULT_TEAM_CAPACITY = 20;
+
+/**
+ * 20 COEP hunt places from Neurosprint 25 (last year sheet).
+ * `riddle` → Clue 1 prompt; answer is the station `name`.
+ * `zone` → north / south / common for path balance notes.
+ */
+export const CAMPUS_STATIONS = [
+  {
+    code: 'S01',
+    name: 'Jet Engine',
+    zone: 'north',
+    riddle:
+      'I roar without a voice, I fly without wings,\n'
+      + 'Fuel and thrust are my favorite things.\n'
+      + 'I don’t move now, but once I could soar,\n'
+      + 'Find me to start your hunt and explore.',
+  },
+  {
+    code: 'S05',
+    name: 'Mathematics Department',
+    zone: 'south',
+    riddle:
+      'Where numbers speak and symbols play,\n'
+      + 'Equations guide the learning way.\n'
+      + 'A place of logic, sharp and bright,\n'
+      + 'Your clue is waiting within your sight.',
+  },
+  {
+    code: 'S02',
+    name: 'ENTC Building',
+    zone: 'north',
+    riddle:
+      'Where signals travel and circuits hum,\n'
+      + 'Behind where the parked cars come,\n'
+      + 'Look not at the front, but behind the scene,\n'
+      + 'Your next clue rests where machines convene.',
+  },
+  {
+    code: 'S06',
+    name: 'Metallurgy Garden',
+    zone: 'south',
+    riddle:
+      'Where iron rests and steel is strong,\n'
+      + 'This garden has seen metals all along.\n'
+      + 'Search near the bench where shade is cast,\n'
+      + 'Your next clue waits — don’t walk past.',
+  },
+  {
+    code: 'S03',
+    name: 'Boat Club Canteen',
+    zone: 'north',
+    riddle:
+      'Hungry minds and hungry friends meet,\n'
+      + 'By the waters, where you find a seat.\n'
+      + 'Between snacks and sips so sweet,\n'
+      + 'Search beneath the bench where two paths meet.',
+  },
+  {
+    code: 'S07',
+    name: 'Geology Museum',
+    zone: 'south',
+    riddle:
+      'Stones tell stories from ages ago,\n'
+      + 'Fossils and crystals in quiet rows.\n'
+      + 'Look near the corner where the old rocks stay,\n'
+      + 'Your next clue will guide you on the way.',
+  },
+  {
+    code: 'S04',
+    name: 'Chemistry Labs',
+    zone: 'north',
+    riddle:
+      'Here flames can burn but not to cook,\n'
+      + 'Colored solutions fill every nook.\n'
+      + 'Where reactions bubble, fizz, and play,\n'
+      + 'Find this place of science today.',
+  },
+  {
+    code: 'S09',
+    name: 'Visvesvaraya Statue',
+    zone: 'south',
+    riddle:
+      'A mind of steel, a vision so wide,\n'
+      + 'An engineer’s pride, standing outside.\n'
+      + 'On this very campus, once he did stay,\n'
+      + 'Find the statue that honors his day.',
+  },
+  {
+    code: 'S10',
+    name: 'Bhau Institute',
+    zone: 'north',
+    riddle:
+      'Dreams take flight and ideas ignite,\n'
+      + 'Here, startups are given the light.\n'
+      + 'Built by alumni with vision so true,\n'
+      + 'Find the hub where businesses grew.',
+  },
+  {
+    code: 'S11',
+    name: 'Fountain',
+    zone: 'south',
+    riddle:
+      'I never rest, I never sleep,\n'
+      + 'I bubble and rise, though I am deep.\n'
+      + 'Find me where water likes to play,\n'
+      + 'Your next clue splashes the way.',
+  },
+  {
+    code: 'S14',
+    name: 'ENTC Extension Garden',
+    zone: 'north',
+    riddle:
+      'Where three buildings form a gentle square,\n'
+      + 'A gazebo waits in the open air.\n'
+      + 'A quiet spot where people rest,\n'
+      + 'Your clue is waiting — go find the best.',
+  },
+  {
+    code: 'S12',
+    name: 'Library Pillar',
+    zone: 'south',
+    riddle:
+      'Where knowledge is kept in a silent hall,\n'
+      + 'And students gather to answer learning’s call.\n'
+      + 'Find the first column near the main grand door,\n'
+      + 'A sturdy support that stands before.',
+  },
+  {
+    code: 'S18',
+    name: 'Old CS Building',
+    zone: 'north',
+    riddle:
+      'Where binary language was first understood,\n'
+      + 'The place where the digital foundation stood.\n'
+      + 'A classic old building, its age you can see,\n'
+      + 'Go there to find your next mystery.',
+  },
+  {
+    code: 'S13',
+    name: 'Fab Lab',
+    zone: 'south',
+    riddle:
+      'A workshop of wonders, tools abound,\n'
+      + 'Where dreams take shape and parts are found.\n'
+      + 'If you seek where makers play,\n'
+      + 'Find the lab that builds today.',
+  },
+  {
+    code: 'S15',
+    name: 'Alumni Association',
+    zone: 'south',
+    riddle:
+      'They studied here, they built their way,\n'
+      + 'Their footprints guide us still today.\n'
+      + 'In this place their stories stay,\n'
+      + 'Find the clue where alumni lay.',
+  },
+  {
+    code: 'S19',
+    name: 'NCC',
+    zone: 'north',
+    riddle:
+      'With discipline sharp and uniforms neat,\n'
+      + 'Cadets march proudly with steady feet.\n'
+      + 'If you can match their steps in line,\n'
+      + 'The next clue you’ll surely find.',
+  },
+  {
+    code: 'S16',
+    name: 'Gate No. 2',
+    zone: 'south',
+    riddle:
+      'Not the front, but still a way,\n'
+      + 'Where shortcuts lead you out each day.\n'
+      + 'Look for the clue where exits are few,\n'
+      + 'And find what’s waiting just for you.',
+  },
+  {
+    code: 'S08',
+    name: 'Subway',
+    zone: 'common',
+    riddle:
+      'I run below the ground, yet I’m no train,\n'
+      + 'A secret path through sun or rain.\n'
+      + 'North and South I softly bind,\n'
+      + 'Step inside and see what you find.',
+  },
+  {
+    code: 'S17',
+    name: 'Xerox Center',
+    zone: 'south',
+    riddle:
+      'Pages appear though none are written,\n'
+      + 'A magic box where copies are given.\n'
+      + 'Black and white or colored too,\n'
+      + 'Find this place — it waits for you.',
+  },
+  {
+    code: 'S20',
+    name: 'Civil Department',
+    zone: 'south',
+    riddle:
+      'Strong as stone, and built to last,\n'
+      + 'The oldest branch, a link to the past.\n'
+      + 'From bridges to roads, its wisdom flows,\n'
+      + 'Find where the first foundation grows.',
+  },
+];
+
+export const STATION_TARGET_COUNT = CAMPUS_STATIONS.length; // 20
+/** Ideal: 1 team per location when capacity === station count. */
+export const TARGET_TEAMS_PER_STATION = 1;
+export const TEAMS_PER_WAIT = DEFAULT_TEAM_CAPACITY; // one gather point by default
+export const WAIT_COUNT = 4; // max configurable starts
+
+/** Starting / gather points (hold only). Default event uses the first one. */
 export const WAIT_POINTS = [
   {
     code: 'A',
     name: 'Library',
-    description: 'Starting point — 10 teams hold here until release.',
+    description: 'Gather point — teams wait here until release.',
   },
   {
     code: 'B',
     name: 'Chanakya Porch',
-    description: 'Starting point — 10 teams hold here until release.',
+    description: 'Optional second gather point.',
   },
   {
     code: 'C',
     name: 'Design',
-    description: 'Starting point — 10 teams hold here until release.',
+    description: 'Optional third gather point.',
   },
   {
     code: 'D',
     name: 'Vyas Parking',
-    description: 'Starting point — 10 teams hold here until release.',
+    description: 'Optional fourth gather point.',
   },
 ];
 
-/**
- * Example campus checkpoint stations (admin can rename).
- * Kept separate from starting points so hunt stops are real campus places.
- */
-export const CAMPUS_STATIONS = [
-  { code: 'S01', name: 'Food Court' },
-  { code: 'S02', name: 'Amphitheatre' },
-  { code: 'S03', name: 'Main Gate' },
-  { code: 'S04', name: 'Sports Complex' },
-  { code: 'S05', name: 'Student Centre' },
-  { code: 'S06', name: 'Auditorium' },
-  { code: 'S07', name: 'Cafeteria Lawn' },
-  { code: 'S08', name: 'Innovation Lab' },
-  { code: 'S09', name: 'Quad Fountain' },
-  { code: 'S10', name: 'Admin Block' },
-];
-
-export const STATION_TARGET_COUNT = CAMPUS_STATIONS.length; // 10
-export const TARGET_TEAMS_PER_STATION = 4; // baseline 40 teams ÷ 10 stations
-export const TEAMS_PER_WAIT = 10; // baseline 40 ÷ 4 starts
-export const WAIT_COUNT = WAIT_POINTS.length; // 4
+/** @deprecated alias */
+export const CAMPUS_BUILDINGS = WAIT_POINTS.map((w) => w.name);
 
 function clampCount(value, min, max, fallback) {
   const n = Number(value);
@@ -65,24 +272,24 @@ function clampCount(value, min, max, fallback) {
   return Math.max(min, Math.min(max, Math.round(n)));
 }
 
-/** Suggested layout for a team field size (editable overrides win). */
-export function suggestHuntLayout(teamCapacity = 40) {
-  const capacity = clampCount(teamCapacity, 2, 200, 40);
-  let startCount = 4;
-  if (capacity <= 10) startCount = 1;
-  else if (capacity <= 20) startCount = 2;
-  else if (capacity <= 30) startCount = 3;
-  const stationCount = Math.max(1, Math.min(STATION_TARGET_COUNT, Math.round(capacity / 4) || 1));
+/** Suggested layout: prefer 1 team per place, one gather point for ≤20 teams. */
+export function suggestHuntLayout(teamCapacity = DEFAULT_TEAM_CAPACITY) {
+  const capacity = clampCount(teamCapacity, 2, 200, DEFAULT_TEAM_CAPACITY);
+  const stationCount = Math.max(1, Math.min(STATION_TARGET_COUNT, capacity));
+  let startCount = 1;
+  if (capacity > 20) startCount = 2;
+  if (capacity > 30) startCount = 3;
+  if (capacity > 40) startCount = 4;
   return { startCount, stationCount };
 }
 
 /**
  * Clue / schedule geometry from overall team count + active starts/places.
- * Baseline 40 → 4 starts · 10 places · 10 per start · ~4 per station.
+ * Baseline 20 → 1 gather · 20 places · 1 team per place · 5 path stops + destination.
  */
-export function deriveClueGeometry(teamCapacity = 40, teamSize = 4, layout = {}) {
-  const capacity = Math.max(2, Math.min(200, Math.round(Number(teamCapacity) || 40)));
-  const size = Math.max(2, Math.min(8, Math.round(Number(teamSize) || 4)));
+export function deriveClueGeometry(teamCapacity = DEFAULT_TEAM_CAPACITY, teamSize = 10, layout = {}) {
+  const capacity = Math.max(2, Math.min(200, Math.round(Number(teamCapacity) || DEFAULT_TEAM_CAPACITY)));
+  const size = Math.max(2, Math.min(12, Math.round(Number(teamSize) || 10)));
   const suggested = suggestHuntLayout(capacity);
   const startCount = clampCount(
     layout.startCount != null ? layout.startCount : suggested.startCount,
@@ -106,6 +313,8 @@ export function deriveClueGeometry(teamCapacity = 40, teamSize = 4, layout = {})
     stationCount,
     teamsPerWait,
     teamsPerStation,
+    pathStopCount: PATH_STOP_COUNT,
+    destinationName: DESTINATION_PLACE.name,
     totalPlayers: capacity * size,
   };
 }
@@ -139,6 +348,8 @@ export function resolveStations(stations, stationCount = null) {
       String(row.code || '').toUpperCase().trim(),
       {
         name: String(row.name || '').trim(),
+        zone: String(row.zone || '').trim() || undefined,
+        riddle: String(row.riddle || '').trim() || undefined,
         plantFragments: Array.isArray(row.plantFragments) ? row.plantFragments : undefined,
         joinedWord: String(row.joinedWord || '').trim() || undefined,
       },
@@ -156,6 +367,8 @@ export function resolveStations(stations, stationCount = null) {
       return {
         code: station.code,
         name: extra.name || station.name,
+        zone: extra.zone || station.zone,
+        riddle: extra.riddle || station.riddle,
         ...(extra.plantFragments?.length ? { plantFragments: extra.plantFragments } : {}),
         ...(extra.joinedWord ? { joinedWord: extra.joinedWord } : {}),
       };
@@ -172,6 +385,8 @@ export function resolveStations(stations, stationCount = null) {
       return {
         code: station.code,
         name: extra.name || station.name,
+        zone: extra.zone || station.zone,
+        riddle: extra.riddle || station.riddle,
         ...(extra.plantFragments?.length ? { plantFragments: extra.plantFragments } : {}),
         ...(extra.joinedWord ? { joinedWord: extra.joinedWord } : {}),
       };
@@ -247,15 +462,31 @@ export function coprimeStrides(stationCount) {
 }
 
 /**
- * 4 distinct place indices for one global team.
- * Layer 0 (first N teams): walk +1. Layer 1: walk next coprime stride (+3 on 10 places).
- * Stops Wait A·T2 and Wait B·T1 sharing the same 0→1→2→3 path.
+ * Distinct place indices for one global team (default 5 path stops).
+ * Layer 0 (first N teams): walk +1. Layer 1: next coprime stride.
+ * When `zones` is provided, paths are repaired inside each N-team layer
+ * so north/south alternate when possible — without stacking teams on the
+ * same place at the same stop (swaps only).
  */
-export function teamPathIndices(globalTeamIndex, stationCount, stopCount = 4) {
+export function teamPathIndices(
+  globalTeamIndex,
+  stationCount,
+  stopCount = PATH_STOP_COUNT,
+  zones = null,
+) {
   const N = Math.max(1, Number(stationCount) || 1);
-  const stops = Math.max(1, Math.min(N, Number(stopCount) || 4));
-  const strides = coprimeStrides(N);
+  const stops = Math.max(1, Math.min(N, Number(stopCount) || PATH_STOP_COUNT));
   const index = Math.max(0, Number(globalTeamIndex) || 0);
+  if (!Array.isArray(zones) || zones.length !== N) {
+    return baseTeamPathIndices(index, N, stops);
+  }
+  const layer = Math.floor(index / N);
+  const table = zoneBalancedLayerPaths(N, stops, zones, layer);
+  return table[index % N].slice();
+}
+
+function baseTeamPathIndices(index, N, stops) {
+  const strides = coprimeStrides(N);
   const layer = Math.floor(index / N);
   const base = index % N;
   const stride = strides[layer % strides.length];
@@ -276,6 +507,86 @@ export function teamPathIndices(globalTeamIndex, stationCount, stopCount = 4) {
   return path;
 }
 
+const zonePathLayerCache = new Map();
+
+function zoneBalancedLayerPaths(N, stops, zones, layer) {
+  const key = `${N}|${stops}|${layer}|${zones.join(',')}`;
+  if (zonePathLayerCache.has(key)) return zonePathLayerCache.get(key);
+
+  const paths = [];
+  for (let local = 0; local < N; local += 1) {
+    paths.push(baseTeamPathIndices(layer * N + local, N, stops));
+  }
+
+  const zoneAt = (i) => String(zones[i] || '').toLowerCase();
+  const conflict = (path, s) => {
+    if (s <= 0) return false;
+    const prev = zoneAt(path[s - 1]);
+    const cur = zoneAt(path[s]);
+    if (!prev || !cur || prev === 'common' || cur === 'common') return false;
+    return prev === cur;
+  };
+  const wouldDup = (path, s, nextIdx) => path.some((idx, i) => i !== s && idx === nextIdx);
+
+  for (let s = 1; s < stops; s += 1) {
+    let improved = true;
+    let guard = 0;
+    while (improved && guard < N * 3) {
+      improved = false;
+      guard += 1;
+      for (let t = 0; t < N; t += 1) {
+        if (!conflict(paths[t], s)) continue;
+        let bestU = -1;
+        let bestScore = 0;
+        for (let u = 0; u < N; u += 1) {
+          if (u === t) continue;
+          const tNew = paths[u][s];
+          const uNew = paths[t][s];
+          if (wouldDup(paths[t], s, tNew) || wouldDup(paths[u], s, uNew)) continue;
+          const tBefore = conflict(paths[t], s);
+          const uBefore = conflict(paths[u], s);
+          const tAfterPrev = zoneAt(paths[t][s - 1]);
+          const uAfterPrev = zoneAt(paths[u][s - 1]);
+          const tZ = zoneAt(tNew);
+          const uZ = zoneAt(uNew);
+          const tAfter = Boolean(
+            tAfterPrev
+            && tZ
+            && tAfterPrev !== 'common'
+            && tZ !== 'common'
+            && tAfterPrev === tZ,
+          );
+          const uAfter = Boolean(
+            uAfterPrev
+            && uZ
+            && uAfterPrev !== 'common'
+            && uZ !== 'common'
+            && uAfterPrev === uZ,
+          );
+          // Prefer swaps that clear t's streak and do not create one for u.
+          let score = 0;
+          if (tBefore && !tAfter) score += 2;
+          if (uBefore && !uAfter) score += 2;
+          if (!uBefore && uAfter) score -= 3;
+          if (score > bestScore) {
+            bestScore = score;
+            bestU = u;
+          }
+        }
+        if (bestU >= 0) {
+          const tmp = paths[t][s];
+          paths[t][s] = paths[bestU][s];
+          paths[bestU][s] = tmp;
+          improved = true;
+        }
+      }
+    }
+  }
+
+  zonePathLayerCache.set(key, paths);
+  return paths;
+}
+
 export function globalTeamIndex(waitIndex, localTeamNumber, teamsPerWait = TEAMS_PER_WAIT) {
   const perWait = Math.max(1, Number(teamsPerWait) || TEAMS_PER_WAIT);
   const wait = Math.max(0, Number(waitIndex) || 0);
@@ -284,7 +595,7 @@ export function globalTeamIndex(waitIndex, localTeamNumber, teamsPerWait = TEAMS
 }
 
 /**
- * Local team → station for stopOffset (0=Clue1 … 3=Clue4).
+ * Local team → station for stopOffset (0=Clue1 … 4=Clue5).
  * Paths are unique across starts when teams ≤ places × coprime strides.
  */
 export function stationForLocalTeam(
@@ -299,7 +610,8 @@ export function stationForLocalTeam(
   const path = teamPathIndices(
     globalTeamIndex(waitIndex, localTeamNumber, teamsPerWait),
     list.length,
-    4,
+    PATH_STOP_COUNT,
+    list.map((s) => s.zone),
   );
   const step = Math.max(0, Math.min(path.length - 1, Number(stopOffset) || 0));
   return list[path[step]];
@@ -341,7 +653,16 @@ export function fourthStopForLocalTeam(
   return stationForLocalTeam(localTeamNumber, waitIndex, stations, 3, teamsPerWait)?.name || '';
 }
 
-/** Full Orange→Green→Blue→Purple path for one local slot at a start. */
+export function fifthStopForLocalTeam(
+  localTeamNumber,
+  waitIndex = 0,
+  stations = CAMPUS_STATIONS,
+  teamsPerWait = TEAMS_PER_WAIT,
+) {
+  return stationForLocalTeam(localTeamNumber, waitIndex, stations, 4, teamsPerWait)?.name || '';
+}
+
+/** Full Clue1→…→Clue5 path for one local slot at a start. */
 export function teamHuntPath(
   localTeamNumber,
   waitIndex = 0,
@@ -352,7 +673,8 @@ export function teamHuntPath(
   const indices = teamPathIndices(
     globalTeamIndex(waitIndex, localTeamNumber, teamsPerWait),
     list.length,
-    4,
+    PATH_STOP_COUNT,
+    list.map((s) => s.zone),
   );
   return indices.map((idx) => list[idx]).filter(Boolean);
 }
@@ -370,7 +692,9 @@ export function analyzeHuntPaths(
   const perWait = Math.max(1, Number(teamsPerWait) || TEAMS_PER_WAIT);
   const rows = [];
   const pathOwners = new Map();
-  const load = [0, 1, 2, 3].map(() => Object.fromEntries(list.map((s) => [s.code, 0])));
+  const load = Array.from({ length: PATH_STOP_COUNT }, () => (
+    Object.fromEntries(list.map((s) => [s.code, 0]))
+  ));
 
   waitList.forEach((start, waitIndex) => {
     for (let local = 1; local <= perWait; local += 1) {
@@ -403,7 +727,34 @@ export function analyzeHuntPaths(
     .map(([pathKey, teams]) => ({ pathKey, teams }));
   const loopTeams = rows.filter((r) => r.loop).map((r) => r.teamNumber);
   const uniquePaths = pathOwners.size;
-  const ok = clashGroups.length === 0 && loopTeams.length === 0;
+
+  let maxZoneStreak = 0;
+  let zoneStreak3 = 0;
+  rows.forEach((row) => {
+    const zones = row.path.map((s) => String(s.zone || '').toLowerCase());
+    let cur = 1;
+    let best = 1;
+    for (let i = 1; i < zones.length; i += 1) {
+      if (
+        zones[i]
+        && zones[i] === zones[i - 1]
+        && zones[i] !== 'common'
+      ) {
+        cur += 1;
+      } else {
+        cur = 1;
+      }
+      best = Math.max(best, cur);
+    }
+    maxZoneStreak = Math.max(maxZoneStreak, best);
+    if (best >= 3) zoneStreak3 += 1;
+  });
+
+  const loadMaxPerStop = load.map((stopLoad) => Math.max(0, ...Object.values(stopLoad)));
+  const maxTeamsAtOnePlace = Math.max(0, ...loadMaxPerStop);
+  const teamsPerPlaceIdeal = waitList.length; // one team per start per place per stop
+  const loadOk = loadMaxPerStop.every((m) => m <= teamsPerPlaceIdeal);
+  const ok = clashGroups.length === 0 && loopTeams.length === 0 && loadOk;
 
   return {
     ok,
@@ -412,6 +763,10 @@ export function analyzeHuntPaths(
     clashGroups,
     loopTeams,
     load,
+    loadMaxPerStop,
+    maxTeamsAtOnePlace,
+    maxZoneStreak,
+    zoneStreak3,
     rows,
     stationCount: list.length,
     startCount: waitList.length,
@@ -519,6 +874,15 @@ export function fourthStopArrivalPlan(
   return stationArrivalPlan(3, stations, teamsPerWait, starts);
 }
 
+/** Clue 5 fifth-stop plan: four stations after first stop. */
+export function fifthStopArrivalPlan(
+  stations = CAMPUS_STATIONS,
+  teamsPerWait = TEAMS_PER_WAIT,
+  starts = WAIT_POINTS,
+) {
+  return stationArrivalPlan(4, stations, teamsPerWait, starts);
+}
+
 /** Wait code A–D or 0–3 → wait index for shuffle offset. */
 export function waitIndexForStart(startCodeOrIndex) {
   if (typeof startCodeOrIndex === 'number' && Number.isFinite(startCodeOrIndex)) {
@@ -576,15 +940,32 @@ export const CLUE5_WORDS = {
 /** @deprecated use CLUE5_WORDS */
 export const CLUE4_WORDS = CLUE5_WORDS;
 
-const PROP_CODES = [
-  'BANANA', 'WOOF', 'NEON', 'QUACK', 'SOCK', 'EGG', 'YEET', 'ZOOM',
-  'BLOOP', 'ZAP', 'GOOF', 'BONK', 'YIKES', 'NOPE', 'YAY', 'BOOP',
+const LOCKBOX_CODES = [
+  '9407', '3815', '7264', '1598', '6032', '8471', '2956', '4713',
+  '5180', '0629', '7346', '1864', '2538', '6901', '8142', '3075',
 ];
 
-/** Default planted prop sticker code — matches backend bootstrap rotation. */
+/** Default Lockbox digit code — matches backend bootstrap rotation. */
+export function lockboxCodeForTeam(stationIndex, localTeamNumber) {
+  const i = (Number(stationIndex) || 0) * 11 + (Number(localTeamNumber) || 1);
+  return LOCKBOX_CODES[Math.abs(i) % LOCKBOX_CODES.length];
+}
+
+const GRID_CODES = [
+  'GRID-A7K2', 'GRID-B3M9', 'GRID-C4P1', 'GRID-D8Q5',
+  'GRID-E2R6', 'GRID-F9S3', 'GRID-G1T8', 'GRID-H5U4',
+  'GRID-J6V7', 'GRID-K3W2', 'GRID-L8X9', 'GRID-M4Y1',
+  'GRID-N7Z5', 'GRID-P2A6', 'GRID-Q9B3', 'GRID-R5C8',
+];
+
+/** Default Field Terminal GRID code — matches backend bootstrap rotation. */
 export function propCodeForTeam(stationIndex, localTeamNumber) {
   const i = (Number(stationIndex) || 0) * 11 + (Number(localTeamNumber) || 1);
-  return PROP_CODES[Math.abs(i) % PROP_CODES.length];
+  return GRID_CODES[Math.abs(i) % GRID_CODES.length];
+}
+
+export function gridCodeForTeam(stationIndex, localTeamNumber) {
+  return propCodeForTeam(stationIndex, localTeamNumber);
 }
 
 export function clue5WordForStart(startCode) {
@@ -600,30 +981,55 @@ export function clue4WordForStart(startCode) {
 /** One release slot per local team (Team 1 @ t0, Team 2 @ t+5…). */
 export const TEAM_SLOTS = buildTeamSlots(TEAMS_PER_WAIT);
 
-/** Generic Clue 1 riddle for any campus station name. */
-export function clue1ForPlace(place, teamSize = 4) {
-  const station = CAMPUS_STATIONS.find(
-    (s) => s.name.toLowerCase() === String(place || '').toLowerCase(),
-  );
-  const name = station?.name || place || 'the station';
-  const people = Math.max(2, Math.min(8, Number(teamSize) || 4));
+/** Generic Clue 1 riddle for any campus station name (Neurosprint riddle when known). */
+export function clue1ForPlace(placeOrStation, teamSize = 4) {
+  const code = typeof placeOrStation === 'object'
+    ? String(placeOrStation?.code || '').toUpperCase().trim()
+    : '';
+  const nameHint = typeof placeOrStation === 'object'
+    ? String(placeOrStation?.name || '').trim()
+    : String(placeOrStation || '').trim();
+  const catalog = CAMPUS_STATIONS.find((s) => (
+    (code && s.code === code)
+    || s.name.toLowerCase() === nameHint.toLowerCase()
+    || s.code.toLowerCase() === nameHint.toLowerCase()
+  ));
+  const name = nameHint || catalog?.name || 'the station';
+  const people = Math.max(2, Math.min(12, Number(teamSize) || 4));
+  const riddle = String(
+    (typeof placeOrStation === 'object' && placeOrStation?.riddle)
+    || catalog?.riddle
+    || '',
+  ).trim();
   return {
-    prompt:
-      `Your first scan is waiting on campus. Read the marks, follow the crowd of clues, `
-      + `and name the place: ${name}.`,
+    prompt: riddle
+      || (
+        `Your first scan is waiting on campus. Read the marks, follow the crowd of clues, `
+        + `and name the place: ${name}.`
+      ),
     answer: name,
+    acceptedAnswers: [name, catalog?.name].filter(Boolean)
+      .filter((v, i, arr) => arr.findIndex((x) => x.toLowerCase() === v.toLowerCase()) === i),
     destinationInstruction:
       `Go to ${name} together. Find ${people} written clues nearby, join them into one word, `
       + 'type it on the leader phone, then scan the orange QR once and enter your team code.',
-    hintText: `Ask staff for the way to ${name}.`,
+    hintText: riddle
+      ? `Think of a landmark that matches the poem — then go to ${name}.`
+      : `Ask staff for the way to ${name}.`,
   };
 }
 
-/** Clue 2 / 3 / 4 / Final defaults for a destination stop. */
-export function routeClueDefaults(challengeNumber, destination, teamSize = 4) {
+/** Clue 2–6 defaults for a destination stop / finish word / lockbox code. */
+export function routeClueDefaults(
+  challengeNumber,
+  destination,
+  teamSize = 4,
+  fifthStopName = null,
+  lockboxCode = null,
+) {
   const place = destination || 'the next station';
   const n = Number(challengeNumber) || 2;
-  const people = Math.max(2, Math.min(8, Number(teamSize) || 4));
+  const people = Math.max(2, Math.min(12, Number(teamSize) || 4));
 
   if (n === 2) {
     return {
@@ -639,35 +1045,60 @@ export function routeClueDefaults(challengeNumber, destination, teamSize = 4) {
   }
 
   if (n === 3) {
-    const cipher = String(place).replace(/[a-zA-Z]/g, (ch) => {
-      const base = ch <= 'Z' ? 65 : 97;
-      return String.fromCharCode(((ch.charCodeAt(0) - base + 3) % 26) + base);
+    const code = String(lockboxCode || '').replace(/\D/g, '') || '9407';
+    const pieces = Array.from({ length: people }, (_, i) => {
+      if (i < code.length) {
+        const ord = ['1st', '2nd', '3rd'][i] || `${i + 1}th`;
+        return `The ${ord} digit is ${code[i]}`;
+      }
+      return 'Confirm the digits your teammates call out — rebuild the full code in order.';
     });
+    const pieceLines = pieces.map((line, i) => `${i + 1}. ${line}`).join('\n');
     return {
       prompt:
-        `Letters have marched three steps forward. Decode this Caesar (+3) message:\n${cipher}`,
-      answer: place,
-      hintText: 'Caesar shift of 3 — A becomes D, B becomes E… Spaces stay spaces.',
+        `THE LOCKBOX\n`
+        + `Open the digital lock before you scan blue at your next stop.\n\n`
+        + `Lockbox pieces (read aloud in order 1→${people}):\n${pieceLines}\n\n`
+        + `Leader submits the ${code.length}-digit code.`,
+      answer: code,
+      hintText:
+        'Say every digit piece out loud in seat order. The code is digits only — no spaces.',
       destinationInstruction:
-        `Go to that place together. Find ${people} written clues, join the word, type it, then leader scans the blue QR once and enters your team code.`,
-      memberPrompts: Array.from({ length: people }, () => ''),
+        `Lockbox open — go to ${place}. Find the shared blue THIRD SCAN QR. `
+        + `Leader scans once, then enters your team code to unlock Field Terminal.`,
+      memberPrompts: pieces,
     };
   }
 
   if (n === 4) {
     return {
       prompt:
-        `At ${place}: find ${people} written clues (or prop tags) nearby. `
-        + 'Join them into one word and type it (leader).',
+        `FIELD TERMINAL at ${place}.\n`
+        + 'Find the terminal card near the purple zone (or clear Zip Grid on a laptop if available). '
+        + 'Type your GRID completion code here — format GRID-XXXX (leader submits).',
       answer: '',
-      hintText: 'Look near the purple QR zone — eye / knee level.',
+      hintText:
+        'Look for the terminal card / GRID sticker near the purple QR — eye / knee level.',
       destinationInstruction:
-        `Word typed — stay at ${place}. Leader scans the purple QR once, then team code for Final.`,
+        `Terminal cleared — stay at ${place}. Leader scans the purple QR once, then team code to unlock Clue 5.`,
       memberPrompts: Array.from({ length: people }, () => ''),
     };
   }
 
-  // Clue 5 / Final — collaborative one-word; `place` is the finish word.
+  if (n === 6) {
+    return {
+      prompt:
+        `Your path is done. Go to ${place} as a full team.\n`
+        + 'Ask the organizer for the finish code, then type it here to lock your score.',
+      answer: '',
+      hintText: `Meet at ${place}. The organizer will tell you the finish code.`,
+      destinationInstruction:
+        `At ${place}: ask the organizer for the finish code and type it on this phone.`,
+      memberPrompts: Array.from({ length: people }, () => ''),
+    };
+  }
+
+  // Clue 5 — collaborative one-word; `place` is the finish word (not a campus stop).
   const raw = String(place).replace(/\s+/g, '').toUpperCase();
   const len = Math.max(people, raw.length);
   const padded = raw.padEnd(len, 'X');
@@ -675,18 +1106,20 @@ export function routeClueDefaults(challengeNumber, destination, teamSize = 4) {
   const chunks = Array.from({ length: people }, (_, i) => (
     padded.slice(i * size, (i + 1) * size) || String(i + 1)
   ));
+  const fifthStop = String(fifthStopName || '').trim() || 'your 5th campus stop';
   return {
     prompt:
       `Fragments are on the leader phone — read them aloud in order 1→${people} and rebuild the one word. Leader submits it.`,
     answer: raw || 'QUEST',
     hintText: 'Say every fragment out loud in order — no spaces in the final word.',
     destinationInstruction:
-      'Word solved — report to your start location. Ask the organizer to mark your team reached.',
+      `Word solved — go to ${fifthStop}. Find the shared red FIFTH SCAN QR. `
+      + `Leader scans once, then enters your team code to unlock Clue 6.`,
     memberPrompts: chunks,
   };
 }
 
-/** Where challenge 1–5 sends a team that waited at this start. */
+/** Where challenge 1–6 sends a team that waited at this start. */
 export function destinationForClue(
   startCodeOrName,
   challengeNumber,
@@ -708,7 +1141,7 @@ export function destinationForClue(
   const waitIndex = waitList.findIndex((item) => item.code === start.code);
   const wait = waitIndex >= 0 ? waitIndex : 0;
   const perWait = Math.max(1, Number(teamsPerWait) || TEAMS_PER_WAIT);
-  const clue = Math.max(1, Math.min(5, Number(challengeNumber) || 1));
+  const clue = Math.max(1, Math.min(6, Number(challengeNumber) || 1));
   if (clue === 1) {
     return firstStopForLocalTeam(localTeamNumber, wait, stations, perWait);
   }
@@ -721,8 +1154,11 @@ export function destinationForClue(
   if (clue === 4) {
     return fourthStopForLocalTeam(localTeamNumber, wait, stations, perWait);
   }
-  // Clue 5 / Final: teams return to their own start (not another campus station).
-  return start.name;
+  if (clue === 5) {
+    return fifthStopForLocalTeam(localTeamNumber, wait, stations, perWait);
+  }
+  // Clue 6 — shared destination for every team.
+  return DESTINATION_PLACE.name;
 }
 
 /** Short path summary for a clue number across all waits. */
@@ -733,9 +1169,12 @@ export function destinationsSummary(
   teamsPerWait = TEAMS_PER_WAIT,
   starts = WAIT_POINTS,
 ) {
-  const clue = Math.max(1, Math.min(5, Number(challengeNumber) || 1));
+  const clue = Math.max(1, Math.min(6, Number(challengeNumber) || 1));
   const waitList = Array.isArray(starts) && starts.length ? starts : resolveStarts(starts);
-  if (clue === 1 || clue === 2 || clue === 3 || clue === 4) {
+  if (clue === 6) {
+    return `Everyone → ${DESTINATION_PLACE.name}`;
+  }
+  if (clue >= 1 && clue <= 5) {
     const list = Array.isArray(stations) && stations.length
       ? stations
       : resolveStations(stations);
@@ -743,10 +1182,12 @@ export function destinationsSummary(
     const clashNote = audit.ok
       ? `${audit.uniquePaths} unique team paths · no clashes`
       : `${audit.clashGroups.length} path clash(es) — rebuild clues`;
-    return `${list.length} places · ~${teamsPerStation} teams each · ${clashNote}`;
+    return (
+      `${list.length} places · stop ${clue}/5 · ~${teamsPerStation} team(s) each · ${clashNote}`
+    );
   }
   return waitList.map((start) => (
-    `${start.code} ${start.name} ← ${clue5WordForStart(start.code)} · ${teamsPerWait} teams`
+    `${start.code} ${start.name} · ${teamsPerWait} teams`
   )).join(' · ');
 }
 

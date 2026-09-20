@@ -8,7 +8,7 @@ import { isGenericTeamName } from '../utils/teamLabel';
 
 const THEME = STAGE_THEMES.final;
 
-const RETURNING_STAGES = new Set(['CLUE_5_COMPLETED', 'CLUE_5_FAILED']);
+const RETURNING_STAGES = new Set(['CLUE_6_COMPLETED', 'CLUE_6_FAILED']);
 const DONE_STAGES = new Set(['SCORE_LOCKED', 'FINISH_COMPLETED']);
 
 function id(value) {
@@ -41,7 +41,7 @@ export default function FinishReturnBoard({
 }) {
   const teamCapacity = Math.max(2, Number(eventMeta?.teamCapacity) || 40);
   const startCount = Math.max(1, Math.min(4, Number(eventMeta?.startCount) || 4));
-  const teamSize = Math.max(2, Math.min(8, Number(eventMeta?.teamSize) || 4));
+  const teamSize = Math.max(2, Math.min(12, Number(eventMeta?.teamSize) || 4));
   const teamsPerWait = Math.max(1, Math.ceil(teamCapacity / startCount));
 
   const [dashboard, setDashboard] = useState(null);
@@ -189,16 +189,29 @@ export default function FinishReturnBoard({
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${THEME.solidClass} ${THEME.solidTextClass}`}>
-              {THEME.colorName} · START CHECK-IN
+              {THEME.colorName} · FINALE CHECK-IN
             </span>
           </div>
-          <h3 className="mt-2 text-lg font-bold text-white">Teams coming back</h3>
+          <h3 className="mt-2 text-lg font-bold text-white">MindSpark Lobby check-in</h3>
           <p className="mt-1 text-sm text-white/65">
-            After Clue 5 / the one-word Final, teams return to their own start
+            After Clue 6, teams come to MindSpark Lobby and type the finish code you tell them
             ({teamCapacity} teams · {startCount} start{startCount === 1 ? '' : 's'}
             {' '}· ~{teamsPerWait}/start · {teamSize}/team).
-            Mark them by team number when they arrive — score locks.
+            You can also mark them here by team number — score locks either way.
           </p>
+          {(dashboard?.organizerFinishCode || dashboard?.destinationName) && (
+            <div className="mt-3 rounded-xl border border-white/15 bg-black/40 px-4 py-3 text-center">
+              <p className="text-[10px] uppercase tracking-wide text-white/45">
+                Tell teams this finish code
+              </p>
+              <p className={`mt-1 font-mono text-3xl font-black tracking-[0.2em] ${THEME.textClass}`}>
+                {dashboard.organizerFinishCode || 'MSFINISH'}
+              </p>
+              <p className="mt-1 text-xs text-white/50">
+                Place: {dashboard.destinationName || 'Mindspark Lobby'}
+              </p>
+            </div>
+          )}
         </div>
         <button
           type="button"
@@ -212,7 +225,7 @@ export default function FinishReturnBoard({
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {[
-          ['At start (mark)', totals.returning, THEME.textClass],
+          ['At Finale (mark)', totals.returning, THEME.textClass],
           ['Finished', totals.done, 'text-emerald-200'],
           ['Still out', totals.out, 'text-amber-200'],
           ['Teams', `${totals.done + totals.returning + totals.out}/${totals.capacity}`, 'text-white/70'],
@@ -296,7 +309,9 @@ export default function FinishReturnBoard({
                             : 'Say this code at the desk'}
                         </p>
                         <p className="text-[10px] uppercase text-red-100/70">
-                          {team.currentStage === 'CLUE_5_FAILED' ? 'Clue 5 failed · still check in' : 'Clue 5 / Final done · at start'}
+                          {team.currentStage === 'CLUE_6_FAILED'
+                            ? 'Clue 6 failed · still check in'
+                            : 'Clue 6 done · at Finale Assembly'}
                         </p>
                       </div>
                       <button

@@ -25,7 +25,7 @@ export default function OfflineScoreBoard({ state, teamCode, teamName }) {
       <p className="text-xs text-white/50">
         {teamCode}
         {teamName ? ` · ${teamName}` : ''}
-        {' · this phone only until Team QR sync'}
+        {' · leader phone only'}
       </p>
       <div className="mt-3 grid grid-cols-5 gap-1 text-center text-[10px]">
         {clues.map((c) => (

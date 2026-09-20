@@ -55,8 +55,14 @@ const campusHuntChallengeSchema = new mongoose.Schema(
       ref: 'CampusHuntCheckpoint',
       index: true,
     },
-    /** Clue 4 prop-hunt variant → shared station Checkpoint 4 (ST-*-4). */
+    /** Clue 4 Field Terminal variant → shared station Checkpoint 4 (ST-*-4). */
     fourthCheckpointId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'CampusHuntCheckpoint',
+      index: true,
+    },
+    /** Clue 5 → shared station Checkpoint 5 (ST-*-5) after the collaborative word. */
+    fifthCheckpointId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'CampusHuntCheckpoint',
       index: true,
@@ -70,7 +76,7 @@ const campusHuntChallengeSchema = new mongoose.Schema(
       type: Number,
       required: true,
       min: 1,
-      max: 5,
+      max: 6,
     },
     type: {
       type: String,

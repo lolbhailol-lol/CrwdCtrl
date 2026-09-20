@@ -4,8 +4,6 @@ import ScoreChip from '../components/ScoreChip';
 import CountdownTimer from '../components/CountdownTimer';
 import HuntQrScanner, { releaseHuntCameraSession } from '../components/HuntQrScanner';
 import HuntProgressTrack from '../components/HuntProgressTrack';
-import PassedCluesPanel from '../components/PassedCluesPanel';
-import ClueHowTo from '../components/ClueHowTo';
 import {
   themeForChallengeNumber,
   themeForPlayerContext,
@@ -16,9 +14,11 @@ import UnlockHoldingCard from '../components/UnlockHoldingCard';
 import {
   submitChallengeAnswer,
   requestChallengeHint,
+  revealTimedChallenge,
   scanStationCheckpoint,
   confirmStationCheckpoint,
   forceUnlockClue2,
+  submitFinishCode,
 } from '../services/campusHunt.api';
 import PlayerInstructionBox from './PlayerInstructionBox';
 import { buildPlayerNowGuide } from './playerNowGuide';
@@ -41,17 +41,21 @@ function needsStationScan(stage) {
     || stage === 'CLUE_4_COMPLETED'
     || stage === 'CLUE_4_FAILED'
     || stage === 'CLUE_4_TIMEOUT'
+    || stage === 'CLUE_5_COMPLETED'
+    || stage === 'CLUE_5_FAILED'
   );
 }
 
 function needsStartReport(stage) {
-  return stage === 'CLUE_5_COMPLETED' || stage === 'CLUE_5_FAILED';
+  // After Clue 6 — type organizer finish code at MindSpark Lobby.
+  return stage === 'CLUE_6_COMPLETED' || stage === 'CLUE_6_FAILED';
 }
 
 function revealAnswerLabel(challengeNumber) {
   if (challengeNumber === 2) return '3-digit code';
-  if (challengeNumber === 4) return 'Prop code';
-  if (challengeNumber === 5) return 'Final word';
+  if (challengeNumber === 4) return 'GRID code';
+  if (challengeNumber === 5) return 'Team word';
+  if (challengeNumber === 6) return 'Finish code';
   return 'Answer';
 }
 
@@ -62,6 +66,8 @@ const CHECKPOINT_REVEAL_STAGE = {
   CLUE_4_COMPLETED: 4,
   CLUE_4_FAILED: 4,
   CLUE_4_TIMEOUT: 4,
+  CLUE_5_COMPLETED: 5,
+  CLUE_5_FAILED: 5,
 };
 
 const panel = 'rounded-2xl border border-white/[0.08] bg-[#121416]/85 p-4 backdrop-blur-sm';
@@ -82,20 +88,19 @@ export default function PlayerPlayScreen({
 }) {
   const submitChallengeAnswerFn = actions?.submitChallengeAnswer || submitChallengeAnswer;
   const requestChallengeHintFn = actions?.requestChallengeHint || requestChallengeHint;
+  const revealTimedChallengeFn = actions?.revealTimedChallenge || revealTimedChallenge;
   const scanStationCheckpointFn = actions?.scanStationCheckpoint || scanStationCheckpoint;
   const confirmStationCheckpointFn = actions?.confirmStationCheckpoint || confirmStationCheckpoint;
   const team = data?.team;
   const challenges = data?.challenges || [];
   const serverTime = data?.serverTime || team?.serverTime;
   const checkpointStatus = data?.checkpointStatus;
+  const submitFinishCodeFn = actions?.submitFinishCode || submitFinishCode;
   const isLeader = Boolean(team?.isLeader);
   const teamCapacity = Math.max(2, Number(data?.event?.teamCapacity) || 0);
-  const finaleCapacity = Math.max(1, Number(data?.event?.finaleCapacity) || 0);
   const round1Label = roundLabel
-    || (teamCapacity ? `Round 1 · ${teamCapacity} teams` : 'Round 1');
-  const finalsHint = finaleCapacity
-    ? `Top finishers move toward Finals (${finaleCapacity} teams). Organizers handle Survival picks — stay tuned on the leaderboard.`
-    : 'Top finishers move toward Finals. Organizers handle Survival picks — stay tuned on the leaderboard.';
+    || (teamCapacity ? `The Hunt · ${teamCapacity} teams` : 'The Hunt');
+  const finalsHint = 'Hunt complete — check the leaderboard for ranks. Organizers lock scores after finish/import.';
   const activeNum = activeChallengeNumber(team?.currentStage);
   const hasStartGate = Boolean(team?.startStatus || team?.scheduledStartAt);
   const released = Boolean(
@@ -118,6 +123,8 @@ export default function PlayerPlayScreen({
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const lastScanRawRef = useRef('');
+  const [instructionEnded, setInstructionEnded] = useState(false);
+  const [copiedGrid, setCopiedGrid] = useState('');
   const [feedback, setFeedback] = useState('');
   const [feedbackTone, setFeedbackTone] = useState('neutral');
   const [hintPreview, setHintPreview] = useState('');
@@ -126,21 +133,73 @@ export default function PlayerPlayScreen({
   const [showScanner, setShowScanner] = useState(false);
   const [showPaste, setShowPaste] = useState(false);
   const [claimCode, setClaimCode] = useState('');
+  const [finishCode, setFinishCode] = useState('');
   const [awardedFlash, setAwardedFlash] = useState(null);
   const prevStageRef = useRef(team?.currentStage);
   const lastTimerRevealKeyRef = useRef('');
   const timerExpiredHandledRef = useRef('');
 
+  // Reset local instruction override when the clue / timer window changes
+  useEffect(() => {
+    setInstructionEnded(false);
+  }, [activeChallenge?.challengeNumber, activeChallenge?.timerStartsAt]);
+
+  const inInstructionPhase = Boolean(
+    activeChallenge?.instructionPhase && !instructionEnded,
+  );
+
+  // Prefill when soft-reveal answer arrives (clues 2/4/5)
+  useEffect(() => {
+    if (!activeChallenge?.revealedAnswer) return;
+    if (activeChallenge.state !== 'ACTIVE') return;
+    if (![2, 4, 5].includes(Number(activeChallenge.challengeNumber))) return;
+    setAnswer((prev) => (prev?.trim() ? prev : String(activeChallenge.revealedAnswer)));
+  }, [activeChallenge?.revealedAnswer, activeChallenge?.state, activeChallenge?.challengeNumber]);
+
   const handleTimerExpired = useCallback(async () => {
     const key = `${team?.id || ''}-${activeNum || ''}-${activeChallenge?.expiresAt || ''}`;
     if (timerExpiredHandledRef.current === key) return;
     timerExpiredHandledRef.current = key;
-    const next = await onRefresh?.({ force: true, burst: true });
-    if (next?.team && onActionResult?.(next)) return;
-    if (!next?.team) {
+    if (!team?.id || !activeNum || ![2, 4, 5].includes(activeNum)) {
       void onRefresh?.({ force: true, burst: true });
+      return;
     }
-  }, [team?.id, activeNum, activeChallenge?.expiresAt, onRefresh, onActionResult]);
+    try {
+      const res = await revealTimedChallengeFn(team.id, activeNum);
+      const resData = res?.data || res;
+      const applied = onActionResult?.(resData);
+      if (!applied) {
+        void onRefresh?.({ force: true, burst: true });
+      } else {
+        window.setTimeout(() => {
+          void onRefresh?.({ burst: true });
+        }, 1100);
+      }
+      const answer = resData?.revealedAnswer
+        || resData?.challenges?.find((c) => Number(c.challengeNumber) === activeNum)?.revealedAnswer;
+      const label = revealAnswerLabel(activeNum);
+      if (answer) {
+        setAnswer(String(answer));
+        setFeedback(`${label} revealed (0 pts) — type it and submit to continue`);
+        setFeedbackTone('ok');
+      } else {
+        setFeedback(resData?.message || "Time's up — answer revealed (0 pts). Type it to continue.");
+        setFeedbackTone('neutral');
+      }
+      setAwardedFlash(null);
+    } catch (err) {
+      void onRefresh?.({ force: true, burst: true });
+      setFeedback(err?.message || "Time's up — refreshing…");
+      setFeedbackTone('neutral');
+    }
+  }, [
+    team?.id,
+    activeNum,
+    activeChallenge?.expiresAt,
+    revealTimedChallengeFn,
+    onRefresh,
+    onActionResult,
+  ]);
 
   useEffect(() => {
     if (!showSuccess) return undefined;
@@ -172,7 +231,9 @@ export default function PlayerPlayScreen({
     const n = CHECKPOINT_REVEAL_STAGE[team?.currentStage];
     if (!n || !atCheckpoint) return null;
     const ch = challenges.find((c) => c.challengeNumber === n);
-    if (ch?.failureReason === 'REVEALED_ZERO_POINTS' && ch?.revealedAnswer) {
+    const revealed = ch?.failureReason === 'REVEALED_ZERO_POINTS'
+      || ch?.failureReason === 'TIMEOUT';
+    if (revealed && ch?.revealedAnswer) {
       return { n, answer: ch.revealedAnswer };
     }
     return null;
@@ -213,14 +274,18 @@ export default function PlayerPlayScreen({
     let reveal = null;
     if (stageReveal && atCp) {
       const ch = challenges.find((c) => c.challengeNumber === stageReveal);
-      if (ch?.failureReason === 'REVEALED_ZERO_POINTS' && ch?.revealedAnswer) {
+      const revealed = ch?.failureReason === 'REVEALED_ZERO_POINTS'
+        || ch?.failureReason === 'TIMEOUT';
+      if (revealed && ch?.revealedAnswer) {
         reveal = { n: stageReveal, answer: ch.revealedAnswer };
       }
     }
     const atStart = !waitingForRelease && needsStartReport(team.currentStage) && !activeNum;
     if (!reveal && atStart) {
       const ch5 = challenges.find((c) => c.challengeNumber === 5);
-      if (ch5?.failureReason === 'REVEALED_ZERO_POINTS' && ch5?.revealedAnswer) {
+      const revealed5 = ch5?.failureReason === 'REVEALED_ZERO_POINTS'
+        || ch5?.failureReason === 'TIMEOUT';
+      if (revealed5 && ch5?.revealedAnswer) {
         reveal = { n: 5, answer: ch5.revealedAnswer };
       }
     }
@@ -239,13 +304,14 @@ export default function PlayerPlayScreen({
   const applyResult = (resData) => {
     const applied = onActionResult?.(resData);
     if (!applied) {
-      void onRefresh?.({ force: true });
+      void onRefresh?.({ force: true, burst: true });
       return;
     }
-    // Align with server shortly after local apply (teammates + actor)
+    // Soft re-sync after the local pause — a force refresh at ~300ms was flashing
+    // the board for a second even when the answer/scan already passed.
     window.setTimeout(() => {
-      void onRefresh?.({ force: true });
-    }, 300);
+      void onRefresh?.({ burst: true });
+    }, 1100);
   };
 
   const HEAL_CODES = new Set([
@@ -285,10 +351,16 @@ export default function PlayerPlayScreen({
   const atStartReport = Boolean(
     team && !waitingForRelease && needsStartReport(team.currentStage) && !activeNum,
   );
+  const atLobbyFinish = Boolean(
+    team
+    && !waitingForRelease
+    && !locked
+    && (activeNum === 6 || atStartReport),
+  );
 
   const timerRevealAtStart = useMemo(() => {
     if (!atStartReport) return null;
-    const ch = challenges.find((c) => c.challengeNumber === 5);
+    const ch = challenges.find((c) => c.challengeNumber === 6);
     if (ch?.failureReason === 'REVEALED_ZERO_POINTS' && ch?.revealedAnswer) {
       return ch.revealedAnswer;
     }
@@ -312,7 +384,7 @@ export default function PlayerPlayScreen({
   const clueTheme = themeForChallengeNumber(activeNum || activeChallenge?.challengeNumber || 1);
   const nowThemeHex = atCheckpoint
     ? checkpointTheme.hex
-    : atStartReport
+    : atLobbyFinish
       ? '#EF4444'
       : waitingForRelease
         ? '#F97316'
@@ -325,12 +397,14 @@ export default function PlayerPlayScreen({
     released,
     locked,
     atCheckpoint,
-    atStartReport,
-    activeNum,
+    atStartReport: atLobbyFinish,
+    activeNum: atLobbyFinish && activeNum === 6 ? 6 : activeNum,
     isLeader,
     team,
     checkpointStatus,
-    activeChallenge,
+    activeChallenge: activeChallenge
+      ? { ...activeChallenge, instructionPhase: inInstructionPhase }
+      : activeChallenge,
   });
 
   const celebrate = (text) => {
@@ -341,7 +415,7 @@ export default function PlayerPlayScreen({
   const onSubmit = async (e) => {
     e.preventDefault();
     if (!activeNum || !isLeader) return;
-    if (activeChallenge?.instructionPhase) {
+    if (inInstructionPhase) {
       setFeedback('Read the instructions first — the hunt timer has not started yet.');
       return;
     }
@@ -381,8 +455,15 @@ export default function PlayerPlayScreen({
       } else if (activeNum === 5) {
         celebrate(
           pts > 0
-            ? `Correct! +${pts} pts — report to start`
-            : 'Correct — report to your start',
+            ? `Correct! +${pts} pts — go scan red FIFTH SCAN, then MindSpark Lobby`
+            : 'Correct — go scan red FIFTH SCAN, then MindSpark Lobby',
+        );
+        setAwardedFlash(pts > 0 ? pts : null);
+      } else if (activeNum === 6) {
+        celebrate(
+          result.payload?.scoreLocked
+            ? 'Finish code accepted — score locked at MindSpark Lobby'
+            : 'Finish code accepted — score locked at MindSpark Lobby',
         );
         setAwardedFlash(pts > 0 ? pts : null);
       } else if (resData?.late) {
@@ -438,29 +519,32 @@ export default function PlayerPlayScreen({
     }
     const resData = result.payload;
     const count = Number(resData?.verifiedCount || resData?.checkpointStatus?.verifiedCount || 0);
-    const required = Number(resData?.requiredCount || resData?.checkpointStatus?.requiredCount || team?.teamSize || 4);
+    const required = Number(resData?.requiredCount || resData?.checkpointStatus?.requiredCount || 1);
     const awaiting = Boolean(
       resData?.awaitingTeamCodeConfirm
       || resData?.checkpointStatus?.awaitingTeamCodeConfirm
-      || count >= required,
+      || (count >= required && !resData?.unlockedNext),
     );
     const unlocked = Boolean(
       resData?.unlockedNext
       || resData?.unlockedClue2
-      || resData?.unlockedClue3,
+      || resData?.unlockedClue3
+      || resData?.unlockedClue4
+      || resData?.unlockedClue5
+      || resData?.unlockedClue6,
     );
     setShowScanner(false);
     setShowPaste(false);
     setFeedbackTone('ok');
-    setFeedback(resData?.message || `Scanned (${count}/${required})`);
-    if (awaiting && !unlocked) {
-      celebrate(`All ${required} scanned — confirm team code`);
-      if (team?.teamCode) setClaimCode(String(team.teamCode).toUpperCase());
-    } else if (!unlocked) {
-      celebrate(`You're in · ${count}/${required}`);
-    }
+    setFeedback(resData?.message || (unlocked ? 'Station cleared' : `Scanned (${count}/${required})`));
     if (unlocked) {
-      celebrate(resData?.message || 'All set — next step unlocked!');
+      celebrate(resData?.message || 'Station cleared — next clue unlocked!');
+      setClaimCode('');
+    } else if (awaiting) {
+      celebrate('Poster scanned — confirm team code');
+      if (team?.teamCode) setClaimCode(String(team.teamCode).toUpperCase());
+    } else {
+      celebrate(`You're in · ${count}/${required}`);
     }
   };
 
@@ -471,16 +555,32 @@ export default function PlayerPlayScreen({
       setFeedback('Enter your team code');
       return;
     }
+    const checkpointId = checkpointStatus?.checkpointId
+      || checkpointStatus?.id
+      || null;
     const result = await runAction(() => confirmStationCheckpointFn(team.id, {
       teamCode: code,
-      checkpointId: checkpointStatus?.checkpointId,
+      checkpointId,
     }));
     if (!result.ok) return;
     const resData = result.payload;
-    setFeedback(resData?.message || 'Confirmed');
-    if (resData?.unlockedNext) {
-      celebrate(resData?.message || 'Clue unlocked!');
+    const unlocked = Boolean(
+      resData?.unlockedNext
+      || resData?.unlockedClue2
+      || String(resData?.teamStage || resData?.team?.currentStage || '').includes('CLUE_2')
+      || String(resData?.teamStage || resData?.team?.currentStage || '').includes('CLUE_3')
+      || String(resData?.teamStage || resData?.team?.currentStage || '').includes('CLUE_4')
+      || String(resData?.teamStage || resData?.team?.currentStage || '').includes('CLUE_5')
+      || String(resData?.teamStage || resData?.team?.currentStage || '').includes('CLUE_6'),
+    );
+    setFeedback(resData?.message || (unlocked ? 'Unlocked' : 'Confirmed'));
+    if (unlocked || resData?.alreadyComplete) {
+      celebrate(resData?.message || (unlocked ? 'Clue unlocked!' : 'Station cleared'));
       setClaimCode('');
+      // Force a hard refresh so stuck claim UI clears after heal
+      window.setTimeout(() => {
+        void onRefresh?.({ force: true });
+      }, 200);
     }
   };
 
@@ -548,22 +648,22 @@ export default function PlayerPlayScreen({
               <h1 className="mt-1 truncate text-[1.35rem] font-semibold tracking-tight text-white">
                 {teamPrimaryLabel(team)}
               </h1>
-              <p className="mt-1 truncate text-sm text-white/50">
-                {[
-                  teamSecondaryName(team) || null,
-                  team.myName
-                    ? (isLeader ? `You · Leader · ${team.myName}` : `You · Player · ${team.myName}`)
-                    : (isLeader ? 'You are leader' : (
-                      team.leaderName ? `You are player · Leader ${team.leaderName}` : 'You are player'
-                    )),
-                ].filter(Boolean).join(' · ')}
-              </p>
+              {!offlineMode && (teamSecondaryName(team) || team.myName) ? (
+                <p className="mt-1 truncate text-sm text-white/45">
+                  {[
+                    teamSecondaryName(team) || null,
+                    team.myName
+                      ? (isLeader ? `Leader · ${team.myName}` : team.myName)
+                      : null,
+                  ].filter(Boolean).join(' · ')}
+                </p>
+              ) : null}
             </div>
             <ScoreChip
               score={team.currentScore}
               label="Score"
-              rank={team.leaderboardRank}
-              fieldSize={team.leaderboardSize}
+              rank={offlineMode ? undefined : team.leaderboardRank}
+              fieldSize={offlineMode ? undefined : team.leaderboardSize}
             />
           </div>
         </header>
@@ -577,41 +677,29 @@ export default function PlayerPlayScreen({
             <PlayerInstructionBox
               guide={nowGuide}
               themeHex={nowThemeHex}
-              roleLabel={
-                isLeader
-                  ? 'You submit answers · everyone scans'
-                  : 'You scan cards · leader submits answers'
-              }
             />
           )}
 
           {waitingForRelease && (
             <UnlockHoldingCard
               accentHex={STAGE_THEMES.clue1.hex}
-              eyebrow={isLeader ? 'Clue 1 unlocks on' : 'Your team starts on'}
+              eyebrow="Clue 1 unlocks on"
               unlockAt={team.scheduledStartAt}
               meetLabel={team.startingPoint?.name}
-              meetHint={isLeader ? 'keep your team together' : 'stay with your leader'}
-              steps={nowGuide?.steps || [
-                'Stay at your start point',
-                'Wait for the countdown',
-                isLeader ? 'Then solve Clue 1 here' : 'Help after your leader solves Clue 1',
-              ]}
+              meetHint="stay together"
+              steps={[]}
               paused={Boolean(team.releasePaused)}
               pausedText="Releases paused — stay at your start."
-              emptyText="Waiting for organizers to set your unlock day and time."
+              emptyText="Waiting for organizers to set your unlock time."
               serverTime={serverTime}
               onReady={() => onRefresh?.({ force: true })}
-              footer={team.startingPoint?.description ? (
-                <p className="text-sm text-white/45">{team.startingPoint.description}</p>
-              ) : null}
             />
           )}
 
           {locked && (
             <section className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-5 text-center">
               <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-200/80">
-                Round 1 complete
+                Hunt complete
               </p>
               <p className="mt-2 text-lg font-semibold text-white">
                 Score locked · {team.finalScore ?? team.currentScore ?? 0} pts
@@ -678,24 +766,19 @@ export default function PlayerPlayScreen({
               className={`${panel} space-y-4`}
               style={{ borderColor: `${checkpointTheme.hex}40` }}
             >
-              <div className="flex items-end justify-between gap-3">
-                <div>
-                  <p
-                    className="text-[10px] font-semibold uppercase tracking-[0.16em]"
-                    style={{ color: checkpointTheme.hex }}
-                  >
-                    {checkpointTheme.colorName} · scan
-                  </p>
-                  <h3 className="mt-1 text-lg font-semibold">
-                    {checkpointStatus.locationName || 'Station'}
-                  </h3>
-                </div>
-                <div className="text-right">
-                  <p className="text-2xl font-semibold tabular-nums" style={{ color: checkpointTheme.hex }}>
-                    {checkpointStatus.verifiedCount}/{checkpointStatus.requiredCount}
-                  </p>
-                  <p className="text-[10px] uppercase tracking-wide text-white/35">scanned</p>
-                </div>
+              <div>
+                <p
+                  className="text-[10px] font-semibold uppercase tracking-[0.16em]"
+                  style={{ color: checkpointTheme.hex }}
+                >
+                  {checkpointTheme.colorName} · scan
+                </p>
+                <h3 className="mt-1 text-lg font-semibold">
+                  {checkpointStatus.locationName || 'Station'}
+                </h3>
+                {Number(checkpointStatus.verifiedCount || 0) >= Number(checkpointStatus.requiredCount || 1) ? (
+                  <p className="mt-1 text-sm text-emerald-300/90">Scanned</p>
+                ) : null}
               </div>
 
               {timerRevealAtCheckpoint && (
@@ -706,45 +789,18 @@ export default function PlayerPlayScreen({
                   <p className="mt-1 font-mono text-2xl font-semibold tracking-wide">
                     {timerRevealAtCheckpoint.answer}
                   </p>
-                  <p className="mt-1 text-xs text-amber-100/70">
-                    Scan the station QR below with your whole team to continue.
-                  </p>
                 </div>
               )}
 
-              <div className="h-2 overflow-hidden rounded-full bg-white/10">
-                <div
-                  className="h-full rounded-full transition-[width] duration-300 ease-out"
-                  style={{
-                    width: `${Math.min(
-                      100,
-                      (Number(checkpointStatus.verifiedCount || 0)
-                        / Math.max(1, Number(checkpointStatus.requiredCount || team?.teamSize || 4))) * 100,
-                    )}%`,
-                    background: checkpointTheme.hex,
-                  }}
-                />
-              </div>
-
-              <div className="rounded-xl bg-black/25 px-3 py-3 text-center">
-                <p className="text-[10px] uppercase tracking-wide text-white/40">Shared station QR</p>
-                <p className="mt-0.5 font-mono text-lg font-semibold">
-                  {teamPrimaryLabel({
-                    teamCode: team.teamCode,
-                    teamName: team.teamName,
-                  })}
+              {!isLeader ? (
+                <p className="rounded-xl border border-white/10 bg-black/25 px-3 py-3 text-center text-sm text-white/70">
+                  Only the leader phone scans. Stay with your team.
                 </p>
-                <p className="mt-1 text-xs text-white/50">
-                  All {Number(checkpointStatus.requiredCount || team?.teamSize || 4)} scan the same poster
-                  {offlineMode
-                    ? ' · then leader collects proof QRs'
-                    : ' · phones update live'}
-                </p>
-              </div>
-
+              ) : (
+              <>
               {!checkpointStatus.youScanned
                 && !checkpointStatus.awaitingTeamCodeConfirm
-                && Number(checkpointStatus.verifiedCount || 0) < Number(checkpointStatus.requiredCount || team?.teamSize || 4) && (
+                && Number(checkpointStatus.verifiedCount || 0) < Number(checkpointStatus.requiredCount || 1) && (
                 <>
                   <button
                     type="button"
@@ -798,40 +854,12 @@ export default function PlayerPlayScreen({
                 </>
               )}
 
-              {Array.isArray(checkpointStatus.scanRoster) && checkpointStatus.scanRoster.length > 0 && (
-                <ul className="space-y-1.5 rounded-xl bg-black/25 px-3 py-3">
-                  <p className="mb-1 text-[10px] uppercase tracking-wide text-white/40">
-                    Who scanned
-                  </p>
-                  {checkpointStatus.scanRoster.map((m) => (
-                    <li
-                      key={m.userId || m.name}
-                      className="flex items-center justify-between text-sm"
-                    >
-                      <span className={m.scanned ? 'text-white/90' : 'text-white/45'}>
-                        {m.name}
-                        {m.role === 'leader' ? ' · Leader' : ''}
-                      </span>
-                      <span
-                        className={
-                          m.scanned
-                            ? 'text-xs font-semibold text-emerald-300'
-                            : 'text-xs text-white/35'
-                        }
-                      >
-                        {m.scanned ? 'Done' : 'Waiting'}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
               {checkpointStatus.youScanned
-                && Number(checkpointStatus.verifiedCount || 0) < Number(checkpointStatus.requiredCount || team?.teamSize || 4)
+                && Number(checkpointStatus.verifiedCount || 0) < Number(checkpointStatus.requiredCount || 1)
                 && !checkpointStatus.awaitingTeamCodeConfirm && (
                 <div className="space-y-2">
                   <p className="text-center text-sm text-emerald-300/90">
-                    You scanned · waiting for {checkpointStatus.membersNeeded} more
+                    Scanned · enter your team code
                     {offlineMode ? '' : (
                       <>
                         {' · '}
@@ -849,12 +877,18 @@ export default function PlayerPlayScreen({
                 </div>
               )}
 
-              {(checkpointStatus.awaitingTeamCodeConfirm
-                || (Number(checkpointStatus.verifiedCount || 0) >= Number(checkpointStatus.requiredCount || team?.teamSize || 4)
-                  && checkpointStatus.status !== 'complete')) && (
+              {(
+                !checkpointStatus.onePhoneMode
+                && Number(checkpointStatus.requiredCount || 1) > 1
+                && (
+                  checkpointStatus.awaitingTeamCodeConfirm
+                  || (Number(checkpointStatus.verifiedCount || 0) >= Number(checkpointStatus.requiredCount || 1)
+                    && checkpointStatus.status !== 'complete')
+                )
+              ) && (
                 <form onSubmit={onStationClaim} className="space-y-2 rounded-xl border border-white/10 bg-black/30 p-3">
                   <p className="text-center text-sm text-emerald-200/90">
-                    All {Number(checkpointStatus.requiredCount || team?.teamSize || 4)} scanned — confirm team code to unlock
+                    Poster scanned — confirm team code to unlock
                   </p>
                   <input
                     value={claimCode}
@@ -874,6 +908,23 @@ export default function PlayerPlayScreen({
                 </form>
               )}
 
+              {checkpointStatus.onePhoneMode
+                && Number(checkpointStatus.verifiedCount || 0) >= Number(checkpointStatus.requiredCount || 1)
+                && checkpointStatus.status !== 'complete'
+                && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    void onRefresh?.({ force: true });
+                  }}
+                  className="w-full rounded-2xl py-3.5 text-sm font-bold text-black disabled:opacity-50"
+                  style={{ background: checkpointTheme.hex }}
+                >
+                  {busy ? 'Unlocking…' : 'Continue — unlock next clue'}
+                </button>
+              )}
+
               {import.meta.env.DEV && import.meta.env.VITE_CAMPUS_HUNT_DEV_CHEATS === '1' && (
                 <button
                   type="button"
@@ -883,26 +934,30 @@ export default function PlayerPlayScreen({
                     if (!result.ok) return;
                     const key = result.payload?.checkpointKey || checkpointStatus.checkpointKey;
                     celebrate(
-                      key === '4'
-                        ? 'Dev: all scanned → Final'
-                        : key === '3'
-                          ? 'Dev: all scanned → Prop hunt'
-                          : key === '2'
-                            ? 'Dev: all scanned → Decode'
-                            : key === '1'
-                              ? 'Dev: all scanned → Clue 2'
-                              : 'Dev: checkpoint cleared',
+                      key === '5'
+                        ? 'Dev: cleared → MindSpark Lobby'
+                        : key === '4'
+                          ? 'Dev: cleared → Clue 5'
+                          : key === '3'
+                            ? 'Dev: cleared → Clue 4'
+                            : key === '2'
+                              ? 'Dev: cleared → Decode'
+                              : key === '1'
+                                ? 'Dev: cleared → Clue 2'
+                                : 'Dev: checkpoint cleared',
                     );
                   }}
                   className="w-full rounded-xl border border-amber-400/30 py-2 text-xs text-amber-100/80"
                 >
-                  Dev: scan all 4
+                  Dev: force scan
                 </button>
+              )}
+              </>
               )}
             </motion.section>
           )}
 
-          {atStartReport && (
+          {atLobbyFinish && (
             <section className={`${panel} space-y-3 text-center`} style={{ borderColor: '#EF444455' }}>
               {timerRevealAtStart && (
                 <div className="rounded-xl bg-amber-500/10 px-3 py-3 text-left text-sm">
@@ -915,23 +970,55 @@ export default function PlayerPlayScreen({
                 </div>
               )}
               <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-red-300/80">
-                Team number
+                MindSpark Lobby
               </p>
               <p className="font-mono text-4xl font-semibold tracking-wide">{team.teamCode || '—'}</p>
-              {teamSecondaryName(team) ? (
-                <p className="text-sm text-white/50">{teamSecondaryName(team)}</p>
-              ) : null}
-              <p className="text-sm text-white/70">
-                Meet at{' '}
-                <span className="font-medium text-white">
-                  {team.startingPoint?.name || team.startingPoint?.code || 'your starting point'}
-                </span>
+              <p className="text-sm text-white/60">
+                Ask the organizer for the finish code.
               </p>
+              {isLeader ? (
+                <form
+                  className="space-y-2 text-left"
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    const code = String(finishCode || '').trim();
+                    if (!code) return;
+                    let result = await runAction(() => submitFinishCodeFn(team.id, code));
+                    if (!result.ok && activeNum === 6) {
+                      result = await runAction(() =>
+                        submitChallengeAnswerFn(team.id, 6, code, `${team.id}-finish-${Date.now()}`));
+                    }
+                    if (!result.ok) return;
+                    setFinishCode('');
+                    celebrate(result.payload?.message || 'Score locked');
+                    setAwardedFlash(result.payload?.finalScore ?? team.currentScore);
+                    void onRefresh?.({ force: true, burst: true });
+                  }}
+                >
+                  <input
+                    value={finishCode}
+                    onChange={(e) => setFinishCode(e.target.value.toUpperCase())}
+                    placeholder="Finish code"
+                    autoComplete="off"
+                    className="w-full rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-center font-mono text-lg tracking-wider uppercase outline-none focus:border-white/25"
+                  />
+                  <button
+                    type="submit"
+                    disabled={busy || !String(finishCode || '').trim()}
+                    className="w-full rounded-2xl py-3.5 text-sm font-bold text-black disabled:opacity-50"
+                    style={{ background: '#EF4444' }}
+                  >
+                    {busy ? 'Locking…' : 'Lock score'}
+                  </button>
+                </form>
+              ) : (
+                <p className="text-sm text-white/45">Leader submits the finish code.</p>
+              )}
             </section>
           )}
 
-          {/* Clue 1 — non-leader standby */}
-          {!waitingForRelease && activeChallenge?.challengeNumber === 1 && !isLeader && (
+          {/* Clue 1 — non-leader standby (online only) */}
+          {!offlineMode && !waitingForRelease && activeChallenge?.challengeNumber === 1 && !isLeader && (
             <motion.section
               initial={false}
               animate={{ opacity: 1, y: 0 }}
@@ -942,23 +1029,20 @@ export default function PlayerPlayScreen({
                 className="text-[10px] font-semibold uppercase tracking-[0.16em]"
                 style={{ color: clueTheme.hex }}
               >
-                Clue 1 · standby
+                Clue 1
               </p>
               <h3 className="text-lg font-semibold text-white">Stay with your leader</h3>
               <p className="text-sm text-white/65">
-                Only the Team Leader types the answer on their phone.
-                You&apos;ll scan the Orange card together next.
-              </p>
-              <p className="rounded-xl bg-black/25 px-3 py-2 text-xs text-white/45">
-                {offlineMode
-                  ? 'After your leader solves Clue 1, scan their Team QR to unlock the Orange scan.'
-                  : 'Keep this screen open — it unlocks the Orange scan automatically.'}
+                Only the leader phone answers. Orange scan unlocks next.
               </p>
             </motion.section>
           )}
 
-          {/* Clue action */}
-          {!waitingForRelease && activeChallenge && (isLeader || activeChallenge.challengeNumber !== 1) && (
+          {/* Clue action — skip generic form on Clue 6 (lobby finish panel above) */}
+          {!waitingForRelease
+            && activeChallenge
+            && activeChallenge.challengeNumber !== 6
+            && (isLeader || activeChallenge.challengeNumber !== 1) && (
             <motion.section
               initial={false}
               animate={{ opacity: 1, y: 0 }}
@@ -974,28 +1058,31 @@ export default function PlayerPlayScreen({
                     {clueTheme.colorName}
                     {' · '}
                     {activeChallenge.challengeNumber === 3
-                      ? 'Decode'
+                      ? 'Lockbox'
                       : activeChallenge.challengeNumber === 4
-                        ? 'Prop hunt'
+                        ? 'Field Terminal'
                         : activeChallenge.challengeNumber === 5
                           ? 'Final'
                           : `Clue ${activeChallenge.challengeNumber}`}
                   </p>
                 </div>
                 {(activeChallenge.challengeNumber === 2 || activeChallenge.challengeNumber === 4)
-                  && activeChallenge.instructionPhase
+                  && inInstructionPhase
                   && activeChallenge.timerStartsAt && (
                   <CountdownTimer
                     expiresAt={activeChallenge.timerStartsAt}
                     serverTime={serverTime}
                     label="Starts in"
-                    onComplete={() => onRefresh?.({ force: true, burst: true })}
+                    onComplete={() => {
+                      setInstructionEnded(true);
+                      onRefresh?.({ force: true, burst: true });
+                    }}
                   />
                 )}
                 {activeChallenge.expiresAt
                   && !(
                     (activeChallenge.challengeNumber === 2 || activeChallenge.challengeNumber === 4)
-                    && activeChallenge.instructionPhase
+                    && inInstructionPhase
                   ) && (
                   <CountdownTimer
                     expiresAt={activeChallenge.expiresAt}
@@ -1011,8 +1098,6 @@ export default function PlayerPlayScreen({
                 )}
               </div>
 
-              <ClueHowTo challenge={activeChallenge} />
-
               {activeChallenge.prompt == null && activeChallenge.challengeNumber === 1 ? (
                 <p className="text-sm text-white/50">Clue 1 is only on the Team Leader phone.</p>
               ) : (
@@ -1026,22 +1111,141 @@ export default function PlayerPlayScreen({
                 </div>
               )}
 
-              {activeChallenge.collaborative && activeChallenge.memberCode && (
-                <div className="rounded-xl bg-black/30 px-4 py-4 text-center">
-                  <p className="text-[10px] uppercase tracking-wide text-white/40">Your fragment</p>
-                  <p className="mt-2 font-mono text-3xl font-semibold tracking-[0.18em]">
-                    {activeChallenge.memberCode}
+              {activeChallenge.challengeNumber === 4
+                && activeChallenge.state === 'ACTIVE'
+                && !inInstructionPhase && (
+                <div
+                  className="space-y-3 rounded-xl border px-4 py-4"
+                  style={{ borderColor: `${clueTheme.hex}55`, background: `${clueTheme.hex}12` }}
+                >
+                  <p
+                    className="text-[10px] font-bold uppercase tracking-[0.16em]"
+                    style={{ color: clueTheme.hex }}
+                  >
+                    Zip Grid · laptop
+                  </p>
+                  {activeChallenge.gridAccessCode && (
+                    <div className="rounded-xl bg-black/35 px-3 py-3 text-center">
+                      <p className="text-[10px] uppercase tracking-wide text-white/40">Device key</p>
+                      <p
+                        className="mt-1 font-mono text-xl font-bold tracking-[0.3em]"
+                        style={{ color: clueTheme.hex }}
+                      >
+                        {activeChallenge.gridAccessCode}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const key = String(activeChallenge.gridAccessCode || '');
+                          navigator.clipboard?.writeText(key).then(() => {
+                            setCopiedGrid('key');
+                            setTimeout(() => setCopiedGrid(''), 1600);
+                          }).catch(() => {});
+                        }}
+                        className="mt-2 text-xs text-white/50 underline hover:text-white/80"
+                      >
+                        {copiedGrid === 'key' ? 'Copied' : 'Copy key'}
+                      </button>
+                    </div>
+                  )}
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <a
+                      href={activeChallenge.gridGameUrl || CAMPUS_HUNT_PATHS.grid}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 rounded-xl py-3 text-center text-sm font-bold uppercase tracking-wide text-black"
+                      style={{ background: clueTheme.hex }}
+                    >
+                      Open Zip Grid
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const path = activeChallenge.gridGameUrl || CAMPUS_HUNT_PATHS.grid;
+                        const url = `${window.location.origin}${path}`;
+                        navigator.clipboard?.writeText(url).then(() => {
+                          setCopiedGrid('link');
+                          setTimeout(() => setCopiedGrid(''), 1600);
+                        }).catch(() => {});
+                      }}
+                      className="rounded-xl border border-white/15 px-4 py-3 text-sm text-white/70 hover:bg-white/5"
+                    >
+                      {copiedGrid === 'link' ? 'Link copied' : 'Copy link'}
+                    </button>
+                  </div>
+                  {activeChallenge.gridCompleted && (
+                    <p className="text-xs font-medium text-emerald-200/90">
+                      Grid cleared — type GRID-XXXX below.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {activeChallenge.challengeNumber === 4 && inInstructionPhase && (
+                <p className="text-sm text-white/55">
+                  When the countdown hits zero, Zip Grid link and key appear.
+                </p>
+              )}
+
+              {activeChallenge.collaborative && (
+                Array.isArray(activeChallenge.memberFragments)
+                  && activeChallenge.memberFragments.length > 0
+                  ? (
+                    <div className="rounded-xl bg-black/30 px-4 py-4">
+                      <p className="text-[10px] uppercase tracking-wide text-white/40">
+                        Fragments · read in order
+                      </p>
+                      <ul className="mt-2 space-y-1.5">
+                        {activeChallenge.memberFragments.map((frag, i) => (
+                          <li key={`frag-${i}`} className="font-mono text-lg font-semibold tracking-wide">
+                            <span className="mr-2 text-white/35">{i + 1}.</span>
+                            {frag}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )
+                  : activeChallenge.memberCode
+                    ? (
+                      <div className="rounded-xl bg-black/30 px-4 py-4 text-center">
+                        <p className="text-[10px] uppercase tracking-wide text-white/40">Fragments</p>
+                        <p className="mt-2 font-mono text-2xl font-semibold tracking-[0.12em]">
+                          {activeChallenge.memberCode}
+                        </p>
+                      </div>
+                    )
+                    : null
+              )}
+
+              {activeChallenge.revealedAnswer && activeChallenge.state === 'ACTIVE' && (
+                <div className="rounded-xl bg-amber-500/10 px-3 py-2 text-sm">
+                  <p className="text-amber-100/80">
+                    {revealAnswerLabel(activeChallenge.challengeNumber)} revealed (0 pts) — type it below
+                  </p>
+                  <p className="mt-0.5 font-mono text-2xl font-semibold tracking-wide">
+                    {activeChallenge.revealedAnswer}
                   </p>
                 </div>
               )}
 
-              {activeChallenge.revealedAnswer && (
+              {activeChallenge.revealedAnswer && activeChallenge.state !== 'ACTIVE' && (
                 <div className="rounded-xl bg-amber-500/10 px-3 py-2 text-sm">
                   <p className="text-amber-100/80">
                     {revealAnswerLabel(activeChallenge.challengeNumber)} revealed (0 pts)
                   </p>
                   <p className="mt-0.5 font-mono text-2xl font-semibold tracking-wide">
                     {activeChallenge.revealedAnswer}
+                  </p>
+                </div>
+              )}
+
+              {activeChallenge.timeExpired
+                && !activeChallenge.revealedAnswer
+                && [2, 4, 5].includes(activeChallenge.challengeNumber) && (
+                <div className="rounded-xl bg-amber-500/10 px-3 py-3 text-sm text-amber-100/90">
+                  <p className="font-semibold">Time&apos;s up — 0 points</p>
+                  <p className="mt-1 text-xs text-amber-100/70">
+                    Revealing the answer — type it to continue…
                   </p>
                 </div>
               )}
@@ -1069,11 +1273,7 @@ export default function PlayerPlayScreen({
               )}
 
               {isLeader
-                && activeChallenge.state === 'ACTIVE'
-                && !(
-                  activeChallenge.timeExpired
-                  && [2, 4, 5].includes(activeChallenge.challengeNumber)
-                ) && (
+                && activeChallenge.state === 'ACTIVE' && (
                 <form onSubmit={onSubmit} className="space-y-3">
                   <input
                     value={answer}
@@ -1086,11 +1286,13 @@ export default function PlayerPlayScreen({
                           : activeChallenge.challengeNumber === 3
                             ? 'Decoded word'
                             : activeChallenge.challengeNumber === 4
-                              ? 'Prop code'
-                              : 'One word'
+                              ? 'GRID-XXXX'
+                              : activeChallenge.challengeNumber === 6
+                                ? 'Finish code from organizer'
+                                : 'One word'
                     }
                     inputMode={activeChallenge.challengeNumber === 2 ? 'numeric' : 'text'}
-                    disabled={Boolean(activeChallenge.instructionPhase)}
+                    disabled={Boolean(inInstructionPhase)}
                     className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3.5 text-base outline-none focus:border-white/25 disabled:opacity-50"
                     autoComplete="off"
                   />
@@ -1099,23 +1301,24 @@ export default function PlayerPlayScreen({
                     disabled={
                       busy
                       || !answer.trim()
-                      || Boolean(activeChallenge.instructionPhase)
+                      || Boolean(inInstructionPhase)
                     }
                     className="w-full rounded-xl py-3.5 text-base font-semibold text-black disabled:opacity-45"
                     style={{ background: clueTheme.hex }}
                   >
                     {busy
                       ? 'Submitting…'
-                      : activeChallenge.instructionPhase
+                      : inInstructionPhase
                         ? 'Wait for timer…'
-                        : activeChallenge.timeExpired
+                        : (activeChallenge.timeExpired || activeChallenge.revealedAnswer)
                           ? 'Submit for 0 pts'
                           : 'Submit'}
                   </button>
                   {activeChallenge.challengeNumber > 1
                     && !activeChallenge.hintUsed
                     && !activeChallenge.timeExpired
-                    && !activeChallenge.instructionPhase && (
+                    && !activeChallenge.revealedAnswer
+                    && !inInstructionPhase && (
                     <button
                       type="button"
                       onClick={onHint}
@@ -1143,26 +1346,20 @@ export default function PlayerPlayScreen({
                 {(team.currentStage === 'CLUE_1_COMPLETED'
                   ? clue1?.destinationInstruction
                   : challenges.find((c) => c.challengeNumber === 2)?.destinationInstruction)
-                  || `Go to the next place. All ${Number(checkpointStatus?.requiredCount || team?.teamSize || 4)} members scan the shared QR, then enter your team code.`}
+                  || 'Go to the next place. Leader scans the shared QR once, then enters your team code.'}
               </p>
             </section>
           )}
 
-          {!waitingForRelease && (
-            <PassedCluesPanel
-              challenges={challenges}
-              isLeader={isLeader}
-              currentActiveNum={activeNum}
-            />
+          {!offlineMode && !waitingForRelease && (
+            <button
+              type="button"
+              onClick={() => onRefresh?.({ force: true })}
+              className="w-full py-2 text-center text-sm text-white/30 transition hover:text-white/55"
+            >
+              Refresh
+            </button>
           )}
-
-          <button
-            type="button"
-            onClick={() => onRefresh?.({ force: true })}
-            className="w-full py-2 text-center text-sm text-white/30 transition hover:text-white/55"
-          >
-            Refresh status
-          </button>
         </div>
       </div>
     </div>

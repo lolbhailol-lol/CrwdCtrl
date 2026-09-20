@@ -88,7 +88,7 @@ function hasDistinctVerifiedRoster(verifiedIds, rosterIds, required = 4) {
 
 /** True when team has provisioned hunt accounts for the required team size. */
 function isTeamRosterReady(team, teamSize = 4) {
-  const size = Math.max(2, Math.min(8, Number(teamSize) || 4));
+  const size = Math.max(2, Math.min(12, Number(teamSize) || 4));
   const membersNeeded = size - 1;
   return Boolean(
     team?.leaderUserId

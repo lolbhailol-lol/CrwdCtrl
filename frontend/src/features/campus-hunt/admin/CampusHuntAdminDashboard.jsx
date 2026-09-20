@@ -22,18 +22,12 @@ const EMPTY_FORM = {
   name: '',
   college: '',
   slug: '',
-  teamCapacity: 40,
+  teamCapacity: 20,
   date: '',
-  teamSize: 4,
+  teamSize: 10,
   startingScore: 100,
   featureNotes: '',
   round1Name: 'Campus Hunt',
-  round2Name: '',
-  round3Name: '',
-  finaleName: 'Finale',
-  qualifyFromRound1: 0,
-  qualifyFromRound2: 0,
-  qualifyFromRound3: 0,
 };
 
 export default function CampusHuntAdminDashboard() {
@@ -232,11 +226,11 @@ export default function CampusHuntAdminDashboard() {
             />
           </label>
           <label className="block text-xs text-white/50">
-            People per team
+            People per team (≈9–10)
             <input
               type="number"
               min={2}
-              max={8}
+              max={12}
               value={form.teamSize}
               onChange={(e) => setForm((f) => ({ ...f, teamSize: e.target.value }))}
               className="mt-1 w-full rounded-lg border border-white/20 bg-[#161718] px-3 py-2 text-sm text-white"
@@ -265,15 +259,15 @@ export default function CampusHuntAdminDashboard() {
 
         <div className="rounded-xl border border-[#0ECCEE]/25 bg-[#0ECCEE]/5 p-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-[#0ECCEE]">
-            Round names & finals qualify
+            Single game
           </p>
           <p className="mt-1 text-[11px] text-white/50">
-            Name Round 1–3 (leave Round 2/3 blank if you only run Round 1 for now).
-            Set how many teams from each round go to finals.
+            One hunt only — no Survival, no Finals, no qualifying ladder. Leader phone plays;
+            teammates walk along.
           </p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <label className="block text-xs text-white/50">
-              Round 1 name
+            <label className="block text-xs text-white/50 sm:col-span-2">
+              Hunt name
               <input
                 value={form.round1Name}
                 onChange={(e) => setForm((f) => ({ ...f, round1Name: e.target.value }))}
@@ -281,75 +275,11 @@ export default function CampusHuntAdminDashboard() {
                 className="mt-1 w-full rounded-lg border border-white/20 bg-[#161718] px-3 py-2 text-sm text-white"
               />
             </label>
-            <label className="block text-xs text-white/50">
-              From Round 1 → finals
-              <input
-                type="number"
-                min={0}
-                max={200}
-                value={form.qualifyFromRound1}
-                onChange={(e) => setForm((f) => ({ ...f, qualifyFromRound1: e.target.value }))}
-                className="mt-1 w-full rounded-lg border border-white/20 bg-[#161718] px-3 py-2 text-sm text-white"
-              />
-            </label>
-            <label className="block text-xs text-white/50">
-              Round 2 name (optional)
-              <input
-                value={form.round2Name}
-                onChange={(e) => setForm((f) => ({ ...f, round2Name: e.target.value }))}
-                placeholder="e.g. Survival — blank = skip"
-                className="mt-1 w-full rounded-lg border border-white/20 bg-[#161718] px-3 py-2 text-sm text-white"
-              />
-            </label>
-            <label className="block text-xs text-white/50">
-              From Round 2 → finals
-              <input
-                type="number"
-                min={0}
-                max={200}
-                disabled={!String(form.round2Name || '').trim()}
-                value={form.qualifyFromRound2}
-                onChange={(e) => setForm((f) => ({ ...f, qualifyFromRound2: e.target.value }))}
-                className="mt-1 w-full rounded-lg border border-white/20 bg-[#161718] px-3 py-2 text-sm text-white disabled:opacity-40"
-              />
-            </label>
-            <label className="block text-xs text-white/50">
-              Round 3 name (optional)
-              <input
-                value={form.round3Name}
-                onChange={(e) => setForm((f) => ({ ...f, round3Name: e.target.value }))}
-                placeholder="blank = skip"
-                className="mt-1 w-full rounded-lg border border-white/20 bg-[#161718] px-3 py-2 text-sm text-white"
-              />
-            </label>
-            <label className="block text-xs text-white/50">
-              From Round 3 → finals
-              <input
-                type="number"
-                min={0}
-                max={200}
-                disabled={!String(form.round3Name || '').trim()}
-                value={form.qualifyFromRound3}
-                onChange={(e) => setForm((f) => ({ ...f, qualifyFromRound3: e.target.value }))}
-                className="mt-1 w-full rounded-lg border border-white/20 bg-[#161718] px-3 py-2 text-sm text-white disabled:opacity-40"
-              />
-            </label>
-            <label className="block text-xs text-white/50 sm:col-span-2">
-              Finals name
-              <input
-                value={form.finaleName}
-                onChange={(e) => setForm((f) => ({ ...f, finaleName: e.target.value }))}
-                placeholder="Finale"
-                className="mt-1 w-full rounded-lg border border-white/20 bg-[#161718] px-3 py-2 text-sm text-white"
-              />
-            </label>
           </div>
           <p className="mt-3 text-xs text-white/60">
             {previewFormat.teamCapacity} teams · {previewFormat.teamSize}/team · {previewFormat.totalPlayers} players
             {' · '}
-            {previewPlan.hasFinale
-              ? `${previewPlan.finaleName} field: ${previewPlan.finaleCapacity} teams`
-              : 'No finals yet (Round 1 only — set qualify numbers when ready)'}
+            {roundPlanSummary(previewPlan, previewFormat.teamCapacity)}
           </p>
         </div>
 
@@ -382,13 +312,11 @@ export default function CampusHuntAdminDashboard() {
                   {ev.college} · {ev.slug}
                 </p>
                 <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-white/40">
-                  {ev.roundPlan?.round1Name || 'Round 1'} · {ev.teamCapacity || 40} teams · {ev.teamSize || 4}/team
+                  {ev.roundPlan?.round1Name || 'Campus Hunt'} · {ev.teamCapacity || 20} teams · {ev.teamSize || 10}/team
                 </p>
-                {(ev.roundPlan?.qualifyFromRound1 || ev.roundPlan?.round2Name) ? (
-                  <p className="mt-0.5 text-[10px] normal-case tracking-normal text-white/35">
-                    {roundPlanSummary(ev.roundPlan, ev.teamCapacity)}
-                  </p>
-                ) : null}
+                <p className="mt-0.5 text-[10px] normal-case tracking-normal text-white/35">
+                  {roundPlanSummary(ev.roundPlan, ev.teamCapacity)}
+                </p>
               </Link>
               <span className="rounded-full bg-white/10 px-3 py-1 text-xs uppercase">
                 {ev.status}

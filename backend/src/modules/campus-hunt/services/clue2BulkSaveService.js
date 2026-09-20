@@ -153,7 +153,7 @@ async function bulkSaveClue2({
             stationCode,
             publicInstruction:
               `Green SECOND SCAN at ${place}. One shared QR for this place. `
-              + 'All 4 team members scan, then enter your team code to unlock Clue 3.',
+              + 'Leader scans once, then enters your team code to unlock Clue 3.',
             sequence: 2,
             active: true,
             compensationPolicyKey: 'skip_and_continue',
@@ -197,7 +197,7 @@ async function bulkSaveClue2({
             acceptedAnswers: [answer],
             destinationInstruction:
               `Go to ${place} now. Find the shared green SECOND SCAN QR. `
-              + `All ${Math.max(2, Math.min(8, Number(event.teamSize) || 4))} members scan, then enter your team code to unlock Clue 3.`,
+              + `Leader scans once, then enters your team code to unlock Clue 3.`,
             hintText: 'Check posts, pillars, and notice boards at eye level.',
             basePoints: 0,
             maxAttempts: clue2Scoring.maxAttempts,

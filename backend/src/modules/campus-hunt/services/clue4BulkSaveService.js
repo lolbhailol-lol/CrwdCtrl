@@ -20,8 +20,9 @@ const {
 } = require('./round1BootstrapService');
 
 const SHARED_PROMPT =
-  'CRAZY PROP HUNT — hunt as a team for the silly planted prop in plain sight. '
-  + 'Read the short code on its sticker and type it here (leader submits).';
+  'FIELD TERMINAL — find the terminal card near the purple zone '
+  + '(or clear Zip Grid on a laptop if available). '
+  + 'Type your GRID-XXXX completion code here (leader submits).';
 
 function waitIndexFromCode(code) {
   const upper = String(code || '').toUpperCase().trim();
@@ -89,7 +90,7 @@ async function bulkSaveClue4({
   }
 
   const stations = resolveCampusStations(event);
-  const teamSize = Math.max(2, Math.min(8, Number(event.teamSize) || 4));
+  const teamSize = Math.max(2, Math.min(12, Number(event.teamSize) || 4));
   const cluePrompt = String(prompt || '').trim() || SHARED_PROMPT;
   const { scoring: clue4Scoring } = await persistClueScoring({
     eventId,
@@ -134,7 +135,7 @@ async function bulkSaveClue4({
         row.answer || propCodeForTeam(stationIndex >= 0 ? stationIndex : 0, localTeamNumber),
       ).trim().toUpperCase();
       if (!answer) {
-        errors.push({ startCode, waveId, message: 'Prop code required' });
+        errors.push({ startCode, waveId, message: 'GRID code required' });
         continue;
       }
 
@@ -155,7 +156,7 @@ async function bulkSaveClue4({
             stationCode,
             publicInstruction:
               `Purple FOURTH SCAN at ${place}. One shared QR for this place. `
-              + `All ${teamSize} team members scan, then enter your team code to unlock Final.`,
+              + `Leader scans once, then enters your team code to unlock Clue 5.`,
             sequence: 4,
             active: true,
             compensationPolicyKey: 'skip_and_continue',

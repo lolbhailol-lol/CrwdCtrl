@@ -125,7 +125,9 @@ function progressFingerprint(data) {
 function stageNeedsCheckpoint(stage) {
   const s = String(stage || '');
   if (!s || s === 'SCORE_LOCKED' || s === 'FINISH_COMPLETED') return false;
-  if (s.includes('CLUE_5_')) return false;
+  // Active clues are not scan stages; Clue 6 completed uses finish code (no QR)
+  if (s.includes('_ACTIVE')) return false;
+  if (s === 'CLUE_6_COMPLETED' || s === 'CLUE_6_FAILED') return false;
   return s.includes('COMPLETED') || s.includes('FAILED') || s.includes('TIMEOUT');
 }
 
@@ -156,6 +158,7 @@ export function progressFromActionData(payload) {
     team: payload.team,
     challenges: payload.challenges,
     checkpointStatus: payload.checkpointStatus ?? null,
+    finishDestination: payload.finishDestination || null,
     serverTime: payload.serverTime || new Date().toISOString(),
   };
 }
@@ -307,9 +310,10 @@ export function useHuntTeam(eventId, { enabled = true, initialData = null } = {}
     const cp = next.checkpointStatus;
     const pendingScan = Boolean(
       cp?.checkpointId
-      && Number(cp.verifiedCount || 0) < Number(cp.requiredCount || next.team?.teamSize || 4),
+      && !cp?.awaitingTeamCodeConfirm
+      && Number(cp.verifiedCount || 0) < Number(cp.requiredCount || 1),
     );
-    pausePollUntilRef.current = Date.now() + (pendingScan ? 350 : 800);
+    pausePollUntilRef.current = Date.now() + (pendingScan ? 500 : 1200);
     applyMerged({
       ...next,
       rounds: dataRef.current?.rounds,

@@ -20,68 +20,47 @@ export default function OfflineHuntTeamPage() {
   }
 
   const startName = bundle.team?.startingPoint?.name;
-  const isLeader = session.role === 'leader';
 
   return (
     <div className="min-h-screen bg-[#0b0c0d] px-4 py-8 text-white">
       <div className="mx-auto max-w-lg">
         <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#0ECCEE]">
-          Your team
+          Offline pack
         </p>
         <div className="mt-2 flex items-start justify-between gap-4">
           <div>
             <h1 className="text-[1.35rem] font-semibold">
               {bundle.team.teamCode}
-              {bundle.team.teamName ? (
-                <span className="font-normal text-white/50">
-                  {' '}
-                  ·
-                  {' '}
-                  {bundle.team.teamName}
-                </span>
-              ) : null}
             </h1>
+            {bundle.team.teamName ? (
+              <p className="mt-0.5 text-sm text-white/50">{bundle.team.teamName}</p>
+            ) : null}
             <p className="mt-1 text-sm text-white/55">
-              {isLeader ? 'Leader' : 'Player'}
-              {' · '}
-              {session.name}
+              Leader · {session.name}
             </p>
             {startName ? (
-              <p className="mt-1 text-sm text-white/45">Start desk: {startName}</p>
+              <p className="mt-1 text-sm text-white/45">Start: {startName}</p>
             ) : null}
           </div>
           <ScoreChip score={state?.score} label="Score" />
         </div>
 
-        <section className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/45">
-            How to play
-          </p>
-          <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-white/80">
-            <li>All teammates walk together. One phone (leader).</li>
-            <li>Leader types clue answers.</li>
-            <li>At each stop: find written clues, join the word, type it, then scan the poster once.</li>
-            <li>Enter your team code → next location.</li>
-            <li>Report to your start desk when Final is done.</li>
-          </ol>
+        <section className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
+          <p>One phone. Solve clues, scan posters, finish at MindSpark Lobby.</p>
         </section>
-
-        <p className="mt-4 text-sm text-white/55">
-          The hunt does not start on this page. Next you pick Round 1.
-        </p>
 
         <button
           type="button"
           onClick={() => navigate(CAMPUS_HUNT_PATHS.offlineRounds)}
           className="mt-6 w-full rounded-xl bg-[#0ECCEE] py-3 text-sm font-bold text-black"
         >
-          Continue to rounds
+          Continue
         </button>
         <Link
           to={CAMPUS_HUNT_PATHS.offlineLogin}
-          className="mt-4 block w-full py-2 text-center text-xs text-white/35"
+          className="mt-3 block text-center text-xs text-white/40"
         >
-          Not you? Switch person
+          Switch pack / re-login
         </Link>
       </div>
     </div>

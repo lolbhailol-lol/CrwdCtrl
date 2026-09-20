@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   enterTeamAsMember,
@@ -16,14 +16,12 @@ import { readHuntAuthMeta } from '../utils/huntAuth';
 import CampusHuntBackLink from './CampusHuntBackLink';
 
 /**
- * Per-team login — password unlocks names → tap who you are.
+ * Per-team login — password enters as Team Leader (leader-phone-only hunt).
  * Already enrolled on this team → go straight to play (no re-login).
  */
 export default function TeamLoginForm({
   slug,
   initialCode = '',
-  preselectRole = null,
-  preselectSlot = 0,
 }) {
   const navigate = useNavigate();
   const { isHuntAuthenticated, persistHuntAuth, clearHuntAuth } = useHuntAuth();
@@ -33,10 +31,7 @@ export default function TeamLoginForm({
   const [college, setCollege] = useState('');
   const [password, setPassword] = useState('');
   const [teamCard, setTeamCard] = useState(null);
-  const [members, setMembers] = useState([]);
   const [unlocked, setUnlocked] = useState(false);
-  const [roleTips, setRoleTips] = useState(null);
-  const [selected, setSelected] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [lookingUp, setLookingUp] = useState(false);
@@ -68,8 +63,6 @@ export default function TeamLoginForm({
     setLookingUp(true);
     setError('');
     setUnlocked(false);
-    setMembers([]);
-    setSelected(null);
     setPassword('');
     setOtherTeamCode('');
     (async () => {
@@ -168,16 +161,7 @@ export default function TeamLoginForm({
     clearHuntAuth,
   ]);
 
-  const leader = useMemo(
-    () => members.find((m) => m.role === 'leader') || null,
-    [members],
-  );
-  const players = useMemo(
-    () => members.filter((m) => m.role === 'scanner'),
-    [members],
-  );
-
-  const unlockNames = async () => {
+  const enterAsLeader = async (member, { keepBusy = false } = {}) => {
     if (!teamCode) {
       setError('Invalid team link');
       return;
@@ -186,72 +170,29 @@ export default function TeamLoginForm({
       setError('Enter the team password');
       return;
     }
-    setBusy(true);
-    setError('');
-    try {
-      const res = await unlockTeamRoster(slug, teamCode, String(password).trim());
-      const list = res.data?.team?.members || [];
-      setMembers(list);
-      setRoleTips(res.data?.team?.roles || null);
-      setUnlocked(true);
-      if (preselectRole === 'leader') {
-        setSelected(list.find((m) => m.role === 'leader') || null);
-      } else if (
-        (preselectRole === 'scanner' || preselectRole === 'player')
-        && preselectSlot
-      ) {
-        setSelected(
-          list.find((m) => m.role === 'scanner' && m.slot === Number(preselectSlot))
-            || null,
-        );
-      } else {
-        setSelected(null);
-      }
-    } catch (err) {
-      setUnlocked(false);
-      setMembers([]);
-      setError(err.message || 'Wrong password');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const enterAs = async (member) => {
-    if (!teamCode) {
-      setError('Invalid team link');
-      return;
-    }
-    if (!String(password || '').trim()) {
-      setError('Enter the team password');
-      return;
-    }
-    if (!member) {
-      setError('Pick who you are');
+    if (!member || member.role !== 'leader') {
+      setError('Team Leader account is missing — ask your organizer to repair this roster');
       return;
     }
 
-    setBusy(true);
-    setError('');
-    setSelected(member);
+    if (!keepBusy) {
+      setBusy(true);
+      setError('');
+    }
     try {
-      const role = member.role === 'leader' ? 'leader' : 'player';
-      const slot = member.role === 'leader' ? 0 : Number(member.slot || 0);
       const result = await enterTeamAsMember(slug, teamCode, {
         password: String(password).trim(),
-        role,
-        slot,
+        role: 'leader',
+        slot: 0,
       });
 
       if (!result?.success || !result?.token) {
         throw new Error('Login failed');
       }
 
-      const enteredRole = result.team?.role || role;
-      if (enteredRole === 'leader' && role !== 'leader') {
-        throw new Error('Login mismatched — try again as player');
-      }
-      if (enteredRole !== 'leader' && role === 'leader') {
-        throw new Error('Login mismatched — try again as leader');
+      const enteredRole = result.team?.role || 'leader';
+      if (enteredRole !== 'leader') {
+        throw new Error('Leader login only — ask your organizer if this team has no leader seat');
       }
 
       const myName = result.team?.myName || result.user?.name || member.name || '';
@@ -271,6 +212,36 @@ export default function TeamLoginForm({
       await goToPlay();
     } catch (err) {
       setError(err.message || 'Wrong password');
+      throw err;
+    } finally {
+      if (!keepBusy) setBusy(false);
+    }
+  };
+
+  const unlockAndEnterAsLeader = async () => {
+    if (!teamCode) {
+      setError('Invalid team link');
+      return;
+    }
+    if (!String(password || '').trim()) {
+      setError('Enter the team password');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      const res = await unlockTeamRoster(slug, teamCode, String(password).trim());
+      const list = res.data?.team?.members || [];
+      const leaderMember = list.find((m) => m.role === 'leader') || null;
+      if (!leaderMember) {
+        setError('No Team Leader on this roster — ask your organizer to repair it');
+        return;
+      }
+      // Stay busy through unlock → enter so the form doesn't flash mid-pass
+      await enterAsLeader(leaderMember, { keepBusy: true });
+    } catch (err) {
+      setUnlocked(false);
+      setError(err.message || 'Wrong password');
     } finally {
       setBusy(false);
     }
@@ -281,7 +252,6 @@ export default function TeamLoginForm({
     setOtherTeamCode('');
     setSessionCheck('ready');
     setUnlocked(false);
-    setMembers([]);
     setPassword('');
     setError('');
   };
@@ -376,16 +346,12 @@ export default function TeamLoginForm({
               value={password}
               onChange={(e) => {
                 setPassword(e.target.value);
-                if (unlocked) {
-                  setUnlocked(false);
-                  setMembers([]);
-                  setSelected(null);
-                }
+                if (unlocked) setUnlocked(false);
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
-                  void unlockNames();
+                  void unlockAndEnterAsLeader();
                 }
               }}
               placeholder="Password from your organizer"
@@ -394,16 +360,14 @@ export default function TeamLoginForm({
               className="mt-2 w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3.5 text-lg text-white placeholder:text-white/25 focus:border-[#0ECCEE]/50 focus:outline-none"
             />
           </label>
-          {!unlocked && (
-            <button
-              type="button"
-              disabled={busy || lookingUp || !password.trim()}
-              onClick={() => void unlockNames()}
-              className="mt-3 w-full rounded-xl bg-[#0ECCEE] px-4 py-3.5 text-sm font-bold text-black disabled:opacity-40"
-            >
-              {busy ? 'Checking…' : 'Continue → show names'}
-            </button>
-          )}
+          <button
+            type="button"
+            disabled={busy || lookingUp || !password.trim()}
+            onClick={() => void unlockAndEnterAsLeader()}
+            className="mt-3 w-full rounded-xl bg-[#0ECCEE] px-4 py-3.5 text-sm font-bold text-black disabled:opacity-40"
+          >
+            {busy ? 'Entering…' : 'Enter as Team Leader'}
+          </button>
           {lookingUp && !teamCard && (
             <p className="mt-3 text-sm text-white/45">Opening team…</p>
           )}
@@ -414,78 +378,13 @@ export default function TeamLoginForm({
 
         {error && <p className="mt-4 text-sm text-rose-300">{error}</p>}
 
-        {unlocked && members.length > 0 && (
-          <div className="mt-6 space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-white/45">
-              Who are you? ({members.length} on this team)
-            </p>
-
-            {leader && (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => enterAs(leader)}
-                className={`flex w-full items-center justify-between rounded-xl border px-4 py-4 text-left disabled:opacity-50 ${
-                  selected?.role === 'leader'
-                    ? 'border-amber-300/60 bg-amber-500/20'
-                    : 'border-amber-400/35 bg-amber-500/10 hover:bg-amber-500/15'
-                }`}
-              >
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-200/80">
-                    Leader
-                  </p>
-                  <p className="text-lg font-semibold text-white">
-                    {leader.name || 'Team Leader'}
-                  </p>
-                  <p className="mt-1 text-[11px] text-white/45">
-                    {roleTips?.leader || 'Starts missions · submits answers · also scans'}
-                  </p>
-                </div>
-                <span className="shrink-0 rounded-lg bg-amber-300 px-3 py-1.5 text-xs font-bold text-black">
-                  {busy && selected?.role === 'leader' ? '…' : 'Enter →'}
-                </span>
-              </button>
-            )}
-
-            {players.map((m) => (
-              <button
-                key={`player-${m.slot}`}
-                type="button"
-                disabled={busy}
-                onClick={() => enterAs(m)}
-                className={`flex w-full items-center justify-between rounded-xl border px-4 py-4 text-left disabled:opacity-50 ${
-                  selected?.role === 'scanner' && selected?.slot === m.slot
-                    ? 'border-[#0ECCEE]/50 bg-[#0ECCEE]/15'
-                    : 'border-white/12 bg-white/4 hover:border-white/25'
-                }`}
-              >
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-white/40">
-                    Player {m.slot}
-                  </p>
-                  <p className="text-lg font-semibold text-white">
-                    {m.name || `Player ${m.slot}`}
-                  </p>
-                  <p className="mt-1 text-[11px] text-white/45">
-                    {roleTips?.player || 'Help your leader · scan when Round 1 asks'}
-                  </p>
-                </div>
-                <span className="text-xs font-semibold text-[#0ECCEE]">
-                  {busy && selected?.slot === m.slot ? '…' : 'Enter →'}
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
-
         <div className="mt-8 rounded-2xl border border-white/10 bg-white/4 p-4 text-sm text-white/60">
-          <p className="font-semibold text-white">Once · stay in</p>
+          <p className="font-semibold text-white">One phone · Team Leader</p>
           <ul className="mt-2 list-disc space-y-1.5 pl-4">
-            <li>Password → tap your name → done</li>
+            <li>Password → enter as Team Leader → done</li>
+            <li>Only the leader phone plays and scans</li>
             <li>Refresh or reopen — still in the hunt</li>
-            <li>After login, pick a round from the list</li>
-            <li>Leader starts timed steps · players help as instructed</li>
+            <li>Teammates help in person — no separate logins</li>
           </ul>
         </div>
       </div>

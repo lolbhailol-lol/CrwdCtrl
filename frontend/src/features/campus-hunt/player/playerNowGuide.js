@@ -1,5 +1,6 @@
 /**
  * Plain-language “what to do now” copy for the player dashboard.
+ * Keep body short — no numbered steps (action UI is below).
  */
 
 export function buildPlayerNowGuide({
@@ -20,9 +21,9 @@ export function buildPlayerNowGuide({
     return {
       tone: 'done',
       eyebrow: 'Finished',
-      title: 'Your score is locked',
-      body: `Final score: ${team?.finalScore ?? team?.currentScore ?? 0} points.`,
-      steps: ['Check the public leaderboard if it is live.'],
+      title: 'Score locked',
+      body: `Final: ${team?.finalScore ?? team?.currentScore ?? 0} pts.`,
+      steps: [],
     };
   }
 
@@ -31,41 +32,34 @@ export function buildPlayerNowGuide({
       tone: 'wait',
       eyebrow: 'Before start',
       title: `Meet at ${startName}`,
-      body: isLeader
-        ? 'Clue 1 stays locked until your unlock time. Keep everyone together.'
-        : 'Your leader gets Clue 1 at unlock time. Stay together.',
-      steps: [
-        `Stay at ${startName}`,
-        'Wait for the countdown below',
-        isLeader ? 'Then solve Clue 1 here' : 'Help after your leader solves Clue 1',
-      ],
+      body: 'Clue 1 unlocks at the scheduled time. Leader phone only.',
+      steps: [],
     };
   }
 
   if (atStartReport) {
     return {
       tone: 'final',
-      eyebrow: 'Final step',
-      title: 'Report to your start',
-      body: `Go to ${startName} and tell the organizer your team number.`,
-      steps: [
-        `Walk to ${startName}`,
-        `Say team number ${team?.teamCode || '—'}`,
-        'Ask them to mark you reached',
-      ],
+      eyebrow: 'MindSpark Lobby',
+      title: 'Enter the finish code',
+      body: 'Ask the organizer for the finish code to lock your score.',
+      steps: [],
     };
   }
 
   if (atCheckpoint) {
     const place = checkpointStatus?.locationName || 'the campus spot';
-    const color = checkpointStatus?.checkpointKey?.startsWith('2')
-      ? 'Green'
-      : checkpointStatus?.checkpointKey?.startsWith('3')
-        ? 'Blue'
-        : checkpointStatus?.checkpointKey?.startsWith('4')
-          ? 'Purple'
-          : 'Orange';
-    const required = Number(checkpointStatus?.requiredCount || team?.teamSize || 4);
+    const key = String(checkpointStatus?.checkpointKey || '');
+    const color = key.startsWith('5')
+      ? 'Red'
+      : key.startsWith('4')
+        ? 'Purple'
+        : key.startsWith('3')
+          ? 'Blue'
+          : key.startsWith('2')
+            ? 'Green'
+            : 'Orange';
+    const required = Number(checkpointStatus?.requiredCount || 1);
     const scanned = Boolean(checkpointStatus?.youScanned);
     const awaitingClaim = Boolean(checkpointStatus?.awaitingTeamCodeConfirm)
       || (
@@ -78,75 +72,41 @@ export function buildPlayerNowGuide({
     if (done) {
       return {
         tone: 'scan',
-        eyebrow: `${color} scan complete`,
+        eyebrow: `${color} scan`,
         title: 'Station cleared',
-        body: 'Your allotted clue is unlocked — keep going.',
-        steps: ['Continue to the next clue'],
+        body: 'Next clue is unlocked.',
+        steps: [],
       };
     }
 
-    if (awaitingClaim) {
+    if (awaitingClaim || scanned) {
       return {
         tone: 'scan',
         eyebrow: `${color} · team code`,
-        title: 'Enter your team code',
-        body: `All ${required} scanned at ${place}. Confirm ${team?.teamCode || 'your code'} to unlock your allotted clue.`,
-        steps: [
-          'Type your team code',
-          'Tap Confirm',
-          'Read the clue you were allotted',
-        ],
-      };
-    }
-
-    if (scanned) {
-      return {
-        tone: 'scan',
-        eyebrow: `${color} scan`,
-        title: 'Waiting for teammates',
-        body: `${checkpointStatus.verifiedCount}/${checkpointStatus.requiredCount} scanned at ${place}.`,
-        steps: [
-          'You already scanned',
-          `Need ${checkpointStatus.membersNeeded} more`,
-          'Then enter your team code',
-        ],
+        title: 'Enter team code',
+        body: `Confirm ${team?.teamCode || 'your code'} to unlock the next clue.`,
+        steps: [],
       };
     }
 
     return {
       tone: 'scan',
-      eyebrow: `${color} shared QR`,
+      eyebrow: `${color} QR`,
       title: `Scan at ${place}`,
-      body: `Find the shared ${color} QR at this place. All teams use the same poster.`,
-      steps: [
-        `Go to ${place}`,
-        `Scan the shared ${color} QR`,
-        `All ${required} must scan`,
-        'Enter your team code for your clue',
-      ],
+      body: `Leader scans the ${color} poster once.`,
+      steps: [],
     };
   }
 
   if (activeNum === 1) {
-    if (!isLeader) {
-      return {
-        tone: 'clue',
-        eyebrow: 'Clue 1',
-        title: 'Stay with your leader',
-        body: 'They solve Clue 1 on their phone. You scan Orange together next — keep this screen open.',
-        steps: [
-          'Stay together',
-          'Leader submits the place name',
-          'Then everyone scans the shared Orange QR',
-        ],
-      };
-    }
     return {
       tone: 'clue',
       eyebrow: 'Clue 1',
       title: 'Name the place',
-      body: 'Read the clue below, type the campus place, then submit.',
-      steps: ['Read the clue', 'Type the place name', 'Submit, then scan the shared Orange QR'],
+      body: isLeader
+        ? 'Type the campus place, submit, then scan Orange.'
+        : 'Only the leader phone answers Clue 1.',
+      steps: [],
     };
   }
 
@@ -155,35 +115,36 @@ export function buildPlayerNowGuide({
       return {
         tone: 'clue',
         eyebrow: 'Clue 2',
-        title: 'Read the instructions',
-        body: 'The 3-minute timer starts when the countdown hits zero.',
-        steps: ['Read now', 'Wait for the timer', 'Then find and submit the number'],
+        title: 'Read first',
+        body: 'Hunt timer starts when the countdown hits zero.',
+        steps: [],
+      };
+    }
+    if (activeChallenge?.revealedAnswer || activeChallenge?.timeExpired) {
+      return {
+        tone: 'clue',
+        eyebrow: 'Clue 2',
+        title: 'Type the revealed answer',
+        body: '0 pts — type it, then scan green.',
+        steps: [],
       };
     }
     return {
       tone: 'clue',
       eyebrow: 'Clue 2',
-      title: isLeader ? 'Find the number' : 'Help find the number',
-      body: isLeader
-        ? 'Faster answers score more. Only you can submit.'
-        : 'Help search — only the leader submits.',
-      steps: isLeader
-        ? ['Find the 3-digit number', 'Type it below', 'Submit, then scan green']
-        : ['Help search', 'Stay for the green scan next'],
+      title: 'Find the number',
+      body: 'Faster = more points. At 0:00 the answer is shown for 0 pts.',
+      steps: [],
     };
   }
 
   if (activeNum === 3) {
     return {
       tone: 'clue',
-      eyebrow: 'Clue 3',
-      title: isLeader ? 'Decode the riddle' : 'Help decode',
-      body: isLeader
-        ? 'Solve together, then submit the word.'
-        : 'Only the Team Leader can submit.',
-      steps: isLeader
-        ? ['Read the riddle', 'Type the word', 'Submit']
-        : ['Help decode', 'Leader submits'],
+      eyebrow: 'Clue 3 · Lockbox',
+      title: 'Open the lockbox',
+      body: 'Rebuild the digits in order, then submit.',
+      steps: [],
     };
   }
 
@@ -191,36 +152,56 @@ export function buildPlayerNowGuide({
     if (activeChallenge?.instructionPhase) {
       return {
         tone: 'clue',
-        eyebrow: 'Clue 4 · Prop hunt',
+        eyebrow: 'Clue 4',
         title: 'Read the brief',
-        body: 'The hunt timer starts when the countdown hits zero.',
-        steps: ['Read now', 'Wait for the timer', 'Then find the prop and submit its code'],
+        body: 'Timer starts at zero — then open Zip Grid on a laptop.',
+        steps: [],
+      };
+    }
+    if (activeChallenge?.revealedAnswer || activeChallenge?.timeExpired) {
+      return {
+        tone: 'clue',
+        eyebrow: 'Clue 4',
+        title: 'Type the GRID code',
+        body: '0 pts — type GRID-XXXX, then scan purple.',
+        steps: [],
       };
     }
     return {
       tone: 'clue',
-      eyebrow: 'Clue 4 · Prop hunt',
-      title: isLeader ? 'Find the crazy prop' : 'Help find the prop',
-      body: isLeader
-        ? 'Hunt the planted prop, type its sticker code. Faster = more points.'
-        : 'Help search — only the leader submits.',
-      steps: isLeader
-        ? ['Find the prop', 'Type the short code', 'Submit, then scan purple']
-        : ['Help search', 'Stay for the purple scan next'],
+      eyebrow: 'Clue 4 · Field Terminal',
+      title: 'Clear Zip Grid',
+      body: 'Laptop: open the link + device key. Then type GRID-XXXX here.',
+      steps: [],
     };
   }
 
   if (activeNum === 5) {
+    if (activeChallenge?.revealedAnswer || activeChallenge?.timeExpired) {
+      return {
+        tone: 'clue',
+        eyebrow: 'Clue 5',
+        title: 'Type the revealed word',
+        body: '0 pts — type it, then scan red.',
+        steps: [],
+      };
+    }
+    return {
+      tone: 'clue',
+      eyebrow: 'Clue 5',
+      title: 'Submit the word',
+      body: 'Rebuild from fragments, submit, then scan red.',
+      steps: [],
+    };
+  }
+
+  if (activeNum === 6) {
     return {
       tone: 'final',
-      eyebrow: 'Final clue',
-      title: isLeader ? 'Submit the one word' : 'Share your code',
-      body: isLeader
-        ? 'Collect all fragments, submit, then report to start.'
-        : 'Show your fragment — leader submits.',
-      steps: isLeader
-        ? ['Collect codes', 'Type the word', 'Submit, then report to start']
-        : ['Show your fragment', 'Go with the team to the start desk'],
+      eyebrow: 'MindSpark Lobby',
+      title: 'Type the finish code',
+      body: 'Organizer gives the code — type it to lock your score.',
+      steps: [],
     };
   }
 
@@ -229,8 +210,8 @@ export function buildPlayerNowGuide({
       tone: 'wait',
       eyebrow: 'Hold on',
       title: 'Next step unlocking',
-      body: 'Stay with your team — the next clue will show here in a moment.',
-      steps: ['Stay together', 'Watch this screen'],
+      body: 'Stay with your team.',
+      steps: [],
     };
   }
 

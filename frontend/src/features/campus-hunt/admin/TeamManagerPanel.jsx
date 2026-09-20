@@ -579,7 +579,7 @@ function TeamDetailCard({
                   ...f,
                   teamPassword: e.target.value,
                 }))}
-                placeholder={`Shared team password (all ${teamSize} people)`}
+                placeholder="Shared password (leader phone)"
                 className="w-full rounded-lg border border-[#0ECCEE]/40 bg-[#161718] px-3 py-2 font-mono text-sm"
               />
               <p className="text-[11px] text-white/45">
@@ -627,15 +627,11 @@ function TeamDetailCard({
             </p>
           </div>
 
-          {['CLUE_5_COMPLETED', 'CLUE_5_FAILED'].includes(team.currentStage) && (
+          {['CLUE_6_COMPLETED', 'CLUE_6_FAILED'].includes(team.currentStage) && (
             <div className="rounded-lg border border-red-400/40 bg-red-500/10 px-3 py-3">
-              <p className="text-sm font-semibold text-red-100">Waiting at start</p>
+              <p className="text-sm font-semibold text-red-100">Waiting at Finale Assembly</p>
               <p className="mt-1 text-xs text-white/65">
-                Team finished Clue 5 / Final. When they arrive at{' '}
-                {team.startingPoint?.name
-                  || startingPoints.find((point) => id(point) === id(team.startingPointId))?.name
-                  || 'their start'}
-                , mark them reached to lock score.
+                Team finished Clue 6. When they arrive at Finale Assembly, mark them reached to lock score.
               </p>
               <button
                 type="button"
@@ -656,7 +652,7 @@ function TeamDetailCard({
                 }}
                 className="mt-3 w-full rounded-lg bg-red-500 px-3 py-2 text-sm font-semibold text-white disabled:opacity-40"
               >
-                Mark reached at start · lock score
+                Mark reached · Finale Assembly · lock score
               </button>
             </div>
           )}
@@ -676,7 +672,7 @@ function TeamDetailCard({
               </p>
             )}
             <p className="mt-1 text-[11px] text-white/50">
-              Share this one link. All {teamSize} people: password → tap their name.
+              One link for the leader phone only. Teammates walk along — no member phones.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <button
@@ -726,13 +722,11 @@ function TeamDetailCard({
               This team · hub locks
             </p>
             <p className="mt-1 text-[11px] text-white/40">
-              Force-lock a round for this team only (even if overall is open).
+              Force-lock the hunt for this team only (even if overall is open).
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
               {[
-                ['round1', 'R1'],
-                ['survival', 'Surv'],
-                ['finale', 'Finals'],
+                ['round1', 'Hunt'],
               ].map(([key, label]) => {
                 const locked = Boolean(team.playerRoundLocks?.[key]);
                 return (
@@ -906,7 +900,7 @@ export default function TeamManagerPanel({
   const [routeDraft, setRouteDraft] = useState({ routeKey: '', name: '', teamSlots: 10 });
 
   const capacity = Math.max(2, Number(eventMeta?.teamCapacity) || 40);
-  const teamSize = Math.max(2, Math.min(8, Number(eventMeta?.teamSize) || 4));
+  const teamSize = Math.max(2, Math.min(12, Number(eventMeta?.teamSize) || 4));
   const startCount = Math.max(1, Math.min(4, Number(eventMeta?.startCount) || 4));
   const teamsPerWait = Math.max(1, Math.ceil(capacity / startCount));
   const scannersNeeded = Math.max(1, teamSize - 1);
@@ -1516,7 +1510,8 @@ export default function TeamManagerPanel({
         <div>
           <h3 className="font-semibold">1. Add team and login access</h3>
           <p className="mt-1 text-xs text-white/50">
-            {teamSize} people/team (leader + {scannersNeeded} member{scannersNeeded === 1 ? '' : 's'}).
+            {teamSize} people walk together · leader phone only (leader + {scannersNeeded} walker name
+            {scannersNeeded === 1 ? '' : 's'} for roster).
             One shared password for the whole team. Share each team&apos;s URL —
             players only type the password and tap their name.
           </p>
@@ -1558,7 +1553,7 @@ export default function TeamManagerPanel({
               setLeaderPassword(e.target.value);
               setScannerPassword(e.target.value);
             }}
-            placeholder={`Shared team password (all ${teamSize} people)`}
+            placeholder="Shared password (leader phone)"
             className="rounded-lg border border-[#0ECCEE]/40 bg-[#161718] px-3 py-2 font-mono md:col-span-2"
             required
           />

@@ -26,11 +26,13 @@ const {
   submitClue1,
   submitChallengeAnswer,
   requestChallengeHint,
+  revealTimedChallenge,
   getLeaderboard,
   scanStation,
   confirmStation,
   rewindStep,
   forceUnlockClue2,
+  submitFinishCode,
 } = require('../controllers/playerController');
 
 const router = express.Router();
@@ -96,6 +98,22 @@ router.post(
   requireTeamLeader,
   campusHuntHintLimiter,
   requestChallengeHint,
+);
+router.post(
+  '/teams/:teamId/challenges/:n/timer-reveal',
+  authenticateToken,
+  requireTeamMember,
+  requireTeamLeader,
+  campusHuntAnswerLimiter,
+  revealTimedChallenge,
+);
+router.post(
+  '/teams/:teamId/finish',
+  authenticateToken,
+  requireTeamMember,
+  requireTeamLeader,
+  campusHuntAnswerLimiter,
+  submitFinishCode,
 );
 router.post(
   '/teams/:teamId/checkpoints/scan',

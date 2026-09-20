@@ -1,5 +1,15 @@
 /** Campus Hunt domain constants — Round 1: THE HUNT */
 
+/**
+ * Round 1 play model: only the team leader carries a phone.
+ * Teammates walk along; leader solves clues, scans posters, enters team codes.
+ */
+const LEADER_ONLY_PHONE = true;
+/** Checkpoint scans needed before team-code claim (leader-only phone). */
+const CHECKPOINT_SCAN_REQUIRED = 1;
+const LEADER_SCAN_INSTRUCTION =
+  'Leader scans the shared QR once, then enters your team code.';
+
 const EVENT_STATUSES = [
   'draft',
   'registration_open',
@@ -200,6 +210,10 @@ const TEAM_STAGES = [
   'CLUE_5_ACTIVE',
   'CLUE_5_COMPLETED',
   'CLUE_5_FAILED',
+  'CHECKPOINT_5_COMPLETED',
+  'CLUE_6_ACTIVE',
+  'CLUE_6_COMPLETED',
+  'CLUE_6_FAILED',
   'FINISH_COMPLETED',
   'SCORE_LOCKED',
 ];
@@ -257,6 +271,7 @@ const DEFAULT_SCORING_CONFIG = {
       { maxSeconds: 180, bonus: 10 },
     ],
   },
+  // Clue 3 — Lockbox (digit pieces → code). Flat points.
   clue3: {
     basePoints: 50,
     maxAttempts: 3,
@@ -264,7 +279,7 @@ const DEFAULT_SCORING_CONFIG = {
     awardMode: 'flat_base',
     speedBonusBands: [],
   },
-  // Clue 4 — crazy prop hunt (physical find). Same timer feel as Clue 2.
+  // Clue 4 — Field Terminal (GRID code). Same timer feel as Clue 2.
   clue4: {
     basePoints: 0,
     maxAttempts: 3,
@@ -278,7 +293,7 @@ const DEFAULT_SCORING_CONFIG = {
       { maxSeconds: 180, bonus: 10 },
     ],
   },
-  // Clue 5 / Final: 50 base + speed bonus if fast. Late = 0 pts, still report to start.
+  // Clue 5: 5th campus stop (collaborative / word). Then scan → Clue 6 destination.
   clue5: {
     basePoints: 50,
     maxAttempts: 3,
@@ -291,6 +306,14 @@ const DEFAULT_SCORING_CONFIG = {
       { maxSeconds: 300, bonus: 5 },
     ],
   },
+  // Clue 6: destination — go to the shared finale place.
+  clue6: {
+    basePoints: 25,
+    maxAttempts: 3,
+    timerSeconds: 0,
+    awardMode: 'flat_base',
+    speedBonusBands: [],
+  },
 };
 
 /** Player-facing How-to copy per clue (safe to send to client). */
@@ -298,49 +321,59 @@ const CLUE_HOW_TO = {
   1: {
     title: 'How to play — Clue 1',
     steps: [
-      'Read the sentence and type the campus location.',
+      'Leader reads the riddle and types the campus location on their phone.',
       'Correct answer = 50 points (any attempt). After 3 wrong tries the location is revealed (0 points).',
-      'Go there — all members scan the shared orange QR.',
-      'Then enter your team code to unlock your allotted clue.',
+      'Walk there together — leader scans the shared orange QR once.',
+      'Leader enters your team code to unlock the next clue.',
     ],
   },
   2: {
     title: 'How to play — Clue 2',
     steps: [
-      'Read the instructions carefully (20 seconds).',
-      'Then a 3-minute timer starts — find the hidden 3-digit number.',
-      'Faster correct submit = more points. When the timer ends the answer is revealed (0 points).',
-      'After the correct number: go straight to your next location.',
-      'Find the shared green SECOND SCAN QR — all members scan, then enter your team code.',
-      'That unlocks Clue 3 (Caesar riddle) on your phone.',
+      'Leader reads the instructions carefully (short countdown).',
+      'Then a 3-minute timer starts — find the hidden number as a team.',
+      'Leader types the answer. Faster correct submit = more points.',
+      'If time runs out, the answer is shown (0 points) — type it to unlock the next step.',
+      'Leader scans the shared green SECOND SCAN QR once.',
+      'That unlocks Lockbox (Clue 3) on the leader phone.',
     ],
   },
   3: {
-    title: 'How to play — Clue 3',
+    title: 'How to play — Lockbox',
     steps: [
-      'Decode the Caesar riddle on your phone (leader submits).',
-      'Limited attempts; hints cost points. Think before you submit.',
-      'Then go to that place — find the shared blue THIRD SCAN QR.',
-      'All members scan, enter your team code, then the crazy prop hunt unlocks.',
+      'Lockbox pieces appear on the leader phone — read them aloud in seat order.',
+      'Rebuild the digit code together. Leader submits (limited attempts; hints cost points).',
+      'Walk to that place together — leader finds the shared blue THIRD SCAN QR.',
+      'Leader scans once, enters your team code, then Field Terminal unlocks.',
     ],
   },
   4: {
-    title: 'How to play — Crazy prop hunt',
+    title: 'How to play — Field Terminal',
     steps: [
-      'Read the brief, then hunt as a team for the silly planted prop at your next stop.',
-      'Find the sticker / tag on the prop and type its short code (leader submits).',
-      'Faster find = more points. When the timer ends the prop code is revealed (0 points).',
-      'Then scan the shared purple FOURTH SCAN QR at that same place — all members, then team code.',
-      'That unlocks the Final collaborative word.',
+      'Read the brief (countdown). When the hunt timer starts, open the terminal link on a laptop.',
+      'Enter the device key, clear all Zip Grid levels, then bring the GRID-XXXX code back here.',
+      'Leader types GRID-XXXX on this phone. Faster correct submit = more points.',
+      'When the timer ends the code is revealed (0 points) — type it to continue.',
+      'Leader scans the shared purple FOURTH SCAN QR once, then enters your team code.',
+      'That unlocks Clue 5 on the leader phone.',
     ],
   },
   5: {
-    title: 'How to play — Final clue',
+    title: 'How to play — Clue 5',
     steps: [
-      'Each teammate sees their own code fragment on their phone.',
-      'Say the codes in order and rebuild the one word.',
-      'Leader submits the word. Faster = bonus points; when the timer ends the word is revealed (0 points).',
-      'Then report to your start location and ask the organizer to mark your team reached.',
+      'Fragments appear on the leader phone — read them aloud in order and rebuild the one word.',
+      'Leader submits the word. Faster = bonus points.',
+      'If time runs out, the word is revealed (0 points) — type it to continue.',
+      'Walk to your 5th campus stop — leader scans the red place QR once and enters your team code.',
+      'That unlocks Clue 6 (destination) on the leader phone.',
+    ],
+  },
+  6: {
+    title: 'How to play — Destination',
+    steps: [
+      'After Clue 5, go to MindSpark Lobby as a full team.',
+      'Ask the organizer for the finish code.',
+      'Leader types the finish code on this phone to lock your score.',
     ],
   },
 };
@@ -355,23 +388,28 @@ const STAGE_TRANSITIONS = {
   CLUE_2_COMPLETED: ['CHECKPOINT_2_COMPLETED'],
   CLUE_2_FAILED: ['CHECKPOINT_2_COMPLETED'],
   CLUE_2_TIMEOUT: ['CHECKPOINT_2_COMPLETED'],
-  // After green SECOND SCAN → Clue 3 Caesar riddle (tells where blue is)
+  // After green SECOND SCAN → Clue 3 Lockbox (code → blue stop)
   CHECKPOINT_2_COMPLETED: ['CLUE_3_ACTIVE'],
   CLUE_3_ACTIVE: ['CLUE_3_COMPLETED', 'CLUE_3_FAILED'],
   // After Clue 3 → go scan blue CP3
   CLUE_3_COMPLETED: ['CHECKPOINT_3_COMPLETED'],
   CLUE_3_FAILED: ['CHECKPOINT_3_COMPLETED'],
-  // After blue → crazy prop hunt
+  // After blue → Field Terminal
   CHECKPOINT_3_COMPLETED: ['CLUE_4_ACTIVE'],
   CLUE_4_ACTIVE: ['CLUE_4_COMPLETED', 'CLUE_4_FAILED', 'CLUE_4_TIMEOUT'],
   CLUE_4_COMPLETED: ['CHECKPOINT_4_COMPLETED'],
   CLUE_4_FAILED: ['CHECKPOINT_4_COMPLETED'],
   CLUE_4_TIMEOUT: ['CHECKPOINT_4_COMPLETED'],
-  // After purple → Final
+  // After purple → Clue 5 (5th stop word)
   CHECKPOINT_4_COMPLETED: ['CLUE_5_ACTIVE'],
   CLUE_5_ACTIVE: ['CLUE_5_COMPLETED', 'CLUE_5_FAILED'],
-  CLUE_5_COMPLETED: ['FINISH_COMPLETED'],
-  CLUE_5_FAILED: ['FINISH_COMPLETED'],
+  CLUE_5_COMPLETED: ['CHECKPOINT_5_COMPLETED'],
+  CLUE_5_FAILED: ['CHECKPOINT_5_COMPLETED'],
+  // After 5th scan → destination clue
+  CHECKPOINT_5_COMPLETED: ['CLUE_6_ACTIVE'],
+  CLUE_6_ACTIVE: ['CLUE_6_COMPLETED', 'CLUE_6_FAILED'],
+  CLUE_6_COMPLETED: ['FINISH_COMPLETED'],
+  CLUE_6_FAILED: ['FINISH_COMPLETED'],
   FINISH_COMPLETED: ['SCORE_LOCKED'],
   SCORE_LOCKED: [],
 };
@@ -382,6 +420,7 @@ const CHALLENGE_NUMBER_TO_ACTIVE_STAGE = {
   3: 'CLUE_3_ACTIVE',
   4: 'CLUE_4_ACTIVE',
   5: 'CLUE_5_ACTIVE',
+  6: 'CLUE_6_ACTIVE',
 };
 
 const CHALLENGE_RESOLVED_STAGES = {
@@ -405,16 +444,19 @@ const CHALLENGE_RESOLVED_STAGES = {
     completed: 'CLUE_5_COMPLETED',
     failed: 'CLUE_5_FAILED',
   },
+  6: {
+    completed: 'CLUE_6_COMPLETED',
+    failed: 'CLUE_6_FAILED',
+  },
 };
 
 const CHECKPOINT_UNLOCK_STAGE = {
   1: 'CLUE_1_COMPLETED',
   2: ['CLUE_2_COMPLETED', 'CLUE_2_FAILED', 'CLUE_2_TIMEOUT'],
-  // Blue CP3 cards unlock after Clue 3 Caesar riddle is solved
   3: ['CLUE_3_COMPLETED', 'CLUE_3_FAILED'],
-  // Purple CP4 after crazy prop hunt
   4: ['CLUE_4_COMPLETED', 'CLUE_4_FAILED', 'CLUE_4_TIMEOUT'],
-  FINISH: ['CLUE_5_COMPLETED', 'CLUE_5_FAILED'],
+  5: ['CLUE_5_COMPLETED', 'CLUE_5_FAILED'],
+  FINISH: ['CLUE_6_COMPLETED', 'CLUE_6_FAILED'],
 };
 
 const CHECKPOINT_NEXT_STAGE = {
@@ -422,17 +464,16 @@ const CHECKPOINT_NEXT_STAGE = {
   2: 'CHECKPOINT_2_COMPLETED',
   3: 'CHECKPOINT_3_COMPLETED',
   4: 'CHECKPOINT_4_COMPLETED',
+  5: 'CHECKPOINT_5_COMPLETED',
   FINISH: 'FINISH_COMPLETED',
 };
 
 const AUTO_ADVANCE_AFTER_CHECKPOINT = {
   CHECKPOINT_1_COMPLETED: 'CLUE_2_ACTIVE',
-  // Green 4/4 → open Clue 3 riddle immediately
   CHECKPOINT_2_COMPLETED: 'CLUE_3_ACTIVE',
-  // Blue → open crazy prop hunt
   CHECKPOINT_3_COMPLETED: 'CLUE_4_ACTIVE',
-  // Purple → open Final
   CHECKPOINT_4_COMPLETED: 'CLUE_5_ACTIVE',
+  CHECKPOINT_5_COMPLETED: 'CLUE_6_ACTIVE',
   FINISH_COMPLETED: 'SCORE_LOCKED',
 };
 
@@ -445,6 +486,9 @@ module.exports = {
   PROGRESS_STATES,
   ISSUE_CATEGORIES,
   DEFAULT_SCORING_CONFIG,
+  LEADER_ONLY_PHONE,
+  CHECKPOINT_SCAN_REQUIRED,
+  LEADER_SCAN_INSTRUCTION,
   CLUE_HOW_TO,
   STAGE_TRANSITIONS,
   CHALLENGE_NUMBER_TO_ACTIVE_STAGE,

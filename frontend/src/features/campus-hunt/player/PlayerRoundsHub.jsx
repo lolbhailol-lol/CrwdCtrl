@@ -1,6 +1,5 @@
 /**
- * After team login — pick Round 1 / Survival / Finals.
- * Locked rounds stay visible, tinted, and full — not grayed out.
+ * After team login — open the hunt (single game).
  */
 
 import ScoreChip from '../components/ScoreChip';

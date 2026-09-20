@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import PlayerPlayScreen from '../../player/PlayerPlayScreen';
 import OfflineHandoffDock from '../components/OfflineHandoffDock';
-import OfflineScoreBoard from '../components/OfflineScoreBoard';
 import { CAMPUS_HUNT_PATHS } from '../../config';
 import {
   loadOfflineBundle,
@@ -16,14 +15,11 @@ import {
 import { armOfflineNetworkGuard } from '../offlineNetworkGuard';
 import OfflineHuntBriefing from '../components/OfflineHuntBriefing';
 import {
-  applyTeamSync,
-  collectMemberProof,
   confirmStation,
   ensureClueActive,
   hydrateState,
   isHuntWaiting,
   markReachedStart,
-  pendingCheckpointKey,
   requestHint,
   scanStation,
   startHunt,
@@ -33,10 +29,8 @@ import {
 } from '../offlineEngine';
 import { buildPlayData } from '../buildPlayData';
 import {
-  buildMemberProofPayload,
   buildPhoneBackupPayload,
   buildResultsPayload,
-  buildTeamSyncPayload,
   isPhoneBackup,
   parseQrJson,
   verifyPayload,
@@ -65,8 +59,6 @@ export default function OfflineHuntPlayPage() {
   const [state, setState] = useState(null);
   const [loading, setLoading] = useState(true);
   const [playData, setPlayData] = useState(null);
-  const [proofPayload, setProofPayload] = useState('');
-  const [teamSyncPayload, setTeamSyncPayload] = useState('');
   const [resultsPayload, setResultsPayload] = useState('');
   const [startError, setStartError] = useState('');
   const [starting, setStarting] = useState(false);
@@ -188,36 +180,14 @@ export default function OfflineHuntPlayPage() {
     let cancelled = false;
     (async () => {
       try {
-        const sync = await buildTeamSyncPayload({ bundle, state });
         const results = await buildResultsPayload({ bundle, state });
         const backup = session.role === 'leader'
           ? await buildPhoneBackupPayload({ bundle, state, session })
           : null;
         if (cancelled) return;
-        setTeamSyncPayload(JSON.stringify(sync));
         setResultsPayload(JSON.stringify(results));
         if (backup) setBackupPayload(JSON.stringify(backup));
         else setBackupPayload('');
-        const key = pendingCheckpointKey(state.currentStage);
-        const youScanned = Boolean(
-          state.checkpoints?.[key]?.scans?.[session.memberKey]
-          || state.checkpoints?.[key]?.scans?.leader
-          || session.localPosterScans?.[String(key)],
-        );
-        if (key && youScanned && session.role !== 'leader') {
-          const expected = bundle.route?.[
-            { 1: 'orange', 2: 'green', 3: 'blue', 4: 'purple' }[key]
-          ];
-          const proof = await buildMemberProofPayload({
-            bundle,
-            session,
-            checkpointKey: key,
-            checkpointId: expected?.id,
-          });
-          if (!cancelled) setProofPayload(JSON.stringify(proof));
-        } else if (!cancelled) {
-          setProofPayload('');
-        }
       } catch {
         /* QR draw is best-effort */
       }
@@ -227,7 +197,21 @@ export default function OfflineHuntPlayPage() {
 
   const applyResult = useCallback((resData) => {
     if (!resData?.team) return false;
-    setPlayData((prev) => ({ ...prev, ...resData }));
+    setPlayData((prev) => {
+      let checkpointStatus = resData.checkpointStatus;
+      if (
+        checkpointStatus == null
+        && prev?.checkpointStatus?.checkpointId
+        && String(prev?.team?.currentStage || '') === String(resData.team?.currentStage || '')
+      ) {
+        checkpointStatus = prev.checkpointStatus;
+      }
+      return {
+        ...prev,
+        ...resData,
+        checkpointStatus: checkpointStatus ?? null,
+      };
+    });
     return true;
   }, []);
 
@@ -278,22 +262,40 @@ export default function OfflineHuntPlayPage() {
     confirmStationCheckpoint: async (_teamId, body) => (
       wrapEngine((pack, sess, st) => confirmStation(pack, sess, st, body?.teamCode))
     ),
+    revealTimedChallenge: async (_teamId, challengeNumber) => {
+      const pack = bundleRef.current;
+      const sess = sessionRef.current;
+      const n = Number(challengeNumber);
+      let next = tickTimers(pack, ensureClueActive(pack, stateRef.current), new Date());
+      await persistState(next, sess);
+      const data = buildPlayData(pack, sess, next);
+      const ch = data.challenges?.find((c) => Number(c.challengeNumber) === n);
+      return {
+        data: {
+          ...data,
+          revealed: Boolean(ch?.revealedAnswer),
+          revealedAnswer: ch?.revealedAnswer || null,
+          awardedPoints: 0,
+          message: ch?.revealedAnswer
+            ? `Time's up — answer revealed (0 pts): ${ch.revealedAnswer}. Type it to continue.`
+            : "Time's up — 0 points. Type the revealed answer to continue.",
+          awaitSubmit: true,
+        },
+      };
+    },
+    submitFinishCode: async (_teamId, finishCode) => {
+      const pack = bundleRef.current;
+      const sess = sessionRef.current;
+      const result = markReachedStart(pack, sess, stateRef.current, finishCode);
+      await persistState(result.state, sess);
+      return {
+        data: {
+          ...buildPlayData(pack, sess, result.state),
+          ...result.meta,
+        },
+      };
+    },
   }), [wrapEngine, persistState, persistSession]);
-
-  const onCollectProof = async (raw) => {
-    const result = await collectMemberProof(
-      bundleRef.current,
-      sessionRef.current,
-      stateRef.current,
-      raw,
-    );
-    await persistState(result.state, sessionRef.current);
-  };
-
-  const onScanTeamSync = async (raw) => {
-    const result = await applyTeamSync(bundleRef.current, stateRef.current, raw);
-    await persistState(result.state, sessionRef.current);
-  };
 
   const onStartHunt = async () => {
     setStartError('');
@@ -306,11 +308,6 @@ export default function OfflineHuntPlayPage() {
     } finally {
       setStarting(false);
     }
-  };
-
-  const onMarkReached = async () => {
-    const result = markReachedStart(bundleRef.current, sessionRef.current, stateRef.current);
-    await persistState(result.state, sessionRef.current);
   };
 
   const onDownloadResults = async () => {
@@ -388,45 +385,24 @@ export default function OfflineHuntPlayPage() {
   const cp = playData.checkpointStatus;
   const stage = state.currentStage;
   const waiting = isHuntWaiting(state);
-  const atStartReport = stage === 'CLUE_5_COMPLETED' || stage === 'CLUE_5_FAILED';
   const locked = stage === 'SCORE_LOCKED' || stage === 'FINISH_COMPLETED';
 
   if (waiting) {
     return (
-      <>
-        <OfflineHuntBriefing
-          bundle={bundle}
-          session={session}
-          state={state}
-          onStartHunt={onStartHunt}
-          starting={starting}
-          error={startError}
-          onBackToRounds={() => navigate(CAMPUS_HUNT_PATHS.offlineRounds)}
-          onSwitchPerson={() => navigate(CAMPUS_HUNT_PATHS.offlineTeam)}
-        />
-        <OfflineHandoffDock
-          isLeader={session.role === 'leader'}
-          waiting
-          atCheckpoint={false}
-          youScanned={false}
-          awaitingConfirm={false}
-          atStartReport={false}
-          locked={false}
-          proofPayload=""
-          teamSyncPayload={teamSyncPayload}
-          resultsPayload=""
-          onCollectProof={onCollectProof}
-          onScanTeamSync={onScanTeamSync}
-          onMarkReached={onMarkReached}
-          onDownloadResults={onDownloadResults}
-          onePhoneMode
-        />
-      </>
+      <OfflineHuntBriefing
+        bundle={bundle}
+        session={session}
+        state={state}
+        onStartHunt={onStartHunt}
+        starting={starting}
+        error={startError}
+        onBackToRounds={() => navigate(CAMPUS_HUNT_PATHS.offlineRounds)}
+      />
     );
   }
 
   return (
-    <div className="pb-28">
+    <div className={locked ? 'pb-28' : 'pb-8'}>
       <PlayerPlayScreen
         data={playData}
         onRefresh={refresh}
@@ -435,20 +411,15 @@ export default function OfflineHuntPlayPage() {
         onLeaveRound={() => navigate(CAMPUS_HUNT_PATHS.offlineRounds)}
         actions={actions}
         offlineMode
-        roundLabel="Offline Round 1 · airplane mode"
+        roundLabel="Round 1 · Offline"
         backTo={CAMPUS_HUNT_PATHS.offlineRounds}
         backLabel="← Rounds"
         checkpointExtra={
           session.role === 'leader' && cp?.needJoinWord ? (
             <div className="mt-3 space-y-2 rounded-xl border border-[#0ECCEE]/30 bg-[#0a1218] p-3 text-left">
               <p className="text-xs font-semibold text-[#0ECCEE]">Join the word</p>
-              <p className="text-[11px] text-white/60">
-                Find
-                {' '}
-                {cp.plantFragmentCount || 'the'}
-                {' '}
-                written clues at this stop, join them into one word, then type it.
-                Scan unlocks after a correct word.
+              <p className="text-[11px] text-white/55">
+                Join the planted fragments into one word, then submit.
               </p>
               <div className="flex gap-2">
                 <input
@@ -467,104 +438,91 @@ export default function OfflineHuntPlayPage() {
               </div>
               {joinMsg ? <p className="text-[11px] text-emerald-300">{joinMsg}</p> : null}
             </div>
-          ) : session.role === 'leader' && cp && !cp.awaitingTeamCodeConfirm ? (
-            <p className="text-center text-xs text-white/55">
-              Scan the place QR once, then enter your team code.
-            </p>
           ) : null
         }
       />
-      {(boardPending > 0 || session.role === 'leader') && (
-        <div className="mx-auto flex max-w-lg flex-wrap items-center justify-between gap-2 px-4 py-2 text-[11px] text-white/70">
-          <span>
-            {boardPending > 0
-              ? `Board pending · ${boardPending}`
-              : 'Board sync ready'}
-          </span>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              className="rounded bg-white/10 px-2 py-1 font-semibold"
-              onClick={() => {
-                void flushOfflineProgressQueue(bundle).then((r) => {
-                  setBoardPending(offlineBoardPendingCount());
-                  if (r?.deviceBound) setDeviceBound(true);
-                  else setDeviceBound(false);
-                });
-              }}
-            >
-              Retry sync
-            </button>
-            {deviceBound ? (
-              <button
-                type="button"
-                className="rounded bg-amber-400/20 px-2 py-1 font-semibold text-amber-100"
-                onClick={() => {
-                  rotateOfflineDeviceIdForTakeover();
-                  setDeviceBound(false);
-                  void flushOfflineProgressQueue(bundle).then((r) => {
-                    setBoardPending(offlineBoardPendingCount());
-                    if (r?.deviceBound) setDeviceBound(true);
-                    else setDeviceBound(false);
-                  });
-                }}
-              >
-                Take over phone
-              </button>
+
+      {session.role === 'leader' ? (
+        <details className="mx-auto max-w-lg px-4 pb-2 text-white">
+          <summary className="cursor-pointer py-2 text-xs text-white/40">
+            Tools
+            {boardPending > 0 ? ` · ${boardPending} pending` : ''}
+            {deviceBound ? ' · phone conflict' : ''}
+          </summary>
+          <div className="space-y-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+            {(boardPending > 0 || deviceBound) ? (
+              <div className="flex flex-wrap gap-2">
+                {boardPending > 0 ? (
+                  <button
+                    type="button"
+                    className="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-semibold"
+                    onClick={() => {
+                      void flushOfflineProgressQueue(bundle).then((r) => {
+                        setBoardPending(offlineBoardPendingCount());
+                        if (r?.deviceBound) setDeviceBound(true);
+                        else setDeviceBound(false);
+                      });
+                    }}
+                  >
+                    Retry board sync
+                  </button>
+                ) : null}
+                {deviceBound ? (
+                  <button
+                    type="button"
+                    className="rounded-lg bg-amber-400/20 px-3 py-1.5 text-xs font-semibold text-amber-100"
+                    onClick={() => {
+                      rotateOfflineDeviceIdForTakeover();
+                      setDeviceBound(false);
+                      void flushOfflineProgressQueue(bundle).then((r) => {
+                        setBoardPending(offlineBoardPendingCount());
+                        if (r?.deviceBound) setDeviceBound(true);
+                        else setDeviceBound(false);
+                      });
+                    }}
+                  >
+                    Take over this phone
+                  </button>
+                ) : null}
+              </div>
             ) : null}
+
+            {backupPayload ? (
+              <div>
+                <p className="text-[11px] text-white/50">Phone backup — paste below to restore</p>
+                <textarea
+                  readOnly
+                  value={backupPayload}
+                  className="mt-1 h-14 w-full rounded-lg bg-black/40 p-2 font-mono text-[9px] text-white/60"
+                />
+                <textarea
+                  className="mt-2 h-12 w-full rounded-lg border border-white/15 bg-black/40 p-2 font-mono text-[10px]"
+                  placeholder="Paste backup JSON…"
+                  onBlur={(e) => {
+                    const text = e.target.value.trim();
+                    if (text) onRestoreBackup(text);
+                  }}
+                />
+                {restoreMsg ? <p className="mt-1 text-[11px] text-[#0ECCEE]">{restoreMsg}</p> : null}
+              </div>
+            ) : null}
+
             <button
               type="button"
-              className="rounded bg-white/10 px-2 py-1 font-semibold"
+              className="w-full rounded-lg border border-white/10 py-2 text-xs text-white/45"
               onClick={onResetHunt}
             >
-              Reset hunt
+              Reset hunt on this phone
             </button>
           </div>
-        </div>
-      )}
-      {session.role === 'leader' && backupPayload ? (
-        <details className="mx-auto max-w-lg px-4 pb-2 text-white">
-          <summary className="cursor-pointer text-xs font-semibold text-white/80">
-            Phone dies? Backup / restore
-          </summary>
-          <textarea
-            readOnly
-            value={backupPayload}
-            className="mt-2 h-16 w-full rounded bg-black/40 p-2 font-mono text-[9px] text-white/70"
-          />
-          <textarea
-            className="mt-2 h-14 w-full rounded border border-white/15 bg-black/40 p-2 font-mono text-[10px]"
-            placeholder="Paste backup JSON to restore…"
-            onBlur={(e) => {
-              const text = e.target.value.trim();
-              if (text) onRestoreBackup(text);
-            }}
-          />
-          {restoreMsg ? <p className="mt-1 text-[11px] text-[#0ECCEE]">{restoreMsg}</p> : null}
         </details>
       ) : null}
-      <div className="mx-auto max-w-lg px-4 pb-4">
-        <OfflineScoreBoard
-          state={state}
-          teamCode={bundle.team.teamCode}
-          teamName={bundle.team.teamName}
-        />
-      </div>
+
       <OfflineHandoffDock
         isLeader={session.role === 'leader'}
-        atCheckpoint={Boolean(cp)}
-        youScanned={Boolean(cp?.youScanned)}
-        awaitingConfirm={Boolean(cp?.awaitingTeamCodeConfirm)}
-        atStartReport={atStartReport}
         locked={locked}
-        proofPayload={proofPayload}
-        teamSyncPayload={teamSyncPayload}
         resultsPayload={resultsPayload}
-        onCollectProof={onCollectProof}
-        onScanTeamSync={onScanTeamSync}
-        onMarkReached={onMarkReached}
         onDownloadResults={onDownloadResults}
-        onePhoneMode
       />
     </div>
   );

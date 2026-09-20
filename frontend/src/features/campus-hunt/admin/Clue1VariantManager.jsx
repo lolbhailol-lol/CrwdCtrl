@@ -37,7 +37,22 @@ function buildCluePacks(stations, stationCount = null) {
     title: station.name,
     place: station.name,
     code: station.code,
+    station,
   }));
+}
+
+function blankPackContent(placeOrPack, teamSize = 4) {
+  const target = typeof placeOrPack === 'object' && placeOrPack?.station
+    ? placeOrPack.station
+    : typeof placeOrPack === 'object' && placeOrPack?.code
+      ? placeOrPack
+      : placeOrPack;
+  const real = clue1ForPlace(target, teamSize);
+  return {
+    prompt: real.prompt,
+    answer: real.answer,
+    destinationInstruction: real.destinationInstruction,
+  };
 }
 
 function id(value) {
@@ -148,21 +163,14 @@ function expectedFirstStop(point, waveIndex, stations, teamsPerWait = TEAMS_PER_
     || '';
 }
 
-function blankPackContent(place, teamSize = 4) {
-  const real = clue1ForPlace(place, teamSize);
-  return {
-    prompt: real.prompt,
-    answer: real.answer,
-    destinationInstruction: real.destinationInstruction,
-  };
-}
-
 function isGenericCluePrompt(prompt) {
   const text = String(prompt || '').trim();
   if (!text) return true;
   if (/^Waiting at\s+/i.test(text)) return true;
   if (/^Look around\. Something here points/i.test(text)) return true;
   if (/Your first stop is\s+/i.test(text)) return true;
+  if (/Your first scan is waiting on campus/i.test(text)) return true;
+  if (/and name the place:/i.test(text)) return true;
   return false;
 }
 
@@ -246,7 +254,7 @@ export default function Clue1VariantManager({
     Object.fromEntries(
       buildCluePacks(campusStations, stationCount).map((pack) => [
         pack.id,
-        blankPackContent(pack.place, teamSize),
+        blankPackContent(pack, teamSize),
       ]),
     )
   ));
@@ -307,11 +315,11 @@ export default function Clue1VariantManager({
     if (!ready || hydrated || !orderedPoints.length) return;
 
     const nextPacks = Object.fromEntries(
-      cluePacks.map((pack) => [pack.id, blankPackContent(pack.place, teamSize)]),
+      cluePacks.map((pack) => [pack.id, blankPackContent(pack, teamSize)]),
     );
 
     cluePacks.forEach((pack) => {
-      const real = blankPackContent(pack.place, teamSize);
+      const real = blankPackContent(pack, teamSize);
       const match = variants.find((v) => packFromVariant(v, cluePacks)?.id === pack.id);
       if (!match?.prompt || isGenericCluePrompt(match.prompt)) {
         nextPacks[pack.id] = real;
@@ -322,7 +330,7 @@ export default function Clue1VariantManager({
         answer: (match.answer || pack.place).trim(),
         destinationInstruction: (
           match.destinationInstruction
-          || `Go to ${pack.place}. All ${teamSize} members scan there.`
+          || `Go to ${pack.place}. Leader scans the shared QR once, then enters your team code.`
         ).trim(),
       };
     });
@@ -415,7 +423,7 @@ export default function Clue1VariantManager({
             starts,
           );
           const pack = packForPlace(firstStopPlace, cluePacks);
-          const content = packContent[pack.id] || blankPackContent(pack.place, teamSize);
+          const content = packContent[pack.id] || blankPackContent(pack, teamSize);
           const place = firstStopPlace || pack.place;
           const prompt = stripWaitBoilerplate(content.prompt, place);
           const answer = (content.answer || place).trim();
@@ -431,7 +439,7 @@ export default function Clue1VariantManager({
             answer,
             destinationInstruction: (
               content.destinationInstruction
-            || `Go to ${place}. All ${teamSize} members scan there.`
+            || `Go to ${place}. Leader scans the shared QR once, then enters your team code.`
               ).trim(),
             place,
             stationCode: pack.code,
@@ -546,7 +554,7 @@ export default function Clue1VariantManager({
         </p>
         <div className="mt-3 divide-y divide-white/10">
           {cluePacks.map((pack) => {
-            const content = packContent[pack.id] || blankPackContent(pack.place);
+            const content = packContent[pack.id] || blankPackContent(pack);
             return (
               <div
                 key={pack.id}
@@ -722,7 +730,7 @@ export default function Clue1VariantManager({
       <p className="text-[11px] text-white/40">
         Save binds all {teamCapacity} teams across {starts.length} start(s) → {stations.length} place(s).
         Then print the {stations.length} shared Orange QR{stations.length === 1 ? '' : 's'} below.
-        After {teamSize} members scan and enter the team code, Clue 2 unlocks.
+        After the leader scans once and enters the team code, Clue 2 unlocks.
       </p>
       {message && <p className="text-sm text-[#0ECCEE]">{message}</p>}
       {error && <p className="text-sm text-amber-200">{error}</p>}

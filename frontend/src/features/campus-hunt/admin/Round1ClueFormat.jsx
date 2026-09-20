@@ -4,16 +4,19 @@ import Clue2VariantManager from './Clue2VariantManager';
 import Clue3VariantManager from './Clue3VariantManager';
 import Clue4VariantManager from './Clue4VariantManager';
 import Clue5VariantManager from './Clue5VariantManager';
+import Clue6VariantManager from './Clue6VariantManager';
 import CheckpointManager from './CheckpointManager';
 import CampusStationNamesEditor from './CampusStationNamesEditor';
 import StationPlantFragmentsPanel from './StationPlantFragmentsPanel';
-import PlacePosterPrint from './PlacePosterPrint';
 import FirstStopPosterPrint from './FirstStopPosterPrint';
 import SecondStopPosterPrint from './SecondStopPosterPrint';
 import ThirdStopPosterPrint from './ThirdStopPosterPrint';
 import FourthStopPosterPrint from './FourthStopPosterPrint';
+import FifthStopPosterPrint from './FifthStopPosterPrint';
 import TeamPathsPanel from './TeamPathsPanel';
+import ClueOrganizerPack from './ClueOrganizerPack';
 import {
+  DESTINATION_PLACE,
   STATION_TARGET_COUNT,
   destinationsSummary,
   deriveClueGeometry,
@@ -37,16 +40,17 @@ export function buildRound1Clues(geometry) {
   const perWait = g.teamsPerWait;
   const people = g.teamSize;
   const places = g.stationCount || STATION_TARGET_COUNT;
-  const starts = g.startCount || 4;
+  const starts = g.startCount || 1;
+  const dest = g.destinationName || 'Finale Assembly';
   return [
     {
       id: 'clue1',
       number: 1,
       label: 'CLUE 1 · First stop',
-      short: 'FIRST STOP · Orange',
+      short: 'FIRST STOP',
       detail:
-        `${places} places · ${starts} start(s) · ~${perStation} teams each · unique path per team · `
-        + `1 shared QR · all ${people} → join word → scan → Clue 2`,
+        `${places} places · ${starts} gather · ~${perStation} team(s) each · `
+        + `unique 5-stop path · leader scans → Clue 2`,
       checkpointKeys: ['1'],
       checkpointLabel: 'FIRST SCAN',
       type: 'navigation',
@@ -56,10 +60,8 @@ export function buildRound1Clues(geometry) {
       id: 'clue2',
       number: 2,
       label: 'CLUE 2 · Second stop',
-      short: 'SECOND STOP · GREEN',
-      detail:
-        `${places} places · ~${perStation} teams each · different 2nd stop per team · `
-        + `after Orange join+scan · green place QR`,
+      short: 'SECOND STOP',
+      detail: `${places} places · ~${perStation} team(s) each · 2nd stop on each team’s path`,
       checkpointKeys: ['2'],
       checkpointLabel: 'SECOND SCAN',
       takesToSummary: destinationsSummary(2, undefined, perStation, perWait),
@@ -69,11 +71,9 @@ export function buildRound1Clues(geometry) {
     {
       id: 'clue3',
       number: 3,
-      label: 'CLUE 3 · Third stop',
-      short: 'THIRD STOP · BLUE',
-      detail:
-        `${places} places · ~${perStation} teams each · different 3rd stop · `
-        + `Caesar riddle → blue place QR → Prop hunt`,
+      label: 'CLUE 3 · Lockbox',
+      short: 'LOCKBOX',
+      detail: `${places} places · ~${perStation} team(s) each · 3rd stop · Lockbox`,
       checkpointKeys: ['3'],
       checkpointLabel: 'THIRD SCAN',
       takesToSummary: destinationsSummary(3, undefined, perStation, perWait),
@@ -83,11 +83,9 @@ export function buildRound1Clues(geometry) {
     {
       id: 'clue4',
       number: 4,
-      label: 'CLUE 4 · Prop hunt',
-      short: 'FOURTH STOP · PURPLE',
-      detail:
-        `${places} places · ~${perStation} teams each · different 4th stop · `
-        + `prop hunt → purple place QR → Final`,
+      label: 'CLUE 4 · Field Terminal',
+      short: 'FIELD TERMINAL',
+      detail: `${places} places · ~${perStation} team(s) each · 4th stop · Field Terminal`,
       checkpointKeys: ['4'],
       checkpointLabel: 'FOURTH SCAN',
       takesToSummary: destinationsSummary(4, undefined, perStation, perWait),
@@ -95,22 +93,34 @@ export function buildRound1Clues(geometry) {
       showCheckpoints: false,
     },
     {
-      id: 'final',
+      id: 'clue5',
       number: 5,
-      label: 'FINAL CLUE · One word',
-      short: 'FINAL · RED',
+      label: 'CLUE 5 · Fifth stop',
+      short: 'FIFTH STOP',
       detail:
-        `All ${people} get a code fragment → one word. Then report to start; organizer marks reached.`,
-      checkpointKeys: ['FINISH'],
-      checkpointLabel: 'START CHECK-IN',
+        `${places} places · ~${perStation} team(s) each · 5th stop · team word → scan → destination clue`,
+      checkpointKeys: ['5'],
+      checkpointLabel: 'FIFTH SCAN',
       takesToSummary: destinationsSummary(5, undefined, perStation, perWait),
       type: 'collaborative',
+      showCheckpoints: false,
+    },
+    {
+      id: 'destination',
+      number: 6,
+      label: 'CLUE 6 · Destination',
+      short: 'DESTINATION',
+      detail: `All teams solve this last clue, then go to ${dest} and check in.`,
+      checkpointKeys: ['FINISH'],
+      checkpointLabel: 'DESTINATION CHECK-IN',
+      takesToSummary: `Everyone → ${dest}`,
+      type: 'navigation',
       showCheckpoints: false,
     },
   ];
 }
 
-export const ROUND1_CLUES = buildRound1Clues(deriveClueGeometry(40, 4));
+export const ROUND1_CLUES = buildRound1Clues(deriveClueGeometry(20, 4));
 
 function ClueBox({
   clue,
@@ -183,13 +193,13 @@ function ClueBox({
             {clue.label}
           </h3>
           <p className="mt-1 text-xs text-white/50">{clue.detail}</p>
-          {(clue.number === 1 || clue.number === 2 || clue.number === 3 || clue.number === 4) ? (
+          {(clue.number >= 1 && clue.number <= 5) ? (
             <p className="mt-1.5 text-[11px] text-white/40">
               {destinationsSummary(clue.number, campusStations, teamsPerStation, teamsPerWait, campusStarts)}
             </p>
-          ) : clue.takesToSummary || clue.number === 5 ? (
-            <p className="mt-1.5 text-[11px] text-white/40 line-clamp-2">
-              {destinationsSummary(5, campusStations, teamsPerStation, teamsPerWait, campusStarts)}
+          ) : clue.number === 6 ? (
+            <p className="mt-1.5 text-[11px] text-white/40">
+              Everyone → {DESTINATION_PLACE.name}
             </p>
           ) : null}
         </div>
@@ -197,7 +207,7 @@ function ClueBox({
       </button>
       {open && (
         <div className="space-y-4 border-t border-white/10 px-4 py-4">
-          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-3 py-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               disabled={updating || !eventId || layoutDirty}
@@ -205,13 +215,10 @@ function ClueBox({
               title={layoutDirty ? 'Save setup first' : undefined}
               className={`rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-40 ${theme.solidClass} ${theme.solidTextClass}`}
             >
-              {updating ? 'Updating…' : `Update Clue ${clue.number} for this setup`}
+              {updating ? 'Updating…' : `Update Clue ${clue.number}`}
             </button>
-            <p className="text-[11px] text-white/45">
-              Rebuilds this clue from overall teams, people/team, starts & places you saved above.
-            </p>
             {updateMsg ? (
-              <p className="w-full text-[11px] text-[#0ECCEE]">{updateMsg}</p>
+              <p className="text-[11px] text-[#0ECCEE]">{updateMsg}</p>
             ) : null}
           </div>
           {clue.number === 1 ? (
@@ -231,16 +238,19 @@ function ClueBox({
                   onChanged?.();
                 }}
               />
-              <FirstStopPosterPrint
+              <ClueOrganizerPack
                 eventId={eventId}
+                challengeNumber={1}
                 reloadKey={checkpointReloadKey}
-                campusStations={campusStations}
-                stationCount={stationCount}
-                teamSize={teamSize}
-              />
-              <p className="text-[11px] text-white/40">
-                Optional color poster — Place QRs above are enough for offline.
-              </p>
+              >
+                <FirstStopPosterPrint
+                  eventId={eventId}
+                  reloadKey={checkpointReloadKey}
+                  campusStations={campusStations}
+                  stationCount={stationCount}
+                  teamSize={teamSize}
+                />
+              </ClueOrganizerPack>
             </>
           ) : clue.number === 2 ? (
             <>
@@ -259,13 +269,19 @@ function ClueBox({
                   onChanged?.();
                 }}
               />
-              <SecondStopPosterPrint
+              <ClueOrganizerPack
                 eventId={eventId}
+                challengeNumber={2}
                 reloadKey={checkpointReloadKey}
-                campusStations={campusStations}
-                stationCount={stationCount}
-                teamSize={teamSize}
-              />
+              >
+                <SecondStopPosterPrint
+                  eventId={eventId}
+                  reloadKey={checkpointReloadKey}
+                  campusStations={campusStations}
+                  stationCount={stationCount}
+                  teamSize={teamSize}
+                />
+              </ClueOrganizerPack>
             </>
           ) : clue.number === 3 ? (
             <>
@@ -284,13 +300,19 @@ function ClueBox({
                   onChanged?.();
                 }}
               />
-              <ThirdStopPosterPrint
+              <ClueOrganizerPack
                 eventId={eventId}
+                challengeNumber={3}
                 reloadKey={checkpointReloadKey}
-                campusStations={campusStations}
-                stationCount={stationCount}
-                teamSize={teamSize}
-              />
+              >
+                <ThirdStopPosterPrint
+                  eventId={eventId}
+                  reloadKey={checkpointReloadKey}
+                  campusStations={campusStations}
+                  stationCount={stationCount}
+                  teamSize={teamSize}
+                />
+              </ClueOrganizerPack>
             </>
           ) : clue.number === 4 ? (
             <>
@@ -309,15 +331,21 @@ function ClueBox({
                   onChanged?.();
                 }}
               />
-              <FourthStopPosterPrint
+              <ClueOrganizerPack
                 eventId={eventId}
+                challengeNumber={4}
                 reloadKey={checkpointReloadKey}
-                campusStations={campusStations}
-                stationCount={stationCount}
-                teamSize={teamSize}
-              />
+              >
+                <FourthStopPosterPrint
+                  eventId={eventId}
+                  reloadKey={checkpointReloadKey}
+                  campusStations={campusStations}
+                  stationCount={stationCount}
+                  teamSize={teamSize}
+                />
+              </ClueOrganizerPack>
             </>
-          ) : (
+          ) : clue.number === 5 ? (
             <>
               <Clue5VariantManager
                 eventId={eventId}
@@ -331,11 +359,46 @@ function ClueBox({
                   onChanged?.();
                 }}
               />
-              <p className="rounded-xl border border-red-400/25 bg-red-500/10 px-3 py-2 text-xs text-red-100">
-                After teams solve the Final word they report to their start.
-                Mark them reached on the <span className="font-semibold">Live → Finish desk</span> tab
-                (not here).
-              </p>
+              <ClueOrganizerPack
+                eventId={eventId}
+                challengeNumber={5}
+                reloadKey={checkpointReloadKey}
+              >
+                <FifthStopPosterPrint
+                  eventId={eventId}
+                  reloadKey={checkpointReloadKey}
+                  campusStations={campusStations}
+                  stationCount={stationCount}
+                  teamSize={teamSize}
+                />
+              </ClueOrganizerPack>
+            </>
+          ) : (
+            <>
+              <Clue6VariantManager
+                eventId={eventId}
+                roundId={roundId}
+                campusStarts={campusStarts}
+                destinationName={DESTINATION_PLACE.name}
+                onChanged={() => {
+                  onClueContentChanged?.();
+                  onChanged?.();
+                }}
+              />
+              <ClueOrganizerPack
+                eventId={eventId}
+                challengeNumber={6}
+                reloadKey={checkpointReloadKey}
+              >
+                <p className="rounded-xl border border-yellow-400/25 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-100">
+                  No stage QR — after Clue 5, teams go to{' '}
+                  <span className="font-semibold">{DESTINATION_PLACE.name}</span>.
+                  Tell them the finish code (default{' '}
+                  <span className="font-mono font-semibold">MSFINISH</span>
+                  ). They type it to lock score — or mark them on{' '}
+                  <span className="font-semibold">Live → Finish desk</span>.
+                </p>
+              </ClueOrganizerPack>
             </>
           )}
           {clue.showCheckpoints !== false && (
@@ -344,7 +407,7 @@ function ClueBox({
               roundId={roundId}
               onChanged={onChanged}
               progressionFilter={clue.checkpointKeys}
-              title={`${clue.checkpointLabel} · Checkpoint ${clue.number === 5 ? 'Finish' : clue.number}`}
+              title={`${clue.checkpointLabel} · Checkpoint ${clue.number === 6 ? 'Finish' : clue.number}`}
               reloadKey={checkpointReloadKey}
               campusStations={campusStations}
               stageTheme={theme}
@@ -368,12 +431,12 @@ export default function Round1ClueFormat({
   campusStarts: campusStartsProp,
   startCount: startCountProp,
   stationCount: stationCountProp,
-  teamCapacity = 40,
+  teamCapacity = 20,
   teamSize = 4,
 }) {
   const [localCapacity, setLocalCapacity] = useState(teamCapacity);
   const [localTeamSize, setLocalTeamSize] = useState(teamSize);
-  const [startCount, setStartCount] = useState(startCountProp ?? 4);
+  const [startCount, setStartCount] = useState(startCountProp ?? suggestHuntLayout(teamCapacity).startCount);
   const [stationCount, setStationCount] = useState(
     () => stationCountProp
       ?? (Array.isArray(campusStationsProp) && campusStationsProp.length
@@ -506,19 +569,11 @@ export default function Round1ClueFormat({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/15 bg-white/5 px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-sm text-white/80">
-            <span className="font-semibold text-white">Clue setup</span>
-            {' '}· {geometry.teamCapacity} teams · {geometry.teamSize}/team ·{' '}
-            {geometry.startCount} start{geometry.startCount === 1 ? '' : 's'} ·{' '}
-            {geometry.stationCount} campus places · ~{geometry.teamsPerStation} teams per place
-          </p>
-          <p className="mt-0.5 text-[11px] text-white/40">
-            Save setup, check team paths below, then open each clue and tap
-            {' '}
-            <span className="text-white/70">Update Clue N</span>
-            {' '}— rebuilds destinations so no two teams share a full route.
+          <h2 className="text-xl font-bold">Clues</h2>
+          <p className="text-sm text-white/55">
+            {geometry.teamCapacity} teams · {geometry.stationCount} places · open a color for hint + QR
           </p>
         </div>
         <button
@@ -526,28 +581,17 @@ export default function Round1ClueFormat({
           disabled={busy || !eventId || layoutDirty}
           onClick={bootstrap}
           title={layoutDirty ? 'Save setup first' : undefined}
-          className="rounded-lg bg-white/10 px-3 py-2 text-xs font-semibold disabled:opacity-40"
+          className="rounded-xl bg-[#0ECCEE] px-4 py-2 text-sm font-bold text-black disabled:opacity-40"
         >
           {busy ? 'Bootstrapping…' : 'Bootstrap all clues'}
         </button>
       </div>
       {layoutDirty && (
         <p className="text-xs text-amber-200">
-          Unsaved layout changes — tap <span className="font-semibold">Save setup</span> before bootstrap or clue updates.
+          Unsaved layout — save place names before bootstrap.
         </p>
       )}
       {message && <p className="text-xs text-[#0ECCEE]">{message}</p>}
-
-      <div className="flex flex-wrap gap-2 rounded-2xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-3">
-        <p className="w-full text-[11px] uppercase tracking-wide text-emerald-200/80">
-          Planting · one shared QR per campus place (not per team)
-        </p>
-        <p className="text-xs text-white/60">
-          Print Place QRs once. Color posters under each clue are optional — offline play
-          accepts the place QR at every stage after the join word. Same place can host ~2 teams
-          at a stage; team codes + different next stops prevent copying answers.
-        </p>
-      </div>
 
       <CampusStationNamesEditor
         eventId={eventId}
@@ -578,28 +622,26 @@ export default function Round1ClueFormat({
         }}
       />
 
-      <TeamPathsPanel
-        campusStations={campusStations}
-        campusStarts={campusStarts}
-        teamsPerWait={geometry.teamsPerWait}
-        teamCapacity={geometry.teamCapacity}
-      />
-
-      <StationPlantFragmentsPanel
-        eventId={eventId}
-        campusStations={campusStationsCatalog || campusStations}
-        stationCount={stationCount}
-        teamSize={geometry.teamSize}
-        onChanged={onChanged}
-      />
-
-      <PlacePosterPrint
-        eventId={eventId}
-        reloadKey={checkpointReloadKey}
-        campusStations={campusStations}
-        stationCount={stationCount}
-        teamSize={geometry.teamSize}
-      />
+      <details className="rounded-xl border border-white/10 bg-white/4 px-4 py-3">
+        <summary className="cursor-pointer text-sm text-white/60">
+          Optional · team paths & plant fragments
+        </summary>
+        <div className="mt-3 space-y-4">
+          <TeamPathsPanel
+            campusStations={campusStations}
+            campusStarts={campusStarts}
+            teamsPerWait={geometry.teamsPerWait}
+            teamCapacity={geometry.teamCapacity}
+          />
+          <StationPlantFragmentsPanel
+            eventId={eventId}
+            campusStations={campusStationsCatalog || campusStations}
+            stationCount={stationCount}
+            teamSize={geometry.teamSize}
+            onChanged={onChanged}
+          />
+        </div>
+      </details>
 
       {clues.map((clue, index) => (
         <ClueBox

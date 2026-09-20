@@ -51,7 +51,7 @@ export default function StationPosterPrint({
   );
   const placeTarget = Math.max(1, activeStations.length || STATION_TARGET_COUNT);
   const targetPosters = placeTarget * POSTERS_PER_PLACE;
-  const people = Math.max(2, Math.min(8, Number(teamSize) || 4));
+  const people = Math.max(2, Math.min(12, Number(teamSize) || 4));
 
   const refresh = useCallback(async () => {
     if (!eventId) return;
@@ -132,7 +132,7 @@ export default function StationPosterPrint({
               <p class="code">${escapeHtml(pack.code || poster.stationCode || '')}</p>
               <img src="${qr}" alt="Station QR" width="${qrPx}" height="${qrPx}" />
               <p class="paste">${escapeHtml(paste)}</p>
-              <p class="note">All ${people} scan → team code → clue</p>
+              <p class="note">Leader scans once → team code → clue</p>
             </article>
           `,
         });

@@ -20,9 +20,9 @@ export default function CampusStationNamesEditor({
   campusStations,
   campusStarts,
   startCount: startCountProp = 4,
-  stationCount: stationCountProp = 10,
-  teamCapacity: teamCapacityProp = 40,
-  teamSize: teamSizeProp = 4,
+  stationCount: stationCountProp = 20,
+  teamCapacity: teamCapacityProp = 20,
+  teamSize: teamSizeProp = 10,
   onChanged,
   onLayoutDraftChange,
 }) {
@@ -167,7 +167,7 @@ export default function CampusStationNamesEditor({
           <h2 className="text-base font-semibold text-white">Teams, starts & places</h2>
           <p className="mt-1 text-xs text-white/50">
             Set overall teams and people per team, then starting points and campus places.
-            Save setup here, then update Clue 1 → 2 → 3 → 4 → Final one by one.
+            Save setup here, then update Clue 1 → 2 → 3 → 4 → 5 → 6 one by one.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -202,11 +202,11 @@ export default function CampusStationNamesEditor({
           />
         </label>
         <label className="block text-[11px] text-white/45">
-          People per team
+          People per team (≈9–10)
           <input
             type="number"
             min={2}
-            max={8}
+            max={12}
             value={people}
             onChange={(e) => setPeople(e.target.value)}
             className={`mt-1 ${inputClass}`}
@@ -224,7 +224,7 @@ export default function CampusStationNamesEditor({
           />
         </label>
         <label className="block text-[11px] text-white/45">
-          Campus places (1–10)
+          Campus places (1–20)
           <div className="mt-1 flex items-center gap-2">
             <button
               type="button"
@@ -238,7 +238,7 @@ export default function CampusStationNamesEditor({
             <input
               type="number"
               min={1}
-              max={10}
+              max={20}
               value={stationCount}
               onChange={(e) => setStationCount(e.target.value)}
               className={`${inputClass} text-center`}
@@ -246,8 +246,8 @@ export default function CampusStationNamesEditor({
             <button
               type="button"
               aria-label="More places"
-              disabled={Number(stationCount) >= 10}
-              onClick={() => setStationCount((n) => Math.min(10, Number(n) + 1))}
+              disabled={Number(stationCount) >= 20}
+              onClick={() => setStationCount((n) => Math.min(20, Number(n) + 1))}
               className="h-9 w-9 shrink-0 rounded-lg border border-white/15 bg-white/5 text-lg text-white disabled:opacity-30"
             >
               +

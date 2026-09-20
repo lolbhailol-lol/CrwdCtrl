@@ -60,6 +60,13 @@ export const DEFAULT_SCORING_CONFIG = {
       { maxSeconds: 300, bonus: 5 },
     ],
   },
+  clue6: {
+    basePoints: 25,
+    maxAttempts: 3,
+    timerSeconds: 0,
+    awardMode: 'flat_base',
+    speedBonusBands: [],
+  },
 };
 
 export function scoringForChallenge(event, challengeNumber) {

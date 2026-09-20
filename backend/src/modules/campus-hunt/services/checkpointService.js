@@ -17,16 +17,85 @@ const {
   uniqueIdStrings,
 } = require('../utils/roster');
 const { publishTeamProgress } = require('./teamProgressBus');
+const {
+  CHECKPOINT_SCAN_REQUIRED,
+  LEADER_SCAN_INSTRUCTION,
+} = require('../constants');
 
 function notifyTeam(teamOrId) {
   const id = teamOrId?._id || teamOrId?.id || teamOrId;
   if (id) publishTeamProgress(id);
 }
 
-async function scanRequiredForTeam(team) {
-  const event = await CampusHuntEvent.findById(team.eventId).select('teamSize').lean();
-  const size = Number(event?.teamSize) || 4;
-  return Math.max(2, Math.min(8, size));
+/**
+ * Verification marked complete but team stage never advanced (race / old claim path).
+ * Re-run cascade when still sitting on a scan-required stage.
+ */
+async function repairStuckCheckpointCompletion({ team, checkpoint, now = new Date() }) {
+  if (!team || !checkpoint) {
+    return { repaired: false, teamStage: team?.currentStage || null };
+  }
+  const progressionKey = checkpointProgressionKey(checkpoint);
+  const unlockStages = stagesAllowingCheckpoint(progressionKey);
+  if (!unlockStages.includes(team.currentStage)) {
+    return { repaired: false, teamStage: team.currentStage, alreadyPast: true };
+  }
+
+  const teamDoc = team;
+  const fromStage = teamDoc.currentStage;
+  applyCheckpointCompletionCascade(teamDoc, progressionKey);
+  if (progressionKey === '1') teamDoc.startStatus = 'ACTIVE';
+
+  const extra = {
+    currentStage: teamDoc.currentStage,
+    startStatus: teamDoc.startStatus || team.startStatus,
+    lastCheckpointNumber: checkpoint.checkpointNumber,
+  };
+  if (progressionKey === 'FINISH' || teamDoc.currentStage === 'SCORE_LOCKED') {
+    extra.finishedAt = now;
+    extra.scoreLockedAt = now;
+    extra.finalScore = teamDoc.currentScore;
+    extra.status = 'finished';
+    extra.startStatus = 'COMPLETED';
+  }
+
+  const repaired = await CampusHuntTeam.findOneAndUpdate(
+    { _id: team._id, currentStage: fromStage },
+    { $set: extra },
+    { new: true },
+  );
+  if (repaired) {
+    notifyTeam(repaired);
+    return {
+      repaired: true,
+      teamStage: repaired.currentStage,
+      currentScore: repaired.currentScore,
+      alreadyPast: false,
+    };
+  }
+  const fresh = await CampusHuntTeam.findById(team._id).select('currentStage currentScore');
+  return {
+    repaired: false,
+    teamStage: fresh?.currentStage || fromStage,
+    currentScore: fresh?.currentScore,
+    alreadyPast: !unlockStages.includes(String(fresh?.currentStage || '')),
+  };
+}
+
+/** Leader-only phone: one scan (the leader) clears each checkpoint. */
+async function scanRequiredForTeam(_team) {
+  return CHECKPOINT_SCAN_REQUIRED;
+}
+
+function assertLeaderPhone(team, userId) {
+  if (String(team.leaderUserId) !== String(userId)) {
+    const err = new Error(
+      'Only the team leader’s phone plays Round 1 — ask your leader to scan and submit.',
+    );
+    err.status = 403;
+    err.code = 'LEADER_ONLY_PHONE';
+    throw err;
+  }
 }
 
 async function getCheckpoint(checkpointId) {
@@ -97,10 +166,11 @@ function assertTeamEligibleForCheckpoint(team, checkpoint) {
   const isSecondStop = key === '2';
   const isThirdStop = key === '3';
   const isFourthStop = key === '4';
+  const isFifthStop = key === '5';
   // Only ST-* posters skip route matching (they're anchored on one route id).
   const sharedStation = isSharedStationCheckpoint(checkpoint);
 
-  // Assigned station must match (shared QR still maps to team.first/second/third/fourthCheckpointId).
+  // Assigned station must match (shared QR maps to team.*CheckpointId).
   if (isFirstStop && String(team.firstCheckpointId || '') !== String(checkpoint._id)) {
     const err = new Error(
       'Wrong station — this QR is not your assigned first stop. Go to your allotted place.',
@@ -131,6 +201,14 @@ function assertTeamEligibleForCheckpoint(team, checkpoint) {
     );
     err.status = 409;
     err.code = 'WRONG_FOURTH_CHECKPOINT';
+    throw err;
+  }
+  if (isFifthStop && String(team.fifthCheckpointId || '') !== String(checkpoint._id)) {
+    const err = new Error(
+      'Wrong station — this FIFTH SCAN QR is not your assigned stop.',
+    );
+    err.status = 409;
+    err.code = 'WRONG_FIFTH_CHECKPOINT';
     throw err;
   }
   if (
@@ -311,19 +389,25 @@ async function completeCheckpoint({
     throw err;
   }
 
-  // Idempotent if already complete
+  // Idempotent if already complete — still repair stage if cascade was lost.
   const existing = await CampusHuntCheckpointVerification.findOne({
     teamId: team._id,
     checkpointId: checkpoint._id,
   });
   if (existing && (existing.status === 'complete' || existing.status === 'manual_reconciled')) {
     const freshTeam = await CampusHuntTeam.findById(team._id);
+    const healed = await repairStuckCheckpointCompletion({
+      team: freshTeam,
+      checkpoint,
+      now,
+    });
     notifyTeam(team);
     return {
-      alreadyProcessed: true,
+      alreadyProcessed: !healed.repaired,
       status: existing.status,
-      teamStage: freshTeam?.currentStage,
-      currentScore: freshTeam?.currentScore,
+      teamStage: healed.teamStage || freshTeam?.currentStage,
+      currentScore: healed.currentScore ?? freshTeam?.currentScore,
+      message: healed.repaired ? 'CHECKPOINT VERIFIED' : undefined,
     };
   }
 
@@ -649,16 +733,17 @@ async function playerScanStation({ team, userId, raw, now = new Date() }) {
   const checkpoint = await resolveStationCheckpoint({ team, raw });
   const progressionKey = checkpointProgressionKey(checkpoint);
 
-  // Finish is organizer-only (mark reached at start) — players cannot self-lock via FINISH QR.
+  // Finish is organizer-only online — players cannot self-lock via FINISH QR.
   if (progressionKey === 'FINISH') {
     const err = new Error(
-      'Report to your start location. Ask the organizer to mark your team reached — do not scan a finish QR.',
+      'Go to Finale Assembly. Ask the organizer to mark your team reached — do not scan a finish QR.',
     );
     err.status = 409;
     err.code = 'ORGANIZER_FINISH_ONLY';
     throw err;
   }
 
+  assertLeaderPhone(team, userId);
   const requiredCount = await scanRequiredForTeam(team);
   assertTeamEligibleForCheckpoint(team, checkpoint);
   if (!team.includesUser(userId)) {
@@ -671,26 +756,78 @@ async function playerScanStation({ team, userId, raw, now = new Date() }) {
   const verification = await getOrCreateVerification(team, checkpoint);
   if (verification.status === 'complete' || verification.status === 'manual_reconciled') {
     const freshTeam = await CampusHuntTeam.findById(team._id);
+    const healed = await repairStuckCheckpointCompletion({
+      team: freshTeam,
+      checkpoint,
+      now,
+    });
+    const stageStr = String(healed.teamStage || freshTeam?.currentStage || '');
+    const unlocked = Boolean(healed.repaired || healed.alreadyPast);
     return {
       alreadyComplete: true,
       verifiedCount: requiredCount,
       requiredCount,
       youScanned: true,
       awaitingTeamCodeConfirm: false,
-      teamStage: freshTeam?.currentStage,
-      unlockedNext: false,
-      unlockedClue2: String(freshTeam?.currentStage || '').startsWith('CLUE_2'),
+      teamStage: healed.teamStage || freshTeam?.currentStage,
+      unlockedNext: unlocked,
+      unlockedClue2: stageStr.includes('CLUE_2'),
+      unlockedClue3: stageStr.includes('CLUE_3'),
+      unlockedClue4: stageStr.includes('CLUE_4'),
+      unlockedClue5: stageStr.includes('CLUE_5'),
+      unlockedClue6: stageStr.includes('CLUE_6'),
       checkpoint: {
         id: String(checkpoint._id),
         checkpointKey: progressionKey,
         code: checkpoint.code || checkpoint.checkpointKey,
         locationName: checkpoint.locationName,
       },
-      message: 'This station is already cleared for your team.',
+      message: unlocked
+        ? 'Station cleared — next clue unlocked.'
+        : 'This station is already cleared for your team.',
     };
   }
 
   if (verification.status === 'awaiting_claim') {
+    // Leader-only: finish claim automatically (team already authenticated on this phone).
+    if (requiredCount <= 1) {
+      const result = await completeCheckpoint({
+        team,
+        checkpoint,
+        volunteer: {
+          actorType: 'player',
+          actorId: userId,
+          label: 'player_station_scan_auto_claim',
+        },
+        source: 'online',
+        now,
+      });
+      const stageStr = String(result.teamStage || '');
+      notifyTeam(team);
+      return {
+        alreadyComplete: Boolean(result.alreadyProcessed),
+        verifiedCount: requiredCount,
+        requiredCount,
+        youScanned: true,
+        awaitingTeamCodeConfirm: false,
+        teamStage: result.teamStage,
+        unlockedNext: true,
+        unlockedClue2: stageStr.includes('CLUE_2'),
+        unlockedClue3: stageStr.includes('CLUE_3'),
+        unlockedClue4: stageStr.includes('CLUE_4'),
+        unlockedClue5: stageStr.includes('CLUE_5'),
+        unlockedClue6: stageStr.includes('CLUE_6'),
+        message: result.alreadyProcessed
+          ? 'This station is already cleared for your team.'
+          : 'Poster scanned — next clue unlocked.',
+        checkpoint: {
+          id: String(checkpoint._id),
+          checkpointKey: progressionKey,
+          code: checkpoint.code || checkpoint.checkpointKey,
+          locationName: checkpoint.locationName,
+        },
+      };
+    }
     const rosterUnique = uniqueIdStrings([
       team.leaderUserId,
       ...(team.memberUserIds || []),
@@ -705,7 +842,7 @@ async function playerScanStation({ team, userId, raw, now = new Date() }) {
       awaitingTeamCodeConfirm: true,
       teamStage: team.currentStage,
       unlockedNext: false,
-      message: `All ${requiredCount} members scanned. Enter your team code to unlock your allotted clue.`,
+      message: `Leader scanned. Enter your team code to unlock your allotted clue.`,
       checkpoint: {
         id: String(checkpoint._id),
         checkpointKey: progressionKey,
@@ -743,6 +880,57 @@ async function playerScanStation({ team, userId, raw, now = new Date() }) {
     awaitingTeamCodeConfirm = true;
   }
 
+  // Leader-only phone: one scan clears the stop — no separate team-code step.
+  if (awaitingTeamCodeConfirm && requiredCount <= 1) {
+    const result = await completeCheckpoint({
+      team,
+      checkpoint,
+      volunteer: {
+        actorType: 'player',
+        actorId: userId,
+        label: 'player_station_scan_auto_claim',
+      },
+      source: 'online',
+      now,
+    });
+    const stageStr = String(result.teamStage || '');
+    await writeAudit({
+      eventId: team.eventId,
+      actorType: 'player',
+      actorId: userId,
+      action: 'player_station_scan',
+      targetType: 'checkpoint',
+      targetId: checkpoint._id,
+      after: {
+        verifiedCount: distinctVerified,
+        teamStage: result.teamStage,
+        autoClaimed: true,
+      },
+    });
+    notifyTeam(team);
+    return {
+      alreadyComplete: Boolean(result.alreadyProcessed),
+      verifiedCount: requiredCount,
+      requiredCount,
+      youScanned: true,
+      awaitingTeamCodeConfirm: false,
+      teamStage: result.teamStage,
+      unlockedNext: true,
+      unlockedClue2: stageStr.includes('CLUE_2'),
+      unlockedClue3: stageStr.includes('CLUE_3'),
+      unlockedClue4: stageStr.includes('CLUE_4'),
+      unlockedClue5: stageStr.includes('CLUE_5'),
+      unlockedClue6: stageStr.includes('CLUE_6'),
+      message: 'Poster scanned — next clue unlocked.',
+      checkpoint: {
+        id: String(checkpoint._id),
+        checkpointKey: progressionKey,
+        code: checkpoint.code || checkpoint.checkpointKey,
+        locationName: checkpoint.locationName,
+      },
+    };
+  }
+
   await writeAudit({
     eventId: team.eventId,
     actorType: 'player',
@@ -765,8 +953,8 @@ async function playerScanStation({ team, userId, raw, now = new Date() }) {
     unlockedClue2: false,
     unlockedClue3: false,
     message: awaitingTeamCodeConfirm
-      ? `All ${requiredCount} members scanned! Enter your team code to unlock your allotted clue.`
-      : `Scanned (${distinctVerified}/${requiredCount}). Waiting for teammates.`,
+      ? 'Leader scanned! Enter your team code to unlock your allotted clue.'
+      : `Scanned — enter your team code to continue.`,
     checkpoint: {
       id: String(checkpoint._id),
       checkpointKey: checkpointProgressionKey(checkpoint),
@@ -787,8 +975,9 @@ async function getPendingCheckpointStatus(team, userId) {
   else if (['CLUE_2_COMPLETED', 'CLUE_2_FAILED', 'CLUE_2_TIMEOUT'].includes(stage)) checkpointKey = '2';
   else if (['CLUE_3_COMPLETED', 'CLUE_3_FAILED'].includes(stage)) checkpointKey = '3';
   else if (['CLUE_4_COMPLETED', 'CLUE_4_FAILED', 'CLUE_4_TIMEOUT'].includes(stage)) checkpointKey = '4';
-  else if (['CLUE_5_COMPLETED', 'CLUE_5_FAILED'].includes(stage)) {
-    // Organizer marks reached at start — do not expose FINISH QR as pending player scan.
+  else if (['CLUE_5_COMPLETED', 'CLUE_5_FAILED'].includes(stage)) checkpointKey = '5';
+  else if (['CLUE_6_COMPLETED', 'CLUE_6_FAILED'].includes(stage)) {
+    // Organizer marks destination reached — no player FINISH QR.
     return null;
   }
   else return null;
@@ -862,6 +1051,23 @@ async function getPendingCheckpointStatus(team, userId) {
       membersNeeded: requiredCount,
     };
   }
+  if (checkpointKey === '5' && !team.fifthCheckpointId) {
+    return {
+      checkpointId: null,
+      checkpointKey: '5',
+      code: null,
+      locationName: null,
+      assignmentMissing: true,
+      publicInstruction:
+        'Your FIFTH SCAN station is not assigned yet. Ask an organizer to Generate & Lock the schedule.',
+      verifiedCount: 0,
+      requiredCount,
+      youScanned: false,
+      status: 'unassigned',
+      awaitingTeamCodeConfirm: false,
+      membersNeeded: requiredCount,
+    };
+  }
 
   const assignedId = checkpointKey === '1'
     ? team.firstCheckpointId
@@ -869,7 +1075,9 @@ async function getPendingCheckpointStatus(team, userId) {
       ? team.secondCheckpointId
       : checkpointKey === '3'
         ? team.thirdCheckpointId
-        : team.fourthCheckpointId;
+        : checkpointKey === '4'
+          ? team.fourthCheckpointId
+          : team.fifthCheckpointId;
 
   const checkpoint = assignedId
     ? await CampusHuntCheckpoint.findOne({
@@ -886,16 +1094,17 @@ async function getPendingCheckpointStatus(team, userId) {
     teamId: team._id,
     checkpointId: checkpoint._id,
   });
+
   const roster = uniqueIdStrings([
     team.leaderUserId,
-    ...(team.memberUserIds || []),
+    ...(CHECKPOINT_SCAN_REQUIRED > 1 ? (team.memberUserIds || []) : []),
   ]);
   const verifiedIds = uniqueIdStrings(verification?.verifiedMemberIds || [])
     .filter((id) => roster.includes(id));
 
   const rosterNames = [
     team.leaderName || team.accessPack?.leader?.name || 'Leader',
-    ...(Array.isArray(team.memberNames) ? team.memberNames : []),
+    ...(CHECKPOINT_SCAN_REQUIRED > 1 && Array.isArray(team.memberNames) ? team.memberNames : []),
   ];
   while (rosterNames.length < roster.length) {
     rosterNames.push(`Player ${rosterNames.length}`);
@@ -907,18 +1116,24 @@ async function getPendingCheckpointStatus(team, userId) {
     scanned: verifiedIds.includes(id),
   }));
 
-  const scanKind = checkpointKey === '4'
-    ? 'FOURTH SCAN'
-    : checkpointKey === '3'
-      ? 'THIRD SCAN'
-      : checkpointKey === '2'
-        ? 'SECOND SCAN'
-        : 'FIRST SCAN';
-  const awaitingTeamCodeConfirm = verification?.status === 'awaiting_claim'
-    || (
-      verifiedIds.length >= requiredCount
-      && verification?.status !== 'complete'
-      && verification?.status !== 'manual_reconciled'
+  const scanKind = checkpointKey === '5'
+    ? 'FIFTH SCAN'
+    : checkpointKey === '4'
+      ? 'FOURTH SCAN'
+      : checkpointKey === '3'
+        ? 'THIRD SCAN'
+        : checkpointKey === '2'
+          ? 'SECOND SCAN'
+          : 'FIRST SCAN';
+  const awaitingTeamCodeConfirm = requiredCount <= 1
+    ? false
+    : (
+      verification?.status === 'awaiting_claim'
+      || (
+        verifiedIds.length >= requiredCount
+        && verification?.status !== 'complete'
+        && verification?.status !== 'manual_reconciled'
+      )
     );
   return {
     checkpointId: String(checkpoint._id),
@@ -934,9 +1149,13 @@ async function getPendingCheckpointStatus(team, userId) {
     publicInstruction:
       checkpoint.publicInstruction
       || (
-        `At ${checkpoint.locationName}, find the shared ${scanKind} QR. `
-        + `All ${requiredCount} members scan it, then enter your team code `
-        + `(${team.teamCode || 'CC00x'}) to unlock your allotted clue.`
+        requiredCount <= 1
+          ? `At ${checkpoint.locationName}, find the shared ${scanKind} QR. Leader scans once — next clue unlocks.`
+          : (
+            `At ${checkpoint.locationName}, find the shared ${scanKind} QR. `
+            + `${LEADER_SCAN_INSTRUCTION} `
+            + `(${team.teamCode || 'CC00x'}) to unlock your allotted clue.`
+          )
       ),
     verifiedCount: verifiedIds.length,
     requiredCount,
@@ -946,11 +1165,79 @@ async function getPendingCheckpointStatus(team, userId) {
     membersNeeded: Math.max(0, requiredCount - verifiedIds.length),
     rosterUniqueCount: roster.length,
     scanRoster,
+    onePhoneMode: true,
   };
 }
 
 /**
- * After 4/4 shared-station scans, confirm team code to unlock the allotted clue.
+ * If leader already scanned (or claim marked complete) but stage never advanced,
+ * finish the unlock so progress returns Clue 2+ instead of a stuck team-code screen.
+ */
+async function healLeaderOnlyStuckCheckpoint(team, userId = null) {
+  if (!team || CHECKPOINT_SCAN_REQUIRED > 1) return team;
+  const stage = String(team.currentStage || '');
+  let checkpointKey = null;
+  if (stage === 'CLUE_1_COMPLETED') checkpointKey = '1';
+  else if (['CLUE_2_COMPLETED', 'CLUE_2_FAILED', 'CLUE_2_TIMEOUT'].includes(stage)) checkpointKey = '2';
+  else if (['CLUE_3_COMPLETED', 'CLUE_3_FAILED'].includes(stage)) checkpointKey = '3';
+  else if (['CLUE_4_COMPLETED', 'CLUE_4_FAILED', 'CLUE_4_TIMEOUT'].includes(stage)) checkpointKey = '4';
+  else if (['CLUE_5_COMPLETED', 'CLUE_5_FAILED'].includes(stage)) checkpointKey = '5';
+  else return team;
+
+  const assignedId = checkpointKey === '1'
+    ? team.firstCheckpointId
+    : checkpointKey === '2'
+      ? team.secondCheckpointId
+      : checkpointKey === '3'
+        ? team.thirdCheckpointId
+        : checkpointKey === '4'
+          ? team.fourthCheckpointId
+          : team.fifthCheckpointId;
+  if (!assignedId) return team;
+
+  const checkpoint = await CampusHuntCheckpoint.findOne({
+    _id: assignedId,
+    eventId: team.eventId,
+    roundId: team.roundId,
+    progressionKey: checkpointKey,
+    active: true,
+  });
+  if (!checkpoint) return team;
+
+  const verification = await CampusHuntCheckpointVerification.findOne({
+    teamId: team._id,
+    checkpointId: checkpoint._id,
+  });
+  if (!verification) return team;
+
+  if (verification.status === 'awaiting_claim') {
+    await completeCheckpoint({
+      team,
+      checkpoint,
+      volunteer: {
+        actorType: 'player',
+        actorId: userId || team.leaderUserId,
+        label: 'player_station_progress_auto_claim',
+      },
+      source: 'online',
+    });
+    return CampusHuntTeam.findById(team._id);
+  }
+
+  if (
+    verification.status === 'complete'
+    || verification.status === 'manual_reconciled'
+  ) {
+    const healed = await repairStuckCheckpointCompletion({ team, checkpoint });
+    if (healed.repaired) {
+      return CampusHuntTeam.findById(team._id);
+    }
+  }
+  return team;
+}
+
+/**
+ * After the leader scans, confirm team code to unlock the allotted clue.
  */
 async function confirmStationClaim({
   team,
@@ -959,6 +1246,7 @@ async function confirmStationClaim({
   checkpointId,
   now = new Date(),
 }) {
+  assertLeaderPhone(team, userId);
   const requiredCount = await scanRequiredForTeam(team);
   const { normalizeTeamCode } = require('../utils/teamCode');
   const expected = normalizeTeamCode(team.teamCode);
@@ -989,18 +1277,41 @@ async function confirmStationClaim({
     checkpointId: checkpoint._id,
   });
   if (!verification) {
-    const err = new Error(`Scan the station QR with all ${requiredCount} members first.`);
+    const err = new Error('Scan the station QR with the leader phone first.');
     err.status = 409;
     err.code = 'SCANS_INCOMPLETE';
     throw err;
   }
   if (verification.status === 'complete' || verification.status === 'manual_reconciled') {
+    const freshTeam = await CampusHuntTeam.findById(team._id);
+    const healed = await repairStuckCheckpointCompletion({
+      team: freshTeam,
+      checkpoint,
+      now,
+    });
+    const stageStr = String(healed.teamStage || freshTeam?.currentStage || '');
+    const unlocked = Boolean(healed.repaired || healed.alreadyPast);
+    let unlockLabel = 'Next step unlocked';
+    if (stageStr.includes('CLUE_2')) unlockLabel = 'Clue 2 unlocked';
+    else if (stageStr.includes('CLUE_3')) unlockLabel = 'Lockbox unlocked';
+    else if (stageStr.includes('CLUE_4')) unlockLabel = 'Field Terminal unlocked';
+    else if (stageStr.includes('CLUE_5')) unlockLabel = 'Clue 5 unlocked';
+    else if (stageStr.includes('CLUE_6')) unlockLabel = 'MindSpark Lobby unlocked';
     return {
       alreadyComplete: true,
       awaitingTeamCodeConfirm: false,
-      unlockedNext: false,
-      teamStage: team.currentStage,
-      message: 'Station already claimed.',
+      unlockedNext: unlocked,
+      unlockedClue2: stageStr.includes('CLUE_2'),
+      unlockedClue3: stageStr.includes('CLUE_3'),
+      unlockedClue4: stageStr.includes('CLUE_4'),
+      unlockedClue5: stageStr.includes('CLUE_5'),
+      unlockedClue6: stageStr.includes('CLUE_6'),
+      teamStage: healed.teamStage || freshTeam?.currentStage,
+      verifiedCount: requiredCount,
+      requiredCount,
+      message: unlocked
+        ? `Team ${expected} confirmed. ${unlockLabel}.`
+        : 'Station already claimed.',
       checkpoint: {
         id: String(checkpoint._id),
         checkpointKey: checkpointProgressionKey(checkpoint),
@@ -1016,7 +1327,11 @@ async function confirmStationClaim({
   const distinctVerified = uniqueIdStrings(verification.verifiedMemberIds)
     .filter((id) => rosterUnique.includes(id)).length;
   if (distinctVerified < requiredCount) {
-    const err = new Error(`Need all ${requiredCount} members to scan first (${distinctVerified}/${requiredCount}).`);
+    const err = new Error(
+      requiredCount <= 1
+        ? 'Leader must scan the station QR first.'
+        : `Need all ${requiredCount} members to scan first (${distinctVerified}/${requiredCount}).`,
+    );
     err.status = 409;
     err.code = 'SCANS_INCOMPLETE';
     throw err;
@@ -1047,9 +1362,10 @@ async function confirmStationClaim({
   const stageStr = String(result.teamStage || '');
   let unlockLabel = 'Next step unlocked';
   if (stageStr.includes('CLUE_2')) unlockLabel = 'Clue 2 unlocked';
-  else if (stageStr.includes('CLUE_3')) unlockLabel = 'Clue 3 riddle unlocked';
-  else if (stageStr.includes('CLUE_4')) unlockLabel = 'Crazy prop hunt unlocked';
-  else if (stageStr.includes('CLUE_5')) unlockLabel = 'Final clue unlocked';
+  else if (stageStr.includes('CLUE_3')) unlockLabel = 'Lockbox unlocked';
+  else if (stageStr.includes('CLUE_4')) unlockLabel = 'Field Terminal unlocked';
+  else if (stageStr.includes('CLUE_5')) unlockLabel = 'Clue 5 unlocked';
+  else if (stageStr.includes('CLUE_6')) unlockLabel = 'MindSpark Lobby unlocked';
 
   return {
     alreadyComplete: Boolean(result.alreadyProcessed),
@@ -1059,6 +1375,7 @@ async function confirmStationClaim({
     unlockedClue3: stageStr.includes('CLUE_3'),
     unlockedClue4: stageStr.includes('CLUE_4'),
     unlockedClue5: stageStr.includes('CLUE_5'),
+    unlockedClue6: stageStr.includes('CLUE_6'),
     teamStage: result.teamStage,
     verifiedCount: requiredCount,
     requiredCount,
@@ -1088,6 +1405,7 @@ module.exports = {
   playerScanStation,
   confirmStationClaim,
   getPendingCheckpointStatus,
+  healLeaderOnlyStuckCheckpoint,
   scanRequiredForTeam,
 };
 

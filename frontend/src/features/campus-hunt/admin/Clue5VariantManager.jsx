@@ -59,7 +59,7 @@ function blankRouteForm(code, teamSize, startName) {
     answer: word,
     memberPrompts: [...(defaults.memberPrompts || [])],
     destinationInstruction:
-      `Report to your start — ${startName}. Ask the organizer to mark your team reached.`,
+      `Go to your 5th campus stop. Leader scans the FIFTH SCAN QR once, then enters your team code to unlock Clue 6 (destination).`,
   };
 }
 
@@ -74,7 +74,7 @@ export default function Clue5VariantManager({
 }) {
   const starts = useMemo(() => resolveStarts(campusStarts), [campusStarts]);
   const teamSlots = useMemo(() => buildTeamSlots(teamsPerWait), [teamsPerWait]);
-  const people = Math.max(2, Math.min(8, Number(teamSize) || 4));
+  const people = Math.max(2, Math.min(12, Number(teamSize) || 4));
 
   const [routes, setRoutes] = useState([]);
   const [points, setPoints] = useState([]);
@@ -145,7 +145,7 @@ export default function Clue5VariantManager({
   }, [eventId, people]);
 
   useEffect(() => {
-    refresh().catch((err) => setError(err.message || 'Could not load Final clue'));
+    refresh().catch((err) => setError(err.message || 'Could not load Clue 5'));
   }, [refresh]);
 
   const updateForm = (code, patch) => {
@@ -166,7 +166,7 @@ export default function Clue5VariantManager({
         scoring: coerceClueScoring(settings, CLUE5_DEFAULT_SETTINGS),
       });
       await refresh();
-      setMessage('Saved Final clue timer & hint settings');
+      setMessage('Saved Clue 5 timer & hint settings');
       onChanged?.();
     } catch (err) {
       setError(err.message || 'Could not save settings');
@@ -187,7 +187,7 @@ export default function Clue5VariantManager({
 
     setBusy(true);
     setError('');
-    setMessage('Saving all Final clues…');
+    setMessage('Saving all Clue 5 rows…');
 
     try {
       const routesPayload = [];
@@ -196,7 +196,7 @@ export default function Clue5VariantManager({
         const form = routeForms[code] || blankRouteForm(code, people, startLabel(point));
         const answer = String(form.answer || clue5WordForStart(code)).trim().toUpperCase();
         if (!answer) {
-          setError(`${startLabel(point)}: Final word required`);
+          setError(`${startLabel(point)}: Clue 5 word required`);
           setMessage('');
           setBusy(false);
           return;
@@ -224,14 +224,14 @@ export default function Clue5VariantManager({
       onChanged?.();
 
       if (saved === 0) {
-        setError(apiErrors[0]?.message || 'Final clue save failed');
+        setError(apiErrors[0]?.message || 'Clue 5 save failed');
         setMessage('');
       } else {
-        setMessage(`Saved ${saved} Final clue(s) in one request · all start paths updated.`);
+        setMessage(`Saved ${saved} Clue 5(s) in one request · all start paths updated.`);
         setError('');
       }
     } catch (err) {
-      setError(err.message || 'Could not save Final clue');
+      setError(err.message || 'Could not save Clue 5');
       setMessage('');
     } finally {
       setBusy(false);
@@ -244,7 +244,7 @@ export default function Clue5VariantManager({
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2 text-[11px]">
         <span className={`rounded-full px-2.5 py-1 ${THEME.bgClass} ${THEME.textClass}`}>
-          Final · collaborative one-word
+          Clue 5 · collaborative one-word
         </span>
         <span className={`rounded-full px-2.5 py-1 ${
           savedCount >= orderedPoints.length && orderedPoints.length > 0
@@ -300,8 +300,8 @@ export default function Clue5VariantManager({
       </section>
 
       <p className="text-xs text-white/50">
-        Each start path has one Final word. All {people} teammates get code fragments on their phones.
-        After the word, teams report back to their own start.
+        Each start path has one Clue 5 word. All {people} teammates get code fragments on their phones.
+        After the word → red FIFTH SCAN → Clue 6 → Finale Assembly.
       </p>
 
       <div className="grid gap-3 md:grid-cols-2">
@@ -372,7 +372,7 @@ export default function Clue5VariantManager({
           onClick={saveAll}
           className="rounded-xl bg-[#0ECCEE] px-5 py-2.5 text-sm font-semibold text-black disabled:opacity-40"
         >
-          {busy ? 'Saving…' : `Save Final · all ${orderedPoints.length} start paths`}
+          {busy ? 'Saving…' : `Save Clue 5 · all ${orderedPoints.length} start paths`}
         </button>
       </div>
       {message && <p className="text-xs text-[#0ECCEE]">{message}</p>}

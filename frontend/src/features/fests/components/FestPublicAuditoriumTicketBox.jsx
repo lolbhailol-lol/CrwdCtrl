@@ -2,17 +2,18 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, Ticket } from 'lucide-react';
 
 /**
- * Public MindSpark ticket CTA — sits below Live updates.
- * Hidden only when meta explicitly sets showPublicTicketBox to false.
+ * Public MindSpark auditorium pass CTA — below Live updates.
+ * Renders only after meta loads and showPublicTicketBox is explicitly on.
+ * (Showing while meta is null caused a one-second flash when the pass is off.)
  */
 export default function FestPublicAuditoriumTicketBox({
   meta,
   isDark = true,
 }) {
-  if (meta && meta.showPublicTicketBox === false) return null;
+  if (!meta || meta.showPublicTicketBox !== true) return null;
 
-  const open = meta == null ? true : Boolean(meta.registrationOpen);
-  const left = meta?.totalLeft;
+  const open = Boolean(meta.registrationOpen);
+  const left = meta.totalLeft;
 
   return (
     <section

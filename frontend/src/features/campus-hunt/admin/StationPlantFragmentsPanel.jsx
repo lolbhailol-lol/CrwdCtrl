@@ -10,11 +10,11 @@ const inputClass = 'w-full rounded-lg border border-white/15 bg-[#161718] px-3 p
 export default function StationPlantFragmentsPanel({
   eventId,
   campusStations,
-  stationCount = 10,
+  stationCount = 20,
   teamSize = 4,
   onChanged,
 }) {
-  const n = Math.max(2, Math.min(8, Number(teamSize) || 4));
+  const n = Math.max(2, Math.min(12, Number(teamSize) || 4));
   const [draft, setDraft] = useState(() => resolveStations(campusStations, stationCount));
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');

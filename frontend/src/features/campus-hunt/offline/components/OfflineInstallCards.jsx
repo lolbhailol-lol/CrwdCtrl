@@ -15,33 +15,31 @@ function installUrl(token) {
 
 export function teamWhatsAppText(row) {
   const url = installUrl(row.token);
-  const size = Number(row.teamSize) || 4;
+  const size = Number(row.teamSize) || 10;
   return [
     `Hunt — ${row.teamCode}`,
     '',
-    'One link for your team. Leader opens it (not the CrwdCtrl website).',
-    'Add the Hunt icon so the game still opens with data off.',
+    `Your team: ~${size} people. ONE phone = leader phone.`,
+    'Leader downloads the team pack on Wi‑Fi BEFORE fest day (data off will work after).',
     '',
-    'TODAY on Wi‑Fi — leader phone:',
+    'INSTALL TODAY (Wi‑Fi / data ON):',
     url,
     `Password: ${row.password || '(ask organizer)'}`,
     '',
-    '1. Open the link',
-    '2. Tap ⋮ → Open in Chrome (leave WhatsApp)',
-    '3. Wait until Pack saved',
-    '4. Chrome → Install app / Add to Home screen → name must be Hunt',
+    '1. Open the link in Chrome (⋮ in WhatsApp → Open in Chrome)',
+    '2. Wait until you see Pack saved',
+    '3. Chrome → Install app / Add to Home screen → name it Hunt',
+    '4. Turn OFF Wi‑Fi + mobile data → open Hunt icon → password → Round 1',
+    '   If it does not open, you installed CrwdCtrl by mistake — delete that shortcut and install Hunt again on Wi‑Fi.',
     '',
-    'HOW TO PLAY (all teammates walk together · one phone)',
+    'AT THE FEST (offline OK):',
+    '• Only the leader phone — whole team walks together',
     '• Login → Rounds → Round 1',
     '• Leader types clue answers',
-    `• At each stop: find ${size} clues written nearby, join them into one word, type it, then scan the place QR once`,
-    '• Enter your team code → next location',
+    `• At each stop: find ${size} clues written nearby, join into one word, type it, scan place QR once`,
+    '• Enter team code → next location',
     '',
-    'TEST OFFLINE (data off)',
-    'Turn off Wi‑Fi + mobile data → Hunt icon → password → Round 1',
-    'If Hunt does not open, you added CrwdCtrl by mistake — delete that shortcut and add Hunt again on Wi‑Fi.',
-    '',
-    'At the fest: Hunt icon on the leader phone. No laptop.',
+    'Do not wait until start time to install. Pack must be on the phone first.',
   ].join('\n');
 }
 
@@ -76,7 +74,7 @@ export default function OfflineInstallCards({ installs = [] }) {
   return (
     <div className="mt-3 space-y-2 print:hidden">
       <p className="text-[11px] font-semibold text-white">
-        WhatsApp — one link per team (leader phone)
+        WhatsApp — one pack link per team (leader installs on phone before start)
       </p>
       {installs.map((row) => (
         <div

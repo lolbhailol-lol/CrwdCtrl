@@ -1,7 +1,7 @@
 /**
  * Campus Hunt stage colors — same palette on posters, admin, player, scanners.
  * Clue 1 / FIRST SCAN = orange · Clue 2 = green · Clue 3 = blue
- * · Clue 4 / FOURTH SCAN = purple · Final = red
+ * · Clue 4 / FOURTH SCAN = purple · Clue 5 / FIFTH SCAN = red · Clue 6 = destination gold
  */
 
 export const STAGE_THEMES = {
@@ -79,8 +79,8 @@ export const STAGE_THEMES = {
   },
   final: {
     id: 'final',
-    label: 'Final',
-    scanLabel: 'START CHECK-IN',
+    label: 'Clue 5',
+    scanLabel: 'FIFTH SCAN',
     colorName: 'Red',
     hex: '#EF4444',
     ink: '#450A0A',
@@ -95,6 +95,24 @@ export const STAGE_THEMES = {
     ringClass: 'ring-red-400',
     buttonClass: 'bg-red-500 text-white',
   },
+  destination: {
+    id: 'destination',
+    label: 'Clue 6 · Destination',
+    scanLabel: 'DESTINATION',
+    colorName: 'Gold',
+    hex: '#EAB308',
+    ink: '#422006',
+    muted: '#A16207',
+    softBg: 'rgba(234, 179, 8, 0.16)',
+    borderClass: 'border-yellow-400/55',
+    bgClass: 'bg-yellow-500/15',
+    textClass: 'text-yellow-100',
+    softTextClass: 'text-yellow-100/80',
+    solidClass: 'bg-yellow-500',
+    solidTextClass: 'text-black',
+    ringClass: 'ring-yellow-400',
+    buttonClass: 'bg-yellow-500 text-black',
+  },
 };
 
 export const STAGE_THEME_LIST = [
@@ -103,6 +121,7 @@ export const STAGE_THEME_LIST = [
   STAGE_THEMES.clue3,
   STAGE_THEMES.clue4,
   STAGE_THEMES.final,
+  STAGE_THEMES.destination,
 ];
 
 export function themeForChallengeNumber(number) {
@@ -112,6 +131,7 @@ export function themeForChallengeNumber(number) {
   if (n === 3) return STAGE_THEMES.clue3;
   if (n === 4) return STAGE_THEMES.clue4;
   if (n === 5) return STAGE_THEMES.final;
+  if (n === 6) return STAGE_THEMES.destination;
   return STAGE_THEMES.clue1;
 }
 
@@ -120,7 +140,8 @@ export function themeForProgressStepId(stepId) {
   if (stepId === 'clue2') return STAGE_THEMES.clue2;
   if (stepId === 'clue3') return STAGE_THEMES.clue3;
   if (stepId === 'clue4') return STAGE_THEMES.clue4;
-  if (stepId === 'final') return STAGE_THEMES.final;
+  if (stepId === 'final' || stepId === 'clue5') return STAGE_THEMES.final;
+  if (stepId === 'destination' || stepId === 'clue6') return STAGE_THEMES.destination;
   return null;
 }
 
@@ -128,8 +149,9 @@ export function themeForCheckpointKey(key) {
   const raw = String(key || '').toUpperCase().trim();
   if (!raw) return STAGE_THEMES.clue1;
   if (raw === 'FINISH' || raw.startsWith('FINISH')) {
-    return STAGE_THEMES.final;
+    return STAGE_THEMES.destination;
   }
+  if (raw === '5' || raw.startsWith('5-')) return STAGE_THEMES.final;
   if (raw === '4' || raw.startsWith('4-')) return STAGE_THEMES.clue4;
   if (raw === '3' || raw.startsWith('3-')) return STAGE_THEMES.clue3;
   if (raw === '2' || raw.startsWith('2-')) return STAGE_THEMES.clue2;
@@ -142,13 +164,16 @@ export function themeForPlayerContext({ stage, checkpointKey, challengeNumber } 
   if (challengeNumber) return themeForChallengeNumber(challengeNumber);
   if (checkpointKey) return themeForCheckpointKey(checkpointKey);
   const s = String(stage || '');
-  if (s.includes('CLUE_5') || s.includes('FINISH') || s.includes('SCORE')) {
+  if (s.includes('CLUE_6') || s.includes('FINISH') || s.includes('SCORE')) {
+    return STAGE_THEMES.destination;
+  }
+  if (s.includes('CLUE_5') || s.includes('CHECKPOINT_5')) {
     return STAGE_THEMES.final;
   }
   if (s.includes('CLUE_4') || s === 'CHECKPOINT_3_COMPLETED' || s.includes('CHECKPOINT_4')) {
     return STAGE_THEMES.clue4;
   }
-  // After green: Clue 3 riddle, then blue CP3 scan
+  // After green: Clue 3 Lockbox, then blue CP3 scan
   if (s.includes('CLUE_3') || s === 'CHECKPOINT_2_COMPLETED' || s.includes('CHECKPOINT_3')) {
     return STAGE_THEMES.clue3;
   }

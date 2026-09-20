@@ -43,6 +43,7 @@ const scoringConfigSchema = new mongoose.Schema(
     clue3: { type: clueScoringSchema, default: () => ({ ...DEFAULT_SCORING_CONFIG.clue3 }) },
     clue4: { type: clueScoringSchema, default: () => ({ ...DEFAULT_SCORING_CONFIG.clue4 }) },
     clue5: { type: clueScoringSchema, default: () => ({ ...DEFAULT_SCORING_CONFIG.clue5 }) },
+    clue6: { type: clueScoringSchema, default: () => ({ ...DEFAULT_SCORING_CONFIG.clue6 }) },
   },
   { _id: false },
 );
@@ -65,8 +66,8 @@ const campusHuntEventSchema = new mongoose.Schema(
       default: 'draft',
       index: true,
     },
-    teamCapacity: { type: Number, default: 40 },
-    teamSize: { type: Number, default: 4 },
+    teamCapacity: { type: Number, default: 20 },
+    teamSize: { type: Number, default: 10, min: 2, max: 12 },
     /** Finale board size (usually ≤ teamCapacity, max 12). */
     finaleCapacity: { type: Number, default: 12 },
     /** Top N from Round 1 auto-promoted into Finale. */
@@ -105,9 +106,9 @@ const campusHuntEventSchema = new mongoose.Schema(
       default: () => ({ ...DEFAULT_SCORING_CONFIG }),
     },
     /** How many of the 4 starting points are live (1–4). Small demos often use 1. */
-    startCount: { type: Number, default: 4, min: 1, max: 4 },
-    /** How many of the 10 campus hunt places are live (1–10). */
-    stationCount: { type: Number, default: 10, min: 1, max: 10 },
+    startCount: { type: Number, default: 1, min: 1, max: 4 },
+    /** How many of the 20 campus hunt places are live (1–20). */
+    stationCount: { type: Number, default: 20, min: 1, max: 20 },
     /** Custom names for starting points A–D. */
     campusStarts: {
       type: [{
@@ -117,11 +118,20 @@ const campusHuntEventSchema = new mongoose.Schema(
       }],
       default: undefined,
     },
-    /** Custom names for the 10 hunt scan places (codes S01–S10). */
+    /** Shared finish destination after Clue 6 (default: Mindspark Lobby). */
+    destinationName: { type: String, default: 'Mindspark Lobby', trim: true },
+    /**
+     * Code organizers tell teams at the lobby to lock Round 1 score.
+     * Players type this as Clue 6 / finish (not a QR).
+     */
+    organizerFinishCode: { type: String, default: 'MSFINISH', trim: true, uppercase: true },
+    /** Custom names for hunt scan places (codes S01–S20). */
     campusStations: {
       type: [{
         code: { type: String, required: true, trim: true, uppercase: true },
         name: { type: String, required: true, trim: true },
+        zone: { type: String, default: '', trim: true },
+        riddle: { type: String, default: '', trim: true },
         /** Shared plant slips at this stop (length ≈ teamSize). Same for all teams. */
         plantFragments: { type: [String], default: undefined },
         /** Word leaders type after joining fragments — unlocks poster scan. */

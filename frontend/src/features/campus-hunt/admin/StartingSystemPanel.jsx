@@ -13,7 +13,9 @@ import {
   adminUpdateStartingPoint,
 } from '../services/campusHunt.api';
 import {
+  DESTINATION_PLACE,
   clue5WordForStart,
+  fifthStopForLocalTeam,
   firstStopForLocalTeam,
   fourthStopForLocalTeam,
   globalTeamNumber,
@@ -937,25 +939,29 @@ export default function StartingSystemPanel({
                 </li>
                 <li>
                   <span className="font-semibold text-purple-200">Purple place</span>
-                  {' '}— 4th campus scan after prop hunt (Clue 4).
+                  {' '}— 4th campus scan after Field Terminal (Clue 4).
                 </li>
                 <li>
-                  <span className="font-semibold text-rose-200">Final</span>
-                  {' '}— one-word puzzle on phones, then report back to Meet here.
+                  <span className="font-semibold text-red-200">Red place</span>
+                  {' '}— 5th campus scan after Clue 5 word.
+                </li>
+                <li>
+                  <span className="font-semibold text-yellow-200">Destination</span>
+                  {' '}— Clue 6 → Finale Assembly (organizer check-in).
                 </li>
               </ul>
               {previewRows.some((r) => (
-                !r.firstStopName || !r.secondStopName || !r.thirdStopName || !r.fourthStopName
+                !r.firstStopName || !r.secondStopName || !r.thirdStopName
+                || !r.fourthStopName || !r.fifthStopName
               )) && (
                 <p className="mt-2 rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-                  Orange → purple below are the <strong>planned path</strong> across campus places
-                  (Food Court, Student Centre, … — not starting points).
-                  To bind real QR cards, open <strong>Clues</strong>, save Clue 1–4, then Preview again.
+                  Orange → red below are the <strong>planned 5-stop path</strong> across campus places.
+                  Save Clues 1–5, Generate schedule, then Preview again.
                 </p>
               )}
             </div>
             <div className="overflow-x-auto rounded-xl border border-white/10">
-              <table className="w-full min-w-[1080px] text-left text-xs">
+              <table className="w-full min-w-[1200px] text-left text-xs">
                 <thead className="bg-white/5 text-white/55">
                   <tr>
                     <th className="px-3 py-2">Team</th>
@@ -966,7 +972,8 @@ export default function StartingSystemPanel({
                     <th>Green place</th>
                     <th>Blue place</th>
                     <th>Purple place</th>
-                    <th>Final</th>
+                    <th>Red place</th>
+                    <th>Destination</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1027,14 +1034,17 @@ export default function StartingSystemPanel({
                         || thirdStopForLocalTeam(waveNum, waitIdx, activeStations, teamsPerWait);
                       const purplePlace = row.fourthStopName
                         || fourthStopForLocalTeam(waveNum, waitIdx, activeStations, teamsPerWait);
+                      const redPlace = row.fifthStopName
+                        || fifthStopForLocalTeam(waveNum, waitIdx, activeStations, teamsPerWait);
                       const startCode = waitLetter(code) || code.charAt(0) || 'A';
                       const finalWord = clue5WordForStart(startCode);
-                      const finalLabel = `${finalWord} → ${gatherName}`;
+                      const destLabel = DESTINATION_PLACE?.name || 'Finale Assembly';
                       const fromClues = Boolean(
                         row.firstStopName
                         || row.secondStopName
                         || row.thirdStopName
-                        || row.fourthStopName,
+                        || row.fourthStopName
+                        || row.fifthStopName,
                       );
                       return (
                         <tr
@@ -1085,8 +1095,14 @@ export default function StartingSystemPanel({
                           <td className="text-purple-200/90">
                             {purplePlace}
                           </td>
-                          <td className="text-rose-200/90">
-                            {finalLabel}
+                          <td className="text-red-200/90">
+                            {redPlace}
+                            <span className="mt-0.5 block text-[10px] text-white/40">
+                              after {finalWord}
+                            </span>
+                          </td>
+                          <td className="text-yellow-100/90">
+                            {destLabel}
                           </td>
                         </tr>
                       );

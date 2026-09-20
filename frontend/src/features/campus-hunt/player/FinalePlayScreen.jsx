@@ -169,11 +169,11 @@ export default function FinalePlayScreen({
       const payload = res.data;
       const applied = onActionResult?.(payload);
       if (!applied) {
-        void onRefresh?.({ force: true });
+        void onRefresh?.({ force: true, burst: true });
       } else {
         window.setTimeout(() => {
-          void onRefresh?.({ force: true });
-        }, 300);
+          void onRefresh?.({ burst: true });
+        }, 1100);
       }
       const msg = payload?.submitResult?.message
         || payload?.activeMission?.playerView?.message;

@@ -5,8 +5,9 @@ const RESOLVED = new Set(['COMPLETED', 'FAILED', 'TIMEOUT', 'TIMED_OUT']);
 
 function revealAnswerLabel(challengeNumber) {
   if (challengeNumber === 2) return '3-digit code';
-  if (challengeNumber === 4) return 'Prop code';
-  if (challengeNumber === 5) return 'Final word';
+  if (challengeNumber === 4) return 'GRID code';
+  if (challengeNumber === 5) return 'Clue 5 word';
+  if (challengeNumber === 6) return 'Destination';
   return 'Answer';
 }
 
@@ -33,7 +34,11 @@ export default function PassedCluesPanel({ challenges = [], isLeader, currentAct
         {passed.map((ch) => {
           const open = openNum === ch.challengeNumber;
           const title =
-            ch.challengeNumber === 5 ? 'Final clue' : `Clue ${ch.challengeNumber}`;
+            ch.challengeNumber === 6
+              ? 'Clue 6 · Destination'
+              : ch.challengeNumber === 5
+                ? 'Clue 5'
+                : `Clue ${ch.challengeNumber}`;
           const statusLabel =
             ch.state === 'COMPLETED'
               ? 'Done'

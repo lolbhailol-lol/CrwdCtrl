@@ -60,7 +60,7 @@ async function bulkSaveClue5({
     }
   }
 
-  const teamSize = Math.max(2, Math.min(8, Number(event.teamSize) || 4));
+  const teamSize = Math.max(2, Math.min(12, Number(event.teamSize) || 4));
   const { scoring: clue5Scoring } = await persistClueScoring({
     eventId,
     clueNumber: 5,
@@ -88,10 +88,10 @@ async function bulkSaveClue5({
       }
 
       const finishWord = CLUE5_WORDS[startCode] || 'QUEST';
-      const startName = point.name || startCode;
       const defaults = routeClueDefaults(5, finishWord, teamSize);
       defaults.destinationInstruction =
-        `Report to your start — ${startName}. Ask the organizer to mark your team reached.`;
+        `Word solved — go to your 5th campus stop. Find the shared red FIFTH SCAN QR. `
+        + `Leader scans once, then enters your team code to unlock Clue 6.`;
 
       const answer = String(row.answer || finishWord).trim().toUpperCase();
       const memberPrompts = Array.isArray(row.memberPrompts)

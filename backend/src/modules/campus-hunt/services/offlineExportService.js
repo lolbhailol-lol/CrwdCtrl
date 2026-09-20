@@ -33,25 +33,32 @@ const OFFLINE_CLUE_HOW_TO = {
     ],
   },
   3: {
-    title: 'How to play — Clue 3',
+    title: 'How to play — Lockbox',
     steps: [
-      'Decode the Caesar riddle (leader submits).',
-      'At that place: find written clues, join the word, type it.',
-      'Scan the place QR once → team code.',
+      'Lockbox pieces are on this phone — read aloud in order and rebuild the digit code.',
+      'Leader submits → go to that place → scan blue QR → team code.',
     ],
   },
   4: {
-    title: 'How to play — Clue 4',
+    title: 'How to play — Field Terminal',
     steps: [
-      'At the stop: find written clues / prop tags, join the word, type it.',
-      'Scan the place QR once → team code → Final.',
+      'At the stop: find the terminal card / GRID code (or clear Zip Grid on a laptop).',
+      'Leader types GRID-XXXX → scan purple QR → team code → Clue 5.',
     ],
   },
   5: {
-    title: 'How to play — Final clue',
+    title: 'How to play — Clue 5',
     steps: [
       'Fragments are on this phone — read aloud in order and rebuild the word.',
-      'Leader types it. Report to your start desk.',
+      'Leader types it → go to 5th stop → scan red FIFTH SCAN → team code.',
+    ],
+  },
+  6: {
+    title: 'How to play — MindSpark Lobby',
+    steps: [
+      'Go to MindSpark Lobby as a full team.',
+      'Ask the organizer for the finish code.',
+      'Leader types it to lock your score, then export results for the desk.',
     ],
   },
 };
@@ -195,8 +202,8 @@ function routeStop(checkpointDoc, label, plantByStation) {
 }
 
 /**
- * One physical poster per campus place (not per team, not per color).
- * Prefer progression-1 shared QR; phone already knows which stage the team is on.
+ * One place-poster entry per campus stop for offline packs (prefers stage-1 QR payload;
+ * engine still routes by orange/green/blue/purple/red stops from the team bundle).
  */
 async function buildPlacePosters(eventId, event) {
   const {
@@ -211,7 +218,7 @@ async function buildPlacePosters(eventId, event) {
   const cps = await CampusHuntCheckpoint.find({
     eventId,
     stationCode: { $in: codes },
-    progressionKey: { $in: ['1', 1, '2', 2, '3', 3, '4', 4] },
+    progressionKey: { $in: ['1', 1, '2', 2, '3', 3, '4', 4, '5', 5] },
     active: { $ne: false },
   }).select('+qrSecret +pasteCode').lean();
 
@@ -265,8 +272,8 @@ async function exportOfflinePacks(eventId) {
   for (const team of teams) {
     for (const field of [
       'clue1ChallengeId', 'clue2ChallengeId', 'clue3ChallengeId',
-      'clue4ChallengeId', 'clue5ChallengeId',
-      'firstCheckpointId', 'secondCheckpointId', 'thirdCheckpointId', 'fourthCheckpointId',
+      'clue4ChallengeId', 'clue5ChallengeId', 'clue6ChallengeId',
+      'firstCheckpointId', 'secondCheckpointId', 'thirdCheckpointId', 'fourthCheckpointId', 'fifthCheckpointId',
     ]) {
       if (team[field]) {
         if (field.startsWith('clue')) challengeIds.add(String(team[field]));
@@ -308,10 +315,12 @@ async function exportOfflinePacks(eventId) {
     if (!team.clue3ChallengeId) missing.push('clue3');
     if (!team.clue4ChallengeId) missing.push('clue4');
     if (!team.clue5ChallengeId) missing.push('clue5');
+    if (!team.clue6ChallengeId) missing.push('clue6');
     if (!team.firstCheckpointId) missing.push('checkpoint1');
     if (!team.secondCheckpointId) missing.push('checkpoint2');
     if (!team.thirdCheckpointId) missing.push('checkpoint3');
     if (!team.fourthCheckpointId) missing.push('checkpoint4');
+    if (!team.fifthCheckpointId) missing.push('checkpoint5');
     if (missing.length) {
       incompleteTeams.push({ teamCode: team.teamCode, missing });
       continue;
@@ -327,14 +336,16 @@ async function exportOfflinePacks(eventId) {
     const clue3 = challengeById.get(String(team.clue3ChallengeId));
     const clue4 = challengeById.get(String(team.clue4ChallengeId));
     const clue5 = challengeById.get(String(team.clue5ChallengeId));
+    const clue6 = challengeById.get(String(team.clue6ChallengeId));
 
     const cp1 = checkpointById.get(String(team.firstCheckpointId));
     const cp2 = checkpointById.get(String(team.secondCheckpointId));
     const cp3 = checkpointById.get(String(team.thirdCheckpointId));
     const cp4 = checkpointById.get(String(team.fourthCheckpointId));
+    const cp5 = checkpointById.get(String(team.fifthCheckpointId));
     const start = startById.get(String(team.startingPointId || ''));
 
-    const stops = [cp1, cp2, cp3, cp4].map((cp) => serializeCheckpoint(cp, plantByStation));
+    const stops = [cp1, cp2, cp3, cp4, cp5].map((cp) => serializeCheckpoint(cp, plantByStation));
     for (const stop of stops) {
       if (stop && !stop.joinedWord) {
         warnings.push(
@@ -355,9 +366,11 @@ async function exportOfflinePacks(eventId) {
         slug: event.slug,
         name: event.name,
         college: event.college || '',
-        teamSize: Math.max(2, Math.min(8, Number(event.teamSize) || 4)),
+        teamSize: Math.max(2, Math.min(12, Number(event.teamSize) || 10)),
         startingScore: Number(event.startingScore) > 0 ? event.startingScore : 100,
         scoringConfig: event.scoringConfig || DEFAULT_SCORING_CONFIG,
+        destinationName: event.destinationName || 'Mindspark Lobby',
+        organizerFinishCode: String(event.organizerFinishCode || 'MSFINISH').toUpperCase(),
         apiBase: process.env.PUBLIC_API_BASE
           || process.env.API_PUBLIC_URL
           || '',
@@ -378,6 +391,7 @@ async function exportOfflinePacks(eventId) {
         green: routeStop(cp2, 'second', plantByStation),
         blue: routeStop(cp3, 'third', plantByStation),
         purple: routeStop(cp4, 'fourth', plantByStation),
+        red: routeStop(cp5, 'fifth', plantByStation),
       },
       clues: {
         clue1: serializeChallenge(clue1),
@@ -385,13 +399,14 @@ async function exportOfflinePacks(eventId) {
         clue3: serializeChallenge(clue3),
         clue4: serializeChallenge(clue4),
         clue5: serializeChallenge(clue5),
+        clue6: serializeChallenge(clue6),
       },
       checkpoints: stops.filter(Boolean),
       placePosters,
       opsNotes: {
-        install: 'Leader opens one WhatsApp link on Wi‑Fi. Pack saves on this phone.',
-        checkpointFlow: 'At each stop: find plant fragments → join word → type → scan place poster once → team code.',
-        posters: 'ONE shared QR per campus place (not per team, not per color). Phone already knows the stage.',
+        install: 'Leader downloads this team pack on Wi‑Fi before fest and installs Hunt on their phone. Whole team (~9–10) walks with that one phone; works offline.',
+        checkpointFlow: 'At each of 5 stops: find plant fragments → join word → type → scan place poster once → team code. Clue 6 → Finale Assembly.',
+        posters: 'ONE shared QR per campus place × scan stage 1–5. Phone already knows the stage.',
       },
     };
 
@@ -404,7 +419,7 @@ async function exportOfflinePacks(eventId) {
   }
 
   if (!bundles.length) {
-    warnings.push('No complete team bundles — finish Clue 1–5 bindings and team passwords first.');
+    warnings.push('No complete team bundles — finish Clue 1–6 bindings (5 path stops + destination) and team passwords first.');
   }
 
   const installs = await publishInstallLinks(eventId, bundles, exportBatchId);
@@ -670,7 +685,7 @@ async function ingestOfflineProgress(eventId, payload) {
   }
 
   const score = Math.max(0, Number(body.score) || 0);
-  const maxPlausible = 100 + (5 * 80);
+  const maxPlausible = 100 + (6 * 80);
   team.currentScore = Math.min(score, maxPlausible);
   if (body.stage) team.currentStage = String(body.stage);
   team.offlineProgressSeq = incomingSeq;

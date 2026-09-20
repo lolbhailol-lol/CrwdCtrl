@@ -11,7 +11,7 @@ export default function OfflineHuntRoundsPage() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#0b0c0d] text-white/60">
-        Loading rounds…
+        Loading…
       </div>
     );
   }
@@ -24,26 +24,10 @@ export default function OfflineHuntRoundsPage() {
   const rounds = [
     {
       id: 'round1',
-      label: 'Campus Hunt',
+      label: 'The Hunt',
       subtitle: 'Offline',
-      detail: waiting
-        ? 'Meet at the start desk. Leader starts Round 1 there.'
-        : 'Continue Round 1.',
+      detail: waiting ? 'Start at the desk when ready.' : 'Continue.',
       open: true,
-    },
-    {
-      id: 'survival',
-      label: 'Survival',
-      detail: 'Not in Offline Event Mode.',
-      open: false,
-      lockedReason: 'Locked for this offline hunt.',
-    },
-    {
-      id: 'finale',
-      label: 'Finals',
-      detail: 'Not in Offline Event Mode.',
-      open: false,
-      lockedReason: 'Locked for this offline hunt.',
     },
   ];
 
@@ -59,12 +43,12 @@ export default function OfflineHuntRoundsPage() {
       eventName={bundle.event?.name}
       rounds={rounds}
       lastRound="round1"
-      intro="Tap Round 1 only when your team is at the start desk. Survival and Finals stay locked."
+      intro="Leader phone only."
       onOpenRound={(id) => {
         if (id === 'round1') navigate(CAMPUS_HUNT_PATHS.offlinePlay);
       }}
       onSwitchPerson={() => navigate(CAMPUS_HUNT_PATHS.offlineTeam)}
-      switchLabel="← Back to team"
+      switchLabel="← Team"
     />
   );
 }

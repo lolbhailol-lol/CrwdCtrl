@@ -536,6 +536,38 @@ async function getSessionForRun(missionRunId) {
   return CampusHuntGridSession.findOne({ missionRunId, status: { $in: ['active', 'completed'] } });
 }
 
+/**
+ * Round 1 Clue 4 Field Terminal — Zip Grid session without a Finale mission run.
+ * Reuses the team's latest open round-1 session (no missionRunId / entryId).
+ */
+async function ensureRound1FieldTerminalGrid(team, { durationMinutes = 45 } = {}) {
+  if (!team?._id || !team?.eventId) {
+    throw gridError('Team required for Field Terminal grid', 'TEAM_REQUIRED', 400);
+  }
+
+  const existing = await CampusHuntGridSession.findOne({
+    teamId: team._id,
+    eventId: team.eventId,
+    status: { $in: ['active', 'completed'] },
+    missionRunId: null,
+    entryId: null,
+  }).sort({ createdAt: -1 });
+
+  if (existing) return existing;
+
+  return createGridSession({
+    eventId: team.eventId,
+    teamId: team._id,
+    durationMinutes,
+  });
+}
+
+/** True when session is Round 1 Field Terminal (not Finale). */
+function isRound1GridSession(session) {
+  if (!session) return false;
+  return !session.missionRunId && !session.entryId;
+}
+
 module.exports = {
   createGridSession,
   joinByAccessCode,
@@ -548,6 +580,8 @@ module.exports = {
   expireGridSessionForRun,
   listGridSessionsForEvent,
   getSessionForRun,
+  ensureRound1FieldTerminalGrid,
+  isRound1GridSession,
   sessionPublicView,
   randomAccessCode,
   levelTimeRemainingSeconds,

@@ -172,6 +172,8 @@ function buildPlayerView(run, config, { seat = -1, isLeader = false } = {}) {
   const step = state.step || 'scout';
   const role = roleForSeat(state, seat);
   const progress = publicProgress(state);
+  // Leader phone plays every Blackout role — no member waiting.
+  const canAct = Boolean(isLeader);
   const base = {
     missionId: MISSION_ID,
     title: 'OPERATION: BLACKOUT',
@@ -181,23 +183,22 @@ function buildPlayerView(run, config, { seat = -1, isLeader = false } = {}) {
     playersRequired: 4,
     step,
     yourSeat: seat,
-    yourRole: role,
+    yourRole: isLeader ? 'leader' : role,
     isLeader,
     progress,
     penaltiesIncurred: Number(state.penaltiesIncurred || 0),
     roleAssignment: state.roleBySeat || {},
   };
 
-  if (seat < 0) {
+  if (seat < 0 && !isLeader) {
     return {
       ...base,
       locked: true,
-      rosterError: 'Your account is not mapped to a team seat. Ask an organizer.',
+      rosterError: 'Leader phone only — open this mission on the Team Leader login.',
       canSubmit: false,
     };
   }
 
-  // Everyone sees high-level progress; only active role can submit the current step
   if (step === 'done') {
     return {
       ...base,
@@ -206,68 +207,69 @@ function buildPlayerView(run, config, { seat = -1, isLeader = false } = {}) {
     };
   }
 
+  if (!isLeader) {
+    return {
+      ...base,
+      taskLabel: `OPERATION — ${(step || '').toUpperCase()}`,
+      instruction: 'Only the Team Leader phone plays Blackout. Walk with your team.',
+      canSubmit: false,
+      locked: true,
+      hint: 'Stay together — answers and scans happen on the leader phone.',
+    };
+  }
+
   if (step === 'scout') {
-    const isActive = role === 'scout';
     return {
       ...base,
       taskLabel: 'OPERATION 1 — SCOUT',
-      instruction: isActive ? cfg.scout.clue : 'Wait for the Scout. Stay together as a team.',
-      locationHint: isActive ? cfg.scout.locationHint : null,
-      canSubmit: isActive,
-      locked: !isActive,
-      hint: isActive
-        ? 'Enter the secret from the physical BLACKOUT Scout Station marker.'
-        : `Your role: ${(role || 'unknown').toUpperCase()}. Scout is active.`,
+      instruction: cfg.scout.clue,
+      locationHint: cfg.scout.locationHint || null,
+      canSubmit: canAct,
+      locked: !canAct,
+      hint: 'Enter the secret from the physical BLACKOUT Scout Station marker.',
       attemptsLeft: Math.max(0, cfg.scout.maxAttempts - Number(state.attempts?.scout || 0)),
       penaltyNote: `Wrong answer: −${cfg.scout.penalty} pts`,
     };
   }
 
   if (step === 'cracker') {
-    const isActive = role === 'cracker';
     if (!state.crackerUnlocked) {
       return {
         ...base,
         taskLabel: 'OPERATION 2 — CRACKER',
-        instruction: isActive
-          ? 'SCOUT TOKEN REQUIRED — enter the access token from Scout.'
-          : 'Cracker is waiting for the Scout token. Stay together.',
+        instruction: 'SCOUT TOKEN REQUIRED — enter the access token from Scout (shown after Scout clears).',
         subStep: 'token',
-        canSubmit: isActive,
-        locked: !isActive,
-        hint: isActive ? 'Ask Scout for ACCESS TOKEN.' : `Your role: ${(role || '').toUpperCase()}.`,
+        canSubmit: canAct,
+        locked: !canAct,
+        hint: 'Use the ACCESS TOKEN from the Scout step on this phone.',
         attemptsLeft: Math.max(0, cfg.cracker.maxAttempts - Number(state.attempts?.crackerToken || 0)),
         penaltyNote: `Wrong token: −${cfg.cracker.penalty} pts`,
-        // Scout may still see their token to share verbally
-        accessToken: role === 'scout' ? state.accessToken : null,
+        accessToken: state.accessToken || null,
       };
     }
     return {
       ...base,
       taskLabel: 'OPERATION 2 — CRACKER',
-      instruction: isActive ? cfg.cracker.puzzlePrompt : 'Cracker is solving the cipher. Stay together.',
+      instruction: cfg.cracker.puzzlePrompt,
       subStep: 'puzzle',
-      canSubmit: isActive,
-      locked: !isActive,
-      accessToken: role === 'scout' || role === 'cracker' ? state.accessToken : null,
+      canSubmit: canAct,
+      locked: !canAct,
+      accessToken: state.accessToken || null,
       attemptsLeft: Math.max(0, cfg.cracker.maxAttempts - Number(state.attempts?.cracker || 0)),
       penaltyNote: `Wrong answer: −${cfg.cracker.penalty} pts`,
     };
   }
 
   if (step === 'navigator') {
-    const isActive = role === 'navigator';
     if (!state.navigatorUnlocked) {
       return {
         ...base,
         taskLabel: 'OPERATION 3 — NAVIGATOR',
-        instruction: isActive
-          ? 'ROUTE REQUIRED — enter the route unlocked by Cracker.'
-          : 'Navigator needs the Cracker route. All 4 stay together — do not split up.',
+        instruction: 'ROUTE REQUIRED — enter the route unlocked by Cracker.',
         subStep: 'route',
-        canSubmit: isActive,
-        locked: !isActive,
-        route: role === 'cracker' ? state.route : null,
+        canSubmit: canAct,
+        locked: !canAct,
+        route: state.route || null,
         attemptsLeft: Math.max(0, cfg.navigator.maxAttempts - Number(state.attempts?.navigatorRoute || 0)),
         penaltyNote: `Wrong route: −${cfg.navigator.penalty} pts`,
       };
@@ -275,39 +277,31 @@ function buildPlayerView(run, config, { seat = -1, isLeader = false } = {}) {
     return {
       ...base,
       taskLabel: 'OPERATION 3 — NAVIGATOR',
-      instruction: isActive
-        ? cfg.navigator.challengePrompt
-        : 'Follow the route together. Navigator enters the frequency at the end.',
+      instruction: cfg.navigator.challengePrompt,
       subStep: 'frequency',
-      canSubmit: isActive,
-      locked: !isActive,
-      route: role === 'navigator' || role === 'cracker' ? state.route : null,
+      canSubmit: canAct,
+      locked: !canAct,
+      route: state.route || null,
       attemptsLeft: Math.max(0, cfg.navigator.maxAttempts - Number(state.attempts?.navigator || 0)),
       penaltyNote: `Wrong answer: −${cfg.navigator.penalty} pts`,
     };
   }
 
   if (step === 'controller') {
-    const isActive = role === 'controller';
     return {
       ...base,
       taskLabel: 'OPERATION 4 — CONTROLLER',
-      instruction: isActive
-        ? cfg.controller.challengePrompt
-        : 'Controller is assembling the activation code. Share your outputs verbally if needed.',
-      canSubmit: isActive,
-      locked: !isActive,
-      // Controller (and leaders for ops awareness) see assembled intel — not accepted answers
-      intel: isActive || isLeader
-        ? {
-          accessToken: state.accessToken || null,
-          route: state.route || null,
-          frequency: state.frequency || null,
-        }
-        : null,
-      accessToken: isActive ? state.accessToken : (role === 'scout' ? state.accessToken : null),
-      route: isActive ? state.route : (role === 'cracker' ? state.route : null),
-      frequency: isActive ? state.frequency : (role === 'navigator' ? state.frequency : null),
+      instruction: cfg.controller.challengePrompt,
+      canSubmit: canAct,
+      locked: !canAct,
+      intel: {
+        accessToken: state.accessToken || null,
+        route: state.route || null,
+        frequency: state.frequency || null,
+      },
+      accessToken: state.accessToken || null,
+      route: state.route || null,
+      frequency: state.frequency || null,
       attemptsLeft: Math.max(0, cfg.controller.maxAttempts - Number(state.attempts?.controller || 0)),
       penaltyNote: `Wrong answer: −${cfg.controller.penalty} pts`,
     };
@@ -394,9 +388,20 @@ function submitStep(entry, run, { answer }, config, { seat = -1, isLeader = fals
   const trimmed = String(answer || '').trim();
   const points = missionPoints(config);
 
-  const viewCtx = { seat, isLeader };
+  const viewCtx = { seat: seat < 0 && isLeader ? 0 : seat, isLeader };
 
-  if (seat < 0) {
+  if (!isLeader) {
+    return {
+      ok: false,
+      state,
+      playerView: {
+        ...buildPlayerView({ state }, config, viewCtx),
+        message: 'Only the Team Leader phone can submit Blackout steps.',
+      },
+    };
+  }
+
+  if (seat < 0 && !isLeader) {
     return {
       ok: false,
       state,
@@ -405,7 +410,7 @@ function submitStep(entry, run, { answer }, config, { seat = -1, isLeader = fals
   }
 
   if (step === 'scout') {
-    if (role !== 'scout') {
+    if (role !== 'scout' && !isLeader) {
       return {
         ok: false,
         state,
@@ -434,7 +439,8 @@ function submitStep(entry, run, { answer }, config, { seat = -1, isLeader = fals
     }
     state.accessToken = state.pendingToken || generateAccessToken(entry.teamId, state.salt);
     state.step = 'cracker';
-    state.crackerUnlocked = false;
+    // Leader phone: skip verbal handoff — token stays on this screen.
+    state.crackerUnlocked = Boolean(isLeader);
     return {
       ok: true,
       complete: false,
@@ -444,13 +450,15 @@ function submitStep(entry, run, { answer }, config, { seat = -1, isLeader = fals
         ...buildPlayerView({ state }, config, viewCtx),
         message: 'SCOUT COMPLETE',
         accessToken: state.accessToken,
-        shareInstruction: 'Give this ACCESS TOKEN to the Cracker.',
+        shareInstruction: isLeader
+          ? 'Continue Cracker on this phone.'
+          : 'Give this ACCESS TOKEN to the Cracker.',
       },
     };
   }
 
   if (step === 'cracker') {
-    if (role !== 'cracker') {
+    if (role !== 'cracker' && !isLeader) {
       return {
         ok: false,
         state,
@@ -510,7 +518,7 @@ function submitStep(entry, run, { answer }, config, { seat = -1, isLeader = fals
     }
     state.route = state.pendingRoute || pickRoute(cfg.routePool, entry.teamId, state.salt);
     state.step = 'navigator';
-    state.navigatorUnlocked = false;
+    state.navigatorUnlocked = Boolean(isLeader);
     return {
       ok: true,
       complete: false,
@@ -520,13 +528,15 @@ function submitStep(entry, run, { answer }, config, { seat = -1, isLeader = fals
         ...buildPlayerView({ state }, config, viewCtx),
         message: 'CRACKER COMPLETE — ROUTE UNLOCKED',
         route: state.route,
-        shareInstruction: 'Give this ROUTE to the Navigator.',
+        shareInstruction: isLeader
+          ? 'Continue Navigator on this phone.'
+          : 'Give this ROUTE to the Navigator.',
       },
     };
   }
 
   if (step === 'navigator') {
-    if (role !== 'navigator') {
+    if (role !== 'navigator' && !isLeader) {
       return {
         ok: false,
         state,
@@ -603,7 +613,7 @@ function submitStep(entry, run, { answer }, config, { seat = -1, isLeader = fals
   }
 
   if (step === 'controller') {
-    if (role !== 'controller') {
+    if (role !== 'controller' && !isLeader) {
       return {
         ok: false,
         state,

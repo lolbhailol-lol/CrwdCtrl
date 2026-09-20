@@ -25,25 +25,34 @@ const HOW_TO = {
     ],
   },
   3: {
-    title: 'How to play — Clue 3',
+    title: 'How to play — Lockbox',
     steps: [
-      'Decode the Caesar riddle (leader submits).',
-      'Go to that place. Find the written clues, join the word, type it.',
-      'Scan the place QR once → team code → next stop.',
+      'Lockbox pieces are on the leader phone — read aloud and rebuild the digit code.',
+      'Go to that place. Leader scans blue QR once → team code → Field Terminal.',
     ],
   },
   4: {
-    title: 'How to play — Clue 4',
+    title: 'How to play — Field Terminal',
     steps: [
-      'At the stop: find the written clues (or prop tags), join the word, type it.',
-      'Scan the place QR once → team code → Final.',
+      'After the countdown: open Zip Grid on a laptop (online) or use the printed GRID-XXXX card.',
+      'Leader types GRID-XXXX → scan purple QR once → team code → Clue 5.',
     ],
   },
   5: {
-    title: 'How to play — Final clue',
+    title: 'How to play — Clue 5',
     steps: [
       'Fragments are on this phone — read them aloud in order and rebuild the word.',
-      'Leader types the word. Report to your start desk.',
+      'Leader types the word.',
+      'Go to your 5th campus stop — scan the red FIFTH SCAN QR, then team code.',
+      'That unlocks Clue 6 (MindSpark Lobby finish code).',
+    ],
+  },
+  6: {
+    title: 'How to play — MindSpark Lobby',
+    steps: [
+      'Go to MindSpark Lobby as a full team.',
+      'Ask the organizer for the finish code.',
+      'Leader types it to lock your score.',
     ],
   },
 };
@@ -82,11 +91,21 @@ function challengeView(bundle, state, session, n, now) {
 
   const memberIndex = Number(session.slot) || 0;
   let memberCode;
+  let memberFragments;
   let collaborative = false;
   if (n === 5 && Array.isArray(clue.memberPrompts) && clue.memberPrompts.length) {
     collaborative = true;
-    memberCode = clue.memberPrompts[memberIndex] || '';
-    prompt = clue.prompt || 'Combine all teammate codes in order into one word.';
+    const prompts = clue.memberPrompts.map((p) => String(p || '').trim()).filter(Boolean);
+    if (session.role === 'leader') {
+      memberFragments = prompts.length ? prompts : clue.memberPrompts;
+      memberCode = memberFragments.join(' · ');
+    } else {
+      memberCode = clue.memberPrompts[memberIndex] || '';
+    }
+    prompt = clue.prompt
+      || (session.role === 'leader'
+        ? 'Fragments below — rebuild into one word and submit.'
+        : 'Combine all teammate codes in order into one word.');
   }
 
   const startedAt = row.startedAt || null;
@@ -96,14 +115,17 @@ function challengeView(bundle, state, session, n, now) {
     && row.state === 'ACTIVE'
     && Boolean(startedAt)
     && !timerArmed;
-  const revealed = row.failureReason === 'REVEALED_ZERO_POINTS';
-  const showDestination = row.state === 'COMPLETED' || revealed;
+  const revealed = row.failureReason === 'REVEALED_ZERO_POINTS'
+    || row.failureReason === 'TIMEOUT';
+  const showDestination = row.state === 'COMPLETED'
+    || (n === 1 && revealed);
 
   return {
     challengeNumber: n,
     type: clue.type,
     prompt,
     memberCode,
+    memberFragments,
     collaborative,
     howTo: clue.howTo || HOW_TO[n] || null,
     destinationInstruction: showDestination ? (clue.destinationInstruction || '') : undefined,
@@ -121,7 +143,9 @@ function challengeView(bundle, state, session, n, now) {
     instructionPhase,
     timerArmed,
     timerSeconds: (n === 2 || n === 4) ? (cfg.timerSeconds || 180) : undefined,
-    instructionDelaySeconds: n === 2 ? (cfg.timerStartDelaySeconds ?? 20) : undefined,
+    instructionDelaySeconds: (n === 2 || n === 4)
+      ? (cfg.timerStartDelaySeconds ?? (n === 2 ? 20 : 15))
+      : undefined,
     awardedPoints: row.awardedPoints ?? null,
     failureReason: row.failureReason || null,
     timeExpired: Boolean(expiresAt && timerArmed && isExpired(expiresAt, now) && row.state === 'ACTIVE'),
@@ -144,7 +168,15 @@ function checkpointStatus(bundle, state, session, _now) {
     || scans.leader
     || (session.localPosterScans || {})[String(key)],
   );
-  const scanKind = key === 4 ? 'FOURTH SCAN' : key === 3 ? 'THIRD SCAN' : key === 2 ? 'SECOND SCAN' : 'FIRST SCAN';
+  const scanKind = key === 5
+    ? 'FIFTH SCAN'
+    : key === 4
+      ? 'FOURTH SCAN'
+      : key === 3
+        ? 'THIRD SCAN'
+        : key === 2
+          ? 'SECOND SCAN'
+          : 'FIRST SCAN';
   const needJoin = Boolean(String(expected?.joinedWord || '').trim());
   const joinWordOk = Boolean(cp.joinWordOk) || !needJoin;
   const awaiting = session.role === 'leader'
@@ -208,8 +240,9 @@ export function buildPlayData(bundle, session, state, now = new Date()) {
       actualStartAt: state.currentStage === 'WAITING' ? null : (state.huntStartedAt || state.updatedAt),
       startingPoint: bundle.team.startingPoint || null,
     },
-    challenges: [1, 2, 3, 4, 5].map((n) => challengeView(bundle, state, session, n, now)),
+    challenges: [1, 2, 3, 4, 5, 6].map((n) => challengeView(bundle, state, session, n, now)),
     checkpointStatus: checkpointStatus(bundle, state, session, now),
+    finishDestination: bundle.event?.destinationName || 'Mindspark Lobby',
     serverTime: now.toISOString(),
   };
 }

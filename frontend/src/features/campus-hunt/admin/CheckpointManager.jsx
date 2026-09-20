@@ -29,7 +29,7 @@ const emptyDraft = {
   sequence: 1,
   locationName: '',
   publicInstruction: '',
-  capacityGuidance: 4,
+  capacityGuidance: 1,
   concurrencyGuidance: 'Target 4 teams per campus station. Starting points are gather spots only.',
   allowedTeamIds: '',
   compensationPolicyKey: 'skip_and_continue',
@@ -164,7 +164,7 @@ export default function CheckpointManager({
   );
   const exampleStations = stations.map((s) => s.name).join(' · ');
 
-  /** First Scan: exactly 10 places — team count + which wait each team comes from */
+  /** First Scan: 20 places · ~1 team each (format baseline) */
   const firstStopPlan = useMemo(
     () => (groupFirstStopsByStation ? firstStopArrivalPlan(stations, perWait) : null),
     [groupFirstStopsByStation, stations, perWait],
@@ -509,11 +509,12 @@ export default function CheckpointManager({
                 }))}
                 className={`mt-1 ${inputClass}`}
               >
-                <option value="1">Checkpoint 1</option>
-                <option value="2">Checkpoint 2</option>
-                <option value="3">Checkpoint 3</option>
-                <option value="4">Checkpoint 4</option>
-                <option value="FINISH">Finish</option>
+                <option value="1">Checkpoint 1 (Orange)</option>
+                <option value="2">Checkpoint 2 (Green)</option>
+                <option value="3">Checkpoint 3 (Blue)</option>
+                <option value="4">Checkpoint 4 (Purple)</option>
+                <option value="5">Checkpoint 5 (Red)</option>
+                <option value="FINISH">Finish (legacy)</option>
               </select>
             </label>
             <label className="text-xs text-white/50">
@@ -552,7 +553,7 @@ export default function CheckpointManager({
                 className={`mt-1 ${inputClass}`}
               />
               <span className="mt-1 block text-white/40">
-                Default {teamsPerStation || TARGET_TEAMS_PER_STATION} — {(teamCapacity || 40)} teams ÷ {STATION_TARGET_COUNT} stations.
+                Default {teamsPerStation || TARGET_TEAMS_PER_STATION} — {(teamCapacity || 20)} teams ÷ {STATION_TARGET_COUNT} stations.
               </span>
             </label>
             <label className="text-xs text-white/50">

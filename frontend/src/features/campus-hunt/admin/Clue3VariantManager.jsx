@@ -22,6 +22,7 @@ import {
   resolveStations,
   resolveStarts,
   routeClueDefaults,
+  lockboxCodeForTeam,
   thirdStopArrivalPlan,
   thirdStopForLocalTeam,
   waitIndexForStart,
@@ -72,7 +73,7 @@ function _resolveThirdCheckpoint(checkpoints, { routeId, waveId, startingPointId
 }
 
 /**
- * Clue 3: 10 places × ~4 teams — edit Caesar riddles; shared blue CP3 QR per place.
+ * Clue 3: campus places × team paths — edit Lockbox prompts/codes; shared blue CP3 QR per place.
  */
 export default function Clue3VariantManager({
   eventId,
@@ -140,15 +141,21 @@ export default function Clue3VariantManager({
     ));
 
     const nextPacks = {};
-    arrivalPlan.forEach((place) => {
-      const defaults = routeClueDefaults(3, place.name);
+    arrivalPlan.forEach((place, placeIndex) => {
+      const defaults = routeClueDefaults(
+        3,
+        place.name,
+        4,
+        null,
+        lockboxCodeForTeam(placeIndex, 1),
+      );
       const sample = list.find((v) => (
-        String(v.answer || '').toLowerCase() === place.name.toLowerCase()
-        || String(v.destinationInstruction || '').toLowerCase().includes(place.name.toLowerCase())
+        String(v.destinationInstruction || '').toLowerCase().includes(place.name.toLowerCase())
+        || /^\d{3,8}$/.test(String(v.answer || '').trim())
       ));
       nextPacks[place.code] = {
         prompt: sample?.prompt || defaults.prompt,
-        answer: (sample?.answer || defaults.answer || place.name).trim(),
+        answer: String(sample?.answer || defaults.answer || '').trim(),
         hintText: sample?.hintText || defaults.hintText,
       };
     });
@@ -191,7 +198,7 @@ export default function Clue3VariantManager({
 
     setBusy(true);
     setError('');
-    setMessage('Saving all Clue 3 riddles…');
+    setMessage('Saving all Clue 3 Lockbox codes…');
 
     try {
       const variantsPayload = [];
@@ -213,7 +220,7 @@ export default function Clue3VariantManager({
           const prompt = String(content.prompt || '').trim();
           const answer = String(content.answer || place).trim();
           if (!prompt || !answer) {
-            failures.push(`${startLabel(point)} · ${waveId}: needs riddle text + answer`);
+            failures.push(`${startLabel(point)} · ${waveId}: needs Lockbox text + code`);
             continue;
           }
           variantsPayload.push({
@@ -254,7 +261,7 @@ export default function Clue3VariantManager({
         setMessage('');
       } else {
         setMessage(
-          `Saved ${saved} Clue 3 riddles in one request · bound ${bound} teams.`,
+          `Saved ${saved} Clue 3 Lockbox codes in one request · bound ${bound} teams.`,
         );
         setError(failures[0] || '');
       }
@@ -321,9 +328,9 @@ export default function Clue3VariantManager({
       </section>
 
       <p className="text-xs text-white/50">
-        After green SECOND SCAN + team code, teams get this Caesar riddle on their phone.
-        Decoding it reveals the third place — then they scan the shared blue QR and enter
-        their team code to unlock the prop hunt.
+        After green SECOND SCAN + team code, teams get the Lockbox on their phone.
+        Digit pieces rebuild the code — then they scan the shared blue QR and enter
+        their team code to unlock Field Terminal.
       </p>
 
       <div className="grid gap-3 md:grid-cols-2">
@@ -344,7 +351,7 @@ export default function Clue3VariantManager({
                 {place.arrivals.map((a) => `T${a.teamNumber}`).join(' · ')}
               </p>
               <label className="mt-2 block text-xs text-white/55">
-                Riddle prompt
+                Lockbox prompt
                 <textarea
                   value={content.prompt || ''}
                   onChange={(e) => setPackContent((prev) => ({
@@ -355,7 +362,7 @@ export default function Clue3VariantManager({
                 />
               </label>
               <label className="mt-2 block text-xs text-white/55">
-                Answer (decoded word / place)
+                Lockbox code (digits)
                 <input
                   value={content.answer || ''}
                   onChange={(e) => setPackContent((prev) => ({

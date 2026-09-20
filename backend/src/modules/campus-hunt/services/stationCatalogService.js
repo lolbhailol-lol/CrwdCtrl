@@ -3,19 +3,214 @@ const CampusHuntCheckpoint = require('../models/CampusHuntCheckpoint');
 const CampusHuntChallenge = require('../models/CampusHuntChallenge');
 const CampusHuntStartingPoint = require('../models/CampusHuntStartingPoint');
 
-/** Default 10 hunt scan places (not wait holds). */
+/**
+ * Default 20 hunt scan places — Neurosprint 25 (last year) shortlist.
+ * Matches frontend CAMPUS_STATIONS S01–S20. `riddle` feeds Clue 1 prompts.
+ */
 const DEFAULT_CAMPUS_STATIONS = [
-  { code: 'S01', name: 'Food Court' },
-  { code: 'S02', name: 'Amphitheatre' },
-  { code: 'S03', name: 'Main Gate' },
-  { code: 'S04', name: 'Sports Complex' },
-  { code: 'S05', name: 'Student Centre' },
-  { code: 'S06', name: 'Auditorium' },
-  { code: 'S07', name: 'Cafeteria Lawn' },
-  { code: 'S08', name: 'Innovation Lab' },
-  { code: 'S09', name: 'Quad Fountain' },
-  { code: 'S10', name: 'Admin Block' },
+  {
+    code: 'S01',
+    name: 'Jet Engine',
+    zone: 'north',
+    riddle:
+      'I roar without a voice, I fly without wings,\n'
+      + 'Fuel and thrust are my favorite things.\n'
+      + 'I don’t move now, but once I could soar,\n'
+      + 'Find me to start your hunt and explore.',
+  },
+  {
+    code: 'S05',
+    name: 'Mathematics Department',
+    zone: 'south',
+    riddle:
+      'Where numbers speak and symbols play,\n'
+      + 'Equations guide the learning way.\n'
+      + 'A place of logic, sharp and bright,\n'
+      + 'Your clue is waiting within your sight.',
+  },
+  {
+    code: 'S02',
+    name: 'ENTC Building',
+    zone: 'north',
+    riddle:
+      'Where signals travel and circuits hum,\n'
+      + 'Behind where the parked cars come,\n'
+      + 'Look not at the front, but behind the scene,\n'
+      + 'Your next clue rests where machines convene.',
+  },
+  {
+    code: 'S06',
+    name: 'Metallurgy Garden',
+    zone: 'south',
+    riddle:
+      'Where iron rests and steel is strong,\n'
+      + 'This garden has seen metals all along.\n'
+      + 'Search near the bench where shade is cast,\n'
+      + 'Your next clue waits — don’t walk past.',
+  },
+  {
+    code: 'S03',
+    name: 'Boat Club Canteen',
+    zone: 'north',
+    riddle:
+      'Hungry minds and hungry friends meet,\n'
+      + 'By the waters, where you find a seat.\n'
+      + 'Between snacks and sips so sweet,\n'
+      + 'Search beneath the bench where two paths meet.',
+  },
+  {
+    code: 'S07',
+    name: 'Geology Museum',
+    zone: 'south',
+    riddle:
+      'Stones tell stories from ages ago,\n'
+      + 'Fossils and crystals in quiet rows.\n'
+      + 'Look near the corner where the old rocks stay,\n'
+      + 'Your next clue will guide you on the way.',
+  },
+  {
+    code: 'S04',
+    name: 'Chemistry Labs',
+    zone: 'north',
+    riddle:
+      'Here flames can burn but not to cook,\n'
+      + 'Colored solutions fill every nook.\n'
+      + 'Where reactions bubble, fizz, and play,\n'
+      + 'Find this place of science today.',
+  },
+  {
+    code: 'S09',
+    name: 'Visvesvaraya Statue',
+    zone: 'south',
+    riddle:
+      'A mind of steel, a vision so wide,\n'
+      + 'An engineer’s pride, standing outside.\n'
+      + 'On this very campus, once he did stay,\n'
+      + 'Find the statue that honors his day.',
+  },
+  {
+    code: 'S10',
+    name: 'Bhau Institute',
+    zone: 'north',
+    riddle:
+      'Dreams take flight and ideas ignite,\n'
+      + 'Here, startups are given the light.\n'
+      + 'Built by alumni with vision so true,\n'
+      + 'Find the hub where businesses grew.',
+  },
+  {
+    code: 'S11',
+    name: 'Fountain',
+    zone: 'south',
+    riddle:
+      'I never rest, I never sleep,\n'
+      + 'I bubble and rise, though I am deep.\n'
+      + 'Find me where water likes to play,\n'
+      + 'Your next clue splashes the way.',
+  },
+  {
+    code: 'S14',
+    name: 'ENTC Extension Garden',
+    zone: 'north',
+    riddle:
+      'Where three buildings form a gentle square,\n'
+      + 'A gazebo waits in the open air.\n'
+      + 'A quiet spot where people rest,\n'
+      + 'Your clue is waiting — go find the best.',
+  },
+  {
+    code: 'S12',
+    name: 'Library Pillar',
+    zone: 'south',
+    riddle:
+      'Where knowledge is kept in a silent hall,\n'
+      + 'And students gather to answer learning’s call.\n'
+      + 'Find the first column near the main grand door,\n'
+      + 'A sturdy support that stands before.',
+  },
+  {
+    code: 'S18',
+    name: 'Old CS Building',
+    zone: 'north',
+    riddle:
+      'Where binary language was first understood,\n'
+      + 'The place where the digital foundation stood.\n'
+      + 'A classic old building, its age you can see,\n'
+      + 'Go there to find your next mystery.',
+  },
+  {
+    code: 'S13',
+    name: 'Fab Lab',
+    zone: 'south',
+    riddle:
+      'A workshop of wonders, tools abound,\n'
+      + 'Where dreams take shape and parts are found.\n'
+      + 'If you seek where makers play,\n'
+      + 'Find the lab that builds today.',
+  },
+  {
+    code: 'S15',
+    name: 'Alumni Association',
+    zone: 'south',
+    riddle:
+      'They studied here, they built their way,\n'
+      + 'Their footprints guide us still today.\n'
+      + 'In this place their stories stay,\n'
+      + 'Find the clue where alumni lay.',
+  },
+  {
+    code: 'S19',
+    name: 'NCC',
+    zone: 'north',
+    riddle:
+      'With discipline sharp and uniforms neat,\n'
+      + 'Cadets march proudly with steady feet.\n'
+      + 'If you can match their steps in line,\n'
+      + 'The next clue you’ll surely find.',
+  },
+  {
+    code: 'S16',
+    name: 'Gate No. 2',
+    zone: 'south',
+    riddle:
+      'Not the front, but still a way,\n'
+      + 'Where shortcuts lead you out each day.\n'
+      + 'Look for the clue where exits are few,\n'
+      + 'And find what’s waiting just for you.',
+  },
+  {
+    code: 'S08',
+    name: 'Subway',
+    zone: 'common',
+    riddle:
+      'I run below the ground, yet I’m no train,\n'
+      + 'A secret path through sun or rain.\n'
+      + 'North and South I softly bind,\n'
+      + 'Step inside and see what you find.',
+  },
+  {
+    code: 'S17',
+    name: 'Xerox Center',
+    zone: 'south',
+    riddle:
+      'Pages appear though none are written,\n'
+      + 'A magic box where copies are given.\n'
+      + 'Black and white or colored too,\n'
+      + 'Find this place — it waits for you.',
+  },
+  {
+    code: 'S20',
+    name: 'Civil Department',
+    zone: 'south',
+    riddle:
+      'Strong as stone, and built to last,\n'
+      + 'The oldest branch, a link to the past.\n'
+      + 'From bridges to roads, its wisdom flows,\n'
+      + 'Find where the first foundation grows.',
+  },
 ];
+
+const DEFAULT_DESTINATION_NAME = 'Mindspark Lobby';
 
 const DEFAULT_CAMPUS_STARTS = [
   { code: 'A', name: 'Library' },
@@ -42,9 +237,14 @@ function normalizeStationList(input) {
       ? row.plantFragments.map((f) => String(f || '').trim()).filter(Boolean)
       : undefined;
     const joinedWord = String(row.joinedWord || '').trim();
+    const zone = String(row.zone || '').trim();
+    const riddle = String(row.riddle || '').trim();
+    const prev = byCode.get(code);
     byCode.set(code, {
       code,
       name,
+      zone: zone || prev.zone,
+      riddle: riddle || prev.riddle,
       ...(plantFragments?.length ? { plantFragments } : {}),
       ...(joinedWord ? { joinedWord } : {}),
     });
@@ -87,6 +287,76 @@ function resolveCampusStations(event) {
   const full = normalizeStationList(event?.campusStations);
   return full.slice(0, resolveStationCount(event));
 }
+
+function resolveDestinationName(event) {
+  return String(event?.destinationName || '').trim() || DEFAULT_DESTINATION_NAME;
+}
+
+const DEFAULT_ORGANIZER_FINISH_CODE = 'MSFINISH';
+
+function resolveOrganizerFinishCode(event) {
+  const raw = String(event?.organizerFinishCode || '').trim().toUpperCase();
+  return raw || DEFAULT_ORGANIZER_FINISH_CODE;
+}
+
+/** Clue 1 prompt from Neurosprint riddle when the place is in the catalog. */
+function clue1ForPlace(placeOrStation, teamSize = 4) {
+  const code = typeof placeOrStation === 'object'
+    ? String(placeOrStation?.code || '').toUpperCase().trim()
+    : '';
+  const nameHint = typeof placeOrStation === 'object'
+    ? String(placeOrStation?.name || '').trim()
+    : String(placeOrStation || '').trim();
+  const catalog = DEFAULT_CAMPUS_STATIONS.find((s) => (
+    (code && s.code === code)
+    || s.name.toLowerCase() === nameHint.toLowerCase()
+    || s.code.toLowerCase() === nameHint.toLowerCase()
+  ));
+  const name = nameHint || catalog?.name || 'the station';
+  const people = Math.max(2, Math.min(12, Number(teamSize) || 4));
+  const riddle = String(
+    (typeof placeOrStation === 'object' && placeOrStation?.riddle)
+    || catalog?.riddle
+    || '',
+  ).trim();
+  return {
+    prompt: riddle
+      || (
+        `Your first scan is waiting on campus. Read the marks, follow the crowd of clues, `
+        + `and name the place: ${name}.`
+      ),
+    answer: name,
+    acceptedAnswers: [name, catalog?.name].filter(Boolean)
+      .filter((v, i, arr) => arr.findIndex((x) => x.toLowerCase() === v.toLowerCase()) === i),
+    destinationInstruction:
+      `Go to ${name}. Leader scans the shared QR once, then enters your team code.`,
+    hintText: riddle
+      ? `Think of a landmark that matches the poem — then go to ${name}.`
+      : `Ask staff for the way to ${name}.`,
+  };
+}
+
+module.exports = {
+  DEFAULT_CAMPUS_STATIONS,
+  DEFAULT_CAMPUS_STARTS,
+  DEFAULT_DESTINATION_NAME,
+  DEFAULT_ORGANIZER_FINISH_CODE,
+  clampCount,
+  normalizeStationList,
+  normalizeWaitCode,
+  normalizeStartList,
+  resolveDestinationName,
+  resolveOrganizerFinishCode,
+  resolveStationCount,
+  resolveStartCount,
+  resolveCampusStations,
+  resolveCampusStationsCatalog,
+  resolveCampusStarts,
+  resolveCampusStartsCatalog,
+  clue1ForPlace,
+  updateCampusStations,
+  replacePlaceText,
+};
 
 /** Full catalog with custom names (for admin rename UI). */
 function resolveCampusStationsCatalog(event) {
@@ -276,19 +546,3 @@ async function updateCampusStations({
     reason,
   };
 }
-
-module.exports = {
-  DEFAULT_CAMPUS_STATIONS,
-  DEFAULT_CAMPUS_STARTS,
-  normalizeStationList,
-  normalizeStartList,
-  normalizeWaitCode,
-  resolveStationCount,
-  resolveStartCount,
-  resolveCampusStations,
-  resolveCampusStationsCatalog,
-  resolveCampusStarts,
-  resolveCampusStartsCatalog,
-  updateCampusStations,
-  replacePlaceText,
-};

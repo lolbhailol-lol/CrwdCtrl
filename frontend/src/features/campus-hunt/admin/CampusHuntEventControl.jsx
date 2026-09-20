@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   adminGetOverview,
@@ -23,14 +23,7 @@ import {
 import { stageLabel } from '../types/stages';
 import { formatDurationMs } from '../utils/format';
 import { CAMPUS_HUNT_PATHS } from '../config';
-
-/** Playtest/dry-run: at least one roster ready (schedule lock optional for offline). */
-function canStartRoundOnePlaytest(readiness) {
-  if ((readiness?.teamsReady || 0) < 1) return false;
-  return true;
-}
 import TeamManagerPanel from './TeamManagerPanel';
-import DemoScalePanel from './DemoScalePanel';
 import StartingSystemPanel from './StartingSystemPanel';
 import AdminWorkflowNav from './AdminWorkflowNav';
 import AdminSetupGuide from './AdminSetupGuide';
@@ -42,7 +35,6 @@ import CampusHuntRoundsHub from './CampusHuntRoundsHub';
 import SendLinksPanel from './SendLinksPanel';
 import { deriveCompetitionFormat } from './competitionFormat';
 import { applyRound1Scale } from './applyRound1Scale';
-import { suggestHuntLayout } from './campusHuntFormat';
 
 export default function CampusHuntEventControl() {
   const { eventId } = useParams();
@@ -54,7 +46,7 @@ export default function CampusHuntEventControl() {
   const [issues, setIssues] = useState([]);
   const [audit, setAudit] = useState([]);
   const [stations, setStations] = useState([]);
-  /** null = event hub; 'round1' only (Survival/Finale hidden) */
+  /** null = event hub; 'round1' = hunt setup (single game) */
   const [activeRound, setActiveRound] = useState(null);
   const [tab, setTab] = useState('locations');
   const [msg, setMsg] = useState('');
@@ -149,33 +141,17 @@ export default function CampusHuntEventControl() {
     }
   };
 
-  const playtestStartOk = canStartRoundOnePlaytest(readiness);
-
   const startRoundOne = async () => {
-    if (
-      round1?.status !== 'live'
-      && readiness
-      && !readiness.ready
-      && !playtestStartOk
-    ) {
-      setMsg(
-        `Cannot launch: ${readiness.teamsReady}/${readiness.teamsTotal} rosters ready, `
-        + `${readiness.startAssignmentsReady || 0}/${readiness.teamsTotal} starts assigned, `
-        + `schedule ${readiness.scheduleLocked ? 'locked' : 'not locked'}. `
-        + 'Repair at least one team roster on the Teams tab.',
-      );
-      return;
-    }
     if (round1?.status === 'locked') {
-      if (!window.confirm('Reopen Round 1? This resets team progress and checkpoint scans.')) return;
+      if (!window.confirm('Reopen the hunt? This resets team progress and checkpoint scans.')) return;
       await run(
         () => adminReopenRound(round1._id, {
           confirm: true,
           resetProgress: true,
           durationMinutes,
-          reason: 'Admin reopened Round 1',
+          reason: 'Admin reopened the hunt',
         }),
-        'Round 1 reopened — regenerate and lock the start schedule before relaunch',
+        'Hunt reopened — tap Start hunt again',
       );
       return;
     }
@@ -192,7 +168,7 @@ export default function CampusHuntEventControl() {
         });
         targetRound = created.data?.round;
       }
-      if (!targetRound?._id) throw new Error('Could not create Round 1');
+      if (!targetRound?._id) throw new Error('Could not create the hunt');
       const alreadyLive = targetRound.status === 'live';
       await adminStartRound(targetRound._id, {
         durationMinutes,
@@ -201,12 +177,12 @@ export default function CampusHuntEventControl() {
       });
       setMsg(
         alreadyLive
-          ? `Synced releases and extended play window by ${durationMinutes} min from now/start`
-          : 'Round 1 is live — teams release only at their scheduled server time',
+          ? `Synced releases · ${durationMinutes} min window from now`
+          : 'Hunt is live',
       );
       await refresh();
     } catch (err) {
-      setMsg(err.message || 'Could not start Round 1');
+      setMsg(err.message || 'Could not start the hunt');
     } finally {
       setBusy(false);
     }
@@ -215,7 +191,7 @@ export default function CampusHuntEventControl() {
   /** Full soft reset: lock if live → reopen → clear progress/scans. */
   const resetRoundToZero = async () => {
     if (!round1?._id) {
-      setMsg('Create Round 1 first');
+      setMsg('Create the hunt first');
       return;
     }
     if (round1.status === 'finalized') {
@@ -230,7 +206,7 @@ export default function CampusHuntEventControl() {
       return;
     }
     if (!window.confirm(
-      'Reset Round 1 to zero?\n\n'
+      'Reset hunt to zero?\n\n'
       + '• Clears all team progress and scans\n'
       + '• Teams go back to WAITING\n'
       + '• You must Preview → Generate → Lock → Start again\n\n'
@@ -248,12 +224,12 @@ export default function CampusHuntEventControl() {
       await adminReopenRound(round1._id, {
         confirm: true,
         resetProgress: true,
-        reason: 'Admin reset Round 1 to zero',
+        reason: 'Admin reset hunt to zero',
       });
-      setMsg('Round reset to zero. Next: Live → start Round 1, or Send links again if packs changed.');
+      setMsg('Round reset to zero. Next: Live → start the hunt, or Send links again if packs changed.');
       await refresh();
     } catch (err) {
-      setMsg(err.message || 'Could not reset Round 1');
+      setMsg(err.message || 'Could not reset the hunt');
     } finally {
       setBusy(false);
     }
@@ -290,7 +266,7 @@ export default function CampusHuntEventControl() {
             </div>
             <div className="flex flex-wrap gap-2 text-xs">
               <span className="rounded-full bg-white/10 px-3 py-1.5">
-                Round 1: {round1?.status || 'not created'}
+                Hunt: {round1?.status || 'not created'}
               </span>
               <span className="rounded-full bg-white/10 px-3 py-1.5">
                 Teams {Math.min(
@@ -351,7 +327,7 @@ export default function CampusHuntEventControl() {
               setMsg(result.message);
               await refresh();
             } catch (err) {
-              setMsg(err.message || 'Could not update Round 1 scale');
+              setMsg(err.message || 'Could not update hunt scale');
             } finally {
               setBusy(false);
             }
@@ -373,25 +349,7 @@ export default function CampusHuntEventControl() {
             ← Event hub
           </button>
 
-          <div className="rounded-xl border border-[#0ECCEE]/30 bg-[#0ECCEE]/8 px-3 py-2 text-xs text-white/70">
-            Scale drives every tab:
-            {' '}
-            <strong className="text-white">
-              {competitionFormat.teamCapacity} teams × {competitionFormat.teamSize}
-            </strong>
-            {' · '}
-            {overview?.startCount ?? overview?.event?.startCount
-              ?? suggestHuntLayout(competitionFormat.teamCapacity).startCount}
-            {' '}
-            start(s) ·
-            {' '}
-            {overview?.stationCount ?? overview?.event?.stationCount
-              ?? suggestHuntLayout(competitionFormat.teamCapacity).stationCount}
-            {' '}
-            place(s). Change size on the hub anytime — Locations, Teams, Send links, Playtest, Live & Results follow.
-          </div>
-
-          <AdminSetupGuide compact />
+          <AdminSetupGuide />
 
           <AdminWorkflowNav
             current={tab}
@@ -406,17 +364,13 @@ export default function CampusHuntEventControl() {
               teams={layoutTeams}
               stations={stations}
               teamSize={competitionFormat.teamSize}
-              teamCapacity={competitionFormat.teamCapacity}
               roundStatus={round1?.status}
               durationMinutes={durationMinutes}
               onDurationChange={setDurationMinutes}
               onStartRound={startRoundOne}
               busy={busy}
               canStart={Boolean(overview?.event) && round1?.status !== 'finalized'}
-              overview={overview}
-              competitionFormat={competitionFormat}
               onChanged={() => refresh().catch(() => {})}
-              onGoTab={setTab}
             />
           )}
 
@@ -436,65 +390,23 @@ export default function CampusHuntEventControl() {
           )}
 
           {tab === 'locations' && (
-            <div className="space-y-5">
-              <section>
-                <p className="text-xs font-semibold uppercase tracking-widest text-[#0ECCEE]">
-                  Step 1 · Locations
-                </p>
-                <h2 className="mt-1 text-xl font-bold">Starts & gather points</h2>
-                <p className="mb-3 text-sm text-white/55">
-                  Sized for
-                  {' '}
-                  <strong className="text-white">{competitionFormat.teamCapacity} teams</strong>
-                  {' · '}
-                  {huntLayoutMeta.startCount || '—'} start(s) · {huntLayoutMeta.stationCount || '—'} hunt place(s).
-                  Rename under Clues anytime. Hunt posters live at campus places, not starts.
-                </p>
-                <StartingSystemPanel
-                  eventId={eventId}
-                  roundId={round1?._id}
-                  mode="setup"
-                  eventMeta={huntLayoutMeta}
-                  onChanged={() => refresh().catch(() => {})}
-                />
-              </section>
-            </div>
+            <StartingSystemPanel
+              eventId={eventId}
+              roundId={round1?._id}
+              mode="setup"
+              eventMeta={huntLayoutMeta}
+              onChanged={() => refresh().catch(() => {})}
+            />
           )}
 
           {tab === 'teams' && (
-            <div className="space-y-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-widest text-[#0ECCEE]">
-                  Step 3 · Teams
-                </p>
-                <h2 className="mt-1 text-xl font-bold">
-                  {overview?.event?.teamCapacity || 40} teams & passwords
-                </h2>
-                <p className="text-sm text-white/55">
-                  Set passwords and names. Then open <strong className="text-white">Send links</strong>
-                  {' '}for one WhatsApp install link per team (leader phone · {overview?.event?.teamSize || 4} people walk together).
-                </p>
-              </div>
-              <DemoScalePanel
-                eventId={eventId}
-                eventMeta={{
-                  ...(overview?.event || {}),
-                  campusStations: overview?.campusStations || overview?.event?.campusStations,
-                  campusStationsCatalog: overview?.campusStationsCatalog,
-                  campusStarts: overview?.campusStarts || overview?.event?.campusStarts,
-                  campusStartsCatalog: overview?.campusStartsCatalog,
-                }}
-                teamCount={overview?.counts?.teams ?? teams.length}
-                onChanged={() => refresh().catch(() => {})}
-              />
-              <TeamManagerPanel
-                eventId={eventId}
-                roundId={round1?._id}
-                readiness={readiness}
-                eventMeta={overview?.event}
-                onChanged={() => refresh().catch(() => {})}
-              />
-            </div>
+            <TeamManagerPanel
+              eventId={eventId}
+              roundId={round1?._id}
+              readiness={readiness}
+              eventMeta={overview?.event}
+              onChanged={() => refresh().catch(() => {})}
+            />
           )}
 
           {tab === 'links' && (
@@ -502,30 +414,22 @@ export default function CampusHuntEventControl() {
               eventId={eventId}
               teamCapacity={competitionFormat.teamCapacity}
               teamSize={competitionFormat.teamSize}
+              readiness={readiness}
             />
           )}
 
           {tab === 'live' && (
-            <div className="space-y-5">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-widest text-[#0ECCEE]">
-                  Step 5 · Live
-                </p>
-                <h2 className="mt-1 text-xl font-bold">Operate the hunt</h2>
-                <p className="text-sm text-white/55">
-                  {competitionFormat.teamCapacity} teams · {competitionFormat.teamSize}/team
-                  {' · '}start Round 1 · board · mark finish when teams return
-                </p>
-              </div>
-
-              <section className="rounded-2xl border-2 border-emerald-400/50 bg-emerald-500/15 p-5">
-                <h2 className="text-lg font-bold text-emerald-100">Start Round 1</h2>
-                <p className="mt-1 text-sm text-white/70">
-                  After Send links, start the round here. Optional staggered schedule is below.
-                </p>
-                <div className="mt-4 flex flex-wrap items-center gap-3">
+            <div className="space-y-4">
+              <section className="rounded-2xl border border-emerald-400/40 bg-emerald-500/10 p-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="mr-auto">
+                    <h2 className="text-lg font-bold text-emerald-100">Start</h2>
+                    <p className="text-xs text-white/50">
+                      One tap — prepares schedule if needed, then goes live.
+                    </p>
+                  </div>
                   <label className="text-xs text-white/60">
-                    Duration (minutes)
+                    Minutes
                     <input
                       type="number"
                       min="5"
@@ -539,20 +443,25 @@ export default function CampusHuntEventControl() {
                     type="button"
                     disabled={busy || !overview?.event || round1?.status === 'finalized'}
                     onClick={startRoundOne}
-                    className="rounded-xl bg-emerald-400 px-6 py-3 text-base font-bold text-black disabled:opacity-40"
+                    className="rounded-xl bg-emerald-400 px-5 py-2.5 text-sm font-bold text-black disabled:opacity-40"
                   >
-                    {round1?.status === 'locked'
-                      ? 'Reopen Round 1'
-                      : round1?.status === 'live'
-                        ? 'Sync due releases'
-                        : 'Start Round 1'}
+                    {busy
+                      ? 'Starting…'
+                      : round1?.status === 'locked'
+                        ? 'Reopen'
+                        : round1?.status === 'live'
+                          ? 'Sync releases'
+                          : 'Start hunt'}
                   </button>
                 </div>
+                {msg && tab === 'live' ? (
+                  <p className="mt-3 text-sm text-[#0ECCEE]">{msg}</p>
+                ) : null}
               </section>
 
-              <details className="rounded-2xl border border-white/10 bg-white/3 p-4">
-                <summary className="cursor-pointer text-sm font-semibold text-white/70">
-                  Optional · staggered start schedule
+              <details className="rounded-xl border border-white/10 bg-white/3 p-3">
+                <summary className="cursor-pointer text-sm text-white/60">
+                  Optional · staggered schedule
                 </summary>
                 <div className="mt-3">
                   <StartingSystemPanel
@@ -565,41 +474,10 @@ export default function CampusHuntEventControl() {
                 </div>
               </details>
 
-              <p className="rounded-xl border border-white/10 bg-white/4 px-3 py-2 text-xs text-white/55">
-                Dry-run tools live under the
-                {' '}
-                <button
-                  type="button"
-                  onClick={() => setTab('playtest')}
-                  className="font-semibold text-[#0ECCEE] hover:underline"
-                >
-                  Playtest
-                </button>
-                {' '}
-                tab (checklist · cheat desk · plant sheet).
-              </p>
-
-              <section>
-                <StartingSystemPanel
-                  eventId={eventId}
-                  roundId={round1?._id}
-                  mode="live"
-                  eventMeta={huntLayoutMeta}
-                  onChanged={() => refresh().catch(() => {})}
-                />
-              </section>
-
               <section className="rounded-2xl border border-rose-400/25 bg-[#120a0a] p-4">
-                <p className="text-xs font-semibold uppercase tracking-widest text-rose-200/80">
-                  Finish desk
-                </p>
-                <h3 className="mt-1 text-lg font-bold text-white">Mark reached at start</h3>
+                <h3 className="text-lg font-bold text-white">Finish desk</h3>
                 <p className="mb-3 mt-1 text-sm text-white/55">
-                  {competitionFormat.teamCapacity} teams ·{' '}
-                  {overview?.startCount ?? overview?.event?.startCount ?? 4} start
-                  {Number(overview?.startCount ?? overview?.event?.startCount ?? 4) === 1 ? '' : 's'}
-                  {' '}· {competitionFormat.teamSize}/team.
-                  Team returns with their number → tap Mark reached → score locks.
+                  Teams arrive at Mindspark Lobby → Mark reached → score locks.
                 </p>
                 <FinishReturnBoard
                   eventId={eventId}
@@ -710,9 +588,8 @@ export default function CampusHuntEventControl() {
                   Emergency · station codes / disable / rotate
                 </summary>
                 <p className="mt-2 text-xs text-white/50">
-                  For desk testing without posters: Copy a team’s CH- code → player phone →
-                  “Submit station code”. Need all {competitionFormat.teamSize} members
-                  (or enable local Dev cheats).
+                  For desk testing without posters: copy a CH- code → leader phone →
+                  “Submit station code”. Leader-only — one scan clears the stop.
                 </p>
                 <div className="mt-3 space-y-2">
                   {stations
@@ -812,13 +689,9 @@ export default function CampusHuntEventControl() {
           {tab === 'results' && (
             <div className="space-y-5">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-widest text-[#0ECCEE]">
-                  Step 6 · Results
-                </p>
-                <h2 className="mt-1 text-xl font-bold">Lock & finalize</h2>
+                <h2 className="text-xl font-bold">Results</h2>
                 <p className="text-sm text-white/55">
-                  {competitionFormat.teamCapacity} teams · {competitionFormat.teamSize} per team · Round 1 offline.
-                  Stop when the hunt ends; finalize after finish desk looks correct.
+                  Lock when the hunt ends · finalize after finish desk looks right.
                 </p>
               </div>
 
@@ -875,15 +748,15 @@ export default function CampusHuntEventControl() {
                     onClick={resetRoundToZero}
                     className="rounded-lg border border-rose-400/40 bg-rose-500/15 px-3 py-2 text-sm font-semibold text-rose-100 disabled:opacity-40"
                   >
-                    Reset Round 1 to zero
+                    Reset hunt to zero
                   </button>
                   <button
                     type="button"
                     disabled={busy || !round1 || round1.status !== 'live'}
                     onClick={() => {
-                      if (!window.confirm('Stop Round 1 and freeze every score?')) return;
+                      if (!window.confirm('Stop the hunt and freeze every score?')) return;
                       run(() => adminLockRound(round1._id, {
-                        reason: 'Event control stopped and locked Round 1',
+                        reason: 'Event control stopped and locked the hunt',
                       }), 'Scores locked');
                     }}
                     className="rounded-lg bg-amber-500 px-3 py-2 text-sm font-semibold text-black disabled:opacity-40"
@@ -908,7 +781,7 @@ export default function CampusHuntEventControl() {
                   </button>
                 </div>
                 <p className="mt-3 text-xs text-white/45">
-                  Testing again? Use <strong className="text-white/70">Reset Round 1 to zero</strong>,
+                  Testing again? Use <strong className="text-white/70">Reset hunt to zero</strong>,
                   then Schedule Preview → Generate → Lock → Start. Do not Finalize until the real event ends.
                 </p>
               </section>
@@ -916,7 +789,7 @@ export default function CampusHuntEventControl() {
               <section className="rounded-2xl border border-white/10 bg-white/3 p-4">
                 <h3 className="mb-1 font-semibold">Leaderboard</h3>
                 <p className="mb-3 text-xs text-white/45">
-                  Round 1 field: {competitionFormat.teamCapacity} teams × {competitionFormat.teamSize} players.
+                  Hunt field: {competitionFormat.teamCapacity} teams × {competitionFormat.teamSize} players.
                 </p>
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[640px] text-left text-sm">

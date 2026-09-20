@@ -112,6 +112,12 @@ function lockboxCodeView(lockbox, state, {
   const seatNum = Number(seat);
   const invalidSeat = Number.isNaN(seatNum) || seatNum < 0;
   const piece = invalidSeat ? null : pieceForSeat(lockbox, seatNum);
+  const allPieces = Array.isArray(lockbox.playerPieces)
+    ? lockbox.playerPieces.map((p, i) => ({
+      label: p.label || `Piece ${i + 1}`,
+      info: p.info || '',
+    }))
+    : [];
   return {
     missionId: MISSION_ID,
     step: 'lockbox_code',
@@ -120,20 +126,23 @@ function lockboxCodeView(lockbox, state, {
     taskLabel: 'TASK 2 — DIGITAL LOCKBOX',
     instruction: lockbox.lockboxInstruction,
     yourSeat: invalidSeat ? -1 : seatNum,
-    yourLabel: invalidSeat
-      ? 'Not on roster'
-      : (piece?.label || (isLeader ? 'Team Leader' : `Player ${seatNum + 1}`)),
-    yourInfo: invalidSeat
-      ? null
-      : (piece?.info || null),
-    rosterError: invalidSeat
-      ? 'Your account is not mapped to a team seat. Ask an organizer to fix the roster.'
+    yourLabel: isLeader
+      ? 'Team Leader'
+      : (invalidSeat
+        ? 'Not on roster'
+        : (piece?.label || `Player ${seatNum + 1}`)),
+    yourInfo: isLeader
+      ? (allPieces.map((p) => p.info).filter(Boolean).join(' · ') || null)
+      : (invalidSeat ? null : (piece?.info || null)),
+    allPieces: isLeader ? allPieces : undefined,
+    rosterError: !isLeader && invalidSeat
+      ? 'Leader phone only — open Lockbox on the Team Leader login.'
       : null,
     leaderOnly: true,
-    canSubmit: Boolean(isLeader) && !invalidSeat,
+    canSubmit: Boolean(isLeader) && (isLeader || !invalidSeat),
     hint: isLeader
-      ? 'Talk with your team, then submit the final code.'
-      : 'Share your piece with the team. Only the Team Leader can submit the code.',
+      ? 'All pieces are on this phone — rebuild the code and submit.'
+      : 'Only the Team Leader phone plays Lockbox.',
     message,
     locked,
     attemptsLeft,

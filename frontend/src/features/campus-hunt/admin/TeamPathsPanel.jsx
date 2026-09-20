@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { analyzeHuntPaths } from './campusHuntFormat';
 
 /**
- * Shows every team's Orange→Green→Blue→Purple path and flags clashes / loops.
+ * Shows every team's Orange→Green→Blue→Purple→Red path and flags clashes / loops.
  */
 export default function TeamPathsPanel({
   campusStations,
@@ -48,8 +48,13 @@ export default function TeamPathsPanel({
             )}
           </p>
           <p className="mt-1 text-[11px] text-white/40">
-            {teamCapacity || audit.teamCount} teams · each gets a different 4-stop sequence.
-            Start A walks +1 through places; Start B uses a different stride so routes never copy.
+            {teamCapacity || audit.teamCount} teams · each gets a different 5-stop sequence.
+            {' '}Places stay spread (max {audit.maxTeamsAtOnePlace} team
+            {audit.maxTeamsAtOnePlace === 1 ? '' : 's'}/place/stop)
+            {audit.maxZoneStreak <= 2
+              ? ' · north/south routes alternate'
+              : ` · ${audit.zoneStreak3} path(s) still hug one zone`}
+            .
           </p>
         </div>
         <span className="shrink-0 text-sm text-white/50">{open ? 'Hide' : 'Show'}</span>
@@ -65,7 +70,7 @@ export default function TeamPathsPanel({
           )}
 
           <div className="max-h-72 overflow-auto rounded-xl border border-white/10">
-            <table className="w-full min-w-[36rem] text-left text-xs">
+            <table className="w-full min-w-[42rem] text-left text-xs">
               <thead className="sticky top-0 bg-[#121314] text-[10px] uppercase tracking-wide text-white/45">
                 <tr>
                   <th className="px-3 py-2 font-medium">Team</th>
@@ -74,6 +79,7 @@ export default function TeamPathsPanel({
                   <th className="px-3 py-2 font-medium text-emerald-300/90">2 Green</th>
                   <th className="px-3 py-2 font-medium text-sky-300/90">3 Blue</th>
                   <th className="px-3 py-2 font-medium text-violet-300/90">4 Purple</th>
+                  <th className="px-3 py-2 font-medium text-rose-300/90">5 Red</th>
                 </tr>
               </thead>
               <tbody>

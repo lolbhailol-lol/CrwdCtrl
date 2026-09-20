@@ -126,7 +126,7 @@ async function provisionTeamRoster({
   scannerPassword,
   teamSize = 4,
 }) {
-  const size = Math.max(2, Math.min(8, Number(teamSize) || 4));
+  const size = Math.max(2, Math.min(12, Number(teamSize) || 4));
   const membersNeeded = size - 1;
   const names = (memberNames || [])
     .map((n) => String(n || '').trim())

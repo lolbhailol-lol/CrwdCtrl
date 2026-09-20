@@ -31,8 +31,12 @@ const STAGE_TRANSITIONS = {
   CLUE_4_TIMEOUT: ['CHECKPOINT_4_COMPLETED'],
   CHECKPOINT_4_COMPLETED: ['CLUE_5_ACTIVE'],
   CLUE_5_ACTIVE: ['CLUE_5_COMPLETED', 'CLUE_5_FAILED'],
-  CLUE_5_COMPLETED: ['FINISH_COMPLETED'],
-  CLUE_5_FAILED: ['FINISH_COMPLETED'],
+  CLUE_5_COMPLETED: ['CHECKPOINT_5_COMPLETED'],
+  CLUE_5_FAILED: ['CHECKPOINT_5_COMPLETED'],
+  CHECKPOINT_5_COMPLETED: ['CLUE_6_ACTIVE'],
+  CLUE_6_ACTIVE: ['CLUE_6_COMPLETED', 'CLUE_6_FAILED'],
+  CLUE_6_COMPLETED: ['FINISH_COMPLETED'],
+  CLUE_6_FAILED: ['FINISH_COMPLETED'],
   FINISH_COMPLETED: ['SCORE_LOCKED'],
   SCORE_LOCKED: [],
 };
@@ -43,6 +47,7 @@ const RESOLVED = {
   3: { completed: 'CLUE_3_COMPLETED', failed: 'CLUE_3_FAILED' },
   4: { completed: 'CLUE_4_COMPLETED', failed: 'CLUE_4_FAILED', timeout: 'CLUE_4_TIMEOUT' },
   5: { completed: 'CLUE_5_COMPLETED', failed: 'CLUE_5_FAILED' },
+  6: { completed: 'CLUE_6_COMPLETED', failed: 'CLUE_6_FAILED' },
 };
 
 const CHECKPOINT_UNLOCK = {
@@ -50,6 +55,7 @@ const CHECKPOINT_UNLOCK = {
   2: ['CLUE_2_COMPLETED', 'CLUE_2_FAILED', 'CLUE_2_TIMEOUT'],
   3: ['CLUE_3_COMPLETED', 'CLUE_3_FAILED'],
   4: ['CLUE_4_COMPLETED', 'CLUE_4_FAILED', 'CLUE_4_TIMEOUT'],
+  5: ['CLUE_5_COMPLETED', 'CLUE_5_FAILED'],
 };
 
 const CHECKPOINT_NEXT = {
@@ -57,6 +63,7 @@ const CHECKPOINT_NEXT = {
   2: 'CHECKPOINT_2_COMPLETED',
   3: 'CHECKPOINT_3_COMPLETED',
   4: 'CHECKPOINT_4_COMPLETED',
+  5: 'CHECKPOINT_5_COMPLETED',
 };
 
 const AUTO_AFTER_CHECKPOINT = {
@@ -64,16 +71,28 @@ const AUTO_AFTER_CHECKPOINT = {
   CHECKPOINT_2_COMPLETED: 'CLUE_3_ACTIVE',
   CHECKPOINT_3_COMPLETED: 'CLUE_4_ACTIVE',
   CHECKPOINT_4_COMPLETED: 'CLUE_5_ACTIVE',
+  CHECKPOINT_5_COMPLETED: 'CLUE_6_ACTIVE',
   FINISH_COMPLETED: 'SCORE_LOCKED',
 };
 
-const ROUTE_BY_KEY = { 1: 'orange', 2: 'green', 3: 'blue', 4: 'purple' };
+const ROUTE_BY_KEY = { 1: 'orange', 2: 'green', 3: 'blue', 4: 'purple', 5: 'red' };
 
 function huntError(message, status = 400, code = 'OFFLINE') {
   const err = new Error(message);
   err.status = status;
   err.code = code;
   return err;
+}
+
+/** Match backend normalizeTeamCode — CC1 / 1 → CC001. */
+function normalizeOfflineTeamCode(raw) {
+  let s = String(raw || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!s) return '';
+  if (['LOGIN', 'PLAY', 'TEAM', 'ADMIN', 'LEADERBOARD'].includes(s)) return '';
+  if (/^\d+$/.test(s)) return `CC${s.padStart(3, '0')}`;
+  const match = s.match(/^CC(\d+)$/);
+  if (match) return `CC${match[1].padStart(3, '0')}`;
+  return s;
 }
 
 function clone(value) {
@@ -99,7 +118,7 @@ function roster(bundle) {
 export function teamSize(bundle) {
   const fromEvent = Number(bundle?.event?.teamSize);
   const fromRoster = roster(bundle).length;
-  return Math.max(2, Math.min(8, fromRoster || fromEvent || 4));
+  return Math.max(2, Math.min(12, fromRoster || fromEvent || 4));
 }
 
 function emptyClue() {
@@ -131,16 +150,38 @@ export function createInitialTeamState(bundle) {
       3: emptyClue(),
       4: emptyClue(),
       5: emptyClue(),
+      6: emptyClue(),
     },
     checkpoints: {
       1: { scans: {}, confirmed: false },
       2: { scans: {}, confirmed: false },
       3: { scans: {}, confirmed: false },
       4: { scans: {}, confirmed: false },
+      5: { scans: {}, confirmed: false },
     },
     finishedAt: null,
     updatedAt: new Date().toISOString(),
   };
+}
+
+/** Fill missing clue/checkpoint slots when loading an older offline save. */
+export function hydrateTeamState(state) {
+  if (!state || typeof state !== 'object') return createInitialTeamState({});
+  const next = clone(state);
+  next.clueProgress = next.clueProgress || {};
+  next.checkpoints = next.checkpoints || {};
+  for (const n of [1, 2, 3, 4, 5, 6]) {
+    if (!next.clueProgress[n]) next.clueProgress[n] = emptyClue();
+  }
+  for (const n of [1, 2, 3, 4, 5]) {
+    if (!next.checkpoints[n]) next.checkpoints[n] = { scans: {}, confirmed: false };
+  }
+  // Migrate pre–Clue-6 saves that jumped Clue 5 → finish.
+  if (['CLUE_5_COMPLETED', 'CLUE_5_FAILED'].includes(next.currentStage)
+    && !next.checkpoints[5]?.confirmed) {
+    /* leave as-is — pendingCheckpointKey now routes them to red scan */
+  }
+  return next;
 }
 
 function clue1NeverPlayed(state) {
@@ -154,14 +195,14 @@ export function hydrateState(bundle, state) {
   if (!state || !state.clueProgress?.[1] || String(state.currentStage || '').includes('CLUE1_')) {
     return createInitialTeamState(bundle);
   }
-  if (!state.huntStartedAt && clue1NeverPlayed(state)) {
-    const next = clone(state);
+  let next = hydrateTeamState(state);
+  if (!next.huntStartedAt && clue1NeverPlayed(next)) {
+    next = clone(next);
     next.currentStage = 'WAITING';
     next.clueProgress[1] = emptyClue();
     next.huntStartedAt = null;
-    return next;
   }
-  return state;
+  return next;
 }
 
 export function isHuntWaiting(state) {
@@ -178,7 +219,7 @@ export function startHunt(bundle, session, state, now = new Date()) {
     next = ensureClueActive(bundle, next, now);
     return {
       state: next,
-      meta: { alreadyStarted: true, message: 'Hunt already started — show Team QR to teammates.' },
+      meta: { alreadyStarted: true, message: 'Hunt already started — continue on this leader phone.' },
     };
   }
   if (!canTransition(next.currentStage, 'CLUE_1_ACTIVE')) {
@@ -190,7 +231,7 @@ export function startHunt(bundle, session, state, now = new Date()) {
   next = ensureClueActive(bundle, next, now);
   return {
     state: next,
-    meta: { message: 'Hunt started — show Team QR so teammates unlock Clue 1.' },
+    meta: { message: 'Hunt started — solve Clue 1 on this leader phone.' },
   };
 }
 
@@ -210,6 +251,7 @@ export function pendingCheckpointKey(stage) {
   if (['CLUE_2_COMPLETED', 'CLUE_2_FAILED', 'CLUE_2_TIMEOUT'].includes(stage)) return 2;
   if (['CLUE_3_COMPLETED', 'CLUE_3_FAILED'].includes(stage)) return 3;
   if (['CLUE_4_COMPLETED', 'CLUE_4_FAILED', 'CLUE_4_TIMEOUT'].includes(stage)) return 4;
+  if (['CLUE_5_COMPLETED', 'CLUE_5_FAILED'].includes(stage)) return 5;
   return null;
 }
 
@@ -260,15 +302,11 @@ export function tickTimers(bundle, state, now = new Date()) {
   if (!row || row.state !== 'ACTIVE' || !row.expiresAt) return next;
   if (now.getTime() < new Date(row.expiresAt).getTime()) return next;
   if (![2, 4, 5].includes(n)) return next;
-  row.state = 'COMPLETED';
+  // Soft-reveal: show answer at 0 pts, stay ACTIVE so leader can type it
+  if (row.failureReason === 'REVEALED_ZERO_POINTS') return next;
   row.failureReason = 'REVEALED_ZERO_POINTS';
   row.awardedPoints = 0;
-  row.completedAt = now.toISOString();
   next.clueProgress[n] = row;
-  const dest = RESOLVED[n]?.completed;
-  if (dest && canTransition(next.currentStage, dest)) {
-    next.currentStage = dest;
-  }
   bump(next);
   return next;
 }
@@ -362,10 +400,29 @@ export function submitAnswer(bundle, session, state, challengeNumber, answer, no
   row.state = 'COMPLETED';
   row.awardedPoints = award.total;
   row.completedAt = now.toISOString();
-  next.score = (Number(next.score) || 0) + (Number(award.total) || 0);
+  if (award.late || row.failureReason === 'REVEALED_ZERO_POINTS') {
+    row.awardedPoints = 0;
+    row.failureReason = row.failureReason === 'REVEALED_ZERO_POINTS'
+      ? 'REVEALED_ZERO_POINTS'
+      : 'LATE_ZERO_POINTS';
+  } else {
+    row.failureReason = undefined;
+  }
+  next.score = (Number(next.score) || 0) + (Number(row.awardedPoints) || 0);
   const dest = RESOLVED[n]?.completed;
   if (dest && canTransition(next.currentStage, dest)) next.currentStage = dest;
   next.clueProgress[n] = row;
+
+  // Clue 6 finish code → lock score at MindSpark Lobby
+  if (n === 6) {
+    if (canTransition(next.currentStage, 'FINISH_COMPLETED')) {
+      next.currentStage = 'FINISH_COMPLETED';
+    }
+    if (canTransition(next.currentStage, 'SCORE_LOCKED')) {
+      next.currentStage = 'SCORE_LOCKED';
+    }
+    next.finishedAt = now.toISOString();
+  }
   bump(next);
 
   const destHint = n === 1
@@ -375,17 +432,23 @@ export function submitAnswer(bundle, session, state, challengeNumber, answer, no
       : n === 3
         ? 'Blue stop — join the word, type it, scan once.'
         : n === 4
-          ? 'Purple stop — join the word, type it, scan once.'
-          : 'Report to your start desk.';
+          ? 'Purple stop — join the word, type it, scan once → Clue 5.'
+          : n === 5
+            ? 'Red FIFTH SCAN — scan once → Clue 6 at MindSpark Lobby.'
+            : 'Score locked at MindSpark Lobby. Export results for the desk.';
 
   return {
     state: next,
     meta: {
       correct: true,
-      late: Boolean(award.late),
-      awardedPoints: award.total,
+      late: Boolean(award.late || row.failureReason === 'REVEALED_ZERO_POINTS' || row.failureReason === 'LATE_ZERO_POINTS'),
+      awardedPoints: Number(row.awardedPoints) || 0,
       destinationInstruction: clue.destinationInstruction || destHint,
-      message: destHint,
+      message: n === 6
+        ? 'Finish code accepted — score locked at MindSpark Lobby.'
+        : destHint,
+      scoreLocked: next.currentStage === 'SCORE_LOCKED',
+      finalScore: next.score,
     },
   };
 }
@@ -436,7 +499,7 @@ export function parseStationQr(raw) {
 
 function allBundleCheckpoints(bundle) {
   const list = [];
-  for (const color of ['orange', 'green', 'blue', 'purple']) {
+  for (const color of ['orange', 'green', 'blue', 'purple', 'red']) {
     if (bundle?.route?.[color]) list.push(bundle.route[color]);
   }
   if (Array.isArray(bundle?.checkpoints)) list.push(...bundle.checkpoints);
@@ -587,6 +650,25 @@ export function scanStation(bundle, session, state, raw, now = new Date()) {
   cp.scans = { ...cp.scans, [memberKey]: { at: now.toISOString(), name: session.name } };
   next.checkpoints[key] = cp;
   bump(next);
+
+  // Leader-only: one scan clears the stop (no separate team-code step).
+  if (!cp.confirmed && Object.keys(cp.scans || {}).length >= 1) {
+    const claimed = confirmStation(bundle, session, next, bundle.team.teamCode, now);
+    return {
+      state: claimed.state,
+      localScanKey: String(key),
+      meta: {
+        message: claimed.meta?.message || 'Poster scanned — next clue unlocked.',
+        verifiedCount: 1,
+        requiredCount: 1,
+        awaitingTeamCodeConfirm: false,
+        unlockedNext: true,
+        checkpointId: expected?.id,
+        checkpointKey: String(key),
+      },
+    };
+  }
+
   return {
     state: next,
     localScanKey: String(key),
@@ -594,10 +676,10 @@ export function scanStation(bundle, session, state, raw, now = new Date()) {
       message: 'Poster scanned — enter your team code to continue',
       verifiedCount: Object.keys(cp.scans || {}).length,
       requiredCount: 1,
-      checkpointStatus: null,
-      checkpointId: expected.id,
+      checkpointId: expected?.id,
       checkpointKey: String(key),
       awaitingTeamCodeConfirm: !cp.confirmed,
+      unlockedNext: false,
     },
   };
 }
@@ -629,7 +711,7 @@ export async function collectMemberProof(bundle, session, state, raw) {
   };
   next.checkpoints[key] = cp;
   bump(next);
-  const required = teamSize(bundle);
+  const required = 1;
   const verifiedCount = Object.keys(cp.scans).length;
   return {
     state: next,
@@ -647,8 +729,9 @@ export function confirmStation(bundle, session, state, teamCode, now = new Date(
   const next = clone(state);
   const key = pendingCheckpointKey(next.currentStage);
   if (!key) throw huntError('No checkpoint to confirm', 409, 'WRONG_STAGE');
-  const expectedCode = String(bundle.team.teamCode || '').trim().toUpperCase();
-  if (String(teamCode || '').trim().toUpperCase() !== expectedCode) {
+  const expectedCode = normalizeOfflineTeamCode(bundle.team.teamCode);
+  const providedCode = normalizeOfflineTeamCode(teamCode);
+  if (!providedCode || providedCode !== expectedCode) {
     throw huntError('Wrong team code', 403, 'BAD_TEAM_CODE');
   }
   const required = 1;
@@ -676,11 +759,41 @@ export function confirmStation(bundle, session, state, teamCode, now = new Date(
   };
 }
 
-export function markReachedStart(bundle, session, state, now = new Date()) {
+export function markReachedStart(bundle, session, state, finishCode = '', now = new Date()) {
   assertLeader(session);
   const next = clone(state);
-  if (!['CLUE_5_COMPLETED', 'CLUE_5_FAILED', 'FINISH_COMPLETED'].includes(next.currentStage)) {
-    throw huntError('Finish Clue 5 before reporting to start', 409, 'WRONG_STAGE');
+  if (!['CLUE_6_ACTIVE', 'CLUE_6_COMPLETED', 'CLUE_6_FAILED', 'FINISH_COMPLETED'].includes(next.currentStage)) {
+    throw huntError('Go to MindSpark Lobby after the red scan, then enter the finish code', 409, 'WRONG_STAGE');
+  }
+  const code = String(finishCode || '').trim();
+  if (code) {
+    const clue6 = getClue(bundle, 6);
+    const accepted = [
+      clue6?.answer,
+      ...(clue6?.acceptedAnswers || []),
+      bundle.event?.organizerFinishCode,
+      bundle.event?.destinationName,
+      'MSFINISH',
+      'FINISH',
+      'LOBBY',
+      'MINDSPARK',
+      'MINDSPARK LOBBY',
+      'mindspark lobby',
+    ].filter(Boolean);
+    if (!matchesAnyAccepted(code, accepted)) {
+      throw huntError('Wrong finish code — ask the organizer at MindSpark Lobby', 400, 'BAD_FINISH_CODE');
+    }
+  } else if (next.currentStage === 'CLUE_6_ACTIVE') {
+    throw huntError('Enter the organizer finish code', 400, 'NO_FINISH_CODE');
+  }
+  if (next.currentStage === 'CLUE_6_ACTIVE' && canTransition(next.currentStage, 'CLUE_6_COMPLETED')) {
+    next.currentStage = 'CLUE_6_COMPLETED';
+    const row = next.clueProgress[6] || emptyClue();
+    row.state = 'COMPLETED';
+    row.awardedPoints = Number(scoring(bundle, 6).basePoints || 25) || 0;
+    row.completedAt = now.toISOString();
+    next.clueProgress[6] = row;
+    next.score = (Number(next.score) || 0) + (Number(row.awardedPoints) || 0);
   }
   if (next.currentStage !== 'FINISH_COMPLETED' && canTransition(next.currentStage, 'FINISH_COMPLETED')) {
     next.currentStage = 'FINISH_COMPLETED';
@@ -692,7 +805,11 @@ export function markReachedStart(bundle, session, state, now = new Date()) {
   bump(next);
   return {
     state: next,
-    meta: { message: 'Score locked. Export results for the desk.' },
+    meta: {
+      message: 'Score locked at MindSpark Lobby. Export results for the desk.',
+      finalScore: next.score,
+      scoreLocked: true,
+    },
   };
 }
 

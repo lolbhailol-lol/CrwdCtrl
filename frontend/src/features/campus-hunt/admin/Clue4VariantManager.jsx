@@ -33,8 +33,9 @@ const inputClass = 'w-full rounded-lg border border-white/15 bg-[#161718] px-3 p
 const DEFAULT_SETTINGS = CLUE4_DEFAULT_SETTINGS;
 
 const SHARED_PROMPT =
-  'CRAZY PROP HUNT — hunt as a team for the silly planted prop in plain sight. '
-  + 'Read the short code on its sticker and type it here (leader submits).';
+  'FIELD TERMINAL — find the terminal card near the purple zone '
+  + '(or clear Zip Grid on a laptop if available). '
+  + 'Type your GRID-XXXX completion code here (leader submits).';
 
 function id(value) {
   return String(value?._id || value?.id || value || '');
@@ -157,7 +158,7 @@ export default function Clue4VariantManager({
 
     setBusy(true);
     setError('');
-    setMessage(`Saving all ${teamCapacity} Clue 4 prop codes…`);
+    setMessage(`Saving all ${teamCapacity} Clue 4 GRID codes…`);
 
     try {
       const clue4Scoring = coerceClueScoring(settings, DEFAULT_SETTINGS);
@@ -220,7 +221,7 @@ export default function Clue4VariantManager({
         setMessage('');
       } else {
         setMessage(
-          `Saved ${saved} Clue 4 prop codes in one request · bound ${bound} teams.`
+          `Saved ${saved} Clue 4 GRID codes in one request · bound ${bound} teams.`
           + (apiErrors.length || failures.length
             ? ` (${apiErrors.length + failures.length} warnings)`
             : ''),
@@ -261,10 +262,10 @@ export default function Clue4VariantManager({
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2 text-[11px]">
         <span className={`rounded-full px-2.5 py-1 ${THEME.bgClass} ${THEME.textClass}`}>
-          Purple · prop hunt then FOURTH SCAN
+          Purple · Field Terminal then FOURTH SCAN
         </span>
         <span className="rounded-full bg-white/10 px-2.5 py-1 text-white/55">
-          {stations.length} places · ~{teamsPerStation} teams each · prop codes
+          {stations.length} places · ~{teamsPerStation} teams each · GRID codes
         </span>
         <span className={`rounded-full px-2.5 py-1 ${
           savedCount >= teamCapacity
@@ -343,9 +344,9 @@ export default function Clue4VariantManager({
       </section>
 
       <section className="rounded-2xl border border-white/15 bg-white/5 p-4">
-        <h2 className="text-base font-semibold text-white">3. Who goes where · prop codes</h2>
+        <h2 className="text-base font-semibold text-white">3. Who goes where · GRID codes</h2>
         <p className="mt-1 text-xs text-white/50">
-          Fourth stop = purple prop hunt. Each team gets a sticker word to type after finding the prop.
+          Fourth stop = Field Terminal. Each team gets a GRID-XXXX code to type after clearing the terminal.
         </p>
         <div className="mt-3 grid gap-2 md:grid-cols-2">
           {arrivalPlan.map((place) => (

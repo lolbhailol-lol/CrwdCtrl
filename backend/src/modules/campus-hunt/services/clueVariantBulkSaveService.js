@@ -18,6 +18,7 @@ const {
   stationForLocalTeam,
   WAIT_POINTS,
   syncSharedStationQrs,
+  routeClueDefaults,
 } = require('./round1BootstrapService');
 
 function waitIndexFromCode(code) {
@@ -150,7 +151,7 @@ async function bulkSaveClue1({
             stationCode,
             publicInstruction:
               `Orange FIRST SCAN at ${place}. One shared QR for this place. `
-              + 'All 4 team members scan, then enter your team code to unlock Clue 2.',
+              + 'Leader scans once, then enters your team code to unlock Clue 2.',
             sequence: 1,
             active: true,
             compensationPolicyKey: 'skip_and_continue',
@@ -196,7 +197,7 @@ async function bulkSaveClue1({
             destinationInstruction:
               String(row.destinationInstruction || '').trim()
               || `Go to ${place}. Find the shared orange FIRST SCAN QR. `
-                + `All ${Math.max(2, Math.min(8, Number(event.teamSize) || 4))} members scan, then enter your team code to unlock Clue 2.`,
+                + `Leader scans once, then enters your team code to unlock Clue 2.`,
             hintText: String(row.hintText || '').trim() || `Ask staff for the way to ${place}.`,
             basePoints: clue1Scoring.basePoints,
             maxAttempts: clue1Scoring.maxAttempts,
@@ -292,7 +293,7 @@ async function bulkSaveClue3({
       const prompt = String(row.prompt || '').trim();
       const answer = String(row.answer || place).trim();
       if (!prompt || !answer) {
-        errors.push({ startCode, waveId, message: 'Riddle prompt and answer required' });
+        errors.push({ startCode, waveId, message: 'Lockbox prompt and code required' });
         continue;
       }
 
@@ -313,7 +314,7 @@ async function bulkSaveClue3({
             stationCode,
             publicInstruction:
               `Blue THIRD SCAN at ${place}. One shared QR for this place. `
-              + 'All 4 team members scan, then enter your team code to unlock Final.',
+              + 'Leader scans once, then enters your team code to unlock Field Terminal.',
             sequence: 3,
             active: true,
             compensationPolicyKey: 'skip_and_continue',
@@ -336,6 +337,14 @@ async function bulkSaveClue3({
       );
 
       const variantKey = `${startCode}-${waveId}`;
+      const digits = String(answer).replace(/\D/g, '');
+      const pieceDefaults = routeClueDefaults(
+        3,
+        place,
+        Number(event?.teamSize) || 4,
+        null,
+        digits || answer,
+      );
       await CampusHuntChallenge.findOneAndUpdate(
         {
           eventId,
@@ -356,11 +365,15 @@ async function bulkSaveClue3({
             answer,
             acceptedAnswers: [answer],
             destinationInstruction:
-              `Riddle solved — go to ${place}. Find the shared blue THIRD SCAN QR. `
-              + `All ${Math.max(2, Math.min(8, Number(event.teamSize) || 4))} members scan, then enter your team code to unlock Final.`,
+              `Lockbox open — go to ${place}. Find the shared blue THIRD SCAN QR. `
+              + `Leader scans once, then enters your team code to unlock Field Terminal.`,
+            memberPrompts: Array.isArray(row.memberPrompts) && row.memberPrompts.length
+              ? row.memberPrompts
+              : pieceDefaults.memberPrompts,
             hintText:
               String(row.hintText || '').trim()
-              || 'Caesar shift of 3 — A becomes D, B becomes E… Spaces stay spaces.',
+              || pieceDefaults.hintText
+              || 'Say every digit piece out loud in seat order. The code is digits only.',
             basePoints: clue3Scoring.basePoints,
             maxAttempts: clue3Scoring.maxAttempts,
             hintCost: clue3Scoring.hintCost,

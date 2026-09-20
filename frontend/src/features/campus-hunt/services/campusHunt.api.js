@@ -292,10 +292,26 @@ export async function submitChallengeAnswer(teamId, challengeNumber, answer, req
   });
 }
 
+/** Leader types organizer finish code at MindSpark Lobby (after Clue 6). */
+export async function submitFinishCode(teamId, finishCode) {
+  return huntJson(`${BASE}/teams/${teamId}/finish`, {
+    method: 'POST',
+    body: JSON.stringify({ finishCode }),
+  });
+}
+
 export async function requestChallengeHint(teamId, challengeNumber, requestId) {
   return huntJson(`${BASE}/teams/${teamId}/challenges/${challengeNumber}/hint`, {
     method: 'POST',
     body: JSON.stringify({ confirm: true, requestId }),
+  });
+}
+
+/** Clue 2/4/5: timer ended → reveal answer at 0 pts and advance to scan. */
+export async function revealTimedChallenge(teamId, challengeNumber) {
+  return huntJson(`${BASE}/teams/${teamId}/challenges/${challengeNumber}/timer-reveal`, {
+    method: 'POST',
+    body: JSON.stringify({}),
   });
 }
 

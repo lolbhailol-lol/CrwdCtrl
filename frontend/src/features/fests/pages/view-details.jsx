@@ -1368,8 +1368,8 @@ function EventDetailsPage() {
 
         </div>
 
-        {/* Artists Over the Years */}
-        {pageEvent.artists && pageEvent.artists.length > 0 && (
+        {/* Artists Over the Years — hidden when Pro Show / artists are off (e.g. MindSpark) */}
+        {pageEvent.artists && pageEvent.artists.length > 0 && !festPlugin.hideProShow && (
           <section className={`px-4 mb-8 ${festPlugin.id === 'kshitij' ? 'pt-3' : ''} ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
             <h2 className={`text-base font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
               {pageEvent.artistsHeading || 'Artist Over the Years'}
