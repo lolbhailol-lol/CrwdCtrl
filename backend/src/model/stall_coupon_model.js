@@ -17,6 +17,8 @@ const stallCouponSchema = new mongoose.Schema(
     // Snapshot rakha hai — agar admin baad me fest ka brand change kare,
     // purane users ka code apni assignment-time wali brand hi dikhayega
     brand: { type: String, required: true, trim: true },
+    // e.g. 20 → "20% OFF at brand stall"
+    discountPercent: { type: Number, default: 20, min: 1, max: 100 },
     code: {
       type: String,
       required: true,

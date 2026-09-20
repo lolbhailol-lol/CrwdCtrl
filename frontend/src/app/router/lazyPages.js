@@ -64,6 +64,7 @@ export const TrekCategoryPage = lazyWithRetry(() => import('../../features/treks
   export const DeskPaymentPage = lazyWithRetry(() => import('../../pages/payment/DeskPaymentPage'));
   export const MindSparkBundlePage = lazyWithRetry(() => import('../../features/fests/mindspark/MindSparkBundlePage'));
   export const MindSparkAuditoriumPage = lazyWithRetry(() => import('../../features/fests/mindspark/MindSparkAuditoriumPage'));
+  export const MindSparkCouponPreviewPage = lazyWithRetry(() => import('../../features/fests/mindspark/MindSparkCouponPreviewPage'));
   export const MindSparkBundlePaymentPage = lazyWithRetry(() => import('../../pages/payment/MindSparkBundlePaymentPage'));
 
 export const AdminLayout = lazyWithRetry(() => import('../../pages/admin/AdminLayout'));

@@ -97,7 +97,6 @@ function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick
     location.pathname.startsWith('/sports/run/') ||
     location.pathname.startsWith('/competitions-view-details') ||
     location.pathname.startsWith('/competition') ||
-    location.pathname.includes('/fest/') && location.pathname.includes('/register') ||
     location.pathname.startsWith('/competition-registration');
 
   if (shouldHideMobileBottomNav) {
@@ -135,6 +134,7 @@ function ConditionalFooter() {
     location.pathname.startsWith('/mindspark-payments') ||
     location.pathname.startsWith('/mindspark/bundle') ||
     location.pathname.startsWith('/mindspark/auditorium') ||
+    location.pathname.startsWith('/mindspark/coupon-preview') ||
     location.pathname.startsWith('/stall') ||
     location.pathname.startsWith('/s/') ||
     location.pathname.startsWith('/run-club-organizer') ||

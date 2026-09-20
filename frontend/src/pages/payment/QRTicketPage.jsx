@@ -3,6 +3,7 @@ import { useParams, Link, useSearchParams, useNavigate, useLocation } from 'reac
 import { ArrowLeft, CheckCircle, Ticket, CalendarDays, MapPin, Users, CalendarPlus } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import LocalQRCode from '../../components/LocalQRCode';
+import StallCouponCard from '../../components/StallCouponCard';
 import { buildGoogleCalendarUrl } from '../../utils/calendar';
 import { openExternalUrl } from '../../utils/externalLink';
 
@@ -489,6 +490,21 @@ export default function QRTicketPage() {
             </p>
           </div>
         </div>
+
+        {/* Competition tickets only — stall offer sits outside the ticket card */}
+        {!isTrekTicket && !isSportsTicket && !isEventTicket && !isAuditoriumTicket
+          && ticket.competitionName && ticket.stallBrand ? (
+          <div className="mt-4">
+            <StallCouponCard
+              compact
+              isDark={isDark}
+              stallCoupon={{
+                brand: ticket.stallBrand,
+                discountPercent: ticket.stallDiscountPercent || 20,
+              }}
+            />
+          </div>
+        ) : null}
 
         {calendarUrl && !ticket.checkedIn && (
           <button

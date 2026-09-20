@@ -1,24 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Download, Ticket, MessageCircle, ExternalLink, FileSpreadsheet } from 'lucide-react';
+import { Download, Ticket, MessageCircle, ChevronRight } from 'lucide-react';
 import { goToBookings } from '../../../utils/paymentNavigation';
 import { openExternalUrl } from '../../../utils/externalLink';
 import { SuccessRevealGate } from '../../../components/RegistrationStatusVisual';
 import LocalQRCode from '../../../components/LocalQRCode';
 import CompetitionCoverImage from '../../../components/CompetitionCoverImage';
+import StallCouponCard from '../../../components/StallCouponCard';
 import { getApiBaseUrl } from '../../../config/apiBase';
 import { authenticatedFetchJSON } from '../../../services/api/auth.api';
 import { useAuth } from '../../../context/AuthContext';
-import AlsoRegisterForSection from '../../../components/AlsoRegisterForSection';
-
-function normalizeLinks(list) {
-  if (!Array.isArray(list)) return [];
-  return list
-    .map((l) => ({
-      label: String(l?.label || '').trim(),
-      url: String(l?.url || '').trim(),
-    }))
-    .filter((l) => l.url);
-}
 
 function pickWhatsApp(competition, fest) {
   return (
@@ -38,7 +28,7 @@ function pickCoverImage(competition) {
 
 /**
  * Post-registration success for MindSpark competitions.
- * Shows competition cover + inline QR, then WhatsApp as the main next step.
+ * Order: ticket → next steps → Svvad Pro offer
  */
 export default function MindSparkSuccessStep({
   isDark,
@@ -47,32 +37,74 @@ export default function MindSparkSuccessStep({
   registrationId,
   navigate,
   competitionId: competitionIdProp,
+  festId: festIdProp,
+  stallCoupon: stallCouponProp,
 }) {
   const { token: authToken } = useAuth();
   const compName = competition?.name || 'your competition';
   const festName = fest?.festName || 'MindSpark';
-  const coverImage = pickCoverImage(competition);
+  const coverFromProps = pickCoverImage(competition);
+  const [coverImage, setCoverImage] = useState(() => coverFromProps);
   const [whatsapp, setWhatsapp] = useState(() => pickWhatsApp(competition, fest));
   const [ticket, setTicket] = useState(null);
-  const overallSheet = String(fest?.registration?.overallSheetUrl || '').trim();
-  const compSheet = String(competition?.registration?.shareSheetUrl || '').trim();
-  const links = [
-    ...normalizeLinks(competition?.registration?.resourceLinks),
-    ...normalizeLinks(fest?.registration?.resourceLinks),
-  ];
+  const [stallCoupon, setStallCoupon] = useState(stallCouponProp || null);
+
+  const festId =
+    festIdProp
+    || fest?._id
+    || fest?.id
+    || competition?.fest?._id
+    || competition?.fest?.id
+    || competition?.festId
+    || competition?.fest_id;
+
+  useEffect(() => {
+    if (stallCouponProp?.brand || stallCouponProp?.code) setStallCoupon(stallCouponProp);
+  }, [stallCouponProp]);
+
+  useEffect(() => {
+    const next = pickCoverImage(competition);
+    if (next) setCoverImage(next);
+  }, [competition]);
+
+  useEffect(() => {
+    if (stallCoupon?.brand || stallCoupon?.code || !festId || !authToken) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await authenticatedFetchJSON(
+          `${getApiBaseUrl()}/registrations/fests/${festId}/my-coupon`,
+          { token: authToken },
+        );
+        if (!cancelled && (data?.code || data?.brand)) {
+          setStallCoupon({
+            code: data.code,
+            brand: data.brand,
+            discountPercent: data.discountPercent || 20,
+          });
+        }
+      } catch {
+        /* no coupon yet / 404 */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [stallCoupon?.brand, stallCoupon?.code, festId, authToken]);
 
   useEffect(() => {
     const fromProps = pickWhatsApp(competition, fest);
-    if (fromProps) {
-      setWhatsapp(fromProps);
-      return;
-    }
+    if (fromProps) setWhatsapp(fromProps);
+
+    const needCover = !pickCoverImage(competition);
+    const needWa = !fromProps;
+    if (!needCover && !needWa) return undefined;
+
     const compId =
       competitionIdProp
       || competition?._id
       || competition?.id
       || competition?.slug;
-    if (!compId) return;
+    if (!compId || String(compId).startsWith('preview')) return undefined;
+
     let cancelled = false;
     (async () => {
       try {
@@ -82,8 +114,15 @@ export default function MindSparkSuccessStep({
         });
         if (!res.ok) return;
         const data = await res.json();
-        const link = pickWhatsApp(data, fest);
-        if (!cancelled && link) setWhatsapp(link);
+        if (cancelled) return;
+        if (needWa) {
+          const link = pickWhatsApp(data, fest);
+          if (link) setWhatsapp(link);
+        }
+        if (needCover) {
+          const cover = pickCoverImage(data);
+          if (cover) setCoverImage(cover);
+        }
       } catch {
         /* ignore */
       }
@@ -108,9 +147,12 @@ export default function MindSparkSuccessStep({
     return () => { cancelled = true; };
   }, [registrationId, authToken]);
 
-  const card = isDark
-    ? 'bg-[#111213] border-gray-700/60'
-    : 'bg-white border-gray-200 shadow-sm';
+  const pageBg = isDark ? 'bg-[#161718]' : 'bg-[#F3F1EE]';
+  const surface = isDark
+    ? 'bg-[#0a0b0c] border border-gray-700/50 shadow-lg shadow-black/50'
+    : 'bg-white border border-gray-200 shadow-sm';
+  const muted = isDark ? 'text-gray-400' : 'text-black/50';
+  const ink = isDark ? 'text-white' : 'text-[#141414]';
 
   return (
     <SuccessRevealGate
@@ -118,169 +160,128 @@ export default function MindSparkSuccessStep({
       title="You're in"
       subtitle={`${compName} · ${festName}`}
     >
-      <div className={`crwdctrl-page crwdctrl-page--content min-h-screen px-4 py-10 md:py-14 ${isDark ? 'bg-[#0a0b0c]' : 'bg-gray-50'}`}>
-        <div className="max-w-md md:max-w-2xl mx-auto space-y-4">
-          <div className={`rounded-3xl border overflow-hidden ${card}`}>
-            <div className="relative h-40 sm:h-44 bg-[#1A1B1D]">
-              <CompetitionCoverImage
-                src={coverImage}
-                alt={compName}
-                preset="hero"
-                containerClassName="absolute inset-0 w-full h-full"
-                className="w-full h-full object-cover"
-                loaderSize="compact"
-                eager
-              />
-              <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent" />
-              <div className="absolute bottom-0 left-0 right-0 p-4">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-[#0ECCEE]">You're in</p>
-                <h1 className="text-xl sm:text-2xl font-bold text-white leading-tight mt-0.5">{compName}</h1>
-                <p className="text-sm text-white/75 mt-0.5">{festName}</p>
-              </div>
-            </div>
-
-            <div className="p-5 flex flex-col items-center text-center">
-              {ticket?.qrHash ? (
-                <>
-                  <LocalQRCode data={ticket.qrHash} size={200} className="mx-auto" />
-                  <p className={`mt-3 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                    Show this QR at check-in for {compName}.
+      <div className={`min-h-screen px-4 sm:px-5 pt-7 pb-[calc(5.75rem+env(safe-area-inset-bottom,0px))] md:pt-12 md:pb-20 ${pageBg}`}>
+        <div className="max-w-md mx-auto flex flex-col gap-3.5">
+          {/* Ticket / you're in */}
+          <div className={`rounded-3xl overflow-hidden ${surface}`}>
+            {coverImage ? (
+              <div className="relative h-36 sm:h-40 bg-[#1A1B1D]">
+                <CompetitionCoverImage
+                  src={coverImage}
+                  alt={compName}
+                  preset="hero"
+                  containerClassName="absolute inset-0 w-full h-full"
+                  className="w-full h-full object-cover"
+                  loaderSize="compact"
+                  eager
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
+                <div className="absolute bottom-0 left-0 right-0 px-5 pb-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#0ECCEE]">
+                    You&apos;re in
                   </p>
-                </>
-              ) : registrationId ? (
-                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                  Loading your ticket QR…
+                  <h1 className="text-xl sm:text-2xl font-bold text-white leading-tight mt-1">{compName}</h1>
+                  <p className="text-sm text-white/65 mt-1">{festName}</p>
+                </div>
+              </div>
+            ) : (
+              <div
+                className={`px-5 py-5 ${
+                  isDark
+                    ? 'bg-[#0a0b0c]'
+                    : 'bg-gradient-to-br from-[#E8FBFF] via-white to-[#F3F1EE]'
+                }`}
+              >
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#0ECCEE]">
+                  You&apos;re in
                 </p>
-              ) : null}
+                <h1 className={`text-xl sm:text-2xl font-bold leading-tight mt-1.5 ${ink}`}>
+                  {compName}
+                </h1>
+                <p className={`text-sm mt-1 ${muted}`}>{festName}</p>
+              </div>
+            )}
 
-              {registrationId ? (
+            {registrationId ? (
+              <div className="px-5 py-5 flex flex-col items-center text-center">
+                {ticket?.qrHash ? (
+                  <>
+                    <LocalQRCode data={ticket.qrHash} size={148} className="mx-auto" />
+                    <p className={`mt-3.5 text-sm ${muted}`}>
+                      Show this QR at check-in
+                    </p>
+                  </>
+                ) : (
+                  <p className={`text-sm ${muted}`}>Loading your ticket QR…</p>
+                )}
+
                 <button
                   type="button"
                   onClick={() => navigate(`/qr-ticket/${registrationId}`, { state: { refreshBookings: true } })}
-                  className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[#0ECCEE] text-black font-semibold hover:bg-[#0ECCEE]/90 active:scale-[0.99] transition-all"
+                  className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-2xl bg-[#0ECCEE] text-black font-semibold text-sm hover:bg-[#0ECCEE]/90 active:scale-[0.99] transition-all"
                 >
-                  <Download className="w-5 h-5 shrink-0" />
+                  <Download className="w-4 h-4 shrink-0" />
                   Open full ticket
                 </button>
-              ) : null}
-            </div>
+              </div>
+            ) : null}
           </div>
 
-          {whatsapp ? (
-            <a
-              href={whatsapp}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => {
-                e.preventDefault();
-                openExternalUrl(whatsapp);
-              }}
-              className="block rounded-2xl p-5 bg-[#25D366] text-black shadow-lg shadow-[#25D366]/20 active:scale-[0.99] transition-transform"
+          {/* Next steps */}
+          <div className="flex flex-col gap-2.5">
+            <button
+              type="button"
+              onClick={() => goToBookings(navigate)}
+              className={`w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl text-left transition-colors ${surface} ${
+                isDark ? 'hover:bg-[#111213]' : 'hover:bg-[#FAFAF9]'
+              }`}
             >
-              <div className="flex items-start gap-3">
-                <div className="w-11 h-11 rounded-xl bg-black/10 flex items-center justify-center shrink-0">
-                  <MessageCircle className="w-6 h-6" />
-                </div>
-                <div className="min-w-0 flex-1 text-left">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider opacity-80">Required next step</p>
-                  <p className="text-lg font-bold leading-tight mt-0.5">Join competition WhatsApp</p>
-                  <p className="text-sm mt-1 opacity-80">
-                    Updates, rounds &amp; announcements for {compName} land here.
-                  </p>
-                </div>
-              </div>
-            </a>
-          ) : (
-            <div className={`rounded-2xl border p-4 ${card}`}>
-              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                WhatsApp group link will appear here once organizers add it for this competition.
-              </p>
-            </div>
-          )}
-
-          <div className={`rounded-2xl border overflow-hidden ${card}`}>
-            <div className={`px-4 py-3 border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
-              <p className={`text-[11px] font-semibold uppercase tracking-wider ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                More
-              </p>
-            </div>
-            <div className="p-3 space-y-2">
-              <button
-                type="button"
-                onClick={() => goToBookings(navigate)}
-                className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl border font-medium text-sm transition-colors ${
-                  isDark
-                    ? 'border-gray-700 text-gray-200 hover:bg-gray-800/80'
-                    : 'border-gray-200 text-gray-800 hover:bg-gray-50'
+              <span
+                className={`flex h-10 w-10 items-center justify-center rounded-xl shrink-0 ${
+                  isDark ? 'bg-white/5 border border-gray-700/50' : 'bg-[#F0EEEA]'
                 }`}
               >
-                <Ticket className="w-5 h-5 shrink-0 opacity-70" />
-                <span className="flex-1 text-left">View my bookings</span>
-              </button>
-            </div>
+                <Ticket className={`w-[18px] h-[18px] ${ink}`} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className={`block text-sm font-semibold ${ink}`}>View my bookings</span>
+                <span className={`block text-xs mt-0.5 ${muted}`}>Ticket &amp; registration details</span>
+              </span>
+              <ChevronRight className={`w-4 h-4 shrink-0 opacity-50 ${muted}`} />
+            </button>
+
+            {whatsapp ? (
+              <a
+                href={whatsapp}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => {
+                  e.preventDefault();
+                  openExternalUrl(whatsapp);
+                }}
+                className={`w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl text-left transition-colors ${surface} ${
+                  isDark ? 'hover:bg-[#111213]' : 'hover:bg-[#FAFAF9]'
+                }`}
+              >
+                <span
+                  className={`flex h-10 w-10 items-center justify-center rounded-xl shrink-0 ${
+                    isDark ? 'bg-[#25D366]/10 border border-[#25D366]/20' : 'bg-[#E8F8EE]'
+                  }`}
+                >
+                  <MessageCircle className="w-[18px] h-[18px] text-[#25D366]" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className={`block text-sm font-semibold ${ink}`}>Join WhatsApp group</span>
+                  <span className={`block text-xs mt-0.5 ${muted}`}>Updates &amp; meetups for {compName}</span>
+                </span>
+                <ChevronRight className={`w-4 h-4 shrink-0 opacity-50 ${muted}`} />
+              </a>
+            ) : null}
           </div>
 
-          {(overallSheet || compSheet || links.length > 0) && (
-            <div className={`rounded-2xl border overflow-hidden ${card}`}>
-              <div className={`px-4 py-3 border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
-                <p className={`text-[11px] font-semibold uppercase tracking-wider ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                  Resources
-                </p>
-              </div>
-              <div className="p-3 space-y-2">
-                {compSheet ? (
-                  <a
-                    href={compSheet}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm ${isDark ? 'hover:bg-gray-800 text-gray-200' : 'hover:bg-gray-50 text-gray-800'}`}
-                  >
-                    <FileSpreadsheet className="w-4 h-4 text-[#0ECCEE] shrink-0" />
-                    <span className="flex-1 text-left">Competition sheet</span>
-                    <ExternalLink className="w-3.5 h-3.5 opacity-50" />
-                  </a>
-                ) : null}
-                {overallSheet ? (
-                  <a
-                    href={overallSheet}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm ${isDark ? 'hover:bg-gray-800 text-gray-200' : 'hover:bg-gray-50 text-gray-800'}`}
-                  >
-                    <FileSpreadsheet className="w-4 h-4 text-[#0ECCEE] shrink-0" />
-                    <span className="flex-1 text-left">MindSpark overall sheet</span>
-                    <ExternalLink className="w-3.5 h-3.5 opacity-50" />
-                  </a>
-                ) : null}
-                {links.map((l) => (
-                  <a
-                    key={`${l.label}-${l.url}`}
-                    href={l.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm ${isDark ? 'hover:bg-gray-800 text-gray-200' : 'hover:bg-gray-50 text-gray-800'}`}
-                  >
-                    <ExternalLink className="w-4 h-4 text-[#0ECCEE] shrink-0" />
-                    <span className="flex-1 text-left">{l.label || 'Open link'}</span>
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <AlsoRegisterForSection
-            competition={competition}
-            fest={fest}
-            isDark={isDark}
-          />
-
-          <button
-            type="button"
-            onClick={() => navigate('/')}
-            className={`w-full py-2.5 text-sm font-medium ${isDark ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'}`}
-          >
-            Back to home
-          </button>
+          {stallCoupon ? (
+            <StallCouponCard isDark={isDark} stallCoupon={stallCoupon} />
+          ) : null}
         </div>
       </div>
     </SuccessRevealGate>

@@ -5,13 +5,41 @@ const { testGoogleSheetsConnection } = require('../../services/googleSheetsServi
 const { resolveTrekGroupLink } = require('../../utils/resolveTrekGroupLink');
 const { logger } = require('../../utils/logger');
 const StallCoupon = require('../../model/stall_coupon_model');
+const { findByIdOrSlug } = require('../../utils/slug');
+const { assignStallCouponIfEligible } = require('../../utils/assignStallCoupon');
 
 const getMyStallCoupon = async (req, res) => {
   try {
     const { festId } = req.params;
     const userId = req.user.userId;
 
-    const coupon = await StallCoupon.findOne({ festId, userId });
+    const fest = await findByIdOrSlug(FestOrganizer, festId, {
+      lean: true,
+      pickName: (row) => row.festName || row.name || '',
+      select: '_id stallBrand stallDiscountPercent festName',
+    });
+    if (!fest) {
+      return res.status(404).json({ error: 'Fest not found' });
+    }
+
+    let coupon = await StallCoupon.findOne({ festId: fest._id, userId });
+    if (!coupon && fest.stallBrand) {
+      // Heal: paid fulfillment paths used to skip coupons — assign on first fetch if eligible
+      const hasRegistration = await Registration.exists({ fest: fest._id, user: userId });
+      if (hasRegistration) {
+        const assigned = await assignStallCouponIfEligible({ fest, userId });
+        if (assigned) {
+          return res.status(200).json({
+            code: assigned.code,
+            brand: assigned.brand,
+            discountPercent: assigned.discountPercent || 20,
+            isRedeemed: false,
+          });
+        }
+      }
+      return res.status(404).json({ error: 'No coupon found for this fest' });
+    }
+
     if (!coupon) {
       return res.status(404).json({ error: 'No coupon found for this fest' });
     }
@@ -19,9 +47,11 @@ const getMyStallCoupon = async (req, res) => {
     res.status(200).json({
       code: coupon.code,
       brand: coupon.brand,
+      discountPercent: coupon.discountPercent || fest.stallDiscountPercent || 20,
       isRedeemed: coupon.isRedeemed,
     });
   } catch (err) {
+    logger.error('getMyStallCoupon failed:', err.message);
     res.status(500).json({ error: 'Failed to fetch coupon' });
   }
 };
@@ -58,7 +88,7 @@ const getUserRegistrations = async (req, res) => {
     // Run all queries in parallel for a faster bookings page
     const [registrations, trekBookings, eventRegistrations, total] = await Promise.all([
       Registration.find({ user: userId })
-        .populate('fest', 'festName collegeName festDate venue status coverImage registration ticketPrice')
+        .populate('fest', 'festName collegeName festDate venue status coverImage registration ticketPrice stallBrand stallDiscountPercent')
         .populate('competitionId', 'name description coverImage registrationFee teamSizeMax teamSizeMin auditorium')
         .sort({ submittedAt: -1 })
         .limit(limit * 1)
@@ -251,7 +281,7 @@ const getRegistrationDetails = async (req, res) => {
       _id: registrationId,
       user: userId
     })
-      .populate('fest', 'festName collegeName festDate venue status coverImage registration')
+      .populate('fest', 'festName collegeName festDate venue status coverImage registration stallBrand stallDiscountPercent')
       .populate(
         'competitionId',
         'name description coverImage registration registrationType teamSizeMax teamSizeMin',

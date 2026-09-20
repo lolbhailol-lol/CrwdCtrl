@@ -360,6 +360,13 @@ const festOrganizerSchema = new mongoose.Schema(
     trim: true,
     default: '',
   },
+  // Stall offer percent shown on success (e.g. 20 = 20% OFF)
+  stallDiscountPercent: {
+    type: Number,
+    default: 20,
+    min: 1,
+    max: 100,
+  },
 
   competitions: [
     {

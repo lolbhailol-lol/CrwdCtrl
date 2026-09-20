@@ -156,3 +156,9 @@ firebase-service-account.json
 # Local scratch / test artifacts
 .tmp-*
 *.tmp-hash-test.txt
+
+# Local source photos for content scripts (upload via script; do not commit)
+scripts/assets/kshitij-pune-regionals/
+
+# Generated email HTML previews (regenerate with previewStallCouponEmail.js)
+scripts/preview-*-email.html

@@ -63,6 +63,9 @@ async function deliverMindSparkBundleConfirmationEmail(bundle, user, { resend = 
   if (!bundle.items?.every((item) => item.registrationId)) {
     return { sent: false, reason: 'incomplete_registrations' };
   }
+  const fest = await FestOrganizer.findById(bundle.fest)
+    .select('festName stallBrand stallDiscountPercent')
+    .lean();
   const { sendMindSparkBundleConfirmationEmail } = require('./emailService');
   await sendMindSparkBundleConfirmationEmail({
     email,
@@ -71,6 +74,8 @@ async function deliverMindSparkBundleConfirmationEmail(bundle, user, { resend = 
     paymentToken: bundle.paymentToken,
     items: await buildMindSparkBundleEmailItems(bundle),
     resend,
+    userId: user?._id || user?.id,
+    fest,
   });
   return { sent: true, email };
 }

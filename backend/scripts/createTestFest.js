@@ -22,7 +22,8 @@ async function run() {
     venue: 'Test Venue',
     description: 'Test fest for stall coupon feature testing',
     isApproved: true,
-    stallBrand: 'Jio',
+    stallBrand: 'Svvad Pro',
+    stallDiscountPercent: 20,
     registration: {
       mode: 'INTERNAL_FORM',
       formType: 'SINGLE_STEP',

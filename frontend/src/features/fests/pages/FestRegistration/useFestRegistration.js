@@ -441,7 +441,7 @@ export default function useFestRegistration() {
       ? 'Submitting your registration...'
       : 'Completing registration...');
 
-    const { regId } = await finalizeCompetitionAfterPayment({
+    const { regId, stallCoupon: paidStallCoupon } = await finalizeCompetitionAfterPayment({
       competitionId: resolvedCompetitionId || competitionId,
       verifiedFields,
       token: submitToken,
@@ -458,6 +458,7 @@ export default function useFestRegistration() {
     });
 
     if (regId) setRegistrationId(regId);
+    if (paidStallCoupon) setStallCoupon(paidStallCoupon);
     saveFestRegistrationSuccess({
       festId: festId || fest?._id,
       festMongoId: fest?._id || fest?.id || null,

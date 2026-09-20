@@ -1,7 +1,6 @@
 import { goToBookings } from '../../../../utils/paymentNavigation';
 import { getFestPluginFromAny } from '../../plugins/registry';
 import { RegistrationStatusVisual, SuccessRevealGate } from '../../../../components/RegistrationStatusVisual';
-import AlsoRegisterForSection from '../../../../components/AlsoRegisterForSection';
 import StallCouponCard from '../../../../components/StallCouponCard';
 
 export default function SuccessStep({
@@ -32,12 +31,13 @@ export default function SuccessStep({
         registrationId={registrationId}
         navigate={navigate}
         competitionId={competitionIdProp || competition?._id || competition?.id}
+        festId={festIdProp || fest?._id || fest?.id}
+        stallCoupon={stallCoupon}
       />
     );
   }
 
   const name = isCompetitionRegistration ? competition?.name : fest?.festName;
-  const showAlsoRegister = isCompetitionRegistration && competition;
 
   return (
     <SuccessRevealGate
@@ -56,11 +56,11 @@ export default function SuccessStep({
               isDark={isDark}
             />
 
-            {stallCoupon && (
+            {stallCoupon ? (
               <div className="mt-6">
                 <StallCouponCard isDark={isDark} stallCoupon={stallCoupon} />
               </div>
-            )}
+            ) : null}
 
             <div className="flex flex-col gap-3 mt-8">
               {registrationId && (
@@ -93,13 +93,6 @@ export default function SuccessStep({
               </button>
             </div>
           </div>
-          {showAlsoRegister ? (
-            <AlsoRegisterForSection
-              competition={competition}
-              fest={fest}
-              isDark={isDark}
-            />
-          ) : null}
         </div>
       </div>
     </SuccessRevealGate>

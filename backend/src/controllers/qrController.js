@@ -16,7 +16,7 @@ const generateQR = async (req, res) => {
     const registration = await Registration.findOne({
       _id: registrationId,
       user: userId,
-    }).populate('fest', 'festName festDate venue')
+    }).populate('fest', 'festName festDate venue stallBrand stallDiscountPercent')
       .populate('competitionId', 'name')
       .populate('user', 'name');
 
@@ -41,11 +41,13 @@ const generateQR = async (req, res) => {
     const auditoriumCategory = String(
       responses.auditorium_category_label || '',
     ).trim();
+    const stallBrand = String(registration.fest?.stallBrand || '').trim();
 
     res.json({
       success: true,
       data: {
         registrationId: registration._id,
+        festId: registration.fest?._id || registration.fest || null,
         qrHash: registration.qrCodeData,
         userName: registration.user?.name || responses.full_name || responses.name || null,
         festName: registration.fest?.festName || 'Unknown',
@@ -58,6 +60,10 @@ const generateQR = async (req, res) => {
         idCardPhotoUrl: idCardPhotoUrl || null,
         auditoriumCategory: auditoriumCategory || null,
         college: responses.college || null,
+        stallBrand: stallBrand || null,
+        stallDiscountPercent: stallBrand
+          ? (Number(registration.fest?.stallDiscountPercent) || 20)
+          : null,
       },
     });
   } catch (error) {

@@ -92,6 +92,7 @@ function mapFestRegistrations(internalRegistrations = []) {
             }).length || 1;
             const teamSizeMax = isAuditorium ? 1 : (reg.competitionId?.teamSizeMax || 1);
             const competitionName = reg.competitionId?.name || 'Competition';
+            const stallBrand = String(reg.fest?.stallBrand || '').trim();
             return {
                 id: reg._id,
                 name: isAuditorium && auditoriumCategory
@@ -101,6 +102,7 @@ function mapFestRegistrations(internalRegistrations = []) {
                 date: reg.fest?.festDate,
                 venue: reg.fest?.venue,
                 type: 'competition',
+                festId: reg.fest?._id || reg.fest || null,
                 festName: reg.fest?.festName,
                 collegeName: reg.fest?.collegeName,
                 status: reg.fest?.status || 'upcoming',
@@ -112,6 +114,10 @@ function mapFestRegistrations(internalRegistrations = []) {
                 ticketPhotoUrl: ticketPhotoUrl || null,
                 isTrek: false,
                 isSports: false,
+                stallBrand: stallBrand || null,
+                stallDiscountPercent: stallBrand
+                    ? (Number(reg.fest?.stallDiscountPercent) || 20)
+                    : null,
                 paymentAmount: isAuditorium
                     ? 'Free'
                     : (reg.competitionId?.registrationFee || reg.fest?.ticketPrice || 'N/A'),
@@ -125,6 +131,7 @@ function mapFestRegistrations(internalRegistrations = []) {
                 slotsLeft: isAuditorium ? 0 : Math.max(0, teamSizeMax - memberCount),
             };
         }
+        const stallBrand = String(reg.fest?.stallBrand || '').trim();
         return {
             id: reg._id,
             name: reg.fest?.festName,
@@ -132,6 +139,7 @@ function mapFestRegistrations(internalRegistrations = []) {
             date: reg.fest?.festDate,
             venue: reg.fest?.venue,
             type: 'fest',
+            festId: reg.fest?._id || reg.fest || null,
             collegeName: reg.fest?.collegeName,
             status: reg.fest?.status || 'upcoming',
             registrationStatus: reg.status,
@@ -139,6 +147,10 @@ function mapFestRegistrations(internalRegistrations = []) {
             isCompetition: false,
             isTrek: false,
             isSports: false,
+            stallBrand: stallBrand || null,
+            stallDiscountPercent: stallBrand
+                ? (Number(reg.fest?.stallDiscountPercent) || 20)
+                : null,
             paymentAmount: reg.fest?.ticketPrice || 'N/A',
             paymentStatus: reg.paymentStatus,
             amountPaid: reg.amountPaid || 0,

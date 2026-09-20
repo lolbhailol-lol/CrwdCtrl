@@ -317,13 +317,23 @@ function buildDetailsTable(rows = []) {
         </table>`;
 }
 
-function buildWhatsAppJoinBlock(groupLink, communityName, { product = 'trek' } = {}) {
+function buildWhatsAppJoinBlock(groupLink, communityName, { product = 'trek', compact = false } = {}) {
     const url = String(groupLink || '').trim();
     if (!url) return '';
     const isPhoneChat = /^https?:\/\/wa\.me\//i.test(url);
+    const cta = isPhoneChat ? 'Message on WhatsApp' : 'Join WhatsApp group';
+    if (compact) {
+        return `
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:16px 0 4px;">
+            <tr>
+                <td>
+                    <a href="${url}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;font-weight:600;font-size:14px;padding:12px 18px;border-radius:10px;">${cta}</a>
+                </td>
+            </tr>
+        </table>`;
+    }
     const fromLabel = communityName ? ` · ${communityName}` : '';
     const heading = isPhoneChat ? 'WhatsApp the organizers' : 'WhatsApp group';
-    const cta = isPhoneChat ? 'Message on WhatsApp' : 'Join WhatsApp group';
     const blurb = isPhoneChat
         ? `Questions${fromLabel}? Message the organizers here.`
         : product === 'event'
@@ -346,6 +356,81 @@ function buildWhatsAppJoinBlock(groupLink, communityName, { product = 'trek' } =
             <tr>
                 <td>
                     <a href="${url}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;font-weight:600;font-size:14px;padding:12px 18px;border-radius:10px;">${cta}</a>
+                </td>
+            </tr>
+        </table>`;
+}
+
+/**
+ * Minimal stall offer block — brand + % off only.
+ */
+function buildStallCouponEmailBlock(stallCoupon = {}) {
+    const brand = String(stallCoupon?.brand || '').trim();
+    if (!brand) return '';
+    const percent = Number(stallCoupon?.discountPercent);
+    const discount = Number.isFinite(percent) && percent > 0 ? percent : 20;
+    const site = String(process.env.FRONTEND_URL || getSiteUrl() || 'https://www.crwdctrl.in').replace(/\/$/, '');
+    const logoUrl = `${site}/svvad-pro/logo.png`;
+    const heroUrl = `${site}/svvad-pro/offer-hero.png`;
+    const products = [
+        { src: `${site}/svvad-pro/cookies.webp`, label: 'Cookies' },
+        { src: `${site}/svvad-pro/rusk.webp`, label: 'Rusk' },
+        { src: `${site}/svvad-pro/loops.webp`, label: 'Loops' },
+        { src: `${site}/svvad-pro/chocos.webp`, label: 'Chocos' },
+    ];
+    const safeBrand = escapeHtml(brand);
+
+    const productCells = products.map((p) => `
+        <td align="center" style="padding:0 4px;vertical-align:top;width:25%;">
+            <img src="${p.src}" alt="${escapeHtml(p.label)}" width="72" height="72" style="display:block;margin:0 auto;width:72px;height:72px;object-fit:cover;border-radius:12px;border:1px solid rgba(0,0,0,0.06);background:#ffffff;" />
+            <p style="margin:6px 0 0;font-size:11px;line-height:1.2;color:#5c534c;">${escapeHtml(p.label)}</p>
+        </td>`).join('');
+
+    return `
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:24px 0 6px;">
+            <tr>
+                <td style="border:1px solid #ED6920;border-radius:16px;overflow:hidden;background:#FFF8F3;">
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                        <tr>
+                            <td style="background:#1A1412;line-height:0;font-size:0;">
+                                <img src="${heroUrl}" alt="${safeBrand} protein snacks" width="560" style="display:block;width:100%;max-width:560px;height:auto;border:0;outline:none;" />
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding:20px 20px 8px;">
+                                <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                                    <tr>
+                                        <td style="vertical-align:middle;width:78px;">
+                                            <img src="${logoUrl}" alt="${safeBrand}" height="32" style="display:block;height:32px;width:auto;border:0;outline:none;background:#ffffff;border-radius:8px;padding:5px 9px;" />
+                                        </td>
+                                        <td style="vertical-align:middle;padding-left:14px;">
+                                            <p style="margin:0;font-size:10px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:#108474;">Stall offer unlocked</p>
+                                            <p style="margin:6px 0 0;font-size:36px;line-height:1;font-weight:900;color:#1A1412;letter-spacing:-0.03em;">
+                                                ${discount}% <span style="font-size:18px;font-weight:800;color:#ED6920;">OFF</span>
+                                            </p>
+                                            <p style="margin:6px 0 0;font-size:14px;color:#5c534c;">at the ${safeBrand} stall · MindSpark, COEP</p>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding:8px 16px 4px;">
+                                <p style="margin:0 0 10px;padding:0 4px;font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#108474;">Protein snacks</p>
+                                <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                                    <tr>${productCells}</tr>
+                                </table>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding:12px 20px 20px;">
+                                <p style="margin:0;font-size:13px;line-height:1.45;color:#5c534c;text-align:center;">
+                                    <strong style="color:#1A1412;">Show this email at the ${safeBrand} stall</strong><br />
+                                    3 &amp; 4 Oct · MindSpark, COEP
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
                 </td>
             </tr>
         </table>`;
@@ -981,67 +1066,72 @@ function generateCompetitionRegistrationEmailHTML({
     submissionDate,
     paymentContext = {},
 }) {
-    const meta = resolveRegistrationMeta('competition');
     const ticketLink = paymentContext.ticketLink || `/qr-ticket/${registrationId}`;
     const ticketHref = resolveTicketHref(ticketLink);
     const isTechfest = Boolean(paymentContext.isTechfest || paymentContext.omitWhatsApp);
-    const venueLine = String(paymentContext.venue || '').trim();
+    const venue = String(paymentContext.venue || '').trim();
     const rows = [
-        { label: 'Name', value: userName },
-        { label: meta.noun, value: festName },
-        competitionName ? { label: 'Competition', value: competitionName } : null,
-        venueLine ? { label: 'Venue', value: venueLine } : null,
+        { label: 'Competition', value: competitionName || festName },
+        festName && competitionName ? { label: 'Fest', value: festName } : null,
+        venue ? { label: 'Venue', value: venue } : null,
         { label: 'Booking ID', value: registrationId },
-        { label: 'Registered on', value: submissionDate },
+        submissionDate ? { label: 'Registered', value: submissionDate } : null,
         ...(Array.isArray(paymentContext.details) ? paymentContext.details : []),
-    ].filter(Boolean);
+    ].filter((r) => r?.value);
 
     const ticketBlockHtml = qrHash
         ? buildBookingTicketBlock({
             eventTitle: competitionName || festName,
             participantName: userName,
+            venue,
             qrHash,
             ticketHref: ticketLink,
             bookingHref: '/booking',
             product: 'competition',
-            extraRows: rows.filter((row) => row.label !== 'Name'),
+            extraRows: rows,
             ticketPhotoUrl: paymentContext.ticketPhotoUrl || '',
         })
-        : '';
+        : buildDetailsTable(rows);
 
     const intro = isTechfest
-        ? `<p style="margin:0 0 8px;">Your spot for <strong>${escapeHtml(competitionName || festName)}</strong> at <strong>Techfest, IIT Bombay</strong> is confirmed. Save this email and show your QR at check-in on campus.</p>
-            <p style="margin:0 0 8px;font-size:14px;color:#4b5563;">Organizers will share round schedules and updates by email. You can reopen your ticket anytime from My Bookings in CrwdCtrl.</p>`
-        : `<p style="margin:0 0 8px;">Your registration for <strong>${escapeHtml(competitionName || festName)}</strong> is confirmed. Save this email and show your QR at the venue.</p>`;
+        ? `<p style="margin:0 0 10px;">Confirmed for <strong>${escapeHtml(competitionName || festName)}</strong> at Techfest, IIT Bombay. Show your QR at check-in.</p>`
+        : `<p style="margin:0 0 10px;">Hi <strong>${escapeHtml(userName || 'there')}</strong> — you're in for <strong>${escapeHtml(competitionName || festName)}</strong>. Keep this email for check-in and your stall offer.</p>`;
 
     const whatsappHtml = (isTechfest || paymentContext.omitWhatsApp)
         ? ''
-        : buildWhatsAppJoinBlock(paymentContext.groupLink, paymentContext.communityName, { product: 'competition' });
+        : buildWhatsAppJoinBlock(paymentContext.groupLink, paymentContext.communityName, {
+            product: 'competition',
+            compact: true,
+        });
+
+    const stallCouponHtml = buildStallCouponEmailBlock(paymentContext.stallCoupon);
 
     const heroUrl = paymentContext.ticketPhotoUrl && coverImageUrl === paymentContext.ticketPhotoUrl
         ? ''
         : coverImageUrl;
 
+    const paid = paymentContext.status === 'paid'
+        ? `<p style="margin:12px 0 0;font-size:13px;color:#059669;font-weight:600;">Payment confirmed</p>`
+        : '';
+
     return buildEmailShell({
         preheader: isTechfest
-            ? `You're in for ${competitionName || 'Techfest'} at IIT Bombay — show your QR at check-in.`
-            : `You're in — ${competitionName || festName}. Show your QR at check-in.`,
-        eyebrow: `${meta.icon} You're in`,
-        title: "You're in",
-        subtitle: isTechfest
-            ? (competitionName ? `${competitionName} · Techfest IIT Bombay` : 'Techfest IIT Bombay')
-            : (competitionName ? `${competitionName} · ${festName}` : festName),
+            ? `You're in for ${competitionName || 'Techfest'} — show your QR at check-in.`
+            : `You're in — ${competitionName || festName} · ticket QR + stall offer inside`,
+        eyebrow: "You're in",
+        title: escapeHtml(competitionName || festName),
+        subtitle: isTechfest ? 'Techfest IIT Bombay' : escapeHtml(festName),
         heroImageUrl: resolveEmailHeroImageUrl(heroUrl),
         bodyHtml: `
-            <p style="margin:0 0 12px;">Hi <strong>${escapeHtml(userName || 'there')}</strong>,</p>
             ${intro}
-            ${ticketBlockHtml || buildDetailsTable(rows)}
-            ${buildPaymentNotice(paymentContext)}
+            ${ticketBlockHtml}
+            ${paid}
             ${whatsappHtml}
-            <p style="margin:16px 0 0;font-size:14px;color:#6b7280;">Need your ticket again? Open My Bookings anytime in CrwdCtrl.</p>
+            ${stallCouponHtml}
         `,
-        ctaLabel: qrHash ? '' : 'View ticket & QR',
-        ctaHref: qrHash ? '' : ticketHref,
+        ctaLabel: qrHash ? 'My bookings' : 'View ticket & QR',
+        ctaHref: qrHash ? resolveTicketHref('/booking') : ticketHref,
+        footnote: 'CrwdCtrl · reply to this email if you need help',
     });
 }
 
@@ -1105,14 +1195,34 @@ async function sendCompetitionRegistrationEmailForRecord({
     }
 
     const { isTechfestFest, getFestPlugin } = require('../modules/fest/plugins');
-    const isTechfest = isTechfestFest(fest) || getFestPlugin(fest).omitWhatsAppInEmail === true;
+    const { assignStallCouponIfEligible } = require('../utils/assignStallCoupon');
+    const FestOrganizer = require('../model/fest_organizer_model');
+
+    let festDoc = fest;
+    const festId = fest?._id || fest?.id || fest;
+    if (festId && !String(fest?.stallBrand || '').trim()) {
+        try {
+            const loaded = await FestOrganizer.findById(festId)
+                .select('festName venue stallBrand stallDiscountPercent registration coverImage')
+                .lean();
+            if (loaded) festDoc = { ...loaded, ...(fest && typeof fest === 'object' ? fest : {}) };
+        } catch {
+            /* keep fest as-is */
+        }
+    }
+
+    const isTechfest = isTechfestFest(festDoc) || getFestPlugin(festDoc).omitWhatsAppInEmail === true;
     const ticketLink = extras.ticketLink || `/qr-ticket/${registration._id}`;
     const amountPaid = Number(registration.amountPaid) || 0;
     const paymentStatus = registration.paymentStatus || 'free';
-    const festName = fest?.festName || fest?.name || (isTechfest ? 'Techfest IIT Bombay' : 'Fest');
-    const venue = String(fest?.venue || (isTechfest ? 'IIT Bombay, Mumbai' : '')).trim();
+    const festName = festDoc?.festName || festDoc?.name || (isTechfest ? 'Techfest IIT Bombay' : 'Fest');
+    const venue = String(festDoc?.venue || (isTechfest ? 'IIT Bombay, Mumbai' : '')).trim();
     const baseDetails = amountPaid > 0 ? [{ label: 'Amount paid', value: `₹${amountPaid}` }] : [];
     const extraDetails = Array.isArray(extras.details) ? extras.details : [];
+
+    const userId = user._id || user.id || user.userId;
+    const stallCoupon = extras.stallCoupon
+        || await assignStallCouponIfEligible({ fest: festDoc, userId });
 
     return sendCompetitionRegistrationEmail({
         userEmail: user.email,
@@ -1123,7 +1233,7 @@ async function sendCompetitionRegistrationEmailForRecord({
         qrHash: registration.qrCodeData || '',
         coverImageUrl: competition?.coverImage
             || competition?.image
-            || fest?.coverImage
+            || festDoc?.coverImage
             || '',
         submissionDate: formatSubmissionDateIST(registration.submittedAt || new Date()),
         paymentContext: {
@@ -1135,12 +1245,13 @@ async function sendCompetitionRegistrationEmailForRecord({
             groupLink: isTechfest
                 ? ''
                 : (String(competition?.registration?.whatsappGroupLink || '').trim()
-                    || String(fest?.registration?.whatsappCommunityLink || '').trim()),
+                    || String(festDoc?.registration?.whatsappCommunityLink || '').trim()),
             communityName: competition?.name || festName,
             omitWhatsApp: isTechfest,
             isTechfest,
             venue,
             details: [...extraDetails, ...baseDetails],
+            stallCoupon: stallCoupon || null,
         },
     });
 }
@@ -1279,32 +1390,52 @@ const generateThankYouEmailHTML = (userName, eventName, options = {}) => {
 const generateConfirmationEmailHTML = (userName, festName, competitionName, registrationId, submissionDate, paymentContext = {}) => {
     const meta = resolveRegistrationMeta(paymentContext.type);
     const ticketHref = resolveTicketHref(paymentContext.ticketLink);
-    const extraDetails = paymentContext.details || [];
+    const stallCouponHtml = buildStallCouponEmailBlock(paymentContext.stallCoupon);
+    const qrHash = String(paymentContext.qrHash || '').trim();
+    const venue = String(paymentContext.venue || '').trim();
 
     const rows = [
-        { label: 'Name', value: userName },
-        { label: meta.noun, value: festName },
-        competitionName ? { label: 'Activity', value: competitionName } : null,
+        competitionName ? { label: 'Activity', value: competitionName } : { label: meta.noun, value: festName },
+        festName && competitionName ? { label: 'Fest', value: festName } : null,
+        venue ? { label: 'Venue', value: venue } : null,
         { label: 'Booking ID', value: registrationId },
-        { label: 'Registered on', value: submissionDate },
-        ...extraDetails,
-    ].filter(Boolean);
+        submissionDate ? { label: 'Registered', value: submissionDate } : null,
+        ...(paymentContext.details || []),
+    ].filter((r) => r?.value);
+
+    const ticketOrDetails = qrHash
+        ? buildBookingTicketBlock({
+            eventTitle: competitionName || festName,
+            participantName: userName,
+            venue,
+            qrHash,
+            ticketHref: paymentContext.ticketLink || `/qr-ticket/${registrationId}`,
+            bookingHref: '/booking',
+            product: paymentContext.type === 'competition' ? 'competition' : 'event',
+            extraRows: rows,
+            ticketPhotoUrl: paymentContext.ticketPhotoUrl || '',
+        })
+        : buildDetailsTable(rows);
+
+    const paid = paymentContext.status === 'paid'
+        ? `<p style="margin:12px 0 0;font-size:13px;color:#059669;font-weight:600;">Payment confirmed</p>`
+        : '';
 
     return buildEmailShell({
-        preheader: `Confirmed — ${festName}. Booking ID ${registrationId}`,
-        eyebrow: `${meta.icon} Confirmed`,
-        title: meta.confirmHeadline,
-        subtitle: festName,
+        preheader: `Confirmed — ${festName}`,
+        eyebrow: 'Confirmed',
+        title: escapeHtml(competitionName || festName),
+        subtitle: competitionName ? escapeHtml(festName) : '',
         bodyHtml: `
-            <p style="margin:0 0 12px;">Hi <strong>${userName || 'there'}</strong>,</p>
-            <p style="margin:0 0 8px;">You're all set! Here are your registration details:</p>
-            ${buildDetailsTable(rows)}
-            ${buildPaymentNotice(paymentContext)}
-            ${buildWhatsAppJoinBlock(paymentContext.groupLink, paymentContext.communityName)}
-            <p style="margin:16px 0 0;font-size:14px;color:#6b7280;">Show your ticket at check-in. We'll notify you if anything changes.</p>
+            <p style="margin:0 0 10px;">Hi <strong>${escapeHtml(userName || 'there')}</strong> — you're all set. Details and ticket are below.</p>
+            ${ticketOrDetails}
+            ${paid}
+            ${buildWhatsAppJoinBlock(paymentContext.groupLink, paymentContext.communityName, { compact: true })}
+            ${stallCouponHtml}
         `,
-        ctaLabel: paymentContext.ticketLink ? 'View ticket & QR' : 'View My Bookings',
+        ctaLabel: paymentContext.ticketLink || qrHash ? 'View ticket' : 'My bookings',
         ctaHref: ticketHref,
+        footnote: 'CrwdCtrl · reply to this email if you need help',
     });
 };
 
@@ -1865,6 +1996,7 @@ module.exports = {
     previewAdminCampaignEmailHTML,
     previewLoginEmailHTML: generateLoginConfirmationEmailHTML,
     previewWelcomeEmailHTML: generateWelcomeEmailHTML,
+    previewCompetitionRegistrationEmailHTML: generateCompetitionRegistrationEmailHTML,
 };
 
 async function sendMindSparkBundleConfirmationEmail({
@@ -1874,6 +2006,9 @@ async function sendMindSparkBundleConfirmationEmail({
     paymentToken,
     items = [],
     resend = false,
+    stallCoupon = null,
+    userId = null,
+    fest = null,
 }) {
     if (!email || items.length !== 3) throw new Error('A bundle confirmation requires an email and three registrations');
     const frontend = String(process.env.FRONTEND_URL || 'https://www.crwdctrl.in').replace(/\/$/, '');
@@ -1885,7 +2020,7 @@ async function sendMindSparkBundleConfirmationEmail({
             item.competitionName,
             { product: 'competition' },
         );
-        return `<div style="margin:12px 0;padding:16px;border:1px solid #dbeafe;border-radius:14px;background:#f8fafc;">
+        return `<div style="margin:12px 0;padding:16px;border:1px solid #e5e7eb;border-radius:14px;background:#fafafa;">
             <p style="margin:0;font-size:16px;font-weight:700;color:#111827;">${index + 1}. ${escapeHtml(item.competitionName)}</p>
             <p style="margin:6px 0;color:#475569;font-size:13px;">Registration ID: <strong>${escapeHtml(item.registrationId)}</strong></p>
             <p style="margin:6px 0;color:#475569;font-size:13px;">Participants: ${escapeHtml(roster.join(', ') || name || 'Team leader')}</p>
@@ -1895,22 +2030,43 @@ async function sendMindSparkBundleConfirmationEmail({
     }).join('');
     const statusUrl = `${frontend}/mindspark/bundle-pay/${encodeURIComponent(paymentToken)}`;
     const intro = resend
-        ? `<p>Hi ${escapeHtml(name || 'there')}, here are your three MindSpark tickets again, <strong>including WhatsApp group links</strong> for each competition.</p>`
-        : `<p>Hi ${escapeHtml(name || 'there')}, your payment is verified and all three registrations are ready.</p>`;
+        ? `<p style="margin:0 0 12px;">Hi ${escapeHtml(name || 'there')}, here are your three MindSpark tickets again, <strong>including WhatsApp group links</strong> for each competition.</p>`
+        : `<p style="margin:0 0 12px;">Hi ${escapeHtml(name || 'there')}, your payment is verified and all three registrations are ready.</p>`;
     const title = resend ? 'MindSpark bundle — WhatsApp links' : 'MindSpark bundle confirmed';
     const subject = resend
         ? 'MindSpark bundle — WhatsApp groups for your 3 competitions'
         : '✅ MindSpark bundle confirmed — 3 competition tickets';
+
+    let coupon = stallCoupon;
+    if (!coupon?.brand && (fest || userId)) {
+        try {
+            const { assignStallCouponIfEligible } = require('../utils/assignStallCoupon');
+            coupon = await assignStallCouponIfEligible({ fest, userId });
+        } catch {
+            coupon = null;
+        }
+    }
+    const stallHtml = buildStallCouponEmailBlock(coupon);
+
     return sendEmail({
         from: getDefaultFrom(),
         to: email,
         subject,
-        html: `<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;padding:24px;color:#111827;">
-            <h1 style="margin:0 0 8px;">${escapeHtml(title)}</h1>
-            ${intro}
-            ${rows}
-            <p style="margin-top:18px;font-size:13px;color:#64748b;">Bundle ID: ${escapeHtml(bundleId)}</p>
-            <a href="${escapeHtml(statusUrl)}" style="color:#0369a1;">Open complete bundle</a>
-        </div>`,
+        html: buildEmailShell({
+            preheader: coupon?.brand
+                ? `MindSpark bundle confirmed — plus ${coupon.discountPercent || 20}% off at ${coupon.brand}`
+                : 'MindSpark bundle confirmed — your 3 competition tickets',
+            eyebrow: 'MindSpark',
+            title,
+            subtitle: '3 competitions · tickets ready',
+            bodyHtml: `
+                ${intro}
+                ${rows}
+                ${stallHtml}
+                <p style="margin:18px 0 0;font-size:13px;color:#64748b;">Bundle ID: ${escapeHtml(bundleId)}</p>
+            `,
+            ctaLabel: 'Open complete bundle',
+            ctaHref: statusUrl,
+        }),
     });
 }

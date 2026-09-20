@@ -32,3 +32,6 @@ dist-ssr
 
 
 .vercel
+
+# Generated email HTML preview (regenerate via backend script)
+public/preview-stall-coupon-email.html

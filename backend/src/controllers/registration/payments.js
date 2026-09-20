@@ -11,6 +11,7 @@ const { logger } = require('../../utils/logger');
 const { findByIdOrSlug } = require('../../utils/slug');
 const { saveRegistrationIdempotent } = require('../../utils/registrationIdempotency');
 const { cashfreeSettlementFields } = require('../../utils/cashfreeGatewayFee');
+const { assignStallCouponIfEligible } = require('../../utils/assignStallCoupon');
 const {
   parseResponsesBody,
   mergeRegistrationResponses,
@@ -119,6 +120,7 @@ const payAndRegisterFest = async (req, res) => {
     }
 
     const festRegistrationLink = `/registration-details/${persistedFest._id}`;
+    const stallCoupon = await assignStallCouponIfEligible({ fest, userId });
 
     res.status(savedFestReg.created ? 201 : 200).json({
       success: true,
@@ -127,6 +129,7 @@ const payAndRegisterFest = async (req, res) => {
       registrationId: persistedFest._id,
       festName: fest.festName,
       amountPaid: persistedFest.amountPaid || festTotalAmount,
+      stallCoupon: stallCoupon || null,
     });
 
     if (!savedFestReg.created) return;
@@ -161,7 +164,13 @@ const payAndRegisterFest = async (req, res) => {
           fest.festName, null,
           persistedFest._id.toString(),
           new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
-          { status: 'paid', method: 'cashfree', type: 'fest', ticketLink: festRegistrationLink },
+          {
+            status: 'paid',
+            method: 'cashfree',
+            type: 'fest',
+            ticketLink: festRegistrationLink,
+            stallCoupon: stallCoupon || null,
+          },
         ).catch(() => {});
 
         // Google Sheets
@@ -287,6 +296,10 @@ const payAndRegister = async (req, res) => {
     }
 
     const payCompRegistrationLink = `/registration-details/${persistedComp._id}`;
+    const stallCoupon = await assignStallCouponIfEligible({
+      fest: competition.fest,
+      userId,
+    });
 
     res.status(savedCompReg.created ? 201 : 200).json({
       success: true,
@@ -295,6 +308,7 @@ const payAndRegister = async (req, res) => {
       registrationId: persistedComp._id,
       competitionName: competition.name,
       amountPaid: persistedComp.amountPaid || competitionTotalAmount,
+      stallCoupon: stallCoupon || null,
     });
 
     if (!savedCompReg.created) return;
@@ -330,6 +344,7 @@ const payAndRegister = async (req, res) => {
           fest: competition.fest,
           competition,
           registration: persistedComp,
+          extras: { stallCoupon: stallCoupon || null },
         }).catch(() => {});
 
         // Google Sheets — use the fest's Google Sheets URL if configured

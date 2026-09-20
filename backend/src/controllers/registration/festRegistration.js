@@ -8,8 +8,7 @@ const { scheduleRegistrationNotification } = require('./helpers');
 const { findByIdOrSlug } = require('../../utils/slug');
 const { resolveFestCompetitionId, extractCompetitionChoice } = require('../../utils/festCompetitionAssignment');
 const { assertCompetitionAcceptsRegistration } = require('../../utils/competitionSlots');
-const StallCoupon = require('../../model/stall_coupon_model');
-const { generateUniqueStallCouponCode } = require('../../utils/generateStallCouponCode');
+const { assignStallCouponIfEligible } = require('../../utils/assignStallCoupon');
 
 // Submit registration for a fest
 // Submit registration for a fest with file uploads
@@ -272,37 +271,7 @@ const submitRegistration = async (req, res) => {
     await registration.save();
     logger.debug('✅ Registration saved:', registration._id);
 
-    // 🎟️ Fest ka brand configured hai to coupon assign karo (college se koi matlab nahi)
-    let stallCoupon = null;
-    if (fest.stallBrand) {
-      try {
-        stallCoupon = await StallCoupon.findOne({ festId: festObjectId, userId });
-
-        if (!stallCoupon) {
-          const code = await generateUniqueStallCouponCode();
-          try {
-            stallCoupon = await StallCoupon.create({
-              festId: festObjectId,
-              userId,
-              brand: fest.stallBrand,
-              code,
-            });
-            logger.debug('🎟️ Stall coupon assigned:', code);
-          } catch (dupErr) {
-            // Do parallel register-calls ek saath aa jayein to duplicate-key error;
-            // us case me jo pehle create hua wahi utha lo
-            if (dupErr.code === 11000) {
-              stallCoupon = await StallCoupon.findOne({ festId: festObjectId, userId });
-            } else {
-              throw dupErr;
-            }
-          }
-        }
-      } catch (couponErr) {
-        // Coupon fail hone se poori registration fail NAHI honi chahiye
-        logger.error('❌ Stall coupon assignment failed:', couponErr.message);
-      }
-    }
+    const stallCoupon = await assignStallCouponIfEligible({ fest, userId });
 
     // Get user details for Google Sheets
     const user = await User.findById(userId).select('name email phoneNumber');
@@ -321,9 +290,7 @@ const submitRegistration = async (req, res) => {
         status: registration.status,
         submittedAt: registration.submittedAt
       },
-      stallCoupon: stallCoupon
-        ? { code: stallCoupon.code, brand: stallCoupon.brand }
-        : null,
+      stallCoupon: stallCoupon || null,
     });
 
     scheduleRegistrationNotification(userId, {
@@ -476,7 +443,10 @@ const submitRegistration = async (req, res) => {
               status: registration.paymentStatus || 'free',
               method: registration.paymentStatus === 'paid' ? 'cashfree' : '',
               type: 'fest',
-              ticketLink: `/registration-details/${registration._id}`,
+              ticketLink: `/qr-ticket/${registration._id}`,
+              qrHash: registration.qrCodeData || '',
+              venue: fest.venue || '',
+              stallCoupon: stallCoupon || null,
             },
           );
 
