@@ -88,7 +88,7 @@ export default function useFestRegistration() {
   const { refreshNotifications } = useNotifications();
 
   const { isDark } = useDarkMode();
-  
+
   const [fest, setFest] = useState(() => registrationPrefetch?.fest ?? null);
   const [competition, setCompetition] = useState(() => registrationPrefetch?.competition ?? null);
   const resolvedCompetitionId = competition?._id || competition?.id || (isObjectId(competitionId) ? competitionId : null);
@@ -111,6 +111,7 @@ export default function useFestRegistration() {
   const [uploadingFiles, setUploadingFiles] = useState({});
   // Cashfree verified payment fields
   const [paymentFields, setPaymentFields] = useState(null);
+  const [stallCoupon, setStallCoupon] = useState(null);
   // ? NEW: Multi-step form state
   const [currentStep, setCurrentStep] = useState(1);
   const [stepData, setStepData] = useState({});
@@ -145,7 +146,7 @@ export default function useFestRegistration() {
       method: 'POST',
       headers: getBearerAuthHeaders(authToken),
       body: JSON.stringify({ competitionId: resolvedCompetitionId }),
-    }).catch(() => {});
+    }).catch(() => { });
   }, [festDayMode, resolvedCompetitionId, festId, authToken]);
 
   useEffect(() => {
@@ -307,6 +308,7 @@ export default function useFestRegistration() {
     const regData = await regRes.json().catch(() => ({}));
     const regId = regData._id || regData.registration?._id || regData.registrationId;
     if (regId) setRegistrationId(regId);
+    if (regData.stallCoupon) setStallCoupon(regData.stallCoupon); 
     saveFestRegistrationSuccess({
       festId: festId || fest?._id,
       festMongoId: fest?._id || fest?.id || null,
@@ -446,12 +448,12 @@ export default function useFestRegistration() {
       draft,
       tryFormSubmit: hasDraftAnswers
         ? async () => {
-            const result = await handleSubmitRef.current?.(
-              { preventDefault: () => {} },
-              { paidResume: true, verifiedPaymentOverride: verifiedFields, draft },
-            );
-            return result?.regId || null;
-          }
+          const result = await handleSubmitRef.current?.(
+            { preventDefault: () => { } },
+            { paidResume: true, verifiedPaymentOverride: verifiedFields, draft },
+          );
+          return result?.regId || null;
+        }
         : null,
     });
 
@@ -695,14 +697,14 @@ export default function useFestRegistration() {
           setPriceBreakdown((prev) => (
             prev
               ? {
-                  ...prev,
-                  couponDiscount: 0,
-                  couponCode: '',
-                  totalAmount: Math.max(
-                    0,
-                    Number(prev.ticketPrice || 0) + Number(prev.platformFee || 0),
-                  ),
-                }
+                ...prev,
+                couponDiscount: 0,
+                couponCode: '',
+                totalAmount: Math.max(
+                  0,
+                  Number(prev.ticketPrice || 0) + Number(prev.platformFee || 0),
+                ),
+              }
               : prev
           ));
           console.warn('Payment quote failed:', msg);
@@ -737,14 +739,14 @@ export default function useFestRegistration() {
       setPriceBreakdown((prev) => (
         prev
           ? {
-              ...prev,
-              couponDiscount: 0,
-              couponCode: '',
-              totalAmount: Math.max(
-                0,
-                Number(prev.ticketPrice || 0) + Number(prev.platformFee || 0),
-              ),
-            }
+            ...prev,
+            couponDiscount: 0,
+            couponCode: '',
+            totalAmount: Math.max(
+              0,
+              Number(prev.ticketPrice || 0) + Number(prev.platformFee || 0),
+            ),
+          }
           : prev
       ));
     }
@@ -1027,8 +1029,8 @@ export default function useFestRegistration() {
 
     const currentFields = getCurrentStepFields();
     const currentData = getCurrentStepData();
-    
-        
+
+
     if (currentFields.length === 0) {
       // No fields to validate, skip validation for this step
       return true;
@@ -1037,23 +1039,23 @@ export default function useFestRegistration() {
       if (field.required) {
         const fieldId = generateFieldId(field);
         const value = currentData[fieldId];
-                
+
         if (!value || (typeof value === 'string' && value.trim() === '')) {
           setError(`Please fill in the required field: ${field.label}`);
-                    return false;
+          return false;
         }
       }
     }
 
-        return true;
+    return true;
   };
 
   const handleStepNext = () => {
-        
+
     if (!validateCurrentStep()) {
-            return;
+      return;
     }
-    
+
     // Save fest field steps only (team size / person names live on formData)
     if (isMultiStepForm() && !isOnParticipantStep() && !isOnTeamDetailsStep() && !isOnFeeTierStep() && !isOnPersonStep()) {
       setStepData(prev => ({
@@ -1062,9 +1064,9 @@ export default function useFestRegistration() {
       }));
     }
     setCompletedSteps(prev => new Set([...prev, currentStep]));
-    
+
     if (currentStep < getTotalSteps()) {
-            setCurrentStep(prev => prev + 1);
+      setCurrentStep(prev => prev + 1);
       setError(''); // Clear any errors
     }
   };
@@ -1083,7 +1085,7 @@ export default function useFestRegistration() {
     if (currentStep > total) {
       setCurrentStep(total);
     }
-     
+
   }, [formData.team_size, competition?._id || competition?.id]);
 
   // Solo MindSpark: lock team_size to 1 so submit / validation stay consistent
@@ -1094,7 +1096,7 @@ export default function useFestRegistration() {
       if (Number(prev.team_size) === 1) return prev;
       return { ...prev, team_size: 1 };
     });
-     
+
   }, [competition?._id || competition?.id, competition?.teamSizeMax, competition?.teamSizeMin]);
 
   const handleStepFieldChange = (fieldId, value) => {
@@ -1116,22 +1118,22 @@ export default function useFestRegistration() {
 
   const getAllFormData = () => {
     if (!isMultiStepForm()) {
-            return formData;
+      return formData;
     }
-    
+
     // Combine all step data - THIS IS CRITICAL FOR MULTI-STEP FORMS
     const allData = {};
-    
+
     // First, merge all completed steps
     Object.entries(stepData).forEach(([_stepNum, stepFormData]) => {
-            Object.assign(allData, stepFormData);
+      Object.assign(allData, stepFormData);
     });
-    
+
     // Then, include current step data (in case it hasn't been saved yet)
     const currentStepData = getCurrentStepData();
-        Object.assign(allData, currentStepData);
-    
-        
+    Object.assign(allData, currentStepData);
+
+
     return allData;
   };
 
@@ -1165,7 +1167,7 @@ export default function useFestRegistration() {
 
   const fetchFestDetails = async () => {
     try {
-            // Add cache busting parameter to ensure fresh data
+      // Add cache busting parameter to ensure fresh data
       const cacheBuster = Date.now();
       const response = await fetch(`${API_BASE_URL}/fests/${festId}/public?_cb=${cacheBuster}`, {
         credentials: 'omit', // ? iOS/Safari fix - no credentials for public API
@@ -1176,7 +1178,7 @@ export default function useFestRegistration() {
         throw new Error('Failed to fetch fest details');
       }
       const data = await response.json();
-      
+
       // If the fest has a feeAmount, skip mode validation ? payment replaces the form
       if (!data.feeAmount || data.feeAmount <= 0) {
         if (data.registration?.mode !== 'INTERNAL_FORM') {
@@ -1195,7 +1197,7 @@ export default function useFestRegistration() {
         });
       }
 
-      
+
       // Merge schema with existing user input ? do not wipe fields on background refresh
       setFormData((prev) => mergeFormDataWithSchema(prev, data.registration));
       restoreRegistrationDraft();
@@ -1209,7 +1211,7 @@ export default function useFestRegistration() {
 
   const fetchCompetitionAndFestDetails = async () => {
     try {
-            
+
       // Fetch competition details first
       const competitionResponse = await fetch(`${API_BASE_URL}/fests/competitions/${competitionId}/public`, {
         credentials: 'omit', // ? iOS/Safari fix - no credentials for public API
@@ -1224,7 +1226,7 @@ export default function useFestRegistration() {
       if (!Object.prototype.hasOwnProperty.call(competitionData || {}, 'feeTiers')) {
         competitionData.feeTiers = [];
       }
-            setCompetition(competitionData);
+      setCompetition(competitionData);
 
       const cacheBuster = Date.now();
       const festResponse = await fetch(`${API_BASE_URL}/fests/${festId}/public?_cb=${cacheBuster}`, {
@@ -1260,7 +1262,7 @@ export default function useFestRegistration() {
           competition: competitionData,
         });
       }
-      
+
       setFormData((prev) => mergeFormDataWithSchema(prev, festData.registration));
       restoreRegistrationDraft();
     } catch (err) {
@@ -1277,7 +1279,7 @@ export default function useFestRegistration() {
       return;
     }
 
-    
+
     setUploadingFiles(prev => ({
       ...prev,
       [fieldId]: true
@@ -1301,25 +1303,25 @@ export default function useFestRegistration() {
       // ? PERFORMANCE: Compress images if they're large
       let processedFile = file;
       if (file.type.startsWith('image/') && file.size > 2 * 1024 * 1024) { // 2MB threshold
-                try {
+        try {
           processedFile = await compressImage(file);
-                  } catch (compressionError) {
+        } catch (compressionError) {
           console.warn('?? Image compression failed, using original:', compressionError);
           processedFile = file;
         }
       }
 
-      
+
       // ? PERFORMANCE FIX: Store file immediately without uploading
       // Upload will happen during form submission to avoid blocking UI
-      const fileInfo = { 
-        uploaded: true, 
+      const fileInfo = {
+        uploaded: true,
         fileName: processedFile.name,
         fileSize: processedFile.size,
         fileType: processedFile.type,
         ready: true // Mark as ready for submission
       };
-      
+
       if (isMultiStepForm()) {
         // For multi-step forms, use step-specific data handling
         setStepData(prev => ({
@@ -1338,8 +1340,8 @@ export default function useFestRegistration() {
           [fieldId]: fileInfo
         }));
       }
-      
-          } catch (err) {
+
+    } catch (err) {
       console.error('? File validation error:', err);
       setError(err.message || 'Failed to validate file');
     } finally {
@@ -1358,10 +1360,10 @@ export default function useFestRegistration() {
       draft = null,
     } = options;
     const formSubmissionStartTime = Date.now(); // Track submission time for error reporting
-            
+
     // ? PERFORMANCE: Prevent double submission
     if (submitting) {
-            return;
+      return;
     }
 
     if (!paidResume && isCompetitionRegistration && isCompetitionSoldOut(competition)) {
@@ -1373,7 +1375,7 @@ export default function useFestRegistration() {
       setError('Registration is closed for this competition.');
       return;
     }
-    
+
     // Validate only current step's required fields for multi-step forms
     if (!paidResume && isMultiStepForm()) {
       if (isOnParticipantStep()) {
@@ -1385,12 +1387,49 @@ export default function useFestRegistration() {
       } else if (isOnPersonStep()) {
         if (!validateCurrentPerson()) return;
       } else {
-      const currentFields = getCurrentStepFields();
-      const currentData = getCurrentStepData();
-      for (const field of currentFields) {
-        if (field.required) {
+        const currentFields = getCurrentStepFields();
+        const currentData = getCurrentStepData();
+        for (const field of currentFields) {
+          if (field.required) {
+            const fieldId = generateFieldId(field);
+            const value = currentData[fieldId];
+            if (field.type === 'file' || field.type === 'image') {
+              if (!value || !value.ready || !formData[`${fieldId}_file`]) {
+                setError(`${field.label} is required - please upload a file`);
+                return;
+              }
+            } else if (field.type === 'category_competition_selector') {
+              if (!value || typeof value !== 'object' || !value.category || !value.competition) {
+                setError(`${field.label} is required - please select both category and competition`);
+                return;
+              }
+            } else if (field.type === 'group') {
+              if (!value || !Array.isArray(value) || value.length === 0) {
+                setError(`${field.label} is required - please add at least one entry`);
+                return;
+              }
+            } else if (!value || (Array.isArray(value) && value.length === 0) || value.toString().trim() === '') {
+              setError(`${field.label} is required`);
+              return;
+            }
+          }
+        }
+      }
+    } else if (!paidResume) {
+      // Competition multi-step (Team size ? Person N) before full single-step validation
+      if (hasParticipantStep() && currentStep < getTotalSteps()) {
+        handleStepNext();
+        return;
+      }
+      // MindSpark roster: person fields only ? skip fest default formSchema requirements
+      if (!hasParticipantStep()) {
+        // Single-step form: validate all required fields
+        const allFormData = draft ? buildFormDataFromDraft(draft) : getAllFormData();
+        const formSchema = fest.registration?.formSchema || [];
+        const requiredFields = formSchema.filter(field => field.required);
+        for (const field of requiredFields) {
           const fieldId = generateFieldId(field);
-          const value = currentData[fieldId];
+          const value = allFormData[fieldId];
           if (field.type === 'file' || field.type === 'image') {
             if (!value || !value.ready || !formData[`${fieldId}_file`]) {
               setError(`${field.label} is required - please upload a file`);
@@ -1412,48 +1451,11 @@ export default function useFestRegistration() {
           }
         }
       }
-      }
-    } else if (!paidResume) {
-      // Competition multi-step (Team size ? Person N) before full single-step validation
-      if (hasParticipantStep() && currentStep < getTotalSteps()) {
-        handleStepNext();
-        return;
-      }
-      // MindSpark roster: person fields only ? skip fest default formSchema requirements
-      if (!hasParticipantStep()) {
-      // Single-step form: validate all required fields
-      const allFormData = draft ? buildFormDataFromDraft(draft) : getAllFormData();
-      const formSchema = fest.registration?.formSchema || [];
-      const requiredFields = formSchema.filter(field => field.required);
-      for (const field of requiredFields) {
-        const fieldId = generateFieldId(field);
-        const value = allFormData[fieldId];
-        if (field.type === 'file' || field.type === 'image') {
-          if (!value || !value.ready || !formData[`${fieldId}_file`]) {
-            setError(`${field.label} is required - please upload a file`);
-            return;
-          }
-        } else if (field.type === 'category_competition_selector') {
-          if (!value || typeof value !== 'object' || !value.category || !value.competition) {
-            setError(`${field.label} is required - please select both category and competition`);
-            return;
-          }
-        } else if (field.type === 'group') {
-          if (!value || !Array.isArray(value) || value.length === 0) {
-            setError(`${field.label} is required - please add at least one entry`);
-            return;
-          }
-        } else if (!value || (Array.isArray(value) && value.length === 0) || value.toString().trim() === '') {
-          setError(`${field.label} is required`);
-          return;
-        }
-      }
-      }
     }
 
     // ? NEW: For multi-step forms, validate current step first
     if (!paidResume && isEffectiveMultiStep() && currentStep < getTotalSteps()) {
-            // This is not the final step, just go to next step
+      // This is not the final step, just go to next step
       handleStepNext();
       return;
     }
@@ -1464,13 +1466,13 @@ export default function useFestRegistration() {
     if (!paidResume && needsFeeTierStep() && !validateFeeTierStep()) {
       return;
     }
-    
-        // Final fest-step validation ? not used for MindSpark roster (person fields only)
+
+    // Final fest-step validation ? not used for MindSpark roster (person fields only)
     if (!paidResume && isMultiStepForm() && !hasParticipantStep() && !validateCurrentStep()) {
       return;
     }
 
-        
+
     processUiStartedAt.current = Date.now();
     setProcessOverlayMode('server');
     setSubmitting(true);
@@ -1484,7 +1486,7 @@ export default function useFestRegistration() {
 
       const allFormData = draft ? buildFormDataFromDraft(draft) : getAllFormData();
 
-      
+
       if (!token) {
         clearStoredAuthSession();
         setShowLogin(true);
@@ -1493,7 +1495,7 @@ export default function useFestRegistration() {
 
       setSubmissionProgress('Checking registration availability...');
       // ? CRITICAL: Double-check registration mode before submission
-      
+
       if (!isCompetitionRegistration && fest.registration?.mode !== 'INTERNAL_FORM') {
         throw new Error(`Registration is not available. Current mode: ${fest.registration?.mode}`);
       }
@@ -1510,8 +1512,8 @@ export default function useFestRegistration() {
       setSubmissionProgress('Validating form fields...');
       // ? NEW: Get all form data (single-step or combined multi-step)
       // allFormData already obtained at line 841 for single-step or will be obtained below
-      
-            
+
+
       // MindSpark roster: empty schema so common fest "Full Name" is never required/sent
       const formSchema = hasParticipantStep()
         ? []
@@ -1520,50 +1522,50 @@ export default function useFestRegistration() {
           : (fest.registration?.formSchema || []));
 
       if (!hasParticipantStep()) {
-      const requiredFields = formSchema.filter(field => field.required);
-      
-            
-            
-      for (const field of requiredFields) {
-        const fieldId = generateFieldId(field);
-        const value = allFormData[fieldId];
-        
-                
-        // For file/image fields, check if file was selected and is ready
-        if (field.type === 'file' || field.type === 'image') {
-          if (paidResume) continue;
-                    
-          if (!value || !value.ready || !allFormData[`${fieldId}_file`]) {
-            console.error('? File validation failed:', {
-              fieldId,
-              label: field.label,
-              value,
-              fileData: allFormData[`${fieldId}_file`],
-              allFormDataKeys: Object.keys(allFormData)
-            });
-            throw new Error(`${field.label} is required - please upload a file`);
-          }
-        } else if (field.type === 'category_competition_selector') {
-          // For category_competition_selector, check both category AND competition are selected
-          if (!value || typeof value !== 'object' || !value.category || !value.competition) {
-            throw new Error(`${field.label} is required - please select both category and competition`);
-          }
-        } else if (field.type === 'group') {
-          // For group fields, check if at least one entry exists
-          if (!value || !Array.isArray(value) || value.length === 0) {
-            throw new Error(`${field.label} is required - please add at least one entry`);
-          }
-        } else {
-          // For other fields, check if value exists and is not empty
-          if (!value || (Array.isArray(value) && value.length === 0) || value.toString().trim() === '') {
-            throw new Error(`${field.label} is required`);
+        const requiredFields = formSchema.filter(field => field.required);
+
+
+
+        for (const field of requiredFields) {
+          const fieldId = generateFieldId(field);
+          const value = allFormData[fieldId];
+
+
+          // For file/image fields, check if file was selected and is ready
+          if (field.type === 'file' || field.type === 'image') {
+            if (paidResume) continue;
+
+            if (!value || !value.ready || !allFormData[`${fieldId}_file`]) {
+              console.error('? File validation failed:', {
+                fieldId,
+                label: field.label,
+                value,
+                fileData: allFormData[`${fieldId}_file`],
+                allFormDataKeys: Object.keys(allFormData)
+              });
+              throw new Error(`${field.label} is required - please upload a file`);
+            }
+          } else if (field.type === 'category_competition_selector') {
+            // For category_competition_selector, check both category AND competition are selected
+            if (!value || typeof value !== 'object' || !value.category || !value.competition) {
+              throw new Error(`${field.label} is required - please select both category and competition`);
+            }
+          } else if (field.type === 'group') {
+            // For group fields, check if at least one entry exists
+            if (!value || !Array.isArray(value) || value.length === 0) {
+              throw new Error(`${field.label} is required - please add at least one entry`);
+            }
+          } else {
+            // For other fields, check if value exists and is not empty
+            if (!value || (Array.isArray(value) && value.length === 0) || value.toString().trim() === '') {
+              throw new Error(`${field.label} is required`);
+            }
           }
         }
-      }
 
-            } else {
-              // No field-specific validator is configured.
-            }
+      } else {
+        // No field-specific validator is configured.
+      }
       // Cashfree: open checkout if competition/fest has a fee and payment not yet done
       const effectiveFeeAmount = priceBreakdown?.ticketPrice || (isCompetitionRegistration ? (parseTicketPrice(competition?.feeAmount) || parseTicketPrice(competition?.registrationFee)) : (fest.feeAmount || 0));
       let verifiedPaymentFields = verifiedPaymentOverride || paymentFields;
@@ -1693,37 +1695,37 @@ export default function useFestRegistration() {
       let fileCount = 0;
 
       // Debug: Log all available form data and files
-                  
+
       // formSchema already defined above for validation purposes
 
       // Process form fields with consistent field naming
-            
+
       formSchema.forEach(field => {
         const fieldId = generateFieldId(field);
         const value = allFormData[fieldId];
-        
+
         // ? CRITICAL: Use the same field identifier for backend consistency
         // This should match what generateFieldId returns
         const backendFieldName = generateFieldId(field);
-        
+
         if (field.type === 'file' || field.type === 'image') {
           // Add file to FormData if it exists
           const fileData = allFormData[`${fieldId}_file`];
-          
+
           // Debug: Check what we have
-                    
+
           if (fileData && fileData.size > 0) {
             submissionFormData.append(backendFieldName, fileData);
             totalFileSize += fileData.size;
             fileCount++;
-                      } else {
-                        
+          } else {
+
             // ? FALLBACK: Try to get file from DOM input element
             try {
               const fileInput = document.querySelector(`input[data-field-id="${fieldId}"]`);
               if (fileInput?.files?.length > 0) {
                 const file = fileInput.files[0];
-                                submissionFormData.append(backendFieldName, file);
+                submissionFormData.append(backendFieldName, file);
                 totalFileSize += file.size;
                 fileCount++;
               }
@@ -1734,7 +1736,7 @@ export default function useFestRegistration() {
         } else {
           // Add text data to responses object using backend field name
           textResponses[backendFieldName] = value;
-                  }
+        }
       });
 
       // Add text responses as JSON
@@ -1826,34 +1828,34 @@ export default function useFestRegistration() {
       }
 
       // ? PERFORMANCE: Determine endpoint and make request
-      const endpoint = isCompetitionRegistration 
+      const endpoint = isCompetitionRegistration
         ? `${API_BASE_URL}/registrations/competitions/${resolvedCompetitionId || competitionId}/register`
         : `${API_BASE_URL}/registrations/fests/${festId}/register`;
 
-                  
+
 
       // ? PERFORMANCE: Dynamic timeout based on file size
       // Base timeout: 90s (enough for backend file processing and response)
       // Plus additional time for file upload: 30s per MB
       // Backend will continue sending emails in background after response
-      
-            
+
+
       // ? OPTIMIZED: Backend now responds IMMEDIATELY (files upload in background)
       // Base timeout: 120s - allowing time for server processing and slow connections
       // Backend responds with registration ID immediately, files upload in background
       // File uploads happen in background on server after response is sent to user
       const baseTimeout = 120000; // 120 seconds - reasonable timeout for production stability
       const controller = new AbortController();
-      
+
       // ? PERFORMANCE: Track upload progress (define BEFORE fetch so it's available in error handler)
-      
+
       const timeoutId = setTimeout(() => {
         console.warn(`?? Aborting request after ${(baseTimeout / 1000).toFixed(0)}s timeout`);
         controller.abort();
       }, baseTimeout);
 
-      
-                  
+
+
       // ? FIX: Ensure we have a valid token before submission
       const submitToken = token;
       if (!submitToken) {
@@ -1878,10 +1880,10 @@ export default function useFestRegistration() {
       });
 
       clearTimeout(timeoutId);
-      
+
       if (!response.ok) {
         let errorMessage = 'Failed to submit registration';
-        
+
         try {
           const errorData = await response.json();
           errorMessage = errorData.error || errorData.message || errorMessage;
@@ -1892,7 +1894,7 @@ export default function useFestRegistration() {
             endpoint: endpoint,
             timestamp: new Date().toISOString()
           });
-          
+
           // Handle specific error cases
           if (response.status === 401) {
             if (paidResume) {
@@ -1915,13 +1917,14 @@ export default function useFestRegistration() {
             errorMessage = 'Server error. Please try again in a few moments.';
           }
         }
-        
+
         throw new Error(errorMessage);
       }
 
       setSubmissionProgress('Processing registration...');
       const result = await response.json();
-      
+      if (result.stallCoupon) setStallCoupon(result.stallCoupon);   // 👈 naya
+
       setSubmissionProgress('Registration completed successfully!');
       const regId = result._id || result.registration?._id || result.registrationId;
       setRegistrationId(regId);
@@ -1963,12 +1966,12 @@ export default function useFestRegistration() {
       console.error('? Error stack:', err.stack);
 
       let userMessage = err.message || 'An unexpected error occurred. Please try again.';
-      
+
       // Handle specific error types with better user feedback
       if (err.name === 'AbortError') {
         const elapsedTime = ((Date.now() - formSubmissionStartTime) / 1000).toFixed(1);
         console.error('? Request was aborted/timed out after', elapsedTime, 'seconds');
-                userMessage = 'Registration is taking longer than expected. Your submission may have been saved. Please check My Bookings in a moment. Contact support if needed.';
+        userMessage = 'Registration is taking longer than expected. Your submission may have been saved. Please check My Bookings in a moment. Contact support if needed.';
       } else if (
         err.message.includes('Authentication')
         || err.message.includes('session')
@@ -2128,6 +2131,7 @@ export default function useFestRegistration() {
       const regData = await regRes.json().catch(() => ({}));
       const regId = regData._id || regData.registration?._id || regData.registrationId;
       if (regId) setRegistrationId(regId);
+      if (regData.stallCoupon) setStallCoupon(regData.stallCoupon); 
       saveFestRegistrationSuccess({
         festId: festId || fest?._id,
         festMongoId: fest?._id || fest?.id || null,
@@ -2203,6 +2207,7 @@ export default function useFestRegistration() {
     registrationId,
     uploadingFiles,
     paymentFields,
+    stallCoupon,
     currentStep,
     stepData,
     completedSteps,

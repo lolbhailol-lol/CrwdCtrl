@@ -15,6 +15,7 @@ export default function FestRegistration() {
     goBack,
     fest,
     competition,
+    stallCoupon,
     isCompetitionRegistration,
     hideFestOnlyForm,
     isSoldOut,
@@ -107,6 +108,7 @@ export default function FestRegistration() {
         navigate={navigate}
         competitionId={competitionId}
         festId={festId}
+        stallCoupon={stallCoupon}
       />
     );
   }
