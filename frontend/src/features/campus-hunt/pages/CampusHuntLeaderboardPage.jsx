@@ -4,9 +4,9 @@ import { Moon, Sun } from 'lucide-react';
 import {
   fetchCampusHuntColleges,
   fetchPublicLeaderboard,
-  fetchPublicFinaleLeaderboard,
   fetchMyTeam,
 } from '../services/campusHunt.api';
+import { CAMPUS_HUNT_PATHS } from '../config';
 import { useAuth } from '../../../context/AuthContext';
 import { useDarkMode } from '../../../context/DarkModeContext';
 import { stageLabel } from '../types/stages';
@@ -28,14 +28,16 @@ export default function CampusHuntLeaderboardPage() {
   const [error, setError] = useState('');
   const [updatedAt, setUpdatedAt] = useState('');
   const [liveOn, setLiveOn] = useState(false);
-  const [boardMode, setBoardMode] = useState('round1');
 
   const selectedCollege = useMemo(
     () => colleges.find((c) => c.college === college) || null,
     [colleges, college],
   );
 
-  const events = selectedCollege?.events || [];
+  const events = useMemo(
+    () => (selectedCollege?.events || []).filter((ev) => ev.leaderboardLive === true),
+    [selectedCollege],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -43,15 +45,18 @@ export default function CampusHuntLeaderboardPage() {
       try {
         const res = await fetchCampusHuntColleges();
         if (cancelled) return;
-        const list = res.data?.colleges || [];
+        const list = (res.data?.colleges || []).filter((c) =>
+          (c.events || []).some((ev) => ev.leaderboardLive === true),
+        );
         setColleges(list);
         setLiveOn(list.length > 0);
         const initial =
-          collegeParam
+          (collegeParam && list.some((c) => c.college === collegeParam) ? collegeParam : null)
           || list[0]?.college
           || '';
         setCollege(initial);
-        const evs = list.find((c) => c.college === initial)?.events || list[0]?.events || [];
+        const evs = (list.find((c) => c.college === initial)?.events || [])
+          .filter((ev) => ev.leaderboardLive === true);
         setEventId(evs[0]?.id || '');
       } catch (err) {
         if (!cancelled) setError(err.message || 'Failed to load colleges');
@@ -68,21 +73,14 @@ export default function CampusHuntLeaderboardPage() {
       return;
     }
     try {
-      const res = boardMode === 'finale'
-        ? await fetchPublicFinaleLeaderboard(eventId)
-        : await fetchPublicLeaderboard(eventId);
+      const res = await fetchPublicLeaderboard(eventId);
       setBoard(res.data);
       setUpdatedAt(new Date().toLocaleTimeString());
       setError('');
     } catch (err) {
-      if (boardMode === 'finale' && err.status === 403) {
-        setBoard(null);
-        setError('Finale leaderboard is not public yet.');
-      } else {
-        setError(err.message || 'Failed to load leaderboard');
-      }
+      setError(err.message || 'Failed to load leaderboard');
     }
-  }, [eventId, boardMode]);
+  }, [eventId]);
 
   useEffect(() => {
     loadBoard();
@@ -111,13 +109,13 @@ export default function CampusHuntLeaderboardPage() {
   const onCollegeChange = (value) => {
     setCollege(value);
     setSearchParams(value ? { college: value } : {});
-    const evs = colleges.find((c) => c.college === value)?.events || [];
+    const evs = (colleges.find((c) => c.college === value)?.events || [])
+      .filter((ev) => ev.leaderboardLive === true);
     setEventId(evs[0]?.id || '');
   };
 
   const rows = board?.leaderboard || [];
   const selectedEvent = events.find((e) => e.id === eventId) || board?.event;
-  const isFinaleBoard = boardMode === 'finale';
 
   const pageBg = isDark ? 'bg-[#0b0c0d] text-white' : 'bg-[#F5F6FA] text-gray-900';
   const muted = isDark ? 'text-white/50' : 'text-gray-500';
@@ -161,11 +159,9 @@ export default function CampusHuntLeaderboardPage() {
         <header className="flex items-start justify-between gap-3">
           <div className="space-y-1">
             <p className={`text-xs uppercase tracking-widest ${accent}`}>Campus Hunt</p>
-            <h1 className="text-2xl font-bold">Live leaderboard</h1>
+            <h1 className="text-2xl font-bold">Leaderboard</h1>
             <p className={`text-sm ${muted}`}>
-              {isFinaleBoard
-                ? 'Finale scores — separate from Round 1.'
-                : 'Profile-only live scores by college. Updates every ~12s.'}
+              Live scores by college. Updates every ~12s.
             </p>
           </div>
           <button
@@ -189,7 +185,7 @@ export default function CampusHuntLeaderboardPage() {
 
         {!loading && !liveOn && (
           <p className={`rounded-2xl border px-4 py-6 text-sm ${card} ${muted}`}>
-            No live boards right now. An admin must enable “Show live on Profile” for a college event.
+            No live boards right now. An admin must enable “Leaderboard on Profile” for a college event.
           </p>
         )}
 
@@ -237,25 +233,6 @@ export default function CampusHuntLeaderboardPage() {
         )}
 
         {eventId && (
-          <>
-            <div className={`flex rounded-xl border p-1 ${card}`}>
-              {[
-                ['round1', 'Round 1'],
-                ['finale', 'Finale'],
-              ].map(([mode, label]) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setBoardMode(mode)}
-                  className={`flex-1 rounded-lg py-2.5 text-sm font-semibold uppercase tracking-wide ${
-                    boardMode === mode ? 'bg-[#0ECCEE] text-black' : muted
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
           <section className={`overflow-hidden rounded-2xl border ${card}`}>
             <div className={`flex items-center justify-between px-4 py-2 text-xs ${rowHeader}`}>
               <span className="inline-flex items-center gap-1.5">
@@ -282,18 +259,13 @@ export default function CampusHuntLeaderboardPage() {
                       </p>
                       <p className={`truncate text-xs ${mutedSoft}`}>
                         {row.teamCode}
-                        {!isFinaleBoard && row.currentStage ? (
+                        {row.currentStage ? (
                           <> · {stageLabel(row.currentStage)}</>
                         ) : null}
-                        {isFinaleBoard && row.completedMissionIds?.length > 0 && (
-                          <> · {row.completedMissionIds.length} missions</>
-                        )}
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold tabular-nums">
-                        {isFinaleBoard ? (row.finaleScore ?? row.finalScore) : row.score}
-                      </p>
+                      <p className="font-bold tabular-nums">{row.score}</p>
                       {(row.elapsedMs != null || row.totalCompletionMs != null) && (
                         <p className={`text-[10px] tabular-nums ${mutedSoft}`}>
                           {formatDurationMs(row.elapsedMs ?? row.totalCompletionMs)}
@@ -310,14 +282,13 @@ export default function CampusHuntLeaderboardPage() {
               )}
             </div>
           </section>
-          </>
         )}
 
         <Link
-          to="/"
+          to={CAMPUS_HUNT_PATHS.profileLogin}
           className={`block text-center text-sm underline ${muted}`}
         >
-          Back home
+          Hunt login
         </Link>
       </div>
     </div>

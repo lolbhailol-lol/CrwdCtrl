@@ -152,7 +152,7 @@ export default function PlayerPlayScreen({
   useEffect(() => {
     if (!activeChallenge?.revealedAnswer) return;
     if (activeChallenge.state !== 'ACTIVE') return;
-    if (![2, 4, 5].includes(Number(activeChallenge.challengeNumber))) return;
+    if (![2, 5].includes(Number(activeChallenge.challengeNumber))) return;
     setAnswer((prev) => (prev?.trim() ? prev : String(activeChallenge.revealedAnswer)));
   }, [activeChallenge?.revealedAnswer, activeChallenge?.state, activeChallenge?.challengeNumber]);
 
@@ -160,7 +160,7 @@ export default function PlayerPlayScreen({
     const key = `${team?.id || ''}-${activeNum || ''}-${activeChallenge?.expiresAt || ''}`;
     if (timerExpiredHandledRef.current === key) return;
     timerExpiredHandledRef.current = key;
-    if (!team?.id || !activeNum || ![2, 4, 5].includes(activeNum)) {
+    if (!team?.id || !activeNum || ![2, 5].includes(activeNum)) {
       void onRefresh?.({ force: true, burst: true });
       return;
     }
@@ -241,11 +241,23 @@ export default function PlayerPlayScreen({
 
   // Auto-open camera on scan stages so the main action is one tap away
   useEffect(() => {
-    if (!atCheckpoint || !checkpointStatus || checkpointStatus.youScanned || checkpointStatus.assignmentMissing) {
+    if (
+      !atCheckpoint
+      || !checkpointStatus
+      || checkpointStatus.youScanned
+      || checkpointStatus.assignmentMissing
+      || checkpointStatus.needJoinWord
+    ) {
       return;
     }
     setShowScanner(true);
-  }, [atCheckpoint, checkpointStatus?.checkpointId, checkpointStatus?.youScanned, checkpointStatus?.assignmentMissing]);
+  }, [
+    atCheckpoint,
+    checkpointStatus?.checkpointId,
+    checkpointStatus?.youScanned,
+    checkpointStatus?.assignmentMissing,
+    checkpointStatus?.needJoinWord,
+  ]);
 
   // Prefill team code as soon as full roster has scanned
   useEffect(() => {
@@ -257,7 +269,7 @@ export default function PlayerPlayScreen({
   // Auto-sync when server marks timer expired (backup if countdown onComplete missed)
   useEffect(() => {
     if (!activeChallenge?.timeExpired) return undefined;
-    if (![2, 4, 5].includes(activeChallenge.challengeNumber)) return undefined;
+    if (![2, 5].includes(activeChallenge.challengeNumber)) return undefined;
     void handleTimerExpired();
     return undefined;
   }, [
@@ -540,11 +552,13 @@ export default function PlayerPlayScreen({
     if (unlocked) {
       celebrate(resData?.message || 'Station cleared — next clue unlocked!');
       setClaimCode('');
-    } else if (awaiting) {
+    } else if (awaiting && !checkpointStatus?.onePhoneMode && required > 1) {
       celebrate('Poster scanned — confirm team code');
       if (team?.teamCode) setClaimCode(String(team.teamCode).toUpperCase());
-    } else {
-      celebrate(`You're in · ${count}/${required}`);
+    } else if (!unlocked) {
+      // Leader-only: scan should auto-unlock — refresh if stage hasn't moved yet
+      celebrate(resData?.message || 'Poster scanned');
+      void onRefresh?.({ force: true, burst: true });
     }
   };
 
@@ -792,9 +806,19 @@ export default function PlayerPlayScreen({
                 </div>
               )}
 
+              {checkpointExtra}
+
+              {checkpointStatus.publicInstruction ? (
+                <p className="text-sm text-white/60">{checkpointStatus.publicInstruction}</p>
+              ) : null}
+
               {!isLeader ? (
                 <p className="rounded-xl border border-white/10 bg-black/25 px-3 py-3 text-center text-sm text-white/70">
                   Only the leader phone scans. Stay with your team.
+                </p>
+              ) : checkpointStatus.needJoinWord ? (
+                <p className="text-center text-sm text-white/55">
+                  Type the joined word above first — then scan unlocks.
                 </p>
               ) : (
               <>
@@ -856,25 +880,23 @@ export default function PlayerPlayScreen({
 
               {checkpointStatus.youScanned
                 && Number(checkpointStatus.verifiedCount || 0) < Number(checkpointStatus.requiredCount || 1)
-                && !checkpointStatus.awaitingTeamCodeConfirm && (
-                <div className="space-y-2">
-                  <p className="text-center text-sm text-emerald-300/90">
-                    Scanned · enter your team code
-                    {offlineMode ? '' : (
-                      <>
-                        {' · '}
-                        <button
-                          type="button"
-                          className="underline"
-                          onClick={() => onRefresh?.({ force: true })}
-                        >
-                          Refresh
-                        </button>
-                      </>
-                    )}
-                  </p>
-                  {checkpointExtra}
-                </div>
+                && !checkpointStatus.awaitingTeamCodeConfirm
+                && !checkpointStatus.onePhoneMode && (
+                <p className="text-center text-sm text-emerald-300/90">
+                  Scanned · waiting for team
+                  {!offlineMode ? (
+                    <>
+                      {' · '}
+                      <button
+                        type="button"
+                        className="underline"
+                        onClick={() => onRefresh?.({ force: true })}
+                      >
+                        Refresh
+                      </button>
+                    </>
+                  ) : null}
+                </p>
               )}
 
               {(
@@ -911,17 +933,18 @@ export default function PlayerPlayScreen({
               {checkpointStatus.onePhoneMode
                 && Number(checkpointStatus.verifiedCount || 0) >= Number(checkpointStatus.requiredCount || 1)
                 && checkpointStatus.status !== 'complete'
+                && checkpointStatus.status !== 'manual_reconciled'
                 && (
                 <button
                   type="button"
                   disabled={busy}
                   onClick={() => {
-                    void onRefresh?.({ force: true });
+                    void onRefresh?.({ force: true, burst: true });
                   }}
                   className="w-full rounded-2xl py-3.5 text-sm font-bold text-black disabled:opacity-50"
                   style={{ background: checkpointTheme.hex }}
                 >
-                  {busy ? 'Unlocking…' : 'Continue — unlock next clue'}
+                  {busy ? 'Unlocking…' : 'Tap to unlock next clue'}
                 </button>
               )}
 
@@ -1066,7 +1089,7 @@ export default function PlayerPlayScreen({
                           : `Clue ${activeChallenge.challengeNumber}`}
                   </p>
                 </div>
-                {(activeChallenge.challengeNumber === 2 || activeChallenge.challengeNumber === 4)
+                {activeChallenge.challengeNumber === 2
                   && inInstructionPhase
                   && activeChallenge.timerStartsAt && (
                   <CountdownTimer
@@ -1080,8 +1103,9 @@ export default function PlayerPlayScreen({
                   />
                 )}
                 {activeChallenge.expiresAt
+                  && activeChallenge.challengeNumber !== 4
                   && !(
-                    (activeChallenge.challengeNumber === 2 || activeChallenge.challengeNumber === 4)
+                    activeChallenge.challengeNumber === 2
                     && inInstructionPhase
                   ) && (
                   <CountdownTimer
@@ -1090,7 +1114,7 @@ export default function PlayerPlayScreen({
                     label={activeChallenge.timeExpired ? 'Time up' : 'Left'}
                     expiredLabel="0:00"
                     onComplete={
-                      [2, 4, 5].includes(activeChallenge.challengeNumber)
+                      [2, 5].includes(activeChallenge.challengeNumber)
                         ? handleTimerExpired
                         : undefined
                     }
@@ -1112,8 +1136,7 @@ export default function PlayerPlayScreen({
               )}
 
               {activeChallenge.challengeNumber === 4
-                && activeChallenge.state === 'ACTIVE'
-                && !inInstructionPhase && (
+                && activeChallenge.state === 'ACTIVE' && (
                 <div
                   className="space-y-3 rounded-xl border px-4 py-4"
                   style={{ borderColor: `${clueTheme.hex}55`, background: `${clueTheme.hex}12` }}
@@ -1123,6 +1146,9 @@ export default function PlayerPlayScreen({
                     style={{ color: clueTheme.hex }}
                   >
                     Zip Grid · laptop
+                  </p>
+                  <p className="text-sm text-white/60">
+                    No hunt timer — play the game, then type GRID-XXXX here.
                   </p>
                   {activeChallenge.gridAccessCode && (
                     <div className="rounded-xl bg-black/35 px-3 py-3 text-center">
@@ -1181,9 +1207,9 @@ export default function PlayerPlayScreen({
                 </div>
               )}
 
-              {activeChallenge.challengeNumber === 4 && inInstructionPhase && (
+              {activeChallenge.challengeNumber === 2 && inInstructionPhase && (
                 <p className="text-sm text-white/55">
-                  When the countdown hits zero, Zip Grid link and key appear.
+                  Read first. Hunt timer starts when the countdown hits zero.
                 </p>
               )}
 
@@ -1241,7 +1267,7 @@ export default function PlayerPlayScreen({
 
               {activeChallenge.timeExpired
                 && !activeChallenge.revealedAnswer
-                && [2, 4, 5].includes(activeChallenge.challengeNumber) && (
+                && [2, 5].includes(activeChallenge.challengeNumber) && (
                 <div className="rounded-xl bg-amber-500/10 px-3 py-3 text-sm text-amber-100/90">
                   <p className="font-semibold">Time&apos;s up — 0 points</p>
                   <p className="mt-1 text-xs text-amber-100/70">
@@ -1341,13 +1367,30 @@ export default function PlayerPlayScreen({
 
           {atCheckpoint && !checkpointStatus && (
             <section className={`${panel} text-sm text-white/70`}>
-              <p className="font-medium text-white/90">Next location</p>
+              <p className="font-medium text-white/90">Next stop</p>
               <p className="mt-1">
-                {(team.currentStage === 'CLUE_1_COMPLETED'
-                  ? clue1?.destinationInstruction
-                  : challenges.find((c) => c.challengeNumber === 2)?.destinationInstruction)
-                  || 'Go to the next place. Leader scans the shared QR once, then enters your team code.'}
+                {(() => {
+                  const stage = String(team.currentStage || '');
+                  const n = stage.startsWith('CLUE_1') ? 1
+                    : stage.startsWith('CLUE_2') ? 2
+                      : stage.startsWith('CLUE_3') ? 3
+                        : stage.startsWith('CLUE_4') ? 4
+                          : stage.startsWith('CLUE_5') ? 5
+                            : null;
+                  const ch = n
+                    ? challenges.find((c) => c.challengeNumber === n)
+                    : null;
+                  return ch?.destinationInstruction
+                    || 'Go to the place on your route. Leader scans the color poster once.';
+                })()}
               </p>
+              <button
+                type="button"
+                onClick={() => onRefresh?.({ force: true, burst: true })}
+                className="mt-3 w-full rounded-xl border border-white/10 py-2.5 text-sm text-white/70"
+              >
+                Refresh stop
+              </button>
             </section>
           )}
 

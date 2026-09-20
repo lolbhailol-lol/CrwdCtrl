@@ -31,7 +31,7 @@ export const CAMPUS_HUNT_PATHS = {
   leaderboard: '/campus-hunt/leaderboard',
   leaderboardCollege: (college) =>
     `/campus-hunt/leaderboard?college=${encodeURIComponent(college)}`,
-  /** Profile → Campus Hunt login (Google session required) */
+  /** Profile → Campus Hunt login (college + team code, no Google) */
   profileLogin: '/campus-hunt/enter',
   volunteerLogin: '/campus-hunt-volunteer/login',
   volunteerCheckpoint: '/campus-hunt-volunteer/checkpoint',

@@ -279,19 +279,15 @@ const DEFAULT_SCORING_CONFIG = {
     awardMode: 'flat_base',
     speedBonusBands: [],
   },
-  // Clue 4 — Field Terminal (GRID code). Same timer feel as Clue 2.
+  // Clue 4 — Field Terminal (Zip Grid). No hunt timer — play on laptop, submit GRID code.
   clue4: {
-    basePoints: 0,
+    basePoints: 50,
     maxAttempts: 3,
-    timerSeconds: 180,
-    timerStartDelaySeconds: 15,
-    awardMode: 'time_bands_total',
+    timerSeconds: 0,
+    timerStartDelaySeconds: 0,
+    awardMode: 'flat_base',
     allowLateSubmit: true,
-    speedBonusBands: [
-      { maxSeconds: 60, bonus: 50 },
-      { maxSeconds: 120, bonus: 30 },
-      { maxSeconds: 180, bonus: 10 },
-    ],
+    speedBonusBands: [],
   },
   // Clue 5: 5th campus stop (collaborative / word). Then scan → Clue 6 destination.
   clue5: {
@@ -350,12 +346,10 @@ const CLUE_HOW_TO = {
   4: {
     title: 'How to play — Field Terminal',
     steps: [
-      'Read the brief (countdown). When the hunt timer starts, open the terminal link on a laptop.',
-      'Enter the device key, clear all Zip Grid levels, then bring the GRID-XXXX code back here.',
-      'Leader types GRID-XXXX on this phone. Faster correct submit = more points.',
-      'When the timer ends the code is revealed (0 points) — type it to continue.',
-      'Leader scans the shared purple FOURTH SCAN QR once, then enters your team code.',
-      'That unlocks Clue 5 on the leader phone.',
+      'Open the Zip Grid link on a laptop and enter the device key.',
+      'Clear all levels — take as long as you need in the game.',
+      'Leader types the GRID-XXXX code on this phone (50 pts).',
+      'Leader scans the purple FOURTH SCAN QR once — Clue 5 unlocks.',
     ],
   },
   5: {

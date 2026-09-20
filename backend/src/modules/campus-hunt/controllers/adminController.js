@@ -304,7 +304,16 @@ async function getEventOverview(req, res, next) {
     const [rounds, teams, issues, checkpoints, routes, challenges, volunteers, startingPoints] = await Promise.all([
       CampusHuntRound.find({ eventId }),
       CampusHuntTeam.find({ eventId })
-        .select('status currentStage currentScore finishedAt routeId startingPointId scheduledStartAt clue1ChallengeId firstCheckpointId clue2ChallengeId secondCheckpointId clue3ChallengeId thirdCheckpointId clue4ChallengeId fourthCheckpointId clue5ChallengeId fifthCheckpointId clue6ChallengeId leaderUserId memberUserIds accessPack'),
+        .select(
+          'status currentStage currentScore finishedAt routeId startingPointId scheduledStartAt '
+          + 'clue1ChallengeId firstCheckpointId clue2ChallengeId secondCheckpointId '
+          + 'clue3ChallengeId thirdCheckpointId clue4ChallengeId fourthCheckpointId '
+          + 'clue5ChallengeId fifthCheckpointId clue6ChallengeId '
+          + 'leaderUserId memberUserIds leaderName accessPack '
+          + '+accessPack.encryptedTeamPassword +accessPack.encryptedSharedScannerPassword '
+          + '+accessPack.leader.encryptedPassword +accessPack.leader.password '
+          + '+accessPack.sharedScannerPassword',
+        ),
       CampusHuntIssueReport.countDocuments({ eventId, status: 'open' }),
       CampusHuntCheckpoint.find({ eventId }).select('checkpointKey progressionKey active locationName routeId'),
       CampusHuntRoute.find({ eventId }).select('routeKey name teamSlots active'),
@@ -358,7 +367,7 @@ async function getEventOverview(req, res, next) {
           && placeholderLocations === 0,
       };
     });
-    const { isTeamRosterReady } = require('../utils/roster');
+    const { isTeamRosterReady, isTeamPasswordReady } = require('../utils/roster');
     const { resolveDemoScale } = require('../utils/demoScale');
     const { selectCompetitionTeams } = require('../services/startScheduleService');
     const scale = resolveDemoScale(event);
@@ -368,9 +377,28 @@ async function getEventOverview(req, res, next) {
       : teams;
     const competitionTeams = selectCompetitionTeams(roundTeams, event.teamCapacity);
     const leftoverTeams = Math.max(0, roundTeams.length - competitionTeams.length);
-    const teamsReady = competitionTeams.filter((team) => (
-      team.routeId && isTeamRosterReady(team, scale.teamSize)
-    )).length;
+
+    // Shared ST-* posters are anchored on one route — treat path stops as event-wide.
+    const sharedProgression = new Set(
+      checkpoints
+        .filter((checkpoint) => checkpoint.active !== false)
+        .map((checkpoint) => {
+          const text = String(checkpoint.progressionKey || checkpoint.checkpointKey || '')
+            .trim()
+            .toUpperCase();
+          if (/^[1-5]$/.test(text)) return text;
+          const match = text.match(/^([1-5])[-_]/);
+          return match ? match[1] : '';
+        })
+        .filter(Boolean),
+    );
+    const eventHasPathStops = ['1', '2', '3', '4', '5'].every((k) => sharedProgression.has(k));
+    const eventHasPathClues = [1, 2, 3, 4, 5, 6].every((n) => (
+      challenges.some((challenge) => Number(challenge.challengeNumber) === n)
+    ));
+
+    const teamsReady = competitionTeams.filter((team) => isTeamRosterReady(team, scale.teamSize)).length;
+    const passwordsReady = competitionTeams.filter((team) => isTeamPasswordReady(team)).length;
     const startAssignmentsReady = competitionTeams.filter((team) => (
       team.startingPointId
       && team.routeId
@@ -390,27 +418,48 @@ async function getEventOverview(req, res, next) {
     // Player scan is primary — volunteers are optional ops help, not a go-live gate.
     const startingPointsReady = startingPoints.filter((p) => p.active !== false).length
       >= Math.max(1, Number(event.startCount) || 4);
+    const routesConfigured = eventHasPathStops && eventHasPathClues;
+    const scheduleOk = roundOne?.scheduleStatus === 'locked'
+      || (
+        roundOne?.scheduleStatus === 'generated'
+        && startAssignmentsReady === competitionTeams.length
+        && competitionTeams.length > 0
+      );
     const readiness = {
       ready: competitionTeams.length > 0
         && teamsReady === competitionTeams.length
         && startAssignmentsReady === competitionTeams.length
-        && roundOne?.scheduleStatus === 'locked'
-        && routeReadiness.some((route) => route.ready)
+        && scheduleOk
+        && routesConfigured
+        && startingPointsReady,
+      /** Links tab can export when passwords + path bindings exist (schedule lock preferred). */
+      offlineLinksReady: competitionTeams.length > 0
+        && passwordsReady === competitionTeams.length
+        && startAssignmentsReady === competitionTeams.length
+        && routesConfigured
         && startingPointsReady,
       teamsReady,
+      passwordsReady,
       teamsTotal: competitionTeams.length,
       teamsInDb: teams.length,
       leftoverTeams,
       rostersIncomplete: competitionTeams.length - teamsReady,
       startAssignmentsReady,
       scheduleLocked: roundOne?.scheduleStatus === 'locked',
+      scheduleGenerated: ['generated', 'locked'].includes(String(roundOne?.scheduleStatus || '')),
       unassignedTeams: competitionTeams.filter((team) => !team.routeId).length,
-      routesReady: routeReadiness.filter((route) => route.ready).length,
+      routesReady: routesConfigured ? Math.max(1, routeReadiness.filter((route) => route.active).length) : 0,
       routesTotal: routeReadiness.length,
       startingPointsReady,
       startingPointsCount: startingPoints.length,
       volunteersConfigured: volunteers.length,
-      routeReadiness,
+      routeReadiness: routeReadiness.map((row) => ({
+        ...row,
+        // Shared stations count for every route once event-wide path stops exist.
+        ready: row.active
+          && row.challengesConfigured >= 6
+          && (row.ready || eventHasPathStops),
+      })),
     };
 
     const {

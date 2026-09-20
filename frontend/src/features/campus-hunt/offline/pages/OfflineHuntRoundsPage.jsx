@@ -26,7 +26,7 @@ export default function OfflineHuntRoundsPage() {
       id: 'round1',
       label: 'The Hunt',
       subtitle: 'Offline',
-      detail: waiting ? 'Start at the desk when ready.' : 'Continue.',
+      detail: waiting ? 'Start when ready.' : 'Continue.',
       open: true,
     },
   ];

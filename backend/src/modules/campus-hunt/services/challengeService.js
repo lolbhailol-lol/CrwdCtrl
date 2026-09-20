@@ -149,18 +149,27 @@ function scoringForChallenge(event, challengeNumber) {
   const custom = raw?.toObject?.() || raw || {};
   const merged = { ...defaults, ...custom };
 
-  // Clue 2 / Clue 4 (Field Terminal): keep Round 1 shape, but honor event scoringConfig overrides.
-  if (Number(challengeNumber) === 2 || Number(challengeNumber) === 4) {
+  // Clue 4 Field Terminal: never a hunt countdown (Zip Grid is the play).
+  if (Number(challengeNumber) === 4) {
+    merged.timerSeconds = 0;
+    merged.timerStartDelaySeconds = 0;
+    merged.awardMode = 'flat_base';
+    merged.basePoints = Number(merged.basePoints) > 0 ? Number(merged.basePoints) : 50;
+    merged.allowLateSubmit = true;
+    merged.speedBonusBands = [];
+  }
+
+  // Clue 2: keep Round 1 timer shape, honor event scoringConfig overrides.
+  if (Number(challengeNumber) === 2) {
     const timer = Number(merged.timerSeconds);
     merged.timerSeconds = Number.isFinite(timer) && timer > 0
       ? timer
       : (Number(defaults.timerSeconds) || 180);
 
     const delay = Number(merged.timerStartDelaySeconds);
-    const defaultDelay = Number(challengeNumber) === 4 ? 15 : 20;
     merged.timerStartDelaySeconds = Number.isFinite(delay) && delay >= 0
       ? delay
-      : (Number(defaults.timerStartDelaySeconds) || defaultDelay);
+      : (Number(defaults.timerStartDelaySeconds) || 20);
 
     merged.awardMode = merged.awardMode || defaults.awardMode || 'time_bands_total';
     merged.allowLateSubmit = merged.allowLateSubmit !== false;
@@ -187,19 +196,20 @@ async function ensureChallengeActive(team, challengeNumber, now = new Date()) {
 
   const event = await CampusHuntEvent.findById(team.eventId);
   const scoring = scoringForChallenge(event, challengeNumber);
-  // Prefer event scoring config so Clue 2/4 timer/delay updates apply without re-saving each route clue.
-  const timerSeconds = Number(challengeNumber) === 2 || Number(challengeNumber) === 4
-    ? Number(scoring.timerSeconds || challenge.timerSeconds || 180)
-    : Number(challengeNumber) === 5
-      ? Number(scoring.timerSeconds || challenge.timerSeconds || 300)
-      : Number(challengeNumber) === 6
-        ? 0
-        : Number(challenge.timerSeconds || scoring.timerSeconds || 0);
+  // Clue 4 Field Terminal: no hunt countdown — Zip Grid itself is the play.
+  // Clue 2 keeps instruction delay + hunt timer.
+  const timerSeconds = Number(challengeNumber) === 4
+    ? 0
+    : Number(challengeNumber) === 2
+      ? Number(scoring.timerSeconds || challenge.timerSeconds || 180)
+      : Number(challengeNumber) === 5
+        ? Number(scoring.timerSeconds || challenge.timerSeconds || 300)
+        : Number(challengeNumber) === 6
+          ? 0
+          : Number(challenge.timerSeconds || scoring.timerSeconds || 0);
   const delaySeconds = Number(challengeNumber) === 2
     ? Number(scoring.timerStartDelaySeconds ?? 20)
-    : Number(challengeNumber) === 4
-      ? Number(scoring.timerStartDelaySeconds ?? 15)
-      : 0;
+    : 0;
 
   let progress = await getOrCreateProgress(team, challenge);
 
@@ -220,13 +230,19 @@ async function ensureChallengeActive(team, challengeNumber, now = new Date()) {
       { new: true },
     );
     progress = updated || (await CampusHuntTeamProgress.findById(progress._id));
+  } else if (Number(challengeNumber) === 4 && progress.expiresAt) {
+    // Drop legacy Field Terminal hunt timers from older configs.
+    progress = await CampusHuntTeamProgress.findOneAndUpdate(
+      { _id: progress._id, state: 'ACTIVE' },
+      { $set: { expiresAt: null }, $unset: { failureReason: 1 } },
+      { new: true },
+    ) || progress;
   }
 
-  // Round 1 Field Terminal — ensure Zip Grid session so phone can show link + device key
+  // Round 1 Field Terminal — Zip Grid session (long window; no hunt timer)
   if (Number(challengeNumber) === 4 && progress?.state === 'ACTIVE') {
     try {
-      const timerMin = Math.max(15, Math.ceil((Number(timerSeconds) || 180) / 60) + 15);
-      await ensureRound1FieldTerminalGrid(team, { durationMinutes: timerMin });
+      await ensureRound1FieldTerminalGrid(team, { durationMinutes: 90 });
     } catch (_) {
       /* grid is best-effort — answer path still works with static GRID codes */
     }
@@ -310,7 +326,7 @@ function publicChallengeView(challenge, progress, {
     || progress?.failureReason === 'REVEALED_ZERO_POINTS'
     || (
       progress?.failureReason === 'TIMEOUT'
-      && [2, 4, 5].includes(Number(n))
+      && [2, 5].includes(Number(n))
     ),
   );
 
@@ -322,7 +338,7 @@ function publicChallengeView(challenge, progress, {
   const expiresAt = progress?.expiresAt || null;
   const nowMs = nowDate(now).getTime();
   const timerArmed = !startedAt || nowMs >= new Date(startedAt).getTime();
-  const instructionPhase = (n === 2 || n === 4)
+  const instructionPhase = n === 2
     && progress?.state === 'ACTIVE'
     && Boolean(startedAt)
     && !timerArmed;
@@ -331,7 +347,8 @@ function publicChallengeView(challenge, progress, {
     expiresAt
     && timerArmed
     && isExpired(expiresAt, now)
-    && progress.state === 'ACTIVE',
+    && progress.state === 'ACTIVE'
+    && n !== 4,
   );
 
   return {
@@ -347,9 +364,9 @@ function publicChallengeView(challenge, progress, {
         || (n === 1
           ? 'Go to the location. Leader scans the shared orange QR once.'
           : n === 5
-            ? 'Go to your 5th campus stop. Leader scans the red FIFTH SCAN QR once, then enters your team code.'
+            ? 'Go to your 5th campus stop. Leader scans the red FIFTH SCAN QR once.'
             : n === 6
-              ? 'Go to Finale Assembly and check in with the organizer (or lock score on offline Hunt).'
+              ? 'Go to MindSpark Lobby and enter the organizer finish code.'
               : ''))
       : undefined,
     // Answer strings only after timer/attempt reveal (0 pts) — never on active timed clues
@@ -369,15 +386,15 @@ function publicChallengeView(challenge, progress, {
     // Hints are leader-only (anti-leak for players on shared phones / wrong role)
     hintText: includeHint && isLeader && progress?.hintUsed ? (hintText || null) : undefined,
     startedAt,
-    expiresAt,
-    timerStartsAt: startedAt,
+    expiresAt: n === 4 ? null : expiresAt,
+    timerStartsAt: n === 2 ? startedAt : null,
     instructionPhase,
-    timerArmed,
-    timerSeconds: (n === 2 || n === 4)
+    timerArmed: n === 4 ? true : timerArmed,
+    timerSeconds: n === 2
       ? (scoring?.timerSeconds || 180)
       : undefined,
-    instructionDelaySeconds: (n === 2 || n === 4)
-      ? (scoring?.timerStartDelaySeconds ?? (n === 2 ? 20 : 15))
+    instructionDelaySeconds: n === 2
+      ? (scoring?.timerStartDelaySeconds ?? 20)
       : undefined,
     awardedPoints: progress?.awardedPoints ?? null,
     failureReason: progress?.failureReason || null,
@@ -385,9 +402,10 @@ function publicChallengeView(challenge, progress, {
     allowLateSubmit: Boolean(
       scoring?.allowLateSubmit
       || n === 2
-      || n === 4,
+      || n === 4
+      || n === 5,
     ),
-    scoringBands: (n === 2 || n === 4) && state === 'ACTIVE'
+    scoringBands: n === 2 && state === 'ACTIVE'
       ? (scoring?.speedBonusBands || null)
       : undefined,
     locked: false,
@@ -515,9 +533,9 @@ async function submitAnswer({
     throw err;
   }
 
-  // Clue 2 / Clue 4: block answers during the instruction read delay
+  // Clue 2: block answers during the instruction read delay
   if (
-    (Number(challengeNumber) === 2 || Number(challengeNumber) === 4)
+    Number(challengeNumber) === 2
     && progress.startedAt
     && nowDate(now).getTime() < new Date(progress.startedAt).getTime()
   ) {
@@ -525,9 +543,7 @@ async function submitAnswer({
       (new Date(progress.startedAt).getTime() - nowDate(now).getTime()) / 1000,
     );
     const err = new Error(
-      Number(challengeNumber) === 4
-        ? `Read the brief first — the Field Terminal timer starts in ${secs}s`
-        : `Read the instructions first — the 3-minute timer starts in ${secs}s`,
+      `Read the instructions first — the 3-minute timer starts in ${secs}s`,
     );
     err.status = 409;
     err.code = 'TIMER_NOT_STARTED';
@@ -853,25 +869,22 @@ async function submitAnswer({
   const nextInstruction = Number(challengeNumber) === 2
     ? (
       challenge.destinationInstruction
-      || 'Go to your next location now. Find the shared green SECOND SCAN QR. '
-        + 'Leader scans once, then enters your team code to unlock Clue 3.'
+      || 'Go to your next stop. Leader scans the green SECOND SCAN QR once.'
     )
     : Number(challengeNumber) === 3
       ? (
         challenge.destinationInstruction
-        || 'Lockbox open — go find the shared blue THIRD SCAN QR. '
-          + 'Leader scans once, then enters your team code to unlock Field Terminal.'
+        || 'Lockbox open — find the blue THIRD SCAN QR. Leader scans once.'
       )
     : Number(challengeNumber) === 4
       ? (
         challenge.destinationInstruction
-        || 'Terminal cleared — scan the shared purple FOURTH SCAN QR here. '
-          + 'Leader scans once, then enters your team code to unlock Clue 5.'
+        || 'Terminal cleared — scan the purple FOURTH SCAN QR. Leader scans once.'
       )
     : Number(challengeNumber) === 5
       ? (
         challenge.destinationInstruction
-        || 'Go to your 5th campus stop — scan the FIFTH SCAN QR, then team code → destination clue.'
+        || 'Go to your 5th stop — scan the red FIFTH SCAN QR once, then MindSpark Lobby.'
       )
     : Number(challengeNumber) === 6
       ? (
@@ -1039,8 +1052,12 @@ async function revealTimedChallengeAfterExpiry({
     throw err;
   }
   const n = Number(challengeNumber);
-  if (![2, 4, 5].includes(n)) {
-    const err = new Error('This clue does not use a reveal-on-timeout timer');
+  if (![2, 5].includes(n)) {
+    const err = new Error(
+      n === 4
+        ? 'Field Terminal has no hunt timer — play Zip Grid and submit GRID-XXXX'
+        : 'This clue does not use a reveal-on-timeout timer',
+    );
     err.status = 400;
     err.code = 'NOT_TIMED_REVEAL';
     throw err;
@@ -1447,13 +1464,14 @@ async function buildPlayerProgress(team, userId, isLeader) {
   const byNumber2 = new Map(refreshed.map((p) => [p.challengeNumber, p]));
   const eventForTimeout = await CampusHuntEvent.findById(team.eventId).select('scoringConfig');
 
-  // Auto-reveal timed clues 2/4/5; auto-timeout others without late submit.
+  // Auto-reveal timed clues 2/5; Field Terminal (4) has no hunt timer.
   for (const ch of challenges) {
     const p = byNumber2.get(ch.challengeNumber);
     const scoringRow = scoringForChallenge(eventForTimeout, ch.challengeNumber);
     const n = ch.challengeNumber;
+    if (n === 4) continue;
     if (
-      (n === 2 || n === 4 || n === 5)
+      (n === 2 || n === 5)
       && p?.state === 'ACTIVE'
       && p.expiresAt
       && isExpired(p.expiresAt, now)
@@ -1463,7 +1481,7 @@ async function buildPlayerProgress(team, userId, isLeader) {
       await finalizeTimerReveal({ team, challenge: ch, progress: p, now });
       continue;
     }
-    if (scoringRow.allowLateSubmit || n === 2 || n === 4 || n === 5) {
+    if (scoringRow.allowLateSubmit || n === 2 || n === 5) {
       continue;
     }
     if (
@@ -1552,10 +1570,7 @@ async function buildPlayerProgress(team, userId, isLeader) {
       try {
         // eslint-disable-next-line no-await-in-loop
         const gridSession = await ensureRound1FieldTerminalGrid(teamFresh, {
-          durationMinutes: Math.max(
-            15,
-            Math.ceil((Number(scoring?.timerSeconds) || 180) / 60) + 15,
-          ),
+          durationMinutes: 90,
         });
         view.gridAccessCode = gridSession.accessCode;
         view.gridGameUrl = '/campus-hunt/grid';

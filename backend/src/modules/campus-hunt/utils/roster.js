@@ -86,8 +86,34 @@ function hasDistinctVerifiedRoster(verifiedIds, rosterIds, required = 4) {
   return verified.length >= required;
 }
 
-/** True when team has provisioned hunt accounts for the required team size. */
+/** True when team has a shareable offline/login password set. */
+function isTeamPasswordReady(team) {
+  const pack = team?.accessPack || {};
+  const leader = pack.leader || {};
+  return Boolean(
+    pack.encryptedTeamPassword
+    || pack.encryptedSharedScannerPassword
+    || leader.encryptedPassword
+    || leader.password
+  );
+}
+
+/**
+ * True when team is ready for Round 1 play / offline pack.
+ * Leader-only mode: password is enough (no full Firebase roster of scanners).
+ */
 function isTeamRosterReady(team, teamSize = 4) {
+  let leaderOnly = false;
+  try {
+    ({ LEADER_ONLY_PHONE: leaderOnly } = require('../constants'));
+  } catch {
+    leaderOnly = false;
+  }
+
+  if (leaderOnly) {
+    return isTeamPasswordReady(team);
+  }
+
   const size = Math.max(2, Math.min(12, Number(teamSize) || 4));
   const membersNeeded = size - 1;
   return Boolean(
@@ -96,7 +122,8 @@ function isTeamRosterReady(team, teamSize = 4) {
     && team.memberUserIds.length === membersNeeded
     && team.accessPack?.leader?.loginEmail
     && Array.isArray(team.accessPack?.scanners)
-    && team.accessPack.scanners.length === membersNeeded,
+    && team.accessPack.scanners.length === membersNeeded
+    && isTeamPasswordReady(team),
   );
 }
 
@@ -106,5 +133,6 @@ module.exports = {
   uniqueRosterFromTeam,
   assertOnlineRosterReady,
   hasDistinctVerifiedRoster,
+  isTeamPasswordReady,
   isTeamRosterReady,
 };

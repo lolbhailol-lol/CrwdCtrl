@@ -92,8 +92,11 @@ export function buildPlayerNowGuide({
     return {
       tone: 'scan',
       eyebrow: `${color} QR`,
-      title: `Scan at ${place}`,
-      body: `Leader scans the ${color} poster once.`,
+      title: place && place !== 'the campus spot'
+        ? `Scan at ${place}`
+        : `Scan ${color}`,
+      body: checkpointStatus?.publicInstruction
+        || `Leader scans the ${color} poster once — next clue unlocks.`,
       steps: [],
     };
   }
@@ -149,29 +152,11 @@ export function buildPlayerNowGuide({
   }
 
   if (activeNum === 4) {
-    if (activeChallenge?.instructionPhase) {
-      return {
-        tone: 'clue',
-        eyebrow: 'Clue 4',
-        title: 'Read the brief',
-        body: 'Timer starts at zero — then open Zip Grid on a laptop.',
-        steps: [],
-      };
-    }
-    if (activeChallenge?.revealedAnswer || activeChallenge?.timeExpired) {
-      return {
-        tone: 'clue',
-        eyebrow: 'Clue 4',
-        title: 'Type the GRID code',
-        body: '0 pts — type GRID-XXXX, then scan purple.',
-        steps: [],
-      };
-    }
     return {
       tone: 'clue',
       eyebrow: 'Clue 4 · Field Terminal',
       title: 'Clear Zip Grid',
-      body: 'Laptop: open the link + device key. Then type GRID-XXXX here.',
+      body: 'No hunt timer — play Zip Grid on a laptop, then type GRID-XXXX here (50 pts).',
       steps: [],
     };
   }

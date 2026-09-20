@@ -42,8 +42,8 @@ const OFFLINE_CLUE_HOW_TO = {
   4: {
     title: 'How to play — Field Terminal',
     steps: [
-      'At the stop: find the terminal card / GRID code (or clear Zip Grid on a laptop).',
-      'Leader types GRID-XXXX → scan purple QR → team code → Clue 5.',
+      'Open Zip Grid on a laptop — no hunt timer; play until you finish.',
+      'Leader types GRID-XXXX → scan purple QR once → Clue 5.',
     ],
   },
   5: {

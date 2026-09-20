@@ -88,7 +88,7 @@ const campusHuntEventSchema = new mongoose.Schema(
     startingScore: { type: Number, default: 100 },
     /** When true, college appears in Profile → Campus Hunt leaderboard */
     publicLeaderboardLive: { type: Boolean, default: false, index: true },
-    /** When true, Profile shows Campus Hunt login (Google session required) */
+    /** When true, Profile / enter page shows Campus Hunt login (no Google required) */
     publicLoginLive: { type: Boolean, default: false, index: true },
     /** When true, finale leaderboard visible while finale round is live */
     publicFinaleLeaderboardLive: { type: Boolean, default: false, index: true },

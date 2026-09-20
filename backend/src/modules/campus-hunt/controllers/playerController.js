@@ -36,16 +36,19 @@ async function getStatus(req, res) {
 }
 
 /**
- * Public: colleges with events marked live for Profile leaderboard only.
+ * Public: colleges with events marked live for hunt login and/or leaderboard.
  * Does not advertise Campus Hunt on the main website.
  */
 async function listColleges(req, res, next) {
   try {
     const events = await CampusHuntEvent.find({
-      publicLeaderboardLive: true,
       status: { $nin: ['draft'] },
+      $or: [
+        { publicLeaderboardLive: true },
+        { publicLoginLive: true },
+      ],
     })
-      .select('name college slug status date teamCapacity publicLeaderboardLive')
+      .select('name college slug status date teamCapacity publicLeaderboardLive publicLoginLive')
       .sort({ college: 1, date: -1 })
       .lean();
 
@@ -65,6 +68,8 @@ async function listColleges(req, res, next) {
         status: ev.status,
         date: ev.date,
         teamCapacity: ev.teamCapacity,
+        loginLive: Boolean(ev.publicLoginLive),
+        leaderboardLive: Boolean(ev.publicLeaderboardLive),
       });
     }
 

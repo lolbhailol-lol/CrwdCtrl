@@ -1,85 +1,71 @@
-import { useEffect, useState } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../../context/AuthContext';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { CAMPUS_HUNT_PATHS } from '../config';
 import { normalizeTeamCode } from '../utils/teamCode';
-import {
-  loadCampusHuntProfileEntries,
-  peekCampusHuntProfileCache,
-} from '../utils/campusHuntProfileCache';
+import { fetchCampusHuntColleges } from '../services/campusHunt.api';
 import CampusHuntBackLink from '../components/CampusHuntBackLink';
 
 /**
- * Profile → Campus Hunt login hub.
- * Requires CrwdCtrl Google session (same pattern as Runs / Treks).
- * Then pick an event + team code → team password screen.
+ * Public Campus Hunt login hub — no Google required.
+ * Pick college → team code → team password screen.
  */
 export default function CampusHuntEnterPage() {
   const navigate = useNavigate();
-  const { isAuthenticated, isLoading: authLoading, user } = useAuth();
-  const identity = isAuthenticated
-    ? String(user?.uid || user?.id || user?.email || '').toLowerCase()
-    : '';
-  const cacheKey = isAuthenticated && identity ? `u:${identity}` : 'guest';
-  const cached = peekCampusHuntProfileCache();
-  const cachedLogin = cached?.key === cacheKey && Array.isArray(cached.login)
-    ? cached.login
-    : null;
 
-  const [events, setEvents] = useState(() => cachedLogin || []);
-  const [slug, setSlug] = useState(() => cachedLogin?.[0]?.slug || '');
+  const [colleges, setColleges] = useState([]);
+  const [college, setCollege] = useState('');
+  const [eventSlug, setEventSlug] = useState('');
   const [teamCode, setTeamCode] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(!cachedLogin);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const next = await loadCampusHuntProfileEntries(cacheKey);
+        const res = await fetchCampusHuntColleges();
         if (cancelled) return;
-        const list = next.login || [];
-        setEvents(list);
-        setSlug((prev) => prev || list[0]?.slug || '');
+        const list = (res.data?.colleges || []).filter((c) =>
+          (c.events || []).some((ev) => ev.loginLive === true),
+        );
+        setColleges(list);
+        const first = list[0];
+        setCollege(first?.college || '');
+        const firstEv = first?.events?.find((ev) => ev.loginLive === true) || first?.events?.[0];
+        setEventSlug(firstEv?.slug || '');
       } catch (err) {
-        if (!cancelled && !cachedLogin) setError(err.message || 'Could not load events');
+        if (!cancelled) setError(err.message || 'Could not load colleges');
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
     return () => { cancelled = true; };
-  }, [cacheKey]);
+  }, []);
 
-  if (authLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0b0c0d] text-white/60">
-        Checking Google sign-in…
-      </div>
-    );
-  }
+  const events = useMemo(() => {
+    const row = colleges.find((c) => c.college === college);
+    return (row?.events || []).filter((ev) => ev.loginLive === true);
+  }, [colleges, college]);
 
-  if (!isAuthenticated) {
-    return (
-      <Navigate
-        to="/login"
-        replace
-        state={{ from: { pathname: CAMPUS_HUNT_PATHS.profileLogin } }}
-      />
-    );
-  }
+  const onCollegeChange = (value) => {
+    setCollege(value);
+    const evs = (colleges.find((c) => c.college === value)?.events || [])
+      .filter((ev) => ev.loginLive === true);
+    setEventSlug(evs[0]?.slug || '');
+  };
 
   const onContinue = (e) => {
     e.preventDefault();
     const code = normalizeTeamCode(teamCode);
-    if (!slug) {
-      setError('Pick your college event');
+    if (!eventSlug) {
+      setError('Pick your college');
       return;
     }
     if (!code) {
       setError('Enter your team code (e.g. CC001)');
       return;
     }
-    navigate(CAMPUS_HUNT_PATHS.teamLogin(slug, code));
+    navigate(CAMPUS_HUNT_PATHS.teamLogin(eventSlug, code));
   };
 
   return (
@@ -90,35 +76,52 @@ export default function CampusHuntEnterPage() {
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#0ECCEE]">
             Campus Hunt
           </p>
-          <h1 className="mt-2 text-3xl font-black uppercase tracking-tight">Enter hunt</h1>
+          <h1 className="mt-2 text-3xl font-black uppercase tracking-tight">Hunt login</h1>
           <p className="mt-2 text-sm text-white/55">
-            You&apos;re signed in with Google. Choose your event and team code to continue.
+            Choose your college and enter your team code. No Google sign-in needed.
           </p>
         </header>
 
-        {loading && events.length === 0 ? (
-          <p className="text-center text-white/50">Loading events…</p>
-        ) : !events.length ? (
+        {loading && colleges.length === 0 ? (
+          <p className="text-center text-white/50">Loading colleges…</p>
+        ) : !colleges.length ? (
           <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-center text-sm text-white/60">
-            No Campus Hunt login is live on Profile yet.
+            No Campus Hunt login is live yet.
             <p className="mt-2 text-xs text-white/40">Ask an organizer to enable “Login on Profile”.</p>
           </div>
         ) : (
           <form onSubmit={onContinue} className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-5">
             <label className="block text-xs uppercase tracking-wide text-white/50">
-              Event
+              College
               <select
-                value={slug}
-                onChange={(e) => setSlug(e.target.value)}
+                value={college}
+                onChange={(e) => onCollegeChange(e.target.value)}
                 className="mt-2 w-full rounded-xl border border-white/15 bg-black/40 px-3 py-3 text-sm text-white outline-none focus:border-[#0ECCEE]"
               >
-                {events.map((ev) => (
-                  <option key={ev.id || ev.slug} value={ev.slug}>
-                    {ev.college} · {ev.name}
+                {colleges.map((c) => (
+                  <option key={c.college} value={c.college}>
+                    {c.college}
                   </option>
                 ))}
               </select>
             </label>
+
+            {events.length > 1 && (
+              <label className="block text-xs uppercase tracking-wide text-white/50">
+                Event
+                <select
+                  value={eventSlug}
+                  onChange={(e) => setEventSlug(e.target.value)}
+                  className="mt-2 w-full rounded-xl border border-white/15 bg-black/40 px-3 py-3 text-sm text-white outline-none focus:border-[#0ECCEE]"
+                >
+                  {events.map((ev) => (
+                    <option key={ev.id || ev.slug} value={ev.slug}>
+                      {ev.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
 
             <label className="block text-xs uppercase tracking-wide text-white/50">
               Team code

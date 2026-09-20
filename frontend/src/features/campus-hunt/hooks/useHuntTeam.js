@@ -37,7 +37,7 @@ function activeTimedClue(data) {
   const match = stage.match(/^CLUE_(\d)_ACTIVE$/);
   if (!match) return null;
   const n = Number(match[1]);
-  if (![2, 4, 5].includes(n)) return null;
+  if (![2, 5].includes(n)) return null;
   const ch = (data?.challenges || []).find((c) => Number(c.challengeNumber) === n);
   if (!ch?.expiresAt || ch.instructionPhase) return null;
   return ch;

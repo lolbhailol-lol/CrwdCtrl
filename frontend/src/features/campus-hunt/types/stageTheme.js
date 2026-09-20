@@ -141,7 +141,9 @@ export function themeForProgressStepId(stepId) {
   if (stepId === 'clue3') return STAGE_THEMES.clue3;
   if (stepId === 'clue4') return STAGE_THEMES.clue4;
   if (stepId === 'final' || stepId === 'clue5') return STAGE_THEMES.final;
-  if (stepId === 'destination' || stepId === 'clue6') return STAGE_THEMES.destination;
+  if (stepId === 'finish' || stepId === 'destination' || stepId === 'clue6' || stepId === 'done') {
+    return STAGE_THEMES.destination;
+  }
   return null;
 }
 

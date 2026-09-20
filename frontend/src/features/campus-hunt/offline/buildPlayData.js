@@ -34,8 +34,8 @@ const HOW_TO = {
   4: {
     title: 'How to play — Field Terminal',
     steps: [
-      'After the countdown: open Zip Grid on a laptop (online) or use the printed GRID-XXXX card.',
-      'Leader types GRID-XXXX → scan purple QR once → team code → Clue 5.',
+      'Open Zip Grid on a laptop — no hunt timer; play until you finish.',
+      'Leader types GRID-XXXX (50 pts) → scan purple once → Clue 5.',
     ],
   },
   5: {
@@ -111,7 +111,7 @@ function challengeView(bundle, state, session, n, now) {
   const startedAt = row.startedAt || null;
   const expiresAt = row.expiresAt || null;
   const timerArmed = !startedAt || now.getTime() >= new Date(startedAt).getTime();
-  const instructionPhase = (n === 2 || n === 4)
+  const instructionPhase = n === 2
     && row.state === 'ACTIVE'
     && Boolean(startedAt)
     && !timerArmed;
@@ -138,19 +138,25 @@ function challengeView(bundle, state, session, n, now) {
     hintUsed: Boolean(row.hintUsed),
     hintText: isLeader && row.hintUsed ? (clue.hintText || '') : undefined,
     startedAt,
-    expiresAt,
-    timerStartsAt: startedAt,
+    expiresAt: n === 4 ? null : expiresAt,
+    timerStartsAt: n === 2 ? startedAt : null,
     instructionPhase,
-    timerArmed,
-    timerSeconds: (n === 2 || n === 4) ? (cfg.timerSeconds || 180) : undefined,
-    instructionDelaySeconds: (n === 2 || n === 4)
-      ? (cfg.timerStartDelaySeconds ?? (n === 2 ? 20 : 15))
+    timerArmed: n === 4 ? true : timerArmed,
+    timerSeconds: n === 2 ? (cfg.timerSeconds || 180) : undefined,
+    instructionDelaySeconds: n === 2
+      ? (cfg.timerStartDelaySeconds ?? 20)
       : undefined,
     awardedPoints: row.awardedPoints ?? null,
     failureReason: row.failureReason || null,
-    timeExpired: Boolean(expiresAt && timerArmed && isExpired(expiresAt, now) && row.state === 'ACTIVE'),
+    timeExpired: Boolean(
+      n !== 4
+      && expiresAt
+      && timerArmed
+      && isExpired(expiresAt, now)
+      && row.state === 'ACTIVE',
+    ),
     allowLateSubmit: Boolean(cfg.allowLateSubmit || n === 2 || n === 4 || n === 5),
-    scoringBands: (n === 2 || n === 4) && row.state === 'ACTIVE' ? (cfg.speedBonusBands || null) : undefined,
+    scoringBands: n === 2 && row.state === 'ACTIVE' ? (cfg.speedBonusBands || null) : undefined,
     locked: false,
   };
 }
@@ -195,7 +201,7 @@ function checkpointStatus(bundle, state, session, _now) {
     posterLabel: { scanKind, sharedStation: true },
     publicInstruction: joinWordOk
       ? (expected?.publicInstruction
-        || 'Scan the place QR once, then enter your team code.')
+        || `At ${expected?.locationName || 'this stop'}, leader scans the ${scanKind} QR once.`)
       : `Find ${plantCount} clues written nearby. Join them into one word and type it — then scan.`,
     plantFragmentCount: plantCount,
     joinedWordHint: needJoin && !joinWordOk

@@ -36,17 +36,13 @@ export const DEFAULT_SCORING_CONFIG = {
     speedBonusBands: [],
   },
   clue4: {
-    basePoints: 0,
+    basePoints: 50,
     maxAttempts: 3,
-    timerSeconds: 180,
-    timerStartDelaySeconds: 15,
-    awardMode: 'time_bands_total',
+    timerSeconds: 0,
+    timerStartDelaySeconds: 0,
+    awardMode: 'flat_base',
     allowLateSubmit: true,
-    speedBonusBands: [
-      { maxSeconds: 60, bonus: 50 },
-      { maxSeconds: 120, bonus: 30 },
-      { maxSeconds: 180, bonus: 10 },
-    ],
+    speedBonusBands: [],
   },
   clue5: {
     basePoints: 50,
@@ -79,16 +75,23 @@ export function scoringForChallenge(event, challengeNumber) {
   const cfg = event?.scoringConfig || DEFAULT_SCORING_CONFIG;
   const custom = cfg[`clue${challengeNumber}`] || {};
   const merged = { ...defaults, ...custom };
-  if (Number(challengeNumber) === 2 || Number(challengeNumber) === 4) {
+  if (Number(challengeNumber) === 4) {
+    merged.timerSeconds = 0;
+    merged.timerStartDelaySeconds = 0;
+    merged.awardMode = 'flat_base';
+    merged.basePoints = Number(merged.basePoints) > 0 ? Number(merged.basePoints) : 50;
+    merged.allowLateSubmit = true;
+    merged.speedBonusBands = [];
+  }
+  if (Number(challengeNumber) === 2) {
     const timer = Number(merged.timerSeconds);
     merged.timerSeconds = Number.isFinite(timer) && timer > 0
       ? timer
       : (Number(defaults.timerSeconds) || 180);
     const delay = Number(merged.timerStartDelaySeconds);
-    const defaultDelay = Number(challengeNumber) === 4 ? 15 : 20;
     merged.timerStartDelaySeconds = Number.isFinite(delay) && delay >= 0
       ? delay
-      : (Number(defaults.timerStartDelaySeconds) || defaultDelay);
+      : (Number(defaults.timerStartDelaySeconds) || 20);
     merged.awardMode = merged.awardMode || defaults.awardMode || 'time_bands_total';
     merged.allowLateSubmit = merged.allowLateSubmit !== false;
     merged.speedBonusBands = Array.isArray(merged.speedBonusBands) && merged.speedBonusBands.length

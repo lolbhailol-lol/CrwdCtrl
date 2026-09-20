@@ -1,34 +1,34 @@
 export const STAGE_LABELS = {
   WAITING: 'Waiting to start',
   CLUE_1_ACTIVE: 'Clue 1',
-  CLUE_1_COMPLETED: 'Leader scans Orange shared QR once',
+  CLUE_1_COMPLETED: 'Scan Orange',
   CHECKPOINT_1_COMPLETED: 'Checkpoint 1 done',
   CLUE_2_ACTIVE: 'Clue 2',
-  CLUE_2_COMPLETED: 'Go scan green SECOND SCAN',
-  CLUE_2_FAILED: 'Go scan green SECOND SCAN',
-  CLUE_2_TIMEOUT: 'Go scan green SECOND SCAN',
+  CLUE_2_COMPLETED: 'Scan Green',
+  CLUE_2_FAILED: 'Scan Green',
+  CLUE_2_TIMEOUT: 'Scan Green',
   CHECKPOINT_2_COMPLETED: 'Clue 3 unlocking…',
   CLUE_3_ACTIVE: 'Clue 3 — Lockbox',
-  CLUE_3_COMPLETED: 'Find blue shared QR & scan',
-  CLUE_3_FAILED: 'Find blue shared QR & scan',
+  CLUE_3_COMPLETED: 'Scan Blue',
+  CLUE_3_FAILED: 'Scan Blue',
   CHECKPOINT_3_COMPLETED: 'Field Terminal unlocking…',
   CLUE_4_ACTIVE: 'Clue 4 — Field Terminal',
-  CLUE_4_COMPLETED: 'Find purple shared QR & scan',
-  CLUE_4_FAILED: 'Find purple shared QR & scan',
-  CLUE_4_TIMEOUT: 'Find purple shared QR & scan',
+  CLUE_4_COMPLETED: 'Scan Purple',
+  CLUE_4_FAILED: 'Scan Purple',
+  CLUE_4_TIMEOUT: 'Scan Purple',
   CHECKPOINT_4_COMPLETED: 'Clue 5 unlocking…',
-  CLUE_5_ACTIVE: 'Clue 5 — combine codes',
-  CLUE_5_COMPLETED: 'Leader scans red FIFTH SCAN QR once',
-  CLUE_5_FAILED: 'Leader scans red FIFTH SCAN QR once',
-  CHECKPOINT_5_COMPLETED: 'Clue 6 unlocking…',
-  CLUE_6_ACTIVE: 'Clue 6 — MindSpark Lobby',
-  CLUE_6_COMPLETED: 'MindSpark Lobby — finish code',
-  CLUE_6_FAILED: 'MindSpark Lobby — finish code',
+  CLUE_5_ACTIVE: 'Clue 5',
+  CLUE_5_COMPLETED: 'Scan Red',
+  CLUE_5_FAILED: 'Scan Red',
+  CHECKPOINT_5_COMPLETED: 'Finish unlocking…',
+  CLUE_6_ACTIVE: 'MindSpark Lobby',
+  CLUE_6_COMPLETED: 'Finish code',
+  CLUE_6_FAILED: 'Finish code',
   FINISH_COMPLETED: 'Finished',
   SCORE_LOCKED: 'Score locked',
 };
 
-/** Player dashboard progress steps (release → Clues 1–5 → Destination → Done). */
+/** Player progress: Start → clues 1–5 → Finish (lobby). No Dest/Desk step. */
 export const HUNT_PROGRESS_STEPS = [
   { id: 'start', label: 'Start', short: 'S' },
   { id: 'clue1', label: 'Clue 1', short: '1' },
@@ -36,13 +36,11 @@ export const HUNT_PROGRESS_STEPS = [
   { id: 'clue3', label: 'Clue 3', short: '3' },
   { id: 'clue4', label: 'Clue 4', short: '4' },
   { id: 'clue5', label: 'Clue 5', short: '5' },
-  { id: 'destination', label: 'Dest', short: 'D' },
-  { id: 'done', label: 'Finish', short: '✓' },
+  { id: 'finish', label: 'Finish', short: 'F' },
 ];
 
 /**
- * Map team stage → progress index (0–7) and status per step.
- * Index = current/highest unlocked step; earlier steps are complete.
+ * Map team stage → progress index (0–6) and status per step.
  */
 export function huntProgressFromStage(stage) {
   const s = String(stage || 'WAITING');
@@ -81,8 +79,9 @@ export function huntProgressFromStage(stage) {
     || s === 'CLUE_6_ACTIVE'
     || s === 'CLUE_6_COMPLETED'
     || s === 'CLUE_6_FAILED'
+    || s === 'FINISH_COMPLETED'
+    || s === 'SCORE_LOCKED'
   ) index = 6;
-  else if (s === 'FINISH_COMPLETED' || s === 'SCORE_LOCKED') index = 7;
   else index = 0;
 
   const steps = HUNT_PROGRESS_STEPS.map((step, i) => {
@@ -97,6 +96,10 @@ export function huntProgressFromStage(stage) {
         && i === 2
       ) status = 'done';
       else if (
+        ['CLUE_3_COMPLETED', 'CLUE_3_FAILED'].includes(s)
+        && i === 3
+      ) status = 'done';
+      else if (
         ['CLUE_4_COMPLETED', 'CLUE_4_FAILED', 'CLUE_4_TIMEOUT'].includes(s)
         && i === 4
       ) status = 'done';
@@ -104,29 +107,31 @@ export function huntProgressFromStage(stage) {
         ['CLUE_5_COMPLETED', 'CLUE_5_FAILED'].includes(s)
         && i === 5
       ) status = 'done';
+      else if (
+        ['CLUE_6_COMPLETED', 'CLUE_6_FAILED'].includes(s)
+        && i === 6
+      ) status = 'active';
       else status = 'active';
     }
     return { ...step, status };
   });
 
   let currentLabel = STAGE_LABELS[s] || s;
-  if (s === 'CLUE_1_COMPLETED') {
-    currentLabel = 'Leader scans Orange shared QR once · then enters team code';
-  }
+  if (s === 'CLUE_1_COMPLETED') currentLabel = 'Scan Orange once';
   if (['CLUE_2_COMPLETED', 'CLUE_2_FAILED', 'CLUE_2_TIMEOUT'].includes(s)) {
-    currentLabel = 'Leader scans green shared QR once · then team code → Clue 3';
+    currentLabel = 'Scan Green once';
   }
   if (['CLUE_3_COMPLETED', 'CLUE_3_FAILED'].includes(s)) {
-    currentLabel = 'Leader scans blue shared QR once · then team code → Field Terminal';
+    currentLabel = 'Scan Blue once';
   }
   if (['CLUE_4_COMPLETED', 'CLUE_4_FAILED', 'CLUE_4_TIMEOUT'].includes(s)) {
-    currentLabel = 'Leader scans purple shared QR once · then team code → Clue 5';
+    currentLabel = 'Scan Purple once';
   }
   if (['CLUE_5_COMPLETED', 'CLUE_5_FAILED'].includes(s)) {
-    currentLabel = 'Leader scans red FIFTH SCAN QR once · then team code → Clue 6';
+    currentLabel = 'Scan Red once · then Finish';
   }
-  if (['CLUE_6_COMPLETED', 'CLUE_6_FAILED'].includes(s)) {
-    currentLabel = 'Check in at Finale Assembly with the organizer';
+  if (['CLUE_6_ACTIVE', 'CLUE_6_COMPLETED', 'CLUE_6_FAILED'].includes(s)) {
+    currentLabel = 'MindSpark Lobby — finish code';
   }
 
   return { index, steps, currentLabel };

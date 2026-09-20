@@ -275,18 +275,26 @@ export function ensureClueActive(bundle, state, now = new Date()) {
   const row = next.clueProgress[n] || emptyClue();
   if (row.state === 'LOCKED' || !row.startedAt) {
     const cfg = scoring(bundle, n);
-    const timerSeconds = n === 2 || n === 4
-      ? Number(cfg.timerSeconds || 180)
-      : n === 5
-        ? Number(cfg.timerSeconds || 300)
-        : Number(cfg.timerSeconds || 0);
-    const delay = n === 2 ? Number(cfg.timerStartDelaySeconds ?? 20)
-      : n === 4 ? Number(cfg.timerStartDelaySeconds ?? 15)
-        : 0;
+    // Field Terminal (4): no hunt timer — Zip Grid is the play.
+    const timerSeconds = n === 4
+      ? 0
+      : n === 2
+        ? Number(cfg.timerSeconds || 180)
+        : n === 5
+          ? Number(cfg.timerSeconds || 300)
+          : Number(cfg.timerSeconds || 0);
+    const delay = n === 2 ? Number(cfg.timerStartDelaySeconds ?? 20) : 0;
     const window = buildWindow(timerSeconds, now, delay);
     row.state = 'ACTIVE';
     row.startedAt = window.startedAt;
     row.expiresAt = window.expiresAt;
+    next.clueProgress[n] = row;
+    bump(next);
+  } else if (n === 4 && row.expiresAt) {
+    row.expiresAt = null;
+    if (row.failureReason === 'TIMEOUT' || row.failureReason === 'REVEALED_ZERO_POINTS') {
+      row.failureReason = null;
+    }
     next.clueProgress[n] = row;
     bump(next);
   }
@@ -301,7 +309,7 @@ export function tickTimers(bundle, state, now = new Date()) {
   const row = next.clueProgress[n];
   if (!row || row.state !== 'ACTIVE' || !row.expiresAt) return next;
   if (now.getTime() < new Date(row.expiresAt).getTime()) return next;
-  if (![2, 4, 5].includes(n)) return next;
+  if (![2, 5].includes(n)) return next;
   // Soft-reveal: show answer at 0 pts, stay ACTIVE so leader can type it
   if (row.failureReason === 'REVEALED_ZERO_POINTS') return next;
   row.failureReason = 'REVEALED_ZERO_POINTS';
@@ -334,7 +342,7 @@ export function submitAnswer(bundle, session, state, challengeNumber, answer, no
   if (['COMPLETED', 'FAILED', 'TIMED_OUT'].includes(row.state)) {
     throw huntError('Challenge already resolved', 409, 'ALREADY_RESOLVED');
   }
-  if ((n === 2 || n === 4) && row.startedAt && now.getTime() < new Date(row.startedAt).getTime()) {
+  if (n === 2 && row.startedAt && now.getTime() < new Date(row.startedAt).getTime()) {
     const secs = Math.ceil((new Date(row.startedAt).getTime() - now.getTime()) / 1000);
     throw huntError(`Read the instructions first — timer starts in ${secs}s`, 409, 'TIMER_NOT_STARTED');
   }
@@ -466,7 +474,7 @@ export function requestHint(bundle, session, state, challengeNumber, now = new D
   if (row.hintUsed) {
     return { state: next, meta: { hint: clue?.hintText || '', alreadyUsed: true } };
   }
-  if ((n === 2 || n === 4) && row.startedAt && now.getTime() < new Date(row.startedAt).getTime()) {
+  if (n === 2 && row.startedAt && now.getTime() < new Date(row.startedAt).getTime()) {
     throw huntError('Hints unlock when the hunt timer starts', 409, 'TIMER_NOT_STARTED');
   }
   const cost = Number(clue?.hintCost ?? scoring(bundle, n).hintCost) || 15;
@@ -631,11 +639,14 @@ export function scanStation(bundle, session, state, raw, now = new Date()) {
   const next = tickTimers(bundle, state, now);
   const key = pendingCheckpointKey(next.currentStage);
   if (!key) {
-    throw huntError('No station scan needed right now', 409, 'WRONG_STAGE');
+    if (/CLUE_\d_ACTIVE/.test(String(next.currentStage || ''))) {
+      throw huntError('Type your clue answer first — then scan the poster', 409, 'WRONG_STAGE');
+    }
+    throw huntError('No station scan needed right now — follow the instruction on your phone', 409, 'WRONG_STAGE');
   }
   const allowed = CHECKPOINT_UNLOCK[key] || [];
   if (!allowed.includes(next.currentStage)) {
-    throw huntError('Wrong stage for this poster', 409, 'WRONG_STAGE');
+    throw huntError('Wrong stage for this poster — finish the current clue first', 409, 'WRONG_STAGE');
   }
   const expected = checkpointForKey(bundle, key);
   const needJoin = Boolean(String(expected?.joinedWord || '').trim());

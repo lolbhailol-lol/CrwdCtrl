@@ -279,21 +279,12 @@ export default function ProfileSidebar({
             (t) => label === `Team ${t.teamCode}` || label === t.teamCode,
         );
         if (teamEntry?.loginPath) {
-            if (!isAuthenticated) {
-                promptGoogleFromProfile();
-                return;
-            }
             goToPath(teamEntry.loginPath);
             return;
         }
 
-        const needsGoogle = !isAuthenticated && (
-            label === 'Campus Hunt login'
-            || label === 'Campus Hunt leaderboard'
-            || label === 'Edit profile'
-        );
+        const needsGoogle = !isAuthenticated && label === 'Edit profile';
         if (needsGoogle) {
-            warmCampusHuntChunks();
             promptGoogleFromProfile();
             return;
         }
@@ -301,6 +292,12 @@ export default function ProfileSidebar({
         if (label === 'Campus Hunt login') {
             warmCampusHuntChunks();
             goToPath(CAMPUS_HUNT_PATHS.profileLogin);
+            return;
+        }
+
+        if (label === 'Campus Hunt leaderboard') {
+            warmCampusHuntChunks();
+            goToPath(CAMPUS_HUNT_PATHS.leaderboard);
             return;
         }
 
@@ -372,12 +369,10 @@ export default function ProfileSidebar({
     }));
 
     const huntEnabled = isCampusHuntEnabled();
-    const huntLoginHint = !isAuthenticated
-        ? 'Sign in with Google, then enter your team code'
-        : (campusHuntTeamItems.length > 0 ? 'Enter another team code' : 'Enter team code');
-    const huntBoardHint = !isAuthenticated
-        ? 'Sign in with Google, then open live scores'
-        : 'Live college scores';
+    const huntLoginHint = campusHuntTeamItems.length > 0
+        ? 'Enter another team code'
+        : 'College + team code — no Google needed';
+    const huntBoardHint = 'Live college scores';
 
     const campusHuntItems = huntEnabled ? [
         ...campusHuntTeamItems,

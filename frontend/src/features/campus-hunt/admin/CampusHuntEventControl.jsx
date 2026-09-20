@@ -114,9 +114,14 @@ export default function CampusHuntEventControl() {
   const locationsReady = Boolean(readiness?.startingPointsReady);
   const teamsReady = Boolean(
     readiness?.teamsTotal
-    && readiness.teamsReady === readiness.teamsTotal,
+    && (
+      (readiness.passwordsReady ?? readiness.teamsReady) === readiness.teamsTotal
+    ),
   );
-  const linksReady = Boolean(teamsReady && cluesReady && locationsReady);
+  const linksReady = Boolean(
+    readiness?.offlineLinksReady
+    ?? (teamsReady && cluesReady && locationsReady && readiness?.startAssignmentsReady === readiness?.teamsTotal),
+  );
   const workflowStatuses = {
     locations: locationsReady ? 'Ready' : 'Needs attention',
     clues: cluesReady ? 'Ready' : 'Needs attention',

@@ -43,24 +43,38 @@ export default function SendLinksPanel({
 
   const preflight = useMemo(() => {
     const r = readiness || {};
+    const teamsTotal = Number(r.teamsTotal) || 0;
+    const passwordsReady = Number(r.passwordsReady ?? r.teamsReady) || 0;
+    const bindingsReady = Number(r.startAssignmentsReady) || 0;
+    const linksGate = r.offlineLinksReady != null
+      ? Boolean(r.offlineLinksReady)
+      : (
+        teamsTotal > 0
+        && passwordsReady >= teamsTotal
+        && bindingsReady >= teamsTotal
+        && Boolean(r.startingPointsReady)
+        && Number(r.routesReady) > 0
+      );
     const checks = [
       {
         id: 'teams',
-        ok: (r.teamsReady || 0) >= 1 && (r.teamsReady || 0) >= (r.teamsTotal || 0),
-        label: `Teams / passwords · ${r.teamsReady ?? '—'}/${r.teamsTotal ?? teamCapacity}`,
-        fix: 'Teams tab — set passwords & names for all field teams',
+        ok: teamsTotal > 0 && passwordsReady >= teamsTotal,
+        label: `Team passwords · ${passwordsReady || '—'}/${teamsTotal || teamCapacity}`,
+        fix: 'Teams tab — set a password for every field team',
       },
       {
         id: 'bindings',
-        ok: (r.startAssignmentsReady || 0) >= (r.teamsTotal || 0) && (r.teamsTotal || 0) > 0,
-        label: `Clue 1–6 path bindings · ${r.startAssignmentsReady ?? '—'}/${r.teamsTotal ?? teamCapacity}`,
-        fix: 'Clues → Update, then Live/Schedule → Generate schedule (binds 5 stops + Clue 6)',
+        ok: teamsTotal > 0 && bindingsReady >= teamsTotal,
+        label: `Clue 1–6 path bindings · ${bindingsReady || '—'}/${teamsTotal || teamCapacity}`,
+        fix: 'Clues → Update, then Live → Generate schedule (binds 5 stops + Clue 6)',
       },
       {
         id: 'schedule',
-        ok: Boolean(r.scheduleLocked),
-        label: 'Schedule locked',
-        fix: 'Generate schedule → Lock (needed so packs have correct routes)',
+        ok: Boolean(r.scheduleLocked) || Boolean(r.scheduleGenerated && bindingsReady >= teamsTotal && teamsTotal > 0),
+        label: r.scheduleLocked
+          ? 'Schedule locked'
+          : (r.scheduleGenerated ? 'Schedule generated (lock when ready)' : 'Schedule not generated'),
+        fix: 'Live / Schedule — Generate schedule (Lock optional for links)',
       },
       {
         id: 'starts',
@@ -68,9 +82,19 @@ export default function SendLinksPanel({
         label: 'Starting point(s) ready',
         fix: 'Locations — keep at least one gather point active',
       },
+      {
+        id: 'routes',
+        ok: Number(r.routesReady) > 0,
+        label: 'Clues + station QRs ready',
+        fix: 'Clues + Locations — ensure Clue 1–6 and orange→red posters exist',
+      },
     ];
     const blockers = checks.filter((c) => !c.ok);
-    return { checks, blockers, ready: blockers.length === 0 };
+    return {
+      checks,
+      blockers,
+      ready: linksGate && blockers.length === 0,
+    };
   }, [readiness, teamCapacity]);
 
   const exportLinks = useCallback(async (perTeam = false) => {
@@ -235,6 +259,12 @@ export default function SendLinksPanel({
             Refresh installed
           </button>
         </div>
+        {!preflight.ready ? (
+          <p className="mt-3 text-sm text-amber-100/90">
+            Links unlock when every team has a password and Clue 1–6 path bindings
+            (Generate schedule). Schedule Lock is optional for creating links.
+          </p>
+        ) : null}
         {message ? <p className="mt-3 text-sm text-emerald-300">{message}</p> : null}
         {error ? <p className="mt-3 text-sm text-red-300">{error}</p> : null}
         {warnings.length ? (

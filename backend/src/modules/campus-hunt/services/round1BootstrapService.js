@@ -1322,6 +1322,7 @@ async function bootstrapRound1Defaults({
   }
   if (enablePublicLeaderboard) {
     event.publicLeaderboardLive = true;
+    event.publicLoginLive = true;
   }
   const huntStations = resolveCampusStations(event);
   if (!event.campusStations?.length) {
