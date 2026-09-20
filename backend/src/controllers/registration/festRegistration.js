@@ -8,6 +8,8 @@ const { scheduleRegistrationNotification } = require('./helpers');
 const { findByIdOrSlug } = require('../../utils/slug');
 const { resolveFestCompetitionId, extractCompetitionChoice } = require('../../utils/festCompetitionAssignment');
 const { assertCompetitionAcceptsRegistration } = require('../../utils/competitionSlots');
+const StallCoupon = require('../../model/stall_coupon_model');
+const { generateUniqueStallCouponCode } = require('../../utils/generateStallCouponCode');
 
 // Submit registration for a fest
 // Submit registration for a fest with file uploads
@@ -93,15 +95,15 @@ const submitRegistration = async (req, res) => {
     } else {
       logger.debug('⚠️ No transaction ID found in request body');
     }
-    
+
     logger.debug('📊 Final responses object keys:', Object.keys(responses));
     logger.debug('💳 Payment Receipt in final responses:', responses['Payment Receipt']);
     logger.debug('💳 Transaction ID in final responses:', responses['Transaction ID']);
 
     // Process text fields from request body
     if (req.body.responses) {
-      const parsedResponses = typeof req.body.responses === 'string' 
-        ? JSON.parse(req.body.responses) 
+      const parsedResponses = typeof req.body.responses === 'string'
+        ? JSON.parse(req.body.responses)
         : req.body.responses;
       Object.assign(responses, parsedResponses);
       logger.debug('📝 Text responses parsed:', Object.keys(responses));
@@ -181,17 +183,17 @@ const submitRegistration = async (req, res) => {
       // ✅ PERFORMANCE: Upload all files concurrently with progress logging
       logger.debug('📤 Uploading files concurrently...');
       const uploadStartTime = Date.now();
-      
+
       // ✅ CRITICAL FIX: DON'T WAIT FOR FILE UPLOADS - START IMMEDIATELY BUT PROCESS IN BACKGROUND
       // This allows the response to be sent to the user IMMEDIATELY
       // Files will be uploaded asynchronously and attached to the registration later
-      
+
       logger.debug('⚡ File uploads will continue in background (not blocking response)');
-      
+
       // Process upload results asynchronously - don't await here
       // For now, just prepare the responses with placeholder file references
       // The actual uploads will happen in setImmediate below
-      
+
       // For now, if files need to be uploaded, we'll just store the file data
       // and upload in the background
       for (const uploadPromise of fileUploadPromises) {
@@ -213,7 +215,7 @@ const submitRegistration = async (req, res) => {
     // ✅ PERFORMANCE: Validate required fields with consistent field naming
     const requiredFields = formSchema.filter(field => field.required);
     logger.debug('🔍 Validating', requiredFields.length, 'required fields...');
-    
+
     for (const field of requiredFields) {
       // Use fieldName as primary key, fallback to id
       const fieldKey = field.fieldName || field.id;
@@ -270,6 +272,38 @@ const submitRegistration = async (req, res) => {
     await registration.save();
     logger.debug('✅ Registration saved:', registration._id);
 
+    // 🎟️ Fest ka brand configured hai to coupon assign karo (college se koi matlab nahi)
+    let stallCoupon = null;
+    if (fest.stallBrand) {
+      try {
+        stallCoupon = await StallCoupon.findOne({ festId: festObjectId, userId });
+
+        if (!stallCoupon) {
+          const code = await generateUniqueStallCouponCode();
+          try {
+            stallCoupon = await StallCoupon.create({
+              festId: festObjectId,
+              userId,
+              brand: fest.stallBrand,
+              code,
+            });
+            logger.debug('🎟️ Stall coupon assigned:', code);
+          } catch (dupErr) {
+            // Do parallel register-calls ek saath aa jayein to duplicate-key error;
+            // us case me jo pehle create hua wahi utha lo
+            if (dupErr.code === 11000) {
+              stallCoupon = await StallCoupon.findOne({ festId: festObjectId, userId });
+            } else {
+              throw dupErr;
+            }
+          }
+        }
+      } catch (couponErr) {
+        // Coupon fail hone se poori registration fail NAHI honi chahiye
+        logger.error('❌ Stall coupon assignment failed:', couponErr.message);
+      }
+    }
+
     // Get user details for Google Sheets
     const user = await User.findById(userId).select('name email phoneNumber');
 
@@ -286,7 +320,10 @@ const submitRegistration = async (req, res) => {
         festId: registration.fest,
         status: registration.status,
         submittedAt: registration.submittedAt
-      }
+      },
+      stallCoupon: stallCoupon
+        ? { code: stallCoupon.code, brand: stallCoupon.brand }
+        : null,
     });
 
     scheduleRegistrationNotification(userId, {
@@ -303,13 +340,13 @@ const submitRegistration = async (req, res) => {
       try {
         // FIRST: Process file uploads in background (don't block the response)
         logger.debug('📁 Starting background file uploads...');
-        
+
         // Wait for all file uploads to complete
         if (fileUploadPromises.length > 0) {
           try {
             const uploadResults = await Promise.all(fileUploadPromises);
             logger.debug('✅ Background file uploads completed:', uploadResults.length, 'files');
-            
+
             // Update registration with file URLs (if any)
             let updatedFiles = false;
             for (const entry of uploadResults) {
@@ -327,7 +364,7 @@ const submitRegistration = async (req, res) => {
                 updatedFiles = true;
               }
             }
-            
+
             // Save registration with updated file URLs
             if (updatedFiles) {
               registration.markModified('responses');
@@ -340,7 +377,7 @@ const submitRegistration = async (req, res) => {
             // User can still see their registration, just file URLs won't be available
           }
         }
-        
+
         // Append to Google Sheets if configured (async, non-blocking)
         if (fest.registration.googleSheetsUrl) {
           try {
@@ -402,23 +439,23 @@ const submitRegistration = async (req, res) => {
         // STEP 2: Send confirmation email (async)
         try {
           logger.debug('📧 Sending confirmation email (async)...');
-          
+
           // Extract competition name from form responses
           let competitionName = null;
           const competitionField = formSchema.find(field => {
             const label = field.label.toLowerCase();
-            return label.includes('competition') || 
-                   label.includes('event') || 
-                   label.includes('category') ||
-                   field.fieldName.toLowerCase().includes('competition') ||
-                   field.fieldName.toLowerCase().includes('event');
+            return label.includes('competition') ||
+              label.includes('event') ||
+              label.includes('category') ||
+              field.fieldName.toLowerCase().includes('competition') ||
+              field.fieldName.toLowerCase().includes('event');
           });
-          
+
           if (competitionField) {
             competitionName = responses[competitionField.fieldName] || null;
             logger.debug('🎯 Competition name extracted:', competitionName);
           }
-          
+
           const submissionDate = new Date().toLocaleString('en-IN', {
             timeZone: 'Asia/Kolkata',
             year: 'numeric',
@@ -427,7 +464,7 @@ const submitRegistration = async (req, res) => {
             hour: '2-digit',
             minute: '2-digit'
           });
-          
+
           await sendRegistrationConfirmationEmail(
             user.email,
             user.name,
@@ -442,7 +479,7 @@ const submitRegistration = async (req, res) => {
               ticketLink: `/registration-details/${registration._id}`,
             },
           );
-          
+
           logger.debug('✅ Confirmation email sent successfully');
 
           // STEP 3: Send organizer notification email (async)

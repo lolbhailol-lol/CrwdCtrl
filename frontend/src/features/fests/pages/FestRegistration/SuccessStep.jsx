@@ -2,6 +2,7 @@ import { goToBookings } from '../../../../utils/paymentNavigation';
 import { getFestPluginFromAny } from '../../plugins/registry';
 import { RegistrationStatusVisual, SuccessRevealGate } from '../../../../components/RegistrationStatusVisual';
 import AlsoRegisterForSection from '../../../../components/AlsoRegisterForSection';
+import StallCouponCard from '../../../../components/StallCouponCard';
 
 export default function SuccessStep({
   isDark,
@@ -12,6 +13,7 @@ export default function SuccessStep({
   navigate,
   competitionId: competitionIdProp,
   festId: festIdProp,
+  stallCoupon,
 }) {
   const plugin = getFestPluginFromAny(
     fest,
@@ -53,6 +55,13 @@ export default function SuccessStep({
               showProgress={false}
               isDark={isDark}
             />
+
+            {stallCoupon && (
+              <div className="mt-6">
+                <StallCouponCard isDark={isDark} stallCoupon={stallCoupon} />
+              </div>
+            )}
+
             <div className="flex flex-col gap-3 mt-8">
               {registrationId && (
                 <button
@@ -66,13 +75,12 @@ export default function SuccessStep({
               <button
                 type="button"
                 onClick={() => goToBookings(navigate)}
-                className={`w-full px-6 py-3 rounded-lg font-semibold transition-colors ${
-                  registrationId
+                className={`w-full px-6 py-3 rounded-lg font-semibold transition-colors ${registrationId
                     ? isDark
                       ? 'border border-gray-600 text-gray-200 hover:bg-gray-800'
                       : 'border border-gray-300 text-gray-800 hover:bg-gray-100'
                     : 'bg-[#0ECCEE] text-black hover:bg-[#0ECCEE]/80'
-                }`}
+                  }`}
               >
                 View My Bookings
               </button>

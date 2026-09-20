@@ -23,6 +23,7 @@ const {
   diagnoseGoogleSheets,
   upload,
   updateTeamMembers,
+  getMyStallCoupon,
 } = require('../controllers/registrationController');
 
 const { authenticateToken, optionalAuthenticateToken } = require('../middleware/authmiddleware');
@@ -45,6 +46,8 @@ router.post(
   upload.any(),
   submitRegistration
 );
+
+router.get('/fests/:festId/my-coupon', authenticateToken, getMyStallCoupon);
 
 // Competition registration (FIXED)
 router.post(
@@ -100,9 +103,9 @@ router.post('/upload', authenticateToken, upload.any(), async (req, res) => {
         req.user.userId,
         file.fieldname
       );
-      
+
       console.log('📤 Cloudinary upload result:', result);
-      
+
       if (result.success) {
         urls.push({ url: result.cloudinaryLink, fieldName: file.fieldname });
       } else {

@@ -1376,7 +1376,10 @@ function EventPage() {
     };
 
     const commonRules = getCommonRules();
-    const judgingCriteria = sanitizeRulesArray(eventData?.judgingCriteria || []);
+    // Organizer request: do not disclose judging criteria for Kshitij Pune Multicity.
+    const judgingCriteria = isKshitijPuneRegionals
+        ? []
+        : sanitizeRulesArray(eventData?.judgingCriteria || []);
     // Re-filter at render (covers stale detail cache with empty placeholder rounds)
     const roundsList = (eventData?.rounds?.roundsList || []).filter(roundHasDisplayableContent);
     // A single direct-final/knockout entry describes the format for Kshitij; it is not a useful rounds section.
@@ -2090,27 +2093,15 @@ function EventPage() {
                                 )}
                                 </div>
 
-                            {/* Kshitij qualification highlight; classic podium for monetary prizes elsewhere. */}
-                            {eventData?.prize && !/^(tbd|tba|n\/a|na|-|subject to change)$/i.test(String(eventData.prize).trim()) && (
+                            {/* Classic podium for monetary prizes; Kshitij winner-benefit copy removed until confirmed. */}
+                            {eventData?.prize && !isKshitijPuneRegionals && !/^(tbd|tba|n\/a|na|-|subject to change)$/i.test(String(eventData.prize).trim()) && (
                                 <div className="px-4 pb-2">
-                                    {isKshitijPuneRegionals ? (
-                                    <div className={`rounded-2xl border p-4 flex items-center gap-3 ${isDark ? 'border-cyan-400/35 bg-gradient-to-r from-cyan-400/15 to-violet-500/10' : 'border-cyan-200 bg-gradient-to-r from-cyan-50 to-violet-50'}`}>
-                                        <span className="size-10 shrink-0 rounded-full bg-[#0ECCEE] text-slate-950 shadow-md shadow-cyan-500/20 flex items-center justify-center">
-                                            <Ticket size={20} strokeWidth={2.4} />
-                                        </span>
-                                        <div className="min-w-0">
-                                            <p className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-cyan-300' : 'text-cyan-700'}`}>Winner Benefit</p>
-                                            <p className={`mt-0.5 text-sm font-semibold leading-snug ${isDark ? 'text-white' : 'text-gray-900'}`}>{eventData.prize}</p>
-                                        </div>
-                                    </div>
-                                    ) : (
                                     <PrizePoolPodium
                                       prizeText={eventData.prize}
                                       isDark={isDark}
                                       compact
                                       showTitle={isTechfestCompetition}
                                     />
-                                    )}
                                     </div>
                                 )}
 
@@ -2239,25 +2230,13 @@ function EventPage() {
                                 </div>
 
                                 <div className="space-y-6">
-                                    {/* Kshitij qualification highlight; classic podium for monetary prizes elsewhere. */}
-                                    {eventData?.prize && !/^(tbd|tba|n\/a|na|-|subject to change)$/i.test(String(eventData.prize).trim()) && (
-                                        isKshitijPuneRegionals ? (
-                                        <div className={`rounded-2xl border p-5 flex items-center gap-4 ${isDark ? 'border-cyan-400/35 bg-gradient-to-r from-cyan-400/15 to-violet-500/10' : 'border-cyan-200 bg-gradient-to-r from-cyan-50 to-violet-50'}`}>
-                                            <span className="size-11 shrink-0 rounded-full bg-[#0ECCEE] text-slate-950 shadow-md shadow-cyan-500/20 flex items-center justify-center">
-                                                <Ticket size={22} strokeWidth={2.4} />
-                                            </span>
-                                            <div className="min-w-0">
-                                                <p className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-cyan-300' : 'text-cyan-700'}`}>Winner Benefit</p>
-                                                <p className={`mt-1 font-semibold leading-snug ${isDark ? 'text-white' : 'text-gray-900'}`}>{eventData.prize}</p>
-                                            </div>
-                                        </div>
-                                        ) : (
+                                    {/* Classic podium for monetary prizes; Kshitij winner-benefit copy removed until confirmed. */}
+                                    {eventData?.prize && !isKshitijPuneRegionals && !/^(tbd|tba|n\/a|na|-|subject to change)$/i.test(String(eventData.prize).trim()) && (
                                         <PrizePoolPodium
                                           prizeText={eventData.prize}
                                           isDark={isDark}
                                           showTitle={isTechfestCompetition}
                                         />
-                                        )
                                     )}
 
                                     <div className={showRulesJudgingSideBySide ? 'grid grid-cols-2 gap-4' : 'space-y-6'}>
