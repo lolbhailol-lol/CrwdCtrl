@@ -1,13 +1,11 @@
 /**
- * Apply Kshitij Pune Multicity organizer content + asset updates.
+ * Apply Kshitij Pune Multicity organizer content + asset updates from local backend assets.
  * Usage (from backend/): node scripts/update-kshitij-pune-2026-content.js [--dry-run]
  *
- * - New fest description
- * - Fest cover + per-event covers from Drive download folder
- * - Gallery photos (Kshitij ’25)
- * - Clear judgingCriteria
- * - Clear “direct entry to Kshitij” prize copy
- * - Move performance duration into Rules & Regulations
+ * - Brand logo hero (cover-wide / cover-portrait)
+ * - Gallery: Kshitij ’25 set + strong event extras from covers-2026
+ * - Per-event competition covers
+ * - Description, clear judgingCriteria + winner claim, duration → rules
  */
 require('dotenv').config();
 
@@ -19,7 +17,6 @@ const Fest = require('../src/model/fest_organizer_model');
 const Competition = require('../src/model/competition_model');
 
 const DRY = process.argv.includes('--dry-run');
-const ROOT = path.resolve(__dirname, '../..');
 const ASSETS = path.join(__dirname, 'assets/kshitij-pune-regionals');
 const COVERS_DIR = path.join(ASSETS, 'compressed/covers-2026');
 const GALLERY_DIR = path.join(ASSETS, 'compressed/gallery-25');
@@ -41,6 +38,17 @@ const EVENT_COVER_MAP = {
   'Family Feud': 'Know It All',
   FIFA: 'Kick and Conquer',
 };
+
+/** Extra gallery photos (strong event shots) — after the ’25 set */
+const GALLERY_EXTRAS = [
+  { rel: 'cover-photo.jpg', id: 'extra-01-concert-fireworks' },
+  { rel: path.join('Bollywood group dance', 'E16A8450.jpg'), id: 'extra-02-bollywood-group-dance' },
+  { rel: path.join('Bollywood solo singing', '7RV08735.jpg'), id: 'extra-03-bollywood-solo' },
+  { rel: path.join('Family Feud', 'DSC05854.jpg'), id: 'extra-04-family-feud' },
+  { rel: path.join('FIFA', 'DSC05573.jpg'), id: 'extra-05-fifa' },
+  { rel: path.join('IPL auction', '449A8780.jpg'), id: 'extra-06-ipl-auction' },
+  { rel: path.join('Badminton', 'download (28).jpg'), id: 'extra-07-badminton' },
+];
 
 const PERFORMANCE_DURATION = {
   'Sur Taal': 'Performance duration: 1-2 minutes.',
@@ -72,25 +80,6 @@ function listGalleryImages(dir) {
     .sort((a, b) => path.basename(a).localeCompare(path.basename(b)));
 }
 
-function findCoverPhoto() {
-  const jpgCopy = path.join(COVERS_DIR, 'cover-photo.jpg');
-  if (fs.existsSync(jpgCopy) && fs.statSync(jpgCopy).size > 1000) return jpgCopy;
-
-  const candidates = fs.existsSync(COVERS_DIR)
-    ? fs.readdirSync(COVERS_DIR).map((f) => path.join(COVERS_DIR, f))
-    : [];
-  for (const p of candidates) {
-    const base = path.basename(p).toLowerCase();
-    if (!/cover/i.test(base)) continue;
-    if (fs.statSync(p).isFile() && fs.statSync(p).size > 1000) return p;
-    if (fs.statSync(p).isDirectory()) {
-      const inner = firstImageInDir(p);
-      if (inner) return inner;
-    }
-  }
-  return null;
-}
-
 async function uploadLocal(filePath, publicId) {
   if (DRY) {
     console.log(`[dry-run] upload ${filePath} → ${publicId}`);
@@ -100,7 +89,6 @@ async function uploadLocal(filePath, publicId) {
     public_id: publicId,
     overwrite: true,
     resource_type: 'image',
-    folder: undefined,
   });
 }
 
@@ -125,31 +113,60 @@ async function main() {
   if (!uri) throw new Error('MONGODB_URI or MONGO_URI is required');
   if (!DRY && !process.env.CLOUDINARY_CLOUD_NAME) throw new Error('Cloudinary configuration is required');
 
-  const coverFile = findCoverPhoto();
-  if (!coverFile) throw new Error(`Fest cover not found under ${COVERS_DIR}`);
+  const brandWide = path.join(ASSETS, 'cover-wide.jpg');
+  const brandPortrait = path.join(ASSETS, 'cover-portrait.jpg');
+  if (!fs.existsSync(brandWide) || !fs.existsSync(brandPortrait)) {
+    throw new Error('Original Kshitij cover-wide.jpg / cover-portrait.jpg missing under assets');
+  }
 
   const galleryFiles = listGalleryImages(GALLERY_DIR);
   if (galleryFiles.length < 1) throw new Error(`No gallery images in ${GALLERY_DIR}`);
 
-  console.log(`Cover: ${coverFile}`);
-  console.log(`Gallery files: ${galleryFiles.length}`);
+  console.log(`Hero: ${brandWide}`);
+  console.log(`Gallery ’25: ${galleryFiles.length}`);
+  console.log(`Gallery extras: ${GALLERY_EXTRAS.length}`);
 
   const coverUp = await uploadLocal(
-    coverFile,
+    brandWide,
     'crwdctrl/fests/kshitij-pune-regionals-2026/cover-wide',
   );
-  // Use same asset for portrait until a dedicated portrait is provided
   const portraitUp = await uploadLocal(
-    coverFile,
+    brandPortrait,
     'crwdctrl/fests/kshitij-pune-regionals-2026/cover-portrait',
   );
 
+  // 1) Concert opener first
   const galleryUrls = [];
+  const concert = path.join(COVERS_DIR, 'cover-photo.jpg');
+  if (fs.existsSync(concert)) {
+    const up = await uploadLocal(
+      concert,
+      'crwdctrl/fests/kshitij-pune-regionals-2026/gallery/extra-01-concert-fireworks',
+    );
+    galleryUrls.push(up.secure_url);
+  }
+
+  // 2) Full Kshitij ’25 set from backend assets
   for (let i = 0; i < galleryFiles.length; i += 1) {
     const file = galleryFiles[i];
     const up = await uploadLocal(
       file,
       `crwdctrl/fests/kshitij-pune-regionals-2026/gallery/${String(i + 1).padStart(2, '0')}-${path.basename(file, path.extname(file)).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+    );
+    galleryUrls.push(up.secure_url);
+  }
+
+  // 3) Remaining event extras (skip concert already added)
+  for (const extra of GALLERY_EXTRAS) {
+    if (extra.id === 'extra-01-concert-fireworks') continue;
+    const file = path.join(COVERS_DIR, extra.rel);
+    if (!fs.existsSync(file)) {
+      console.warn(`Missing gallery extra ${extra.id}`);
+      continue;
+    }
+    const up = await uploadLocal(
+      file,
+      `crwdctrl/fests/kshitij-pune-regionals-2026/gallery/${extra.id}`,
     );
     galleryUrls.push(up.secure_url);
   }
@@ -166,6 +183,16 @@ async function main() {
       `crwdctrl/fests/kshitij-pune-regionals-2026/competitions/${compName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
     );
     eventCoverUrls[compName] = up.secure_url;
+  }
+
+  // Boardroom: use IPL auction shot as best available business-event photo
+  const boardroomImg = firstImageInDir(path.join(COVERS_DIR, 'IPL auction'));
+  if (boardroomImg) {
+    const up = await uploadLocal(
+      boardroomImg,
+      'crwdctrl/fests/kshitij-pune-regionals-2026/competitions/the-boardroom',
+    );
+    eventCoverUrls['The Boardroom'] = up.secure_url;
   }
 
   await mongoose.connect(uri);
@@ -193,16 +220,10 @@ async function main() {
     galleryImages: galleryUrls,
   };
 
-  console.log(`Fest ${fest.festName} (${fest.slug}) dryRun=${DRY}`);
+  console.log(`Fest ${fest.festName} (${fest.slug}) dryRun=${DRY} gallery=${galleryUrls.length}`);
   if (!DRY) {
     Object.assign(fest, festSet);
     await fest.save();
-  } else {
-    console.log('[dry-run] fest fields', {
-      descriptionPreview: DESCRIPTION.slice(0, 80),
-      galleryCount: galleryUrls.length,
-      cover: coverUp.secure_url,
-    });
   }
 
   const comps = await Competition.find({ fest: fest._id });
@@ -221,14 +242,12 @@ async function main() {
     const durationLine = PERFORMANCE_DURATION[comp.name];
     if (durationLine) {
       set.commonRules = ensureDurationInRules(comp.commonRules, durationLine);
-      // Keep theme line in description if present
       description = stripDurationFromText(description);
       set.description = description;
     } else if (description !== (comp.description || '')) {
       set.description = description;
     }
 
-    // Also strip duration from round descriptions and ensure rules carry it
     if (Array.isArray(comp.rounds) && durationLine) {
       set.rounds = comp.rounds.map((round) => {
         const next = round.toObject ? round.toObject() : { ...round };
@@ -238,7 +257,7 @@ async function main() {
       });
     }
 
-    console.log(`  ${comp.name}: clear judging+prize${eventCoverUrls[comp.name] ? ', new cover' : ''}${durationLine ? ', duration→rules' : ''}`);
+    console.log(`  ${comp.name}: ok${eventCoverUrls[comp.name] ? ' +cover' : ''}${durationLine ? ' +duration' : ''}`);
     if (!DRY) {
       await Competition.findByIdAndUpdate(comp._id, { $set: set }, { runValidators: true });
     }

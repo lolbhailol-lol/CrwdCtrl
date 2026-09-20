@@ -76,6 +76,7 @@ export default function SimilarFestsSection({
   hideFee = false,
   fullWidthMobile = false,
   hideSubtitle = false,
+  compact = false,
 }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -212,8 +213,8 @@ export default function SimilarFestsSection({
 
   return (
     <section className={`${className}`}>
-      <div className="mb-3 px-0">
-        <h2 className={`text-base sm:text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+      <div className={`${compact ? 'mb-2' : 'mb-3'} px-0`}>
+        <h2 className={`${compact ? 'text-sm sm:text-base' : 'text-base sm:text-lg'} font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
           {heading}
         </h2>
         {!hideSubtitle ? (
@@ -224,7 +225,9 @@ export default function SimilarFestsSection({
       </div>
 
       <div
-        className="flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        className={`flex overflow-x-auto pb-1 snap-x snap-mandatory scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden ${
+          compact ? 'gap-2.5' : 'gap-3 pb-2'
+        }`}
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
         {list.map((fest) => {
@@ -246,8 +249,16 @@ export default function SimilarFestsSection({
           return (
             <article
               key={String(id)}
-              className={`card-surface snap-start shrink-0 rounded-2xl overflow-hidden ${
-                fullWidthMobile ? 'w-full sm:w-[280px]' : 'w-[min(85vw,320px)] sm:w-[280px]'
+              className={`card-surface snap-start shrink-0 overflow-hidden ${
+                compact ? 'rounded-xl' : 'rounded-2xl'
+              } ${
+                fullWidthMobile
+                  ? compact
+                    ? 'w-full sm:w-[260px]'
+                    : 'w-full sm:w-[280px]'
+                  : compact
+                    ? 'w-[min(78vw,260px)] sm:w-[260px]'
+                    : 'w-[min(85vw,320px)] sm:w-[280px]'
               }`}
             >
               <button
@@ -263,7 +274,13 @@ export default function SimilarFestsSection({
                 }}
                 className="w-full text-left active:scale-[0.99] transition"
               >
-                <div className={`relative aspect-[16/9] w-full ${isDark ? 'bg-[#0B0C0D]' : 'bg-gray-100'}`}>
+                <div
+                  className={`relative w-full ${
+                    compact
+                      ? 'h-[180px] sm:h-[190px]'
+                      : 'aspect-[16/9]'
+                  } ${isDark ? 'bg-[#0B0C0D]' : 'bg-gray-100'}`}
+                >
                   {src ? (
                     <img
                       src={src}
@@ -281,8 +298,11 @@ export default function SimilarFestsSection({
                     </div>
                   )}
                   <div className="absolute inset-0 bg-linear-to-t from-black/75 via-black/25 to-transparent" />
-                  <div className="absolute bottom-0 left-0 right-0 p-3">
-                    <p className="text-white font-bold text-sm sm:text-base leading-snug line-clamp-2">
+                  <div className={`absolute bottom-0 left-0 right-0 ${compact ? 'p-2.5' : 'p-3'}`}>
+                    <p className={`text-white font-bold leading-snug line-clamp-2 ${
+                      compact ? 'text-xs sm:text-sm' : 'text-sm sm:text-base'
+                    }`}
+                    >
                       {festName}
                       {college ? (
                         <span className="font-semibold text-white/75"> · {college}</span>
