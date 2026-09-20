@@ -20,6 +20,7 @@ const {
   getEventShowPaymentInvoice,
   testGoogleSheets,
   diagnoseGoogleSheets,
+  getMyStallCoupon,
 } = require('./registration/queries');
 const {
   payAndRegisterFest,
@@ -49,4 +50,5 @@ module.exports = {
   diagnoseGoogleSheets,
   upload,
   updateTeamMembers,
+  getMyStallCoupon,
 };

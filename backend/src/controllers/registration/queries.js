@@ -4,6 +4,29 @@ const FestOrganizer = require('../../model/fest_organizer_model');
 const { testGoogleSheetsConnection } = require('../../services/googleSheetsService');
 const { resolveTrekGroupLink } = require('../../utils/resolveTrekGroupLink');
 const { logger } = require('../../utils/logger');
+const StallCoupon = require('../../model/stall_coupon_model');
+
+const getMyStallCoupon = async (req, res) => {
+  try {
+    const { festId } = req.params;
+    const userId = req.user.userId;
+
+    const coupon = await StallCoupon.findOne({ festId, userId });
+    if (!coupon) {
+      return res.status(404).json({ error: 'No coupon found for this fest' });
+    }
+
+    res.status(200).json({
+      code: coupon.code,
+      brand: coupon.brand,
+      isRedeemed: coupon.isRedeemed,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch coupon' });
+  }
+};
+
+module.exports = { getMyStallCoupon, /* ... baaki existing exports yahi rakho */ };
 
 // Get user's registration for a fest
 const getUserRegistration = async (req, res) => {
@@ -73,13 +96,13 @@ const getUserRegistrations = async (req, res) => {
 const testGoogleSheets = async (req, res) => {
   try {
     const { googleSheetsUrl } = req.body;
-    
+
     if (!googleSheetsUrl) {
       return res.status(400).json({ error: 'Google Sheets URL is required' });
     }
 
     const result = await testGoogleSheetsConnection(googleSheetsUrl);
-    
+
     if (result.success) {
       res.json({
         success: true,
@@ -102,9 +125,9 @@ const testGoogleSheets = async (req, res) => {
 const diagnoseGoogleSheets = async (req, res) => {
   try {
     const { festId } = req.params;
-    
+
     logger.debug('🔍 Diagnosing Google Sheets for fest:', festId);
-    
+
     // Get fest details
     const fest = await FestOrganizer.findById(festId);
     if (!fest) {
@@ -138,13 +161,13 @@ const diagnoseGoogleSheets = async (req, res) => {
     } else {
       const { extractSpreadsheetId } = require('../../services/googleSheetsService');
       const spreadsheetId = extractSpreadsheetId(fest.registration.googleSheetsUrl);
-      
+
       if (!spreadsheetId) {
         diagnosis.issues.push('Invalid Google Sheets URL format');
         diagnosis.status = 'error';
       } else {
         diagnosis.spreadsheetId = spreadsheetId;
-        
+
         // Test connection
         try {
           const connectionTest = await testGoogleSheetsConnection(fest.registration.googleSheetsUrl);
@@ -170,7 +193,7 @@ const diagnoseGoogleSheets = async (req, res) => {
       diagnosis.status = 'error';
     } else {
       diagnosis.formFieldsCount = fest.registration.formSchema.length;
-      
+
       const fieldsWithoutFieldName = fest.registration.formSchema.filter(f => !f.fieldName);
       if (fieldsWithoutFieldName.length > 0) {
         diagnosis.warnings.push(`${fieldsWithoutFieldName.length} form fields missing fieldName - may cause data mapping issues`);
@@ -188,23 +211,23 @@ const diagnoseGoogleSheets = async (req, res) => {
     diagnosis.solutions = [];
     if (diagnosis.issues.length > 0) {
       diagnosis.solutions.push('Fix the issues listed above to enable Google Sheets integration');
-      
+
       if (diagnosis.issues.some(i => i.includes('not approved'))) {
         diagnosis.solutions.push('Approve the fest in the admin panel');
       }
-      
+
       if (diagnosis.issues.some(i => i.includes('registration mode'))) {
         diagnosis.solutions.push('Set registration mode to "INTERNAL_FORM" in fest settings');
       }
-      
+
       if (diagnosis.issues.some(i => i.includes('Google Sheets URL'))) {
         diagnosis.solutions.push('Configure a valid Google Sheets URL in fest registration settings');
       }
-      
+
       if (diagnosis.issues.some(i => i.includes('permission') || i.includes('connection failed'))) {
         diagnosis.solutions.push(`Share the Google Sheets with service account: ${process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL}`);
       }
-      
+
       if (diagnosis.issues.some(i => i.includes('form schema'))) {
         diagnosis.solutions.push('Configure form fields in the fest registration settings');
       }
@@ -514,4 +537,5 @@ module.exports = {
   getEventShowPaymentInvoice,
   testGoogleSheets,
   diagnoseGoogleSheets,
+  getMyStallCoupon,
 };

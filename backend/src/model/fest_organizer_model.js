@@ -354,6 +354,13 @@ const festOrganizerSchema = new mongoose.Schema(
     },
   ],
 
+  // 🎟️ Fest-wide stall brand — jo bhi is fest ke liye register kare, usko isi brand ka coupon milega
+  stallBrand: {
+    type: String,
+    trim: true,
+    default: '',
+  },
+
   competitions: [
     {
       type: mongoose.Schema.Types.ObjectId,
