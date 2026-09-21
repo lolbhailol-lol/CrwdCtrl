@@ -329,8 +329,8 @@ const CLUE_HOW_TO = {
   2: {
     title: 'Clue 2 · digits',
     steps: [
-      'At green: find numbered digit slips (1, 2, 3…).',
-      'Join digits in order · type the number (3 tries).',
+      'At green: find 2 numbered digit slips (1 and 2).',
+      'Join them · type the number (3 tries).',
       'Miss all 3 → answer shown (0 pts).',
       'Scan green once.',
     ],

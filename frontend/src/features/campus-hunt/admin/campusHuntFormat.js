@@ -235,9 +235,32 @@ export const CAMPUS_STATIONS = [
 
 export const STATION_TARGET_COUNT = CAMPUS_STATIONS.length; // 20
 
+/** Clue 2 — always 2 numbered digit slips (join → type the number). */
+export const CLUE2_DIGIT_SLIPS = 2;
+
+/** Shared 2-digit answers per place for Clue 2 digit slips. */
+export const DEFAULT_STATION_DIGIT_ANSWERS = Object.fromEntries(
+  CAMPUS_STATIONS.map((s, i) => [
+    s.code,
+    String(10 + ((i * 17 + 3) % 90)).padStart(2, '0'),
+  ]),
+);
+
+/** Split a digit answer into exactly `slipCount` numbered slips (default 2). */
+export function splitDigitSlips(answer, slipCount = CLUE2_DIGIT_SLIPS) {
+  const n = Math.max(2, Math.min(4, Number(slipCount) || CLUE2_DIGIT_SLIPS));
+  const digits = String(answer || '').replace(/\D/g, '') || '47';
+  const padded = digits.length >= n ? digits : digits.padStart(n, '0');
+  if (padded.length === n) return padded.split('');
+  const size = Math.ceil(padded.length / n);
+  return Array.from({ length: n }, (_, i) => (
+    padded.slice(i * size, (i + 1) * size) || '0'
+  ));
+}
+
 /**
- * Shared join-word per place — plant slips are this word split across the team.
- * Same defaults as backend stationCatalogService (COEP / Neurosprint).
+ * Shared join-word per place — used for letter plants / legacy.
+ * Clue 2 digit answers use DEFAULT_STATION_DIGIT_ANSWERS instead.
  */
 export const DEFAULT_STATION_JOINED_WORDS = {
   S01: 'THRUSTJET',
@@ -1104,10 +1127,10 @@ export function routeClueDefaults(
   if (n === 2) {
     return {
       prompt:
-        `At the green stop: find ${people} numbered digit slips (1→${people}) planted nearby. `
-        + 'Join the digits in order into one number and type it (leader), then scan green.',
+        'At the green stop: find 2 numbered digit slips (1 and 2) planted nearby. '
+        + 'Join them in order into one number and type it (leader), then scan green.',
       answer: '',
-      hintText: 'Numbered slips only — join digit 1, then 2, then 3… Eye level on posts.',
+      hintText: 'Two slips only — digit 1 then digit 2. Eye level on posts.',
       destinationInstruction:
         'Answer typed — stay at green. Leader scans the green QR once to unlock Clue 3.',
       memberPrompts: Array.from({ length: people }, () => ''),

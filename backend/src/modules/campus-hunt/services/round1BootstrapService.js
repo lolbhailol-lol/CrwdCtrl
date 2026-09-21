@@ -298,10 +298,10 @@ function routeClueDefaults(
   if (n === 2) {
     return {
       prompt:
-        `At the green stop: find ${people} numbered digit slips (1→${people}) planted nearby. `
-        + 'Join the digits in order into one number and type it (leader), then scan green.',
+        'At the green stop: find 2 numbered digit slips (1 and 2) planted nearby. '
+        + 'Join them in order into one number and type it (leader), then scan green.',
       answer: '',
-      hintText: 'Numbered slips only — join digit 1, then 2, then 3… Eye level on posts.',
+      hintText: 'Two slips only — digit 1 then digit 2. Eye level on posts.',
       destinationInstruction:
         'Answer typed — stay at green. Leader scans the green QR once to unlock Clue 3.',
       memberPrompts: Array.from({ length: people }, () => ''),
