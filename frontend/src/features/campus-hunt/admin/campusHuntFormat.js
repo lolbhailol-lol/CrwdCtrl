@@ -273,16 +273,30 @@ export function splitDigitSlips(digitAnswer, slipCount = 3) {
   return Array.from({ length: n }, (_, i) => padded[i] || '0');
 }
 
-/** Clue 5 · split a word into letter chunks for print preview. */
-export function splitPlantFragments(joinedWord, teamSize = 4) {
-  const people = Math.max(2, Math.min(12, Number(teamSize) || 4));
+/** Clue 5 · one letter (or chunk) per slip for print / plant preview. */
+export function splitPlantFragments(joinedWord, slipCount = 4) {
+  const n = Math.max(2, Math.min(12, Number(slipCount) || 4));
   const raw = String(joinedWord || 'QUEST').replace(/[^A-Za-z]/g, '').toUpperCase() || 'QUEST';
-  const len = Math.max(people, raw.length);
-  const padded = raw.padEnd(len, 'X');
-  const size = Math.ceil(padded.length / people);
-  return Array.from({ length: people }, (_, i) => (
-    padded.slice(i * size, (i + 1) * size) || 'X'
-  ));
+  // Prefer one letter per slip when the word fits.
+  if (raw.length <= n) {
+    return Array.from({ length: Math.max(n, raw.length) }, (_, i) => raw[i] || '·')
+      .slice(0, Math.max(n, raw.length));
+  }
+  const base = Math.floor(raw.length / n);
+  const extra = raw.length % n;
+  let offset = 0;
+  return Array.from({ length: n }, (_, i) => {
+    const size = base + (i < extra ? 1 : 0);
+    const chunk = raw.slice(offset, offset + Math.max(1, size));
+    offset += size;
+    return chunk || '·';
+  });
+}
+
+/** Clue 5 plant pack: always one slip per letter of the word (clearest for printing). */
+export function letterSlipsForWord(joinedWord) {
+  const raw = String(joinedWord || 'QUEST').replace(/[^A-Za-z]/g, '').toUpperCase() || 'QUEST';
+  return raw.split('');
 }
 
 export function withStationPlantDefaults(stations, teamSize = 4) {
@@ -1028,15 +1042,24 @@ export const CLUE5_WORDS = {
 /** @deprecated use CLUE5_WORDS */
 export const CLUE4_WORDS = CLUE5_WORDS;
 
+/** Unique 4-digit lockbox codes — one per team (capacity ≤ 24). */
 const LOCKBOX_CODES = [
   '9407', '3815', '7264', '1598', '6032', '8471', '2956', '4713',
   '5180', '0629', '7346', '1864', '2538', '6901', '8142', '3075',
+  '4286', '1759', '8630', '5924', '0468', '7193', '3641', '2805',
 ];
 
-/** Default Lockbox digit code — matches backend bootstrap rotation. */
-export function lockboxCodeForTeam(stationIndex, localTeamNumber) {
-  const i = (Number(stationIndex) || 0) * 11 + (Number(localTeamNumber) || 1);
-  return LOCKBOX_CODES[Math.abs(i) % LOCKBOX_CODES.length];
+/**
+ * Unique Lockbox digit code per global team — matches backend bootstrap.
+ * @param {number} waitIndex start A=0… (or legacy station index)
+ * @param {number} localTeamNumber local slot 1…
+ * @param {number} [teamsPerWait]
+ */
+export function lockboxCodeForTeam(waitIndex, localTeamNumber, teamsPerWait = TEAMS_PER_WAIT) {
+  const perWait = Math.max(1, Number(teamsPerWait) || TEAMS_PER_WAIT);
+  const teamNumber = (Math.max(0, Number(waitIndex) || 0) * perWait)
+    + Math.max(1, Number(localTeamNumber) || 1);
+  return LOCKBOX_CODES[(teamNumber - 1) % LOCKBOX_CODES.length];
 }
 
 const GRID_CODES = [
@@ -1178,20 +1201,23 @@ export function routeClueDefaults(
   }
 
   // Clue 5 — letter slips → one WORD (not digits).
-  const raw = String(place).replace(/\s+/g, '').toUpperCase();
+  const raw = String(place).replace(/[^A-Za-z]/g, '').toUpperCase() || 'QUEST';
   const fifthStop = String(fifthStopName || '').trim() || 'your 5th campus stop';
+  const slips = letterSlipsForWord(raw);
   const findTasks = Array.from({ length: people }, (_, i) => (
-    `Find letter slip #${i + 1} nearby — letters only, piece ${i + 1} of ${people}.`
+    slips[i]
+      ? `Find letter slip #${i + 1} nearby — letter “${slips[i]}” (piece ${i + 1} of ${slips.length}).`
+      : `Help the team find all ${slips.length} letter slips and join them in order.`
   ));
   return {
     prompt:
-      `At the red stop: find ${people} letter slips planted nearby `
-      + `(not digits — letters that make one word).\n`
-      + `Join them in order into one word. Leader submits (2 tries · hints cost more).\n`
+      `At the red stop: find ${slips.length} letter slips planted nearby `
+      + `(letters only — not digits).\n`
+      + `Join them in order (1→${slips.length}) into one word. Leader submits.\n`
       + `Letters are NOT on this phone.`,
-    answer: raw || 'QUEST',
+    answer: raw,
     hintText:
-      'Letters only · eye-level boards. Build one word, no spaces. Hints cost 30 pts.',
+      'Letters only · eye-level boards · numbered slips. Build one word, no spaces.',
     destinationInstruction:
       `Word solved — go to ${fifthStop}. Find the shared red FIFTH SCAN QR. `
       + `Leader scans once to unlock Clue 6.`,

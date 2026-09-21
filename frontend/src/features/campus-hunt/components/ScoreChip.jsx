@@ -8,11 +8,38 @@ function ordinalSuffix(n) {
   return 'th';
 }
 
-export default function ScoreChip({ score, label = 'Score', rank = null, fieldSize = null }) {
+/**
+ * Score / rank chip. rankFirst hides the raw score and leads with live place.
+ */
+export default function ScoreChip({
+  score,
+  label = 'Score',
+  rank = null,
+  fieldSize = null,
+  rankFirst = false,
+}) {
   const place = Number(rank);
   const total = Number(fieldSize);
   const hasRank = Number.isFinite(place) && place > 0;
   const hasField = Number.isFinite(total) && total > 0;
+
+  if (rankFirst) {
+    return (
+      <div className="shrink-0 text-right">
+        <p className="text-[10px] font-medium uppercase tracking-wider text-white/35">
+          Rank
+        </p>
+        <p className="text-xl font-semibold tabular-nums leading-none text-white">
+          {hasRank ? `#${place}` : '—'}
+        </p>
+        <p className="mt-1 text-[11px] tabular-nums text-white/45">
+          {hasRank
+            ? `${place}${ordinalSuffix(place)}${hasField ? ` of ${total}` : ''}`
+            : 'Updates on Wi‑Fi'}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="shrink-0 text-right">

@@ -189,6 +189,7 @@ export function buildPlayData(bundle, session, state, now = new Date()) {
 
   return {
     event: {
+      id: bundle.event.id,
       teamCapacity: size,
       finaleCapacity: 0,
       name: bundle.event.name,

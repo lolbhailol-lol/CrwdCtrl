@@ -29,3 +29,9 @@ test('assisted order becomes expired after the fixed thirty-minute window', () =
 test('desk phone normalization requires the last ten digits', () => {
   assert.equal(_test.phoneDigits('+91 98765 43210'), '9876543210');
 });
+
+test('desk roster accepts teammate names without requiring teammate accounts or email', () => {
+  assert.deepEqual(_test.normalizeMembers([{ name: 'Teammate One', email: '' }], 'Captain'), [
+    { name: 'Teammate One', email: '', phone: '', college: '' },
+  ]);
+});

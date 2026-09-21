@@ -48,7 +48,8 @@ const OFFLINE_CLUE_HOW_TO = {
   5: {
     title: 'How to play — Clue 5',
     steps: [
-      'At red: find letter slips (not digits). Join into one word (2 tries · hints cost more).',
+      'At red: find numbered letter slips (letters — not digits).',
+      'Join in order into one word.',
       'Scan red FIFTH SCAN once → Clue 6 at Mindspark Lobby.',
     ],
   },
@@ -932,6 +933,12 @@ async function ingestOfflineProgress(eventId, payload) {
     publishTeamProgress(fresh._id);
   } catch (_) { /* best-effort */ }
 
+  let standing = null;
+  try {
+    const { standingForTeam } = require('./leaderboardService');
+    standing = await standingForTeam(eventId, fresh._id);
+  } catch (_) { /* best-effort */ }
+
   return {
     teamCode: fresh.teamCode,
     score: fresh.currentScore,
@@ -940,6 +947,8 @@ async function ingestOfflineProgress(eventId, payload) {
     deviceId: fresh.offlineDeviceId,
     offlineResetAt: fresh.offlineResetAt || null,
     accepted: true,
+    rank: standing?.rank || null,
+    fieldSize: standing?.size || null,
   };
 }
 
@@ -976,6 +985,22 @@ async function pullOfflineBoardState(eventId, payload) {
     throw err;
   }
 
+  let rank = null;
+  let fieldSize = null;
+  let top10 = [];
+  try {
+    const { buildLeaderboard, standingForTeam } = require('./leaderboardService');
+    const standing = await standingForTeam(eventId, team._id);
+    rank = standing?.rank || null;
+    fieldSize = standing?.size || null;
+    const rows = await buildLeaderboard(eventId, { includeUnfinished: true });
+    top10 = (rows || []).slice(0, 10).map((row) => ({
+      rank: row.rank,
+      teamCode: row.teamCode,
+      teamId: row.teamId,
+    }));
+  } catch (_) { /* best-effort */ }
+
   return {
     teamCode: team.teamCode,
     stage: team.currentStage,
@@ -985,6 +1010,9 @@ async function pullOfflineBoardState(eventId, payload) {
     seq: Number(team.offlineProgressSeq) || 0,
     offlineResetAt: team.offlineResetAt || null,
     scoreLocked: team.currentStage === 'SCORE_LOCKED' || Boolean(team.scoreLockedAt),
+    rank,
+    fieldSize,
+    top10,
   };
 }
 

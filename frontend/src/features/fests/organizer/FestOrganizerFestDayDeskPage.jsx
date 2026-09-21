@@ -28,12 +28,12 @@ import LocalQRCode from "../../../components/LocalQRCode";
 
 const statusLabels = {
   form_started: "Form started",
-  payment_pending: "Payment pending",
+  payment_pending: "Draft · payment pending",
   confirming: "Confirming payment",
   paid: "Paid",
   failed: "Failed",
   expired: "Expired",
-  pending: "Payment pending",
+  pending: "Draft · payment pending",
   paid_review: "Paid — review required",
   refund_pending: "Refund pending",
   refunded: "Refunded",
@@ -71,6 +71,10 @@ function paymentTokenFromUrl(url) {
 
 function AssistedEntryModal({ festId, competition, online, onClose, onCreated }) {
   const emptyMember = () => ({ name: "", email: "" });
+  const teamMin = Math.max(1, Number(competition.teamSizeMin) || 1);
+  const teamMax = Math.max(teamMin, Number(competition.teamSizeMax) || teamMin);
+  const extraMin = Math.max(0, teamMin - 1);
+  const extraMax = Math.max(0, teamMax - 1);
   const [form, setForm] = useState({
     name: "",
     phone: "",
@@ -79,7 +83,7 @@ function AssistedEntryModal({ festId, competition, online, onClose, onCreated })
     teamName: "",
     feeTierId: "",
   });
-  const [members, setMembers] = useState([]);
+  const [members, setMembers] = useState(() => Array.from({ length: extraMin }, emptyMember));
   const [qr, setQr] = useState("");
   const [ticketQr, setTicketQr] = useState("");
   const [result, setResult] = useState(null);
@@ -87,10 +91,6 @@ function AssistedEntryModal({ festId, competition, online, onClose, onCreated })
   const [error, setError] = useState("");
   const submissionKey = useRef(crypto.randomUUID());
   const set = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
-  const teamMin = Math.max(1, Number(competition.teamSizeMin) || 1);
-  const teamMax = Math.max(teamMin, Number(competition.teamSizeMax) || teamMin);
-  const extraMin = Math.max(0, teamMin - 1);
-  const extraMax = Math.max(0, teamMax - 1);
   const paid = result?.status === "paid";
   const paymentToken = paymentTokenFromUrl(result?.paymentUrl);
 
@@ -131,8 +131,8 @@ function AssistedEntryModal({ festId, competition, online, onClose, onCreated })
           `Add ${extraMin === extraMax ? extraMin : `${extraMin}–${extraMax}`} other teammates with name and email`,
         );
       }
-      if (teammateRows.some((row) => !row.name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email))) {
-        throw new Error("Every teammate needs a full name and valid email");
+      if (teammateRows.some((row) => !row.name || (row.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email)))) {
+        throw new Error("Every teammate needs a full name; email is optional but must be valid when entered");
       }
       const data = await createFestDayAssistedRegistration(festId, {
         ...form,
@@ -316,7 +316,7 @@ function AssistedEntryModal({ festId, competition, online, onClose, onCreated })
                 </label>
                 <div className="sm:col-span-2 space-y-3">
                   <p className="text-xs text-gray-400">
-                    Other teammates ({extraMin}–{extraMax}) — name + email required each
+                    Other teammates ({extraMin}–{extraMax}) — full name required
                   </p>
                   {members.map((member, index) => (
                     <div key={index} className="grid sm:grid-cols-[1fr_1fr_auto] gap-2">
@@ -334,7 +334,6 @@ function AssistedEntryModal({ festId, competition, online, onClose, onCreated })
                         className="rounded-xl bg-[#1D1E20] border border-white/10 px-3 py-2.5"
                       />
                       <input
-                        required={index < extraMin}
                         type="email"
                         value={member.email}
                         onChange={(e) =>
@@ -344,7 +343,7 @@ function AssistedEntryModal({ festId, competition, online, onClose, onCreated })
                             ),
                           )
                         }
-                        placeholder="Email"
+                        placeholder="Email (optional)"
                         className="rounded-xl bg-[#1D1E20] border border-white/10 px-3 py-2.5"
                       />
                       <button
@@ -545,6 +544,16 @@ export default function FestOrganizerFestDayDeskPage() {
           .includes(q),
     );
   }, [competitions, query]);
+
+  const combinedActivity = useMemo(() => [
+    ...activity.map((row) => ({ ...row, activityType: "single" })),
+    ...bundleActivity.map((row) => ({
+      ...row,
+      activityType: "bundle",
+      orderId: row.activeOrderId,
+      competitionName: row.competitionNames?.join(" + ") || "3-competition bundle",
+    })),
+  ].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)), [activity, bundleActivity]);
 
   const refreshOrder = async (orderId) => {
     if (!online) return toast("Internet is required to verify a Cashfree payment");

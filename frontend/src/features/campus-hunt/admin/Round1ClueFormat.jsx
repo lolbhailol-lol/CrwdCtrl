@@ -318,10 +318,13 @@ function ClueBox({
               <Clue5VariantManager
                 eventId={eventId}
                 roundId={roundId}
+                campusStations={campusStations}
                 campusStarts={campusStarts}
+                stationCount={stationCount}
                 teamCapacity={teamCapacity}
                 teamSize={teamSize}
                 teamsPerWait={teamsPerWait}
+                teamsPerStation={teamsPerStation}
                 onChanged={() => {
                   onClueContentChanged?.();
                   onChanged?.();

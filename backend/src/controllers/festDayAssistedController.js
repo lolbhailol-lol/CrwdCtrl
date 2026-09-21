@@ -175,11 +175,11 @@ exports.createAssistedRegistration = async (req, res) => {
     if (1 + memberRows.length < min || 1 + memberRows.length > max) {
       return res.status(400).json({ success: false, message: `Team size must be between ${min} and ${max}` });
     }
-    const missingMemberEmail = memberRows.find((m) => !validEmail(m.email));
-    if (missingMemberEmail) {
+    const invalidMemberEmail = memberRows.find((m) => m.email && !validEmail(m.email));
+    if (invalidMemberEmail) {
       return res.status(400).json({
         success: false,
-        message: `Every teammate needs a valid email (missing for ${missingMemberEmail.name})`,
+        message: `Enter a valid teammate email for ${invalidMemberEmail.name}, or leave it blank`,
       });
     }
     for (const member of memberRows) {

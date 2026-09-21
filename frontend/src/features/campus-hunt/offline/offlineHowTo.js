@@ -41,9 +41,8 @@ export const OFFLINE_CLUE_HOW_TO = {
   5: {
     title: 'Clue 5 · word',
     steps: [
-      'At red: find letter slips (letters — not digits).',
-      'Join in order into one word (2 tries · hints cost more).',
-      'Time up or 2 misses → word shown (0 pts).',
+      'At red: find numbered letter slips (letters — not digits).',
+      'Join in order into one word.',
       'Scan red once · then Mindspark Lobby.',
     ],
   },

@@ -25,7 +25,7 @@ export function buildPlayerNowGuide({
       tone: 'done',
       eyebrow: 'Finished',
       title: 'Score locked',
-      body: `Final: ${team?.finalScore ?? team?.currentScore ?? 0} pts.`,
+      body: 'Check the live leaderboard. Top 10 teams get a chance to volunteer at Mindspark 2026.',
       steps: [],
     };
   }

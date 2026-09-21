@@ -351,21 +351,24 @@ function routeClueDefaults(
     };
   }
 
-  // Clue 5 — letter/word slips → one WORD (not digits).
-  const word = String(place || 'QUEST').replace(/\s+/g, '').toUpperCase();
+  // Clue 5 — letter slips → one WORD (not digits).
+  const word = String(place || 'QUEST').replace(/[^A-Za-z]/g, '').toUpperCase() || 'QUEST';
   const fifthStop = String(fifthStopName || '').trim() || 'your 5th campus stop';
+  const slips = word.split('');
   const findTasks = Array.from({ length: people }, (_, i) => (
-    `Find letter slip #${i + 1} nearby — letters only, piece ${i + 1} of ${people}.`
+    slips[i]
+      ? `Find letter slip #${i + 1} nearby — letter “${slips[i]}” (piece ${i + 1} of ${slips.length}).`
+      : `Help the team find all ${slips.length} letter slips and join them in order.`
   ));
   return {
     prompt:
-      `At the red stop: find ${people} letter slips planted nearby `
-      + `(not digits — letters that make one word).\n`
-      + `Join them in order into one word. Leader submits (2 tries · hints cost more).\n`
+      `At the red stop: find ${slips.length} letter slips planted nearby `
+      + `(letters only — not digits).\n`
+      + `Join them in order (1→${slips.length}) into one word. Leader submits.\n`
       + `Letters are NOT on this phone.`,
     answer: word,
     hintText:
-      'Letters only · eye-level boards. Build one word, no spaces. Hints cost 30 pts.',
+      'Letters only · eye-level boards · numbered slips. Build one word, no spaces.',
     destinationInstruction:
       `Word solved — go to ${fifthStop}. Find the shared red FIFTH SCAN QR. `
       + `Leader scans once to unlock Clue 6.`,
@@ -381,15 +384,19 @@ const CLUE5_WORDS = {
   D: 'PRIDE',
 };
 
-/** Lockbox 4-digit codes — rotate so routes don’t share the same answer. */
+/** Unique 4-digit lockbox codes — one per team (capacity ≤ 24). */
 const LOCKBOX_CODES = [
   '9407', '3815', '7264', '1598', '6032', '8471', '2956', '4713',
   '5180', '0629', '7346', '1864', '2538', '6901', '8142', '3075',
+  '4286', '1759', '8630', '5924', '0468', '7193', '3641', '2805',
 ];
 
-function lockboxCodeForTeam(stationIndex, localTeamNumber) {
-  const i = (Number(stationIndex) || 0) * 11 + (Number(localTeamNumber) || 1);
-  return LOCKBOX_CODES[Math.abs(i) % LOCKBOX_CODES.length];
+/** Unique Lockbox digit code per global team. */
+function lockboxCodeForTeam(waitIndex, localTeamNumber, teamsPerWait = TEAMS_PER_WAIT) {
+  const perWait = Math.max(1, Number(teamsPerWait) || TEAMS_PER_WAIT);
+  const teamNumber = (Math.max(0, Number(waitIndex) || 0) * perWait)
+    + Math.max(1, Number(localTeamNumber) || 1);
+  return LOCKBOX_CODES[(teamNumber - 1) % LOCKBOX_CODES.length];
 }
 
 /** Field Terminal GRID completion codes — rotate per team path. */
@@ -744,7 +751,7 @@ async function ensureCheckpointsAndClues(
       localTeamNumber: group.localTeamNumber,
       station: thirdStops[group.slot],
       key: `3-${group.wave}`,
-      lockboxCode: lockboxCodeForTeam(stationIndex, group.localTeamNumber),
+      lockboxCode: lockboxCodeForTeam(stationIndex, group.localTeamNumber, teamsPerWait),
     }));
 
     const fourthStopDefs = teamGroups.map((group) => ({

@@ -12,6 +12,8 @@ import { CAMPUS_HUNT_PATHS } from '../config';
 import CampusHuntBackLink from '../components/CampusHuntBackLink';
 import UnlockHoldingCard from '../components/UnlockHoldingCard';
 import HuntScoringGuide from '../components/HuntScoringGuide';
+import OfflineLiveRankPanel from '../offline/components/OfflineLiveRankPanel';
+import { pullOfflineBoardState } from '../offline/offlineBoardSync';
 import {
   submitChallengeAnswer,
   requestChallengeHint,
@@ -20,6 +22,7 @@ import {
   confirmStationCheckpoint,
   forceUnlockClue2,
   submitFinishCode,
+  fetchPublicLeaderboard,
 } from '../services/campusHunt.api';
 import PlayerInstructionBox from './PlayerInstructionBox';
 import { buildPlayerNowGuide } from './playerNowGuide';
@@ -91,6 +94,8 @@ export default function PlayerPlayScreen({
   backLabel = '← Hunt hub',
   onStartOver = null,
   startOverBusy = false,
+  eventId: eventIdProp = null,
+  offlineBundle = null,
 }) {
   const submitChallengeAnswerFn = actions?.submitChallengeAnswer || submitChallengeAnswer;
   const requestChallengeHintFn = actions?.requestChallengeHint || requestChallengeHint;
@@ -104,9 +109,12 @@ export default function PlayerPlayScreen({
   const submitFinishCodeFn = actions?.submitFinishCode || submitFinishCode;
   const isLeader = Boolean(team?.isLeader);
   const teamCapacity = Math.max(2, Number(data?.event?.teamCapacity) || 0);
+  const eventId = eventIdProp || data?.event?.id || null;
   const round1Label = roundLabel
     || (teamCapacity ? `The Hunt · ${teamCapacity} teams` : 'The Hunt');
-  const finalsHint = 'Hunt complete — check the leaderboard for ranks. Organizers lock scores after finish/import.';
+  const finalsHint = offlineMode
+    ? 'Hunt complete — check the live leaderboard. Top 10 teams get a chance to volunteer at Mindspark 2026.'
+    : 'Hunt complete — check the leaderboard for ranks. Organizers lock scores after finish/import.';
   const activeNum = activeChallengeNumber(team?.currentStage);
   const hasStartGate = Boolean(team?.startStatus || team?.scheduledStartAt);
   const released = Boolean(
@@ -114,6 +122,58 @@ export default function PlayerPlayScreen({
     || ['RELEASED', 'ACTIVE', 'COMPLETED'].includes(team?.startStatus),
   );
   const waitingForRelease = !offlineMode && hasStartGate && !released;
+
+  const [liveRank, setLiveRank] = useState(null);
+  const [liveFieldSize, setLiveFieldSize] = useState(null);
+
+  useEffect(() => {
+    if (!offlineMode || (!eventId && !offlineBundle)) return undefined;
+    let cancelled = false;
+    const pull = async () => {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+      try {
+        if (offlineBundle?.signingKey) {
+          const data = await pullOfflineBoardState(offlineBundle);
+          if (cancelled || !data) return;
+          setLiveRank(Number(data.rank) || null);
+          setLiveFieldSize(Number(data.fieldSize) || null);
+          return;
+        }
+        if (!eventId) return;
+        const res = await fetchPublicLeaderboard(eventId);
+        const rows = res.data?.leaderboard || res.data?.rows || res.data || [];
+        const list = Array.isArray(rows) ? rows : [];
+        if (cancelled) return;
+        setLiveFieldSize(list.length || null);
+        const mine = list.find((row) => (
+          String(row.teamCode || '') === String(team?.teamCode || '')
+          || String(row.teamId || row.id || '') === String(team?.id || '')
+        ));
+        setLiveRank(Number(mine?.rank || mine?.place) || null);
+      } catch {
+        /* ranking is best-effort while offline */
+      }
+    };
+    pull();
+    const tick = window.setInterval(pull, 20000);
+    window.addEventListener('online', pull);
+    return () => {
+      cancelled = true;
+      window.clearInterval(tick);
+      window.removeEventListener('online', pull);
+    };
+  }, [offlineMode, eventId, offlineBundle, team?.teamCode, team?.id, team?.currentStage, team?.currentScore]);
+
+  const displayRank = offlineMode
+    ? liveRank
+    : team?.leaderboardRank;
+  const displayFieldSize = offlineMode
+    ? liveFieldSize
+    : team?.leaderboardSize;
+
+  const winMsg = useCallback((withPts, withoutPts) => (
+    offlineMode ? withoutPts : withPts
+  ), [offlineMode]);
 
   const activeChallenge = useMemo(
     () => {
@@ -459,42 +519,50 @@ export default function PlayerPlayScreen({
     if (resData?.correct) {
       setAnswer('');
       const pts = resData.awardedPoints ?? 0;
+      const flashPts = offlineMode ? null : (pts > 0 ? pts : null);
       if (activeNum === 1) {
-        celebrate(pts > 0 ? `Correct! +${pts} pts` : 'Correct! Head to Orange scan');
-        setAwardedFlash(pts > 0 ? pts : null);
+        celebrate(winMsg(
+          pts > 0 ? `Correct! +${pts} pts` : 'Correct! Head to Orange scan',
+          'Correct! Head to Orange scan',
+        ));
+        setAwardedFlash(flashPts);
         // Open camera as soon as Clue 1 unlocks orange scan (don't wait for effect race).
         setShowScanner(true);
       } else if (activeNum === 2) {
-        celebrate(
+        celebrate(winMsg(
           pts > 0
             ? `Correct! +${pts} pts — green scan next`
             : 'Correct — green scan next',
-        );
-        setAwardedFlash(pts > 0 ? pts : null);
+          'Correct — green scan next',
+        ));
+        setAwardedFlash(flashPts);
         setShowScanner(true);
       } else if (activeNum === 3) {
-        celebrate(
+        celebrate(winMsg(
           pts > 0
             ? `Decoded! +${pts} pts — blue scan next`
             : 'Decoded — blue scan next',
-        );
-        setAwardedFlash(pts > 0 ? pts : null);
+          'Decoded — blue scan next',
+        ));
+        setAwardedFlash(flashPts);
         setShowScanner(true);
       } else if (activeNum === 4) {
-        celebrate(
+        celebrate(winMsg(
           pts > 0
             ? `GRID cleared! +${pts} pts — purple scan next`
             : 'GRID cleared — purple scan next',
-        );
-        setAwardedFlash(pts > 0 ? pts : null);
+          'GRID cleared — purple scan next',
+        ));
+        setAwardedFlash(flashPts);
         setShowScanner(true);
       } else if (activeNum === 5) {
-        celebrate(
+        celebrate(winMsg(
           pts > 0
             ? `Correct! +${pts} pts — go scan red, then Mindspark Lobby`
             : 'Correct — go scan red, then Mindspark Lobby',
-        );
-        setAwardedFlash(pts > 0 ? pts : null);
+          'Correct — go scan red, then Mindspark Lobby',
+        ));
+        setAwardedFlash(flashPts);
         setShowScanner(true);
       } else if (activeNum === 6) {
         celebrate(
@@ -502,18 +570,18 @@ export default function PlayerPlayScreen({
             ? 'Finish code accepted — score locked at Mindspark Lobby'
             : 'Finish code accepted — score locked at Mindspark Lobby',
         );
-        setAwardedFlash(pts > 0 ? pts : null);
+        setAwardedFlash(flashPts);
       } else if (resData?.late) {
-        celebrate('Correct — time up (0 points)');
+        celebrate(winMsg('Correct — time up (0 points)', 'Correct — time was up'));
         setAwardedFlash(null);
       } else {
-        celebrate(pts > 0 ? `Correct! +${pts} pts` : 'Correct!');
-        setAwardedFlash(pts > 0 ? pts : null);
+        celebrate(winMsg(pts > 0 ? `Correct! +${pts} pts` : 'Correct!', 'Correct!'));
+        setAwardedFlash(flashPts);
       }
       setFeedback(sanitizePlayerCopy(resData.message || resData.destinationInstruction || ''));
     } else if (resData?.revealed) {
       setAnswer(String(resData.revealedAnswer || resData.revealedLocation || '').trim());
-      celebrate('Answer revealed — type it for 0 pts');
+      celebrate(winMsg('Answer revealed — type it for 0 pts', 'Answer revealed — type it to continue'));
       setAwardedFlash(null);
       setFeedback(
         resData.message
@@ -534,7 +602,11 @@ export default function PlayerPlayScreen({
   const onHint = async () => {
     if (!activeNum || !isLeader) return;
     const hintCost = Number(activeChallenge?.hintCost) || 20;
-    if (!window.confirm(`Use Hint? This will cost ${hintCost} points.`)) return;
+    if (!window.confirm(
+      offlineMode
+        ? 'Use a hint? It may affect your ranking.'
+        : `Use Hint? This will cost ${hintCost} points.`,
+    )) return;
     const result = await runAction(() =>
       requestChallengeHintFn(team.id, activeNum, `hint-${team.id}-${activeNum}`));
     if (result.ok) setHintPreview(result.payload?.hint || '');
@@ -710,8 +782,9 @@ export default function PlayerPlayScreen({
             <ScoreChip
               score={team.currentScore}
               label="Score"
-              rank={offlineMode ? undefined : team.leaderboardRank}
-              fieldSize={offlineMode ? undefined : team.leaderboardSize}
+              rank={displayRank}
+              fieldSize={displayFieldSize}
+              rankFirst={offlineMode}
             />
           </div>
         </header>
@@ -720,6 +793,15 @@ export default function PlayerPlayScreen({
           {!waitingForRelease && !locked && (
             <HuntProgressTrack stage={team.currentStage} />
           )}
+
+          {offlineMode && !waitingForRelease && (eventId || offlineBundle) ? (
+            <OfflineLiveRankPanel
+              eventId={eventId}
+              teamCode={team.teamCode}
+              teamId={team.id}
+              bundle={offlineBundle}
+            />
+          ) : null}
 
           {!waitingForRelease && !locked && (
             <PlayerInstructionBox
@@ -755,14 +837,32 @@ export default function PlayerPlayScreen({
                 Hunt complete
               </p>
               <p className="mt-2 text-lg font-semibold text-white">
-                Score locked · {team.finalScore ?? team.currentScore ?? 0} pts
-                {!offlineMode && Number(team.leaderboardRank) > 0
-                  ? ` · #${team.leaderboardRank}${Number(team.leaderboardSize) > 0 ? ` of ${team.leaderboardSize}` : ''}`
-                  : ''}
+                {offlineMode
+                  ? (
+                    <>
+                      Score locked
+                      {Number(displayRank) > 0
+                        ? ` · #${displayRank}${Number(displayFieldSize) > 0 ? ` of ${displayFieldSize}` : ''}`
+                        : ''}
+                    </>
+                  )
+                  : (
+                    <>
+                      Score locked · {team.finalScore ?? team.currentScore ?? 0} pts
+                      {Number(team.leaderboardRank) > 0
+                        ? ` · #${team.leaderboardRank}${Number(team.leaderboardSize) > 0 ? ` of ${team.leaderboardSize}` : ''}`
+                        : ''}
+                    </>
+                  )}
               </p>
               <p className="mt-2 text-sm text-white/60">
                 {finalsHint}
               </p>
+              {offlineMode && Number(displayRank) > 0 && Number(displayRank) <= 10 ? (
+                <p className="mt-3 rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-50">
+                  You’re in the Top 10 — chance to volunteer at Mindspark 2026.
+                </p>
+              ) : null}
 
               {offlineMode && isLeader && typeof onStartOver === 'function' ? (
                 <div className="mt-5 rounded-xl border border-amber-400/30 bg-black/25 px-3 py-3 text-left">

@@ -15,7 +15,12 @@ function revealAnswerLabel(challengeNumber) {
  * Read-only review of clues the team already finished.
  * Does not undo progress — just lets players re-read passed clues.
  */
-export default function PassedCluesPanel({ challenges = [], isLeader, currentActiveNum }) {
+export default function PassedCluesPanel({
+  challenges = [],
+  isLeader,
+  currentActiveNum,
+  hidePoints = false,
+}) {
   const passed = (challenges || [])
     .filter((c) => RESOLVED.has(c.state) && c.challengeNumber !== currentActiveNum)
     .sort((a, b) => a.challengeNumber - b.challengeNumber);
@@ -55,7 +60,7 @@ export default function PassedCluesPanel({ challenges = [], isLeader, currentAct
               >
                 <span className="text-sm text-white/80">{title}</span>
                 <span className="flex items-center gap-2 text-[11px] text-white/40">
-                  {ch.awardedPoints != null && (
+                  {ch.awardedPoints != null && !hidePoints && (
                     <span className="text-[#0ECCEE]/80">+{ch.awardedPoints}</span>
                   )}
                   <span>{statusLabel}</span>
@@ -83,12 +88,14 @@ export default function PassedCluesPanel({ challenges = [], isLeader, currentAct
                       )}
                       {ch.revealedLocation && (
                         <p className="text-xs text-amber-200">
-                          Revealed location: {ch.revealedLocation} (0 pts)
+                          Revealed location: {ch.revealedLocation}
+                          {hidePoints ? '' : ' (0 pts)'}
                         </p>
                       )}
                       {ch.revealedAnswer && (
                         <p className="text-xs text-amber-200">
-                          Revealed {revealAnswerLabel(ch.challengeNumber)}: {ch.revealedAnswer} (0 pts)
+                          Revealed {revealAnswerLabel(ch.challengeNumber)}: {ch.revealedAnswer}
+                          {hidePoints ? '' : ' (0 pts)'}
                         </p>
                       )}
                       {ch.destinationInstruction && (

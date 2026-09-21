@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
-import HuntScoringGuide from '../../components/HuntScoringGuide';
 import { getHuntStartGate } from '../offlineEngine';
+import OfflineHuntWelcome from './OfflineHuntWelcome';
 
-/** Briefing — type organizer start code → hunt begins. */
+const WELCOME_KEY = 'ch_hunt_welcome_seen';
+
+/** Welcome → organizer start code → hunt begins. */
 export default function OfflineHuntBriefing({
   bundle,
   session,
@@ -13,10 +15,16 @@ export default function OfflineHuntBriefing({
 }) {
   const isLeader = session?.role === 'leader';
   const startName = bundle?.team?.startingPoint?.name;
-  const startingScore = Number(bundle?.event?.startingScore) > 0
-    ? Number(bundle.event.startingScore)
-    : (Number(bundle?.event?.scoringConfig?.startingScore) || 100);
   const expectsGo = Boolean(String(bundle?.event?.organizerStartCode || 'GO').trim());
+  const teamKey = String(bundle?.team?.teamCode || 'team');
+
+  const [showWelcome, setShowWelcome] = useState(() => {
+    try {
+      return sessionStorage.getItem(`${WELCOME_KEY}_${teamKey}`) !== '1';
+    } catch {
+      return true;
+    }
+  });
 
   const [goCode, setGoCode] = useState('');
   const [gate, setGate] = useState(() => getHuntStartGate(bundle, new Date(), { goCode: '' }));
@@ -25,11 +33,39 @@ export default function OfflineHuntBriefing({
     setGate(getHuntStartGate(bundle, new Date(), { goCode }));
   }, [bundle, goCode]);
 
+  const markWelcomeDone = () => {
+    try {
+      sessionStorage.setItem(`${WELCOME_KEY}_${teamKey}`, '1');
+    } catch { /* ignore */ }
+    setShowWelcome(false);
+  };
+
   const canStart = isLeader && gate.open && !starting;
 
+  if (showWelcome) {
+    return (
+      <OfflineHuntWelcome
+        teamCode={bundle?.team?.teamCode}
+        teamName={bundle?.team?.teamName}
+        startName={startName}
+        onContinue={markWelcomeDone}
+        onBack={onBackToRounds}
+      />
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-[#0b0c0d] px-4 py-10 text-white">
-      <div className="mx-auto max-w-md space-y-5">
+    <div className="relative min-h-screen overflow-hidden text-white">
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            'radial-gradient(ellipse 80% 50% at 50% 0%, rgba(14,204,238,0.18), transparent 55%),'
+            + 'linear-gradient(180deg, #07090b 0%, #0b0c0d 100%)',
+        }}
+      />
+
+      <div className="relative mx-auto max-w-md space-y-5 px-4 py-10">
         {onBackToRounds ? (
           <button
             type="button"
@@ -40,9 +76,17 @@ export default function OfflineHuntBriefing({
           </button>
         ) : null}
 
+        <button
+          type="button"
+          onClick={() => setShowWelcome(true)}
+          className="text-[11px] text-[#0ECCEE]/70 hover:text-[#0ECCEE]"
+        >
+          ← Welcome
+        </button>
+
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#0ECCEE]">
-            CrwdCtrl Hunt
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#0ECCEE]">
+            Campus Hunt Challenge
           </p>
           <h1 className="mt-2 text-3xl font-black tracking-tight">
             {bundle?.team?.teamCode}
@@ -52,10 +96,21 @@ export default function OfflineHuntBriefing({
           ) : null}
         </div>
 
+        <div className="rounded-2xl border border-amber-400/25 bg-amber-500/[0.08] px-4 py-3">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-200/90">
+            Prize track
+          </p>
+          <p className="mt-1.5 text-sm leading-snug text-amber-50/90">
+            Clear clues to climb the live leaderboard. Top{' '}
+            <span className="font-bold">10 teams</span> get a chance to volunteer at
+            Mindspark 2026.
+          </p>
+        </div>
+
         {expectsGo ? (
           <div className="rounded-2xl border border-cyan-400/35 bg-cyan-500/10 px-4 py-4">
             <p className="text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200/80">
-              Start code
+              Organizer start code
             </p>
             <p className="mt-2 text-center text-sm text-white/70">
               Wait at the gather point. When the organizer tells everyone the code, type it below — then Start.
@@ -77,7 +132,9 @@ export default function OfflineHuntBriefing({
           </div>
         ) : null}
 
-        <HuntScoringGuide startingScore={startingScore} />
+        <p className="text-center text-[11px] text-white/40">
+          Powered by CrwdCtrl · Mindspark COEP Fest collaboration
+        </p>
 
         {error ? <p className="text-sm text-red-300">{error}</p> : null}
 

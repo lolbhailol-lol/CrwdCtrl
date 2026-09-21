@@ -14,18 +14,26 @@ import {
 } from './clueSettings';
 import {
   CAMPUS_STARTS,
+  TARGET_TEAMS_PER_STATION,
   TEAMS_PER_WAIT,
   buildTeamSlots,
   clue5WordForStart,
-  globalTeamNumber,
+  fifthStopArrivalPlan,
+  letterSlipsForWord,
+  resolveStations,
   resolveStarts,
   routeClueDefaults,
-  splitPlantFragments,
 } from './campusHuntFormat';
 import { STAGE_THEMES } from '../types/stageTheme';
 
 const THEME = STAGE_THEMES.final;
 const inputClass = 'w-full rounded-lg border border-white/15 bg-[#161718] px-3 py-2 text-sm text-white';
+
+const SHARED_PROMPT =
+  'At the red stop: find the letter slips planted nearby '
+  + '(letters only — not digits).\n'
+  + 'Join them in order into one word. Leader submits.\n'
+  + 'Letters are NOT on this phone.';
 
 function id(value) {
   return String(value?._id || value?.id || value || '');
@@ -52,35 +60,38 @@ function routeForStart(routes, point) {
   return routes.find((route) => String(route.routeKey || '').toUpperCase() === code) || null;
 }
 
-function blankRouteForm(code, teamSize, startName) {
-  const word = clue5WordForStart(code);
-  const defaults = routeClueDefaults(5, word, teamSize);
-  return {
-    prompt: defaults.prompt,
-    answer: word,
-    memberPrompts: [...(defaults.memberPrompts || [])],
-    destinationInstruction:
-      `Go to your 5th campus stop. Leader scans the FIFTH SCAN QR once to unlock Clue 6 (Mindspark Lobby).`,
-  };
-}
-
+/**
+ * Clue 5: letter slips → one word. Show plant list for every team’s red stop.
+ */
 export default function Clue5VariantManager({
   eventId,
   roundId,
+  campusStations,
   campusStarts,
+  stationCount = null,
   onChanged,
-  teamCapacity: _teamCapacity = 20,
+  teamCapacity = 20,
   teamSize = 4,
   teamsPerWait = TEAMS_PER_WAIT,
+  teamsPerStation = TARGET_TEAMS_PER_STATION,
 }) {
+  const people = Math.max(2, Math.min(12, Number(teamSize) || 4));
+  const stations = useMemo(
+    () => resolveStations(campusStations, stationCount),
+    [campusStations, stationCount],
+  );
   const starts = useMemo(() => resolveStarts(campusStarts), [campusStarts]);
   const teamSlots = useMemo(() => buildTeamSlots(teamsPerWait), [teamsPerWait]);
-  const people = Math.max(2, Math.min(12, Number(teamSize) || 4));
+  const arrivalPlan = useMemo(
+    () => fifthStopArrivalPlan(stations, teamsPerWait, starts),
+    [stations, teamsPerWait, starts],
+  );
 
   const [routes, setRoutes] = useState([]);
   const [points, setPoints] = useState([]);
   const [challenges, setChallenges] = useState([]);
-  const [routeForms, setRouteForms] = useState({});
+  const [words, setWords] = useState({});
+  const [prompt, setPrompt] = useState(SHARED_PROMPT);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -121,40 +132,27 @@ export default function Clue5VariantManager({
       .filter((p) => p.active !== false)
       .sort((a, b) => order.indexOf(startCode(a)) - order.indexOf(startCode(b)));
 
-    const nextForms = {};
+    const nextWords = {};
     ordered.forEach((point) => {
       const code = startCode(point);
       const route = routeForStart(routeList, point);
       const existing = list.find((row) => id(row.routeId) === id(route));
-      const name = startLabel(point);
-      if (existing) {
-        const memberPrompts = Array.from({ length: people }, (_, i) => (
-          existing.memberPrompts?.[i] || ''
-        ));
-        nextForms[code] = {
-          prompt: existing.prompt || blankRouteForm(code, people, name).prompt,
-          answer: existing.answer || clue5WordForStart(code),
-          memberPrompts,
-          destinationInstruction: existing.destinationInstruction
-            || blankRouteForm(code, people, name).destinationInstruction,
-        };
-      } else {
-        nextForms[code] = blankRouteForm(code, people, name);
-      }
+      nextWords[code] = String(existing?.answer || clue5WordForStart(code))
+        .replace(/[^A-Za-z]/g, '')
+        .toUpperCase() || clue5WordForStart(code);
     });
-    setRouteForms(nextForms);
-  }, [eventId, people]);
+    setWords(nextWords);
+
+    const sample = list.find((row) => {
+      const old = String(row.prompt || '');
+      return old && !/collaborative|piece of the|each teammate/i.test(old);
+    })?.prompt;
+    setPrompt(sample || SHARED_PROMPT);
+  }, [eventId]);
 
   useEffect(() => {
     refresh().catch((err) => setError(err.message || 'Could not load Clue 5'));
   }, [refresh]);
-
-  const updateForm = (code, patch) => {
-    setRouteForms((prev) => ({
-      ...prev,
-      [code]: { ...prev[code], ...patch },
-    }));
-  };
 
   const saveDefaults = async () => {
     if (!eventId) return;
@@ -167,7 +165,7 @@ export default function Clue5VariantManager({
         scoring: coerceClueScoring(settings, CLUE5_DEFAULT_SETTINGS),
       });
       await refresh();
-      setMessage('Saved Clue 5 timer & hint settings');
+      setMessage(`Saved Clue 5 timer & hint settings for all ${teamCapacity} teams`);
       onChanged?.();
     } catch (err) {
       setError(err.message || 'Could not save settings');
@@ -188,26 +186,29 @@ export default function Clue5VariantManager({
 
     setBusy(true);
     setError('');
-    setMessage('Saving all Clue 5 rows…');
+    setMessage('Saving Clue 5 letter words for all teams…');
 
     try {
+      const sharedPrompt = String(prompt || SHARED_PROMPT).trim() || SHARED_PROMPT;
       const routesPayload = [];
       for (const point of orderedPoints) {
         const code = startCode(point);
-        const form = routeForms[code] || blankRouteForm(code, people, startLabel(point));
-        const answer = String(form.answer || clue5WordForStart(code)).trim().toUpperCase();
-        if (!answer) {
-          setError(`${startLabel(point)}: Clue 5 word required`);
+        const answer = String(words[code] || clue5WordForStart(code))
+          .replace(/[^A-Za-z]/g, '')
+          .toUpperCase();
+        if (!answer || answer.length < 3) {
+          setError(`${startLabel(point)}: Clue 5 word needs at least 3 letters`);
           setMessage('');
           setBusy(false);
           return;
         }
+        const defaults = routeClueDefaults(5, answer, people);
         routesPayload.push({
           startCode: code,
-          prompt: String(form.prompt || '').trim(),
+          prompt: sharedPrompt,
           answer,
-          memberPrompts: (form.memberPrompts || []).slice(0, people),
-          destinationInstruction: String(form.destinationInstruction || '').trim(),
+          memberPrompts: defaults.memberPrompts,
+          destinationInstruction: defaults.destinationInstruction,
           routeId: id(routeForStart(routes, point)),
           startingPointId: id(point),
         });
@@ -228,7 +229,9 @@ export default function Clue5VariantManager({
         setError(apiErrors[0]?.message || 'Clue 5 save failed');
         setMessage('');
       } else {
-        setMessage(`Saved ${saved} Clue 5(s) in one request · all start paths updated.`);
+        setMessage(
+          `Saved ${saved} Clue 5 word(s) · letter slips ready for all ${teamCapacity} teams.`,
+        );
         setError('');
       }
     } catch (err) {
@@ -240,24 +243,28 @@ export default function Clue5VariantManager({
   };
 
   const savedCount = challenges.filter((c) => c.active !== false).length;
+  const plantedPlaces = arrivalPlan.filter((p) => p.teamCount > 0).length;
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2 text-[11px]">
         <span className={`rounded-full px-2.5 py-1 ${THEME.bgClass} ${THEME.textClass}`}>
-          Clue 5 · letter slips → one word
+          Red · letter slips → one word · for all teams
+        </span>
+        <span className="rounded-full bg-white/10 px-2.5 py-1 text-white/55">
+          {plantedPlaces} red stops · {teamsPerStation === 1 ? '1 team each' : `~${teamsPerStation} teams each`}
         </span>
         <span className={`rounded-full px-2.5 py-1 ${
           savedCount >= orderedPoints.length && orderedPoints.length > 0
             ? 'bg-emerald-500/15 text-emerald-200'
             : 'bg-amber-500/15 text-amber-100'
         }`}>
-          Saved {savedCount}/{orderedPoints.length || starts.length} starts
+          Saved {savedCount}/{orderedPoints.length || starts.length} start paths
         </span>
       </div>
 
       <section className="rounded-2xl border border-white/15 bg-white/5 p-4">
-        <h2 className="text-base font-semibold text-white">Defaults for all teams</h2>
+        <h2 className="text-base font-semibold text-white">1. Defaults for all teams</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <label className="block text-xs text-white/55">
             Solve timer (sec)
@@ -300,97 +307,145 @@ export default function Clue5VariantManager({
         </button>
       </section>
 
-      <p className="text-xs text-white/50">
-        Each start path has one Clue 5 word. Print letter slips nearby at the red stop —
-        letters are NOT on the phone (not digits). After the word → red FIFTH SCAN → Clue 6 → Mindspark Lobby.
-      </p>
+      <section className="rounded-2xl border border-white/15 bg-white/5 p-4">
+        <h2 className="text-base font-semibold text-white">2. Shared phone prompt</h2>
+        <textarea
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          className={`mt-2 min-h-20 ${inputClass}`}
+          placeholder={SHARED_PROMPT}
+        />
+      </section>
 
-      <div className="grid gap-3 md:grid-cols-2">
-        {orderedPoints.map((point) => {
-          const code = startCode(point);
-          const form = routeForms[code] || blankRouteForm(code, people, startLabel(point));
-          const word = clue5WordForStart(code);
-          const teamNums = teamSlots.map((slot) => (
-            globalTeamNumber(
-              CAMPUS_STARTS.findIndex((s) => s.code === code),
-              slot.localTeamNumber,
-              teamsPerWait,
-            )
-          ));
-          return (
-            <section
-              key={code}
-              className="rounded-2xl border border-white/15 bg-white/5 p-4"
-            >
-              <div className="flex items-baseline justify-between gap-2">
-                <h3 className="font-semibold text-white">{startLabel(point)}</h3>
-                <span className="text-xs font-semibold text-[#0ECCEE]">
-                  {word} · teams {teamNums.join(', ')}
-                </span>
+      <section className="rounded-2xl border border-white/15 bg-white/5 p-4">
+        <h2 className="text-base font-semibold text-white">3. Word per start path</h2>
+        <p className="mt-1 text-xs text-white/50">
+          Teams from the same gather share one word. Print that word’s letter slips at every red stop
+          those teams visit.
+        </p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          {orderedPoints.map((point) => {
+            const code = startCode(point);
+            const word = words[code] || clue5WordForStart(code);
+            const slips = letterSlipsForWord(word);
+            const teamCount = teamSlots.length;
+            return (
+              <div
+                key={code}
+                className={`rounded-xl border px-3 py-3 ${THEME.borderClass} bg-black/20`}
+              >
+                <div className="flex items-baseline justify-between gap-2">
+                  <p className="font-semibold text-white">{startLabel(point)}</p>
+                  <p className={`text-xs font-semibold ${THEME.textClass}`}>
+                    {teamCount} teams
+                  </p>
+                </div>
+                <label className="mt-2 block text-xs text-white/55">
+                  Correct word
+                  <input
+                    value={word}
+                    onChange={(e) => setWords((prev) => ({
+                      ...prev,
+                      [code]: e.target.value.replace(/[^A-Za-z]/g, '').toUpperCase(),
+                    }))}
+                    className={`mt-1 font-mono tracking-[0.2em] ${inputClass}`}
+                    placeholder={clue5WordForStart(code)}
+                  />
+                </label>
+                <p className="mt-2 text-[10px] uppercase tracking-wide text-white/35">
+                  Print {slips.length} letter slips
+                </p>
+                <div className="mt-1 flex flex-wrap gap-2">
+                  {slips.map((letter, index) => (
+                    <span
+                      key={`${code}-slip-${index}`}
+                      className="rounded-lg border border-red-400/40 bg-red-500/10 px-3 py-2 font-mono text-lg font-bold tracking-wide text-red-100"
+                    >
+                      <span className="mr-1 text-[10px] text-white/35">{index + 1}.</span>
+                      {letter}
+                    </span>
+                  ))}
+                </div>
               </div>
-              <p className="mt-2 text-[10px] uppercase tracking-wide text-white/35">
-                Print letter slips
-              </p>
-              <div className="mt-1 flex flex-wrap gap-2">
-                {splitPlantFragments(String(form.answer || word).toUpperCase(), people).map((letter, index) => (
-                  <span
-                    key={`${code}-slip-${index}`}
-                    className="rounded-lg border border-white/15 bg-black/40 px-3 py-2 font-mono text-lg font-bold tracking-wide text-white"
-                  >
-                    <span className="mr-1 text-[10px] text-white/35">{index + 1}.</span>
-                    {letter || '·'}
-                  </span>
-                ))}
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-white/15 bg-white/5 p-4">
+        <h2 className="text-base font-semibold text-white">4. Who goes where · letter slips for all teams</h2>
+        <p className="mt-1 text-xs text-white/50">
+          Fifth stop = red. Plant the numbered letter slips below at that place for each team.
+          After they type the word → red FIFTH SCAN → Clue 6.
+        </p>
+        <div className="mt-3 grid gap-2 md:grid-cols-2">
+          {arrivalPlan.map((place) => {
+            if (!place.teamCount) return null;
+            return (
+              <div
+                key={place.code}
+                className={`rounded-xl border px-3 py-3 ${THEME.borderClass} bg-black/20`}
+              >
+                <div className="flex items-baseline justify-between gap-2">
+                  <p className="font-semibold text-white">{place.name}</p>
+                  <p className={`text-xs font-semibold ${THEME.textClass}`}>
+                    {place.teamCount} {place.teamCount === 1 ? 'team' : 'teams'}
+                  </p>
+                </div>
+                <div className="mt-2 space-y-3">
+                  {place.arrivals.map((row) => {
+                    const code = row.startingPointCode;
+                    const word = words[code]
+                      || clue5WordForStart(code);
+                    const slips = letterSlipsForWord(word);
+                    return (
+                      <div
+                        key={`${place.code}-${row.teamNumber}`}
+                        className="rounded-lg border border-white/10 bg-black/30 px-2.5 py-2"
+                      >
+                        <div className="flex items-center justify-between gap-2 text-sm">
+                          <span className="font-semibold text-white">T{row.teamNumber}</span>
+                          <span className="truncate text-white/55">
+                            from{' '}
+                            <span className="text-emerald-300">
+                              {row.startingPointName || row.waitName}
+                            </span>
+                            {' · '}
+                            <span className={`font-mono font-bold ${THEME.textClass}`}>{word}</span>
+                          </span>
+                        </div>
+                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                          {slips.map((letter, index) => (
+                            <span
+                              key={`t${row.teamNumber}-l${index}`}
+                              className="rounded border border-red-400/35 bg-red-500/10 px-2 py-1 font-mono text-sm font-bold text-red-100"
+                            >
+                              <span className="mr-0.5 text-[9px] text-white/35">{index + 1}</span>
+                              {letter}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-              <label className="mt-3 block text-xs text-white/55">
-                Phone prompt
-                <textarea
-                  value={form.prompt}
-                  onChange={(e) => updateForm(code, { prompt: e.target.value })}
-                  className={`mt-1 min-h-16 ${inputClass}`}
-                />
-              </label>
-              <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                {(form.memberPrompts || []).slice(0, people).map((piece, index) => (
-                  <label key={index} className="block text-xs text-white/55">
-                    Find task {index + 1}
-                    <input
-                      value={piece}
-                      onChange={(e) => {
-                        const next = [...(form.memberPrompts || [])];
-                        next[index] = e.target.value;
-                        updateForm(code, { memberPrompts: next });
-                      }}
-                      className={`mt-1 ${inputClass}`}
-                    />
-                  </label>
-                ))}
-              </div>
-              <label className="mt-2 block text-xs text-white/55">
-                Correct word (letters join to this)
-                <input
-                  value={form.answer}
-                  onChange={(e) => updateForm(code, { answer: e.target.value.toUpperCase() })}
-                  className={`mt-1 ${inputClass}`}
-                  placeholder={word}
-                />
-              </label>
-            </section>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      </section>
 
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
           disabled={busy || !roundId || orderedPoints.length < 1}
           onClick={saveAll}
-          className="rounded-xl bg-[#0ECCEE] px-5 py-2.5 text-sm font-semibold text-black disabled:opacity-40"
+          className={`rounded-xl px-5 py-2.5 text-sm font-semibold disabled:opacity-40 ${THEME.buttonClass}`}
         >
-          {busy ? 'Saving…' : `Save Clue 5 · all ${orderedPoints.length} start paths`}
+          {busy ? 'Saving…' : `Save Clue 5 · all ${teamCapacity} teams`}
         </button>
       </div>
-      {message && <p className="text-xs text-[#0ECCEE]">{message}</p>}
+      {message && <p className={`text-xs ${THEME.textClass}`}>{message}</p>}
       {error && <p className="text-xs text-amber-200">{error}</p>}
     </div>
   );

@@ -539,10 +539,12 @@ export default function OfflineHuntPlayPage() {
         onRefresh={refresh}
         onActionResult={applyResult}
         eventSlug={bundle.event.slug}
+        eventId={bundle.event.id}
+        offlineBundle={bundle}
         onLeaveRound={() => navigate(CAMPUS_HUNT_PATHS.offline)}
         actions={actions}
         offlineMode
-        roundLabel="The Hunt · Offline"
+        roundLabel="Campus Hunt Challenge"
         backTo={CAMPUS_HUNT_PATHS.offline}
         backLabel="← Home"
         onStartOver={session.role === 'leader' ? onResetHunt : null}

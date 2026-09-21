@@ -268,6 +268,7 @@ async function bulkSaveClue3({
 
   let saved = 0;
   const errors = [];
+  const usedLockboxCodes = new Set();
 
   for (const row of variants) {
     try {
@@ -292,10 +293,20 @@ async function bulkSaveClue3({
       const stationCode = String(row.stationCode || station.code || '').toUpperCase().trim();
       const prompt = String(row.prompt || '').trim();
       const answer = String(row.answer || place).trim();
+      const digits = String(answer).replace(/\D/g, '');
       if (!prompt || !answer) {
         errors.push({ startCode, waveId, message: 'Lockbox prompt and code required' });
         continue;
       }
+      if (digits && usedLockboxCodes.has(digits)) {
+        errors.push({
+          startCode,
+          waveId,
+          message: `Lockbox code ${digits} already used — each team needs a unique code`,
+        });
+        continue;
+      }
+      if (digits) usedLockboxCodes.add(digits);
 
       const sharedCode = `ST-${stationCode}-3`;
       const thirdCheckpoint = await CampusHuntCheckpoint.findOneAndUpdate(
@@ -337,7 +348,6 @@ async function bulkSaveClue3({
       );
 
       const variantKey = `${startCode}-${waveId}`;
-      const digits = String(answer).replace(/\D/g, '');
       const pieceDefaults = routeClueDefaults(
         3,
         place,
