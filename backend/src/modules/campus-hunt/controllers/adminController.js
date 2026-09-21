@@ -242,8 +242,13 @@ async function updateEvent(req, res, next) {
     }
     let pruned = null;
     if (allowed.teamCapacity != null) {
-      const { pruneExcessTeams } = require('../services/capacityService');
-      pruned = await pruneExcessTeams(event._id, allowed.teamCapacity);
+      try {
+        const { pruneExcessTeams } = require('../services/capacityService');
+        pruned = await pruneExcessTeams(event._id, allowed.teamCapacity);
+      } catch (pruneErr) {
+        console.warn('[updateEvent] prune skipped:', pruneErr.message);
+        pruned = { kept: null, removed: 0, error: pruneErr.message };
+      }
     }
     await writeAudit({
       eventId: event._id,
@@ -318,7 +323,7 @@ async function getEventOverview(req, res, next) {
       CampusHuntRound.find({ eventId }),
       CampusHuntTeam.find({ eventId })
         .select(
-          'status currentStage currentScore finishedAt routeId startingPointId scheduledStartAt '
+          'status currentStage currentScore finishedAt routeId roundId startingPointId scheduledStartAt '
           + 'clue1ChallengeId firstCheckpointId clue2ChallengeId secondCheckpointId '
           + 'clue3ChallengeId thirdCheckpointId clue4ChallengeId fourthCheckpointId '
           + 'clue5ChallengeId fifthCheckpointId clue6ChallengeId '
@@ -385,9 +390,11 @@ async function getEventOverview(req, res, next) {
     const { selectCompetitionTeams } = require('../services/startScheduleService');
     const scale = resolveDemoScale(event);
     const roundOne = rounds.find((round) => Number(round.roundNumber) === 1);
-    const roundTeams = roundOne?._id
-      ? teams.filter((team) => String(team.roundId) === String(roundOne._id))
-      : teams;
+    const matchedRoundTeams = roundOne?._id
+      ? teams.filter((team) => String(team.roundId || '') === String(roundOne._id))
+      : [];
+    // Fall back to all event teams if roundId was never set on older rows.
+    const roundTeams = matchedRoundTeams.length ? matchedRoundTeams : teams;
     const competitionTeams = selectCompetitionTeams(roundTeams, event.teamCapacity);
     const leftoverTeams = Math.max(0, roundTeams.length - competitionTeams.length);
 
@@ -4036,12 +4043,18 @@ async function startRound(req, res, next) {
 async function bootstrapRound1(req, res, next) {
   try {
     const { pruneExcessTeams } = require('../services/capacityService');
-    const pruned = await pruneExcessTeams(req.params.eventId);
+    let pruned = { kept: 0, removed: 0 };
+    try {
+      pruned = await pruneExcessTeams(req.params.eventId);
+    } catch (pruneErr) {
+      console.warn('[bootstrap] prune skipped:', pruneErr.message);
+    }
     const data = await bootstrapRound1Defaults({
       eventId: req.params.eventId,
       actor: adminActor(req),
       createTeams: req.body?.createTeams !== false,
       enablePublicLeaderboard: req.body?.enablePublicLeaderboard !== false,
+      teamsOnly: req.body?.teamsOnly === true,
       challengeNumbers: Array.isArray(req.body?.challengeNumbers)
         ? req.body.challengeNumbers
         : (req.body?.challengeNumber != null

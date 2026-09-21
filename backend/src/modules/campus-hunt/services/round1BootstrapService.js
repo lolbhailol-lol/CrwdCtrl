@@ -1269,6 +1269,7 @@ async function ensurePlaceholderTeams(event, round, routes, {
  * @param {boolean} [options.createTeams]
  * @param {boolean} [options.enablePublicLeaderboard]
  * @param {number[]|null} [options.challengeNumbers] null = all clues; [] = layout only; [1] = Clue 1 only
+ * @param {boolean} [options.teamsOnly] true = skip clue rebuild (save size / quick ready)
  */
 async function bootstrapRound1Defaults({
   eventId,
@@ -1276,6 +1277,7 @@ async function bootstrapRound1Defaults({
   createTeams = true,
   enablePublicLeaderboard = true,
   challengeNumbers = null,
+  teamsOnly = false,
 } = {}) {
   if (typeof CampusHuntChallenge.ensureChallengeIndexes === 'function') {
     await CampusHuntChallenge.ensureChallengeIndexes();
@@ -1344,22 +1346,32 @@ async function bootstrapRound1Defaults({
   const teamGroups = buildTeamGroups(perWait);
   const startingPoints = await ensureLocations(event, round, perWait, startCount);
   const routes = await ensureRoutes(event, capacity, startCount);
-  const content = await ensureCheckpointsAndClues(
-    event,
-    round,
-    routes,
-    startingPoints,
-    perStation,
-    huntStations,
-    teamGroups,
-    perWait,
-    challengeNumbers,
-  );
+
+  // Quick size-save: keep existing clues; only ensure teams/passwords/paths.
+  const existingClueCount = teamsOnly
+    ? await CampusHuntChallenge.countDocuments({ eventId: event._id, active: true })
+    : 0;
+  const existingCpCount = teamsOnly
+    ? await CampusHuntCheckpoint.countDocuments({ eventId: event._id, active: { $ne: false } })
+    : 0;
+  const content = teamsOnly && existingClueCount > 0
+    ? { checkpointCount: existingCpCount, clueCount: existingClueCount }
+    : await ensureCheckpointsAndClues(
+      event,
+      round,
+      routes,
+      startingPoints,
+      perStation,
+      huntStations,
+      teamGroups,
+      perWait,
+      challengeNumbers,
+    );
 
   const layoutOnly = Array.isArray(challengeNumbers) && challengeNumbers.length === 0;
   let clue4Reconciled = { updated: 0, skipped: 0 };
   let teamBindingsResynced = null;
-  if (layoutOnly) {
+  if (layoutOnly && !teamsOnly) {
     clue4Reconciled = await reconcileClue4ToActiveLayout(
       event,
       round,
@@ -1442,21 +1454,36 @@ async function bootstrapRound1Defaults({
     }
   }
 
-  // Bind Clue 1–6 paths automatically — no separate Schedule step for Links.
+  // Bind Clue 1–6 paths only when field teams are missing bindings.
   let pathBindings = null;
   if (createTeams && !layoutOnly) {
     try {
-      const { generateSchedule } = require('./startScheduleService');
-      pathBindings = await generateSchedule({
-        eventId: event._id,
-        roundId: round._id,
-        startsAt: round.startsAt || new Date(),
-        releaseIntervalMinutes: round.releaseIntervalMinutes || 5,
-        assignmentStrategy: round.assignmentStrategy || 'route_balanced',
-        confirm: true,
-        actor,
-        reason: 'Bootstrap auto-bind for Links',
-      });
+      const { generateSchedule, selectCompetitionTeams } = require('./startScheduleService');
+      const bindCheck = await CampusHuntTeam.find({ eventId: event._id })
+        .select('teamCode clue1ChallengeId clue6ChallengeId firstCheckpointId fifthCheckpointId startingPointId')
+        .lean();
+      const field = selectCompetitionTeams(bindCheck, event.teamCapacity);
+      const needsBind = !field.length || field.some((t) => (
+        !t.clue1ChallengeId
+        || !t.clue6ChallengeId
+        || !t.firstCheckpointId
+        || !t.fifthCheckpointId
+        || !t.startingPointId
+      ));
+      if (needsBind) {
+        pathBindings = await generateSchedule({
+          eventId: event._id,
+          roundId: round._id,
+          startsAt: round.startsAt || new Date(),
+          releaseIntervalMinutes: round.releaseIntervalMinutes || 5,
+          assignmentStrategy: round.assignmentStrategy || 'route_balanced',
+          confirm: true,
+          actor,
+          reason: 'Bootstrap auto-bind for Links',
+        });
+      } else {
+        pathBindings = { skipped: true, assigned: field.length };
+      }
     } catch (bindErr) {
       console.warn('[bootstrap] path bind skipped:', bindErr.message);
       pathBindings = { error: bindErr.message };

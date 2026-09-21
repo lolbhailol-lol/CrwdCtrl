@@ -116,7 +116,7 @@ export default function CampusHuntRoundsHub({
                   onClick={() => save(true)}
                   className="rounded-lg bg-[#0ECCEE] px-3 py-2 text-sm font-semibold text-black disabled:opacity-40"
                 >
-                  {busy ? 'Saving…' : 'Save size + ready Links'}
+                  {busy ? 'Saving…' : 'Save size'}
                 </button>
                 <p className="text-[11px] text-white/45">
                   {previewLayout.startCount} start · {previewLayout.stationCount} places · {previewFormat.totalPlayers} players

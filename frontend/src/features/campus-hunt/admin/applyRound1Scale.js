@@ -1,7 +1,7 @@
 import {
   adminUpdateEvent,
   adminBootstrapRound1,
-  adminRepairTeamRosters,
+  adminPruneExcessTeams,
   adminUpdateCampusStations,
 } from '../services/campusHunt.api';
 import { deriveCompetitionFormat } from './competitionFormat';
@@ -13,8 +13,9 @@ import {
 } from './campusHuntFormat';
 
 /**
- * One action: set teams × people → update starts/places/layout → demo teams.
- * Organizer can rename places / passwords afterwards.
+ * Save teams × people — light path (no full clue rebuild).
+ * Clues stay as-is; only capacity/starts/teams/passwords refresh.
+ * Use Clues → "Save clues + teams" when you actually change clue content.
  */
 export async function applyRound1Scale(eventId, {
   teamCapacity,
@@ -39,10 +40,9 @@ export async function applyRound1Scale(eventId, {
     teamSize: format.teamSize,
     startCount: geometry.startCount,
     stationCount: geometry.stationCount,
-    reason: 'Apply Round 1 scale across Locations · Teams · Links · Live',
+    reason: 'Save hunt size',
   });
 
-  // Keep catalog sliced to the active counts (names preserved when possible).
   const stations = resolveStations(existingStations, geometry.stationCount);
   const starts = resolveStarts(existingStarts, geometry.startCount);
   try {
@@ -59,16 +59,23 @@ export async function applyRound1Scale(eventId, {
       reason: 'Scale layout to team field',
     });
   } catch {
-    // Event startCount/stationCount already saved; catalog sync is best-effort.
+    // Event counts already saved; catalog sync is best-effort.
+  }
+
+  try {
+    await adminPruneExcessTeams(eventId);
+  } catch {
+    // Best-effort trim of leftovers beyond capacity.
   }
 
   let bootstrap = null;
   if (createDemoTeams) {
+    // teamsOnly: skip rebuilding all clues (that was timing out / 500 on save size).
     bootstrap = await adminBootstrapRound1(eventId, {
       createTeams: true,
       enablePublicLeaderboard: true,
+      teamsOnly: true,
     });
-    await adminRepairTeamRosters(eventId);
   }
 
   return {
@@ -76,9 +83,8 @@ export async function applyRound1Scale(eventId, {
     geometry,
     bootstrap,
     message:
-      `Ready for Links: ${format.teamCapacity}×${format.teamSize} · `
-      + `${geometry.startCount} start(s) · ${geometry.stationCount} place(s)`
-      + (createDemoTeams ? ' · clues + teams + passwords + paths saved' : '')
-      + '.',
+      `Saved ${format.teamCapacity} teams × ${format.teamSize} · `
+      + `${geometry.startCount} gather · ${geometry.stationCount} places. `
+      + 'Open Links when ready — re-save clues only if you edit them.',
   };
 }
