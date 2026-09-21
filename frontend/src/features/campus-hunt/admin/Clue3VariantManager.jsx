@@ -83,10 +83,11 @@ export default function Clue3VariantManager({
   stationCount = null,
   onChanged,
   teamCapacity = 20,
-  teamSize: _teamSize = 4,
+  teamSize: teamSize = 4,
   teamsPerWait = TEAMS_PER_WAIT,
   teamsPerStation = TARGET_TEAMS_PER_STATION,
 }) {
+  const people = Math.max(2, Math.min(12, Number(teamSize) || 4));
   const stations = useMemo(
     () => resolveStations(campusStations, stationCount),
     [campusStations, stationCount],
@@ -216,7 +217,14 @@ export default function Clue3VariantManager({
           const place = thirdStopForLocalTeam(slot.localTeamNumber, waitIndex, stations, teamsPerWait);
           const station = stations.find((s) => s.name === place);
           const stationCode = station?.code;
-          const content = packContent[stationCode] || routeClueDefaults(3, place);
+          const placeIndex = stations.findIndex((s) => s.name === place || s.code === stationCode);
+          const content = packContent[stationCode] || routeClueDefaults(
+            3,
+            place,
+            people,
+            null,
+            lockboxCodeForTeam(Math.max(0, placeIndex), slot.localTeamNumber),
+          );
           const prompt = String(content.prompt || '').trim();
           const answer = String(content.answer || place).trim();
           if (!prompt || !answer) {
@@ -279,7 +287,7 @@ export default function Clue3VariantManager({
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2 text-[11px]">
         <span className={`rounded-full px-2.5 py-1 ${THEME.bgClass} ${THEME.textClass}`}>
-          Blue · riddle first, then scan CP3
+          Blue · physical digits nearby · then scan
         </span>
         <span className="rounded-full bg-white/10 px-2.5 py-1 text-white/55">
           {stations.length} places · {teamsPerStation === 1 ? '1 team each' : `~${teamsPerStation} teams each`}

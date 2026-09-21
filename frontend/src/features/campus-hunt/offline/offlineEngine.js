@@ -856,7 +856,7 @@ export function markReachedStart(bundle, session, state, finishCode = '', now = 
     next.currentStage = 'CLUE_6_COMPLETED';
     const row = next.clueProgress[6] || emptyClue();
     row.state = 'COMPLETED';
-    row.awardedPoints = Number(scoring(bundle, 6).basePoints || 25) || 0;
+    row.awardedPoints = Number(scoring(bundle, 6).basePoints || 30) || 0;
     row.completedAt = now.toISOString();
     next.clueProgress[6] = row;
     next.score = (Number(next.score) || 0) + (Number(row.awardedPoints) || 0);

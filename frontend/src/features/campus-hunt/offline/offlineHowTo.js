@@ -25,9 +25,10 @@ export const OFFLINE_CLUE_HOW_TO = {
   3: {
     title: 'Clue 3 · lockbox',
     steps: [
-      'Rebuild the lockbox code on this phone.',
-      'Submit (3 tries). Miss all → code shown (0 pts).',
-      'Go there · scan blue once.',
+      'At blue: find physical digit tags planted nearby.',
+      'Rebuild the lockbox code (2 tries · hints cost more).',
+      'Miss both → code shown (0 pts).',
+      'Scan blue once.',
     ],
   },
   4: {
@@ -41,8 +42,9 @@ export const OFFLINE_CLUE_HOW_TO = {
   5: {
     title: 'Clue 5 · word',
     steps: [
-      'Rebuild the word from fragments (3 tries).',
-      'Time up or 3 misses → word shown (0 pts).',
+      'At red: find word slips planted nearby.',
+      'Join in order · type (2 tries · hints cost more).',
+      'Time up or 2 misses → word shown (0 pts).',
       'Scan red once · then Mindspark Lobby.',
     ],
   },
@@ -57,4 +59,4 @@ export const OFFLINE_CLUE_HOW_TO = {
 };
 
 /** Bump when HOW_TO / player UI copy changes — soft-rewrites already-downloaded packs. */
-export const OFFLINE_PLAYER_COPY_REVISION = 5;
+export const OFFLINE_PLAYER_COPY_REVISION = 7;

@@ -1104,35 +1104,35 @@ export function routeClueDefaults(
   if (n === 2) {
     return {
       prompt:
-        `At the green stop: find ${people} short plant slips written nearby. `
-        + 'Join them into one word and type it (leader), then scan the green poster.',
+        `At the green stop: find ${people} numbered digit slips planted nearby. `
+        + 'Join them in order into one answer and type it (leader), then scan the green poster.',
       answer: '',
-      hintText: 'Look at eye level on posts, pillars, and notice boards — then join the pieces.',
+      hintText: 'Eye level on posts, pillars, and notice boards — then join the digits in order.',
       destinationInstruction:
-        'Word typed — stay at green. Leader scans the green QR once to unlock Clue 3.',
+        'Answer typed — stay at green. Leader scans the green QR once to unlock Clue 3.',
       memberPrompts: Array.from({ length: people }, () => ''),
     };
   }
 
   if (n === 3) {
     const code = String(lockboxCode || '').replace(/\D/g, '') || '9407';
-    const pieces = Array.from({ length: people }, (_, i) => {
-      if (i < code.length) {
-        const ord = ['1st', '2nd', '3rd'][i] || `${i + 1}th`;
-        return `The ${ord} digit is ${code[i]}`;
-      }
-      return 'Confirm the digits your teammates call out — rebuild the full code in order.';
+    const pieces = Array.from({ length: Math.min(people, code.length) }, (_, i) => {
+      const ord = ['1st', '2nd', '3rd'][i] || `${i + 1}th`;
+      return `Find the ${ord} digit tag planted nearby (lockbox code digit ${i + 1}).`;
     });
-    const pieceLines = pieces.map((line, i) => `${i + 1}. ${line}`).join('\n');
+    while (pieces.length < people) {
+      pieces.push('Help search nearby posts and boards — do not invent digits.');
+    }
     return {
       prompt:
-        `THE LOCKBOX\n`
-        + `Open the digital lock before you scan blue at your next stop.\n\n`
-        + `Lockbox pieces (read aloud in order 1→${people}):\n${pieceLines}\n\n`
-        + `Leader submits the ${code.length}-digit code.`,
+        `THE LOCKBOX · physical find\n`
+        + `Digit tags are planted near this stop — not all on this phone.\n`
+        + `Search pillars, benches, and notice boards at eye level.\n`
+        + `Rebuild the ${code.length}-digit lockbox code from what you find.\n`
+        + `Leader submits digits only (2 tries · hints cost more).`,
       answer: code,
       hintText:
-        'Say every digit piece out loud in seat order. The code is digits only — no spaces.',
+        'Minimal help: look at eye level on posts and boards. Digits only — no spaces. Hints cost 25 pts.',
       destinationInstruction:
         `Lockbox open — go to ${place}. Find the shared blue THIRD SCAN QR. `
         + `Leader scans once to unlock Field Terminal.`,
@@ -1168,24 +1168,25 @@ export function routeClueDefaults(
     };
   }
 
-  // Clue 5 — collaborative one-word; `place` is the finish word (not a campus stop).
+  // Clue 5 — physical word slips nearby; `place` is the finish word (not a campus stop).
   const raw = String(place).replace(/\s+/g, '').toUpperCase();
-  const len = Math.max(people, raw.length);
-  const padded = raw.padEnd(len, 'X');
-  const size = Math.ceil(padded.length / people);
-  const chunks = Array.from({ length: people }, (_, i) => (
-    padded.slice(i * size, (i + 1) * size) || String(i + 1)
-  ));
   const fifthStop = String(fifthStopName || '').trim() || 'your 5th campus stop';
+  const findTasks = Array.from({ length: people }, (_, i) => (
+    `Find word slip #${i + 1} planted nearby — piece ${i + 1} of ${people}.`
+  ));
   return {
     prompt:
-      `Fragments are on the leader phone — read them aloud in order 1→${people} and rebuild the one word. Leader submits it.`,
+      `At the red stop area: find ${people} short word slips planted nearby `
+      + `(pillars, benches, notice boards).\n`
+      + `Join them in order into one word. Leader submits (2 tries · hints cost more).\n`
+      + `The letters are NOT all printed on this phone — search the place.`,
     answer: raw || 'QUEST',
-    hintText: 'Say every fragment out loud in order — no spaces in the final word.',
+    hintText:
+      'Minimal help: eye-level posts and boards only. No spaces in the final word. Hints cost 30 pts.',
     destinationInstruction:
       `Word solved — go to ${fifthStop}. Find the shared red FIFTH SCAN QR. `
       + `Leader scans once to unlock Clue 6.`,
-    memberPrompts: chunks,
+    memberPrompts: findTasks,
   };
 }
 

@@ -243,21 +243,22 @@ const ISSUE_CATEGORIES = [
 
 const DEFAULT_SCORING_CONFIG = {
   startingScore: 100,
-  hintCost: 15,
-  // Each clue: 50 pts on time. Late still unlocks next clue at 0 pts. Hints −15.
+  hintCost: 20,
+  // Start 100. Harder physical clues pay more. Hints cost more on blue/red.
   clue1: {
     basePoints: 50,
     maxAttempts: 3,
     timerSeconds: 0,
     awardMode: 'flat_base',
     revealOnMaxAttempts: true,
+    hintCost: 15,
     attemptBands: [
       { attempt: 1, points: 50 },
       { attempt: 2, points: 50 },
       { attempt: 3, points: 50 },
     ],
   },
-  // Clue 2: 20s read, then 3:00. Faster = more (max 50). Late = 0 pts, still continue.
+  // Clue 2: digit find · speed bands (max 55).
   clue2: {
     basePoints: 0,
     maxAttempts: 3,
@@ -266,22 +267,24 @@ const DEFAULT_SCORING_CONFIG = {
     awardMode: 'time_bands_total',
     allowLateSubmit: true,
     revealOnMaxAttempts: true,
+    hintCost: 20,
     speedBonusBands: [
-      { maxSeconds: 60, bonus: 50 },
-      { maxSeconds: 120, bonus: 30 },
-      { maxSeconds: 180, bonus: 10 },
+      { maxSeconds: 60, bonus: 55 },
+      { maxSeconds: 120, bonus: 35 },
+      { maxSeconds: 180, bonus: 15 },
     ],
   },
-  // Clue 3 — Lockbox (digit pieces → code). Flat points.
+  // Clue 3 — physical lockbox digits nearby. Harder · fewer tries · pricey hint.
   clue3: {
-    basePoints: 50,
-    maxAttempts: 3,
+    basePoints: 65,
+    maxAttempts: 2,
     timerSeconds: 0,
     awardMode: 'flat_base',
     revealOnMaxAttempts: true,
+    hintCost: 25,
     speedBonusBands: [],
   },
-  // Clue 4 — Field Terminal (Zip Grid). No hunt timer — play on laptop, submit GRID code.
+  // Clue 4 — Field Terminal (Zip Grid).
   clue4: {
     basePoints: 50,
     maxAttempts: 3,
@@ -289,28 +292,31 @@ const DEFAULT_SCORING_CONFIG = {
     timerStartDelaySeconds: 0,
     awardMode: 'flat_base',
     allowLateSubmit: true,
+    hintCost: 20,
     speedBonusBands: [],
   },
-  // Clue 5: 5th campus stop (collaborative / word). Then scan → Clue 6 destination.
+  // Clue 5 — physical word slips nearby. Speed bonus · expensive hints.
   clue5: {
-    basePoints: 50,
-    maxAttempts: 3,
-    timerSeconds: 300,
+    basePoints: 45,
+    maxAttempts: 2,
+    timerSeconds: 240,
     awardMode: 'base_plus_speed',
     allowLateSubmit: true,
     revealOnMaxAttempts: true,
+    hintCost: 30,
     speedBonusBands: [
-      { maxSeconds: 120, bonus: 25 },
-      { maxSeconds: 210, bonus: 15 },
-      { maxSeconds: 300, bonus: 5 },
+      { maxSeconds: 90, bonus: 30 },
+      { maxSeconds: 150, bonus: 15 },
+      { maxSeconds: 240, bonus: 5 },
     ],
   },
-  // Clue 6: destination — go to the shared finale place.
+  // Clue 6: finish code.
   clue6: {
-    basePoints: 25,
+    basePoints: 30,
     maxAttempts: 3,
     timerSeconds: 0,
     awardMode: 'flat_base',
+    hintCost: 15,
     speedBonusBands: [],
   },
 };
@@ -326,20 +332,21 @@ const CLUE_HOW_TO = {
     ],
   },
   2: {
-    title: 'Clue 2 · plant word',
+    title: 'Clue 2 · digits',
     steps: [
-      'At green: join plant slips into one word.',
-      'Type it (3 tries · faster = more pts).',
-      'Time up or 3 misses → word shown (0 pts).',
+      'At green: find numbered digit slips nearby.',
+      'Join in order · type (3 tries · faster = more pts).',
+      'Time up or 3 misses → answer shown (0 pts).',
       'Scan green once.',
     ],
   },
   3: {
     title: 'Clue 3 · lockbox',
     steps: [
-      'Rebuild the digit code on this phone.',
-      'Submit (3 tries). Miss all → code shown (0 pts).',
-      'Go there · scan blue once.',
+      'At blue: find physical digit tags planted nearby.',
+      'Rebuild the lockbox code (2 tries · hints cost more).',
+      'Miss both → code shown (0 pts).',
+      'Scan blue once.',
     ],
   },
   4: {
@@ -347,14 +354,15 @@ const CLUE_HOW_TO = {
     steps: [
       'Borrow a laptop with internet.',
       'Open Zip Grid · type the device key from this phone.',
-      'Type GRID-XXXX here · scan purple once.',
+      'Clear 3 rounds · type GRID-XXXX here · scan purple once.',
     ],
   },
   5: {
     title: 'Clue 5 · word',
     steps: [
-      'Rebuild the word from fragments (3 tries).',
-      'Time up or 3 misses → word shown (0 pts).',
+      'At red: find word slips planted nearby.',
+      'Join in order · type (2 tries · hints cost more).',
+      'Time up or 2 misses → word shown (0 pts).',
       'Scan red once · then Mindspark Lobby.',
     ],
   },

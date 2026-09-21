@@ -34,23 +34,22 @@ const OFFLINE_CLUE_HOW_TO = {
   3: {
     title: 'How to play — Lockbox',
     steps: [
-      'Lockbox pieces are on this phone — read aloud and rebuild the digit code.',
-      'Submit → go to that place → scan blue THIRD SCAN once.',
+      'At blue: find physical digit tags planted nearby (posts / boards).',
+      'Rebuild the lockbox code on this phone (2 tries) → scan blue THIRD SCAN once.',
     ],
   },
   4: {
     title: 'How to play — Field Terminal',
     steps: [
-      'Borrow any laptop with internet (friend / café / lab).',
-      'Open Zip Grid, type your device key from this phone.',
-      'Clear the levels → get GRID-XXXX → type it here → scan purple.',
+      'Borrow a laptop · Zip Grid · device key from this phone · 3 rounds.',
+      'Type GRID-XXXX here → scan purple once.',
     ],
   },
   5: {
     title: 'How to play — Clue 5',
     steps: [
-      'Fragments are on this phone — rebuild the word and type it.',
-      'Go to 5th stop → scan red FIFTH SCAN once → Clue 6.',
+      'At red: find word slips planted nearby. Join in order (2 tries · hints cost more).',
+      'Scan red FIFTH SCAN once → Clue 6 at Mindspark Lobby.',
     ],
   },
   6: {

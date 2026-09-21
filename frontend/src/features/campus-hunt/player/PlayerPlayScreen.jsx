@@ -533,7 +533,8 @@ export default function PlayerPlayScreen({
 
   const onHint = async () => {
     if (!activeNum || !isLeader) return;
-    if (!window.confirm('Use Hint? This will cost 15 points.')) return;
+    const hintCost = Number(activeChallenge?.hintCost) || 20;
+    if (!window.confirm(`Use Hint? This will cost ${hintCost} points.`)) return;
     const result = await runAction(() =>
       requestChallengeHintFn(team.id, activeNum, `hint-${team.id}-${activeNum}`));
     if (result.ok) setHintPreview(result.payload?.hint || '');
@@ -1337,11 +1338,11 @@ export default function PlayerPlayScreen({
                   ? (
                     <div className="rounded-xl bg-black/30 px-4 py-4">
                       <p className="text-[10px] uppercase tracking-wide text-white/40">
-                        Fragments · read in order
+                        Find nearby · in order
                       </p>
                       <ul className="mt-2 space-y-1.5">
                         {activeChallenge.memberFragments.map((frag, i) => (
-                          <li key={`frag-${i}`} className="font-mono text-lg font-semibold tracking-wide">
+                          <li key={`frag-${i}`} className="text-sm font-medium text-white/90">
                             <span className="mr-2 text-white/35">{i + 1}.</span>
                             {frag}
                           </li>
@@ -1352,8 +1353,8 @@ export default function PlayerPlayScreen({
                   : activeChallenge.memberCode
                     ? (
                       <div className="rounded-xl bg-black/30 px-4 py-4 text-center">
-                        <p className="text-[10px] uppercase tracking-wide text-white/40">Fragments</p>
-                        <p className="mt-2 font-mono text-2xl font-semibold tracking-[0.12em]">
+                        <p className="text-[10px] uppercase tracking-wide text-white/40">Your find task</p>
+                        <p className="mt-2 text-base font-semibold text-white/90">
                           {activeChallenge.memberCode}
                         </p>
                       </div>

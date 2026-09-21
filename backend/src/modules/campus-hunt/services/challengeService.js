@@ -179,7 +179,7 @@ function scoringForChallenge(event, challengeNumber) {
         : (defaults.speedBonusBands || [])
     );
   }
-  merged.hintCost = Number(merged.hintCost ?? cfg.hintCost) || 15;
+  merged.hintCost = Number(merged.hintCost ?? cfg.hintCost ?? defaults.hintCost) || 20;
   return merged;
 }
 
@@ -300,17 +300,26 @@ function publicChallengeView(challenge, progress, {
   if (n === 5 && Array.isArray(challenge.memberPrompts) && challenge.memberPrompts.length) {
     collaborative = true;
     const prompts = challenge.memberPrompts.map((p) => String(p || '').trim()).filter(Boolean);
-    // Leader phone shows every fragment; members never play this screen alone.
     if (isLeader) {
       memberFragments = prompts.length ? prompts : challenge.memberPrompts;
-      memberCode = memberFragments.join(' · ');
+      memberCode = undefined;
     } else {
       memberCode = challenge.memberPrompts[memberIndex] || '';
     }
     prompt = challenge.prompt
       || (isLeader
-        ? 'Fragments below — rebuild into one word and submit.'
-        : 'Combine all teammate codes in order into one word.');
+        ? 'Find the planted word slips nearby — rebuild into one word and submit.'
+        : 'Help search nearby for word slips — join in order into one word.');
+  }
+  if (n === 3 && Array.isArray(challenge.memberPrompts) && challenge.memberPrompts.length) {
+    collaborative = true;
+    const prompts = challenge.memberPrompts.map((p) => String(p || '').trim()).filter(Boolean);
+    if (isLeader) {
+      memberFragments = prompts.length ? prompts : challenge.memberPrompts;
+      memberCode = undefined;
+    } else {
+      memberCode = challenge.memberPrompts[memberIndex] || '';
+    }
   }
 
   const maxAttempts = challenge.maxAttempts || scoring?.maxAttempts || 3;
@@ -385,6 +394,7 @@ function publicChallengeView(challenge, progress, {
     hintUsed: Boolean(progress?.hintUsed),
     // Hints are leader-only (anti-leak for players on shared phones / wrong role)
     hintText: includeHint && isLeader && progress?.hintUsed ? (hintText || null) : undefined,
+    hintCost: Number(challenge.hintCost ?? scoring?.hintCost) || 20,
     startedAt,
     expiresAt: n === 4 ? null : expiresAt,
     timerStartsAt: n === 2 ? startedAt : null,
@@ -1170,7 +1180,10 @@ async function requestHint({
   }
 
   const { progress, event } = await ensureChallengeActive(team, challengeNumber, now);
-  const hintCost = challenge.hintCost ?? event?.scoringConfig?.hintCost ?? 15;
+  const hintCost = challenge.hintCost
+    ?? event?.scoringConfig?.[`clue${challengeNumber}`]?.hintCost
+    ?? event?.scoringConfig?.hintCost
+    ?? 20;
 
   if (
     Number(challengeNumber) === 2

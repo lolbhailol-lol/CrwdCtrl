@@ -2,13 +2,14 @@
 
 export const DEFAULT_SCORING_CONFIG = {
   startingScore: 100,
-  hintCost: 15,
+  hintCost: 20,
   clue1: {
     basePoints: 50,
     maxAttempts: 3,
     timerSeconds: 0,
     awardMode: 'flat_base',
     revealOnMaxAttempts: true,
+    hintCost: 15,
     attemptBands: [
       { attempt: 1, points: 50 },
       { attempt: 2, points: 50 },
@@ -23,18 +24,20 @@ export const DEFAULT_SCORING_CONFIG = {
     awardMode: 'time_bands_total',
     allowLateSubmit: true,
     revealOnMaxAttempts: true,
+    hintCost: 20,
     speedBonusBands: [
-      { maxSeconds: 60, bonus: 50 },
-      { maxSeconds: 120, bonus: 30 },
-      { maxSeconds: 180, bonus: 10 },
+      { maxSeconds: 60, bonus: 55 },
+      { maxSeconds: 120, bonus: 35 },
+      { maxSeconds: 180, bonus: 15 },
     ],
   },
   clue3: {
-    basePoints: 50,
-    maxAttempts: 3,
+    basePoints: 65,
+    maxAttempts: 2,
     timerSeconds: 0,
     awardMode: 'flat_base',
     revealOnMaxAttempts: true,
+    hintCost: 25,
     speedBonusBands: [],
   },
   clue4: {
@@ -44,26 +47,29 @@ export const DEFAULT_SCORING_CONFIG = {
     timerStartDelaySeconds: 0,
     awardMode: 'flat_base',
     allowLateSubmit: true,
+    hintCost: 20,
     speedBonusBands: [],
   },
   clue5: {
-    basePoints: 50,
-    maxAttempts: 3,
-    timerSeconds: 300,
+    basePoints: 45,
+    maxAttempts: 2,
+    timerSeconds: 240,
     awardMode: 'base_plus_speed',
     allowLateSubmit: true,
     revealOnMaxAttempts: true,
+    hintCost: 30,
     speedBonusBands: [
-      { maxSeconds: 120, bonus: 25 },
-      { maxSeconds: 210, bonus: 15 },
-      { maxSeconds: 300, bonus: 5 },
+      { maxSeconds: 90, bonus: 30 },
+      { maxSeconds: 150, bonus: 15 },
+      { maxSeconds: 240, bonus: 5 },
     ],
   },
   clue6: {
-    basePoints: 25,
+    basePoints: 30,
     maxAttempts: 3,
     timerSeconds: 0,
     awardMode: 'flat_base',
+    hintCost: 15,
     speedBonusBands: [],
   },
 };
@@ -101,7 +107,19 @@ export function scoringForChallenge(event, challengeNumber) {
       ? merged.speedBonusBands
       : (defaults.speedBonusBands || []);
   }
-  merged.hintCost = Number(merged.hintCost ?? cfg.hintCost) || 15;
+  if (Number(challengeNumber) === 5) {
+    const timer = Number(merged.timerSeconds);
+    merged.timerSeconds = Number.isFinite(timer) && timer > 0
+      ? timer
+      : (Number(defaults.timerSeconds) || 240);
+    merged.awardMode = merged.awardMode || defaults.awardMode || 'base_plus_speed';
+    merged.allowLateSubmit = merged.allowLateSubmit !== false;
+    merged.speedBonusBands = Array.isArray(merged.speedBonusBands) && merged.speedBonusBands.length
+      ? merged.speedBonusBands
+      : (defaults.speedBonusBands || []);
+  }
+  const hint = Number(merged.hintCost ?? cfg.hintCost ?? defaults.hintCost);
+  merged.hintCost = Number.isFinite(hint) && hint >= 0 ? hint : 20;
   return merged;
 }
 
@@ -151,13 +169,13 @@ export function computeChallengeAward({
 }) {
   const n = Number(challengeNumber);
   const mode = awardMode
-    || (n === 1 || n === 3
+    || (n === 1 || n === 3 || n === 4 || n === 6
       ? 'flat_base'
       : n === 2
         ? 'time_bands_total'
         : 'base_plus_speed');
 
-  if (mode === 'flat_base' || n === 1 || n === 3) {
+  if (mode === 'flat_base' || n === 1 || n === 3 || n === 4 || n === 6) {
     const total = Number(basePoints) || 0;
     return { basePoints: total, speedBonus: 0, total, late: false };
   }

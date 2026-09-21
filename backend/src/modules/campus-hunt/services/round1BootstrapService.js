@@ -273,16 +273,18 @@ function ordinalLabel(n) {
   return `${num}${suffix}`;
 }
 
-/** Digit pieces for Lockbox (Clue 3) — one line per teammate seat. */
+/** Physical digit-find tasks for Lockbox (Clue 3) — digits are NOT on the phone. */
 function lockboxMemberPrompts(code, teamSize = 4) {
   const digits = String(code || '').replace(/\D/g, '') || '9407';
   const people = Math.max(2, Math.min(12, Number(teamSize) || 4));
-  return Array.from({ length: people }, (_, i) => {
-    if (i < digits.length) {
-      return `The ${ordinalLabel(i + 1)} digit is ${digits[i]}`;
-    }
-    return 'Confirm the digits your teammates call out — rebuild the full code in order.';
+  const pieces = Array.from({ length: Math.min(people, digits.length) }, (_, i) => {
+    const ord = ordinalLabel(i + 1);
+    return `Find the ${ord} digit tag planted nearby (lockbox code digit ${i + 1}).`;
   });
+  while (pieces.length < people) {
+    pieces.push('Help search nearby posts and boards — do not invent digits.');
+  }
+  return pieces;
 }
 
 function routeClueDefaults(
@@ -299,12 +301,12 @@ function routeClueDefaults(
   if (n === 2) {
     return {
       prompt:
-        `At the green stop: find ${people} short plant slips written nearby. `
-        + 'Join them into one word and type it (leader), then scan the green poster.',
+        `At the green stop: find ${people} numbered digit slips planted nearby. `
+        + 'Join them in order into one answer and type it (leader), then scan the green poster.',
       answer: '',
-      hintText: 'Look at eye level on posts, pillars, and notice boards — then join the pieces.',
+      hintText: 'Eye level on posts, pillars, and notice boards — then join the digits in order.',
       destinationInstruction:
-        'Word typed — stay at green. Leader scans the green QR once to unlock Clue 3.',
+        'Answer typed — stay at green. Leader scans the green QR once to unlock Clue 3.',
       memberPrompts: Array.from({ length: people }, () => ''),
     };
   }
@@ -312,18 +314,16 @@ function routeClueDefaults(
   if (n === 3) {
     const code = String(lockboxCode || '').replace(/\D/g, '') || '9407';
     const pieces = lockboxMemberPrompts(code, people);
-    const pieceLines = pieces
-      .map((line, i) => `${i + 1}. ${line}`)
-      .join('\n');
     return {
       prompt:
-        `THE LOCKBOX\n`
-        + `Open the digital lock before you scan blue at your next stop.\n\n`
-        + `Lockbox pieces (read aloud in order 1→${people}):\n${pieceLines}\n\n`
-        + `Leader submits the ${code.length}-digit code.`,
+        `THE LOCKBOX · physical find\n`
+        + `Digit tags are planted near this stop — not all on this phone.\n`
+        + `Search pillars, benches, and notice boards at eye level.\n`
+        + `Rebuild the ${code.length}-digit lockbox code from what you find.\n`
+        + `Leader submits digits only (2 tries · hints cost more).`,
       answer: code,
       hintText:
-        'Say every digit piece out loud in seat order. The code is digits only — no spaces.',
+        'Minimal help: look at eye level on posts and boards. Digits only — no spaces. Hints cost 25 pts.',
       destinationInstruction:
         `Lockbox open — go to ${place}. Find the shared blue THIRD SCAN QR. `
         + `Leader scans once to unlock Field Terminal.`,
@@ -332,7 +332,6 @@ function routeClueDefaults(
   }
 
   if (n === 4) {
-    // `place` is the destination; answer is the GRID code (passed separately on save).
     return {
       prompt:
         `FIELD TERMINAL at ${place}.\n`
@@ -348,19 +347,38 @@ function routeClueDefaults(
     };
   }
 
-  // Clue 5 — collaborative one-word puzzle; `place` is the finish word (not a campus stop).
+  if (n === 6) {
+    return {
+      prompt:
+        `Your path is done. Go to ${place} as a full team.\n`
+        + 'Ask the organizer for the finish code, then type it here to lock your score.',
+      answer: '',
+      hintText: `Meet at ${place}. The organizer will tell you the finish code.`,
+      destinationInstruction:
+        `At ${place}: ask the organizer for the finish code and type it on this phone.`,
+      memberPrompts: Array.from({ length: people }, () => ''),
+    };
+  }
+
+  // Clue 5 — physical word slips nearby; `place` is the finish word (not a campus stop).
   const word = String(place || 'QUEST').replace(/\s+/g, '').toUpperCase();
-  const chunks = splitIntoMemberCodes(word, people);
   const fifthStop = String(fifthStopName || '').trim() || 'your 5th campus stop';
+  const findTasks = Array.from({ length: people }, (_, i) => (
+    `Find word slip #${i + 1} planted nearby — piece ${i + 1} of ${people}.`
+  ));
   return {
     prompt:
-      `Fragments are on the leader phone — read them aloud in order 1→${people} and rebuild the one word. Leader submits it.`,
+      `At the red stop area: find ${people} short word slips planted nearby `
+      + `(pillars, benches, notice boards).\n`
+      + `Join them in order into one word. Leader submits (2 tries · hints cost more).\n`
+      + `The letters are NOT all printed on this phone — search the place.`,
     answer: word,
-    hintText: 'Say every fragment out loud in order — no spaces in the final word.',
+    hintText:
+      'Minimal help: eye-level posts and boards only. No spaces in the final word. Hints cost 30 pts.',
     destinationInstruction:
-      `Word solved — go to ${fifthStop}. Find the shared FIFTH SCAN QR. `
+      `Word solved — go to ${fifthStop}. Find the shared red FIFTH SCAN QR. `
       + `Leader scans once to unlock Clue 6.`,
-    memberPrompts: chunks,
+    memberPrompts: findTasks,
   };
 }
 
@@ -926,10 +944,14 @@ async function ensureCheckpointsAndClues(
             destinationInstruction: clue3Defaults.destinationInstruction,
             memberPrompts: clue3Defaults.memberPrompts,
             basePoints: scoring.clue3?.basePoints ?? DEFAULT_SCORING_CONFIG.clue3.basePoints ?? 50,
-            maxAttempts: scoring.clue3?.maxAttempts || 3,
+            maxAttempts: scoring.clue3?.maxAttempts
+              || DEFAULT_SCORING_CONFIG.clue3.maxAttempts
+              || 2,
             timerSeconds: 0,
             hintText: clue3Defaults.hintText,
-            hintCost: scoring.hintCost || 15,
+            hintCost: scoring.clue3?.hintCost
+              ?? DEFAULT_SCORING_CONFIG.clue3.hintCost
+              ?? 25,
             difficulty: 'medium',
             variantKey,
             active: true,
@@ -1073,20 +1095,21 @@ async function ensureCheckpointsAndClues(
           acceptedAnswers: [clue5Defaults.answer],
           destinationInstruction: clue5Defaults.destinationInstruction,
           basePoints: scoring.clue5?.basePoints
-            || scoring.clue4?.basePoints
             || DEFAULT_SCORING_CONFIG.clue5.basePoints
-            || 50,
+            || 45,
           maxAttempts: scoring.clue5?.maxAttempts
-            || scoring.clue4?.maxAttempts
-            || 3,
+            || DEFAULT_SCORING_CONFIG.clue5.maxAttempts
+            || 2,
           timerSeconds: scoring.clue5?.timerSeconds
             || DEFAULT_SCORING_CONFIG.clue5.timerSeconds
-            || 300,
+            || 240,
           speedBonusBands: scoring.clue5?.speedBonusBands
             || DEFAULT_SCORING_CONFIG.clue5.speedBonusBands
             || [],
           hintText: clue5Defaults.hintText,
-          hintCost: scoring.hintCost || 15,
+          hintCost: scoring.clue5?.hintCost
+            ?? DEFAULT_SCORING_CONFIG.clue5.hintCost
+            ?? 30,
           difficulty: 'hard',
           variantKey: 'DEFAULT',
           active: true,
@@ -1143,11 +1166,13 @@ async function ensureCheckpointsAndClues(
             `At ${destinationName}: ask the organizer for the finish code and type it on this phone.`,
           basePoints: scoring.clue6?.basePoints
             ?? DEFAULT_SCORING_CONFIG.clue6?.basePoints
-            ?? 25,
+            ?? 30,
           maxAttempts: scoring.clue6?.maxAttempts || 3,
           timerSeconds: 0,
           hintText: `Meet at ${destinationName}. The organizer will tell you the finish code.`,
-          hintCost: scoring.hintCost || 15,
+          hintCost: scoring.clue6?.hintCost
+            ?? DEFAULT_SCORING_CONFIG.clue6.hintCost
+            ?? 15,
           difficulty: 'medium',
           variantKey: 'DEFAULT',
           active: true,

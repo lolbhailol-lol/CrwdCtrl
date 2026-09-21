@@ -171,8 +171,8 @@ export function buildPlayerNowGuide({
     return {
       tone: 'clue',
       eyebrow: 'Clue 3 · Lockbox',
-      title: 'Open the lockbox',
-      body: '3 attempts. Rebuild the digits in order, submit, then scan blue.',
+      title: 'Find digits nearby',
+      body: '2 tries. Physical digit tags at this stop — rebuild the code. Hints cost more.',
       steps: [],
     };
   }
@@ -200,8 +200,8 @@ export function buildPlayerNowGuide({
     return {
       tone: 'clue',
       eyebrow: 'Clue 5',
-      title: 'Submit the word',
-      body: '3 attempts. Rebuild from fragments, submit, then scan red.',
+      title: 'Find word slips nearby',
+      body: '2 tries. Physical slips at red — join in order. Hints cost more.',
       steps: [],
     };
   }

@@ -99,7 +99,7 @@ export default function StationPlantFragmentsPanel({
         stationCount,
         reason: 'Digit slips + joined answers saved',
       });
-      setMsg('Saved plant fragments + joined words for all stops');
+      setMsg('Saved digit slips + answers for all stops');
       onChanged?.();
     } catch (err) {
       setMsg(err.message || 'Could not save');
@@ -169,7 +169,7 @@ export default function StationPlantFragmentsPanel({
               ))}
             </div>
             <label className="mt-2 block text-[11px] text-white/50">
-              Joined word (leaders type this)
+              Digit answer (leaders type this)
               <input
                 className={`${inputClass} mt-1 font-mono uppercase tracking-wide`}
                 value={row.joinedWord || ''}

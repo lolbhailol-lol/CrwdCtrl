@@ -49,14 +49,25 @@ function challengeView(bundle, state, session, n, now) {
     const prompts = clue.memberPrompts.map((p) => String(p || '').trim()).filter(Boolean);
     if (session.role === 'leader') {
       memberFragments = prompts.length ? prompts : clue.memberPrompts;
-      memberCode = memberFragments.join(' · ');
+      memberCode = null;
     } else {
       memberCode = clue.memberPrompts[memberIndex] || '';
     }
     prompt = clue.prompt
       || (session.role === 'leader'
-        ? 'Fragments below — rebuild into one word and submit.'
-        : 'Combine all teammate codes in order into one word.');
+        ? 'Find the planted word slips nearby — rebuild into one word and submit.'
+        : 'Help search nearby for word slips — join in order into one word.');
+  }
+
+  if (n === 3 && Array.isArray(clue.memberPrompts) && clue.memberPrompts.length) {
+    collaborative = true;
+    const prompts = clue.memberPrompts.map((p) => String(p || '').trim()).filter(Boolean);
+    if (session.role === 'leader') {
+      memberFragments = prompts.length ? prompts : clue.memberPrompts;
+      memberCode = null;
+    } else {
+      memberCode = clue.memberPrompts[memberIndex] || '';
+    }
   }
 
   const startedAt = row.startedAt || null;
@@ -91,6 +102,7 @@ function challengeView(bundle, state, session, n, now) {
     attemptsLeft: Math.max(0, (clue.maxAttempts || cfg.maxAttempts || 3) - (row.attempts || 0)),
     hintUsed: Boolean(row.hintUsed),
     hintText: isLeader && row.hintUsed ? (clue.hintText || '') : undefined,
+    hintCost: Number(clue.hintCost ?? cfg.hintCost) || 20,
     startedAt,
     expiresAt: n === 4 ? null : expiresAt,
     timerStartsAt: n === 2 ? startedAt : null,

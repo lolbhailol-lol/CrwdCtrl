@@ -92,10 +92,10 @@ function blankForm(number, takesTo, teamSize = 4) {
       || (takesTo
         ? `Go to ${takesTo}. Find the shared QR. Leader scans once to unlock the next clue.`
         : ''),
-    basePoints: number === 3 || number === 5 ? 50 : 0,
-    maxAttempts: 3,
-    timerSeconds: number === 2 || number === 4 ? 180 : number === 5 ? 300 : 0,
-    hintCost: 15,
+    basePoints: number === 3 ? 65 : number === 5 ? 45 : 0,
+    maxAttempts: number === 3 || number === 5 ? 2 : 3,
+    timerSeconds: number === 2 ? 180 : number === 5 ? 240 : 0,
+    hintCost: number === 3 ? 25 : number === 5 ? 30 : 15,
     memberPrompts: defaults.memberPrompts || Array.from({ length: people }, () => ''),
     active: true,
   };
@@ -308,11 +308,11 @@ export default function RouteClueEditor({
             )
             : defaults.destinationInstruction
               || `Go to ${place}. Find the shared QR. Leader scans once to unlock the next clue.`),
-      basePoints: existing.basePoints ?? (number === 3 || number === 5 ? 50 : 0),
-      maxAttempts: existing.maxAttempts ?? 3,
+      basePoints: existing.basePoints ?? (number === 3 ? 65 : number === 5 ? 45 : 0),
+      maxAttempts: existing.maxAttempts ?? (number === 3 || number === 5 ? 2 : 3),
       timerSeconds: existing.timerSeconds
-        ?? (number === 2 || number === 4 ? 180 : number === 5 ? 300 : 0),
-      hintCost: existing.hintCost ?? 15,
+        ?? (number === 2 ? 180 : number === 5 ? 240 : 0),
+      hintCost: existing.hintCost ?? (number === 3 ? 25 : number === 5 ? 30 : 15),
       memberPrompts: (number === 5 || number === 3) && membersEmpty
         ? (defaults.memberPrompts || memberPrompts)
         : memberPrompts,
@@ -494,8 +494,8 @@ export default function RouteClueEditor({
                 {selectedRoute ? ` (${pathLabel(selectedRoute, starts)})` : ''}
               </p>
               <p className="mt-1 text-xs text-white/50">
-                All {people} get fragments on the leader phone. After the word, go to the 5th campus stop
-                (red FIFTH SCAN), then unlock Clue 6 → Mindspark Lobby.
+                Print word slips nearby at the red stop — letters are NOT on the phone.
+                After the word → red FIFTH SCAN → Clue 6 → Mindspark Lobby.
               </p>
             </>
           ) : (
