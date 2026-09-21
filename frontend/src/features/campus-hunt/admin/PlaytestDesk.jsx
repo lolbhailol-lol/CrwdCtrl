@@ -282,7 +282,7 @@ export default function PlaytestDesk({
       await adminPlaytestResetTeam(teamId, {
         reason: 'Playtest desk — start from again',
       });
-      setNote('Reset done — tap Release again');
+      setNote('Reset done — live board cleared. Phone updates on Wi‑Fi.');
       await onChanged?.();
     } catch (err) {
       setNote(err.message || 'Could not reset team');

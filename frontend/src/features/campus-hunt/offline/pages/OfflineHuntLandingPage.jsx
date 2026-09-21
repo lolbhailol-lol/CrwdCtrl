@@ -1,54 +1,50 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { loadOfflineBundle } from '../offlineDb';
+import { loadOfflineBundle, loadOfflineSession } from '../offlineDb';
 import { CAMPUS_HUNT_PATHS } from '../../config';
-import { OfflineStorageBadge } from '../components/OfflineScoreBoard';
 import { armOfflineNetworkGuard } from '../offlineNetworkGuard';
 import OfflineHuntInstallHelp from '../components/OfflineHuntInstallHelp';
-import OfflineBundleLoader from '../components/OfflineBundleLoader';
-import { startOverHunt } from '../startOverHunt';
-import { applyWaitingHuntUpdate } from '../refreshHuntAppShell';
+import { startOverHunt, applyServerStartOverIfNeeded } from '../startOverHunt';
 
-/**
- * Lean Hunt welcome — pack already on phone → one clear path in.
- */
+/** One welcome screen — pack on phone → login or play. */
 export default function OfflineHuntLandingPage() {
   const navigate = useNavigate();
   const [existing, setExisting] = useState(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
-  const [updateWaiting, setUpdateWaiting] = useState(false);
-  const [showTools, setShowTools] = useState(false);
 
   useEffect(() => armOfflineNetworkGuard(), []);
 
   useEffect(() => {
     let cancelled = false;
-    loadOfflineBundle()
-      .then((bundle) => {
-        if (!cancelled) setExisting(bundle);
-      })
-      .catch(() => {
-        if (!cancelled) setExisting(null);
-      });
+    (async () => {
+      let bundle = await loadOfflineBundle().catch(() => null);
+      if (bundle?.team?.teamCode) {
+        const sync = await applyServerStartOverIfNeeded(bundle).catch(() => null);
+        if (sync?.applied) {
+          bundle = sync.bundle || bundle;
+          if (!cancelled && sync.message) setNote(sync.message);
+        }
+      }
+      const session = await loadOfflineSession().catch(() => null);
+      if (cancelled) return;
+      setExisting(bundle);
+      if (bundle?.team?.teamCode && session?.teamCode === bundle.team.teamCode && session?.memberKey) {
+        navigate(CAMPUS_HUNT_PATHS.offlinePlay, { replace: true });
+      }
+    })();
     return () => { cancelled = true; };
-  }, []);
+  }, [navigate]);
 
   const hasPack = Boolean(existing?.team?.teamCode);
-  const startName = existing?.team?.startingPoint?.name;
 
   const onStartOver = async () => {
-    if (!window.confirm('Start over? Clears hunt progress on this phone and pulls the latest pack when online.')) {
-      return;
-    }
+    if (!window.confirm('Start over? Clears progress on this phone.')) return;
     setBusy(true);
     setNote('');
     try {
-      const result = await startOverHunt({
-        teamCode: existing?.team?.teamCode,
-      });
+      const result = await startOverHunt({ teamCode: existing?.team?.teamCode });
       setNote(result.message);
-      setUpdateWaiting(Boolean(result.updateWaiting));
       if (result.bundle) setExisting(result.bundle);
       navigate(CAMPUS_HUNT_PATHS.offlineLogin, { replace: true });
     } catch (err) {
@@ -67,84 +63,42 @@ export default function OfflineHuntLandingPage() {
 
         {hasPack ? (
           <>
-            <h1 className="mt-3 text-3xl font-black tracking-tight">Welcome</h1>
-            <p className="mt-2 text-sm text-white/60">
-              Leader phone for
-              {' '}
-              <span className="font-mono text-[#0ECCEE]">{existing.team.teamCode}</span>
-              {existing.team.teamName ? ` · ${existing.team.teamName}` : ''}
-            </p>
-            {startName ? (
-              <p className="mt-1 text-sm text-white/45">Meet at {startName}</p>
+            <h1 className="mt-3 text-3xl font-black tracking-tight">
+              {existing.team.teamCode}
+            </h1>
+            {existing.team.teamName ? (
+              <p className="mt-1 text-sm text-white/50">{existing.team.teamName}</p>
             ) : null}
-
-            <OfflineStorageBadge />
 
             <button
               type="button"
               onClick={() => navigate(CAMPUS_HUNT_PATHS.offlineLogin)}
               className="mt-8 w-full rounded-2xl bg-[#0ECCEE] py-4 text-sm font-bold text-black"
             >
-              Continue
+              Enter Hunt
             </button>
 
             <button
               type="button"
               disabled={busy}
               onClick={onStartOver}
-              className="mt-3 w-full rounded-2xl border border-white/15 py-3 text-sm font-semibold text-white/75 disabled:opacity-50"
+              className="mt-3 w-full py-2 text-xs text-white/40 disabled:opacity-50"
             >
-              {busy ? 'Updating…' : 'Start over · get latest'}
+              {busy ? 'Updating…' : 'Start over'}
             </button>
-
-            {note ? (
-              <p className="mt-3 text-center text-xs text-white/50">{note}</p>
-            ) : null}
-
-            {updateWaiting ? (
-              <button
-                type="button"
-                onClick={() => { void applyWaitingHuntUpdate(); }}
-                className="mt-3 w-full rounded-xl bg-white/10 py-3 text-xs font-bold text-[#0ECCEE]"
-              >
-                App update ready — tap to reload
-              </button>
-            ) : null}
-
-            <p className="mt-8 text-center text-[11px] text-white/35">
-              Airplane mode OK at the fest · re-open your install link on Wi‑Fi for updates
-            </p>
+            {note ? <p className="mt-2 text-center text-xs text-white/45">{note}</p> : null}
           </>
         ) : (
           <>
             <h1 className="mt-3 text-3xl font-black tracking-tight">Install Hunt</h1>
-            <p className="mt-2 text-sm text-white/60">
-              Open your team&apos;s shared install link on Wi‑Fi once, then add Hunt to your home screen.
+            <p className="mt-2 text-sm text-white/55">
+              Open your team install link on Wi‑Fi first.
             </p>
-            <OfflineStorageBadge />
             <div className="mt-6">
               <OfflineHuntInstallHelp packReady={false} forceInstall />
             </div>
           </>
         )}
-
-        <details
-          className="mt-10"
-          open={showTools}
-          onToggle={(e) => setShowTools(e.currentTarget.open)}
-        >
-          <summary className="cursor-pointer text-xs text-white/35">
-            Advanced · load JSON pack
-          </summary>
-          <div className="mt-3">
-            <OfflineBundleLoader
-              onLoaded={(bundle) => {
-                setExisting(bundle);
-                navigate(CAMPUS_HUNT_PATHS.offlineLogin);
-              }}
-            />
-          </div>
-        </details>
       </div>
     </div>
   );

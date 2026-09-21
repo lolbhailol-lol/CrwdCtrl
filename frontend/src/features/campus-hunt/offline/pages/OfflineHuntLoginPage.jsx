@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   loadOfflineBundle,
   loadOfflineSession,
@@ -37,7 +37,7 @@ export default function OfflineHuntLoginPage() {
         }
         setBundle(pack);
         if (session?.teamCode === pack.team?.teamCode && session?.memberKey) {
-          navigate(CAMPUS_HUNT_PATHS.offlineTeam, { replace: true });
+          navigate(CAMPUS_HUNT_PATHS.offlinePlay, { replace: true });
         }
       } catch (err) {
         if (!cancelled) setError(err.message || 'Could not read Hunt pack');
@@ -86,7 +86,7 @@ export default function OfflineHuntLoginPage() {
         teamName: bundle.team.teamName,
         loggedInAt: new Date().toISOString(),
       });
-      navigate(CAMPUS_HUNT_PATHS.offlineTeam);
+      navigate(CAMPUS_HUNT_PATHS.offlinePlay, { replace: true });
     } catch (err) {
       setError(err.message || 'Could not start');
     } finally {
@@ -105,17 +105,14 @@ export default function OfflineHuntLoginPage() {
   return (
     <div className="min-h-screen bg-[#0b0c0d] px-4 py-10 text-white">
       <div className="mx-auto max-w-md">
-        <Link to={CAMPUS_HUNT_PATHS.offline} className="text-xs text-white/40">
-          ← Welcome
-        </Link>
-        <h1 className="mt-4 text-3xl font-black tracking-tight">
+        <h1 className="text-3xl font-black tracking-tight">
           {bundle?.team?.teamCode || 'Login'}
         </h1>
         {bundle?.team?.teamName ? (
           <p className="mt-1 text-sm text-white/50">{bundle.team.teamName}</p>
         ) : null}
         <p className="mt-4 text-sm text-white/60">
-          Enter the team password. One phone only.
+          Team password · leader phone only
         </p>
 
         {error ? <p className="mt-4 text-sm text-red-300">{error}</p> : null}
@@ -128,7 +125,7 @@ export default function OfflineHuntLoginPage() {
           className="mt-6 space-y-3"
         >
           <label className="block text-xs text-white/55">
-            Team password
+            Password
             <input
               type="password"
               value={password}
@@ -143,7 +140,7 @@ export default function OfflineHuntLoginPage() {
             disabled={busy || !password.trim()}
             className="w-full rounded-2xl bg-[#0ECCEE] py-4 text-sm font-bold text-black disabled:opacity-40"
           >
-            {busy ? 'Entering…' : 'Enter Hunt'}
+            {busy ? 'Entering…' : 'Start'}
           </button>
         </form>
       </div>

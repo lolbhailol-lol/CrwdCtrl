@@ -14,7 +14,7 @@ import {
 } from '../offlineDb';
 import { armOfflineNetworkGuard } from '../offlineNetworkGuard';
 import OfflineHuntBriefing from '../components/OfflineHuntBriefing';
-import { startOverHunt } from '../startOverHunt';
+import { startOverHunt, applyServerStartOverIfNeeded } from '../startOverHunt';
 import {
   confirmStation,
   ensureClueActive,
@@ -181,7 +181,7 @@ export default function OfflineHuntPlayPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [pack, sess] = await Promise.all([
+        let [pack, sess] = await Promise.all([
           loadOfflineBundle(),
           loadOfflineSession(),
         ]);
@@ -190,6 +190,13 @@ export default function OfflineHuntPlayPage() {
           setLoading(false);
           return;
         }
+
+        // Admin Start over on Wi‑Fi → reset this phone to match live board.
+        const sync = await applyServerStartOverIfNeeded(pack).catch(() => null);
+        if (sync?.applied && sync.bundle) {
+          pack = sync.bundle;
+        }
+
         let teamState = await loadOfflineTeamState(sess.teamCode);
         teamState = hydrateState(pack, teamState);
         if (!isHuntWaiting(teamState)) {
@@ -411,7 +418,7 @@ export default function OfflineHuntPlayPage() {
   };
 
   const onResetHunt = async () => {
-    if (!window.confirm('Start over? Clears progress, live ranking, and Zip Grid. Pulls latest pack when online.')) {
+    if (!window.confirm('Start over? Clears progress and live ranking.')) {
       return;
     }
     const result = await startOverHunt({
@@ -473,7 +480,7 @@ export default function OfflineHuntPlayPage() {
         onStartHunt={onStartHunt}
         starting={starting}
         error={startError}
-        onBackToRounds={() => navigate(CAMPUS_HUNT_PATHS.offlineRounds)}
+        onBackToRounds={() => navigate(CAMPUS_HUNT_PATHS.offline)}
       />
     );
   }
@@ -485,12 +492,12 @@ export default function OfflineHuntPlayPage() {
         onRefresh={refresh}
         onActionResult={applyResult}
         eventSlug={bundle.event.slug}
-        onLeaveRound={() => navigate(CAMPUS_HUNT_PATHS.offlineRounds)}
+        onLeaveRound={() => navigate(CAMPUS_HUNT_PATHS.offline)}
         actions={actions}
         offlineMode
         roundLabel="The Hunt · Offline"
-        backTo={CAMPUS_HUNT_PATHS.offlineRounds}
-        backLabel="← Rounds"
+        backTo={CAMPUS_HUNT_PATHS.offline}
+        backLabel="← Home"
         checkpointExtra={
           session.role === 'leader' && cp?.needJoinWord ? (
             <div className="mt-3 space-y-2 rounded-xl border border-[#0ECCEE]/30 bg-[#0a1218] p-3 text-left">
@@ -591,15 +598,12 @@ export default function OfflineHuntPlayPage() {
               </div>
             ) : null}
 
-            <p className="mt-2 text-xs text-white/45">
-              Laptop: clear the Zip Grid tab and enter the device key again after Start over.
-            </p>
             <button
               type="button"
               className="mt-2 w-full rounded-lg border border-white/10 py-2 text-xs text-white/45"
               onClick={onResetHunt}
             >
-              Start over · get latest
+              Start over
             </button>
           </div>
         </details>

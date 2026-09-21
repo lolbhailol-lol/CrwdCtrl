@@ -1035,6 +1035,20 @@ async function postOfflineProgress(req, res, next) {
   }
 }
 
+async function postOfflinePull(req, res, next) {
+  try {
+    const { pullOfflineBoardState } = require('../services/offlineExportService');
+    const eventId = req.params.eventId || req.body?.event;
+    const data = await pullOfflineBoardState(eventId, req.body);
+    return res.json({ success: true, data });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, message: err.message });
+    }
+    return next(err);
+  }
+}
+
 async function postOfflineGridEnsure(req, res, next) {
   try {
     const { ensureOfflineGridAccess } = require('../services/offlineExportService');
@@ -1104,6 +1118,7 @@ module.exports = {
   getOfflineInstallPack,
   ackOfflineInstall,
   postOfflineProgress,
+  postOfflinePull,
   postOfflineGridEnsure,
   getMyTeam,
   getTeamProgress,

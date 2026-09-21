@@ -1,6 +1,7 @@
 /**
  * Start over: clear local progress, reset live ranking + Zip Grid,
  * pull latest pack (if install token known), refresh Hunt app shell when online.
+ * Also: when admin Start over stamped the team, phone applies that reset on Wi‑Fi.
  */
 
 import {
@@ -20,9 +21,28 @@ import {
   ensureOfflineGridKey,
   pauseOfflineBoardSync,
   resumeOfflineBoardSync,
+  pullOfflineBoardState,
 } from './offlineBoardSync';
 
 const INSTALL_TOKEN_KEY = 'ch_offline_install_token';
+
+function appliedResetKey(teamCode) {
+  return `ch_offline_applied_reset_${String(teamCode || '').toUpperCase()}`;
+}
+
+export function readAppliedResetAt(teamCode) {
+  try {
+    return String(localStorage.getItem(appliedResetKey(teamCode)) || '');
+  } catch {
+    return '';
+  }
+}
+
+export function writeAppliedResetAt(teamCode, iso) {
+  try {
+    if (iso) localStorage.setItem(appliedResetKey(teamCode), String(iso));
+  } catch { /* ignore */ }
+}
 
 export function rememberInstallToken(token) {
   const t = String(token || '').trim();
@@ -39,6 +59,79 @@ export function readRememberedInstallToken(bundle) {
     return String(localStorage.getItem(INSTALL_TOKEN_KEY) || '').trim();
   } catch {
     return '';
+  }
+}
+
+async function refreshPackIfPossible(pack, token) {
+  if (!token) return { pack, packUpdated: false };
+  try {
+    const res = await fetchOfflineInstallPack(token);
+    const fresh = res.data?.bundle || res.bundle;
+    if (fresh?.team?.teamCode) {
+      const next = { ...fresh, installToken: token };
+      await saveOfflineBundle(next);
+      rememberInstallToken(token);
+      try {
+        await ackOfflineInstallPack(token, navigator.userAgent || '');
+      } catch { /* best-effort */ }
+      return { pack: next, packUpdated: true };
+    }
+  } catch { /* keep existing */ }
+  return { pack, packUpdated: false };
+}
+
+/**
+ * If admin (or another phone) Start over'd on the server, wipe local progress to match.
+ * Call when Hunt opens on Wi‑Fi.
+ */
+export async function applyServerStartOverIfNeeded(bundle) {
+  const pack = bundle || await loadOfflineBundle().catch(() => null);
+  if (!pack?.event?.id || !pack?.team?.teamCode) {
+    return { applied: false, bundle: pack };
+  }
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return { applied: false, bundle: pack };
+  }
+
+  const remote = await pullOfflineBoardState(pack);
+  if (!remote?.offlineResetAt) return { applied: false, bundle: pack };
+
+  const remoteAt = new Date(remote.offlineResetAt).getTime();
+  if (!Number.isFinite(remoteAt)) return { applied: false, bundle: pack };
+
+  const localAt = new Date(readAppliedResetAt(pack.team.teamCode) || 0).getTime();
+  if (remoteAt <= localAt) return { applied: false, bundle: pack };
+
+  pauseOfflineBoardSync();
+  try {
+    const code = pack.team.teamCode;
+    await resetOfflineHuntLocal(code);
+    clearOfflineProgressQueue(code);
+
+    const token = readRememberedInstallToken(pack);
+    const refreshed = await refreshPackIfPossible(pack, token);
+    const nextPack = refreshed.pack;
+
+    const freshState = createInitialTeamState(nextPack);
+    freshState.seq = Math.max(Number(remote.seq) || 0, 1);
+    freshState.score = Number(remote.startingScore || remote.score || freshState.score)
+      || freshState.score;
+    freshState.currentStage = 'WAITING';
+    await saveOfflineTeamState(code, freshState);
+    writeAppliedResetAt(code, remote.offlineResetAt);
+
+    await warmupOfflineHunt().catch(() => {});
+
+    return {
+      applied: true,
+      packUpdated: refreshed.packUpdated,
+      bundle: nextPack,
+      message: refreshed.packUpdated
+        ? 'Admin Start over applied — pack + progress reset.'
+        : 'Admin Start over applied — progress reset.',
+    };
+  } finally {
+    resumeOfflineBoardSync();
   }
 }
 
@@ -65,11 +158,9 @@ export async function startOverHunt({
 
   pauseOfflineBoardSync();
   try {
-    // Capture old seq before wipe so the reset sync beats any stale SCORE_LOCKED push.
     const prevState = await loadOfflineTeamState(code).catch(() => null);
     const prevSeq = Math.max(0, Number(prevState?.seq) || 0);
 
-    // 1) Wipe local hunt progress + session
     await resetOfflineHuntLocal(code);
     clearOfflineProgressQueue(code);
 
@@ -79,27 +170,12 @@ export async function startOverHunt({
     let packUpdated = false;
     let updateWaiting = false;
 
-    // 2) Pull latest pack while online
     if (online && token) {
-      try {
-        const res = await fetchOfflineInstallPack(token);
-        const fresh = res.data?.bundle || res.bundle;
-        if (fresh?.team?.teamCode) {
-          pack = {
-            ...fresh,
-            installToken: token,
-          };
-          await saveOfflineBundle(pack);
-          rememberInstallToken(token);
-          packUpdated = true;
-          try {
-            await ackOfflineInstallPack(token, navigator.userAgent || '');
-          } catch { /* best-effort */ }
-        }
-      } catch { /* keep existing pack */ }
+      const refreshed = await refreshPackIfPossible(pack, token);
+      pack = refreshed.pack;
+      packUpdated = refreshed.packUpdated;
     }
 
-    // Fresh local state (WAITING + starting score). Seq must outrank the old locked sync.
     const freshState = createInitialTeamState(pack || { team: { teamCode: code } });
     freshState.seq = prevSeq + 1;
     await saveOfflineTeamState(code, freshState);
@@ -111,20 +187,24 @@ export async function startOverHunt({
       const shell = await refreshHuntAppShell().catch(() => ({ waiting: false }));
       updateWaiting = Boolean(shell?.waiting);
 
-      // 3) Reset live ranking on server (retry once — must actually sync)
       try {
         let result = await enqueueOfflineProgress(pack, freshState, { startOver: true });
         if (!result?.syncedOk) {
           result = await enqueueOfflineProgress(pack, freshState, { startOver: true });
         }
         boardReset = Boolean(result?.syncedOk);
-        if (boardReset && Number(result?.seq) > 0) {
-          freshState.seq = Number(result.seq);
-          await saveOfflineTeamState(code, freshState);
+        if (boardReset) {
+          if (Number(result?.seq) > 0) {
+            freshState.seq = Number(result.seq);
+            await saveOfflineTeamState(code, freshState);
+          }
+          writeAppliedResetAt(
+            code,
+            result?.offlineResetAt || new Date().toISOString(),
+          );
         }
       } catch { /* best-effort */ }
 
-      // 4) Reset Zip Grid (same device key, new puzzles)
       try {
         const grid = await ensureOfflineGridKey(pack, { forceReset: true });
         if (grid?.gridAccessCode) {
@@ -161,7 +241,7 @@ export async function startOverHunt({
     if (boardReset) bits.push('Live ranking reset.');
     else if (online) bits.push('Live ranking sync failed — stay on Wi‑Fi and Start over again.');
     else bits.push('Go online briefly so live ranking can reset.');
-    if (gridReset) bits.push('Zip Grid reset — same device key.');
+    if (gridReset) bits.push('Zip Grid reset.');
     if (packUpdated) bits.push('Latest pack downloaded.');
     else if (!online) bits.push('Offline — pack on phone kept.');
     if (updateWaiting && !reloadAppIfWaiting) bits.push('App update ready — reload when asked.');

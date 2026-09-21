@@ -1,17 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { isInAppBrowser } from '../../../../config/apiBase';
 import { applyOfflineHuntManifest } from '../offlineHuntManifest';
 import { launchExternalBrowserFromTap, copyPageLink } from '../../../../utils/openInExternalBrowser';
 import { applyWaitingHuntUpdate } from '../refreshHuntAppShell';
 
-function openInChrome(event) {
+function openInBrowser(event) {
   launchExternalBrowserFromTap(window.location.href, event, { stay: true });
 }
 
 /**
- * Install CrwdCtrl Hunt guidance for shared / landing pages.
- * Always shows install steps in a normal browser — even before a pack is saved.
- * forceInstall: keep Install CTA even inside an already-installed Hunt icon.
+ * Minimal install sheet — one action, clear “installed” state, iOS + Android.
  */
 export default function OfflineHuntInstallHelp({
   packReady = false,
@@ -19,15 +17,26 @@ export default function OfflineHuntInstallHelp({
   updateWaiting = false,
   packNote = '',
   forceInstall = false,
+  onInstalled,
 }) {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
-  const [installed, setInstalled] = useState(false);
+  const [installed, setInstalled] = useState(() => {
+    try {
+      return sessionStorage.getItem('ch_hunt_installed') === '1';
+    } catch {
+      return false;
+    }
+  });
   const [copied, setCopied] = useState(false);
+  const [iosDone, setIosDone] = useState(false);
   const inApp = isInAppBrowser();
   const standalone = typeof window !== 'undefined'
     && window.matchMedia('(display-mode: standalone)').matches;
   const ios = typeof navigator !== 'undefined'
     && /iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  const onInstalledRef = useRef(onInstalled);
+  onInstalledRef.current = onInstalled;
 
   useEffect(() => {
     applyOfflineHuntManifest();
@@ -35,27 +44,33 @@ export default function OfflineHuntInstallHelp({
       event.preventDefault();
       setDeferredPrompt(event);
     };
-    const onInstalled = () => {
+    const onAppInstalled = () => {
       setInstalled(true);
       setDeferredPrompt(null);
+      onInstalledRef.current?.();
     };
     window.addEventListener('beforeinstallprompt', onPrompt);
-    window.addEventListener('appinstalled', onInstalled);
+    window.addEventListener('appinstalled', onAppInstalled);
     return () => {
       window.removeEventListener('beforeinstallprompt', onPrompt);
-      window.removeEventListener('appinstalled', onInstalled);
+      window.removeEventListener('appinstalled', onAppInstalled);
     };
   }, []);
 
+  const markInstalled = () => {
+    setInstalled(true);
+    try {
+      sessionStorage.setItem('ch_hunt_installed', '1');
+    } catch { /* ignore */ }
+    onInstalledRef.current?.();
+  };
+
   const addHunt = async () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') setInstalled(true);
-      setDeferredPrompt(null);
-      return;
-    }
-    document.getElementById('hunt-install-steps')?.scrollIntoView({ behavior: 'smooth' });
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') markInstalled();
+    setDeferredPrompt(null);
   };
 
   const onCopy = async () => {
@@ -67,23 +82,19 @@ export default function OfflineHuntInstallHelp({
     }
   };
 
-  // Already running as Hunt home-screen app — short status (unless forced install).
-  if (standalone && !forceInstall) {
+  const done = standalone || installed || iosDone;
+
+  if (done && !forceInstall) {
     return (
       <div className="space-y-3">
-        <div className="rounded-2xl border border-emerald-400/35 bg-emerald-500/10 px-4 py-3">
-          <p className="text-sm font-bold text-emerald-100">
-            CrwdCtrl Hunt is installed
+        <div className="rounded-2xl border border-emerald-400/40 bg-emerald-500/15 px-4 py-4 text-center">
+          <p className="text-base font-bold text-emerald-100">
+            Hunt app downloaded
             {teamCode ? ` · ${teamCode}` : ''}
           </p>
-          <p className="mt-1 text-xs text-white/65">
-            {packReady
-              ? 'Open your install link on Wi‑Fi anytime for the latest pack + updates.'
-              : 'Open your team’s shared install link on Wi‑Fi to load the pack.'}
+          <p className="mt-1 text-xs text-white/55">
+            Open the Hunt icon on your home screen at the fest.
           </p>
-          {packNote ? (
-            <p className="mt-2 text-xs text-emerald-200/90">{packNote}</p>
-          ) : null}
         </div>
         {updateWaiting ? (
           <button
@@ -91,7 +102,7 @@ export default function OfflineHuntInstallHelp({
             onClick={() => { void applyWaitingHuntUpdate(); }}
             className="w-full rounded-xl bg-[#0ECCEE] py-3 text-sm font-bold text-black"
           >
-            App update ready — tap to reload
+            Update ready — reload
           </button>
         ) : null}
       </div>
@@ -100,75 +111,79 @@ export default function OfflineHuntInstallHelp({
 
   return (
     <div className="space-y-3">
-      <div className="relative overflow-hidden rounded-3xl border border-[#0ECCEE]/45 bg-linear-to-b from-[#0ECCEE]/20 to-[#0a1218] p-5 shadow-[0_0_40px_rgba(14,204,238,0.12)]">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#0ECCEE]">
-          Download app
-        </p>
-        <h2 className="mt-2 text-xl font-black text-white">
-          Install CrwdCtrl Hunt
-        </h2>
-        <p className="mt-2 text-sm leading-relaxed text-white/70">
-          {packReady
-            ? 'Add Hunt to your home screen — not the main CrwdCtrl website. Re-open your install link on Wi‑Fi anytime for updates.'
-            : 'Open your team’s shared install link on Wi‑Fi first, then add Hunt to your home screen (not the main CrwdCtrl website).'}
-        </p>
+      {done ? (
+        <div className="rounded-2xl border border-emerald-400/40 bg-emerald-500/15 px-4 py-4 text-center">
+          <p className="text-base font-bold text-emerald-100">Hunt app downloaded</p>
+          <p className="mt-1 text-xs text-white/55">Use the home-screen icon next time.</p>
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-[#0ECCEE]/40 bg-[#0ECCEE]/10 p-4">
+          <p className="text-sm font-bold text-white">Install Hunt on this phone</p>
+          <p className="mt-1 text-xs text-white/55">Leader phone only · works offline</p>
 
-        {inApp ? (
-          <div className="mt-4 space-y-2">
-            <p className="text-xs font-semibold text-amber-100">
-              You are inside WhatsApp — open in Chrome first
-            </p>
+          {inApp ? (
+            <div className="mt-4 space-y-2">
+              <p className="text-xs text-amber-100">Open in Chrome or Safari first</p>
+              <button
+                type="button"
+                onClick={openInBrowser}
+                className="w-full rounded-xl bg-[#0ECCEE] py-3.5 text-sm font-bold text-black"
+              >
+                Open in browser
+              </button>
+              <button
+                type="button"
+                onClick={onCopy}
+                className="w-full rounded-xl border border-white/20 py-2.5 text-xs font-semibold text-white"
+              >
+                {copied ? 'Copied' : 'Copy link'}
+              </button>
+            </div>
+          ) : deferredPrompt ? (
             <button
               type="button"
-              onClick={openInChrome}
-              className="w-full rounded-xl bg-[#0ECCEE] py-3.5 text-sm font-bold text-black"
+              onClick={addHunt}
+              className="mt-4 w-full rounded-xl bg-[#0ECCEE] py-3.5 text-sm font-bold text-black"
             >
-              Open in Chrome → Install
+              Install Hunt
             </button>
-            <button
-              type="button"
-              onClick={onCopy}
-              className="w-full rounded-xl border border-white/20 py-2.5 text-xs font-semibold text-white"
-            >
-              {copied ? 'Link copied — paste in Chrome' : 'Copy link for Chrome / Safari'}
-            </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={addHunt}
-            className="mt-4 w-full rounded-xl bg-[#0ECCEE] py-3.5 text-sm font-bold text-black"
-          >
-            Install CrwdCtrl Hunt
-          </button>
-        )}
-
-        {installed ? (
-          <p className="mt-3 text-xs text-emerald-200">Hunt icon added. Open it at the fest.</p>
-        ) : (
-          <div
-            id="hunt-install-steps"
-            className="mt-4 rounded-2xl border border-white/10 bg-black/30 px-3 py-3 text-xs text-white/70"
-          >
-            {ios ? (
-              <ol className="list-decimal space-y-1 pl-4">
-                <li>Safari Share → <strong className="text-white">Add to Home Screen</strong></li>
+          ) : ios ? (
+            <div className="mt-4 space-y-3">
+              <ol className="list-decimal space-y-1.5 pl-4 text-sm text-white/75">
+                <li>Tap Share <span className="text-white/40">(□↑)</span></li>
+                <li>Add to Home Screen</li>
                 <li>Name it <strong className="text-white">Hunt</strong></li>
               </ol>
-            ) : (
-              <ol className="list-decimal space-y-1 pl-4">
-                <li>Chrome menu (⋮) → <strong className="text-white">Install app</strong></li>
-                <li>If it says CrwdCtrl, cancel — stay on this Hunt page</li>
-              </ol>
-            )}
-          </div>
-        )}
-      </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIosDone(true);
+                  markInstalled();
+                }}
+                className="w-full rounded-xl bg-[#0ECCEE] py-3.5 text-sm font-bold text-black"
+              >
+                Done — Hunt is on my home screen
+              </button>
+            </div>
+          ) : (
+            <div className="mt-4 space-y-3">
+              <p className="text-sm text-white/70">
+                Chrome menu (⋮) → <strong className="text-white">Install app</strong>
+              </p>
+              <button
+                type="button"
+                onClick={markInstalled}
+                className="w-full rounded-xl bg-[#0ECCEE] py-3.5 text-sm font-bold text-black"
+              >
+                Done — Hunt is installed
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
-      {packNote ? (
-        <p className="rounded-xl border border-white/10 bg-white/4 px-3 py-2 text-xs text-white/60">
-          {packNote}
-        </p>
+      {packReady && packNote ? (
+        <p className="text-center text-xs text-white/45">{packNote}</p>
       ) : null}
 
       {updateWaiting ? (
@@ -177,7 +192,7 @@ export default function OfflineHuntInstallHelp({
           onClick={() => { void applyWaitingHuntUpdate(); }}
           className="w-full rounded-xl bg-[#0ECCEE] py-3 text-sm font-bold text-black"
         >
-          App update ready — tap to reload
+          Update ready — reload
         </button>
       ) : null}
     </div>

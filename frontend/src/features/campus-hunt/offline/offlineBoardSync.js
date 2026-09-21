@@ -167,6 +167,7 @@ export async function flushOfflineProgressQueue(bundle) {
   let synced = 0;
   let lastSeq = null;
   let lastStartOver = false;
+  let lastResetAt = null;
 
   for (const item of queue) {
     let ok = false;
@@ -195,6 +196,7 @@ export async function flushOfflineProgressQueue(bundle) {
           const body = data?.data || data;
           if (body?.seq != null) lastSeq = Number(body.seq);
           if (body?.startOver) lastStartOver = true;
+          if (body?.offlineResetAt) lastResetAt = body.offlineResetAt;
           break;
         }
       } catch {
@@ -221,6 +223,7 @@ export async function flushOfflineProgressQueue(bundle) {
     syncedOk: synced > 0,
     seq: lastSeq,
     startOver: lastStartOver || undefined,
+    offlineResetAt: lastResetAt || undefined,
   };
 }
 
@@ -271,6 +274,50 @@ export async function ensureOfflineGridKey(bundle, { forceReset = false } = {}) 
       const json = await res.json().catch(() => null);
       const data = json?.data || json;
       if (data?.gridAccessCode) return data;
+    } catch {
+      /* try next */
+    }
+  }
+  return null;
+}
+
+function pullUrl(base, eventId) {
+  const path = `/campus-hunt/events/${eventId}/offline-pull`;
+  if (!base) return `/api${path}`;
+  if (base.endsWith('/api')) return `${base}${path}`;
+  return `${base}/api${path}`;
+}
+
+/** Fetch live board + admin Start over stamp from server. */
+export async function pullOfflineBoardState(bundle) {
+  if (!bundle?.event?.id || !bundle?.team?.teamCode || !bundle?.signingKey) {
+    return null;
+  }
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return null;
+
+  let payload = {
+    t: 'campus_hunt_offline_pull',
+    event: String(bundle.event.id),
+    team: bundle.team.teamCode,
+    at: new Date().toISOString(),
+  };
+  try {
+    payload = await signPayload(bundle.signingKey, payload);
+  } catch {
+    return null;
+  }
+
+  const bases = resolveApiBases(bundle);
+  for (const base of bases) {
+    try {
+      const res = await fetch(pullUrl(base, payload.event), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) continue;
+      const json = await res.json().catch(() => null);
+      return json?.data || json;
     } catch {
       /* try next */
     }

@@ -667,6 +667,98 @@ async function importOfflineResults(eventId, payload, opts = {}) {
 }
 
 /**
+ * Full Start over for one team — live board + progress wipe + Zip Grid.
+ * Used by admin Playtest desk and offline phone startOver sync.
+ */
+async function resetTeamHuntProgress(team, {
+  score = null,
+  stage = 'WAITING',
+  bumpSeq = true,
+  forceGridReset = true,
+  deviceId = '',
+} = {}) {
+  const CampusHuntTeamProgress = require('../models/CampusHuntTeamProgress');
+  const CampusHuntCheckpointVerification = require('../models/CampusHuntCheckpointVerification');
+  const startScore = Number(team.startingScore) > 0
+    ? Number(team.startingScore)
+    : (Number(score) > 0 ? Number(score) : 100);
+  const nextScore = score != null ? Number(score) : startScore;
+  const storedSeq = Number(team.offlineProgressSeq) || 0;
+  const nextSeq = bumpSeq ? Math.max(storedSeq + 1, 1) : storedSeq;
+  const resetAt = new Date();
+
+  await Promise.all([
+    CampusHuntTeamProgress.deleteMany({ teamId: team._id }),
+    CampusHuntCheckpointVerification.deleteMany({ teamId: team._id }),
+  ]);
+
+  const $set = {
+    currentScore: nextScore,
+    startingScore: startScore,
+    currentStage: String(stage || 'WAITING'),
+    status: 'registered',
+    startStatus: 'WAITING',
+    offlineProgressSeq: nextSeq,
+    offlineResetAt: resetAt,
+    stats: {
+      hintsUsed: 0,
+      failedAttempts: 0,
+      manualPenalty: 0,
+    },
+  };
+  if (deviceId) $set.offlineDeviceId = String(deviceId).slice(0, 64);
+
+  await CampusHuntTeam.updateOne(
+    { _id: team._id },
+    {
+      $set,
+      $unset: {
+        finalScore: 1,
+        scoreLockedAt: 1,
+        finishedAt: 1,
+        suddenDeathRank: 1,
+        lastCheckpointNumber: 1,
+        actualStartAt: 1,
+        'stats.totalCompletionMs': 1,
+      },
+    },
+  );
+
+  const freshTeam = await CampusHuntTeam.findById(team._id);
+  if (!freshTeam) {
+    const err = new Error('Team not found after reset');
+    err.status = 404;
+    throw err;
+  }
+
+  if (forceGridReset) {
+    try {
+      const { ensureRound1FieldTerminalGrid } = require('./grid/gridSessionService');
+      const clue4 = freshTeam.clue4ChallengeId
+        ? await CampusHuntChallenge.findById(freshTeam.clue4ChallengeId).select('answer').lean()
+        : null;
+      await ensureRound1FieldTerminalGrid(freshTeam, {
+        preferredCompletionCode: clue4?.answer || '',
+        forceReset: true,
+      });
+    } catch (_) { /* grid reset best-effort */ }
+  }
+
+  try {
+    const { publishTeamProgress } = require('./teamProgressBus');
+    publishTeamProgress(freshTeam._id);
+  } catch (_) { /* live bus best-effort */ }
+
+  return {
+    team: freshTeam,
+    score: freshTeam.currentScore,
+    stage: freshTeam.currentStage,
+    seq: freshTeam.offlineProgressSeq,
+    offlineResetAt: freshTeam.offlineResetAt,
+  };
+}
+
+/**
  * Best-effort live board sync from leader phone (never required for play).
  */
 async function ingestOfflineProgress(eventId, payload) {
@@ -701,80 +793,34 @@ async function ingestOfflineProgress(eventId, payload) {
   const incomingSeq = Number(body.seq) || 0;
   const storedSeq = Number(team.offlineProgressSeq) || 0;
   const incomingDevice = String(body.deviceId || '').slice(0, 64);
-  const startScore = 100;
+  const startScore = Number(team.startingScore) > 0 ? Number(team.startingScore) : 100;
   const maxPlausible = startScore + (6 * 120);
 
   // Start over from leader phone — reset live board + unlock score lock for retest.
   if (startOver) {
-    const CampusHuntTeamProgress = require('../models/CampusHuntTeamProgress');
-    const CampusHuntCheckpointVerification = require('../models/CampusHuntCheckpointVerification');
     const score = Math.min(Math.max(0, Number(body.score) || startScore), maxPlausible);
-    // Seq must beat any in-flight SCORE_LOCKED sync still on the phone (interval push).
-    const nextSeq = Math.max(storedSeq + 1, incomingSeq, 1);
-
-    await Promise.all([
-      CampusHuntTeamProgress.deleteMany({ teamId: team._id }),
-      CampusHuntCheckpointVerification.deleteMany({ teamId: team._id }),
-    ]);
-
-    await CampusHuntTeam.updateOne(
-      { _id: team._id },
-      {
-        $set: {
-          currentScore: score,
-          startingScore: startScore,
-          currentStage: String(body.stage || 'WAITING'),
-          status: 'registered',
-          offlineProgressSeq: nextSeq,
-          ...(incomingDevice ? { offlineDeviceId: incomingDevice } : {}),
-          stats: {
-            hintsUsed: 0,
-            failedAttempts: 0,
-            manualPenalty: 0,
-          },
-        },
-        $unset: {
-          finalScore: 1,
-          scoreLockedAt: 1,
-          finishedAt: 1,
-          suddenDeathRank: 1,
-          lastCheckpointNumber: 1,
-          'stats.totalCompletionMs': 1,
-        },
-      },
-    );
-
-    const freshTeam = await CampusHuntTeam.findById(team._id);
-    if (!freshTeam) {
-      const err = new Error(`Team ${body.team} not found after reset`);
-      err.status = 404;
-      throw err;
+    const result = await resetTeamHuntProgress(team, {
+      score,
+      stage: String(body.stage || 'WAITING'),
+      bumpSeq: true,
+      forceGridReset: true,
+      deviceId: incomingDevice,
+    });
+    // Prefer phone seq if higher than auto-bump (anti race with old pushes).
+    if (incomingSeq > Number(result.seq || 0)) {
+      await CampusHuntTeam.updateOne(
+        { _id: team._id },
+        { $set: { offlineProgressSeq: incomingSeq } },
+      );
+      result.seq = incomingSeq;
     }
-
-    // Reset Zip Grid so the same device key starts a fresh game.
-    try {
-      const { ensureRound1FieldTerminalGrid } = require('./grid/gridSessionService');
-      const CampusHuntChallenge = require('../models/CampusHuntChallenge');
-      const clue4 = freshTeam.clue4ChallengeId
-        ? await CampusHuntChallenge.findById(freshTeam.clue4ChallengeId).select('answer').lean()
-        : null;
-      await ensureRound1FieldTerminalGrid(freshTeam, {
-        preferredCompletionCode: clue4?.answer || '',
-        forceReset: true,
-      });
-    } catch (_) { /* grid reset is best-effort */ }
-
-    try {
-      const { publishTeamProgress } = require('./teamProgressBus');
-      publishTeamProgress(freshTeam._id);
-    } catch (_) { /* live bus is best-effort */ }
-
     return {
-      teamCode: freshTeam.teamCode,
-      score: freshTeam.currentScore,
-      stage: freshTeam.currentStage,
-      seq: freshTeam.offlineProgressSeq,
-      deviceId: freshTeam.offlineDeviceId,
+      teamCode: result.team.teamCode,
+      score: result.score,
+      stage: result.stage,
+      seq: result.seq,
+      deviceId: result.team.offlineDeviceId,
+      offlineResetAt: result.offlineResetAt,
       startOver: true,
     };
   }
@@ -815,6 +861,52 @@ async function ingestOfflineProgress(eventId, payload) {
     stage: team.currentStage,
     seq: team.offlineProgressSeq,
     deviceId: team.offlineDeviceId,
+    offlineResetAt: team.offlineResetAt || null,
+  };
+}
+
+/**
+ * Phone pulls live board + admin Start over signal (signed).
+ */
+async function pullOfflineBoardState(eventId, payload) {
+  const body = payload?.t ? payload : (payload?.data || payload);
+  if (body?.t !== 'campus_hunt_offline_pull') {
+    const err = new Error('Not an offline pull payload');
+    err.status = 400;
+    throw err;
+  }
+  if (String(body.event) !== String(eventId)) {
+    const err = new Error('Pull is for a different event');
+    err.status = 403;
+    throw err;
+  }
+  if (!verifyResultsSignature(eventId, body)) {
+    const err = new Error('Pull signature is invalid');
+    err.status = 403;
+    throw err;
+  }
+
+  const team = await CampusHuntTeam.findOne({
+    eventId,
+    teamCode: String(body.team || '').toUpperCase(),
+  }).select(
+    'teamCode currentStage currentScore startingScore finalScore offlineProgressSeq offlineResetAt scoreLockedAt',
+  );
+  if (!team) {
+    const err = new Error(`Team ${body.team} not found`);
+    err.status = 404;
+    throw err;
+  }
+
+  return {
+    teamCode: team.teamCode,
+    stage: team.currentStage,
+    score: team.currentScore,
+    startingScore: team.startingScore,
+    finalScore: team.finalScore ?? null,
+    seq: Number(team.offlineProgressSeq) || 0,
+    offlineResetAt: team.offlineResetAt || null,
+    scoreLocked: team.currentStage === 'SCORE_LOCKED' || Boolean(team.scoreLockedAt),
   };
 }
 
@@ -875,6 +967,8 @@ module.exports = {
   ackOfflineInstall,
   listOfflineInstallStatus,
   ingestOfflineProgress,
+  pullOfflineBoardState,
+  resetTeamHuntProgress,
   ensureOfflineGridAccess,
   bundleSigningKey,
 };

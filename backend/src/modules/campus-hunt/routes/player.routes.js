@@ -20,6 +20,7 @@ const {
   getOfflineInstallPack,
   ackOfflineInstall,
   postOfflineProgress,
+  postOfflinePull,
   postOfflineGridEnsure,
   getMyTeam,
   getTeamProgress,
@@ -41,6 +42,7 @@ const router = express.Router();
 router.get('/offline-install/:token', campusHuntLoginLimiter, getOfflineInstallPack);
 router.post('/offline-install/:token/ack', campusHuntLoginLimiter, ackOfflineInstall);
 router.post('/events/:eventId/offline-progress', campusHuntLoginLimiter, postOfflineProgress);
+router.post('/events/:eventId/offline-pull', campusHuntLoginLimiter, postOfflinePull);
 router.post('/events/:eventId/offline-grid-ensure', campusHuntLoginLimiter, postOfflineGridEnsure);
 router.get('/colleges', listColleges);
 router.get('/profile-entries', optionalAuthenticateToken, listProfileEntries);

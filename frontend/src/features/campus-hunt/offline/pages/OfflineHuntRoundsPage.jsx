@@ -1,12 +1,10 @@
-import { Navigate, useNavigate } from 'react-router-dom';
-import PlayerRoundsHub from '../../player/PlayerRoundsHub';
+import { Navigate } from 'react-router-dom';
 import { CAMPUS_HUNT_PATHS } from '../../config';
-import { isHuntWaiting } from '../offlineEngine';
 import { useOfflineHuntSession } from '../useOfflineHuntSession';
 
+/** Rounds hub removed — go straight to play. */
 export default function OfflineHuntRoundsPage() {
-  const navigate = useNavigate();
-  const { bundle, session, state, loading } = useOfflineHuntSession();
+  const { bundle, session, loading } = useOfflineHuntSession();
 
   if (loading) {
     return (
@@ -20,35 +18,5 @@ export default function OfflineHuntRoundsPage() {
     return <Navigate to={CAMPUS_HUNT_PATHS.offlineLogin} replace />;
   }
 
-  const waiting = isHuntWaiting(state);
-  const rounds = [
-    {
-      id: 'round1',
-      label: 'The Hunt',
-      subtitle: 'Offline',
-      detail: waiting ? 'Start when ready.' : 'Continue.',
-      open: true,
-    },
-  ];
-
-  return (
-    <PlayerRoundsHub
-      team={{
-        teamCode: bundle.team.teamCode,
-        teamName: bundle.team.teamName,
-        currentScore: state?.score,
-        isLeader: session.role === 'leader',
-        myName: session.name,
-      }}
-      eventName={bundle.event?.name}
-      rounds={rounds}
-      lastRound="round1"
-      intro="Leader phone only."
-      onOpenRound={(id) => {
-        if (id === 'round1') navigate(CAMPUS_HUNT_PATHS.offlinePlay);
-      }}
-      onSwitchPerson={() => navigate(CAMPUS_HUNT_PATHS.offlineTeam)}
-      switchLabel="← Team"
-    />
-  );
+  return <Navigate to={CAMPUS_HUNT_PATHS.offlinePlay} replace />;
 }

@@ -3438,6 +3438,7 @@ async function playtestCompleteScan(req, res, next) {
 /**
  * Playtest: wipe one team's progress so you can start the flow again.
  * Keeps schedule binding (start point / clue IDs). Score → startingScore (100).
+ * Also stamps offlineResetAt so the leader phone pack resets on next Wi‑Fi open.
  */
 async function playtestResetTeam(req, res, next) {
   try {
@@ -3451,32 +3452,13 @@ async function playtestResetTeam(req, res, next) {
       startStatus: team.startStatus,
     };
 
-    await Promise.all([
-      CampusHuntTeamProgress.deleteMany({ teamId: team._id }),
-      CampusHuntCheckpointVerification.deleteMany({ teamId: team._id }),
-    ]);
-
-    team.currentStage = 'WAITING';
-    team.status = 'registered';
-    team.startStatus = 'WAITING';
-    team.currentScore = startScore;
-    team.startingScore = startScore;
-    team.finalScore = undefined;
-    team.scoreLockedAt = undefined;
-    team.finishedAt = undefined;
-    team.actualStartAt = undefined;
-    team.lastCheckpointNumber = undefined;
-    team.suddenDeathRank = undefined;
-    team.stats = {
-      hintsUsed: 0,
-      failedAttempts: 0,
-      manualPenalty: 0,
-      totalCompletionMs: undefined,
-    };
-    await team.save();
-
-    const { publishTeamProgress } = require('../services/teamProgressBus');
-    publishTeamProgress(team._id);
+    const { resetTeamHuntProgress } = require('../services/offlineExportService');
+    const result = await resetTeamHuntProgress(team, {
+      score: startScore,
+      stage: 'WAITING',
+      bumpSeq: true,
+      forceGridReset: true,
+    });
 
     await writeAudit({
       eventId: team.eventId,
@@ -3487,18 +3469,20 @@ async function playtestResetTeam(req, res, next) {
       reason: req.body.reason || 'Playtest desk — start over',
       before,
       after: {
-        currentStage: team.currentStage,
-        currentScore: team.currentScore,
-        startStatus: team.startStatus,
+        currentStage: result.stage,
+        currentScore: result.score,
+        startStatus: result.team.startStatus,
+        offlineResetAt: result.offlineResetAt,
       },
     });
 
     return res.json({
       success: true,
       data: {
-        team,
+        team: result.team,
         scoresResetTo: startScore,
-        message: 'Team reset — use Release this team now to start again',
+        offlineResetAt: result.offlineResetAt,
+        message: 'Team reset on live board. Leader phone updates when it opens Hunt on Wi‑Fi.',
       },
     });
   } catch (err) {
