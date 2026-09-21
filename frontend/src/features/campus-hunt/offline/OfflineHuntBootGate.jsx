@@ -18,8 +18,14 @@ export default function OfflineHuntBootGate() {
     if (isOfflineHuntPath(location.pathname)) {
       dismissBootOverlays();
       try {
-        document.body.classList.remove('page-content-loading');
+        document.body.classList.remove('page-content-loading', 'page-transition-active');
         document.documentElement.removeAttribute('data-home-hub-loading');
+        document.documentElement.classList.add('skip-boot-splash');
+        window.google?.accounts?.id?.cancel?.();
+        document.querySelectorAll(
+          '#credential_picker_container, iframe[src*="accounts.google"]',
+        ).forEach((el) => el.remove());
+        document.querySelectorAll('[inert]').forEach((el) => el.removeAttribute('inert'));
       } catch { /* ignore */ }
     }
   }, [location.pathname]);

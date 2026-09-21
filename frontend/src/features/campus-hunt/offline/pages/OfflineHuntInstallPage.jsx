@@ -18,6 +18,31 @@ import {
   purgeHuntAppCaches,
 } from '../refreshHuntAppShell';
 import { rememberInstallToken, applyServerStartOverIfNeeded } from '../startOverHunt';
+import { dismissBootOverlays } from '../../../../utils/dismissBootOverlays';
+
+/** Kill invisible layers that steal taps (One Tap iframe, boot splash, inert). */
+function unlockHuntTaps() {
+  dismissBootOverlays();
+  try {
+    document.body.classList.remove('page-content-loading', 'page-transition-active', 'detail-page-loading');
+    document.documentElement.removeAttribute('data-home-hub-loading');
+    document.documentElement.classList.add('skip-boot-splash');
+  } catch { /* ignore */ }
+  try {
+    window.google?.accounts?.id?.cancel?.();
+  } catch { /* ignore */ }
+  try {
+    document.querySelectorAll(
+      '#credential_picker_container, iframe[src*="accounts.google"], div[id^="gsi_"]',
+    ).forEach((el) => {
+      el.style.pointerEvents = 'none';
+      el.remove();
+    });
+  } catch { /* ignore */ }
+  try {
+    document.querySelectorAll('[inert]').forEach((el) => el.removeAttribute('inert'));
+  } catch { /* ignore */ }
+}
 
 /**
  * Shared install link — save pack, refresh app shell, install Hunt, then login.
@@ -40,6 +65,12 @@ export default function OfflineHuntInstallPage() {
       return false;
     }
   });
+
+  useEffect(() => {
+    unlockHuntTaps();
+    const t = window.setInterval(unlockHuntTaps, 1500);
+    return () => window.clearInterval(t);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -154,9 +185,23 @@ export default function OfflineHuntInstallPage() {
     return () => { cancelled = true; };
   }, [token]);
 
-  const goLogin = () => navigate(CAMPUS_HUNT_PATHS.offlineLogin);
+  // Pack ready + already marked installed → go to login (no dead Continue taps).
+  useEffect(() => {
+    if (status !== 'ready' || !team || !appInstalled) return undefined;
+    unlockHuntTaps();
+    const t = window.setTimeout(() => {
+      navigate(CAMPUS_HUNT_PATHS.offlineLogin, { replace: true });
+    }, 600);
+    return () => window.clearTimeout(t);
+  }, [status, team, appInstalled, navigate]);
+
+  const goLogin = () => {
+    unlockHuntTaps();
+    navigate(CAMPUS_HUNT_PATHS.offlineLogin);
+  };
 
   const wipeAndRetry = async () => {
+    unlockHuntTaps();
     setStatus('loading');
     setError('');
     try {
@@ -179,8 +224,8 @@ export default function OfflineHuntInstallPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0b0c0d] px-4 py-10 text-white">
-      <div className="mx-auto max-w-md">
+    <div className="relative z-10 min-h-screen bg-[#0b0c0d] px-4 py-10 text-white" style={{ pointerEvents: 'auto' }}>
+      <div className="relative z-10 mx-auto max-w-md" style={{ pointerEvents: 'auto' }}>
         <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#0ECCEE]">
           CrwdCtrl Hunt
         </p>
@@ -206,7 +251,7 @@ export default function OfflineHuntInstallPage() {
             <button
               type="button"
               onClick={() => { void wipeAndRetry(); }}
-              className="w-full rounded-xl border border-amber-400/40 bg-amber-500/15 py-3 text-sm font-bold text-amber-100"
+              className="relative z-20 w-full rounded-xl border border-amber-400/40 bg-amber-500/15 py-3 text-sm font-bold text-amber-100 touch-manipulation"
             >
               Clear old pack on this phone &amp; retry
             </button>
@@ -218,7 +263,7 @@ export default function OfflineHuntInstallPage() {
         ) : null}
 
         {status === 'ready' && team ? (
-          <div className="mt-6 space-y-4">
+          <div className="relative z-20 mt-6 space-y-4" style={{ pointerEvents: 'auto' }}>
             <OfflineHuntInstallHelp
               packReady
               forceInstall={!appInstalled}
@@ -232,7 +277,7 @@ export default function OfflineHuntInstallPage() {
               <button
                 type="button"
                 onClick={() => { void applyWaitingHuntUpdate(); }}
-                className="w-full rounded-xl border border-amber-400/40 bg-amber-500/15 py-3 text-sm font-bold text-amber-100"
+                className="relative z-20 w-full rounded-xl border border-amber-400/40 bg-amber-500/15 py-3 text-sm font-bold text-amber-100 touch-manipulation"
               >
                 Update ready — reload Hunt
               </button>
@@ -241,7 +286,7 @@ export default function OfflineHuntInstallPage() {
             <button
               type="button"
               onClick={goLogin}
-              className="w-full rounded-xl bg-[#0ECCEE] py-4 text-sm font-bold text-black"
+              className="relative z-20 w-full rounded-xl bg-[#0ECCEE] py-4 text-sm font-bold text-black touch-manipulation active:scale-[0.98]"
             >
               {appInstalled ? 'Continue' : 'Continue to login'}
             </button>
@@ -249,7 +294,7 @@ export default function OfflineHuntInstallPage() {
             <button
               type="button"
               onClick={() => { void wipeAndRetry(); }}
-              className="w-full text-center text-xs text-white/40 underline hover:text-white/60"
+              className="relative z-20 w-full text-center text-xs text-white/40 underline hover:text-white/60 touch-manipulation"
             >
               Still see old Round 1 / Survival / Finale? Clear pack &amp; reload
             </button>

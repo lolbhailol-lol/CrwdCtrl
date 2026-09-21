@@ -94,6 +94,8 @@ function shouldSuppressOneTap(pathname = '') {
     || pathname.startsWith('/trek-organizer')
     || pathname.startsWith('/run-club-organizer')
     || pathname.startsWith('/event-community-organizer')
+    || pathname.startsWith('/campus-hunt')
+    || pathname.startsWith('/campus-hunt-volunteer')
     || /\/events\/[^/]+\/register/.test(pathname)
   );
 }
