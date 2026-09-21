@@ -172,10 +172,15 @@ export default function Clue5VariantManager({
     try {
       await adminSaveClueScoring(eventId, 5, {
         roundId,
-        scoring: coerceClueScoring(settings, CLUE5_DEFAULT_SETTINGS),
+        scoring: {
+          ...coerceClueScoring(settings, CLUE5_DEFAULT_SETTINGS),
+          timerSeconds: 0,
+          awardMode: 'flat_base',
+          speedBonusBands: [],
+        },
       });
       await refresh();
-      setMessage(`Saved Clue 5 timer & hint settings for all ${teamCapacity} teams`);
+      setMessage(`Saved Clue 5 attempt & hint settings for all ${teamCapacity} teams`);
       onChanged?.();
     } catch (err) {
       setError(err.message || 'Could not save settings');
@@ -255,7 +260,12 @@ export default function Clue5VariantManager({
 
       const result = await adminBulkSaveClue5(eventId, {
         roundId,
-        scoring: coerceClueScoring(settings, CLUE5_DEFAULT_SETTINGS),
+        scoring: {
+          ...coerceClueScoring(settings, CLUE5_DEFAULT_SETTINGS),
+          timerSeconds: 0,
+          awardMode: 'flat_base',
+          speedBonusBands: [],
+        },
         variants: variantsPayload,
       });
       const saved = result.data?.saved ?? 0;
@@ -328,16 +338,6 @@ export default function Clue5VariantManager({
             />
           </label>
           <label className="block text-xs text-white/55">
-            Timer (seconds)
-            <input
-              type="number"
-              min={0}
-              value={settings.timerSeconds}
-              onChange={(e) => setSettings((s) => ({ ...s, timerSeconds: Number(e.target.value) || 0 }))}
-              className={`mt-1 ${inputClass}`}
-            />
-          </label>
-          <label className="block text-xs text-white/55">
             Hint cost
             <input
               type="number"
@@ -347,7 +347,18 @@ export default function Clue5VariantManager({
               className={`mt-1 ${inputClass}`}
             />
           </label>
+          <label className="block text-xs text-white/55">
+            Base points
+            <input
+              type="number"
+              min={0}
+              value={settings.basePoints}
+              onChange={(e) => setSettings((s) => ({ ...s, basePoints: Number(e.target.value) || 0 }))}
+              className={`mt-1 ${inputClass}`}
+            />
+          </label>
         </div>
+        <p className="mt-2 text-[11px] text-white/40">No timer on red — flat points when they type the word.</p>
         <button
           type="button"
           disabled={busy || !eventId}

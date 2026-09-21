@@ -144,10 +144,8 @@ function theoreticalMaxScore(scoringConfig) {
     : (scoringConfig?.clue1?.basePoints ?? 50);
   const c2 = scoringConfig?.clue2?.basePoints ?? 50;
   const c3 = scoringConfig?.clue3?.basePoints ?? 65;
-  const c4Bands = scoringConfig?.clue4?.speedBonusBands || [];
-  const c4 = Math.max(0, ...c4Bands.map((b) => Number(b.bonus) || 0), Number(scoringConfig?.clue4?.basePoints) || 0, 0);
-  const c5 = (scoringConfig?.clue5?.basePoints ?? 45)
-    + Math.max(0, ...(scoringConfig?.clue5?.speedBonusBands || []).map((b) => Number(b.bonus) || 0), 0);
+  const c4 = Number(scoringConfig?.clue4?.basePoints) || 50;
+  const c5 = Number(scoringConfig?.clue5?.basePoints) || 45;
   const c6 = scoringConfig?.clue6?.basePoints ?? 30;
   return start + c1 + c2 + c3 + c4 + c5 + c6;
 }

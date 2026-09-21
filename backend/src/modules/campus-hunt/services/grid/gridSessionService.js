@@ -48,6 +48,48 @@ function anyLevelCleared(session) {
   return (session.levelProgress || []).some((lp) => lp?.completed || lp?.failed || lp?.timedOut);
 }
 
+/** True when session is missing any of the current Zip rounds (legacy 2/3 packs). */
+function hasFullZipPack(session) {
+  if (!session || !Array.isArray(session.puzzles) || session.puzzles.length !== TOTAL_LEVELS) {
+    return false;
+  }
+  for (let i = 0; i < TOTAL_LEVELS; i += 1) {
+    const p = session.puzzles[i];
+    if (!p || !p.rows || !p.cols || !Array.isArray(p.numbers) || !p.numbers.length) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Always write a fresh 4-round Zip pack. Uses set() so Mongoose Mixed arrays
+ * cannot keep a stale shorter DocumentArray after Start over.
+ */
+function applyFreshZipPuzzles(session, now = new Date()) {
+  const puzzles = generateAllLevels();
+  session.set('puzzles', puzzles);
+  session.set('levelProgress', puzzles.map((_, i) => ({
+    levelIndex: i,
+    completed: false,
+    failed: false,
+    timedOut: false,
+    moves: 0,
+    pointsAwarded: 0,
+    hintsUsed: 0,
+    startedAt: i === 0 ? now : undefined,
+  })));
+  session.currentLevelIndex = 0;
+  session.scoreEarned = 0;
+  session.hintsUsed = 0;
+  session.score = 0;
+  session.sessionToken = crypto.randomBytes(16).toString('hex');
+  session.status = 'active';
+  session.markModified('puzzles');
+  session.markModified('levelProgress');
+  return puzzles;
+}
+
 /**
  * Keep the same accessCode (printed on phone/pack) and reopen play time.
  * forceReset: Start over — wipe completed Zip Grid too, keep device key.
@@ -58,16 +100,18 @@ async function reviveRound1GridSession(session, {
   forceReset = false,
 } = {}) {
   if (!session) throw gridError('Session not found', 'SESSION_NOT_FOUND', 404);
-  if (session.status === 'completed' && !forceReset) return session;
+  if (session.status === 'completed' && !forceReset && hasFullZipPack(session)) {
+    return session;
+  }
 
   const preferred = String(preferredCompletionCode || '').trim().toUpperCase();
+  const shortPack = !hasFullZipPack(session);
   const resetProgress = forceReset
+    || shortPack
     || !anyLevelCleared(session)
     || sessionTimedOut(session)
     || session.status === 'completed'
-    || session.status === 'expired'
-    || !Array.isArray(session.puzzles)
-    || session.puzzles.length !== TOTAL_LEVELS;
+    || session.status === 'expired';
   const now = new Date();
 
   session.status = 'active';
@@ -76,25 +120,7 @@ async function reviveRound1GridSession(session, {
   session.completionCodeUsedAt = undefined;
 
   if (resetProgress) {
-    const puzzles = generateAllLevels();
-    session.puzzles = puzzles;
-    session.levelProgress = puzzles.map((_, i) => ({
-      levelIndex: i,
-      completed: false,
-      failed: false,
-      timedOut: false,
-      moves: 0,
-      pointsAwarded: 0,
-      hintsUsed: 0,
-      startedAt: i === 0 ? now : undefined,
-    }));
-    session.currentLevelIndex = 0;
-    session.scoreEarned = 0;
-    session.hintsUsed = 0;
-    session.score = 0;
-    session.sessionToken = crypto.randomBytes(16).toString('hex');
-    session.markModified('puzzles');
-    session.markModified('levelProgress');
+    applyFreshZipPuzzles(session, now);
   } else {
     // Mid-session revive: stamp a fresh startedAt on the current open level so
     // an old clock does not instantly fail and flash prior level results.
@@ -108,7 +134,7 @@ async function reviveRound1GridSession(session, {
 
   if (preferred.startsWith('GRID-')) {
     session.completionCode = preferred;
-  } else if (!session.completionCode || forceReset) {
+  } else if (!session.completionCode || forceReset || shortPack) {
     // Keep planted GRID code when present; only mint if missing.
     if (!session.completionCode) session.completionCode = randomCompletionCode();
   }
@@ -189,20 +215,49 @@ function finishSession(session) {
 }
 
 function advanceAfterLevel(session, fromIndex) {
-  const puzzleCount = Array.isArray(session.puzzles) ? session.puzzles.length : TOTAL_LEVELS;
-  const total = Math.max(TOTAL_LEVELS, puzzleCount);
-  if (fromIndex + 1 >= total || fromIndex + 1 >= TOTAL_LEVELS) {
+  const nextIndex = fromIndex + 1;
+  // Always play the current Zip length (4). Never end early on a short legacy pack.
+  if (nextIndex >= TOTAL_LEVELS) {
     finishSession(session);
     return { allDone: true };
   }
-  // Need a puzzle for the next index — otherwise finish (legacy short packs).
-  if (!session.puzzles?.[fromIndex + 1]) {
-    finishSession(session);
-    return { allDone: true };
+  if (!hasFullZipPack(session) || !session.puzzles?.[nextIndex]) {
+    // Repair mid-run: rebuild full 4-round pack and continue at nextIndex.
+    const now = new Date();
+    const puzzles = generateAllLevels();
+    const prior = Array.isArray(session.levelProgress) ? [...session.levelProgress] : [];
+    session.set('puzzles', puzzles);
+    session.set('levelProgress', puzzles.map((_, i) => {
+      if (i < nextIndex && prior[i]) {
+        return {
+          levelIndex: i,
+          completed: Boolean(prior[i].completed),
+          failed: Boolean(prior[i].failed || prior[i].timedOut),
+          timedOut: Boolean(prior[i].timedOut),
+          moves: Number(prior[i].moves) || 0,
+          pointsAwarded: Number(prior[i].pointsAwarded) || 0,
+          hintsUsed: Number(prior[i].hintsUsed) || 0,
+          startedAt: prior[i].startedAt,
+          completedAt: prior[i].completedAt,
+        };
+      }
+      return {
+        levelIndex: i,
+        completed: false,
+        failed: false,
+        timedOut: false,
+        moves: 0,
+        pointsAwarded: 0,
+        hintsUsed: 0,
+        startedAt: i === nextIndex ? now : undefined,
+      };
+    }));
+    session.markModified('puzzles');
+    session.markModified('levelProgress');
   }
-  session.currentLevelIndex = fromIndex + 1;
-  session.levelProgress[fromIndex + 1] = {
-    levelIndex: fromIndex + 1,
+  session.currentLevelIndex = nextIndex;
+  session.levelProgress[nextIndex] = {
+    levelIndex: nextIndex,
     completed: false,
     failed: false,
     timedOut: false,
@@ -302,6 +357,13 @@ async function createGridSession({
     ...(preferred.startsWith('GRID-') ? { completionCode: preferred } : {}),
   });
 
+  // Guarantee Mixed array length after create (defensive against driver quirks).
+  if (!hasFullZipPack(session)) {
+    applyFreshZipPuzzles(session, now);
+    if (preferred.startsWith('GRID-')) session.completionCode = preferred;
+    await session.save();
+  }
+
   return session;
 }
 
@@ -355,8 +417,16 @@ function sessionPublicView(session) {
 }
 
 async function loadActiveSession(sessionToken) {
-  const session = await CampusHuntGridSession.findOne({ sessionToken });
+  let session = await CampusHuntGridSession.findOne({ sessionToken });
   assertSessionActive(session);
+  // Stale laptop token after Start over may still hit an active short pack — upgrade in place.
+  if (
+    session.status === 'active'
+    && isRound1GridSession(session)
+    && !hasFullZipPack(session)
+  ) {
+    session = await reviveRound1GridSession(session, { forceReset: true });
+  }
   if (session.status === 'active') {
     ensureLevelStarted(session, session.currentLevelIndex);
     if (applyTimeoutIfNeeded(session)) {
@@ -380,19 +450,20 @@ async function joinByAccessCode(accessCode) {
   }
 
   // Round 1: packs mint keys early — auto-revive so fest-day join still works.
-  if (
-    isRound1GridSession(session)
-    && session.status !== 'completed'
-    && (
-      session.status === 'expired'
-      || sessionTimedOut(session)
-      || !Array.isArray(session.puzzles)
-      || session.puzzles.length !== TOTAL_LEVELS
-    )
-  ) {
-    session = await reviveRound1GridSession(session, {
-      forceReset: !Array.isArray(session.puzzles) || session.puzzles.length !== TOTAL_LEVELS,
-    });
+  // Also upgrade legacy 2/3-round completed sessions so Start over / re-join always gets 4.
+  if (isRound1GridSession(session)) {
+    const shortPack = !hasFullZipPack(session);
+    if (
+      shortPack
+      || (
+        session.status !== 'completed'
+        && (session.status === 'expired' || sessionTimedOut(session))
+      )
+    ) {
+      session = await reviveRound1GridSession(session, {
+        forceReset: shortPack,
+      });
+    }
   }
 
   assertSessionActive(session);
@@ -717,8 +788,8 @@ async function ensureRound1FieldTerminalGrid(team, {
     if (preferred.startsWith('GRID-') && existing.completionCode !== preferred) {
       existing.completionCode = preferred;
     }
-    // Upgrade legacy 2/3-round sessions to the current 4-round Zip pack.
-    if (!Array.isArray(existing.puzzles) || existing.puzzles.length !== TOTAL_LEVELS) {
+    // Upgrade legacy 2/3-round (or corrupt) sessions to the current 4-round Zip pack.
+    if (!hasFullZipPack(existing)) {
       return reviveRound1GridSession(existing, {
         durationMinutes,
         preferredCompletionCode: preferred,

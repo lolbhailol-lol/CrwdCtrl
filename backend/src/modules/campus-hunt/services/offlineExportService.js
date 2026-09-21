@@ -819,7 +819,18 @@ async function resetTeamHuntProgress(team, {
         preferredCompletionCode: clue4?.answer || '',
         forceReset: true,
       });
-    } catch (_) { /* grid reset best-effort */ }
+    } catch (err) {
+      // Surface once — Start over must not silently leave a 2-round Zip pack.
+      // eslint-disable-next-line no-console
+      console.warn('[campus-hunt] Zip Grid reset failed on Start over:', err?.message || err);
+      try {
+        const { ensureRound1FieldTerminalGrid } = require('./grid/gridSessionService');
+        await ensureRound1FieldTerminalGrid(freshTeam, { forceReset: true });
+      } catch (retryErr) {
+        // eslint-disable-next-line no-console
+        console.warn('[campus-hunt] Zip Grid reset retry failed:', retryErr?.message || retryErr);
+      }
+    }
   }
 
   try {

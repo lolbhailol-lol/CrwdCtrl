@@ -48,16 +48,12 @@ export const DEFAULT_SCORING_CONFIG = {
   clue5: {
     basePoints: 45,
     maxAttempts: 2,
-    timerSeconds: 240,
-    awardMode: 'base_plus_speed',
+    timerSeconds: 0,
+    awardMode: 'flat_base',
     allowLateSubmit: true,
     revealOnMaxAttempts: true,
     hintCost: 30,
-    speedBonusBands: [
-      { maxSeconds: 90, bonus: 30 },
-      { maxSeconds: 150, bonus: 15 },
-      { maxSeconds: 240, bonus: 5 },
-    ],
+    speedBonusBands: [],
   },
   clue6: {
     basePoints: 30,
@@ -79,31 +75,23 @@ export function scoringForChallenge(event, challengeNumber) {
   const cfg = event?.scoringConfig || DEFAULT_SCORING_CONFIG;
   const custom = cfg[`clue${challengeNumber}`] || {};
   const merged = { ...defaults, ...custom };
-  if (Number(challengeNumber) === 4) {
+  if ([2, 3, 4, 5].includes(Number(challengeNumber))) {
     merged.timerSeconds = 0;
     merged.timerStartDelaySeconds = 0;
     merged.awardMode = 'flat_base';
-    merged.basePoints = Number(merged.basePoints) > 0 ? Number(merged.basePoints) : 50;
-    merged.allowLateSubmit = true;
     merged.speedBonusBands = [];
-  }
-  if (Number(challengeNumber) === 2) {
-    merged.timerSeconds = 0;
-    merged.timerStartDelaySeconds = 0;
-    merged.awardMode = 'flat_base';
-    merged.basePoints = Number(merged.basePoints) > 0 ? Number(merged.basePoints) : 50;
-    merged.speedBonusBands = [];
-  }
-  if (Number(challengeNumber) === 5) {
-    const timer = Number(merged.timerSeconds);
-    merged.timerSeconds = Number.isFinite(timer) && timer > 0
-      ? timer
-      : (Number(defaults.timerSeconds) || 240);
-    merged.awardMode = merged.awardMode || defaults.awardMode || 'base_plus_speed';
-    merged.allowLateSubmit = merged.allowLateSubmit !== false;
-    merged.speedBonusBands = Array.isArray(merged.speedBonusBands) && merged.speedBonusBands.length
-      ? merged.speedBonusBands
-      : (defaults.speedBonusBands || []);
+    if (Number(challengeNumber) === 2 || Number(challengeNumber) === 4) {
+      merged.basePoints = Number(merged.basePoints) > 0 ? Number(merged.basePoints) : 50;
+    }
+    if (Number(challengeNumber) === 3) {
+      merged.basePoints = Number(merged.basePoints) > 0 ? Number(merged.basePoints) : 65;
+    }
+    if (Number(challengeNumber) === 4 || Number(challengeNumber) === 5) {
+      merged.allowLateSubmit = true;
+    }
+    if (Number(challengeNumber) === 5) {
+      merged.basePoints = Number(merged.basePoints) > 0 ? Number(merged.basePoints) : 45;
+    }
   }
   const hint = Number(merged.hintCost ?? cfg.hintCost ?? defaults.hintCost);
   merged.hintCost = Number.isFinite(hint) && hint >= 0 ? hint : 20;

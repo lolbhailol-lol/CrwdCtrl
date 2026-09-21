@@ -365,12 +365,10 @@ export function ensureClueActive(bundle, state, now = new Date()) {
   const row = next.clueProgress[n] || emptyClue();
   if (row.state === 'LOCKED' || !row.startedAt) {
     const cfg = scoring(bundle, n);
-    // Field Terminal (4): no hunt timer — Zip Grid is the play.
-    const timerSeconds = n === 4 || n === 2
+    // Physical clues + Zip: no hunt countdown on blue (3) / red (5) either.
+    const timerSeconds = [2, 3, 4, 5, 6].includes(n)
       ? 0
-      : n === 5
-        ? Number(cfg.timerSeconds || 300)
-        : Number(cfg.timerSeconds || 0);
+      : Number(cfg.timerSeconds || 0);
     const delay = 0;
     const window = buildWindow(timerSeconds, now, delay);
     row.state = 'ACTIVE';
@@ -385,26 +383,21 @@ export function ensureClueActive(bundle, state, now = new Date()) {
     }
     next.clueProgress[n] = row;
     bump(next);
+  } else if ((n === 3 || n === 5) && row.expiresAt) {
+    // Drop any legacy countdown left on blue/red after pack soft-update.
+    row.expiresAt = null;
+    if (row.failureReason === 'TIMEOUT' || row.failureReason === 'REVEALED_ZERO_POINTS') {
+      row.failureReason = null;
+    }
+    next.clueProgress[n] = row;
+    bump(next);
   }
   return next;
 }
 
 export function tickTimers(bundle, state, now = new Date()) {
-  let next = ensureClueActive(bundle, state, now);
-  const match = String(next.currentStage || '').match(/^CLUE_(\d)_ACTIVE$/);
-  if (!match) return next;
-  const n = Number(match[1]);
-  const row = next.clueProgress[n];
-  if (!row || row.state !== 'ACTIVE' || !row.expiresAt) return next;
-  if (now.getTime() < new Date(row.expiresAt).getTime()) return next;
-  if (![5].includes(n)) return next;
-  // Soft-reveal: show answer at 0 pts, stay ACTIVE so leader can type it
-  if (row.failureReason === 'REVEALED_ZERO_POINTS') return next;
-  row.failureReason = 'REVEALED_ZERO_POINTS';
-  row.awardedPoints = 0;
-  next.clueProgress[n] = row;
-  bump(next);
-  return next;
+  // No hunt countdown soft-reveal — blue (3) and red (5) are untimed.
+  return ensureClueActive(bundle, state, now);
 }
 
 function assertLeader(session) {

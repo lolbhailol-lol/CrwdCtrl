@@ -94,7 +94,7 @@ function blankForm(number, takesTo, teamSize = 4) {
         : ''),
     basePoints: number === 3 ? 65 : number === 5 ? 45 : 0,
     maxAttempts: number === 3 || number === 5 ? 2 : 3,
-    timerSeconds: number === 5 ? 240 : 0,
+    timerSeconds: 0,
     hintCost: number === 3 ? 25 : number === 5 ? 30 : 15,
     memberPrompts: defaults.memberPrompts || Array.from({ length: people }, () => ''),
     active: true,
@@ -310,8 +310,7 @@ export default function RouteClueEditor({
               || `Go to ${place}. Find the shared QR. Leader scans once to unlock the next clue.`),
       basePoints: existing.basePoints ?? (number === 3 ? 65 : number === 5 ? 45 : 0),
       maxAttempts: existing.maxAttempts ?? (number === 3 || number === 5 ? 2 : 3),
-      timerSeconds: existing.timerSeconds
-        ?? (number === 5 ? 240 : 0),
+      timerSeconds: [2, 3, 4, 5].includes(number) ? 0 : (existing.timerSeconds ?? 0),
       hintCost: existing.hintCost ?? (number === 3 ? 25 : number === 5 ? 30 : 15),
       memberPrompts: (number === 5 || number === 3) && membersEmpty
         ? (defaults.memberPrompts || memberPrompts)
@@ -434,7 +433,7 @@ export default function RouteClueEditor({
         ).trim(),
         basePoints: Number(form.basePoints) || 0,
         maxAttempts: Number(form.maxAttempts) || 3,
-        timerSeconds: Number(form.timerSeconds) || 0,
+        timerSeconds: [2, 3, 4, 5].includes(number) ? 0 : (Number(form.timerSeconds) || 0),
         hintCost: Number(form.hintCost) || 15,
         active: form.active,
       };
@@ -796,24 +795,21 @@ export default function RouteClueEditor({
                 className={`mt-1 ${inputClass}`}
               />
             </label>
-            <label className="block text-xs text-white/55">
-              {number === 4 ? 'Solve timer (sec)' : 'Timer (sec)'}
-              <input
-                type="number"
-                min="0"
-                value={form.timerSeconds}
-                onChange={(event) => setForm((value) => ({
-                  ...value,
-                  timerSeconds: event.target.value,
-                }))}
-                className={`mt-1 ${inputClass}`}
-              />
-              {number === 4 && (
-                <span className="mt-1 block text-[11px] text-white/40">
-                  Players get a short read window, then this timer starts (default 180 = 3:00).
-                </span>
-              )}
-            </label>
+            {![2, 3, 4, 5].includes(number) && (
+              <label className="block text-xs text-white/55">
+                Timer (sec)
+                <input
+                  type="number"
+                  min="0"
+                  value={form.timerSeconds}
+                  onChange={(event) => setForm((value) => ({
+                    ...value,
+                    timerSeconds: event.target.value,
+                  }))}
+                  className={`mt-1 ${inputClass}`}
+                />
+              </label>
+            )}
             <label className="block text-xs text-white/55">
               Hint cost
               <input

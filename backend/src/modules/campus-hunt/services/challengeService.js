@@ -149,15 +149,24 @@ function scoringForChallenge(event, challengeNumber) {
   const custom = raw?.toObject?.() || raw || {};
   const merged = { ...defaults, ...custom };
 
-  // Clue 4 Field Terminal: never a hunt countdown (Zip Grid is the play).
-  // Clue 2: physical digit find — no timer.
-  if (Number(challengeNumber) === 4 || Number(challengeNumber) === 2) {
+  // Clue 2 / 3 / 4 / 5: physical or Zip — no hunt countdown.
+  if ([2, 3, 4, 5].includes(Number(challengeNumber))) {
     merged.timerSeconds = 0;
     merged.timerStartDelaySeconds = 0;
     merged.awardMode = 'flat_base';
-    merged.basePoints = Number(merged.basePoints) > 0 ? Number(merged.basePoints) : 50;
     merged.speedBonusBands = [];
-    if (Number(challengeNumber) === 4) merged.allowLateSubmit = true;
+    if (Number(challengeNumber) === 2 || Number(challengeNumber) === 4) {
+      merged.basePoints = Number(merged.basePoints) > 0 ? Number(merged.basePoints) : 50;
+    }
+    if (Number(challengeNumber) === 3) {
+      merged.basePoints = Number(merged.basePoints) > 0 ? Number(merged.basePoints) : 65;
+    }
+    if (Number(challengeNumber) === 4 || Number(challengeNumber) === 5) {
+      merged.allowLateSubmit = true;
+    }
+    if (Number(challengeNumber) === 5) {
+      merged.basePoints = Number(merged.basePoints) > 0 ? Number(merged.basePoints) : 45;
+    }
   }
 
   merged.hintCost = Number(merged.hintCost ?? cfg.hintCost ?? defaults.hintCost) || 20;
@@ -177,15 +186,10 @@ async function ensureChallengeActive(team, challengeNumber, now = new Date()) {
 
   const event = await CampusHuntEvent.findById(team.eventId);
   const scoring = scoringForChallenge(event, challengeNumber);
-  // Clue 4 Field Terminal: no hunt countdown — Zip Grid itself is the play.
-  // Clue 2: physical digit find — no hunt countdown.
-  const timerSeconds = Number(challengeNumber) === 4 || Number(challengeNumber) === 2
+  // Clue 2/3/4/5: no hunt countdown. Clue 6 finish code: none.
+  const timerSeconds = [2, 3, 4, 5, 6].includes(Number(challengeNumber))
     ? 0
-    : Number(challengeNumber) === 5
-      ? Number(scoring.timerSeconds || challenge.timerSeconds || 300)
-      : Number(challengeNumber) === 6
-        ? 0
-        : Number(challenge.timerSeconds || scoring.timerSeconds || 0);
+    : Number(challenge.timerSeconds || scoring.timerSeconds || 0);
   const delaySeconds = 0;
 
   let progress = await getOrCreateProgress(team, challenge);
@@ -357,15 +361,15 @@ function publicChallengeView(challenge, progress, {
     hintText: includeHint && isLeader && progress?.hintUsed ? (hintText || null) : undefined,
     hintCost: Number(challenge.hintCost ?? scoring?.hintCost) || 20,
     startedAt,
-    expiresAt: n === 4 || n === 2 ? null : expiresAt,
+    expiresAt: [2, 3, 4, 5].includes(n) ? null : expiresAt,
     timerStartsAt: null,
     instructionPhase,
-    timerArmed: n === 4 || n === 2 ? true : timerArmed,
+    timerArmed: [2, 3, 4, 5].includes(n) ? true : timerArmed,
     timerSeconds: undefined,
     instructionDelaySeconds: undefined,
     awardedPoints: progress?.awardedPoints ?? null,
     failureReason: progress?.failureReason || null,
-    timeExpired: n === 2 ? false : timeExpired,
+    timeExpired: [2, 3, 4, 5].includes(n) ? false : timeExpired,
     allowLateSubmit: Boolean(
       scoring?.allowLateSubmit
       || n === 4
@@ -658,6 +662,7 @@ async function submitAnswer({
     scoring.awardMode === 'flat_base'
     || Number(challengeNumber) === 1
     || Number(challengeNumber) === 3
+    || Number(challengeNumber) === 5
   )
     ? (Number(scoring.basePoints) || Number(challenge.basePoints) || 0)
     : (Number(challenge.basePoints) || Number(scoring.basePoints) || 0);

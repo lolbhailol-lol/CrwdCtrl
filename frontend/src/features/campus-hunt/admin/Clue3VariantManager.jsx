@@ -180,7 +180,12 @@ export default function Clue3VariantManager({
     try {
       await adminSaveClueScoring(eventId, 3, {
         roundId,
-        scoring: coerceClueScoring(settings, CLUE3_DEFAULT_SETTINGS),
+        scoring: {
+          ...coerceClueScoring(settings, CLUE3_DEFAULT_SETTINGS),
+          timerSeconds: 0,
+          awardMode: 'flat_base',
+          speedBonusBands: [],
+        },
       });
       await refresh();
       setMessage(`Saved Clue 3 attempt & hint settings for all ${teamCapacity} teams`);
@@ -267,7 +272,12 @@ export default function Clue3VariantManager({
 
       const result = await adminBulkSaveClue3(eventId, {
         roundId,
-        scoring: coerceClueScoring(settings, CLUE3_DEFAULT_SETTINGS),
+        scoring: {
+          ...coerceClueScoring(settings, CLUE3_DEFAULT_SETTINGS),
+          timerSeconds: 0,
+          awardMode: 'flat_base',
+          speedBonusBands: [],
+        },
         variants: variantsPayload,
       });
       const saved = result.data?.saved ?? 0;

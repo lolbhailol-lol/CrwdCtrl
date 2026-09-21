@@ -74,6 +74,7 @@ export default function CampusHuntGridPage() {
       .then((res) => {
         if (!cancelled) setSession(res.data);
       })
+      // After Start over the laptop must re-join — old token is rotated server-side.
       .catch((err) => {
         clearGridSession();
         if (err?.code === 'LAPTOP_ONLY') setBlocked(true);
