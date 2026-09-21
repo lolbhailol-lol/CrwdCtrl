@@ -96,9 +96,11 @@ if (import.meta.env.PROD && !isNativeApp() && 'serviceWorker' in navigator) {
         },
         onRegisteredSW(_swUrl, registration) {
           if (!('caches' in window)) return;
+          // Only drop transient API caches. NEVER delete workbox/precache —
+          // that wiped the Hunt shell and broke airplane mode after Add to Home Screen.
           caches.keys().then((keys) => {
             keys
-              .filter((key) => /api-cache|workbox|precache/i.test(key))
+              .filter((key) => /api-cache/i.test(key) && !/precache/i.test(key))
               .forEach((key) => caches.delete(key));
           }).catch(() => {});
           try {

@@ -1,17 +1,20 @@
 /**
  * On shared install links: pull the newest service-worker shell when online
  * so leaders get UX fixes without reinstalling the home-screen icon.
+ *
+ * NEVER delete workbox/precache caches — that breaks airplane-mode Hunt.
  */
 
 const SHELL_BUST_PREFIX = 'ch_hunt_shell_bust_';
 
+/** Soft clear only API / transient caches. Keep precache for offline play. */
 export async function purgeHuntAppCaches() {
   if (typeof window === 'undefined' || !('caches' in window)) return;
   try {
     const keys = await caches.keys();
     await Promise.all(
       keys
-        .filter((k) => /workbox|api-cache|crwdctrl|precache|runtime/i.test(k))
+        .filter((k) => /api-cache/i.test(k) && !/precache/i.test(k))
         .map((k) => caches.delete(k)),
     );
   } catch { /* ignore */ }
@@ -22,6 +25,7 @@ export async function refreshHuntAppShell() {
     return { checked: false, waiting: false };
   }
   try {
+    // Do not wipe precache — airplane mode needs it.
     await purgeHuntAppCaches();
     const regs = await navigator.serviceWorker.getRegistrations();
     let waiting = false;
@@ -40,8 +44,8 @@ export async function refreshHuntAppShell() {
 }
 
 /**
- * Once per install token (per tab session): bump SW, purge caches, reload
- * so a new pack link never keeps the old Round 1 / Survival / Finale shell.
+ * Once per install token: activate a waiting SW if present.
+ * Does not delete precache or force a blind reload (that emptied the offline shell).
  */
 export async function bustStaleHuntShellOnce(token) {
   if (typeof window === 'undefined') return { reloaded: false, waiting: false };
@@ -57,14 +61,6 @@ export async function bustStaleHuntShellOnce(token) {
   if (shell?.waiting) {
     await applyWaitingHuntUpdate();
     return { reloaded: true, waiting: true };
-  }
-
-  // No waiting worker — still hard-reload once so precache picks up new assets.
-  const url = new URL(window.location.href);
-  if (!url.searchParams.has('_hunt')) {
-    url.searchParams.set('_hunt', String(Date.now()));
-    window.location.replace(url.toString());
-    return { reloaded: true, waiting: false };
   }
   return { reloaded: false, waiting: false };
 }

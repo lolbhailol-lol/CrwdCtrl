@@ -93,8 +93,8 @@ export default function OfflineHuntInstallHelp({
             {teamCode ? ` · ${teamCode}` : ''}
           </p>
           <p className="mt-1 text-xs text-white/55">
-            Open the Hunt icon on your home screen at the fest.
-            New pack links must be opened once with Wi‑Fi on — airplane mode keeps the old app.
+            Keep data on until it says pack ready, then Add to Home Screen.
+            After that, open the Hunt icon — airplane mode works.
           </p>
         </div>
         {updateWaiting ? (

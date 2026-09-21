@@ -116,14 +116,17 @@ export default function OfflineHuntInstallPage() {
           exportedAt: stamped.exportedAt || '',
         });
         setStatus('ready');
-        setPackNote('Latest team pack saved. You can turn Wi‑Fi off after login.');
+        setPackNote('Latest team pack saved. Keep Wi‑Fi on ~10s while Hunt caches, then Add to Home Screen — after that airplane mode works.');
         try {
           await ackOfflineInstallPack(token, navigator.userAgent || '');
         } catch { /* best-effort */ }
-        await warmupOfflineHunt().catch(() => {});
+        await warmupOfflineHunt({ timeoutMs: 14000 }).catch(() => {});
+        if (!cancelled) {
+          setPackNote('Pack + offline shell ready. Add to Home Screen, then you can turn net off.');
+        }
         const sync = await applyServerStartOverIfNeeded(stamped).catch(() => null);
         if (!cancelled && sync?.applied) {
-          setPackNote('Latest team pack saved. Admin Start over applied.');
+          setPackNote('Pack ready · Admin Start over applied. Add to Home Screen, then net off is OK.');
         }
       } catch (err) {
         if (cancelled) return;
@@ -163,6 +166,7 @@ export default function OfflineHuntInstallPage() {
       }
       await clearOfflineSession().catch(() => {});
       await clearOfflineBundle().catch(() => {});
+      // Soft API cache only — keep SW precache so airplane mode still works after reload.
       await purgeHuntAppCaches();
       try {
         sessionStorage.removeItem(`ch_hunt_shell_bust_${String(token || '').slice(0, 48)}`);
