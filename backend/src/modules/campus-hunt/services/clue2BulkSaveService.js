@@ -152,7 +152,7 @@ async function bulkSaveClue2({
             stationCode,
             publicInstruction:
               `Green SECOND SCAN at ${place}. One shared QR for this place. `
-              + 'Leader scans once, then enters your team code to unlock Clue 3.',
+              + 'After the join-word is typed on the leader phone, scan once to unlock Clue 3.',
             sequence: 2,
             active: true,
             compensationPolicyKey: 'skip_and_continue',
@@ -196,8 +196,7 @@ async function bulkSaveClue2({
             acceptedAnswers: [answer],
             destinationInstruction:
               `Go to ${place} now. Find the shared plant slips, join the word, type it, `
-              + 'then scan the shared green SECOND SCAN QR. '
-              + 'Leader scans once, then enters your team code to unlock Clue 3.',
+              + 'then scan the shared green SECOND SCAN QR once to unlock Clue 3.',
             hintText: 'Look at eye level — join every plant slip into one word.',
             basePoints: 0,
             maxAttempts: clue2Scoring.maxAttempts,

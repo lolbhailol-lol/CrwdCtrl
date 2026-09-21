@@ -434,16 +434,16 @@ export function submitAnswer(bundle, session, state, challengeNumber, answer, no
   bump(next);
 
   const destHint = n === 1
-    ? 'Go to that place — find the written clues, join the word, type it, then scan orange once.'
+    ? 'Go to that place — leader scans the orange FIRST SCAN QR once.'
     : n === 2
-      ? 'Green stop — join the word, type it, scan once.'
+      ? 'Green stop — leader scans the green SECOND SCAN QR once.'
       : n === 3
-        ? 'Blue stop — join the word, type it, scan once.'
+        ? 'Blue stop — leader scans the blue THIRD SCAN QR once.'
         : n === 4
-          ? 'Purple stop — join the word, type it, scan once → Clue 5.'
+          ? 'Purple stop — leader scans the purple FOURTH SCAN QR once → Clue 5.'
           : n === 5
-            ? 'Red FIFTH SCAN — scan once → Clue 6 at MindSpark Lobby.'
-            : 'Score locked at MindSpark Lobby. Export results for the desk.';
+            ? 'Red FIFTH SCAN — scan once → Clue 6 at Mindspark Lobby.'
+            : 'Score locked at Mindspark Lobby. Export results for the desk.';
 
   return {
     state: next,
@@ -595,7 +595,8 @@ export function submitStopJoinWord(bundle, session, state, answer, now = new Dat
   assertLeader(session);
   const next = tickTimers(bundle, state, now);
   const key = pendingCheckpointKey(next.currentStage);
-  if (!key) throw huntError('No stop join-word needed right now', 409, 'WRONG_STAGE');
+  // Plant join-word is only at the second stop (after Clue 2), not first scan.
+  if (Number(key) !== 2) throw huntError('No stop join-word needed right now', 409, 'WRONG_STAGE');
   const expected = checkpointForKey(bundle, key);
   const want = String(expected?.joinedWord || '').trim();
   if (!want) {
@@ -649,7 +650,8 @@ export function scanStation(bundle, session, state, raw, now = new Date()) {
     throw huntError('Wrong stage for this poster — finish the current clue first', 409, 'WRONG_STAGE');
   }
   const expected = checkpointForKey(bundle, key);
-  const needJoin = Boolean(String(expected?.joinedWord || '').trim());
+  // Join-word is Clue 2's answer (typed while CLUE_2_ACTIVE). Scans never re-ask it.
+  const needJoin = false;
   const cpRow = next.checkpoints[key] || { scans: {}, confirmed: false };
   if (needJoin && !cpRow.joinWordOk) {
     throw huntError('Type the joined word from the plant fragments first', 409, 'JOIN_WORD_REQUIRED');

@@ -801,8 +801,7 @@ async function ensureCheckpointsAndClues(
                 arr.findIndex((x) => x.toLowerCase() === v.toLowerCase()) === i
               )),
             destinationInstruction:
-              `Go to ${first.station.name}. Leader scans the shared orange QR once, `
-              + 'then enter your team code to unlock Clue 2.',
+              `Go to ${first.station.name}. Leader scans the shared orange QR once to unlock Clue 2.`,
             hintText: clue1.hintText,
             basePoints: scoring.clue1?.basePoints ?? DEFAULT_SCORING_CONFIG.clue1.basePoints ?? 50,
             maxAttempts: scoring.clue1?.maxAttempts || 3,
@@ -858,9 +857,8 @@ async function ensureCheckpointsAndClues(
             answer: joinWord,
             acceptedAnswers: [joinWord].filter(Boolean),
             destinationInstruction:
-              `Go to ${second.station.name} now. Find the shared plant slips, join the word, `
-              + 'type it, then scan the shared green SECOND SCAN QR. '
-              + 'Leader scans once, then enters your team code to unlock Clue 3.',
+              `Go to ${second.station.name}. Find the shared plant slips, join the word, `
+              + 'type it on this phone, then scan the shared green SECOND SCAN QR once to unlock Clue 3.',
             basePoints: 0,
             maxAttempts: scoring.clue2?.maxAttempts || 3,
             timerSeconds: scoring.clue2?.timerSeconds || 180,

@@ -14,49 +14,48 @@ const { selectCompetitionTeams } = require('./startScheduleService');
 const { buildStationQrPayload } = require('./checkpointService');
 const { CLUE_HOW_TO, DEFAULT_SCORING_CONFIG } = require('../constants');
 
-/** Offline Round 1 — one phone, join-word at stops, then one scan. */
+/** Offline — one phone; plant join-word = Clue 2 answer only (not a scan gate). */
 const OFFLINE_CLUE_HOW_TO = {
   1: {
     title: 'How to play — Clue 1',
     steps: [
       'All teammates walk together. One phone (leader).',
       'Read the sentence and type the campus location.',
-      'Go there. Find the written clues nearby, join them into one word, type it.',
-      'Scan the place QR once → team code → Clue 2.',
+      'Go there. Leader scans the orange FIRST SCAN QR once → Clue 2.',
     ],
   },
   2: {
     title: 'How to play — Clue 2',
     steps: [
-      'Find the written clues at the stop, join the word, type it.',
-      'Leader scans the place QR once → team code → Clue 3.',
+      'At the green stop: find plant slips, join into one word, type it on this phone.',
+      'Leader scans the green SECOND SCAN QR once → Clue 3.',
     ],
   },
   3: {
     title: 'How to play — Lockbox',
     steps: [
-      'Lockbox pieces are on this phone — read aloud in order and rebuild the digit code.',
-      'Leader submits → go to that place → scan blue QR → team code.',
+      'Lockbox pieces are on this phone — read aloud and rebuild the digit code.',
+      'Submit → go to that place → scan blue THIRD SCAN once.',
     ],
   },
   4: {
     title: 'How to play — Field Terminal',
     steps: [
       'Open Zip Grid on a laptop — no hunt timer; play until you finish.',
-      'Leader types GRID-XXXX → scan purple QR once → Clue 5.',
+      'Leader types GRID-XXXX → scan purple FOURTH SCAN once → Clue 5.',
     ],
   },
   5: {
     title: 'How to play — Clue 5',
     steps: [
-      'Fragments are on this phone — read aloud in order and rebuild the word.',
-      'Leader types it → go to 5th stop → scan red FIFTH SCAN → team code.',
+      'Fragments are on this phone — rebuild the word and type it.',
+      'Go to 5th stop → scan red FIFTH SCAN once → Clue 6.',
     ],
   },
   6: {
-    title: 'How to play — MindSpark Lobby',
+    title: 'How to play — Mindspark Lobby',
     steps: [
-      'Go to MindSpark Lobby as a full team.',
+      'Go to Mindspark Lobby as a full team.',
       'Ask the organizer for the finish code.',
       'Leader types it to lock your score, then export results for the desk.',
     ],
@@ -183,14 +182,21 @@ function serializeCheckpoint(cp, plantByStation = null) {
   if (!cp) return null;
   const payload = buildStationQrPayload(cp);
   const stationCode = String(cp.stationCode || '').toUpperCase();
-  const fromCatalog = plantByStation?.get(stationCode) || {};
-  const plantFragments = (Array.isArray(cp.plantFragments) && cp.plantFragments.length
-    ? cp.plantFragments
-    : fromCatalog.plantFragments) || [];
-  const joinedWord = String(cp.joinedWord || fromCatalog.joinedWord || '').trim();
+  const progressionKey = String(cp.progressionKey || cp.checkpointKey || '1');
+  // Plant join-word only for second stop (Clue 2 / green). Other scans are QR-only.
+  const isJoinStop = progressionKey === '2';
+  const fromCatalog = isJoinStop ? (plantByStation?.get(stationCode) || {}) : {};
+  const plantFragments = isJoinStop
+    ? ((Array.isArray(cp.plantFragments) && cp.plantFragments.length
+      ? cp.plantFragments
+      : fromCatalog.plantFragments) || [])
+    : [];
+  const joinedWord = isJoinStop
+    ? String(cp.joinedWord || fromCatalog.joinedWord || '').trim()
+    : '';
   return {
     id: String(cp._id),
-    progressionKey: String(cp.progressionKey || cp.checkpointKey || '1'),
+    progressionKey,
     checkpointKey: cp.checkpointKey,
     code: cp.code || cp.checkpointKey,
     stationCode: cp.stationCode || '',
@@ -356,12 +362,11 @@ async function exportOfflinePacks(eventId) {
     const start = startById.get(String(team.startingPointId || ''));
 
     const stops = [cp1, cp2, cp3, cp4, cp5].map((cp) => serializeCheckpoint(cp, plantByStation));
-    for (const stop of stops) {
-      if (stop && !stop.joinedWord) {
-        warnings.push(
-          `${team.teamCode}: stop ${stop.stationCode || stop.locationName} missing joinedWord — set plant fragments in Clues`,
-        );
-      }
+    const secondStop = stops[1];
+    if (secondStop && !secondStop.joinedWord) {
+      warnings.push(
+        `${team.teamCode}: second stop ${secondStop.stationCode || secondStop.locationName} missing joinedWord — set plant fragments in Places`,
+      );
     }
 
     const bundle = {

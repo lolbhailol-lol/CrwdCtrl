@@ -319,17 +319,16 @@ const CLUE_HOW_TO = {
     steps: [
       'Leader reads the riddle and types the campus location on their phone.',
       'Correct answer = 50 points (any attempt). After 3 wrong tries the location is revealed (0 points).',
-      'Walk there together — leader scans the shared orange QR once.',
-      'Leader enters your team code to unlock the next clue.',
+      'Walk there together — leader scans the shared orange QR once to unlock Clue 2.',
     ],
   },
   2: {
     title: 'How to play — Clue 2',
     steps: [
-      'Leader reads the instructions carefully (short countdown).',
-      'Then a 3-minute timer starts — find the hidden number as a team.',
-      'Leader types the answer. Faster correct submit = more points.',
-      'If time runs out, the answer is shown (0 points) — type it to unlock the next step.',
+      'Leader reads the brief (short countdown), then the timer starts.',
+      'At the green stop: find the shared plant slips, join into one word.',
+      'Leader types that word. Faster correct submit = more points.',
+      'If time runs out, the word is shown (0 points) — type it to continue.',
       'Leader scans the shared green SECOND SCAN QR once.',
       'That unlocks Lockbox (Clue 3) on the leader phone.',
     ],

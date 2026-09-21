@@ -1110,7 +1110,7 @@ export function routeClueDefaults(
       answer: '',
       hintText: 'Look at eye level on posts, pillars, and notice boards — then join the pieces.',
       destinationInstruction:
-        `Word typed — stay at green. Leader scans the green QR once, then enter your team code to unlock Clue 3.`,
+        'Word typed — stay at green. Leader scans the green QR once to unlock Clue 3.',
       memberPrompts: Array.from({ length: people }, () => ''),
     };
   }

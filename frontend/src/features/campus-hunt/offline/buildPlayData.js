@@ -12,45 +12,43 @@ const HOW_TO = {
     steps: [
       'All teammates walk together. One phone (leader).',
       'Read the sentence and type the campus location.',
-      'Go there together. Find the written clues nearby, join them into one word, type it.',
-      'Then scan the place QR once → enter your team code → Clue 2.',
+      'Go there. Leader scans the orange FIRST SCAN QR once → Clue 2.',
     ],
   },
   2: {
     title: 'How to play — Clue 2',
     steps: [
-      'Read the brief, then hunt as a team.',
-      'Find the written clues at the stop, join the word, type it.',
-      'Leader scans the place QR once → team code → Clue 3.',
+      'Go to the green stop. Find the plant slips, join into one word.',
+      'Type that word on this phone (Clue 2 answer).',
+      'Leader scans the green SECOND SCAN QR once → Clue 3.',
     ],
   },
   3: {
     title: 'How to play — Lockbox',
     steps: [
       'Lockbox pieces are on the leader phone — read aloud and rebuild the digit code.',
-      'Go to that place. Leader scans blue QR once → team code → Field Terminal.',
+      'Submit the code, go to that place, scan the blue THIRD SCAN QR once.',
     ],
   },
   4: {
     title: 'How to play — Field Terminal',
     steps: [
       'Open Zip Grid on a laptop — no hunt timer; play until you finish.',
-      'Leader types GRID-XXXX (50 pts) → scan purple once → Clue 5.',
+      'Leader types GRID-XXXX → scan purple FOURTH SCAN once → Clue 5.',
     ],
   },
   5: {
     title: 'How to play — Clue 5',
     steps: [
       'Fragments are on this phone — read them aloud in order and rebuild the word.',
-      'Leader types the word.',
-      'Go to your 5th campus stop — scan the red FIFTH SCAN QR, then team code.',
-      'That unlocks Clue 6 (MindSpark Lobby finish code).',
+      'Leader types the word, then scans the red FIFTH SCAN QR once.',
+      'That unlocks Clue 6 (Mindspark Lobby finish code).',
     ],
   },
   6: {
-    title: 'How to play — MindSpark Lobby',
+    title: 'How to play — Mindspark Lobby',
     steps: [
-      'Go to MindSpark Lobby as a full team.',
+      'Go to Mindspark Lobby as a full team.',
       'Ask the organizer for the finish code.',
       'Leader types it to lock your score.',
     ],
@@ -183,8 +181,8 @@ function checkpointStatus(bundle, state, session, _now) {
         : key === 2
           ? 'SECOND SCAN'
           : 'FIRST SCAN';
-  const needJoin = Boolean(String(expected?.joinedWord || '').trim());
-  const joinWordOk = Boolean(cp.joinWordOk) || !needJoin;
+  const needJoin = false;
+  const joinWordOk = true;
   const awaiting = session.role === 'leader'
     && verifiedCount >= required
     && !cp.confirmed;
