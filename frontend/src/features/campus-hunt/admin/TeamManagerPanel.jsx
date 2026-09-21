@@ -277,9 +277,6 @@ function TeamDetailCard({
         memberNames: namesOnly,
         routeId: editForm.routeId || undefined,
         startingPointId: editForm.startingPointId || null,
-        scheduledStartAt: editForm.scheduledStartAt
-          ? new Date(editForm.scheduledStartAt).toISOString()
-          : null,
         clue1ChallengeId: editForm.clue1ChallengeId || null,
         firstCheckpointId: editForm.firstCheckpointId || null,
         confirm: true,
@@ -422,8 +419,6 @@ function TeamDetailCard({
           </p>
           <p className="mt-1 text-xs text-white/40">
             {team.currentStage} · score {team.currentScore} · route {assignedRoute?.routeKey || 'unassigned'}
-            {' · start '}
-            {team.startStatus || 'WAITING'}
           </p>
           <span className="mt-1 inline-block text-xs text-white/50">
             {open ? 'Hide details' : 'Show details'}
@@ -523,16 +518,6 @@ function TeamDetailCard({
                       </option>
                     ))}
                   </select>
-                  <input
-                    type="datetime-local"
-                    value={editForm.scheduledStartAt}
-                    onChange={(e) => setEditForm((f) => ({
-                      ...f,
-                      scheduledStartAt: e.target.value,
-                    }))}
-                    aria-label="Scheduled start time"
-                    className="w-full rounded-lg border border-white/20 bg-[#161718] px-3 py-2 text-sm"
-                  />
                   <select
                     value={editForm.clue1ChallengeId}
                     onChange={(e) => setEditForm((f) => ({
@@ -627,16 +612,8 @@ function TeamDetailCard({
                 || 'unassigned'}
             </p>
             <p>
-              <span className="text-white/45">Scheduled:</span>{' '}
-              {team.scheduledStartAt ? new Date(team.scheduledStartAt).toLocaleString() : 'unscheduled'}
-            </p>
-            <p>
-              <span className="text-white/45">Start status:</span>{' '}
-              {team.startStatus || 'WAITING'}
-            </p>
-            <p>
-              <span className="text-white/45">Actual start:</span>{' '}
-              {team.actualStartAt ? new Date(team.actualStartAt).toLocaleString() : '—'}
+              <span className="text-white/45">Stage:</span>{' '}
+              {team.currentStage || '—'}
             </p>
           </div>
 
