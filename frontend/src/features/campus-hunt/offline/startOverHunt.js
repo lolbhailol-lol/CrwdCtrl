@@ -98,19 +98,34 @@ export async function applyServerStartOverIfNeeded(bundle) {
     return { applied: false, bundle: pack };
   }
 
+  const code = pack.team.teamCode;
   const remoteAt = new Date(remote.offlineResetAt).getTime();
   if (!Number.isFinite(remoteAt)) {
     return { applied: false, bundle: pack };
   }
 
-  const localAt = new Date(readAppliedResetAt(pack.team.teamCode) || 0).getTime();
-  if (remoteAt <= localAt) {
+  const localAt = new Date(readAppliedResetAt(code) || 0).getTime();
+  const localState = await loadOfflineTeamState(code).catch(() => null);
+  const localSeq = Math.max(0, Number(localState?.seq) || 0);
+  const remoteSeq = Math.max(0, Number(remote.seq) || 0);
+  const stampNewer = remoteAt > localAt;
+  // Admin Start over bumps seq + sets WAITING — apply even if a failed phone
+  // sync stamped a wall-clock appliedResetAt that blocked the stamp compare.
+  const seqReset = remoteSeq > localSeq
+    && String(remote.stage || '') === 'WAITING'
+    && String(localState?.currentStage || '') !== 'WAITING';
+  const idleMismatch = remoteSeq >= localSeq
+    && String(remote.stage || '') === 'WAITING'
+    && localState
+    && String(localState.currentStage || '') !== 'WAITING'
+    && stampNewer;
+
+  if (!stampNewer && !seqReset && !idleMismatch) {
     return { applied: false, bundle: pack };
   }
 
   pauseOfflineBoardSync();
   try {
-    const code = pack.team.teamCode;
     await resetOfflineHuntLocal(code, { clearSession: false });
     clearOfflineProgressQueue(code);
 
@@ -119,12 +134,18 @@ export async function applyServerStartOverIfNeeded(bundle) {
     const nextPack = refreshed.pack;
 
     const freshState = createInitialTeamState(nextPack);
-    freshState.seq = Math.max(Number(remote.seq) || 0, 1);
+    freshState.seq = Math.max(remoteSeq, localSeq, 1);
     freshState.score = Number(remote.startingScore || remote.score || freshState.score)
       || freshState.score;
     freshState.currentStage = 'WAITING';
+    freshState.huntStartedAt = null;
     await saveOfflineTeamState(code, freshState);
     writeAppliedResetAt(code, remote.offlineResetAt);
+
+    // Admin start-over also rotates Zip — refresh device key when online.
+    try {
+      await ensureOfflineGridKey(nextPack, { forceReset: true });
+    } catch { /* best-effort */ }
 
     await warmupOfflineHunt().catch(() => {});
 
@@ -211,10 +232,8 @@ export async function startOverHunt({
             code,
             result?.offlineResetAt || new Date().toISOString(),
           );
-        } else {
-          // Still stamp locally so admin pull does not instantly re-apply an old lock.
-          writeAppliedResetAt(code, new Date().toISOString());
         }
+        // If sync failed, do NOT stamp wall-clock NOW — that blocks admin Start over.
       } catch { /* best-effort */ }
 
       try {
@@ -243,9 +262,8 @@ export async function startOverHunt({
       } catch { /* best-effort */ }
 
       await warmupOfflineHunt().catch(() => {});
-    } else {
-      writeAppliedResetAt(code, new Date().toISOString());
     }
+    // Offline local wipe — leave appliedResetAt alone so a later admin stamp still wins.
 
     if (reloadAppIfWaiting && updateWaiting) {
       await applyWaitingHuntUpdate();

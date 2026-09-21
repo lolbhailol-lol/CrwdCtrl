@@ -256,18 +256,27 @@ export default function PlaytestDesk({
   const startOver = async () => {
     if (!teamId) return;
     if (!window.confirm(
-      `Reset ${team?.teamCode || 'this team'} to zero?\nScore → 100 · progress cleared`,
+      `Start over ${team?.teamCode || 'this team'}?\n`
+      + 'Score → 100 · progress wiped · Zip Grid reset.\n'
+      + 'Leader phone picks this up on Wi‑Fi (needs start code again).',
     )) return;
     setBusy('reset');
     setNote('');
     try {
-      await adminPlaytestResetTeam(teamId, {
-        reason: 'Playtest desk — start from again',
+      const res = await adminPlaytestResetTeam(teamId, {
+        reason: 'Playtest desk — start over',
       });
-      setNote('Reset done — live board cleared. Phone updates on Wi‑Fi.');
+      const at = res?.data?.offlineResetAt
+        ? new Date(res.data.offlineResetAt).toLocaleTimeString()
+        : '';
+      setNote(
+        at
+          ? `Start over done · board + Zip cleared · phone sync stamp ${at}`
+          : 'Start over done — live board + Zip cleared. Phone updates on Wi‑Fi.',
+      );
       await onChanged?.();
     } catch (err) {
-      setNote(err.message || 'Could not reset team');
+      setNote(err.message || 'Could not start over');
     } finally {
       setBusy('');
     }
@@ -295,7 +304,7 @@ export default function PlaytestDesk({
           </p>
           <h2 className="mt-1 text-lg font-bold text-white">One team · tap in order</h2>
           <p className="mt-1 text-sm text-white/55">
-            Go live → phone start code → Orange → Green → Blue → Purple → Red → Clue 6 → Lobby
+            Phone start code → Orange → Green → Blue → Purple → Red → Clue 6 → Lobby
           </p>
         </div>
         {roundStatus && (
@@ -304,13 +313,6 @@ export default function PlaytestDesk({
           </span>
         )}
       </div>
-
-      {roundStatus !== 'live' && (
-        <p className="mt-3 rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-          Round must be <strong>live</strong> first — use <strong>Go live</strong> above (or Live tab).
-          Offline phones unlock with the start code (Clues → Clue 6).
-        </p>
-      )}
 
       {/* Team picker */}
       <div className="mt-4 flex flex-wrap items-end gap-3">

@@ -487,7 +487,7 @@ export default function CampusHuntEventControl() {
                   <div className="mr-auto">
                     <h2 className="text-lg font-bold text-emerald-100">Event live</h2>
                     <p className="text-xs text-white/50">
-                      Offline teams start with the shared start code (Clues → Clue 6). This only marks the round live for the board.
+                      Marks the round live for ranking / board. Offline phones still start with the shared start code (Clues → Clue 6).
                     </p>
                   </div>
                   <label className="text-xs text-white/60">

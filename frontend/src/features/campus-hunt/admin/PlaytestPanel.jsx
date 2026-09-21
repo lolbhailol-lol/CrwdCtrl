@@ -25,7 +25,7 @@ export default function PlaytestPanel({
       <div>
         <h2 className="text-xl font-bold">Dry run</h2>
         <p className="mt-1 text-sm text-white/55">
-          Mark the round live for the board, then cheat-scan one team. Fest day: shout the start code — phones unlock themselves.
+          Cheat-scan one team, or Start over to wipe board + Zip. Fest day: shout the start code — phones unlock themselves.
         </p>
       </div>
 
@@ -52,12 +52,15 @@ export default function PlaytestPanel({
               ? 'Reopen'
               : roundStatus === 'live'
                 ? 'Already live'
-                : 'Go live'}
+                : 'Go live (optional)'}
           </button>
           {roundStatus ? (
             <span className="text-xs text-white/45">{roundStatus}</span>
           ) : null}
         </div>
+        <p className="mt-2 text-[11px] text-white/45">
+          Optional for the live board / ranking. Offline phones do not need this — they use the start code.
+        </p>
       </section>
 
       <section>
