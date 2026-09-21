@@ -83,10 +83,16 @@ if (import.meta.env.PROD && !isNativeApp() && 'serviceWorker' in navigator) {
     }
   } else {
     import('virtual:pwa-register').then(({ registerSW }) => {
-      registerSW({
+      const updateSW = registerSW({
         immediate: true,
         onNeedRefresh() {
-          // Stay on current page — user gets the new SW on next cold open
+          try {
+            const path = window.location.pathname || '';
+            // Hunt install / offline play must not stay on a stale shell (old rounds hub).
+            if (path.startsWith('/campus-hunt/offline')) {
+              updateSW?.(true);
+            }
+          } catch { /* ignore */ }
         },
         onRegisteredSW(_swUrl, registration) {
           if (!('caches' in window)) return;

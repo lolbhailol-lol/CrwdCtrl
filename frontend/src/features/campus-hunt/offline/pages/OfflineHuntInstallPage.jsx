@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { fetchOfflineInstallPack, ackOfflineInstallPack } from '../../services/campusHunt.api';
-import { loadOfflineBundle, saveOfflineBundle } from '../offlineDb';
+import { loadOfflineBundle, saveOfflineBundle, clearOfflineSession } from '../offlineDb';
 import { CAMPUS_HUNT_PATHS } from '../../config';
 import OfflineHuntInstallHelp from '../components/OfflineHuntInstallHelp';
 import { warmupOfflineHunt } from '../warmupOfflineHunt';
-import { refreshHuntAppShell } from '../refreshHuntAppShell';
+import { refreshHuntAppShell, applyWaitingHuntUpdate } from '../refreshHuntAppShell';
 import { rememberInstallToken, applyServerStartOverIfNeeded } from '../startOverHunt';
 
 /**
- * Shared install link — save pack, install Hunt, then enter password.
+ * Shared install link — save pack, refresh app shell, install Hunt, then login.
  */
 export default function OfflineHuntInstallPage() {
   const { token } = useParams();
@@ -18,6 +18,7 @@ export default function OfflineHuntInstallPage() {
   const [error, setError] = useState('');
   const [team, setTeam] = useState(null);
   const [packNote, setPackNote] = useState('');
+  const [packMeta, setPackMeta] = useState(null);
   const [updateWaiting, setUpdateWaiting] = useState(false);
   const [appInstalled, setAppInstalled] = useState(() => {
     try {
@@ -43,21 +44,24 @@ export default function OfflineHuntInstallPage() {
         if (existing?.team?.teamCode && !online) {
           if (cancelled) return;
           setTeam(existing.team);
-          setPackNote('Pack ready on this phone.');
+          setPackMeta({
+            exportBatchId: existing.exportBatchId || '',
+            exportedAt: existing.exportedAt || '',
+          });
+          setPackNote('Pack ready on this phone (offline).');
           setStatus('ready');
           void warmupOfflineHunt().catch(() => {});
           return;
         }
 
-        if (existing?.team?.teamCode) {
-          if (cancelled) return;
-          setTeam(existing.team);
-          setStatus('ready');
-        }
-
         if (online) {
           const shell = await refreshHuntAppShell().catch(() => ({ waiting: false }));
-          if (!cancelled && shell?.waiting) setUpdateWaiting(true);
+          // New install links must not keep a stale Hunt shell (old rounds hub).
+          if (!cancelled && shell?.waiting) {
+            setUpdateWaiting(true);
+            await applyWaitingHuntUpdate();
+            return;
+          }
 
           const res = await fetchOfflineInstallPack(token);
           const pack = res.data?.bundle || res.bundle;
@@ -65,18 +69,25 @@ export default function OfflineHuntInstallPage() {
 
           const stamped = { ...pack, installToken: token };
           await saveOfflineBundle(stamped);
+          try {
+            await clearOfflineSession();
+          } catch { /* ignore */ }
           rememberInstallToken(token);
           if (cancelled) return;
           setTeam(stamped.team);
+          setPackMeta({
+            exportBatchId: stamped.exportBatchId || res.data?.exportBatchId || '',
+            exportedAt: stamped.exportedAt || '',
+          });
           setStatus('ready');
-          setPackNote('Team pack saved.');
+          setPackNote('Latest team pack saved.');
           try {
             await ackOfflineInstallPack(token, navigator.userAgent || '');
           } catch { /* best-effort */ }
           await warmupOfflineHunt().catch(() => {});
           const sync = await applyServerStartOverIfNeeded(stamped).catch(() => null);
           if (!cancelled && sync?.applied) {
-            setPackNote('Team pack saved. Admin Start over applied.');
+            setPackNote('Latest team pack saved. Admin Start over applied.');
           }
           return;
         }
@@ -87,6 +98,10 @@ export default function OfflineHuntInstallPage() {
         const existing = await loadOfflineBundle().catch(() => null);
         if (existing?.team?.teamCode) {
           setTeam(existing.team);
+          setPackMeta({
+            exportBatchId: existing.exportBatchId || '',
+            exportedAt: existing.exportedAt || '',
+          });
           setStatus('ready');
           setPackNote('Using pack already on this phone.');
           void warmupOfflineHunt().catch(() => {});
@@ -113,9 +128,14 @@ export default function OfflineHuntInstallPage() {
         {team?.teamName ? (
           <p className="mt-1 text-sm text-white/50">{team.teamName}</p>
         ) : null}
+        {packMeta?.exportedAt ? (
+          <p className="mt-2 text-[11px] text-white/40">
+            Pack export · {new Date(packMeta.exportedAt).toLocaleString()}
+          </p>
+        ) : null}
 
         {status === 'loading' ? (
-          <p className="mt-8 text-sm text-white/50">Saving team pack…</p>
+          <p className="mt-8 text-sm text-white/50">Saving latest team pack…</p>
         ) : null}
 
         {status === 'error' ? (
@@ -132,6 +152,16 @@ export default function OfflineHuntInstallPage() {
               packNote={packNote}
               onInstalled={() => setAppInstalled(true)}
             />
+
+            {updateWaiting ? (
+              <button
+                type="button"
+                onClick={() => { void applyWaitingHuntUpdate(); }}
+                className="w-full rounded-xl border border-amber-400/40 bg-amber-500/15 py-3 text-sm font-bold text-amber-100"
+              >
+                Update ready — reload Hunt
+              </button>
+            ) : null}
 
             <button
               type="button"

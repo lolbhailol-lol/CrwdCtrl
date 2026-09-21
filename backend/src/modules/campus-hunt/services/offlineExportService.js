@@ -450,6 +450,7 @@ async function exportOfflinePacks(eventId) {
       bundleType: OFFLINE_BUNDLE_TYPE,
       exportBatchId,
       playMode: 'team_device',
+      playerCopyRevision: 16,
       exportedAt: new Date().toISOString(),
       signingKey: bundleSigningKey(String(event._id), team.teamCode),
       event: {

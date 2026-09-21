@@ -123,9 +123,17 @@ export async function saveOfflineBundle(bundle) {
     && String(prev.exportBatchId) !== String(refreshed.exportBatchId);
   const teamChanged = prev?.team?.teamCode
     && String(prev.team.teamCode) !== String(refreshed.team.teamCode);
-  if (batchChanged || teamChanged) {
-    await storeDelete(OFFLINE_STORES.STATE, String(prev.team.teamCode));
-    await storeDelete(OFFLINE_STORES.SESSION, 'current');
+  const tokenChanged = prev?.installToken
+    && refreshed.installToken
+    && String(prev.installToken) !== String(refreshed.installToken);
+  // New install link / batch → drop stale session so phones never reopen old rounds UI.
+  if (batchChanged || teamChanged || tokenChanged || refreshed.installToken) {
+    if (prev?.team?.teamCode && (batchChanged || teamChanged || tokenChanged)) {
+      await storeDelete(OFFLINE_STORES.STATE, String(prev.team.teamCode));
+    }
+    if (batchChanged || teamChanged || tokenChanged) {
+      await storeDelete(OFFLINE_STORES.SESSION, 'current');
+    }
   }
   await storeSet(OFFLINE_STORES.BUNDLE, BUNDLE_KEY, refreshed);
   await appendOfflinePlayLog({
