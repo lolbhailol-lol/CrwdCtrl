@@ -117,7 +117,7 @@ function parseDressCodeLines(text) {
     const m = line.match(/^(\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic})*)\s*(.+)$/u);
     const emoji = m?.[1] || '';
     const rest = (m?.[2] || line).trim();
-    const split = rest.match(/^([^:—\-]+)[:—\-]\s*(.+)$/);
+    const split = rest.match(/^([^:—-]+)[:—-]\s*(.+)$/);
     const title = split ? split[1].trim() : (idx === 0 ? 'Look' : 'Tip');
     const body = split ? split[2].trim() : rest;
     return { id: `dress-${idx}`, emoji, title, body };

@@ -113,7 +113,7 @@ test('Lockbox: wrong key fails; correct key advances to Task 2 only', () => {
   assert.equal(ok.complete, false);
   assert.equal(ok.state.step, 'lockbox_code');
   assert.equal(ok.playerView.step, 'lockbox_code');
-  assert.equal(ok.playerView.yourInfo, 'The first digit is 9');
+  assert.equal(ok.playerView.yourInfo, 'The first digit is 9 · The second digit is 4 · The third digit is 0 · The fourth digit is 7');
 });
 
 test('Lockbox: Task 2 uses assigned code snapshot and awards +75 once', () => {

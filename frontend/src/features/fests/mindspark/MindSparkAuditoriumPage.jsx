@@ -69,6 +69,32 @@ async function uploadTicketPhoto(file, token) {
   return data.url || data.secure_url || data.data?.url || '';
 }
 
+async function optimizeUploadImage(file) {
+  if (!file || /hei[cf]/i.test(`${file.type || ''} ${file.name || ''}`) || file.size < 900 * 1024) {
+    return file;
+  }
+  if (typeof createImageBitmap !== 'function') return file;
+  let bitmap;
+  try {
+    bitmap = await createImageBitmap(file);
+  } catch {
+    return file;
+  }
+  const maxEdge = 1600;
+  const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  canvas.getContext('2d', { alpha: false }).drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close?.();
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.84));
+  if (!blob || blob.size >= file.size) return file;
+  return new File([blob], `${String(file.name || 'photo').replace(/\.[^.]+$/, '')}.jpg`, {
+    type: 'image/jpeg',
+    lastModified: file.lastModified,
+  });
+}
+
 function looksLikeImageFile(file) {
   if (!file) return false;
   const mime = String(file.type || '').toLowerCase();
@@ -319,8 +345,20 @@ export default function MindSparkAuditoriumPage() {
       clearDraft();
       return;
     }
-    flushDraft({ step, categoryId, form, photoUrl, idCardUrl });
+    const timer = window.setTimeout(
+      () => flushDraft({ step, categoryId, form, photoUrl, idCardUrl }),
+      180,
+    );
+    return () => window.clearTimeout(timer);
   }, [step, categoryId, form, photoUrl, idCardUrl, ticket, flushDraft]);
+
+  useEffect(() => () => {
+    if (photoPreview) URL.revokeObjectURL(photoPreview);
+  }, [photoPreview]);
+
+  useEffect(() => () => {
+    if (idCardPreview) URL.revokeObjectURL(idCardPreview);
+  }, [idCardPreview]);
 
   // After camera/gallery returns, restore draft if React remounted or auth flickered
   useEffect(() => {
@@ -356,9 +394,12 @@ export default function MindSparkAuditoriumPage() {
     };
   }, []);
 
+  const metaRef = useRef(null);
+  metaRef.current = meta;
+
   const loadMeta = useCallback(async () => {
     // Don't flash full-page loader on soft refreshes once we have meta
-    if (!meta) setLoading(true);
+    if (!metaRef.current) setLoading(true);
     try {
       const qs = inviteCode ? `?code=${encodeURIComponent(inviteCode)}` : '';
       const res = await publicFetchJSON(`/mindspark/auditorium/meta${qs}`);
@@ -368,9 +409,9 @@ export default function MindSparkAuditoriumPage() {
     } finally {
       setLoading(false);
     }
-  }, [inviteCode, toast, meta]);
+  }, [inviteCode, toast]);
 
-  useEffect(() => { loadMeta(); }, [inviteCode]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadMeta(); }, [inviteCode, loadMeta]);
 
   useEffect(() => {
     if (!user) return;
@@ -426,7 +467,8 @@ export default function MindSparkAuditoriumPage() {
       await validatePhotoFile(file, { kind: 'face' });
       const preview = URL.createObjectURL(file);
       setPhotoPreview(preview);
-      const url = await uploadTicketPhoto(file, token);
+      const uploadFile = await optimizeUploadImage(file);
+      const url = await uploadTicketPhoto(uploadFile, token);
       if (!url) throw new Error('Upload failed');
       if (idCardUrl && cloudinaryPathKey(url) === cloudinaryPathKey(idCardUrl)) {
         throw new Error('Face photo and college ID must be different pictures');
@@ -458,7 +500,8 @@ export default function MindSparkAuditoriumPage() {
       await validatePhotoFile(file, { kind: 'id' });
       const preview = URL.createObjectURL(file);
       setIdCardPreview(preview);
-      const url = await uploadTicketPhoto(file, token);
+      const uploadFile = await optimizeUploadImage(file);
+      const url = await uploadTicketPhoto(uploadFile, token);
       if (!url) throw new Error('Upload failed');
       if (photoUrl && cloudinaryPathKey(url) === cloudinaryPathKey(photoUrl)) {
         throw new Error('Face photo and college ID must be different pictures');

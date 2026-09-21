@@ -16,6 +16,7 @@ import ClueOrganizerPack from './ClueOrganizerPack';
 import {
   DESTINATION_PLACE,
   deriveClueGeometry,
+  suggestHuntLayout,
   resolveStarts,
   resolveStations,
 } from './campusHuntFormat';
@@ -99,7 +100,6 @@ export const ROUND1_CLUES = buildRound1Clues(deriveClueGeometry(20, 6));
 
 function ClueBox({
   clue,
-  index,
   open,
   onToggle,
   eventId,
@@ -524,11 +524,10 @@ export default function Round1ClueFormat({
         </div>
       </details>
 
-      {clues.map((clue, index) => (
+      {clues.map((clue) => (
         <ClueBox
           key={`${clue.id}-${clueReloadKey}`}
           clue={clue}
-          index={index}
           open={openId === clue.id}
           onToggle={() => setOpenId((prev) => (prev === clue.id ? '' : clue.id))}
           eventId={eventId}

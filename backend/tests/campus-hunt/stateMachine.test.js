@@ -20,7 +20,8 @@ test('checkpoint unlock stages', () => {
   assert.deepEqual(stagesAllowingCheckpoint(1), ['CLUE_1_COMPLETED']);
   assert.ok(stagesAllowingCheckpoint(2).includes('CLUE_2_FAILED'));
   assert.ok(stagesAllowingCheckpoint(3).includes('CLUE_3_COMPLETED'));
-  assert.ok(stagesAllowingCheckpoint('FINISH').includes('CLUE_4_COMPLETED'));
+  assert.ok(stagesAllowingCheckpoint(5).includes('CLUE_5_COMPLETED'));
+  assert.ok(stagesAllowingCheckpoint('FINISH').includes('CLUE_6_COMPLETED'));
 });
 
 test('checkpoint cascade unlocks next clue', () => {
@@ -30,20 +31,26 @@ test('checkpoint cascade unlocks next clue', () => {
   assert.equal(team.currentStage, 'CLUE_2_ACTIVE');
 });
 
-test('green cascade unlocks Clue 3 riddle', () => {
+test('green cascade unlocks Clue 3', () => {
   const team = { currentStage: 'CLUE_2_COMPLETED' };
   const stage = applyCheckpointCompletionCascade(team, '2');
   assert.equal(stage, 'CLUE_3_ACTIVE');
 });
 
-test('blue cascade unlocks Final', () => {
+test('blue cascade unlocks Clue 4', () => {
   const team = { currentStage: 'CLUE_3_COMPLETED' };
   const stage = applyCheckpointCompletionCascade(team, '3');
   assert.equal(stage, 'CLUE_4_ACTIVE');
 });
 
-test('finish cascade locks score', () => {
-  const team = { currentStage: 'CLUE_4_COMPLETED' };
+test('fifth scan cascade unlocks Clue 6 destination', () => {
+  const team = { currentStage: 'CLUE_5_COMPLETED' };
+  const stage = applyCheckpointCompletionCascade(team, '5');
+  assert.equal(stage, 'CLUE_6_ACTIVE');
+});
+
+test('finish cascade locks score after Clue 6', () => {
+  const team = { currentStage: 'CLUE_6_COMPLETED' };
   const stage = applyCheckpointCompletionCascade(team, 'FINISH');
   assert.equal(stage, 'SCORE_LOCKED');
 });
@@ -51,13 +58,13 @@ test('finish cascade locks score', () => {
 test('challenge stage helpers', () => {
   assert.equal(requiredStageForChallenge(2), 'CLUE_2_ACTIVE');
   assert.equal(resolvedStageForChallenge(2, 'timeout'), 'CLUE_2_TIMEOUT');
-  // Clue 3 resolves to CLUE_3_* — blue scan comes next (not Final)
   assert.equal(resolvedStageForChallenge(3, 'failed'), 'CLUE_3_FAILED');
   assert.equal(resolvedStageForChallenge(3, 'completed'), 'CLUE_3_COMPLETED');
+  assert.equal(resolvedStageForChallenge(6, 'completed'), 'CLUE_6_COMPLETED');
 });
 
-test('clue3 then blue then final', () => {
-  assert.equal(canTransition('CLUE_3_COMPLETED', 'CHECKPOINT_3_COMPLETED'), true);
-  assert.equal(canTransition('CHECKPOINT_3_COMPLETED', 'CLUE_4_ACTIVE'), true);
-  assert.equal(canTransition('CLUE_3_COMPLETED', 'CLUE_4_ACTIVE'), false);
+test('clue5 then fifth scan then destination', () => {
+  assert.equal(canTransition('CLUE_5_COMPLETED', 'CHECKPOINT_5_COMPLETED'), true);
+  assert.equal(canTransition('CHECKPOINT_5_COMPLETED', 'CLUE_6_ACTIVE'), true);
+  assert.equal(canTransition('CLUE_5_COMPLETED', 'CLUE_6_ACTIVE'), false);
 });

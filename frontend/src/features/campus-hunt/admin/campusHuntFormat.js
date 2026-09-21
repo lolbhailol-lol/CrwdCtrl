@@ -1113,7 +1113,7 @@ export function clue4WordForStart(startCode) {
 export const TEAM_SLOTS = buildTeamSlots(TEAMS_PER_WAIT);
 
 /** Generic Clue 1 riddle for any campus station name (Neurosprint riddle when known). */
-export function clue1ForPlace(placeOrStation, teamSize = 4) {
+export function clue1ForPlace(placeOrStation) {
   const code = typeof placeOrStation === 'object'
     ? String(placeOrStation?.code || '').toUpperCase().trim()
     : '';
@@ -1126,7 +1126,6 @@ export function clue1ForPlace(placeOrStation, teamSize = 4) {
     || s.code.toLowerCase() === nameHint.toLowerCase()
   ));
   const name = nameHint || catalog?.name || 'the station';
-  const people = Math.max(2, Math.min(12, Number(teamSize) || 4));
   const riddle = String(
     (typeof placeOrStation === 'object' && placeOrStation?.riddle)
     || catalog?.riddle

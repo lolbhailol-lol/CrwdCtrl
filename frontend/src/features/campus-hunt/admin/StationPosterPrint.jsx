@@ -30,7 +30,6 @@ export default function StationPosterPrint({
   skippedSummaryKey,
   campusStations,
   stationCount = null,
-  teamSize = 4,
   /** 'default' = one page per place · 'a3-single' = all QRs on one A3 cut sheet */
   printLayout = 'default',
 }) {
@@ -51,7 +50,6 @@ export default function StationPosterPrint({
   );
   const placeTarget = Math.max(1, activeStations.length || STATION_TARGET_COUNT);
   const targetPosters = placeTarget * POSTERS_PER_PLACE;
-  const people = Math.max(2, Math.min(12, Number(teamSize) || 4));
 
   const refresh = useCallback(async () => {
     if (!eventId) return;

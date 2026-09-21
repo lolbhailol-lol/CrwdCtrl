@@ -10,15 +10,15 @@ const {
 } = require('../../src/modules/campus-hunt/services/scoringService');
 const { DEFAULT_SCORING_CONFIG } = require('../../src/modules/campus-hunt/constants');
 
-test('clue2 time bands: 50 / 30 / 10', () => {
-  const bands = DEFAULT_SCORING_CONFIG.clue2.speedBonusBands;
-  assert.equal(speedBonusFromBands(45, bands), 50);
-  assert.equal(speedBonusFromBands(60, bands), 50);
+test('clue5 time bands: 30 / 15 / 5', () => {
+  const bands = DEFAULT_SCORING_CONFIG.clue5.speedBonusBands;
+  assert.equal(speedBonusFromBands(45, bands), 30);
   assert.equal(speedBonusFromBands(90, bands), 30);
-  assert.equal(speedBonusFromBands(120, bands), 30);
-  assert.equal(speedBonusFromBands(150, bands), 10);
-  assert.equal(speedBonusFromBands(180, bands), 10);
-  assert.equal(speedBonusFromBands(181, bands), 0);
+  assert.equal(speedBonusFromBands(120, bands), 15);
+  assert.equal(speedBonusFromBands(150, bands), 15);
+  assert.equal(speedBonusFromBands(200, bands), 5);
+  assert.equal(speedBonusFromBands(240, bands), 5);
+  assert.equal(speedBonusFromBands(241, bands), 0);
 });
 
 test('computeChallengeAward clue1 flat 50 from scoring config', () => {
@@ -33,7 +33,6 @@ test('computeChallengeAward clue1 flat 50 from scoring config', () => {
 });
 
 test('stored challenge basePoints 0 must not win over flat scoring 50', () => {
-  // Mimic award resolution used in challengeService
   const scoring = DEFAULT_SCORING_CONFIG.clue1;
   const challengeBase = 0;
   const awardBase = (
@@ -52,74 +51,64 @@ test('stored challenge basePoints 0 must not win over flat scoring 50', () => {
   );
 });
 
-test('computeChallengeAward clue2 uses time-band totals', () => {
-  const startedAt = new Date('2026-01-01T10:00:00Z');
-  const inOneMin = new Date('2026-01-01T10:00:50Z');
+test('computeChallengeAward clue2 is flat 50 (no timer)', () => {
   const award = computeChallengeAward({
     challengeNumber: 2,
-    basePoints: 0,
-    awardMode: 'time_bands_total',
-    timerSeconds: 180,
-    speedBonusBands: DEFAULT_SCORING_CONFIG.clue2.speedBonusBands,
-    startedAt,
-    submittedAt: inOneMin,
+    basePoints: DEFAULT_SCORING_CONFIG.clue2.basePoints,
+    awardMode: 'flat_base',
   });
   assert.equal(award.total, 50);
   assert.equal(award.late, false);
+  assert.equal(award.speedBonus, 0);
 });
 
-test('computeChallengeAward clue2 late after 3 min is 0', () => {
-  const startedAt = new Date('2026-01-01T10:00:00Z');
-  const late = new Date('2026-01-01T10:03:01Z');
-  const award = computeChallengeAward({
-    challengeNumber: 2,
-    awardMode: 'time_bands_total',
-    timerSeconds: 180,
-    speedBonusBands: DEFAULT_SCORING_CONFIG.clue2.speedBonusBands,
-    startedAt,
-    submittedAt: late,
-  });
-  assert.equal(award.total, 0);
-  assert.equal(award.late, true);
-});
-
-test('computeChallengeAward clue3 is flat 50', () => {
+test('computeChallengeAward clue3 is flat 65', () => {
   const award = computeChallengeAward({
     challengeNumber: 3,
-    basePoints: 50,
+    basePoints: DEFAULT_SCORING_CONFIG.clue3.basePoints,
+    awardMode: 'flat_base',
+  });
+  assert.equal(award.total, 65);
+  assert.equal(award.speedBonus, 0);
+});
+
+test('computeChallengeAward clue4 is flat 50 (Field Terminal / Zip)', () => {
+  const award = computeChallengeAward({
+    challengeNumber: 4,
+    basePoints: DEFAULT_SCORING_CONFIG.clue4.basePoints,
     awardMode: 'flat_base',
   });
   assert.equal(award.total, 50);
   assert.equal(award.speedBonus, 0);
 });
 
-test('computeChallengeAward clue4 base + speed', () => {
+test('computeChallengeAward clue5 base + speed', () => {
   const startedAt = new Date('2026-01-01T10:00:00Z');
-  const submittedAt = new Date('2026-01-01T10:02:00Z');
+  const submittedAt = new Date('2026-01-01T10:01:00Z');
   const award = computeChallengeAward({
-    challengeNumber: 4,
-    basePoints: 50,
+    challengeNumber: 5,
+    basePoints: DEFAULT_SCORING_CONFIG.clue5.basePoints,
     awardMode: 'base_plus_speed',
-    timerSeconds: 300,
-    speedBonusBands: DEFAULT_SCORING_CONFIG.clue4.speedBonusBands,
+    timerSeconds: 240,
+    speedBonusBands: DEFAULT_SCORING_CONFIG.clue5.speedBonusBands,
     startedAt,
     submittedAt,
   });
   assert.equal(award.total, 75);
-  assert.equal(award.basePoints, 50);
-  assert.equal(award.speedBonus, 25);
+  assert.equal(award.basePoints, 45);
+  assert.equal(award.speedBonus, 30);
 });
 
-test('computeChallengeAward clue4 late is 0', () => {
+test('computeChallengeAward clue5 late is 0', () => {
   const startedAt = new Date('2026-01-01T10:00:00Z');
-  const late = new Date('2026-01-01T10:06:00Z');
+  const late = new Date('2026-01-01T10:05:00Z');
   const award = computeChallengeAward({
-    challengeNumber: 4,
-    basePoints: 50,
+    challengeNumber: 5,
+    basePoints: DEFAULT_SCORING_CONFIG.clue5.basePoints,
     awardMode: 'base_plus_speed',
-    timerSeconds: 300,
+    timerSeconds: 240,
     allowLateSubmit: true,
-    speedBonusBands: DEFAULT_SCORING_CONFIG.clue4.speedBonusBands,
+    speedBonusBands: DEFAULT_SCORING_CONFIG.clue5.speedBonusBands,
     startedAt,
     submittedAt: late,
   });
@@ -128,24 +117,20 @@ test('computeChallengeAward clue4 late is 0', () => {
 });
 
 test('hint deduction floors at 0', () => {
-  assert.equal(applyHintDeduction(100, 15), 85);
-  assert.equal(applyHintDeduction(10, 15), 0);
+  assert.equal(applyHintDeduction(100, 20), 80);
+  assert.equal(applyHintDeduction(10, 20), 0);
 });
 
 test('applyAward adds points', () => {
   assert.equal(applyAward(100, 50), 150);
 });
 
-test('theoreticalMaxScore is 325 (100+50+50+50+75)', () => {
-  assert.equal(theoreticalMaxScore(DEFAULT_SCORING_CONFIG), 325);
+test('theoreticalMaxScore is 420 (100+50+50+65+50+75+30)', () => {
+  assert.equal(theoreticalMaxScore(DEFAULT_SCORING_CONFIG), 420);
 });
 
-test('scoringForChallenge keeps admin Clue 2 overrides', () => {
+test('scoringForChallenge forces Clue 2 flat / no timer', () => {
   const { scoringForChallenge } = require('../../src/modules/campus-hunt/services/challengeService');
-  const customBands = [
-    { maxSeconds: 30, bonus: 50 },
-    { maxSeconds: 90, bonus: 25 },
-  ];
   const event = {
     scoringConfig: {
       clue2: {
@@ -153,15 +138,16 @@ test('scoringForChallenge keeps admin Clue 2 overrides', () => {
         timerStartDelaySeconds: 10,
         awardMode: 'time_bands_total',
         allowLateSubmit: true,
-        speedBonusBands: customBands,
+        speedBonusBands: [{ maxSeconds: 30, bonus: 50 }],
       },
     },
   };
   const scoring = scoringForChallenge(event, 2);
-  assert.equal(scoring.timerSeconds, 240);
-  assert.equal(scoring.timerStartDelaySeconds, 10);
-  assert.equal(scoring.awardMode, 'time_bands_total');
-  assert.deepEqual(scoring.speedBonusBands, customBands);
+  assert.equal(scoring.timerSeconds, 0);
+  assert.equal(scoring.timerStartDelaySeconds, 0);
+  assert.equal(scoring.awardMode, 'flat_base');
+  assert.deepEqual(scoring.speedBonusBands, []);
+  assert.equal(scoring.basePoints, 50);
 });
 
 test('scoringForChallenge falls back to Clue 2 defaults when custom missing', () => {

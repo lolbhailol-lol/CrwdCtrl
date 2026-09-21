@@ -6,6 +6,7 @@ const Competition = require('../model/competition_model');
 const Registration = require('../model/registration_model');
 const User = require('../model/usermodel');
 const Invite = require('../model/mindspark_auditorium_invite_model');
+const TicketClaim = require('../model/mindspark_auditorium_ticket_claim_model');
 const {
   MINDSPARK_FEST_ID,
   AUDITORIUM_COMPETITION_NAME,
@@ -540,7 +541,37 @@ async function createAuditoriumTicket({
     }
   }
 
-  await claimCategorySeat(competition._id, category.id, category.seats);
+  const identityClaims = [
+    userId ? { kind: 'user', value: String(userId) } : null,
+    misNormalized ? { kind: 'mis', value: misNormalized } : null,
+    digits ? { kind: 'phone', value: digits } : null,
+    normalizedEmail ? { kind: 'email', value: normalizedEmail } : null,
+  ].filter(Boolean);
+  const claimDocs = identityClaims.map((item) => ({
+    _id: new mongoose.Types.ObjectId(),
+    competitionId: competition._id,
+    ...item,
+  }));
+  const claimIds = claimDocs.map((item) => item._id);
+  try {
+    await TicketClaim.insertMany(claimDocs, { ordered: true });
+  } catch (error) {
+    await TicketClaim.deleteMany({ _id: { $in: claimIds } }).catch(() => {});
+    if (error?.code === 11000) {
+      const duplicateError = new Error('You already have an auditorium ticket or one is being issued');
+      duplicateError.status = 409;
+      duplicateError.code = 'ALREADY_REGISTERED';
+      throw duplicateError;
+    }
+    throw error;
+  }
+
+  try {
+    await claimCategorySeat(competition._id, category.id, category.seats);
+  } catch (error) {
+    await TicketClaim.deleteMany({ _id: { $in: claimIds } }).catch(() => {});
+    throw error;
+  }
 
   let registration;
   try {
@@ -581,6 +612,11 @@ async function createAuditoriumTicket({
       idCardPhotoUrl: idCard,
       qrCodeData: crypto.randomBytes(16).toString('hex'),
     });
+
+    await TicketClaim.updateMany(
+      { _id: { $in: claimIds } },
+      { $set: { registrationId: registration._id } },
+    );
 
     // Seat already reserved by claimCategorySeat — do not re-count and reject.
     // Concurrent creates that both claimed would falsely fail the second legit claim.
@@ -650,6 +686,7 @@ async function createAuditoriumTicket({
     return formatTicket(registration, competition);
   } catch (error) {
     await releaseCategorySeat(competition._id, category.id).catch(() => {});
+    await TicketClaim.deleteMany({ _id: { $in: claimIds } }).catch(() => {});
     throw error;
   }
 }

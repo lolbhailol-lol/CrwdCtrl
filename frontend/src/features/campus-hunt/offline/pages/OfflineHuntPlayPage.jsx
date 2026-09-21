@@ -26,7 +26,6 @@ import {
   scanStation,
   startHunt,
   submitAnswer,
-  submitStopJoinWord,
   tickTimers,
 } from '../offlineEngine';
 import { buildPlayData } from '../buildPlayData';
@@ -39,7 +38,6 @@ import {
 } from '../offlineQr';
 import {
   enqueueOfflineProgress,
-  flushOfflineProgressQueue,
   offlineBoardPendingCount,
   isOfflineBoardSyncPaused,
   rotateOfflineDeviceIdForTakeover,
@@ -67,8 +65,6 @@ export default function OfflineHuntPlayPage() {
   const [startError, setStartError] = useState('');
   const [starting, setStarting] = useState(false);
   const [boardPending, setBoardPending] = useState(0);
-  const [joinWord, setJoinWord] = useState('');
-  const [joinMsg, setJoinMsg] = useState('');
   const [backupPayload, setBackupPayload] = useState('');
   const [restoreMsg, setRestoreMsg] = useState('');
   const [deviceBound, setDeviceBound] = useState(false);
@@ -423,23 +419,6 @@ export default function OfflineHuntPlayPage() {
     );
   };
 
-  const onSubmitJoinWord = async () => {
-    setJoinMsg('');
-    try {
-      const result = submitStopJoinWord(
-        bundleRef.current,
-        sessionRef.current,
-        stateRef.current,
-        joinWord,
-      );
-      await persistState(result.state, sessionRef.current);
-      setJoinMsg(result.meta?.message || '');
-      if (result.meta?.correct) setJoinWord('');
-    } catch (err) {
-      setJoinMsg(err.message || 'Could not submit word');
-    }
-  };
-
   const onResetHunt = async () => {
     const ok = window.confirm(
       'START OVER?\n\n'
@@ -513,7 +492,6 @@ export default function OfflineHuntPlayPage() {
     return <Navigate to={CAMPUS_HUNT_PATHS.offlineLogin} replace />;
   }
 
-  const cp = playData.checkpointStatus;
   const stage = state.currentStage;
   const waiting = isHuntWaiting(state);
   const locked = stage === 'SCORE_LOCKED' || stage === 'FINISH_COMPLETED';

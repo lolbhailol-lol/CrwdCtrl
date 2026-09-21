@@ -47,9 +47,9 @@ test('join view exposes team identity and scoring fields', () => {
   assert.equal(view.teamLabel, 'Team Seven');
   assert.equal(view.puzzle.solutionPath, undefined);
   assert.ok(view.levelStartedAt);
-  assert.equal(view.maxScore, 125);
+  assert.equal(view.maxScore, 140);
   assert.equal(view.hintCost, 20);
-  assert.equal(view.levelPoints, 25);
+  assert.equal(view.levelPoints, 20);
 });
 
 test('level timer detects expiry server-side', () => {

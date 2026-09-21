@@ -663,13 +663,8 @@ function EventDetailsPage() {
 
   const canonicalPath = festPath({ id: pageEvent.id, _id: pageEvent.id, festName: pageEvent.title, title: pageEvent.title });
   const festDescription = `${pageEvent.title}${!isFestPlaceholderCopy(pageEvent.collegeName) ? ` by ${pageEvent.collegeName}` : ''}${pageEvent.description ? ` — ${pageEvent.description}` : ''}`;
-  // Techfest: always use fest cover from admin/DB (logo); other fests allow gallery swap
-  const defaultHero = festHeroUrl(pageEvent);
-  const heroImage = techfestPage
-    ? defaultHero
-    : (currentHeroImage || defaultHero);
   // Always prefer wide/hero artwork — portrait crops shrink horizontal marks
-  const mobileHeroImage = heroImage;
+  // (hero src resolved above as festHeroSrc / festHeroRaw)
   const overviewText = isFestPlaceholderCopy(pageEvent.overview) ? '' : pageEvent.overview;
   const dateLabel = isFestPlaceholderCopy(pageEvent.dateTime) ? '' : pageEvent.dateTime;
   const venueLabel = isFestPlaceholderCopy(pageEvent.venue) ? '' : pageEvent.venue;
