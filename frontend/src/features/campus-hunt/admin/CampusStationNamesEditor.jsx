@@ -19,7 +19,7 @@ export default function CampusStationNamesEditor({
   eventId,
   campusStations,
   campusStarts,
-  startCount: startCountProp = 4,
+  startCount: startCountProp = 1,
   stationCount: stationCountProp = 20,
   teamCapacity: teamCapacityProp = 20,
   teamSize: teamSizeProp = 10,

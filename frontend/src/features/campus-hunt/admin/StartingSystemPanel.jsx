@@ -88,7 +88,7 @@ export default function StartingSystemPanel({
   eventMeta = null,
 }) {
   const teamCapacity = Math.max(2, Number(eventMeta?.teamCapacity) || 20);
-  const startCount = Math.max(1, Math.min(4, Number(eventMeta?.startCount) || 4));
+  const startCount = Math.max(1, Math.min(4, Number(eventMeta?.startCount) || 1));
   const teamsPerWait = Math.max(1, Math.ceil(teamCapacity / startCount));
   const activeStations = useMemo(
     () => resolveStations(eventMeta?.campusStations, eventMeta?.stationCount),
@@ -462,7 +462,7 @@ export default function StartingSystemPanel({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="font-semibold">
-              {startCount} starting point{startCount === 1 ? '' : 's'}
+              {startCount === 1 ? 'Gather point' : `${startCount} gather points`}
             </h2>
             <p className="text-xs text-white/50">
               {startNames.join(' · ') || 'Set under Clues → Starts & places'}
@@ -484,8 +484,8 @@ export default function StartingSystemPanel({
               {busy === 'defaults'
                 ? 'Saving…'
                 : locationsReady
-                  ? `Refresh / repair ${startCount} start${startCount === 1 ? '' : 's'}`
-                  : `Add ${startCount} starting point${startCount === 1 ? '' : 's'}`}
+                  ? `Refresh gather point${startCount === 1 ? '' : 's'}`
+                  : `Add gather point${startCount === 1 ? '' : 's'}`}
             </button>
             <span className={`rounded-full px-3 py-1 text-xs self-center ${
               locationsReady
@@ -499,13 +499,13 @@ export default function StartingSystemPanel({
 
         {locationsReady && (
           <p className="mt-3 rounded-lg border border-emerald-400/25 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-100">
-            Locations are set for this field size. Move on to Teams / Schedule — no need to recreate starts.
+            Locations are set. Only save again if you change starts — then go to Links.
           </p>
         )}
 
         {!locationsReady && (
           <p className="mt-3 rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-            Need {startCount} active start{startCount === 1 ? '' : 's'}
+            Need {startCount} gather point{startCount === 1 ? '' : 's'}
             {' '}({requiredStartLetters.join(' · ')}) for {teamCapacity} teams (~{teamsPerWait} each).
             Tap Add / Refresh to create or repair them.
           </p>
@@ -651,13 +651,13 @@ export default function StartingSystemPanel({
 
         {(!roundId || canonicalReadyCount < startCount) && (
           <div className="mt-3 space-y-1 rounded-xl border border-amber-400/35 bg-amber-500/10 px-3 py-3 text-xs text-amber-100">
-            <p className="font-semibold">Schedule controls are blocked until:</p>
+            <p className="font-semibold">Start hunt needs:</p>
             <ul className="list-disc space-y-0.5 pl-4">
-              {!roundId && <li>Round 1 exists (use Create Round 1 below)</li>}
+              {!roundId && <li>Round 1 (created automatically on bootstrap)</li>}
               {canonicalReadyCount < startCount && (
                 <li>
-                  {startCount} starting point{startCount === 1 ? '' : 's'} exist
-                  ({canonicalReadyCount}/{startCount}) — go to Locations or Clues → Save setup
+                  {startCount} gather point{startCount === 1 ? '' : 's'}
+                  ({canonicalReadyCount}/{startCount}) — Places tab or Clues → Save
                 </li>
               )}
             </ul>

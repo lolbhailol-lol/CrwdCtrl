@@ -444,7 +444,7 @@ export default function Clue2VariantManager({
           {busy ? 'Saving…' : `Save Clue 2 · bind ${teamCapacity} teams`}
         </button>
         {!orderedPoints.length && (
-          <p className="text-xs text-amber-200">Add 4 starting points first.</p>
+          <p className="text-xs text-amber-200">Need at least 1 gather point — save setup first.</p>
         )}
       </div>
       {message && <p className="text-xs text-[#0ECCEE]">{message}</p>}

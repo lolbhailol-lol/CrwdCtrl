@@ -40,8 +40,8 @@ function waitCodeFromPoint(point) {
  * Canonical waits A–D (prefer code A over START-A).
  * When startCount < 4, only the first N codes are required (demo layouts).
  */
-function selectCanonicalStartingPoints(points, startCount = 4) {
-  const required = Math.max(1, Math.min(4, Number(startCount) || 4));
+function selectCanonicalStartingPoints(points, startCount = 1) {
+  const required = Math.max(1, Math.min(4, Number(startCount) || 1));
   const want = ['A', 'B', 'C', 'D'].slice(0, required);
   const byWait = new Map();
   for (const point of (points || [])) {
@@ -68,10 +68,10 @@ function buildDeterministicSchedule({
   startsAt,
   releaseIntervalMinutes = 5,
   assignmentStrategy = 'route_balanced',
-  startCount = 4,
+  startCount = 1,
 }) {
   const sortedTeams = sortByCode(teams, 'teamCode');
-  const requiredStarts = Math.max(1, Math.min(4, Number(startCount) || 4));
+  const requiredStarts = Math.max(1, Math.min(4, Number(startCount) || 1));
   // Keep A→D order so Team 1–N = first start, next block = second start, …
   const points = selectCanonicalStartingPoints(startingPoints, requiredStarts);
   const sortedRoutes = sortByCode(routes.filter((route) => route.active !== false), 'routeKey');
@@ -367,7 +367,7 @@ async function previewSchedule({
     CampusHuntChallenge.find({ eventId, challengeNumber: 4, active: { $ne: false } }),
   ]);
   if (!round) throw scheduleError('Round not found', 'ROUND_NOT_FOUND', 404);
-  const startCount = Math.max(1, Math.min(4, Number(event?.startCount) || 4));
+  const startCount = Math.max(1, Math.min(4, Number(event?.startCount) || 1));
   const teamCapacity = Math.max(1, Number(event?.teamCapacity) || teams.length || 20);
   const interval = Number(releaseIntervalMinutes || round.releaseIntervalMinutes || 5);
   if (!Number.isInteger(interval) || interval < 1) {

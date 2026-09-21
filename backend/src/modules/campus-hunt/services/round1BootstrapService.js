@@ -486,7 +486,7 @@ async function ensureRound(event) {
   return round;
 }
 
-async function ensureLocations(event, round, capacity = 10, startCount = 4) {
+async function ensureLocations(event, round, capacity = 10, startCount = 1) {
   const starts = resolveCampusStarts(event);
   const activeCodes = starts.map((s) => s.code);
   const points = [];

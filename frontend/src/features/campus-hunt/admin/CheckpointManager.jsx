@@ -223,7 +223,7 @@ export default function CheckpointManager({
             <p className="text-xs text-white/50">
               {groupFirstStopsByStation
                 ? `${STATION_TARGET_COUNT} campus places only · ~${teamsPerStation} teams each`
-                : `Campus hunt stops — not the 4 starting points. Free location names (e.g. ${exampleStations}).`}
+                : `Campus hunt stops — not the gather point. Free location names (e.g. ${exampleStations}).`}
             </p>
           </div>
           {!groupFirstStopsByStation && (
