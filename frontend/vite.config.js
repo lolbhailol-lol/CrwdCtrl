@@ -109,7 +109,8 @@ export default defineConfig(({ mode }) => ({
         globPatterns: ['**/*.{js,css,html,ico,webp,woff2,webmanifest}'],
         globIgnores: ['**/firebase-messaging-sw.js'],
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
-        cacheId: 'crwdctrl-v12',
+        // v13 — drop stale Survival/Finale offline shells from phones
+        cacheId: 'crwdctrl-v13',
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,

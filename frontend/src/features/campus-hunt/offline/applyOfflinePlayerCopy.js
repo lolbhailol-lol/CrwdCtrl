@@ -240,6 +240,21 @@ export function applyOfflinePlayerCopy(bundle) {
     : bundle.checkpoints;
 
   if (!contentChanged && revisionFresh) {
+    // Still strip stale ladder fields even when clue copy is current.
+    if (bundle.rounds || bundle.survival || bundle.finale
+      || bundle.playerRoundAccess?.survival || bundle.playerRoundAccess?.finale) {
+      return {
+        bundle: {
+          ...bundle,
+          rounds: undefined,
+          survival: undefined,
+          finale: undefined,
+          playerRoundAccess: { round1: true, survival: false, finale: false },
+          huntMode: 'single',
+        },
+        changed: true,
+      };
+    }
     return { bundle, changed: false };
   }
 
@@ -250,7 +265,13 @@ export function applyOfflinePlayerCopy(bundle) {
       clues,
       route,
       checkpoints,
+      // Single-game hunt — strip any stale Survival / Finale fields from old packs.
+      rounds: undefined,
+      survival: undefined,
+      finale: undefined,
+      playerRoundAccess: { round1: true, survival: false, finale: false },
       playerCopyRevision: OFFLINE_PLAYER_COPY_REVISION,
+      huntMode: 'single',
     },
     changed: true,
   };

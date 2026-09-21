@@ -1,7 +1,7 @@
 import { clearHuntAuth } from './huntAuth';
 
 const KEY = 'campus_hunt_last_session';
-const VALID_LAST_ROUNDS = new Set(['round1', 'finale']);
+const VALID_LAST_ROUNDS = new Set(['round1']);
 
 function writeSession(next) {
   if (typeof window === 'undefined') return;

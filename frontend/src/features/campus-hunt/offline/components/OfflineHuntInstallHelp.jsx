@@ -93,8 +93,7 @@ export default function OfflineHuntInstallHelp({
             {teamCode ? ` · ${teamCode}` : ''}
           </p>
           <p className="mt-1 text-xs text-white/55">
-            Keep data on until it says pack ready, then Add to Home Screen.
-            After that, open the Hunt icon — airplane mode works.
+            Pack is on this phone. Add to Home Screen (optional), then airplane mode works.
           </p>
         </div>
         {updateWaiting ? (

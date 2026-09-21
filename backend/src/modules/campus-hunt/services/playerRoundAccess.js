@@ -44,7 +44,7 @@ function buildPlayerRoundsHub({
   const cards = [
     {
       id: 'round1',
-      label: 'The Hunt',
+      label: 'Campus Hunt Challenge',
       subtitle: huntName,
       detail: 'Clues, checkpoints, finish at the lobby. One phone (leader).',
       globallyOpen: access.round1,

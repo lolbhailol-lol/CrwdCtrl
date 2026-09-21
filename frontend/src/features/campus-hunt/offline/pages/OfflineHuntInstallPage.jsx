@@ -65,6 +65,7 @@ export default function OfflineHuntInstallPage() {
       return false;
     }
   });
+  const [shellReady, setShellReady] = useState(false);
 
   useEffect(() => {
     unlockHuntTaps();
@@ -87,7 +88,7 @@ export default function OfflineHuntInstallPage() {
         const savedToken = String(existing?.installToken || '').trim();
         const samePackLink = Boolean(savedToken && savedToken === urlToken);
 
-        // Offline + different / unknown link → do NOT reopen old Round 1/Survival/Finale pack.
+        // Offline + same link → reuse pack already on phone (no Survival hub).
         if (!online) {
           if (existing?.team?.teamCode && samePackLink) {
             if (cancelled) return;
@@ -96,8 +97,9 @@ export default function OfflineHuntInstallPage() {
               exportBatchId: existing.exportBatchId || '',
               exportedAt: existing.exportedAt || '',
             });
-            setPackNote('Same pack already on this phone (offline).');
+            setPackNote('Pack on this phone — ready offline.');
             setStatus('ready');
+            setShellReady(true);
             void warmupOfflineHunt().catch(() => {});
             return;
           }
@@ -105,13 +107,13 @@ export default function OfflineHuntInstallPage() {
           setStatus('error');
           setError(
             existing?.team?.teamCode
-              ? `This phone still has an OLD hunt pack (${existing.team.teamCode}). Turn Wi‑Fi / mobile data ON once, reopen THIS new link, and wait until it says “Latest team pack saved.” Then you can go offline.`
-              : 'Need Wi‑Fi or mobile data once to download this team pack. Airplane mode will not load a new link.',
+              ? `This phone has a different team pack (${existing.team.teamCode}). Turn Wi‑Fi ON, open THIS new link once, wait for “ready”, then you can go offline.`
+              : 'Need Wi‑Fi once to download this team pack.',
           );
           return;
         }
 
-        // Online: bust stale PWA shell once so old rounds hub JS cannot stick.
+        // Online: activate newest SW once so stale Survival shells cannot stick.
         const bust = await bustStaleHuntShellOnce(urlToken).catch(() => ({ reloaded: false }));
         if (bust?.reloaded) return;
 
@@ -126,7 +128,7 @@ export default function OfflineHuntInstallPage() {
         const pack = res.data?.bundle || res.bundle;
         if (!pack?.team?.teamCode) throw new Error('Install pack is empty');
 
-        // New link → wipe prior team state so old progress / rounds UI cannot linger.
+        // New link → wipe prior team state so old progress cannot linger.
         if (existing?.team?.teamCode
           && (!samePackLink
             || String(existing.exportBatchId || '') !== String(pack.exportBatchId || ''))) {
@@ -147,17 +149,18 @@ export default function OfflineHuntInstallPage() {
           exportedAt: stamped.exportedAt || '',
         });
         setStatus('ready');
-        setPackNote('Latest team pack saved. Keep Wi‑Fi on ~10s while Hunt caches, then Add to Home Screen — after that airplane mode works.');
+        setPackNote('Pack saved — caching Hunt for airplane mode…');
         try {
           await ackOfflineInstallPack(token, navigator.userAgent || '');
         } catch { /* best-effort */ }
-        await warmupOfflineHunt({ timeoutMs: 14000 }).catch(() => {});
+        await warmupOfflineHunt({ timeoutMs: 16000 }).catch(() => {});
         if (!cancelled) {
-          setPackNote('Pack + offline shell ready. Add to Home Screen, then you can turn net off.');
+          setShellReady(true);
+          setPackNote('Ready offline. Optional: Add to Home Screen, then turn net off.');
         }
         const sync = await applyServerStartOverIfNeeded(stamped).catch(() => null);
         if (!cancelled && sync?.applied) {
-          setPackNote('Pack ready · Admin Start over applied. Add to Home Screen, then net off is OK.');
+          setPackNote('Ready offline · Start over applied. You can turn net off.');
         }
       } catch (err) {
         if (cancelled) return;
@@ -171,29 +174,30 @@ export default function OfflineHuntInstallPage() {
             exportedAt: existing.exportedAt || '',
           });
           setStatus('ready');
-          setPackNote('Using pack already on this phone (same link).');
+          setShellReady(true);
+          setPackNote('Using pack already on this phone.');
           void warmupOfflineHunt().catch(() => {});
           return;
         }
         setStatus('error');
         setError(
           err.message
-          || 'Need Wi‑Fi once to download your team pack. Do not open a new link in airplane mode.',
+          || 'Need Wi‑Fi once to download your team pack.',
         );
       }
     })();
     return () => { cancelled = true; };
   }, [token]);
 
-  // Pack ready + already marked installed → go to login (no dead Continue taps).
+  // Pack + shell ready → enter login (works offline after this).
   useEffect(() => {
-    if (status !== 'ready' || !team || !appInstalled) return undefined;
+    if (status !== 'ready' || !team || !shellReady) return undefined;
     unlockHuntTaps();
     const t = window.setTimeout(() => {
       navigate(CAMPUS_HUNT_PATHS.offlineLogin, { replace: true });
-    }, 600);
+    }, 700);
     return () => window.clearTimeout(t);
-  }, [status, team, appInstalled, navigate]);
+  }, [status, team, shellReady, navigate]);
 
   const goLogin = () => {
     unlockHuntTaps();
@@ -211,7 +215,6 @@ export default function OfflineHuntInstallPage() {
       }
       await clearOfflineSession().catch(() => {});
       await clearOfflineBundle().catch(() => {});
-      // Soft API cache only — keep SW precache so airplane mode still works after reload.
       await purgeHuntAppCaches();
       try {
         sessionStorage.removeItem(`ch_hunt_shell_bust_${String(token || '').slice(0, 48)}`);
@@ -219,7 +222,7 @@ export default function OfflineHuntInstallPage() {
       window.location.reload();
     } catch (err) {
       setStatus('error');
-      setError(err.message || 'Could not clear old pack');
+      setError(err.message || 'Could not clear pack');
     }
   };
 
@@ -242,7 +245,7 @@ export default function OfflineHuntInstallPage() {
         ) : null}
 
         {status === 'loading' ? (
-          <p className="mt-8 text-sm text-white/50">Saving latest team pack…</p>
+          <p className="mt-8 text-sm text-white/50">Saving team pack…</p>
         ) : null}
 
         {status === 'error' ? (
@@ -253,11 +256,10 @@ export default function OfflineHuntInstallPage() {
               onClick={() => { void wipeAndRetry(); }}
               className="relative z-20 w-full rounded-xl border border-amber-400/40 bg-amber-500/15 py-3 text-sm font-bold text-amber-100 touch-manipulation"
             >
-              Clear old pack on this phone &amp; retry
+              Clear pack on this phone &amp; retry
             </button>
             <p className="text-[11px] leading-relaxed text-white/45">
-              New pack links need data ON for one download. Opening the home-screen Hunt icon
-              while offline only shows whatever was saved last time (often the old 3-round screen).
+              New pack links need data ON for one download. After that, airplane mode works.
             </p>
           </div>
         ) : null}
@@ -288,7 +290,7 @@ export default function OfflineHuntInstallPage() {
               onClick={goLogin}
               className="relative z-20 w-full rounded-xl bg-[#0ECCEE] py-4 text-sm font-bold text-black touch-manipulation active:scale-[0.98]"
             >
-              {appInstalled ? 'Continue' : 'Continue to login'}
+              {shellReady ? 'Enter Hunt' : 'Caching… then Enter'}
             </button>
 
             <button
@@ -296,7 +298,7 @@ export default function OfflineHuntInstallPage() {
               onClick={() => { void wipeAndRetry(); }}
               className="relative z-20 w-full text-center text-xs text-white/40 underline hover:text-white/60 touch-manipulation"
             >
-              Still see old Round 1 / Survival / Finale? Clear pack &amp; reload
+              Wrong pack? Clear &amp; reload
             </button>
           </div>
         ) : status === 'loading' ? null : (
