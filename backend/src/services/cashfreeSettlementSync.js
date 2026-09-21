@@ -4,7 +4,7 @@ const CashfreeSettlement = require('../model/cashfree_settlement_model');
 const PaymentRefund = require('../model/payment_refund_model');
 const PaymentOrder = require('../model/payment_order_model');
 const PaymentAuditLog = require('../model/payment_audit_log_model');
-const { fetchOrderSettlements } = require('./cashfreeService');
+const { fetchOrderSettlements, fetchOrder } = require('./cashfreeService');
 const { isCashfreeGateway } = require('./paymentSettlementMath');
 
 function firstNonEmpty(...values) {
@@ -361,6 +361,7 @@ function shouldRefreshSettlement(doc) {
     && !hasSettlementReference(doc);
   if (missingReference && age >= PENDING_RETRY_MS) return true;
   if (isTerminalSuccessDoc(doc)) return false;
+  if (s === 'ORDER_MISSING' || s === 'MISSING_ORDER') return false;
   if (s === 'NOT_FOUND' && age < NOT_FOUND_RETRY_MS) return false;
   if (s.includes('PENDING') && age < PENDING_RETRY_MS) return false;
   if (s === 'FAILED' && age < FAILED_RETRY_MS) return false;
@@ -423,6 +424,15 @@ async function syncSettlements({ limit = DEFAULT_SYNC_LIMIT, actor = 'admin', or
     const merchant = merchantByOrder.get(String(orderId)) || 'platform';
     const fetched = await fetchOrderSettlements(orderId, { merchant });
     if (fetched.missing || (fetched.ok && !fetched.data)) {
+      let orderMissing = false;
+      try {
+        await fetchOrder(orderId, { merchant });
+      } catch (err) {
+        const status = err.response?.status || 0;
+        const code = String(err.response?.data?.code || '').toLowerCase();
+        if (status === 404 || code === 'order_not_found') orderMissing = true;
+      }
+
       await upsertSettlement({
         normalized: {
           orderId,
@@ -431,14 +441,16 @@ async function syncSettlements({ limit = DEFAULT_SYNC_LIMIT, actor = 'admin', or
           settlementAmount: null,
           serviceCharge: null,
           serviceTax: null,
-          status: 'NOT_FOUND',
-          statusDescription: 'Cashfree has not created a settlement for this order yet',
+          status: orderMissing ? 'ORDER_MISSING' : 'NOT_FOUND',
+          statusDescription: orderMissing
+            ? 'Cashfree order does not exist on the merchant account'
+            : 'Cashfree has not created a settlement for this order yet',
           transferTime: null,
           transferUtr: null,
           empty: false,
         },
         source: 'api',
-        raw: { missing: true, status: fetched.status },
+        raw: { missing: true, status: fetched.status, orderMissing },
         actor,
       });
       results.missing += 1;

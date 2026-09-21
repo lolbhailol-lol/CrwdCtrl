@@ -66,7 +66,7 @@ export async function applyRound1Scale(eventId, {
   if (createDemoTeams) {
     bootstrap = await adminBootstrapRound1(eventId, {
       createTeams: true,
-      enablePublicLeaderboard: false,
+      enablePublicLeaderboard: true,
     });
     await adminRepairTeamRosters(eventId);
   }
@@ -76,9 +76,9 @@ export async function applyRound1Scale(eventId, {
     geometry,
     bootstrap,
     message:
-      `Updated whole Round 1 for ${format.teamCapacity}×${format.teamSize}: `
+      `Ready for Links: ${format.teamCapacity}×${format.teamSize} · `
       + `${geometry.startCount} start(s) · ${geometry.stationCount} place(s)`
-      + (createDemoTeams ? ' · demo teams created/repaired' : '')
-      + '. Rename places & passwords anytime.',
+      + (createDemoTeams ? ' · clues + teams + passwords + paths saved' : '')
+      + '.',
   };
 }

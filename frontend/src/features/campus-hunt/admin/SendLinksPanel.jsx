@@ -9,8 +9,8 @@ import OfflineInstallCards from '../offline/components/OfflineInstallCards';
 import { downloadOfflinePacks } from '../offline/downloadOfflinePacks';
 
 /**
- * Primary ops surface: create one WhatsApp install link per team and send them.
- * Also explains live board sync + post-fest import for ranking.
+ * Create WhatsApp install links — passwords + clues ready.
+ * No schedule / lock step required (bindings auto-fill on create).
  */
 export default function SendLinksPanel({
   eventId,
@@ -45,13 +45,12 @@ export default function SendLinksPanel({
     const r = readiness || {};
     const teamsTotal = Number(r.teamsTotal) || 0;
     const passwordsReady = Number(r.passwordsReady ?? r.teamsReady) || 0;
-    const bindingsReady = Number(r.startAssignmentsReady) || 0;
+    const leftover = Number(r.leftoverTeams) || 0;
     const linksGate = r.offlineLinksReady != null
       ? Boolean(r.offlineLinksReady)
       : (
         teamsTotal > 0
         && passwordsReady >= teamsTotal
-        && bindingsReady >= teamsTotal
         && Boolean(r.startingPointsReady)
         && Number(r.routesReady) > 0
       );
@@ -60,40 +59,35 @@ export default function SendLinksPanel({
         id: 'teams',
         ok: teamsTotal > 0 && passwordsReady >= teamsTotal,
         label: `Team passwords · ${passwordsReady || '—'}/${teamsTotal || teamCapacity}`,
-        fix: 'Teams tab — set a password for every field team',
+        fix: 'Teams tab — set a password for every team',
       },
       {
-        id: 'bindings',
-        ok: teamsTotal > 0 && bindingsReady >= teamsTotal,
-        label: `Clue 1–6 path bindings · ${bindingsReady || '—'}/${teamsTotal || teamCapacity}`,
-        fix: 'Clues → Update, then Live → Generate schedule (binds 5 stops + Clue 6)',
-      },
-      {
-        id: 'schedule',
-        ok: Boolean(r.scheduleLocked) || Boolean(r.scheduleGenerated && bindingsReady >= teamsTotal && teamsTotal > 0),
-        label: r.scheduleLocked
-          ? 'Schedule locked'
-          : (r.scheduleGenerated ? 'Schedule generated (lock when ready)' : 'Schedule not generated'),
-        fix: 'Live / Schedule — Generate schedule (Lock optional for links)',
+        id: 'clues',
+        ok: Number(r.routesReady) > 0,
+        label: 'Clues 1–6 + place QRs ready',
+        fix: 'Clues tab — save Clue 1–6',
       },
       {
         id: 'starts',
         ok: Boolean(r.startingPointsReady),
-        label: 'Starting point(s) ready',
-        fix: 'Locations — keep at least one gather point active',
+        label: 'Starting place ready',
+        fix: 'Places tab — keep at least one gather point',
       },
-      {
-        id: 'routes',
-        ok: Number(r.routesReady) > 0,
-        label: 'Clues + station QRs ready',
-        fix: 'Clues + Locations — ensure Clue 1–6 and orange→red posters exist',
-      },
+      ...(leftover > 0
+        ? [{
+          id: 'leftover',
+          ok: false,
+          label: `${leftover} leftover team(s) beyond capacity`,
+          fix: 'Teams → Trim to capacity (or Save setup again)',
+        }]
+        : []),
     ];
     const blockers = checks.filter((c) => !c.ok);
     return {
       checks,
       blockers,
-      ready: linksGate && blockers.length === 0,
+      // Leftovers auto-prune on create links — don't block the button.
+      ready: linksGate && blockers.filter((b) => b.id !== 'leftover').length === 0,
     };
   }, [readiness, teamCapacity]);
 
@@ -101,7 +95,7 @@ export default function SendLinksPanel({
     if (!eventId || busy) return;
     if (!preflight.ready) {
       setError(
-        `Fix setup first: ${preflight.blockers.map((b) => b.fix).join(' · ')}`,
+        `Fix setup first: ${preflight.blockers.filter((b) => b.id !== 'leftover').map((b) => b.fix).join(' · ')}`,
       );
       return;
     }
@@ -116,10 +110,12 @@ export default function SendLinksPanel({
       await downloadOfflinePacks(data, { perTeam });
       const nextWarnings = [
         ...(data.warnings || []),
+        ...(data.pruned?.removed
+          ? [`Removed ${data.pruned.removed} leftover team(s) beyond capacity.`]
+          : []),
         ...(data.incompleteTeams?.length
           ? [
-            `${data.incompleteTeams.length} team(s) skipped — missing Clue 1–6 / 5 path stops. `
-              + 'Generate schedule again after clues are complete.',
+            `${data.incompleteTeams.length} team(s) skipped — finish Clues 1–6, then Create again.`,
           ]
           : []),
       ];
@@ -127,8 +123,8 @@ export default function SendLinksPanel({
       setMessage(
         data.teamCount
           ? `Ready: ${data.teamCount} team pack${data.teamCount === 1 ? '' : 's'} `
-            + `(batch ${data.exportBatchId || '—'}). WhatsApp each leader — install on Wi‑Fi before fest.`
-          : 'No complete packs — finish Locations, Clues 1–6, Teams, Generate schedule first.',
+            + `(batch ${data.exportBatchId || '—'}). WhatsApp each leader.`
+          : 'No packs yet — finish Places, Clues 1–6, and team passwords first.',
       );
       await refreshStatus();
     } catch (err) {
@@ -200,6 +196,8 @@ export default function SendLinksPanel({
         <h2 className="text-xl font-bold">Send links</h2>
         <p className="mt-1 text-sm text-white/55">
           One WhatsApp install link per team · leader phone only.
+          {' '}
+          No schedule step — create when passwords + clues are ready.
         </p>
       </div>
 
@@ -261,8 +259,7 @@ export default function SendLinksPanel({
         </div>
         {!preflight.ready ? (
           <p className="mt-3 text-sm text-amber-100/90">
-            Links unlock when every team has a password and Clue 1–6 path bindings
-            (Generate schedule). Schedule Lock is optional for creating links.
+            Need: team passwords + Clues 1–6 saved + at least one gather place.
           </p>
         ) : null}
         {message ? <p className="mt-3 text-sm text-emerald-300">{message}</p> : null}
@@ -300,7 +297,9 @@ export default function SendLinksPanel({
                       </span>
                     </td>
                     <td className="text-white/45">
-                      {row.installedAt ? new Date(row.installedAt).toLocaleString() : '—'}
+                      {row.installedAt
+                        ? new Date(row.installedAt).toLocaleString()
+                        : '—'}
                     </td>
                   </tr>
                 ))}
@@ -311,44 +310,17 @@ export default function SendLinksPanel({
       </section>
 
       <section className="rounded-2xl border border-white/10 bg-white/4 p-4">
-        <h3 className="text-sm font-bold text-white">How ranking works (offline fest)</h3>
-        <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-sm text-white/65">
-          <li>
-            <strong className="text-white/90">During the hunt</strong>
-            {' '}
-            — play is offline on the leader phone. If data flickers on briefly, the phone
-            <em> best-effort</em>
-            {' '}
-            syncs score/stage to the Live board. Airplane mode is fine; the board may lag or stay quiet.
-          </li>
-          <li>
-            <strong className="text-white/90">Live board</strong>
-            {' '}
-            — ranks by score (then faster finish, fewer hints, fewer fails). Only updates when a sync or import lands.
-          </li>
-          <li>
-            <strong className="text-white/90">After the hunt</strong>
-            {' '}
-            — leader exports results JSON from Hunt → you import below → score locks → Results / finalize.
-          </li>
-        </ol>
-        <p className="mt-2 text-[11px] text-white/40">
-          Do not rely on live sync alone for medals. Import every team’s results file (or finish desk) before finalize.
-        </p>
-      </section>
-
-      <section className="rounded-2xl border border-white/10 bg-white/4 p-4">
-        <h3 className="text-sm font-bold text-white">After the fest · import results</h3>
+        <h3 className="text-sm font-bold text-white">Import results</h3>
         <p className="mt-1 text-xs text-white/50">
-          Preview first. Locked scores need an explicit overwrite. This is what makes the leaderboard official.
+          After the hunt, leaders export JSON from the phone. Upload here to lock scores.
         </p>
-        <label className="mt-3 flex cursor-pointer flex-wrap items-center gap-2 text-sm text-white/70">
-          <span className="font-semibold text-white/85">Choose results JSON</span>
+        <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/15 bg-black/30 px-4 py-2 text-sm text-white/80">
+          {busy === 'preview' ? 'Reading…' : 'Choose results file'}
           <input
             type="file"
-            accept=".json,application/json"
-            disabled={Boolean(busy) || !eventId}
-            className="text-xs file:mr-2 file:rounded-lg file:border-0 file:bg-white/15 file:px-3 file:py-1.5 file:text-xs file:text-white"
+            accept="application/json,.json"
+            className="hidden"
+            disabled={Boolean(busy)}
             onChange={(e) => {
               const file = e.target.files?.[0];
               e.target.value = '';
@@ -357,50 +329,42 @@ export default function SendLinksPanel({
           />
         </label>
         {importPreview ? (
-          <div className="mt-3 rounded-xl border border-white/10 bg-black/30 p-3 text-sm text-white/75">
+          <div className="mt-3 space-y-2 rounded-xl border border-white/10 bg-black/25 p-3 text-sm">
             <p>
-              <strong className="text-white">{importPreview.team}</strong>
-              {' → '}
+              {importPreview.team}
+              {' · '}
               {importPreview.score}
-              {' pts · sig '}
-              {importPreview.signatureOk ? 'OK' : 'BAD'}
+              {' pts'}
               {importPreview.alreadyLocked ? ' · already locked' : ''}
             </p>
-            <div className="mt-2 flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                disabled={busy === 'import' || !pendingImport || !importPreview.signatureOk}
+                disabled={Boolean(busy) || !pendingImport}
                 onClick={() => runImport(pendingImport, false)}
-                className="rounded-lg bg-[#0ECCEE] px-3 py-1.5 text-xs font-bold text-black disabled:opacity-40"
+                className="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-black disabled:opacity-40"
               >
-                Confirm import
+                {busy === 'import' ? 'Importing…' : 'Confirm import'}
               </button>
               {importPreview.alreadyLocked ? (
                 <button
                   type="button"
-                  disabled={busy === 'import' || !pendingImport}
-                  onClick={() => {
-                    if (!window.confirm(`Overwrite locked score for ${importPreview.team}?`)) return;
-                    runImport(pendingImport, true);
-                  }}
-                  className="rounded-lg border border-amber-400/40 bg-amber-500/15 px-3 py-1.5 text-xs font-semibold text-amber-100"
+                  disabled={Boolean(busy) || !pendingImport}
+                  onClick={() => runImport(pendingImport, true)}
+                  className="rounded-lg border border-amber-400/40 px-3 py-1.5 text-sm text-amber-100 disabled:opacity-40"
                 >
-                  Force overwrite
+                  Overwrite locked score
                 </button>
               ) : null}
             </div>
           </div>
         ) : null}
-      </section>
-
-      <section className="rounded-2xl border border-dashed border-white/15 bg-black/20 p-4">
-        <h3 className="text-sm font-bold text-white">Quick test (1 team)</h3>
-        <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs text-white/60">
-          <li>Preflight all green → Create team links → WhatsApp yourself</li>
-          <li>Open link in Chrome → Pack saved → Install Hunt → turn data OFF</li>
-          <li>Play 1–2 stops offline → turn data ON briefly → check Live board score moved</li>
-          <li>Finish or export results JSON → import here → confirm Results rank</li>
-        </ol>
+        <p className="mt-2 text-[11px] text-white/40">
+          {teamSize}
+          /team · capacity
+          {' '}
+          {teamCapacity}
+        </p>
       </section>
     </div>
   );

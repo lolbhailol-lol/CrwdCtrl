@@ -56,7 +56,42 @@ async function serializeWithTickets(bundle, order) {
 }
 
 async function competitions() {
-  return Competition.find({ _id: { $in: BUNDLE_COMPETITION_IDS }, fest: FEST_ID }).select('name feeAmount feeTiers registrationFee teamSizeMin teamSizeMax personFields slotsAllotted registrationsOpen').lean();
+  const list = await Competition.find({ _id: { $in: BUNDLE_COMPETITION_IDS }, fest: FEST_ID })
+    .select('name feeAmount feeTiers registrationFee teamSizeMin teamSizeMax registration.personFields slotsAllotted registrationsOpen')
+    .lean();
+  return list.map((c) => ({
+    ...c,
+    personFields: Array.isArray(c.registration?.personFields) ? c.registration.personFields : [],
+  }));
+}
+
+function subcategoryFieldOf(competition) {
+  const fields = Array.isArray(competition?.registration?.personFields)
+    ? competition.registration.personFields
+    : (Array.isArray(competition?.personFields) ? competition.personFields : []);
+  return fields.find((f) => String(f.key || '').toLowerCase() === 'subcategory')
+    || fields.find((f) => /sub\s*categor/i.test(String(f.label || '')))
+    || null;
+}
+
+function resolveSubcategory(competition, rawValue) {
+  const field = subcategoryFieldOf(competition);
+  if (!field) return '';
+  const options = Array.isArray(field.options) ? field.options.map((o) => String(o || '').trim()).filter(Boolean) : [];
+  const wanted = clean(rawValue, 80);
+  if (!wanted) {
+    if (field.required === false) return '';
+    const e = new Error(`${competition.name}: select a subcategory.`);
+    e.status = 400;
+    throw e;
+  }
+  const hit = options.find((opt) => opt.toLowerCase() === wanted.toLowerCase());
+  if (!hit) {
+    const e = new Error(`${competition.name}: choose a valid subcategory (${options.join(', ')}).`);
+    e.status = 400;
+    throw e;
+  }
+  return hit;
 }
 
 exports.offer = async (_req, res) => {
@@ -123,7 +158,31 @@ async function validateItems(rawItems) {
       throw e;
     }
     const priced = resolveCompetitionTicketPrice(competition, clean(raw.feeTierId, 80));
-    return { competition, group: BUNDLE_GROUP, feeTierId: priced.tier?.id || '', roster: { ...roster, team_members: members, team_size: members.length, feeTierId: priced.tier?.id || '' }, originalAmount: priced.ticketPrice };
+    const subcategory = resolveSubcategory(
+      competition,
+      raw.subcategory || roster.subcategory || roster.team_responses?.subcategory,
+    );
+    const rosterOut = {
+      ...roster,
+      team_members: members,
+      team_size: members.length,
+      feeTierId: priced.tier?.id || '',
+    };
+    if (subcategory) {
+      rosterOut.subcategory = subcategory;
+      rosterOut.team_responses = {
+        ...(roster.team_responses && typeof roster.team_responses === 'object' ? roster.team_responses : {}),
+        subcategory,
+      };
+    }
+    return {
+      competition,
+      group: BUNDLE_GROUP,
+      feeTierId: priced.tier?.id || '',
+      subcategory,
+      roster: rosterOut,
+      originalAmount: priced.ticketPrice,
+    };
   }));
 }
 

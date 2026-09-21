@@ -87,7 +87,7 @@ export default function StartingSystemPanel({
   mode = 'all',
   eventMeta = null,
 }) {
-  const teamCapacity = Math.max(2, Number(eventMeta?.teamCapacity) || 40);
+  const teamCapacity = Math.max(2, Number(eventMeta?.teamCapacity) || 20);
   const startCount = Math.max(1, Math.min(4, Number(eventMeta?.startCount) || 4));
   const teamsPerWait = Math.max(1, Math.ceil(teamCapacity / startCount));
   const activeStations = useMemo(

@@ -554,9 +554,8 @@ export default function Round1ClueFormat({
     try {
       await adminBootstrapRound1(eventId, { createTeams: true });
       setMessage(
-        `Ready: ${geometry.teamCapacity} teams · ${geometry.startCount} start(s) · `
-        + `${geometry.stationCount} places · ~${geometry.teamsPerStation} teams each · `
-        + `${geometry.teamSize}/team.`,
+        `Ready for Links: ${geometry.teamCapacity} teams · clues saved · passwords set · paths bound. `
+        + 'Open Links → Create team links.',
       );
       bumpClues();
       onChanged?.();
@@ -583,7 +582,7 @@ export default function Round1ClueFormat({
           title={layoutDirty ? 'Save setup first' : undefined}
           className="rounded-xl bg-[#0ECCEE] px-4 py-2 text-sm font-bold text-black disabled:opacity-40"
         >
-          {busy ? 'Bootstrapping…' : 'Bootstrap all clues'}
+          {busy ? 'Bootstrapping…' : 'Save clues + teams (ready for Links)'}
         </button>
       </div>
       {layoutDirty && (

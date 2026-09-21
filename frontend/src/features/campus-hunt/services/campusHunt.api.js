@@ -582,6 +582,13 @@ export async function adminBootstrapRound1(eventId, body = {}) {
   });
 }
 
+export async function adminPruneExcessTeams(eventId, body = {}) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/teams/prune-excess`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 export async function adminRepairTeamRosters(eventId, body = {}) {
   return adminFetchJSON(`${BASE}/admin/events/${eventId}/teams/repair-rosters`, {
     method: 'POST',

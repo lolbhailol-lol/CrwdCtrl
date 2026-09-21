@@ -229,7 +229,7 @@ export default function Clue1VariantManager({
   campusStations,
   campusStarts,
   stationCount = null,
-  teamCapacity = 40,
+  teamCapacity = 20,
   teamSize = 4,
   teamsPerWait = TEAMS_PER_WAIT,
   teamsPerStation = TARGET_TEAMS_PER_STATION,

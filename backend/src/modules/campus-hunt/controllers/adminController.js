@@ -240,18 +240,31 @@ async function updateEvent(req, res, next) {
         },
       );
     }
+    let pruned = null;
+    if (allowed.teamCapacity != null) {
+      const { pruneExcessTeams } = require('../services/capacityService');
+      pruned = await pruneExcessTeams(event._id, allowed.teamCapacity);
+    }
     await writeAudit({
       eventId: event._id,
       ...adminActor(req),
       action: 'event_updated',
       targetType: 'event',
       targetId: event._id,
-      after: { ...allowed, qualification: syncQualification || undefined },
+      after: {
+        ...allowed,
+        qualification: syncQualification || undefined,
+        prunedTeams: pruned?.removed || 0,
+      },
       reason: req.body.reason || '',
     });
     return res.json({
       success: true,
-      data: { event, qualification: syncQualification || undefined },
+      data: {
+        event,
+        qualification: syncQualification || undefined,
+        pruned,
+      },
     });
   } catch (err) {
     return next(err);
@@ -417,25 +430,16 @@ async function getEventOverview(req, res, next) {
     )).length;
     // Player scan is primary — volunteers are optional ops help, not a go-live gate.
     const startingPointsReady = startingPoints.filter((p) => p.active !== false).length
-      >= Math.max(1, Number(event.startCount) || 4);
+      >= Math.max(1, Number(event.startCount) || 1);
     const routesConfigured = eventHasPathStops && eventHasPathClues;
-    const scheduleOk = roundOne?.scheduleStatus === 'locked'
-      || (
-        roundOne?.scheduleStatus === 'generated'
-        && startAssignmentsReady === competitionTeams.length
-        && competitionTeams.length > 0
-      );
     const readiness = {
       ready: competitionTeams.length > 0
-        && teamsReady === competitionTeams.length
-        && startAssignmentsReady === competitionTeams.length
-        && scheduleOk
+        && passwordsReady === competitionTeams.length
         && routesConfigured
         && startingPointsReady,
-      /** Links tab can export when passwords + path bindings exist (schedule lock preferred). */
+      /** Links: passwords + clues/places ready. Path bindings auto-fill on export. */
       offlineLinksReady: competitionTeams.length > 0
         && passwordsReady === competitionTeams.length
-        && startAssignmentsReady === competitionTeams.length
         && routesConfigured
         && startingPointsReady,
       teamsReady,
@@ -4031,6 +4035,8 @@ async function startRound(req, res, next) {
 
 async function bootstrapRound1(req, res, next) {
   try {
+    const { pruneExcessTeams } = require('../services/capacityService');
+    const pruned = await pruneExcessTeams(req.params.eventId);
     const data = await bootstrapRound1Defaults({
       eventId: req.params.eventId,
       actor: adminActor(req),
@@ -4042,7 +4048,30 @@ async function bootstrapRound1(req, res, next) {
           ? [Number(req.body.challengeNumber)]
           : null),
     });
-    return res.json({ success: true, data });
+    return res.json({ success: true, data: { ...data, pruned } });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, message: err.message });
+    }
+    return next(err);
+  }
+}
+
+/** Drop leftover teams beyond current capacity (e.g. old 40 after save to 20). */
+async function pruneEventTeams(req, res, next) {
+  try {
+    const { pruneExcessTeams } = require('../services/capacityService');
+    const pruned = await pruneExcessTeams(req.params.eventId);
+    await writeAudit({
+      eventId: req.params.eventId,
+      ...adminActor(req),
+      action: 'teams_pruned_to_capacity',
+      targetType: 'event',
+      targetId: req.params.eventId,
+      after: pruned,
+      reason: req.body?.reason || 'Trim teams to event capacity',
+    });
+    return res.json({ success: true, data: pruned });
   } catch (err) {
     if (err.status) {
       return res.status(err.status).json({ success: false, message: err.message });
@@ -4130,6 +4159,43 @@ async function updateEventCampusStations(req, res, next) {
 /** Export offline hunt packs — one JSON bundle per team for airplane-mode play. */
 async function exportOfflinePacks(req, res, next) {
   try {
+    const { pruneExcessTeams } = require('../services/capacityService');
+    const pruned = await pruneExcessTeams(req.params.eventId);
+
+    // Auto-bind Clue 1–6 paths if missing — no separate Schedule step needed for links.
+    const round = await CampusHuntRound.findOne({
+      eventId: req.params.eventId,
+      roundNumber: 1,
+    }).select('_id startsAt releaseIntervalMinutes assignmentStrategy status');
+    if (round) {
+      const { selectCompetitionTeams } = require('../services/startScheduleService');
+      const event = await CampusHuntEvent.findById(req.params.eventId).select('teamCapacity').lean();
+      const teams = await CampusHuntTeam.find({ eventId: req.params.eventId })
+        .select('teamCode clue1ChallengeId clue6ChallengeId firstCheckpointId fifthCheckpointId startingPointId')
+        .lean();
+      const field = selectCompetitionTeams(teams, event?.teamCapacity);
+      const needsBind = field.some((t) => (
+        !t.clue1ChallengeId
+        || !t.clue6ChallengeId
+        || !t.firstCheckpointId
+        || !t.fifthCheckpointId
+        || !t.startingPointId
+      ));
+      if (needsBind) {
+        const { generateSchedule } = require('../services/startScheduleService');
+        await generateSchedule({
+          eventId: req.params.eventId,
+          roundId: round._id,
+          startsAt: round.startsAt || new Date(),
+          releaseIntervalMinutes: round.releaseIntervalMinutes || 5,
+          assignmentStrategy: round.assignmentStrategy || 'route_balanced',
+          confirm: true,
+          actor: adminActor(req),
+          reason: 'Auto-bind paths for offline links',
+        });
+      }
+    }
+
     const { exportOfflinePacks: buildPacks } = require('../services/offlineExportService');
     const data = await buildPacks(req.params.eventId);
     await writeAudit({
@@ -4142,9 +4208,10 @@ async function exportOfflinePacks(req, res, next) {
         teamCount: data.teamCount,
         incomplete: data.incompleteTeams?.length || 0,
         warnings: data.warnings?.length || 0,
+        prunedTeams: pruned?.removed || 0,
       },
     });
-    return res.json({ success: true, data });
+    return res.json({ success: true, data: { ...data, pruned } });
   } catch (err) {
     if (err.status) {
       return res.status(err.status).json({ success: false, message: err.message });
@@ -4287,6 +4354,7 @@ module.exports = {
   updateIssue,
   listAudit,
   bootstrapRound1,
+  pruneEventTeams,
   repairTeamRosters,
   exportOfflinePacks,
   importOfflineResults,

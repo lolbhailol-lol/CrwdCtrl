@@ -1417,6 +1417,52 @@ async function bootstrapRound1Defaults({
   }
   const teams = await ensurePlaceholderTeams(event, round, routes, { createTeams });
 
+  // Default passwords on any field team still missing one (so Links works immediately).
+  let passwordsEnsured = 0;
+  if (createTeams) {
+    try {
+      const { setTeamSharedPassword } = require('./teamGateService');
+      const { isTeamPasswordReady } = require('../utils/roster');
+      const { selectCompetitionTeams } = require('./startScheduleService');
+      const allTeams = await CampusHuntTeam.find({ eventId: event._id })
+        .select('+accessPack.encryptedTeamPassword +accessPack.encryptedSharedScannerPassword '
+          + '+accessPack.leader.encryptedPassword +accessPack.scanners.encryptedPassword');
+      const field = selectCompetitionTeams(allTeams, event.teamCapacity);
+      const defaultPass = process.env.CAMPUS_HUNT_DEFAULT_TEAM_PASSWORD
+        || (String(event.college || '').toUpperCase().includes('COEP') ? 'COEP2026' : 'HUNT2026');
+      for (const team of field) {
+        if (isTeamPasswordReady(team.toObject ? team.toObject() : team)) continue;
+        // eslint-disable-next-line no-await-in-loop
+        await setTeamSharedPassword(team, defaultPass);
+        passwordsEnsured += 1;
+      }
+    } catch (pwdErr) {
+      // Non-fatal — organizer can set passwords in Teams tab.
+      console.warn('[bootstrap] password ensure skipped:', pwdErr.message);
+    }
+  }
+
+  // Bind Clue 1–6 paths automatically — no separate Schedule step for Links.
+  let pathBindings = null;
+  if (createTeams && !layoutOnly) {
+    try {
+      const { generateSchedule } = require('./startScheduleService');
+      pathBindings = await generateSchedule({
+        eventId: event._id,
+        roundId: round._id,
+        startsAt: round.startsAt || new Date(),
+        releaseIntervalMinutes: round.releaseIntervalMinutes || 5,
+        assignmentStrategy: round.assignmentStrategy || 'route_balanced',
+        confirm: true,
+        actor,
+        reason: 'Bootstrap auto-bind for Links',
+      });
+    } catch (bindErr) {
+      console.warn('[bootstrap] path bind skipped:', bindErr.message);
+      pathBindings = { error: bindErr.message };
+    }
+  }
+
   await writeAudit({
     eventId: event._id,
     ...actor,
@@ -1434,7 +1480,10 @@ async function bootstrapRound1Defaults({
         ? { updated: teamBindingsResynced.updated, incomplete: teamBindingsResynced.incomplete }
         : null,
       teamsCreated: teams.created,
+      passwordsEnsured,
+      pathBindingsOk: Boolean(pathBindings && !pathBindings.error),
       publicLeaderboardLive: event.publicLeaderboardLive,
+      publicLoginLive: event.publicLoginLive,
       releaseIntervalMinutes: 5,
     },
   });
@@ -1458,14 +1507,17 @@ async function bootstrapRound1Defaults({
     clue4Reconciled,
     teamBindingsResynced,
     teams,
+    passwordsEnsured,
+    pathBindings: pathBindings && !pathBindings.error
+      ? { assigned: pathBindings.assignments?.length || pathBindings.assigned || null }
+      : pathBindings,
     scheduleHint: {
       releaseIntervalMinutes: 5,
       model:
-        'Simple layout: 20 teams · 20 campus places · 5 path stops + shared destination. '
-        + 'One gather point when capacity ≤ 20. Each place has shared QRs for scan stages 1–5; '
-        + `~${Math.ceil((Number(event.teamCapacity) || 20) / Math.max(1, Number(event.stationCount) || 20))} teams/place. `
+        'Simple layout: teams + clues + passwords + path bindings ready for Links. '
+        + 'Open Links → Create team links. '
         + `Leader scans once, then enters team code. `
-        + 'Clue 6 → Finale Assembly check-in.',
+        + 'Clue 6 → MindSpark Lobby finish.',
     },
   };
 }

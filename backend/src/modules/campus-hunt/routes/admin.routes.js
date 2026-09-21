@@ -52,6 +52,7 @@ router.post('/teams/:teamId/mark-start-reached', adminController.markTeamStartRe
 
 router.post('/events/:eventId/teams', adminController.createTeam);
 router.post('/events/:eventId/teams/bulk', adminController.bulkCreateTeams);
+router.post('/events/:eventId/teams/prune-excess', adminController.pruneEventTeams);
 router.post('/events/:eventId/teams/repair-rosters', adminController.repairTeamRosters);
 router.get('/events/:eventId/teams', adminController.listTeams);
 router.get('/teams/:teamId', adminController.getTeamAdmin);

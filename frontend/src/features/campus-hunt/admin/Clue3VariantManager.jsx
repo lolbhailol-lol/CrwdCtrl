@@ -82,7 +82,7 @@ export default function Clue3VariantManager({
   campusStarts,
   stationCount = null,
   onChanged,
-  teamCapacity = 40,
+  teamCapacity = 20,
   teamSize: _teamSize = 4,
   teamsPerWait = TEAMS_PER_WAIT,
   teamsPerStation = TARGET_TEAMS_PER_STATION,

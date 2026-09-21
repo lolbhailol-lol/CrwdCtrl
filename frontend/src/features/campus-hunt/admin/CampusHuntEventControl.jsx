@@ -120,7 +120,7 @@ export default function CampusHuntEventControl() {
   );
   const linksReady = Boolean(
     readiness?.offlineLinksReady
-    ?? (teamsReady && cluesReady && locationsReady && readiness?.startAssignmentsReady === readiness?.teamsTotal),
+    ?? (teamsReady && cluesReady && locationsReady),
   );
   const workflowStatuses = {
     locations: locationsReady ? 'Ready' : 'Needs attention',
@@ -205,8 +205,7 @@ export default function CampusHuntEventControl() {
     }
     if (round1.status === 'scheduled') {
       setMsg(
-        'Round is already scheduled (not live). Use Schedule → Generate and confirm '
-        + 'force-reset if any teams still show progress.',
+        'Round is already scheduled (not live). Create links when passwords + clues are ready, then Start hunt.',
       );
       return;
     }
@@ -214,7 +213,7 @@ export default function CampusHuntEventControl() {
       'Reset hunt to zero?\n\n'
       + '• Clears all team progress and scans\n'
       + '• Teams go back to WAITING\n'
-      + '• You must Preview → Generate → Lock → Start again\n\n'
+      + '• Start hunt again when ready\n\n'
       + 'Continue?',
     )) return;
 

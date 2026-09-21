@@ -27,7 +27,7 @@ function sortByCode(rows, key) {
 
 /** First N teams by code — matches generateSchedule / leaderboard field size. */
 function selectCompetitionTeams(teams, teamCapacity) {
-  const capacity = Math.max(1, Number(teamCapacity) || teams.length || 40);
+  const capacity = Math.max(1, Number(teamCapacity) || teams.length || 20);
   return sortByCode(teams, 'teamCode').slice(0, capacity);
 }
 
@@ -323,7 +323,7 @@ async function ensureClue4MatchesLayout(eventId, roundId) {
   if (!startingPoints.length) startingPoints = startingPointsRaw;
 
   const startCount = resolveStartCount(event);
-  const capacity = Number(event.teamCapacity) || 40;
+  const capacity = Number(event.teamCapacity) || 20;
   const perWait = teamsPerWaitFor(capacity, startCount);
   const teamGroups = buildTeamGroups(perWait);
 
@@ -368,7 +368,7 @@ async function previewSchedule({
   ]);
   if (!round) throw scheduleError('Round not found', 'ROUND_NOT_FOUND', 404);
   const startCount = Math.max(1, Math.min(4, Number(event?.startCount) || 4));
-  const teamCapacity = Math.max(1, Number(event?.teamCapacity) || teams.length || 40);
+  const teamCapacity = Math.max(1, Number(event?.teamCapacity) || teams.length || 20);
   const interval = Number(releaseIntervalMinutes || round.releaseIntervalMinutes || 5);
   if (!Number.isInteger(interval) || interval < 1) {
     throw scheduleError('Release interval must be at least 1 minute', 'INVALID_RELEASE_INTERVAL', 400);
@@ -1018,7 +1018,7 @@ async function lockSchedule({ eventId, roundId, actor, reason }) {
   if (!round) throw scheduleError('Round not found', 'ROUND_NOT_FOUND', 404);
   if (!teams.length) throw scheduleError('No teams assigned to this round');
 
-  const teamCapacity = Math.max(1, Number(event?.teamCapacity) || teams.length || 40);
+  const teamCapacity = Math.max(1, Number(event?.teamCapacity) || teams.length || 20);
   const teamsToLock = selectCompetitionTeams(teams, teamCapacity);
   const leftoverTeams = sortByCode(teams, 'teamCode').slice(teamCapacity);
 

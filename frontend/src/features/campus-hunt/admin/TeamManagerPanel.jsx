@@ -14,6 +14,7 @@ import {
   adminListChallenges,
   adminListCheckpoints,
   adminBootstrapRound1,
+  adminPruneExcessTeams,
   adminRepairTeamRosters,
   adminMarkTeamStartReached,
 } from '../services/campusHunt.api';
@@ -899,11 +900,12 @@ export default function TeamManagerPanel({
   const [bulkTeamPassword, setBulkTeamPassword] = useState('');
   const [routeDraft, setRouteDraft] = useState({ routeKey: '', name: '', teamSlots: 10 });
 
-  const capacity = Math.max(2, Number(eventMeta?.teamCapacity) || 40);
+  const capacity = Math.max(2, Number(eventMeta?.teamCapacity) || 20);
   const teamSize = Math.max(2, Math.min(12, Number(eventMeta?.teamSize) || 4));
-  const startCount = Math.max(1, Math.min(4, Number(eventMeta?.startCount) || 4));
+  const startCount = Math.max(1, Math.min(4, Number(eventMeta?.startCount) || 1));
   const teamsPerWait = Math.max(1, Math.ceil(capacity / startCount));
   const scannersNeeded = Math.max(1, teamSize - 1);
+  const excessTeams = Math.max(0, teams.length - capacity);
 
   const activeStarts = useMemo(() => {
     const active = (startingPoints || []).filter((p) => p.active !== false);
@@ -1127,16 +1129,36 @@ export default function TeamManagerPanel({
   };
 
   const createDemoTeams = async () => {
-    if (teams.length >= capacity) {
-      setMsg(`Already have ${teams.length}/${capacity} teams.`);
+    if (excessTeams > 0) {
+      const trim = window.confirm(
+        `Found ${teams.length} teams but capacity is ${capacity}.\n\n`
+        + `Remove the extra ${excessTeams} team(s) (keep CC001–CC${String(capacity).padStart(3, '0')}), then create any missing?`,
+      );
+      if (!trim) return;
+      setBusy(true);
+      setMsg('');
+      try {
+        const pruned = await adminPruneExcessTeams(eventId);
+        setMsg(`Trimmed ${pruned.data?.removed || 0} leftover team(s).`);
+        await refresh();
+      } catch (err) {
+        setMsg(err.message || 'Could not trim leftover teams');
+        setBusy(false);
+        return;
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    const currentCount = Math.min(teams.length, capacity);
+    if (currentCount >= capacity && excessTeams === 0) {
+      setMsg(`Already have ${capacity}/${capacity} teams.`);
       return;
     }
     const ok = window.confirm(
-      `Create demo Team 1–${capacity} (codes CC001–CC${String(capacity).padStart(3, '0')})?\n\n`
-      + `${teamSize} people/team · ${startCount} start(s) · ~${teamsPerWait} teams per start.\n\n`
-      + 'Does NOT set one shared password for all teams.\n'
-      + 'After create: set a unique password per team (or run unique-campus-hunt-team-passwords.js).\n\n'
-      + 'Skips teams that already exist.',
+      `Create demo teams up to ${capacity} (codes CC001–CC${String(capacity).padStart(3, '0')})?\n\n`
+      + `${teamSize} people/team · ${startCount} start(s).\n\n`
+      + 'Skips teams that already exist. Set a unique password per team before links.',
     );
     if (!ok) return;
 
@@ -1149,14 +1171,10 @@ export default function TeamManagerPanel({
       });
       const created = result.data?.teams?.created ?? 0;
       const skipped = result.data?.teams?.skipped ?? 0;
-      const rosterRepair = result.data?.teams?.rosterRepair;
+      const removed = result.data?.pruned?.removed ?? 0;
       let successMsg = `Demo teams ready · created ${created}, already had ${skipped}.`;
-      if (rosterRepair?.repaired) {
-        successMsg += ` Repaired ${rosterRepair.repaired} rosters.`;
-      } else if (rosterRepair?.stillIncomplete) {
-        successMsg += ` ${rosterRepair.stillIncomplete} rosters still need repair — tap Repair rosters below.`;
-      }
-      successMsg += ' Set UNIQUE passwords per team before sharing links (do not use one password for all).';
+      if (removed) successMsg += ` Trimmed ${removed} leftover(s).`;
+      successMsg += ' Set UNIQUE passwords per team before sharing links.';
       setMsg(successMsg);
       setLastCredentials(null);
       setLastTeamCode('CC001');
@@ -1167,6 +1185,30 @@ export default function TeamManagerPanel({
       onChanged?.();
     } catch (err) {
       setMsg(err.message || 'Could not create demo teams');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const trimToCapacity = async () => {
+    if (excessTeams <= 0) {
+      setMsg(`Already at capacity (${teams.length}/${capacity}).`);
+      return;
+    }
+    const ok = window.confirm(
+      `Remove ${excessTeams} leftover team(s) beyond capacity ${capacity}?\n\n`
+      + 'Keeps the first teams by code (usually CC001…).',
+    );
+    if (!ok) return;
+    setBusy(true);
+    setMsg('');
+    try {
+      const result = await adminPruneExcessTeams(eventId);
+      setMsg(`Trimmed ${result.data?.removed || 0} team(s). Now ${result.data?.kept || capacity}/${capacity}.`);
+      await refresh();
+      onChanged?.();
+    } catch (err) {
+      setMsg(err.message || 'Could not trim teams');
     } finally {
       setBusy(false);
     }
@@ -1295,6 +1337,16 @@ export default function TeamManagerPanel({
             >
               {busy ? 'Creating…' : demoReady ? `${capacity} teams ready` : `Create ${capacity} demo teams`}
             </button>
+            {leftoverTeams > 0 && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={trimToCapacity}
+                className="rounded-xl border border-amber-300/50 bg-amber-500/15 px-4 py-2.5 text-sm font-semibold text-amber-100 disabled:opacity-40"
+              >
+                Trim {leftoverTeams} leftover{leftoverTeams === 1 ? '' : 's'}
+              </button>
+            )}
             {teams.length > 0 && rostersIncomplete > 0 && (
               <button
                 type="button"

@@ -50,13 +50,13 @@ export default function CheckpointManager({
   groupFirstStopsByStation = false,
   campusStations,
   stageTheme = null,
-  teamCapacity = 40,
+  teamCapacity = 20,
   teamsPerStation = TARGET_TEAMS_PER_STATION,
   teamsPerWait,
 }) {
   const perWait = Math.max(
     1,
-    Number(teamsPerWait) || Math.ceil((Number(teamCapacity) || 40) / 4),
+    Number(teamsPerWait) || Math.ceil((Number(teamCapacity) || 20) / 4),
   );
   const accent = stageTheme;
   const [checkpoints, setCheckpoints] = useState([]);
