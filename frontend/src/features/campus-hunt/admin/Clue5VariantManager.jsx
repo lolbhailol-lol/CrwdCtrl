@@ -20,6 +20,7 @@ import {
   globalTeamNumber,
   resolveStarts,
   routeClueDefaults,
+  splitPlantFragments,
 } from './campusHuntFormat';
 import { STAGE_THEMES } from '../types/stageTheme';
 
@@ -327,8 +328,22 @@ export default function Clue5VariantManager({
                   {word} · teams {teamNums.join(', ')}
                 </span>
               </div>
+              <p className="mt-2 text-[10px] uppercase tracking-wide text-white/35">
+                Print letter slips
+              </p>
+              <div className="mt-1 flex flex-wrap gap-2">
+                {splitPlantFragments(String(form.answer || word).toUpperCase(), people).map((letter, index) => (
+                  <span
+                    key={`${code}-slip-${index}`}
+                    className="rounded-lg border border-white/15 bg-black/40 px-3 py-2 font-mono text-lg font-bold tracking-wide text-white"
+                  >
+                    <span className="mr-1 text-[10px] text-white/35">{index + 1}.</span>
+                    {letter || '·'}
+                  </span>
+                ))}
+              </div>
               <label className="mt-3 block text-xs text-white/55">
-                Leader instructions
+                Phone prompt
                 <textarea
                   value={form.prompt}
                   onChange={(e) => updateForm(code, { prompt: e.target.value })}
@@ -338,7 +353,7 @@ export default function Clue5VariantManager({
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
                 {(form.memberPrompts || []).slice(0, people).map((piece, index) => (
                   <label key={index} className="block text-xs text-white/55">
-                    Piece {index + 1}
+                    Find task {index + 1}
                     <input
                       value={piece}
                       onChange={(e) => {
@@ -352,7 +367,7 @@ export default function Clue5VariantManager({
                 ))}
               </div>
               <label className="mt-2 block text-xs text-white/55">
-                Correct word
+                Correct word (letters join to this)
                 <input
                   value={form.answer}
                   onChange={(e) => updateForm(code, { answer: e.target.value.toUpperCase() })}

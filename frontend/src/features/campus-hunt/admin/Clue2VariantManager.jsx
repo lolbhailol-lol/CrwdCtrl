@@ -191,7 +191,7 @@ export default function Clue2VariantManager({
         scoring,
       });
       await refresh();
-      setMessage(`Saved Clue 2 timer & hint settings for all ${teamCapacity} teams`);
+      setMessage(`Saved Clue 2 attempt & hint settings for all ${teamCapacity} teams`);
       onChanged?.();
     } catch (err) {
       setError(err.message || 'Could not save defaults');
@@ -427,7 +427,7 @@ export default function Clue2VariantManager({
       {error && <p className="text-xs text-amber-200">{error}</p>}
       <p className="text-[11px] text-white/40">
         Shared digit answer per place (Places → Digit slips). Teams at the same stop share one answer —
-        not a different code per team. Green QR unlocks after the word is typed.
+        not a different code per team. Green QR unlocks after the number is typed.
       </p>
     </div>
   );

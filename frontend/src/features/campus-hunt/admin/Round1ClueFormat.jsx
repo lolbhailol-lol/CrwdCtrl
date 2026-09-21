@@ -37,7 +37,7 @@ export function buildRound1Clues(geometry) {
       number: 1,
       label: 'Clue 1',
       short: 'PLACE',
-      detail: '',
+      detail: 'Type campus place → orange scan',
       checkpointKeys: ['1'],
       type: 'navigation',
       showCheckpoints: false,
@@ -47,7 +47,7 @@ export function buildRound1Clues(geometry) {
       number: 2,
       label: 'Clue 2',
       short: 'DIGITS',
-      detail: '',
+      detail: 'Numbered digit slips → join number → green scan',
       checkpointKeys: ['2'],
       type: 'decode',
       showCheckpoints: false,
@@ -56,8 +56,8 @@ export function buildRound1Clues(geometry) {
       id: 'clue3',
       number: 3,
       label: 'Clue 3',
-      short: 'LOCKBOX',
-      detail: '',
+      short: 'PLAQUE',
+      detail: 'One lockbox plaque (full code) → blue scan',
       checkpointKeys: ['3'],
       type: 'decode',
       showCheckpoints: false,
@@ -67,7 +67,7 @@ export function buildRound1Clues(geometry) {
       number: 4,
       label: 'Clue 4',
       short: 'ZIP GRID',
-      detail: '',
+      detail: 'Laptop Zip Grid → GRID-XXXX → purple scan',
       checkpointKeys: ['4'],
       type: 'timed_search',
       showCheckpoints: false,
@@ -76,8 +76,8 @@ export function buildRound1Clues(geometry) {
       id: 'clue5',
       number: 5,
       label: 'Clue 5',
-      short: 'WORD',
-      detail: '',
+      short: 'LETTERS',
+      detail: 'Letter slips → one word → red scan',
       checkpointKeys: ['5'],
       type: 'collaborative',
       showCheckpoints: false,
@@ -87,7 +87,7 @@ export function buildRound1Clues(geometry) {
       number: 6,
       label: 'Clue 6',
       short: 'LOBBY',
-      detail: '',
+      detail: 'Mindspark Lobby · organizer finish code',
       checkpointKeys: ['FINISH'],
       type: 'navigation',
       showCheckpoints: false,
@@ -167,6 +167,9 @@ function ClueBox({
           <h3 className="mt-1 text-lg font-bold text-white">
             {clue.label}
           </h3>
+          {clue.detail ? (
+            <p className="mt-1 text-xs text-white/50">{clue.detail}</p>
+          ) : null}
         </div>
         <span className="shrink-0 text-sm text-white/50">{open ? 'Hide' : 'Edit'}</span>
       </button>

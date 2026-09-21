@@ -120,12 +120,12 @@ export default function StationPlantFragmentsPanel({
   return (
     <section className="rounded-2xl border border-[#0ECCEE]/30 bg-[#0a1218] p-4">
       <p className="text-xs font-semibold uppercase tracking-widest text-[#0ECCEE]">
-        Digit slips (shared)
+        Digit slips · Clue 2 only
       </p>
       <h3 className="mt-1 text-lg font-bold text-white">Number find · green stop</h3>
       <p className="mt-1 text-sm text-white/55">
-        Print {n} short numbered slips per place. Every team that visits finds the same digits,
-        joins them in order into one answer, types it, then scans the poster once.
+        Print {n} numbered digit slips per place (not blue plaques, not red letters).
+        Teams join digits in order into one number, type it, then scan green once.
       </p>
 
       <div className="mt-3 flex flex-wrap gap-2">

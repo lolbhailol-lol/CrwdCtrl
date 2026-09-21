@@ -336,9 +336,8 @@ export default function Clue3VariantManager({
       </section>
 
       <p className="text-xs text-white/50">
-        After green SECOND SCAN, teams get the Lockbox on their phone.
-        Digit pieces rebuild the code — then they scan the shared blue QR once
-        to unlock Field Terminal.
+        Print ONE lockbox plaque per blue stop with the full code below (not numbered digit slips).
+        Hide it on a ledge / behind a board. After they type the code → blue THIRD SCAN → Field Terminal.
       </p>
 
       <div className="grid gap-3 md:grid-cols-2">
@@ -358,8 +357,14 @@ export default function Clue3VariantManager({
               <p className="mt-1 text-[11px] text-white/45">
                 {place.arrivals.map((a) => `T${a.teamNumber}`).join(' · ')}
               </p>
+              <p className={`mt-2 font-mono text-2xl font-bold tracking-[0.2em] ${THEME.textClass}`}>
+                {String(content.answer || '————').replace(/\D/g, '') || '————'}
+              </p>
+              <p className="mt-0.5 text-[10px] uppercase tracking-wide text-white/35">
+                Print on one plaque
+              </p>
               <label className="mt-2 block text-xs text-white/55">
-                Lockbox prompt
+                Phone prompt
                 <textarea
                   value={content.prompt || ''}
                   onChange={(e) => setPackContent((prev) => ({
@@ -370,7 +375,7 @@ export default function Clue3VariantManager({
                 />
               </label>
               <label className="mt-2 block text-xs text-white/55">
-                Lockbox code (digits)
+                Plaque code (digits)
                 <input
                   value={content.answer || ''}
                   onChange={(e) => setPackContent((prev) => ({
