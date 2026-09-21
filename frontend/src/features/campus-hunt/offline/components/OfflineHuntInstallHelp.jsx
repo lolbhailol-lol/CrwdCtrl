@@ -94,6 +94,7 @@ export default function OfflineHuntInstallHelp({
           </p>
           <p className="mt-1 text-xs text-white/55">
             Open the Hunt icon on your home screen at the fest.
+            New pack links must be opened once with Wi‑Fi on — airplane mode keeps the old app.
           </p>
         </div>
         {updateWaiting ? (

@@ -1,15 +1,27 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { fetchOfflineInstallPack, ackOfflineInstallPack } from '../../services/campusHunt.api';
-import { loadOfflineBundle, saveOfflineBundle, clearOfflineSession } from '../offlineDb';
+import {
+  loadOfflineBundle,
+  saveOfflineBundle,
+  clearOfflineSession,
+  clearOfflineBundle,
+  clearOfflineTeamState,
+} from '../offlineDb';
 import { CAMPUS_HUNT_PATHS } from '../../config';
 import OfflineHuntInstallHelp from '../components/OfflineHuntInstallHelp';
 import { warmupOfflineHunt } from '../warmupOfflineHunt';
-import { refreshHuntAppShell, applyWaitingHuntUpdate } from '../refreshHuntAppShell';
+import {
+  refreshHuntAppShell,
+  applyWaitingHuntUpdate,
+  bustStaleHuntShellOnce,
+  purgeHuntAppCaches,
+} from '../refreshHuntAppShell';
 import { rememberInstallToken, applyServerStartOverIfNeeded } from '../startOverHunt';
 
 /**
  * Shared install link — save pack, refresh app shell, install Hunt, then login.
+ * Never reuse an old pack when this URL token is different (even offline).
  */
 export default function OfflineHuntInstallPage() {
   const { token } = useParams();
@@ -40,81 +52,127 @@ export default function OfflineHuntInstallPage() {
       try {
         const existing = await loadOfflineBundle();
         const online = typeof navigator === 'undefined' || navigator.onLine !== false;
+        const urlToken = String(token || '').trim();
+        const savedToken = String(existing?.installToken || '').trim();
+        const samePackLink = Boolean(savedToken && savedToken === urlToken);
 
-        if (existing?.team?.teamCode && !online) {
-          if (cancelled) return;
-          setTeam(existing.team);
-          setPackMeta({
-            exportBatchId: existing.exportBatchId || '',
-            exportedAt: existing.exportedAt || '',
-          });
-          setPackNote('Pack ready on this phone (offline).');
-          setStatus('ready');
-          void warmupOfflineHunt().catch(() => {});
-          return;
-        }
-
-        if (online) {
-          const shell = await refreshHuntAppShell().catch(() => ({ waiting: false }));
-          // New install links must not keep a stale Hunt shell (old rounds hub).
-          if (!cancelled && shell?.waiting) {
-            setUpdateWaiting(true);
-            await applyWaitingHuntUpdate();
+        // Offline + different / unknown link → do NOT reopen old Round 1/Survival/Finale pack.
+        if (!online) {
+          if (existing?.team?.teamCode && samePackLink) {
+            if (cancelled) return;
+            setTeam(existing.team);
+            setPackMeta({
+              exportBatchId: existing.exportBatchId || '',
+              exportedAt: existing.exportedAt || '',
+            });
+            setPackNote('Same pack already on this phone (offline).');
+            setStatus('ready');
+            void warmupOfflineHunt().catch(() => {});
             return;
           }
-
-          const res = await fetchOfflineInstallPack(token);
-          const pack = res.data?.bundle || res.bundle;
-          if (!pack?.team?.teamCode) throw new Error('Install pack is empty');
-
-          const stamped = { ...pack, installToken: token };
-          await saveOfflineBundle(stamped);
-          try {
-            await clearOfflineSession();
-          } catch { /* ignore */ }
-          rememberInstallToken(token);
           if (cancelled) return;
-          setTeam(stamped.team);
-          setPackMeta({
-            exportBatchId: stamped.exportBatchId || res.data?.exportBatchId || '',
-            exportedAt: stamped.exportedAt || '',
-          });
-          setStatus('ready');
-          setPackNote('Latest team pack saved.');
-          try {
-            await ackOfflineInstallPack(token, navigator.userAgent || '');
-          } catch { /* best-effort */ }
-          await warmupOfflineHunt().catch(() => {});
-          const sync = await applyServerStartOverIfNeeded(stamped).catch(() => null);
-          if (!cancelled && sync?.applied) {
-            setPackNote('Latest team pack saved. Admin Start over applied.');
-          }
+          setStatus('error');
+          setError(
+            existing?.team?.teamCode
+              ? `This phone still has an OLD hunt pack (${existing.team.teamCode}). Turn Wi‑Fi / mobile data ON once, reopen THIS new link, and wait until it says “Latest team pack saved.” Then you can go offline.`
+              : 'Need Wi‑Fi or mobile data once to download this team pack. Airplane mode will not load a new link.',
+          );
           return;
         }
 
-        throw new Error('Need Wi‑Fi once to download your team pack.');
+        // Online: bust stale PWA shell once so old rounds hub JS cannot stick.
+        const bust = await bustStaleHuntShellOnce(urlToken).catch(() => ({ reloaded: false }));
+        if (bust?.reloaded) return;
+
+        const shell = await refreshHuntAppShell().catch(() => ({ waiting: false }));
+        if (!cancelled && shell?.waiting) {
+          setUpdateWaiting(true);
+          await applyWaitingHuntUpdate();
+          return;
+        }
+
+        const res = await fetchOfflineInstallPack(token);
+        const pack = res.data?.bundle || res.bundle;
+        if (!pack?.team?.teamCode) throw new Error('Install pack is empty');
+
+        // New link → wipe prior team state so old progress / rounds UI cannot linger.
+        if (existing?.team?.teamCode
+          && (!samePackLink
+            || String(existing.exportBatchId || '') !== String(pack.exportBatchId || ''))) {
+          await clearOfflineTeamState(existing.team.teamCode).catch(() => {});
+          await clearOfflineSession().catch(() => {});
+        }
+
+        const stamped = { ...pack, installToken: urlToken };
+        await saveOfflineBundle(stamped);
+        try {
+          await clearOfflineSession();
+        } catch { /* ignore */ }
+        rememberInstallToken(urlToken);
+        if (cancelled) return;
+        setTeam(stamped.team);
+        setPackMeta({
+          exportBatchId: stamped.exportBatchId || res.data?.exportBatchId || '',
+          exportedAt: stamped.exportedAt || '',
+        });
+        setStatus('ready');
+        setPackNote('Latest team pack saved. You can turn Wi‑Fi off after login.');
+        try {
+          await ackOfflineInstallPack(token, navigator.userAgent || '');
+        } catch { /* best-effort */ }
+        await warmupOfflineHunt().catch(() => {});
+        const sync = await applyServerStartOverIfNeeded(stamped).catch(() => null);
+        if (!cancelled && sync?.applied) {
+          setPackNote('Latest team pack saved. Admin Start over applied.');
+        }
       } catch (err) {
         if (cancelled) return;
         const existing = await loadOfflineBundle().catch(() => null);
-        if (existing?.team?.teamCode) {
+        const urlToken = String(token || '').trim();
+        const savedToken = String(existing?.installToken || '').trim();
+        if (existing?.team?.teamCode && savedToken && savedToken === urlToken) {
           setTeam(existing.team);
           setPackMeta({
             exportBatchId: existing.exportBatchId || '',
             exportedAt: existing.exportedAt || '',
           });
           setStatus('ready');
-          setPackNote('Using pack already on this phone.');
+          setPackNote('Using pack already on this phone (same link).');
           void warmupOfflineHunt().catch(() => {});
           return;
         }
         setStatus('error');
-        setError(err.message || 'Need Wi‑Fi once to download your team pack.');
+        setError(
+          err.message
+          || 'Need Wi‑Fi once to download your team pack. Do not open a new link in airplane mode.',
+        );
       }
     })();
     return () => { cancelled = true; };
   }, [token]);
 
   const goLogin = () => navigate(CAMPUS_HUNT_PATHS.offlineLogin);
+
+  const wipeAndRetry = async () => {
+    setStatus('loading');
+    setError('');
+    try {
+      const existing = await loadOfflineBundle().catch(() => null);
+      if (existing?.team?.teamCode) {
+        await clearOfflineTeamState(existing.team.teamCode).catch(() => {});
+      }
+      await clearOfflineSession().catch(() => {});
+      await clearOfflineBundle().catch(() => {});
+      await purgeHuntAppCaches();
+      try {
+        sessionStorage.removeItem(`ch_hunt_shell_bust_${String(token || '').slice(0, 48)}`);
+      } catch { /* ignore */ }
+      window.location.reload();
+    } catch (err) {
+      setStatus('error');
+      setError(err.message || 'Could not clear old pack');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#0b0c0d] px-4 py-10 text-white">
@@ -139,7 +197,20 @@ export default function OfflineHuntInstallPage() {
         ) : null}
 
         {status === 'error' ? (
-          <p className="mt-8 text-sm text-red-300">{error}</p>
+          <div className="mt-8 space-y-4">
+            <p className="text-sm text-red-300">{error}</p>
+            <button
+              type="button"
+              onClick={() => { void wipeAndRetry(); }}
+              className="w-full rounded-xl border border-amber-400/40 bg-amber-500/15 py-3 text-sm font-bold text-amber-100"
+            >
+              Clear old pack on this phone &amp; retry
+            </button>
+            <p className="text-[11px] leading-relaxed text-white/45">
+              New pack links need data ON for one download. Opening the home-screen Hunt icon
+              while offline only shows whatever was saved last time (often the old 3-round screen).
+            </p>
+          </div>
         ) : null}
 
         {status === 'ready' && team ? (
@@ -169,6 +240,14 @@ export default function OfflineHuntInstallPage() {
               className="w-full rounded-xl bg-[#0ECCEE] py-4 text-sm font-bold text-black"
             >
               {appInstalled ? 'Continue' : 'Continue to login'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { void wipeAndRetry(); }}
+              className="w-full text-center text-xs text-white/40 underline hover:text-white/60"
+            >
+              Still see old Round 1 / Survival / Finale? Clear pack &amp; reload
             </button>
           </div>
         ) : status === 'loading' ? null : (

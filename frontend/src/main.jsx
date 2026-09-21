@@ -98,9 +98,19 @@ if (import.meta.env.PROD && !isNativeApp() && 'serviceWorker' in navigator) {
           if (!('caches' in window)) return;
           caches.keys().then((keys) => {
             keys
-              .filter((key) => /api-cache/i.test(key))
+              .filter((key) => /api-cache|workbox|precache/i.test(key))
               .forEach((key) => caches.delete(key));
           }).catch(() => {});
+          try {
+            const path = window.location.pathname || '';
+            // Install links: check for a waiting SW immediately.
+            if (path.startsWith('/campus-hunt/offline/i/') && registration) {
+              registration.update?.().catch(() => {});
+              if (registration.waiting) {
+                updateSW?.(true);
+              }
+            }
+          } catch { /* ignore */ }
           // Opportunistically clear obsolete firebase messaging SW
           navigator.serviceWorker?.getRegistrations?.().then((registrations) => {
             registrations.forEach((reg) => {
