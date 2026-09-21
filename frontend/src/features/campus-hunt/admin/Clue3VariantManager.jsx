@@ -368,7 +368,7 @@ export default function Clue3VariantManager({
       </section>
 
       <p className="text-xs text-white/50">
-        Plant one physical lockbox per team with that team’s unique 4-digit code printed on it.
+        Plant one physical lockbox per team with that team’s unique code printed on it.
         No two teams share a code. After they type → blue THIRD SCAN → Field Terminal.
       </p>
 
