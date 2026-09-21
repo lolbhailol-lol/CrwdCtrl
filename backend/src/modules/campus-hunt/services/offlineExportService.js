@@ -763,7 +763,8 @@ async function resetTeamHuntProgress(team, {
   const nextScore = score != null ? Number(score) : startScore;
   const storedSeq = Number(team.offlineProgressSeq) || 0;
   const nextSeq = bumpSeq ? Math.max(storedSeq + 1, 1) : storedSeq;
-  const resetAt = new Date();
+  // Slightly future stamp so phones that wrote wall-clock appliedResetAt still pick this up.
+  const resetAt = new Date(Date.now() + 1500);
 
   await Promise.all([
     CampusHuntTeamProgress.deleteMany({ teamId: team._id }),
@@ -782,12 +783,13 @@ async function resetTeamHuntProgress(team, {
       hintsUsed: 0,
       failedAttempts: 0,
       manualPenalty: 0,
+      totalCompletionMs: 0,
     },
   };
   if (deviceId) $set.offlineDeviceId = String(deviceId).slice(0, 64);
 
-  await CampusHuntTeam.updateOne(
-    { _id: team._id },
+  const freshTeam = await CampusHuntTeam.findByIdAndUpdate(
+    team._id,
     {
       $set,
       $unset: {
@@ -797,12 +799,13 @@ async function resetTeamHuntProgress(team, {
         suddenDeathRank: 1,
         lastCheckpointNumber: 1,
         actualStartAt: 1,
+        scheduledStartAt: 1,
+        releasedAt: 1,
         'stats.totalCompletionMs': 1,
       },
     },
+    { new: true },
   );
-
-  const freshTeam = await CampusHuntTeam.findById(team._id);
   if (!freshTeam) {
     const err = new Error('Team not found after reset');
     err.status = 404;
@@ -820,7 +823,6 @@ async function resetTeamHuntProgress(team, {
         forceReset: true,
       });
     } catch (err) {
-      // Surface once — Start over must not silently leave a 2-round Zip pack.
       // eslint-disable-next-line no-console
       console.warn('[campus-hunt] Zip Grid reset failed on Start over:', err?.message || err);
       try {
@@ -840,10 +842,10 @@ async function resetTeamHuntProgress(team, {
 
   return {
     team: freshTeam,
-    score: freshTeam.currentScore,
-    stage: freshTeam.currentStage,
+    score: Number(freshTeam.currentScore) || nextScore,
+    stage: freshTeam.currentStage || 'WAITING',
     seq: freshTeam.offlineProgressSeq,
-    offlineResetAt: freshTeam.offlineResetAt,
+    offlineResetAt: freshTeam.offlineResetAt || resetAt,
   };
 }
 

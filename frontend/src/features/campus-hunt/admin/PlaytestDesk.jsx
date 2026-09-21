@@ -107,12 +107,27 @@ export default function PlaytestDesk({
   const [revealError, setRevealError] = useState('');
   const [busy, setBusy] = useState('');
   const [note, setNote] = useState('');
+  /** Optimistic patch after Start over so Lobby · 265 cannot stick until parent poll. */
+  const [teamPatch, setTeamPatch] = useState(null);
 
   useEffect(() => {
     if (!teamId && sorted[0]?._id) setTeamId(String(sorted[0]._id));
   }, [sorted, teamId]);
 
-  const team = sorted.find((t) => String(t._id) === String(teamId)) || null;
+  useEffect(() => {
+    if (!teamPatch || !teamBase) return;
+    if (
+      String(teamBase.currentStage) === 'WAITING'
+      && Number(teamBase.currentScore) === Number(teamPatch.currentScore)
+    ) {
+      setTeamPatch(null);
+    }
+  }, [teamBase, teamPatch]);
+
+  const teamBase = sorted.find((t) => String(t._id) === String(teamId)) || null;
+  const team = teamBase && teamPatch && String(teamPatch._id || teamPatch.id) === String(teamId)
+    ? { ...teamBase, ...teamPatch }
+    : teamBase;
   const Orange = stationForTeam(stations, team?.teamCode, '1');
   const green = stationForTeam(stations, team?.teamCode, '2');
   const blue = stationForTeam(stations, team?.teamCode, '3');
@@ -256,9 +271,10 @@ export default function PlaytestDesk({
   const startOver = async () => {
     if (!teamId) return;
     if (!window.confirm(
-      `Start over ${team?.teamCode || 'this team'}?\n`
-      + 'Score → 100 · progress wiped · Zip Grid reset.\n'
-      + 'Leader phone picks this up on Wi‑Fi (needs start code again).',
+      `Start over ${team?.teamCode || 'this team'}?\n\n`
+      + 'Board → Waiting · 100 pts\n'
+      + 'Clue progress + scans + Zip Grid wiped\n'
+      + 'Leader phone resets on Wi‑Fi (needs start code again)',
     )) return;
     setBusy('reset');
     setNote('');
@@ -266,13 +282,19 @@ export default function PlaytestDesk({
       const res = await adminPlaytestResetTeam(teamId, {
         reason: 'Playtest desk — start over',
       });
-      const at = res?.data?.offlineResetAt
-        ? new Date(res.data.offlineResetAt).toLocaleTimeString()
-        : '';
+      const data = res?.data || {};
+      const nextScore = Number(data.currentScore ?? data.scoresResetTo ?? 100);
+      const nextStage = data.currentStage || 'WAITING';
+      setTeamPatch({
+        _id: teamId,
+        currentScore: nextScore,
+        currentStage: nextStage,
+        status: 'registered',
+        finalScore: undefined,
+      });
       setNote(
-        at
-          ? `Start over done · board + Zip cleared · phone sync stamp ${at}`
-          : 'Start over done — live board + Zip cleared. Phone updates on Wi‑Fi.',
+        data.message
+        || `Reset done — Now ${stageLabel(nextStage)} · ${nextScore} pts. Phone updates on Wi‑Fi.`,
       );
       await onChanged?.();
     } catch (err) {

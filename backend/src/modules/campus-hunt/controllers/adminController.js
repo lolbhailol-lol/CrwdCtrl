@@ -3447,7 +3447,7 @@ async function playtestCompleteScan(req, res, next) {
  * Playtest: wipe one team's progress so you can start the flow again.
  * Keeps schedule binding (start point / clue IDs). Score → startingScore (100).
  * Stamps offlineResetAt + bumps seq so the leader phone resets on next Wi‑Fi open.
- * Stays WAITING — offline phones still need the shared start code (not schedule RELEASED).
+ * Stays WAITING — offline phones still need the shared start code.
  */
 async function playtestResetTeam(req, res, next) {
   try {
@@ -3458,7 +3458,9 @@ async function playtestResetTeam(req, res, next) {
     const before = {
       currentStage: team.currentStage,
       currentScore: team.currentScore,
+      finalScore: team.finalScore,
       startStatus: team.startStatus,
+      status: team.status,
       offlineProgressSeq: team.offlineProgressSeq,
       offlineResetAt: team.offlineResetAt,
     };
@@ -3471,32 +3473,8 @@ async function playtestResetTeam(req, res, next) {
       forceGridReset: true,
     });
 
-    // Ensure stamp is strictly after any prior phone localStorage wall-clock write.
-    const resetAt = new Date(Date.now() + 1500);
-    await CampusHuntTeam.updateOne(
-      { _id: team._id },
-      {
-        $set: {
-          offlineResetAt: resetAt,
-          startStatus: 'WAITING',
-          currentStage: 'WAITING',
-          status: 'registered',
-        },
-        $unset: {
-          scheduledStartAt: 1,
-          actualStartAt: 1,
-          finalScore: 1,
-          scoreLockedAt: 1,
-          finishedAt: 1,
-        },
-      },
-    );
+    // Re-read after Zip reset so UI gets the true board state.
     const unlocked = await CampusHuntTeam.findById(team._id);
-
-    try {
-      const { publishTeamProgress } = require('../services/teamProgressBus');
-      publishTeamProgress(team._id);
-    } catch (_) { /* best-effort */ }
 
     await writeAudit({
       eventId: team.eventId,
@@ -3510,8 +3488,9 @@ async function playtestResetTeam(req, res, next) {
         currentStage: unlocked?.currentStage || 'WAITING',
         currentScore: unlocked?.currentScore ?? result.score,
         startStatus: unlocked?.startStatus || 'WAITING',
+        status: unlocked?.status || 'registered',
         offlineProgressSeq: unlocked?.offlineProgressSeq,
-        offlineResetAt: unlocked?.offlineResetAt || resetAt,
+        offlineResetAt: unlocked?.offlineResetAt || result.offlineResetAt,
       },
     });
 
@@ -3520,9 +3499,11 @@ async function playtestResetTeam(req, res, next) {
       data: {
         team: unlocked || result.team,
         scoresResetTo: startScore,
-        offlineResetAt: unlocked?.offlineResetAt || resetAt,
+        currentStage: unlocked?.currentStage || 'WAITING',
+        currentScore: unlocked?.currentScore ?? startScore,
+        offlineResetAt: unlocked?.offlineResetAt || result.offlineResetAt,
         seq: unlocked?.offlineProgressSeq ?? result.seq,
-        message: 'Team start-over on live board + Zip. Leader phone resets on Wi‑Fi, then needs the start code again.',
+        message: `Reset ${unlocked?.teamCode || team.teamCode}: Waiting · ${unlocked?.currentScore ?? startScore} pts. Phone updates on Wi‑Fi, then needs start code.`,
       },
     });
   } catch (err) {
