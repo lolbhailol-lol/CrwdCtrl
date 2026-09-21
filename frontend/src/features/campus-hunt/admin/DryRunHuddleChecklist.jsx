@@ -264,7 +264,7 @@ function LocationWriteHereBox({ codesHere, propsHere, plantFragments = [], joine
             </p>
           ) : (
             <p className="mt-2 text-[10px] text-amber-200 print:text-[9px] print:text-amber-900">
-              Missing joined word — set in Clues → Plant fragments.
+              Missing joined word — set in Places → Plant fragments.
             </p>
           )}
         </div>
