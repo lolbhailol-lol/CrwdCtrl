@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 const RESOLVED = new Set(['COMPLETED', 'FAILED', 'TIMEOUT', 'TIMED_OUT']);
 
 function revealAnswerLabel(challengeNumber) {
-  if (challengeNumber === 2) return '3-digit code';
+  if (challengeNumber === 2) return 'Join-word';
   if (challengeNumber === 4) return 'GRID code';
   if (challengeNumber === 5) return 'Clue 5 word';
   if (challengeNumber === 6) return 'Destination';

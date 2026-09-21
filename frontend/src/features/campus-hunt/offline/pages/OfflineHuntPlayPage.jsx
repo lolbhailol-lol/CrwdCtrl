@@ -411,7 +411,7 @@ export default function OfflineHuntPlayPage() {
         onLeaveRound={() => navigate(CAMPUS_HUNT_PATHS.offlineRounds)}
         actions={actions}
         offlineMode
-        roundLabel="Round 1 · Offline"
+        roundLabel="The Hunt · Offline"
         backTo={CAMPUS_HUNT_PATHS.offlineRounds}
         backLabel="← Rounds"
         checkpointExtra={

@@ -117,16 +117,18 @@ function buildRoster(team) {
     memberKey: 'leader',
   }];
   const memberNames = team.memberNames || [];
-  for (let i = 0; i < Math.max(memberNames.length, scanners.length, 3); i += 1) {
-    if (i >= 3) break;
+  const walkerCount = Math.max(memberNames.length, scanners.length);
+  for (let i = 0; i < walkerCount; i += 1) {
+    const name = scanners[i]?.name || memberNames[i];
+    if (!name) continue;
     roster.push({
       slot: i + 1,
-      role: 'member',
-      name: scanners[i]?.name || memberNames[i] || `Player ${i + 1}`,
+      role: 'walker',
+      name,
       memberKey: `member${i + 1}`,
     });
   }
-  return roster.slice(0, 4);
+  return roster;
 }
 
 function serializeChallenge(ch) {
@@ -154,16 +156,24 @@ function serializeChallenge(ch) {
 
 const {
   resolveCampusStationsCatalog,
+  DEFAULT_STATION_JOINED_WORDS,
+  splitPlantFragments,
 } = require('./stationCatalogService');
 
 function stationPlantMap(event) {
   const map = new Map();
+  const teamSize = Math.max(2, Math.min(12, Number(event?.teamSize) || 4));
   for (const row of resolveCampusStationsCatalog(event) || []) {
     const code = String(row.code || '').toUpperCase();
     if (!code) continue;
+    let plantFragments = Array.isArray(row.plantFragments) ? row.plantFragments : [];
+    let joinedWord = String(row.joinedWord || DEFAULT_STATION_JOINED_WORDS[code] || '').trim();
+    if (joinedWord && plantFragments.length < teamSize) {
+      plantFragments = splitPlantFragments(joinedWord, teamSize);
+    }
     map.set(code, {
-      plantFragments: Array.isArray(row.plantFragments) ? row.plantFragments : [],
-      joinedWord: String(row.joinedWord || '').trim(),
+      plantFragments,
+      joinedWord,
     });
   }
   return map;
@@ -404,7 +414,7 @@ async function exportOfflinePacks(eventId) {
       checkpoints: stops.filter(Boolean),
       placePosters,
       opsNotes: {
-        install: 'Leader downloads this team pack on Wi‑Fi before fest and installs Hunt on their phone. Whole team (~9–10) walks with that one phone; works offline.',
+        install: 'ONE pack per team — WhatsApp the leader only. Leader installs Hunt on their phone on Wi‑Fi before fest. Whole team walks with that one phone; works offline. Do not send packs to every member.',
         checkpointFlow: 'At each of 5 stops: find plant fragments → join word → type → scan place poster once → team code. Clue 6 → Finale Assembly.',
         posters: 'ONE shared QR per campus place × scan stage 1–5. Phone already knows the stage.',
       },

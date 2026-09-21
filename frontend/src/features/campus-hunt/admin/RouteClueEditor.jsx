@@ -128,7 +128,7 @@ export default function RouteClueEditor({
   campusStarts,
   onChanged,
   stationCount = null,
-  teamCapacity = 40,
+  teamCapacity = 20,
   teamSize = 4,
   teamsPerWait,
   teamsPerStation,
@@ -472,17 +472,17 @@ export default function RouteClueEditor({
           {number === 2 ? (
             <>
               <p className="mt-1 text-sm text-[#0ECCEE]">
-                {stations.length} places · ~{perStation} teams each
+                {stations.length} places · {perStation === 1 ? '1 team each' : `~${perStation} teams each`}
               </p>
               <p className="mt-1 text-xs text-white/50">
-                After Clue 1 scans unlock Clue 2. Leader solves the timed code, then each team
-                goes to their second campus place (next stop after first scan).
+                After Clue 1, teams go to their second campus place. Shared plant slips → one join-word
+                (same for every team at that stop) → green scan. Not a different code per team.
               </p>
             </>
           ) : number === 4 ? (
             <>
               <p className="mt-1 text-sm text-[#0ECCEE]">
-                {stations.length} places · Field Terminal · ~{perStation} teams each
+                {stations.length} places · Field Terminal · {perStation === 1 ? '1 team each' : `~${perStation} teams each`}
               </p>
               <p className="mt-1 text-xs text-white/50">
                 Timed Field Terminal / GRID code at the fourth campus stop, then purple QR.
@@ -496,8 +496,8 @@ export default function RouteClueEditor({
                 {selectedRoute ? ` (${pathLabel(selectedRoute, starts)})` : ''}
               </p>
               <p className="mt-1 text-xs text-white/50">
-                All {people} get code fragments. After the word, go to the 5th campus stop
-                (red FIFTH SCAN), then unlock Clue 6 → Finale Assembly.
+                All {people} get fragments on the leader phone. After the word, go to the 5th campus stop
+                (red FIFTH SCAN), then unlock Clue 6 → Mindspark Lobby.
               </p>
             </>
           ) : (
@@ -657,12 +657,11 @@ export default function RouteClueEditor({
             {number === 2 ? (
               <>
                 <p className="font-semibold text-[#0ECCEE]">
-                  {pathLabel(selectedRoute, starts)} · timed Clue 2 (3-digit code)
+                  {pathLabel(selectedRoute, starts)} · Clue 2 (shared plant join-word)
                 </p>
                 <p className="mt-1 text-[11px] text-white/60">
-                  Same clue text for Teams {globalTeamNumber(selectedWait, 1, perWait)}–
-                  {globalTeamNumber(selectedWait, perWait, perWait)}. After they solve, each team
-                  goes to their second stop above (not a starting point).
+                  Same plant slips for every team at the second stop. Leaders join the word, type it,
+                  then scan green — not a unique code per team.
                 </p>
               </>
             ) : number === 4 ? (
@@ -681,7 +680,7 @@ export default function RouteClueEditor({
                   {pathLabel(selectedRoute, starts)} · Clue 5 word {clue5Word} → red scan {takesTo}
                 </p>
                 <p className="mt-1 text-[11px] text-white/60">
-                  {people} code fragments (one per teammate). After the word → red FIFTH SCAN → Clue 6 → Finale Assembly.
+                  {people} fragments on the leader phone (read aloud). After the word → red FIFTH SCAN → Clue 6 → Mindspark Lobby.
                 </p>
               </>
             ) : (

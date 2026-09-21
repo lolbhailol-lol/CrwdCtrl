@@ -372,7 +372,7 @@ export default function TeamLoginForm({
             <p className="mt-3 text-sm text-white/45">Opening team…</p>
           )}
           {sessionCheck === 'checking' && !lookingUp && (
-            <p className="mt-3 text-sm text-white/45">Opening rounds…</p>
+            <p className="mt-3 text-sm text-white/45">Opening hunt…</p>
           )}
         </div>
 

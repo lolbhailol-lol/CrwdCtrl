@@ -21,13 +21,13 @@ export default function OfflineHuntBriefing({
             onClick={onBackToRounds}
             className="text-xs text-white/45"
           >
-            ← Rounds
+            ← Hub
           </button>
         ) : null}
         <div className="mt-3 flex items-start justify-between gap-4">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#0ECCEE]">
-              Round 1 · Offline
+              The Hunt · Offline
             </p>
             <h1 className="mt-1 text-[1.35rem] font-semibold">
               {bundle?.team?.teamCode}
@@ -52,7 +52,7 @@ export default function OfflineHuntBriefing({
               onClick={onStartHunt}
               className="mt-4 w-full rounded-xl bg-[#0ECCEE] py-3.5 text-sm font-bold text-black disabled:opacity-50"
             >
-              {starting ? 'Starting…' : 'Start Round 1'}
+              {starting ? 'Starting…' : 'Start the hunt'}
             </button>
           ) : (
             <p className="mt-4 text-center text-sm text-white/50">

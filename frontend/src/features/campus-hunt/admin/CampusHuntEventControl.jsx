@@ -33,8 +33,11 @@ import FinishReturnBoard from './FinishReturnBoard';
 import LiveOpsTools from './LiveOpsTools';
 import CampusHuntRoundsHub from './CampusHuntRoundsHub';
 import SendLinksPanel from './SendLinksPanel';
+import CampusStationNamesEditor from './CampusStationNamesEditor';
+import StationPlantFragmentsPanel from './StationPlantFragmentsPanel';
 import { deriveCompetitionFormat } from './competitionFormat';
 import { applyRound1Scale } from './applyRound1Scale';
+import { STATION_TARGET_COUNT } from './campusHuntFormat';
 
 export default function CampusHuntEventControl() {
   const { eventId } = useParams();
@@ -57,42 +60,82 @@ export default function CampusHuntEventControl() {
   const [refreshError, setRefreshError] = useState('');
 
   const refresh = useCallback(async () => {
-    const [ov, live] = await Promise.all([
+    const softMsg = (err) => {
+      const status = err?.status;
+      if (status === 503 || status === 502 || status === 504 || err?.code === 'DB_UNAVAILABLE') {
+        return 'Database briefly unavailable — retrying…';
+      }
+      if (err?.code === 'TIMEOUT' || /timed out/i.test(err?.message || '')) {
+        return 'Refresh timed out — retrying…';
+      }
+      return err?.message || 'Refresh failed';
+    };
+
+    const [ovResult, liveResult] = await Promise.allSettled([
       adminGetOverview(eventId),
       adminLiveTeams(eventId),
     ]);
-    setOverview(ov.data);
-    setTeams(live.data?.teams || []);
+
+    if (ovResult.status === 'fulfilled') {
+      setOverview(ovResult.value.data);
+    }
+    if (liveResult.status === 'fulfilled') {
+      setTeams(liveResult.value.data?.teams || []);
+    }
+
+    if (ovResult.status === 'rejected' && liveResult.status === 'rejected') {
+      throw ovResult.reason || liveResult.reason;
+    }
 
     if (activeRound === 'round1' && tab === 'results') {
-      const [lb, ch, auditResult] = await Promise.all([
+      const [lb, ch, auditResult] = await Promise.allSettled([
         adminLeaderboard(eventId),
         adminChallengeMonitor(eventId),
         adminListAudit(eventId),
       ]);
-      setLeaderboard(lb.data?.leaderboard || []);
-      setChallengeMon(ch.data);
-      setAudit(auditResult.data?.logs || []);
+      if (lb.status === 'fulfilled') setLeaderboard(lb.value.data?.leaderboard || []);
+      if (ch.status === 'fulfilled') setChallengeMon(ch.value.data);
+      if (auditResult.status === 'fulfilled') setAudit(auditResult.value.data?.logs || []);
     } else if (activeRound === 'round1' && tab === 'live') {
-      const [cp, st, iss] = await Promise.all([
+      const [cp, st, iss] = await Promise.allSettled([
         adminCheckpointMonitor(eventId),
-        adminListStationQr(eventId).catch(() => ({ data: { stations: [] } })),
+        adminListStationQr(eventId),
         adminListIssues(eventId),
       ]);
-      setCheckpointMon(cp.data);
-      setStations(st.data?.stations || []);
-      setIssues(iss.data?.issues || []);
+      if (cp.status === 'fulfilled') setCheckpointMon(cp.value.data);
+      if (st.status === 'fulfilled') setStations(st.value.data?.stations || []);
+      if (iss.status === 'fulfilled') setIssues(iss.value.data?.issues || []);
     }
+
+    const softFail = ovResult.status === 'rejected'
+      ? ovResult.reason
+      : liveResult.status === 'rejected'
+        ? liveResult.reason
+        : null;
     setLastRefresh(new Date());
-    setRefreshError('');
+    setRefreshError(softFail ? softMsg(softFail) : '');
   }, [eventId, tab, activeRound]);
 
   useEffect(() => {
-    refresh().catch((err) => setRefreshError(err.message));
+    refresh().catch((err) => {
+      const status = err?.status;
+      if (status === 503 || status === 502 || err?.code === 'DB_UNAVAILABLE') {
+        setRefreshError('Database briefly unavailable — retrying…');
+      } else {
+        setRefreshError(err.message);
+      }
+    });
     // Poll often only on Live / Results. Setup tabs don't need constant refresh.
     const pollMs = (tab === 'live' || tab === 'results') ? 10000 : 45000;
     const id = setInterval(() => {
-      refresh().catch((err) => setRefreshError(err.message));
+      refresh().catch((err) => {
+        const status = err?.status;
+        if (status === 503 || status === 502 || err?.code === 'DB_UNAVAILABLE') {
+          setRefreshError('Database briefly unavailable — retrying…');
+        } else {
+          setRefreshError(err.message);
+        }
+      });
     }, pollMs);
     return () => clearInterval(id);
   }, [refresh, tab]);
@@ -383,13 +426,39 @@ export default function CampusHuntEventControl() {
           )}
 
           {tab === 'locations' && (
-            <StartingSystemPanel
-              eventId={eventId}
-              roundId={round1?._id}
-              mode="setup"
-              eventMeta={huntLayoutMeta}
-              onChanged={() => refresh().catch(() => {})}
-            />
+            <div className="space-y-4">
+              <CampusStationNamesEditor
+                eventId={eventId}
+                campusStations={overview?.campusStationsCatalog || overview?.campusStations || overview?.event?.campusStations}
+                campusStarts={overview?.campusStarts || overview?.event?.campusStarts}
+                startCount={overview?.startCount ?? overview?.event?.startCount ?? 1}
+                stationCount={overview?.stationCount ?? overview?.event?.stationCount ?? STATION_TARGET_COUNT}
+                teamCapacity={competitionFormat.teamCapacity}
+                teamSize={competitionFormat.teamSize}
+                onChanged={() => refresh().catch(() => {})}
+              />
+              <StationPlantFragmentsPanel
+                eventId={eventId}
+                campusStations={overview?.campusStationsCatalog || overview?.campusStations || overview?.event?.campusStations}
+                stationCount={overview?.stationCount ?? overview?.event?.stationCount ?? STATION_TARGET_COUNT}
+                teamSize={competitionFormat.teamSize}
+                onChanged={() => refresh().catch(() => {})}
+              />
+              <details className="rounded-xl border border-white/10 bg-white/4 px-4 py-3">
+                <summary className="cursor-pointer text-sm font-semibold text-white/70">
+                  Gather point & release schedule
+                </summary>
+                <div className="mt-3">
+                  <StartingSystemPanel
+                    eventId={eventId}
+                    roundId={round1?._id}
+                    mode="setup"
+                    eventMeta={huntLayoutMeta}
+                    onChanged={() => refresh().catch(() => {})}
+                  />
+                </div>
+              </details>
+            </div>
           )}
 
           {tab === 'teams' && (

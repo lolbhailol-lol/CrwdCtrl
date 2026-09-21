@@ -221,7 +221,7 @@ export default function PlaytestDesk({
       setNote('Released — Clue 1 unlocked on leader phone.');
       await onChanged?.();
     } catch (err) {
-      setNote(err.message || 'Release failed — is Round 1 live & schedule locked?');
+      setNote(err.message || 'Release failed — is the hunt live & schedule locked?');
     } finally {
       setBusy('');
     }
@@ -313,20 +313,20 @@ export default function PlaytestDesk({
           </p>
           <h2 className="mt-1 text-lg font-bold text-white">One team · tap in order</h2>
           <p className="mt-1 text-sm text-white/55">
-            Release → Orange → Green → Blue → Purple → Red → Clue 6 → Finale
+            Release → Orange → Green → Blue → Purple → Red → Clue 6 → Lobby
             (real play still needs join-word on the leader phone)
           </p>
         </div>
         {roundStatus && (
           <span className="rounded-full bg-black/40 px-3 py-1 text-xs text-white/60">
-            Round: {roundStatus}
+            Hunt: {roundStatus}
           </span>
         )}
       </div>
 
       {roundStatus !== 'live' && (
         <p className="mt-3 rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-          Round must be <strong>live</strong> first (Schedule → Lock → Start Round 1).
+          Round must be <strong>live</strong> first (Schedule → Lock → Start the hunt).
         </p>
       )}
 
@@ -427,7 +427,7 @@ export default function PlaytestDesk({
           <p className="text-sm font-bold text-rose-100">
             {busy === 'finish' ? '…' : 'Mark finish'}
           </p>
-          <p className="mt-0.5 text-[11px] text-rose-100/50">After Clue 6 → Finale</p>
+          <p className="mt-0.5 text-[11px] text-rose-100/50">After Clue 6 → Mindspark Lobby</p>
         </button>
       </div>
 

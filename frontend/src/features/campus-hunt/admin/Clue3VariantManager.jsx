@@ -188,7 +188,7 @@ export default function Clue3VariantManager({
 
   const saveAll = async () => {
     if (!eventId || !roundId) {
-      setError('Create Round 1 first');
+      setError('Create the hunt first');
       return;
     }
     if (orderedPoints.length < 1) {
@@ -282,7 +282,7 @@ export default function Clue3VariantManager({
           Blue · riddle first, then scan CP3
         </span>
         <span className="rounded-full bg-white/10 px-2.5 py-1 text-white/55">
-          {stations.length} places · ~{teamsPerStation} teams each
+          {stations.length} places · {teamsPerStation === 1 ? '1 team each' : `~${teamsPerStation} teams each`}
         </span>
         <span className={`rounded-full px-2.5 py-1 ${
           savedCount >= teamCapacity

@@ -64,7 +64,7 @@ export default function CampusHuntLandingPage() {
           <p className="text-sm text-white/60">
             Your organizer shared a link like{' '}
             <span className="font-mono text-white/80">…/team/CC001</span>.
-            Open that — enter the password and tap your name. Stay in after that.
+            Open that — enter the password as Team Leader. Stay in after that.
           </p>
         )}
       </div>

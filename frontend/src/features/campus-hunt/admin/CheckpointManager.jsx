@@ -604,7 +604,7 @@ export default function CheckpointManager({
         >
           {busy ? 'Saving…' : editingId ? 'Save checkpoint' : 'Create checkpoint'}
         </button>
-        {!roundId && <p className="text-xs text-amber-200">Create Round 1 before adding checkpoints.</p>}
+        {!roundId && <p className="text-xs text-amber-200">Create the hunt before adding checkpoints.</p>}
         {message && <p className="text-sm text-[#0ECCEE]">{message}</p>}
       </form>
       )}

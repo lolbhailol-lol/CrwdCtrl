@@ -212,6 +212,121 @@ const DEFAULT_CAMPUS_STATIONS = [
 
 const DEFAULT_DESTINATION_NAME = 'Mindspark Lobby';
 
+/**
+ * Shared join-word per campus stop (Neurosprint / COEP).
+ * Plant slips = split of this word across teamSize people.
+ */
+const DEFAULT_STATION_JOINED_WORDS = {
+  S01: 'THRUSTJET',
+  S05: 'CALCULUS',
+  S02: 'SIGNALHUB',
+  S06: 'FORGESTEEL',
+  S03: 'ANCHORBOAT',
+  S07: 'FOSSILROCK',
+  S04: 'REACTANTS',
+  S09: 'ENGINEER',
+  S10: 'STARTUPHUB',
+  S11: 'WATERSPRAY',
+  S14: 'GAZEBOPARK',
+  S12: 'BOOKSTACKS',
+  S18: 'BINARYCODE',
+  S13: 'MAKERSPACE',
+  S15: 'ALUMNIBOND',
+  S19: 'MARCHDRILL',
+  S16: 'SIDEENTRY',
+  S08: 'UNDERPASS',
+  S17: 'COPYPRINTS',
+  S20: 'FOUNDATION',
+};
+
+function splitPlantFragments(joinedWord, teamSize = 4) {
+  const people = Math.max(2, Math.min(12, Number(teamSize) || 4));
+  const raw = String(joinedWord || 'QUEST').replace(/[^A-Za-z0-9]/g, '').toUpperCase() || 'QUEST';
+  const len = Math.max(people, raw.length);
+  const padded = raw.padEnd(len, 'X');
+  const size = Math.ceil(padded.length / people);
+  return Array.from({ length: people }, (_, i) => (
+    padded.slice(i * size, (i + 1) * size) || 'X'
+  ));
+}
+
+/** Fill missing joinedWord + plantFragments for a station list (mutates copies). */
+function withStationPlantDefaults(stations, teamSize = 4) {
+  const people = Math.max(2, Math.min(12, Number(teamSize) || 4));
+  return (Array.isArray(stations) ? stations : []).map((row) => {
+    const code = String(row?.code || '').toUpperCase().trim();
+    const joinedWord = String(row?.joinedWord || DEFAULT_STATION_JOINED_WORDS[code] || '')
+      .replace(/[^A-Za-z0-9]/g, '')
+      .toUpperCase();
+    const existing = Array.isArray(row?.plantFragments)
+      ? row.plantFragments.map((f) => String(f || '').trim()).filter(Boolean)
+      : [];
+    const plantFragments = existing.length >= people
+      ? existing.slice(0, people)
+      : (joinedWord ? splitPlantFragments(joinedWord, people) : existing);
+    return {
+      ...row,
+      code,
+      ...(joinedWord ? { joinedWord } : {}),
+      ...(plantFragments.length ? { plantFragments } : {}),
+    };
+  });
+}
+
+async function syncStationPlantsToCheckpoints(eventId, stations) {
+  let updated = 0;
+  for (const row of stations || []) {
+    const code = String(row?.code || '').toUpperCase().trim();
+    if (!code) continue;
+    const plantFragments = Array.isArray(row.plantFragments)
+      ? row.plantFragments.map((f) => String(f || '').trim()).filter(Boolean)
+      : [];
+    const joinedWord = String(row.joinedWord || '').trim().toUpperCase();
+    if (!plantFragments.length && !joinedWord) continue;
+    // eslint-disable-next-line no-await-in-loop
+    const result = await CampusHuntCheckpoint.updateMany(
+      { eventId, stationCode: code },
+      {
+        $set: {
+          ...(plantFragments.length ? { plantFragments } : {}),
+          ...(joinedWord ? { joinedWord } : {}),
+        },
+      },
+    );
+    updated += result.modifiedCount || 0;
+  }
+  return updated;
+}
+
+/** Ensure event catalog has join-words + plant slips for current teamSize. */
+async function ensureEventStationPlants(event, { force = false } = {}) {
+  const teamSize = Math.max(2, Math.min(12, Number(event?.teamSize) || 4));
+  const current = normalizeStationList(event?.campusStations);
+  const next = withStationPlantDefaults(
+    current.map((row) => {
+      if (!force) return row;
+      const code = String(row.code || '').toUpperCase();
+      const joinedWord = DEFAULT_STATION_JOINED_WORDS[code] || row.joinedWord;
+      return {
+        ...row,
+        joinedWord,
+        plantFragments: joinedWord ? splitPlantFragments(joinedWord, teamSize) : [],
+      };
+    }),
+    teamSize,
+  );
+  event.campusStations = next;
+  event.markModified?.('campusStations');
+  await event.save();
+  const synced = await syncStationPlantsToCheckpoints(event._id, next);
+  return {
+    stations: resolveCampusStations(event),
+    catalog: next,
+    checkpointsSynced: synced,
+    teamSize,
+  };
+}
+
 const DEFAULT_CAMPUS_STARTS = [
   { code: 'A', name: 'Library' },
   { code: 'B', name: 'Chanakya Porch' },
@@ -236,7 +351,9 @@ function normalizeStationList(input) {
     const plantFragments = Array.isArray(row.plantFragments)
       ? row.plantFragments.map((f) => String(f || '').trim()).filter(Boolean)
       : undefined;
-    const joinedWord = String(row.joinedWord || '').trim();
+    const joinedWord = String(row.joinedWord || DEFAULT_STATION_JOINED_WORDS[code] || '')
+      .replace(/[^A-Za-z0-9]/g, '')
+      .toUpperCase();
     const zone = String(row.zone || '').trim();
     const riddle = String(row.riddle || '').trim();
     const prev = byCode.get(code);
@@ -245,11 +362,23 @@ function normalizeStationList(input) {
       name,
       zone: zone || prev.zone,
       riddle: riddle || prev.riddle,
-      ...(plantFragments?.length ? { plantFragments } : {}),
       ...(joinedWord ? { joinedWord } : {}),
+      ...(plantFragments?.length
+        ? { plantFragments }
+        : (joinedWord ? { plantFragments: splitPlantFragments(joinedWord, 4) } : {})),
     });
   });
-  return DEFAULT_CAMPUS_STATIONS.map((station) => byCode.get(station.code));
+  return DEFAULT_CAMPUS_STATIONS.map((station) => {
+    const row = byCode.get(station.code);
+    const joinedWord = String(row.joinedWord || DEFAULT_STATION_JOINED_WORDS[station.code] || '')
+      .replace(/[^A-Za-z0-9]/g, '')
+      .toUpperCase();
+    if (!joinedWord) return row;
+    const plantFragments = Array.isArray(row.plantFragments) && row.plantFragments.length
+      ? row.plantFragments
+      : splitPlantFragments(joinedWord, 4);
+    return { ...row, joinedWord, plantFragments };
+  });
 }
 
 /** Normalize wait code from A / START-A / similar (matches startScheduleService). */
@@ -341,6 +470,7 @@ module.exports = {
   DEFAULT_CAMPUS_STARTS,
   DEFAULT_DESTINATION_NAME,
   DEFAULT_ORGANIZER_FINISH_CODE,
+  DEFAULT_STATION_JOINED_WORDS,
   clampCount,
   normalizeStationList,
   normalizeWaitCode,
@@ -356,6 +486,10 @@ module.exports = {
   clue1ForPlace,
   updateCampusStations,
   replacePlaceText,
+  splitPlantFragments,
+  withStationPlantDefaults,
+  syncStationPlantsToCheckpoints,
+  ensureEventStationPlants,
 };
 
 /** Full catalog with custom names (for admin rename UI). */
@@ -423,6 +557,9 @@ async function updateCampusStations({
   event.stationCount = nextStationCount;
   event.startCount = nextStartCount;
   await event.save();
+
+  // Keep plant fragments / joined words on live checkpoint docs for offline packs.
+  const plantsSynced = await syncStationPlantsToCheckpoints(event._id, next);
 
   // Keep live starting-point docs in sync with active names / count.
   for (let i = 0; i < DEFAULT_CAMPUS_STARTS.length; i += 1) {
@@ -542,6 +679,7 @@ async function updateCampusStations({
     renames,
     checkpointsUpdated,
     challengesUpdated,
+    plantsSynced,
     actor,
     reason,
   };

@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const adminAuth = require('../../../middleware/adminAuth');
 const { campusHuntAdminLimiter } = require('../../../middleware/rateLimiter');
 const adminController = require('../controllers/adminController');
@@ -6,8 +7,18 @@ const finaleController = require('../controllers/finaleController');
 
 const router = express.Router();
 
+function requireDbReady(req, res, next) {
+  if (mongoose.connection.readyState === 1) return next();
+  return res.status(503).json({
+    success: false,
+    message: 'Database briefly unavailable — try again in a few seconds.',
+    code: 'DB_UNAVAILABLE',
+  });
+}
+
 router.use(adminAuth);
 router.use(campusHuntAdminLimiter);
+router.use(requireDbReady);
 
 router.get('/events', adminController.listEvents);
 router.post('/events', adminController.createEvent);

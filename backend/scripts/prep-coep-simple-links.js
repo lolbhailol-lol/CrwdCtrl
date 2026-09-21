@@ -21,6 +21,11 @@ const { generateSchedule } = require('../src/modules/campus-hunt/services/startS
 const { provisionTeamRoster } = require('../src/modules/campus-hunt/services/rosterProvisionService');
 const { isTeamPasswordReady } = require('../src/modules/campus-hunt/utils/roster');
 const { selectCompetitionTeams } = require('../src/modules/campus-hunt/services/startScheduleService');
+const {
+  ensureEventStationPlants,
+  DEFAULT_STATION_JOINED_WORDS,
+} = require('../src/modules/campus-hunt/services/stationCatalogService');
+const { exportOfflinePacks } = require('../src/modules/campus-hunt/services/offlineExportService');
 
 const ACTOR = { actorType: 'script', actorId: 'prep-coep-simple-links' };
 const DEFAULT_PASSWORD = 'COEP2026';
@@ -93,6 +98,21 @@ async function main() {
   const pruned = await pruneExcessTeams(event._id);
   console.log('Prune:', pruned);
 
+  // Force COEP join-words + plant slips sized to teamSize.
+  const plants = await ensureEventStationPlants(event, { force: true });
+  console.log(
+    'Plants:',
+    plants.catalog.filter((s) => s.joinedWord).length,
+    'stops with join-words ·',
+    'teamSize',
+    plants.teamSize,
+    '· checkpoints synced',
+    plants.checkpointsSynced,
+  );
+  console.log('Sample:', plants.catalog.slice(0, 3).map((s) => (
+    `${s.code}=${s.joinedWord}[${(s.plantFragments || []).join('|')}]`
+  )).join(' · '));
+
   const boot = await bootstrapRound1Defaults({
     eventId: event._id,
     actor: ACTOR,
@@ -102,7 +122,12 @@ async function main() {
   });
   console.log('Bootstrap teams created:', boot.teams?.created ?? 0, 'skipped:', boot.teams?.skipped ?? 0);
 
-  const pwd = await ensurePasswords(event);
+  // Re-apply plants after bootstrap (in case catalog was reset).
+  const eventFresh = await CampusHuntEvent.findById(event._id);
+  const plants2 = await ensureEventStationPlants(eventFresh, { force: true });
+  console.log('Plants re-applied:', plants2.catalog.filter((s) => s.joinedWord).length, 'words');
+
+  const pwd = await ensurePasswords(eventFresh);
   console.log('Passwords:', pwd);
 
   const round = await CampusHuntRound.findOne({ eventId: event._id, roundNumber: 1 });
@@ -130,17 +155,42 @@ async function main() {
   )).length;
   const clueNums = await CampusHuntChallenge.distinct('challengeNumber', { eventId: event._id });
   const checkpoints = await CampusHuntCheckpoint.countDocuments({ eventId: event._id, active: { $ne: false } });
+  const withJoin = await CampusHuntCheckpoint.countDocuments({
+    eventId: event._id,
+    joinedWord: { $exists: true, $nin: [null, ''] },
+  });
 
-  console.log('\nReady for Links:');
+  let packPreview = null;
+  try {
+    packPreview = await exportOfflinePacks(event._id);
+  } catch (err) {
+    console.warn('Offline pack preview failed:', err.message);
+  }
+
+  console.log('\nReady for Links (COEP):');
   console.log('  teams', field.length, '/', event.teamCapacity);
   console.log('  passwords', passwordsReady);
   console.log('  path-bound', bound);
   console.log('  clue numbers', clueNums.sort((a, b) => a - b).join(','));
-  console.log('  checkpoints', checkpoints);
+  console.log('  checkpoints', checkpoints, '· with join-word', withJoin);
+  console.log('  default join-words catalog', Object.keys(DEFAULT_STATION_JOINED_WORDS).length);
   console.log('  login/leaderboard live', event.publicLoginLive, event.publicLeaderboardLive);
   console.log('  default password (teams that needed one):', DEFAULT_PASSWORD);
+  if (packPreview) {
+    console.log(
+      '  offline packs',
+      packPreview.teamCount,
+      '· warnings',
+      packPreview.warnings?.length || 0,
+      '· incomplete',
+      packPreview.incompleteTeams?.length || 0,
+    );
+    if (packPreview.warnings?.length) {
+      console.log('  pack warnings:', packPreview.warnings.slice(0, 8).join(' | '));
+    }
+  }
   console.log('\nAdmin:', `/admin/campus-hunt/${event._id}`);
-  console.log('→ Links → Create team links');
+  console.log('→ Clues: plant fragments filled · Links → Create leader packs');
 
   await mongoose.disconnect();
 }

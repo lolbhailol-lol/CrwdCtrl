@@ -19,11 +19,20 @@ function notFoundHandler(req, res) {
 function errorHandler(err, req, res, _next) {
   const isVersionConflict = err?.name === 'VersionError'
     || /No matching document found for id/i.test(String(err?.message || ''));
+  const mongoTransient = err?.name === 'MongoNetworkError'
+    || err?.name === 'MongoServerSelectionError'
+    || err?.name === 'MongoPoolClearedError'
+    || /ENOTFOUND|ECONNRESET|ECONNREFUSED|PoolCleared|timed out|topology was destroyed/i.test(
+      String(err?.message || ''),
+    );
   const status = isVersionConflict
     ? 409
-    : (err.status || err.statusCode || 500);
+    : mongoTransient
+      ? 503
+      : (err.status || err.statusCode || 500);
   const code = err.code
-    || (isVersionConflict ? 'VERSION_CONFLICT' : undefined);
+    || (isVersionConflict ? 'VERSION_CONFLICT' : undefined)
+    || (mongoTransient ? 'DB_UNAVAILABLE' : undefined);
 
   logger.error('API error', {
     message: err.message,
@@ -40,14 +49,16 @@ function errorHandler(err, req, res, _next) {
     });
   }
 
-  const hide500 = status >= 500 && process.env.NODE_ENV === 'production';
+  const hide500 = status >= 500 && process.env.NODE_ENV === 'production' && !mongoTransient;
   res.status(status).json({
     success: false,
     message: hide500
       ? 'Internal server error'
       : isVersionConflict
         ? 'Please try again.'
-        : err.message || 'Internal server error',
+        : mongoTransient
+          ? 'Database briefly unavailable — please try again in a few seconds.'
+          : err.message || 'Internal server error',
     status,
     ...(code ? { code } : {}),
     timestamp: new Date().toISOString(),

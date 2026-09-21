@@ -287,7 +287,7 @@ export default function StartingSystemPanel({
     if (!roundId || !schedule.startsAt || points.length < 1) {
       setMessage(
         !roundId
-          ? 'Create Round 1 first'
+          ? 'Create the hunt first'
           : points.length < 1
             ? 'Add starting points first'
             : 'Pick a first-release date/time',
@@ -465,7 +465,7 @@ export default function StartingSystemPanel({
               {startCount === 1 ? 'Gather point' : `${startCount} gather points`}
             </h2>
             <p className="text-xs text-white/50">
-              {startNames.join(' · ') || 'Set under Clues → Starts & places'}
+              {startNames.join(' · ') || 'Set under Places → Starts & places'}
               {' '}— ~{teamsPerWait} team{teamsPerWait === 1 ? '' : 's'} each
               ({teamCapacity} overall). Hunt QR cards are separate (Clues tab).
             </p>
@@ -653,7 +653,7 @@ export default function StartingSystemPanel({
           <div className="mt-3 space-y-1 rounded-xl border border-amber-400/35 bg-amber-500/10 px-3 py-3 text-xs text-amber-100">
             <p className="font-semibold">Start hunt needs:</p>
             <ul className="list-disc space-y-0.5 pl-4">
-              {!roundId && <li>Round 1 (created automatically on bootstrap)</li>}
+              {!roundId && <li>Hunt (created automatically on bootstrap)</li>}
               {canonicalReadyCount < startCount && (
                 <li>
                   {startCount} gather point{startCount === 1 ? '' : 's'}
@@ -790,7 +790,7 @@ export default function StartingSystemPanel({
             disabled={Boolean(busy) || !roundId || points.length < 1 || !schedule.startsAt}
             title={
               !roundId
-                ? 'Create Round 1 first'
+                ? 'Create the hunt first'
                 : points.length < 1
                   ? 'Add starting points on Locations tab'
                   : ''
@@ -871,7 +871,7 @@ export default function StartingSystemPanel({
                   confirm: true,
                   reason: 'Schedule reviewed and locked by admin',
                 })),
-                'Schedule locked — you can Start Round 1 now',
+                'Schedule locked — you can Start the hunt now',
               );
             }}
             className="rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-40"
@@ -881,7 +881,7 @@ export default function StartingSystemPanel({
         </div>
         <p className="mt-2 text-[11px] text-white/45">
           Tip: use <strong className="text-white/70">Save date &amp; interval</strong> after
-          picking the time, or Preview → Generate → Lock. Then Start Round 1 — players unlock
+          picking the time, or Preview → Generate → Lock. Then Start the hunt — players unlock
           live without refreshing.
         </p>
 
@@ -947,7 +947,7 @@ export default function StartingSystemPanel({
                 </li>
                 <li>
                   <span className="font-semibold text-yellow-200">Destination</span>
-                  {' '}— Clue 6 → Finale Assembly (organizer check-in).
+                  {' '}— Clue 6 → Mindspark Lobby (organizer check-in).
                 </li>
               </ul>
               {previewRows.some((r) => (
@@ -1038,7 +1038,7 @@ export default function StartingSystemPanel({
                         || fifthStopForLocalTeam(waveNum, waitIdx, activeStations, teamsPerWait);
                       const startCode = waitLetter(code) || code.charAt(0) || 'A';
                       const finalWord = clue5WordForStart(startCode);
-                      const destLabel = DESTINATION_PLACE?.name || 'Finale Assembly';
+                      const destLabel = DESTINATION_PLACE?.name || 'Mindspark Lobby';
                       const fromClues = Boolean(
                         row.firstStopName
                         || row.secondStopName

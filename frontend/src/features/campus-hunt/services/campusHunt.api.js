@@ -562,7 +562,7 @@ export async function adminDeleteEvent(eventId) {
 }
 
 export async function adminGetOverview(eventId) {
-  return adminFetchJSON(`${BASE}/admin/events/${eventId}/overview`);
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/overview`, { timeout: 60000 });
 }
 
 export async function adminUpdateCampusStations(eventId, campusStationsOrPayload, reason = '') {
@@ -964,7 +964,7 @@ export async function adminListStationQr(eventId) {
 
 /** Offline hunt packs — one JSON bundle per team for airplane-mode play. */
 export async function adminExportOfflinePacks(eventId) {
-  return adminFetchJSON(`${BASE}/admin/events/${eventId}/offline-export`);
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/offline-export`, { timeout: 120000 });
 }
 
 /** Import a leader's offline results JSON after the fest. */

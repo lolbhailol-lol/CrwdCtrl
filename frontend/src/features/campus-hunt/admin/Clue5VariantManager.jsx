@@ -177,7 +177,7 @@ export default function Clue5VariantManager({
 
   const saveAll = async () => {
     if (!eventId || !roundId) {
-      setError('Create Round 1 first');
+      setError('Create the hunt first');
       return;
     }
     if (orderedPoints.length < 1) {
@@ -301,7 +301,7 @@ export default function Clue5VariantManager({
 
       <p className="text-xs text-white/50">
         Each start path has one Clue 5 word. All {people} teammates get code fragments on their phones.
-        After the word → red FIFTH SCAN → Clue 6 → Finale Assembly.
+        After the word → red FIFTH SCAN → Clue 6 → Mindspark Lobby.
       </p>
 
       <div className="grid gap-3 md:grid-cols-2">

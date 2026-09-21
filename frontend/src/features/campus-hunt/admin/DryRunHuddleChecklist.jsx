@@ -214,7 +214,7 @@ function LocationWriteHereBox({ codesHere, propsHere, plantFragments = [], joine
           Write / hide at this location
         </p>
         <p className="mt-1 text-[10px] text-white/50 print:text-[8.5px] print:text-black/55">
-          Set shared plant fragments in Clues first — then reprint. Meanwhile tape all 4 QR posters.
+          Set shared plant fragments in Places first — then reprint. Meanwhile tape all 4 QR posters.
         </p>
       </div>
     );
@@ -418,7 +418,7 @@ function LocationPlantCard({
                     {col.key === 'purple'
                       ? 'After prop CODE typed on phone · leader scans once + team code → Clue 5'
                       : col.key === 'green'
-                        ? 'Hide each team’s 3-digit mark near this green QR · leader finds code · scans once'
+                        ? 'Hide shared plant slips near this green QR · leaders join the word · scan once'
                       : col.key === 'blue'
                         ? 'No 3-digit mark here · teams solve Lockbox on phone · leader scans once + team code'
                       : `After ${col.when.toLowerCase().replace(/^after /, '')} · unlocks ${col.unlocks}`}
@@ -692,8 +692,8 @@ export default function DryRunHuddleChecklist({
       setExportWarnings(warnings);
       setExportMessage(
         data.teamCount
-          ? `Ready: ${data.teamCount} team pack${data.teamCount === 1 ? '' : 's'}. WhatsApp each leader — install Hunt on their phone on Wi‑Fi before start so offline works at the fest.`
-          : 'No complete team packs — finish Round 1 bindings and team passwords first.',
+          ? `Ready: ${data.teamCount} leader pack${data.teamCount === 1 ? '' : 's'}. WhatsApp each leader only — install Hunt on their phone on Wi‑Fi before start.`
+          : 'No complete leader packs — finish path bindings and team passwords first.',
       );
     } catch (err) {
       setError(err.message || 'Could not export offline packs');
@@ -871,7 +871,7 @@ export default function DryRunHuddleChecklist({
           <strong className="text-white">How teams play (no laptop at venue):</strong>
           {' '}
           Click <strong>Create team install links</strong> → or use the <strong>Send links</strong> tab.
-          WhatsApp each team leader one pack link. They install Hunt on their phone on Wi‑Fi before start (~9–10 members walk with that one phone). Play: find written clues → join word → type → scan once.
+          WhatsApp each leader one pack only (not every teammate). They install Hunt on their phone on Wi‑Fi before start; ~9–10 walk with that one phone. Play: find written clues → join word → type → scan once.
         </p>
         <OfflineInstallCards installs={installs} />
         <label className="mt-2 flex cursor-pointer items-center gap-2 text-[11px] text-white/60">
@@ -991,7 +991,7 @@ export default function DryRunHuddleChecklist({
                 {' '}
                 <ColorChip theme={T.final} short="Clue 5" />
                 {' '}
-                → red FIFTH SCAN → Clue 6 → Finale Assembly (organizer marks finish).
+                → red FIFTH SCAN → Clue 6 → Mindspark Lobby (organizer marks finish).
                 {' '}
                 <strong>No player finish QR.</strong>
               </li>
@@ -1192,7 +1192,7 @@ export default function DryRunHuddleChecklist({
         </section>
 
         <section className="huddle-keep">
-          <SectionTitle n="4" note="3-digit mark to hide at each team’s green (2nd) stop">
+          <SectionTitle n="4" note="Shared plant join-word at each green (2nd) stop">
             Clue 2 code checklist
           </SectionTitle>
           <table className="huddle-table w-full border-collapse text-left text-[11px] print:text-[8.5px]">
@@ -1334,7 +1334,7 @@ export default function DryRunHuddleChecklist({
             </tbody>
           </table>
           <p className="mt-2 text-[10px] text-white/45 print:mt-1.5 print:text-[8px] print:text-black/50">
-            After Clue 5 word → red FIFTH SCAN → Clue 6 → Finale Assembly (desk marks finish). Desk: keep play screens open · paste codes only if camera fails · if stuck, check poster COLOR vs phone stage.
+            After Clue 5 word → red FIFTH SCAN → Clue 6 → Mindspark Lobby (desk marks finish). Desk: keep play screens open · paste codes only if camera fails · if stuck, check poster COLOR vs phone stage.
           </p>
         </section>
       </div>

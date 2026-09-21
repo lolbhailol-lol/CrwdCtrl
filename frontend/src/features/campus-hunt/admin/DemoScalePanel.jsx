@@ -5,7 +5,7 @@ import { applyRound1Scale } from './applyRound1Scale';
 
 /**
  * Organizer control: how many teams + people per team.
- * Saving updates starts/places + demo teams so every Round 1 tab stays in sync.
+ * Saving updates starts/places + demo teams so hunt tabs stay in sync.
  */
 export default function DemoScalePanel({
   eventId,
@@ -116,7 +116,7 @@ export default function DemoScalePanel({
           disabled={Boolean(busy)}
           onClick={() => {
             if (!window.confirm(
-              `Update whole Round 1 for ${preview.teamCapacity}×${preview.teamSize}? `
+              `Update hunt layout for ${preview.teamCapacity}×${preview.teamSize}? `
               + `Starts → ${layout.startCount}, places → ${layout.stationCount}, demo teams created/repaired.`,
             )) return;
             saveScale({ alsoCreateTeams: true });

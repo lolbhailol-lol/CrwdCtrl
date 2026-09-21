@@ -74,10 +74,10 @@ export default function OfflineHuntLandingPage() {
         <OfflineNavLinks />
 
         <ol className="mt-8 list-decimal space-y-2 pl-5 text-xs text-white/55">
-          <li>Admin exports offline packs from the plant sheet (laptop, before fest).</li>
-          <li>AirDrop / USB / share each team JSON to all 4 phones on that team.</li>
-          <li>Load file here → enter team password → pick your name.</li>
-          <li>Airplane mode at the venue. Login shows the hub — hunt starts only when the leader taps Start Round 1.</li>
+          <li>Admin creates leader packs (Send links) before fest.</li>
+          <li>WhatsApp one pack link to each team’s leader only.</li>
+          <li>Leader installs Hunt on Wi‑Fi → password → The Hunt.</li>
+          <li>Airplane mode at the venue. Hunt starts when the leader taps Start the hunt.</li>
         </ol>
       </div>
     </div>

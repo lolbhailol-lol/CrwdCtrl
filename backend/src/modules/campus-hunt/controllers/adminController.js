@@ -262,6 +262,8 @@ async function updateEvent(req, res, next) {
         prunedTeams: pruned?.removed || 0,
       },
       reason: req.body.reason || '',
+    }).catch((auditErr) => {
+      console.warn('[updateEvent] audit skipped:', auditErr?.message || auditErr);
     });
     return res.json({
       success: true,
@@ -319,7 +321,7 @@ async function getEventOverview(req, res, next) {
     const event = await CampusHuntEvent.findById(eventId);
     if (!event) return res.status(404).json({ success: false, message: 'Event not found' });
 
-    const [rounds, teams, issues, checkpoints, routes, challenges, volunteers, startingPoints] = await Promise.all([
+    const settled = await Promise.allSettled([
       CampusHuntRound.find({ eventId }),
       CampusHuntTeam.find({ eventId })
         .select(
@@ -339,6 +341,33 @@ async function getEventOverview(req, res, next) {
       CampusHuntVolunteerAccess.find({ eventId, enabled: true }).select('checkpointIds'),
       CampusHuntStartingPoint.find({ eventId, active: { $ne: false } }).select('_id code active'),
     ]);
+
+    const valueOr = (result, fallback) => (
+      result.status === 'fulfilled' ? result.value : fallback
+    );
+    settled.forEach((result, idx) => {
+      if (result.status === 'rejected') {
+        console.warn(`[getEventOverview] query[${idx}] failed:`, result.reason?.message || result.reason);
+      }
+    });
+
+    const rounds = valueOr(settled[0], []);
+    const teams = valueOr(settled[1], []);
+    const issues = valueOr(settled[2], 0);
+    const checkpoints = valueOr(settled[3], []);
+    const routes = valueOr(settled[4], []);
+    const challenges = valueOr(settled[5], []);
+    const volunteers = valueOr(settled[6], []);
+    const startingPoints = valueOr(settled[7], []);
+
+    // Core collections failed together → ask client to retry (don't 500).
+    if (settled[0].status === 'rejected' && settled[1].status === 'rejected') {
+      return res.status(503).json({
+        success: false,
+        message: 'Database briefly unavailable — refresh in a few seconds.',
+        code: 'DB_UNAVAILABLE',
+      });
+    }
 
     const activeTeams = teams.filter((t) => t.status === 'active' || (t.currentStage !== 'WAITING' && t.currentStage !== 'SCORE_LOCKED')).length;
     const finishedTeams = teams.filter((t) => t.currentStage === 'SCORE_LOCKED').length;
@@ -498,6 +527,17 @@ async function getEventOverview(req, res, next) {
       },
     });
   } catch (err) {
+    console.error('[getEventOverview]', err?.message || err);
+    const mongoish = /Mongo|ENOTFOUND|ECONNRESET|timed out|PoolCleared/i.test(
+      String(err?.message || err?.name || ''),
+    );
+    if (mongoish) {
+      return res.status(503).json({
+        success: false,
+        message: 'Database briefly unavailable — refresh in a few seconds.',
+        code: 'DB_UNAVAILABLE',
+      });
+    }
     return next(err);
   }
 }
@@ -3029,7 +3069,13 @@ async function listVolunteers(req, res, next) {
 async function liveTeams(req, res, next) {
   try {
     const teams = await CampusHuntTeam.find({ eventId: req.params.eventId })
-      .sort({ currentScore: -1, teamCode: 1 });
+      .select(
+        'teamCode name status currentStage currentScore finishedAt routeId roundId '
+        + 'startingPointId scheduledStartAt leaderName leaderUserId memberUserIds '
+        + 'clue1ChallengeId clue6ChallengeId firstCheckpointId fifthCheckpointId',
+      )
+      .sort({ currentScore: -1, teamCode: 1 })
+      .lean();
     return res.json({ success: true, data: { teams } });
   } catch (err) {
     return next(err);
@@ -4203,42 +4249,46 @@ async function exportOfflinePacks(req, res, next) {
       console.warn('[export] password ensure skipped:', pwdErr.message);
     }
 
-    // Auto-bind Clue 1–6 paths if missing — no separate Schedule step.
-    const round = await CampusHuntRound.findOne({
-      eventId: req.params.eventId,
-      roundNumber: 1,
-    }).select('_id startsAt releaseIntervalMinutes assignmentStrategy status');
-    if (round) {
-      const { selectCompetitionTeams } = require('../services/startScheduleService');
-      const teams = await CampusHuntTeam.find({ eventId: req.params.eventId })
-        .select('teamCode clue1ChallengeId clue6ChallengeId firstCheckpointId fifthCheckpointId startingPointId')
-        .lean();
-      const field = selectCompetitionTeams(teams, event.teamCapacity);
-      const needsBind = !field.length || field.some((t) => (
-        !t.clue1ChallengeId
-        || !t.clue6ChallengeId
-        || !t.firstCheckpointId
-        || !t.fifthCheckpointId
-        || !t.startingPointId
-      ));
-      if (needsBind) {
-        const { generateSchedule } = require('../services/startScheduleService');
-        await generateSchedule({
-          eventId: req.params.eventId,
-          roundId: round._id,
-          startsAt: round.startsAt || new Date(),
-          releaseIntervalMinutes: round.releaseIntervalMinutes || 5,
-          assignmentStrategy: round.assignmentStrategy || 'route_balanced',
-          confirm: true,
-          actor: adminActor(req),
-          reason: 'Auto-bind paths for offline links',
-        });
+    // Auto-bind paths if missing — never fail the whole export if bind is slow/flaky.
+    try {
+      const round = await CampusHuntRound.findOne({
+        eventId: req.params.eventId,
+        roundNumber: 1,
+      }).select('_id startsAt releaseIntervalMinutes assignmentStrategy status');
+      if (round) {
+        const { selectCompetitionTeams } = require('../services/startScheduleService');
+        const teams = await CampusHuntTeam.find({ eventId: req.params.eventId })
+          .select('teamCode clue1ChallengeId clue6ChallengeId firstCheckpointId fifthCheckpointId startingPointId')
+          .lean();
+        const field = selectCompetitionTeams(teams, event.teamCapacity);
+        const needsBind = field.length > 0 && field.some((t) => (
+          !t.clue1ChallengeId
+          || !t.clue6ChallengeId
+          || !t.firstCheckpointId
+          || !t.fifthCheckpointId
+          || !t.startingPointId
+        ));
+        if (needsBind) {
+          const { generateSchedule } = require('../services/startScheduleService');
+          await generateSchedule({
+            eventId: req.params.eventId,
+            roundId: round._id,
+            startsAt: round.startsAt || new Date(),
+            releaseIntervalMinutes: round.releaseIntervalMinutes || 5,
+            assignmentStrategy: round.assignmentStrategy || 'route_balanced',
+            confirm: true,
+            actor: adminActor(req),
+            reason: 'Auto-bind paths for offline links',
+          });
+        }
       }
+    } catch (bindErr) {
+      console.warn('[export] path bind skipped:', bindErr.message);
     }
 
     const { exportOfflinePacks: buildPacks } = require('../services/offlineExportService');
     const data = await buildPacks(req.params.eventId);
-    await writeAudit({
+    writeAudit({
       eventId: req.params.eventId,
       ...adminActor(req),
       action: 'offline_packs_exported',
@@ -4250,13 +4300,24 @@ async function exportOfflinePacks(req, res, next) {
         warnings: data.warnings?.length || 0,
         prunedTeams: pruned?.removed || 0,
       },
-    });
+    }).catch(() => {});
     return res.json({ success: true, data: { ...data, pruned } });
   } catch (err) {
+    console.error('[exportOfflinePacks]', err?.message || err);
     if (err.status) {
       return res.status(err.status).json({ success: false, message: err.message });
     }
-    return next(err);
+    const mongoish = /Mongo|ENOTFOUND|ECONNRESET|timed out|PoolCleared/i.test(String(err?.message || err?.name || ''));
+    if (mongoish) {
+      return res.status(503).json({
+        success: false,
+        message: 'Database briefly unavailable — try Create links again in a few seconds.',
+      });
+    }
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'Could not create links',
+    });
   }
 }
 

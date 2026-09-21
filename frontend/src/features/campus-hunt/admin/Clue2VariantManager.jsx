@@ -33,8 +33,8 @@ const inputClass = 'w-full rounded-lg border border-white/15 bg-[#161718] px-3 p
 const DEFAULT_SETTINGS = CLUE2_DEFAULT_SETTINGS;
 
 const SHARED_PROMPT =
-  'A staff mark hides in plain sight nearby. '
-  + 'Scan the area at eye level — find your team’s 3-digit number.';
+  'At the green stop: find the shared plant slips written nearby. '
+  + 'Join them into one word and type it (leader), then scan the green poster.';
 
 function id(value) {
   return String(value?._id || value?.id || value || '');
@@ -202,7 +202,7 @@ export default function Clue2VariantManager({
 
   const saveAll = async () => {
     if (!eventId || !roundId) {
-      setError('Create Round 1 first');
+      setError('Create the hunt first');
       return;
     }
     if (orderedPoints.length < 1) {
@@ -212,7 +212,7 @@ export default function Clue2VariantManager({
 
     setBusy(true);
     setError('');
-    setMessage(`Saving all ${teamCapacity} Clue 2 codes…`);
+    setMessage(`Saving Clue 2 with shared plant join-words…`);
 
     try {
       const clue2Scoring = coerceClueScoring(settings, DEFAULT_SETTINGS);
@@ -225,15 +225,16 @@ export default function Clue2VariantManager({
         for (const slot of teamSlots) {
           const waveId = slot.id;
           const place = secondStopForLocalTeam(slot.localTeamNumber, waitIndex, stations, teamsPerWait);
-          const stationCode = stations.find((s) => s.name === place)?.code;
-          const codeKey = `${code}-${waveId}`;
+          const station = stations.find((s) => s.name === place || s.code === place);
+          const stationCode = station?.code;
           const answer = String(
-            codes[codeKey]
+            station?.joinedWord
+              || codes[`${code}-${waveId}`]
               || threeDigitCodeForTeam(waitIndex, slot.localTeamNumber, teamsPerWait),
-          ).trim();
-          if (!/^\d{3}$/.test(answer)) {
+          ).trim().toUpperCase();
+          if (!answer || answer.length < 3) {
             failures.push(
-              `${startLabel(point)} · ${waveId}: Team ${globalTeamNumber(waitIndex, slot.localTeamNumber, teamsPerWait)} needs a 3-digit code`,
+              `${startLabel(point)} · ${waveId}: Set plant join-word for ${place || 'stop'}`,
             );
             continue;
           }
@@ -251,7 +252,7 @@ export default function Clue2VariantManager({
       }
 
       if (!variantsPayload.length) {
-        setError(failures[0] || 'No valid codes to save');
+        setError(failures[0] || 'No join-words to save — Fill COEP defaults under Places → Plant fragments');
         setMessage('');
         return;
       }
@@ -274,7 +275,7 @@ export default function Clue2VariantManager({
         setMessage('');
       } else {
         setMessage(
-          `Saved ${saved} Clue 2 codes in one request · bound ${bound} teams.`
+          `Saved ${saved} Clue 2 join-words · bound ${bound} teams.`
           + (apiErrors.length || failures.length
             ? ` (${apiErrors.length + failures.length} warnings)`
             : ''),
@@ -295,7 +296,7 @@ export default function Clue2VariantManager({
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2 text-[11px]">
         <span className="rounded-full bg-white/10 px-2.5 py-1 text-white/55">
-          {stations.length} places · ~{teamsPerStation} teams each · 3-digit codes
+          {stations.length} places · {teamsPerStation === 1 ? '1 team each' : `~${teamsPerStation} teams each`} · shared plant join-word
         </span>
         <span className={`rounded-full px-2.5 py-1 ${
           savedCount >= teamCapacity
@@ -380,11 +381,11 @@ export default function Clue2VariantManager({
       </section>
 
       <section className="rounded-2xl border border-white/15 bg-white/5 p-4">
-        <h2 className="text-base font-semibold text-white">3. Who goes where · 3-digit codes</h2>
+        <h2 className="text-base font-semibold text-white">3. Who goes where</h2>
         <p className="mt-1 text-xs text-white/50">
-          Second stop = next campus place after Clue 1. Assign each team’s code here.
-          After they crack it they scan the shared green SECOND SCAN QR at that place,
-          then enter their team code.
+          Second stop = next campus place after Clue 1. Same shared plant join-word for every team
+          at that place (set under Places → Plant fragments) — not a different code per team.
+          After they type the joined word they scan the shared green SECOND SCAN QR, then enter their team code.
         </p>
         <div className="mt-3 grid gap-2 md:grid-cols-2">
           {arrivalPlan.map((place) => (
@@ -399,35 +400,26 @@ export default function Clue2VariantManager({
                 </p>
               </div>
               <div className="mt-2 space-y-2">
-                {place.arrivals.map((row) => {
-                  const codeKey = `${row.startingPointCode}-T${row.localTeamNumber}`;
-                  return (
-                    <div
-                      key={`${place.code}-${row.teamNumber}`}
-                      className="grid grid-cols-[4.5rem_1fr_4.5rem] items-center gap-2 text-sm"
-                    >
-                      <span className="font-semibold text-white">T{row.teamNumber}</span>
-                      <span className="truncate text-white/55">
-                        from{' '}
-                        <span className="text-emerald-300">
-                          {row.startingPointName || row.waitName}
-                        </span>
+                <p className="rounded-lg bg-black/30 px-2 py-1.5 font-mono text-sm text-[#0ECCEE]">
+                  Join-word · {place.joinedWord || stations.find((s) => s.code === place.code)?.joinedWord || '—'}
+                  <span className="ml-2 font-sans text-[11px] text-white/45">
+                    (shared · from Plant fragments)
+                  </span>
+                </p>
+                {place.arrivals.map((row) => (
+                  <div
+                    key={`${place.code}-${row.teamNumber}`}
+                    className="flex items-center justify-between gap-2 text-sm"
+                  >
+                    <span className="font-semibold text-white">T{row.teamNumber}</span>
+                    <span className="truncate text-white/55">
+                      from{' '}
+                      <span className="text-emerald-300">
+                        {row.startingPointName || row.waitName}
                       </span>
-                      <input
-                        value={codes[codeKey] || ''}
-                        onChange={(e) => {
-                          const value = e.target.value.replace(/\D/g, '').slice(0, 3);
-                          setCodes((prev) => ({ ...prev, [codeKey]: value }));
-                        }}
-                        inputMode="numeric"
-                        maxLength={3}
-                        aria-label={`Code for team ${row.teamNumber}`}
-                        className={`${inputClass} py-1.5 text-center font-mono tracking-wider`}
-                        placeholder="000"
-                      />
-                    </div>
-                  );
-                })}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
           ))}
@@ -450,8 +442,8 @@ export default function Clue2VariantManager({
       {message && <p className="text-xs text-[#0ECCEE]">{message}</p>}
       {error && <p className="text-xs text-amber-200">{error}</p>}
       <p className="text-[11px] text-white/40">
-        Same flow as Clue 1: keep shared SECOND SCAN QRs linked, save each team’s code, then bind dashboards.
-        Early SECOND QR scans stay rejected until Clue 2 is solved; unlock needs team code after 4/4.
+        Shared plant join-word per place (Places → Plant fragments). Teams at the same stop share one word —
+        not a different code per team. Green QR unlocks after the word is typed.
       </p>
     </div>
   );

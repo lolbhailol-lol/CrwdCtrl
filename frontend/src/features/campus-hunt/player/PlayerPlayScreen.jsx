@@ -52,7 +52,7 @@ function needsStartReport(stage) {
 }
 
 function revealAnswerLabel(challengeNumber) {
-  if (challengeNumber === 2) return '3-digit code';
+  if (challengeNumber === 2) return 'Join-word';
   if (challengeNumber === 4) return 'GRID code';
   if (challengeNumber === 5) return 'Team word';
   if (challengeNumber === 6) return 'Finish code';
@@ -84,7 +84,7 @@ export default function PlayerPlayScreen({
   checkpointExtra = null,
   roundLabel = null,
   backTo = null,
-  backLabel = '← All rounds',
+  backLabel = '← Hunt hub',
 }) {
   const submitChallengeAnswerFn = actions?.submitChallengeAnswer || submitChallengeAnswer;
   const requestChallengeHintFn = actions?.requestChallengeHint || requestChallengeHint;
@@ -1308,16 +1308,21 @@ export default function PlayerPlayScreen({
                       activeChallenge.challengeNumber === 1
                         ? 'Type the place name'
                         : activeChallenge.challengeNumber === 2
-                          ? '3-digit number'
+                          ? 'Joined word from plant slips'
                           : activeChallenge.challengeNumber === 3
-                            ? 'Decoded word'
+                            ? 'Lockbox code'
                             : activeChallenge.challengeNumber === 4
                               ? 'GRID-XXXX'
                               : activeChallenge.challengeNumber === 6
                                 ? 'Finish code from organizer'
                                 : 'One word'
                     }
-                    inputMode={activeChallenge.challengeNumber === 2 ? 'numeric' : 'text'}
+                    inputMode={
+                      activeChallenge.challengeNumber === 3
+                        || activeChallenge.challengeNumber === 4
+                        ? 'text'
+                        : 'text'
+                    }
                     disabled={Boolean(inInstructionPhase)}
                     className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3.5 text-base outline-none focus:border-white/25 disabled:opacity-50"
                     autoComplete="off"

@@ -25,14 +25,22 @@ function isJsonResponse(response) {
   return ct.includes('application/json');
 }
 
-async function fetchAcrossBases(path, buildOptions) {
+async function fetchAcrossBases(path, buildOptions, { timeout = 45000 } = {}) {
   const bases = getApiBaseCandidates();
   let lastError = null;
 
   for (let i = 0; i < bases.length; i += 1) {
     const url = resolveUrl(path, bases[i]);
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timeoutId = controller
+      ? setTimeout(() => controller.abort(), timeout)
+      : null;
     try {
-      const response = await fetch(url, buildOptions());
+      const options = buildOptions();
+      const response = await fetch(url, {
+        ...options,
+        signal: controller?.signal || options.signal,
+      });
       // SPA HTML shell or static-host 405 (missing /api proxy) → try next base
       if (response.ok && !isJsonResponse(response) && i < bases.length - 1) {
         lastError = new Error('Non-JSON API response');
@@ -44,9 +52,14 @@ async function fetchAcrossBases(path, buildOptions) {
       }
       return response;
     } catch (err) {
-      lastError = err;
+      const aborted = err?.name === 'AbortError';
+      lastError = aborted
+        ? Object.assign(new Error('Request timed out — try again'), { code: 'TIMEOUT', status: 408 })
+        : err;
       if (i < bases.length - 1) continue;
-      throw err;
+      throw lastError;
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
     }
   }
 
@@ -111,7 +124,7 @@ export async function getAdminToken({ redirectOnFail = true } = {}) {
 }
 
 export async function adminFetch(path, options = {}) {
-  const { redirectOnFail = true, ...fetchOptions } = options;
+  const { redirectOnFail = true, timeout = 45000, ...fetchOptions } = options;
   const token = await getAdminToken({ redirectOnFail });
   if (!token) throw new Error('Admin session expired');
 
@@ -124,12 +137,12 @@ export async function adminFetch(path, options = {}) {
     },
   });
 
-  let response = await fetchAcrossBases(path, () => buildOptions(token));
+  let response = await fetchAcrossBases(path, () => buildOptions(token), { timeout });
 
   if (response.status === 401 || response.status === 403) {
     try {
       const freshToken = await refreshAdminToken();
-      response = await fetchAcrossBases(path, () => buildOptions(freshToken));
+      response = await fetchAcrossBases(path, () => buildOptions(freshToken), { timeout });
     } catch {
       if (redirectOnFail) redirectToAdminLogin();
       throw new Error('Admin session expired');
@@ -146,11 +159,23 @@ export async function adminFetch(path, options = {}) {
 export async function adminFetchJSON(path, options = {}) {
   const response = await adminFetch(path, options);
   if (!isJsonResponse(response)) {
+    if (response.status === 502 || response.status === 503 || response.status === 504) {
+      throw Object.assign(
+        new Error('Server briefly unavailable — try again in a few seconds.'),
+        { status: response.status, code: 'UPSTREAM_UNAVAILABLE' },
+      );
+    }
     throw new Error('API returned a non-JSON response. Check backend connection and try again.');
   }
   const data = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(data?.message || data?.error || `Request failed (HTTP ${response.status})`);
+    const err = new Error(
+      data?.message || data?.error || `Request failed (HTTP ${response.status})`,
+    );
+    err.status = response.status;
+    err.code = data?.code;
+    err.data = data;
+    throw err;
   }
   return data;
 }

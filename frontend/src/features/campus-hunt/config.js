@@ -19,7 +19,7 @@ export const CAMPUS_HUNT_PATHS = {
   login: (slug) => `/campus-hunt/${slug}`,
   play: (slug) => `/campus-hunt/${slug}/play`,
   grid: '/campus-hunt/grid',
-  /** One shared URL per team — leader + all players use this (password + tap name) */
+  /** One shared URL per team — leader phone only (password → enter as leader) */
   teamLogin: (slug, teamCode) =>
     `/campus-hunt/${slug}/team/${String(teamCode || '').toUpperCase()}`,
   teamLoginRole: (slug, teamCode, role, slot) => {

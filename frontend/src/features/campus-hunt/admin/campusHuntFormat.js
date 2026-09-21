@@ -234,6 +234,66 @@ export const CAMPUS_STATIONS = [
 ];
 
 export const STATION_TARGET_COUNT = CAMPUS_STATIONS.length; // 20
+
+/**
+ * Shared join-word per place — plant slips are this word split across the team.
+ * Same defaults as backend stationCatalogService (COEP / Neurosprint).
+ */
+export const DEFAULT_STATION_JOINED_WORDS = {
+  S01: 'THRUSTJET',
+  S05: 'CALCULUS',
+  S02: 'SIGNALHUB',
+  S06: 'FORGESTEEL',
+  S03: 'ANCHORBOAT',
+  S07: 'FOSSILROCK',
+  S04: 'REACTANTS',
+  S09: 'ENGINEER',
+  S10: 'STARTUPHUB',
+  S11: 'WATERSPRAY',
+  S14: 'GAZEBOPARK',
+  S12: 'BOOKSTACKS',
+  S18: 'BINARYCODE',
+  S13: 'MAKERSPACE',
+  S15: 'ALUMNIBOND',
+  S19: 'MARCHDRILL',
+  S16: 'SIDEENTRY',
+  S08: 'UNDERPASS',
+  S17: 'COPYPRINTS',
+  S20: 'FOUNDATION',
+};
+
+export function splitPlantFragments(joinedWord, teamSize = 4) {
+  const people = Math.max(2, Math.min(12, Number(teamSize) || 4));
+  const raw = String(joinedWord || 'QUEST').replace(/[^A-Za-z0-9]/g, '').toUpperCase() || 'QUEST';
+  const len = Math.max(people, raw.length);
+  const padded = raw.padEnd(len, 'X');
+  const size = Math.ceil(padded.length / people);
+  return Array.from({ length: people }, (_, i) => (
+    padded.slice(i * size, (i + 1) * size) || 'X'
+  ));
+}
+
+export function withStationPlantDefaults(stations, teamSize = 4) {
+  const people = Math.max(2, Math.min(12, Number(teamSize) || 4));
+  return (Array.isArray(stations) ? stations : []).map((row) => {
+    const code = String(row?.code || '').toUpperCase().trim();
+    const joinedWord = String(row?.joinedWord || DEFAULT_STATION_JOINED_WORDS[code] || '')
+      .replace(/[^A-Za-z0-9]/g, '')
+      .toUpperCase();
+    const existing = Array.isArray(row?.plantFragments)
+      ? row.plantFragments.map((f) => String(f || '').trim()).filter(Boolean)
+      : [];
+    const plantFragments = existing.length >= people
+      ? existing.slice(0, people)
+      : (joinedWord ? splitPlantFragments(joinedWord, people) : existing);
+    return {
+      ...row,
+      code,
+      ...(joinedWord ? { joinedWord } : {}),
+      ...(plantFragments.length ? { plantFragments } : {}),
+    };
+  });
+}
 /** Ideal: 1 team per location when capacity === station count. */
 export const TARGET_TEAMS_PER_STATION = 1;
 export const TEAMS_PER_WAIT = DEFAULT_TEAM_CAPACITY; // one gather point by default
@@ -334,12 +394,15 @@ export function buildTeamSlots(teamsPerWait = TEAMS_PER_WAIT) {
 
 /**
  * Merge event overrides onto the default S01–S10 catalog; optionally slice to active count.
- * If `stations` is already a shorter active subset (e.g. S01–S03), keep that subset —
- * do not expand back to all 10 unless stationCount asks for more.
+ * If `stations` is already a shorter active subset (e.g. S01–S05), keep that subset —
+ * do not expand back to all 20 unless stationCount asks for more.
  */
-export function resolveStations(stations, stationCount = null) {
+export function resolveStations(stations, stationCount = null, teamSize = 4) {
   if (!Array.isArray(stations) || !stations.length) {
-    const full = CAMPUS_STATIONS.map((s) => ({ ...s }));
+    const full = withStationPlantDefaults(
+      CAMPUS_STATIONS.map((s) => ({ ...s })),
+      teamSize,
+    );
     if (stationCount == null) return full;
     return full.slice(0, clampCount(stationCount, 1, STATION_TARGET_COUNT, STATION_TARGET_COUNT));
   }
@@ -362,35 +425,41 @@ export function resolveStations(stations, stationCount = null) {
     || CAMPUS_STATIONS.every((s) => byCode.has(s.code));
 
   if (looksLikeFullCatalog || stationCount != null) {
-    const full = CAMPUS_STATIONS.map((station) => {
-      const extra = byCode.get(station.code) || {};
-      return {
-        code: station.code,
-        name: extra.name || station.name,
-        zone: extra.zone || station.zone,
-        riddle: extra.riddle || station.riddle,
-        ...(extra.plantFragments?.length ? { plantFragments: extra.plantFragments } : {}),
-        ...(extra.joinedWord ? { joinedWord: extra.joinedWord } : {}),
-      };
-    });
+    const full = withStationPlantDefaults(
+      CAMPUS_STATIONS.map((station) => {
+        const extra = byCode.get(station.code) || {};
+        return {
+          code: station.code,
+          name: extra.name || station.name,
+          zone: extra.zone || station.zone,
+          riddle: extra.riddle || station.riddle,
+          ...(extra.plantFragments?.length ? { plantFragments: extra.plantFragments } : {}),
+          ...(extra.joinedWord ? { joinedWord: extra.joinedWord } : {}),
+        };
+      }),
+      teamSize,
+    );
     if (stationCount == null) return full;
     return full.slice(0, clampCount(stationCount, 1, STATION_TARGET_COUNT, STATION_TARGET_COUNT));
   }
 
   // Active subset from parent (already sliced) — catalog order among provided codes.
-  return CAMPUS_STATIONS
-    .filter((station) => byCode.has(station.code))
-    .map((station) => {
-      const extra = byCode.get(station.code) || {};
-      return {
-        code: station.code,
-        name: extra.name || station.name,
-        zone: extra.zone || station.zone,
-        riddle: extra.riddle || station.riddle,
-        ...(extra.plantFragments?.length ? { plantFragments: extra.plantFragments } : {}),
-        ...(extra.joinedWord ? { joinedWord: extra.joinedWord } : {}),
-      };
-    });
+  return withStationPlantDefaults(
+    CAMPUS_STATIONS
+      .filter((station) => byCode.has(station.code))
+      .map((station) => {
+        const extra = byCode.get(station.code) || {};
+        return {
+          code: station.code,
+          name: extra.name || station.name,
+          zone: extra.zone || station.zone,
+          riddle: extra.riddle || station.riddle,
+          ...(extra.plantFragments?.length ? { plantFragments: extra.plantFragments } : {}),
+          ...(extra.joinedWord ? { joinedWord: extra.joinedWord } : {}),
+        };
+      }),
+    teamSize,
+  );
 }
 
 /**
@@ -829,6 +898,8 @@ export function stationArrivalPlan(
     return {
       code: station.code,
       name: station.name,
+      joinedWord: station.joinedWord || DEFAULT_STATION_JOINED_WORDS[station.code] || '',
+      plantFragments: Array.isArray(station.plantFragments) ? station.plantFragments : [],
       teamCount: arrivals.length,
       arrivals,
     };
@@ -897,7 +968,7 @@ export function waitIndexForStart(startCodeOrIndex) {
 }
 
 /**
- * Clues 2–4 path per wait (offset so routes fan out across the 10 stations).
+ * Clues 2–5 path per wait (offset so routes fan out across the 20 stations).
  * Index 0 is only a path placeholder — Clue 1 uses firstStopForLocalTeam instead.
  */
 export function routeStopsForWait(waitIndex, stations = CAMPUS_STATIONS) {
@@ -1034,8 +1105,8 @@ export function routeClueDefaults(
   if (n === 2) {
     return {
       prompt:
-        `At the green stop: find ${people} short clues written nearby. `
-        + 'Join them into one word and type it (leader).',
+        `At the green stop: find ${people} short plant slips written nearby. `
+        + 'Join them into one word and type it (leader), then scan the green poster.',
       answer: '',
       hintText: 'Look at eye level on posts, pillars, and notice boards — then join the pieces.',
       destinationInstruction:
@@ -1183,7 +1254,8 @@ export function destinationsSummary(
       ? `${audit.uniquePaths} unique team paths · no clashes`
       : `${audit.clashGroups.length} path clash(es) — rebuild clues`;
     return (
-      `${list.length} places · stop ${clue}/5 · ~${teamsPerStation} team(s) each · ${clashNote}`
+      `${list.length} places · stop ${clue}/5 · `
+      + `${teamsPerStation === 1 ? '1 team each' : `~${teamsPerStation} teams each`} · ${clashNote}`
     );
   }
   return waitList.map((start) => (

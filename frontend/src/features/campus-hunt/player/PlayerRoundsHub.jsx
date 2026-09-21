@@ -82,7 +82,7 @@ export default function PlayerRoundsHub({
           ) : null}
         </div>
         <p className="mt-4 text-sm text-white/60">
-          {intro || 'Choose a round. Round 1 opens when organizers go live.'}
+          {intro || 'Open the hunt when organizers go live. One phone — team leader only.'}
         </p>
 
         <div className="mt-6 space-y-3">
@@ -96,7 +96,7 @@ export default function PlayerRoundsHub({
               ))}
             </div>
           )}
-          {cards.map((card, index) => {
+          {cards.map((card) => {
             const canOpen = Boolean(card.open) && !card.comingSoon;
             const look = ROUND_LOOK[card.id] || ROUND_LOOK.round1;
             return (
@@ -118,8 +118,7 @@ export default function PlayerRoundsHub({
                         aria-hidden
                       />
                       <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/45">
-                        Round {index + 1}
-                        {card.subtitle ? ` · ${card.subtitle}` : ''}
+                        {card.subtitle || 'Campus Hunt'}
                       </p>
                     </div>
                     <h2 className="mt-1.5 text-lg font-semibold text-white">{card.label}</h2>

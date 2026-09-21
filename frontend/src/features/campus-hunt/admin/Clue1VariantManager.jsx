@@ -386,7 +386,7 @@ export default function Clue1VariantManager({
 
   const saveAll = async () => {
     if (!roundId) {
-      setError('Round 1 must exist before saving clues.');
+      setError('Hunt must exist before saving clues.');
       return;
     }
     if (!orderedPoints.length) {
@@ -498,7 +498,7 @@ export default function Clue1VariantManager({
           Starts {orderedPoints.length}/{Math.max(1, starts.length || orderedPoints.length || 1)}
         </span>
         <span className="rounded-full bg-white/10 px-2.5 py-1 text-white/55">
-          {stations.length} places · ~{teamsPerStation} QRs each · {teamSize}/{teamSize} scans → Clue 2
+          {stations.length} places · {teamsPerStation === 1 ? '1 QR each' : `~${teamsPerStation} QRs each`} · {teamSize}/{teamSize} scans → Clue 2
         </span>
         <span className={`rounded-full px-2.5 py-1 ${
           savedVariantCount >= expectedVariantCount && expectedVariantCount > 0
@@ -724,7 +724,7 @@ export default function Clue1VariantManager({
           <p className="text-xs text-amber-200">Save setup with at least 1 starting point first.</p>
         )}
         {!roundId && (
-          <p className="text-xs text-amber-200">Create Round 1 first.</p>
+          <p className="text-xs text-amber-200">Create the hunt first.</p>
         )}
       </div>
       <p className="text-[11px] text-white/40">

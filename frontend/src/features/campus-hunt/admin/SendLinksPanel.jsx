@@ -68,13 +68,16 @@ export default function SendLinksPanel({
       setWarnings(nextWarnings);
       setMessage(
         data.teamCount
-          ? `Ready: ${data.teamCount} team link${data.teamCount === 1 ? '' : 's'} `
-            + `(batch ${data.exportBatchId || '—'}). WhatsApp each leader.`
+          ? `Ready: ${data.teamCount} leader pack${data.teamCount === 1 ? '' : 's'} `
+            + `(batch ${data.exportBatchId || '—'}). WhatsApp each leader only.`
           : 'No packs yet — open Teams / Clues once, then Create again.',
       );
       await refreshStatus();
     } catch (err) {
-      setError(err.message || 'Could not create install links');
+      const msg = err.status === 503 || err.code === 'DB_UNAVAILABLE'
+        ? 'Database briefly unavailable — tap Create links again in a few seconds.'
+        : (err.message || 'Could not create install links');
+      setError(msg);
     } finally {
       setBusy('');
     }
@@ -140,13 +143,13 @@ export default function SendLinksPanel({
       <div>
         <h2 className="text-xl font-bold">Send links</h2>
         <p className="mt-1 text-sm text-white/55">
-          Ready by default. Create links anytime — if you change teams or clues, Create again.
+          One pack per team → WhatsApp the leader only. Walkers share that one phone.
         </p>
       </div>
 
       <section className="rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
         {teamsTotal > 0
-          ? `✓ ${teamsTotal} teams ready · passwords ${passwordsReady}/${teamsTotal || teamCapacity}`
+          ? `✓ ${teamsTotal} leader pack${teamsTotal === 1 ? '' : 's'} · passwords ${passwordsReady}/${teamsTotal || teamCapacity}`
           : 'Create teams on the Teams tab first (or Save size on the hub), then Create links.'}
       </section>
 
@@ -173,7 +176,7 @@ export default function SendLinksPanel({
             onClick={() => exportLinks(false)}
             className="rounded-xl bg-[#0ECCEE] px-5 py-2.5 text-sm font-bold text-black disabled:opacity-40"
           >
-            {busy === 'links' ? 'Creating…' : 'Create team links'}
+            {busy === 'links' ? 'Creating…' : 'Create leader packs'}
           </button>
           <button
             type="button"

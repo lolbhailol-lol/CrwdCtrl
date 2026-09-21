@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Clue1VariantManager from './Clue1VariantManager';
 import Clue2VariantManager from './Clue2VariantManager';
 import Clue3VariantManager from './Clue3VariantManager';
@@ -6,8 +6,6 @@ import Clue4VariantManager from './Clue4VariantManager';
 import Clue5VariantManager from './Clue5VariantManager';
 import Clue6VariantManager from './Clue6VariantManager';
 import CheckpointManager from './CheckpointManager';
-import CampusStationNamesEditor from './CampusStationNamesEditor';
-import StationPlantFragmentsPanel from './StationPlantFragmentsPanel';
 import FirstStopPosterPrint from './FirstStopPosterPrint';
 import SecondStopPosterPrint from './SecondStopPosterPrint';
 import ThirdStopPosterPrint from './ThirdStopPosterPrint';
@@ -41,7 +39,7 @@ export function buildRound1Clues(geometry) {
   const people = g.teamSize;
   const places = g.stationCount || STATION_TARGET_COUNT;
   const starts = g.startCount || 1;
-  const dest = g.destinationName || 'Finale Assembly';
+  const dest = g.destinationName || DESTINATION_PLACE.name;
   return [
     {
       id: 'clue1',
@@ -49,7 +47,8 @@ export function buildRound1Clues(geometry) {
       label: 'CLUE 1 · First stop',
       short: 'FIRST STOP',
       detail:
-        `${places} places · ${starts} gather · ~${perStation} team(s) each · `
+        `${places} places · ${starts} gather · `
+        + `${perStation === 1 ? '1 team each' : `~${perStation} teams each`} · `
         + `unique 5-stop path · leader scans → Clue 2`,
       checkpointKeys: ['1'],
       checkpointLabel: 'FIRST SCAN',
@@ -61,7 +60,7 @@ export function buildRound1Clues(geometry) {
       number: 2,
       label: 'CLUE 2 · Second stop',
       short: 'SECOND STOP',
-      detail: `${places} places · ~${perStation} team(s) each · 2nd stop on each team’s path`,
+      detail: `${places} places · ${perStation === 1 ? '1 team each' : `~${perStation} teams each`} · 2nd stop on each team’s path`,
       checkpointKeys: ['2'],
       checkpointLabel: 'SECOND SCAN',
       takesToSummary: destinationsSummary(2, undefined, perStation, perWait),
@@ -73,7 +72,7 @@ export function buildRound1Clues(geometry) {
       number: 3,
       label: 'CLUE 3 · Lockbox',
       short: 'LOCKBOX',
-      detail: `${places} places · ~${perStation} team(s) each · 3rd stop · Lockbox`,
+      detail: `${places} places · ${perStation === 1 ? '1 team each' : `~${perStation} teams each`} · 3rd stop · Lockbox`,
       checkpointKeys: ['3'],
       checkpointLabel: 'THIRD SCAN',
       takesToSummary: destinationsSummary(3, undefined, perStation, perWait),
@@ -85,7 +84,7 @@ export function buildRound1Clues(geometry) {
       number: 4,
       label: 'CLUE 4 · Field Terminal',
       short: 'FIELD TERMINAL',
-      detail: `${places} places · ~${perStation} team(s) each · 4th stop · Field Terminal`,
+      detail: `${places} places · ${perStation === 1 ? '1 team each' : `~${perStation} teams each`} · 4th stop · Field Terminal`,
       checkpointKeys: ['4'],
       checkpointLabel: 'FOURTH SCAN',
       takesToSummary: destinationsSummary(4, undefined, perStation, perWait),
@@ -98,7 +97,7 @@ export function buildRound1Clues(geometry) {
       label: 'CLUE 5 · Fifth stop',
       short: 'FIFTH STOP',
       detail:
-        `${places} places · ~${perStation} team(s) each · 5th stop · team word → scan → destination clue`,
+        `${places} places · ${perStation === 1 ? '1 team each' : `~${perStation} teams each`} · 5th stop · team word → scan → destination clue`,
       checkpointKeys: ['5'],
       checkpointLabel: 'FIFTH SCAN',
       takesToSummary: destinationsSummary(5, undefined, perStation, perWait),
@@ -120,7 +119,7 @@ export function buildRound1Clues(geometry) {
   ];
 }
 
-export const ROUND1_CLUES = buildRound1Clues(deriveClueGeometry(20, 4));
+export const ROUND1_CLUES = buildRound1Clues(deriveClueGeometry(20, 6));
 
 function ClueBox({
   clue,
@@ -464,21 +463,6 @@ export default function Round1ClueFormat({
     }),
     [localCapacity, localTeamSize, startCount, stationCount],
   );
-  const layoutDirty = useMemo(() => (
-    localCapacity !== teamCapacity
-    || localTeamSize !== teamSize
-    || (startCountProp != null && startCount !== startCountProp)
-    || (stationCountProp != null && stationCount !== stationCountProp)
-  ), [
-    localCapacity,
-    localTeamSize,
-    teamCapacity,
-    teamSize,
-    startCount,
-    startCountProp,
-    stationCount,
-    stationCountProp,
-  ]);
   const clues = useMemo(() => buildRound1Clues(geometry), [geometry]);
   const [openId, setOpenId] = useState('clue1');
   const [busy, setBusy] = useState(false);
@@ -520,42 +504,15 @@ export default function Round1ClueFormat({
     setClueReloadKey((n) => n + 1);
   };
 
-  const handleLayoutDraftChange = useCallback((draft) => {
-    const nextStation = draft?.stationCount ?? stationCount;
-    const nextStart = draft?.startCount ?? startCount;
-    setStationCount(nextStation);
-    setStartCount(nextStart);
-    if (Array.isArray(draft?.campusStations) && draft.campusStations.length) {
-      setCampusStations(draft.campusStations);
-    } else {
-      setCampusStations(resolveStations(
-        campusStationsCatalog || campusStationsProp,
-        nextStation,
-      ));
-    }
-    if (Array.isArray(draft?.campusStarts) && draft.campusStarts.length) {
-      setCampusStarts(draft.campusStarts);
-    }
-  }, [
-    campusStationsCatalog,
-    campusStationsProp,
-    startCount,
-    stationCount,
-  ]);
-
   const bootstrap = async () => {
     if (!eventId) return;
-    if (layoutDirty) {
-      setMessage('Save setup first — bootstrap uses the last saved teams / starts / places, not unsaved edits.');
-      return;
-    }
     setBusy(true);
     setMessage('');
     try {
       await adminBootstrapRound1(eventId, { createTeams: true });
       setMessage(
-        `Ready for Links: ${geometry.teamCapacity} teams · clues saved · passwords set · paths bound. `
-        + 'Open Links → Create team links.',
+        `Ready for Links: ${geometry.teamCapacity} leader packs · clues saved · paths bound. `
+        + 'Open Links → Create leader packs.',
       );
       bumpClues();
       onChanged?.();
@@ -573,71 +530,30 @@ export default function Round1ClueFormat({
           <h2 className="text-xl font-bold">Clues</h2>
           <p className="text-sm text-white/55">
             {geometry.teamCapacity} teams · {geometry.stationCount} places · open a color for hint + QR
+            {' '}· plant join-words under Places
           </p>
         </div>
         <button
           type="button"
-          disabled={busy || !eventId || layoutDirty}
+          disabled={busy || !eventId}
           onClick={bootstrap}
-          title={layoutDirty ? 'Save setup first' : undefined}
           className="rounded-xl bg-[#0ECCEE] px-4 py-2 text-sm font-bold text-black disabled:opacity-40"
         >
           {busy ? 'Bootstrapping…' : 'Save clues + teams (ready for Links)'}
         </button>
       </div>
-      {layoutDirty && (
-        <p className="text-xs text-amber-200">
-          Unsaved layout — save place names before bootstrap.
-        </p>
-      )}
       {message && <p className="text-xs text-[#0ECCEE]">{message}</p>}
-
-      <CampusStationNamesEditor
-        eventId={eventId}
-        campusStations={campusStationsCatalog || campusStations}
-        campusStarts={campusStartsProp || campusStarts}
-        startCount={startCount}
-        stationCount={stationCount}
-        teamCapacity={geometry.teamCapacity}
-        teamSize={geometry.teamSize}
-        onLayoutDraftChange={handleLayoutDraftChange}
-        onChanged={(data) => {
-          const nextStart = data?.startCount ?? startCount;
-          const nextStation = data?.stationCount ?? stationCount;
-          if (data?.teamCapacity != null) setLocalCapacity(data.teamCapacity);
-          if (data?.teamSize != null) setLocalTeamSize(data.teamSize);
-          setStartCount(nextStart);
-          setStationCount(nextStation);
-          setCampusStations(resolveStations(
-            data?.campusStationsCatalog || data?.campusStations || campusStations,
-            nextStation,
-          ));
-          setCampusStarts(resolveStarts(
-            data?.campusStartsCatalog || data?.campusStarts || campusStarts,
-            nextStart,
-          ));
-          bumpCheckpoints();
-          onChanged?.();
-        }}
-      />
 
       <details className="rounded-xl border border-white/10 bg-white/4 px-4 py-3">
         <summary className="cursor-pointer text-sm text-white/60">
-          Optional · team paths & plant fragments
+          Optional · view team paths
         </summary>
-        <div className="mt-3 space-y-4">
+        <div className="mt-3">
           <TeamPathsPanel
             campusStations={campusStations}
             campusStarts={campusStarts}
             teamsPerWait={geometry.teamsPerWait}
             teamCapacity={geometry.teamCapacity}
-          />
-          <StationPlantFragmentsPanel
-            eventId={eventId}
-            campusStations={campusStationsCatalog || campusStations}
-            stationCount={stationCount}
-            teamSize={geometry.teamSize}
-            onChanged={onChanged}
           />
         </div>
       </details>
@@ -657,7 +573,7 @@ export default function Round1ClueFormat({
           campusStations={campusStations}
           campusStarts={campusStarts}
           stationCount={geometry.stationCount}
-          layoutDirty={layoutDirty}
+          layoutDirty={false}
           teamCapacity={geometry.teamCapacity}
           teamSize={geometry.teamSize}
           teamsPerWait={geometry.teamsPerWait}

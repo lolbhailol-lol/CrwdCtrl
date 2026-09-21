@@ -1,9 +1,11 @@
 const STEPS = [
-  'Locations — name starts & campus places',
-  'Clues — Bootstrap all, then open each color for hint + QR',
-  'Teams — passwords · one leader phone per team',
-  'Send links — WhatsApp install link per team',
+  'Places — 20 campus stops · plant join-words · 1 gather point',
+  'Clues — Bootstrap, then open each color for hint + QR',
+  'Teams — 20 leader packs · one phone + password each',
+  'Links — WhatsApp install link per leader only',
+  'Test — dry-run one leader phone (optional)',
   'Live — Start the hunt on fest day',
+  'Results — lock scores · finalize · finish at Mindspark Lobby',
 ];
 
 /**
@@ -22,7 +24,7 @@ export default function AdminSetupGuide() {
         ))}
       </ol>
       <p className="mt-3 text-xs text-white/40">
-        Playtest is for dry-run only. Finish at Mindspark Lobby → mark reached on Live.
+        One leader phone per team. Shared plant slips → join-word (Clue 2). Finish at Mindspark Lobby.
       </p>
     </details>
   );

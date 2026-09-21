@@ -31,6 +31,6 @@ export async function applyRound1Scale(eventId, {
       startCount: layout.startCount,
       stationCount: layout.stationCount,
     },
-    message: `Saved ${format.teamCapacity} teams · ${format.teamSize} people/team.`,
+    message: `Saved ${format.teamCapacity} teams · ${format.teamSize}/team · ${layout.stationCount} places · ${layout.startCount} start(s).`,
   };
 }

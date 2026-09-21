@@ -24,12 +24,14 @@ const {
   DEFAULT_CAMPUS_STATIONS,
   DEFAULT_DESTINATION_NAME,
   DEFAULT_ORGANIZER_FINISH_CODE,
+  DEFAULT_STATION_JOINED_WORDS,
   resolveCampusStations,
   resolveCampusStarts,
   resolveStartCount,
   resolveDestinationName,
   resolveOrganizerFinishCode,
   clue1ForPlace: catalogClue1ForPlace,
+  ensureEventStationPlants,
 } = require('./stationCatalogService');
 
 const ROUTE_KEYS = ['A', 'B', 'C', 'D'];
@@ -297,13 +299,12 @@ function routeClueDefaults(
   if (n === 2) {
     return {
       prompt:
-        'A staff mark hides in plain sight nearby. '
-        + 'Scan the area at eye level — find your team’s 3-digit number.',
+        `At the green stop: find ${people} short plant slips written nearby. `
+        + 'Join them into one word and type it (leader), then scan the green poster.',
       answer: '',
-      hintText: 'Check posts, pillars, and notice boards at eye level.',
+      hintText: 'Look at eye level on posts, pillars, and notice boards — then join the pieces.',
       destinationInstruction:
-        'Go to your next location now. Find the shared green SECOND SCAN QR — '
-        + `leader scans once, then enters your team code to unlock Clue 3.`,
+        'Word typed — stay at green. Leader scans the green QR once, then enter your team code to unlock Clue 3.',
       memberPrompts: Array.from({ length: people }, () => ''),
     };
   }
@@ -486,7 +487,7 @@ async function ensureRound(event) {
   return round;
 }
 
-async function ensureLocations(event, round, capacity = 10, startCount = 1) {
+async function ensureLocations(event, round, capacity = 20, startCount = 1) {
   const starts = resolveCampusStarts(event);
   const activeCodes = starts.map((s) => s.code);
   const points = [];
@@ -829,6 +830,12 @@ async function ensureCheckpointsAndClues(
 
       const variantKey = `${startStation.code}-${second.wave}`;
       const clue2Defaults = routeClueDefaults(2, second.station.name, event.teamSize);
+      const joinWord = String(
+        second.station.joinedWord
+          || DEFAULT_STATION_JOINED_WORDS[String(second.station.code || '').toUpperCase()]
+          || second.code
+          || '',
+      ).trim().toUpperCase();
       // eslint-disable-next-line no-await-in-loop
       await CampusHuntChallenge.findOneAndUpdate(
         {
@@ -848,11 +855,12 @@ async function ensureCheckpointsAndClues(
             challengeNumber: 2,
             type: 'timed_search',
             prompt: clue2Defaults.prompt,
-            answer: second.code,
-            acceptedAnswers: [second.code],
+            answer: joinWord,
+            acceptedAnswers: [joinWord].filter(Boolean),
             destinationInstruction:
-              `Go to ${second.station.name} now. Find the shared green SECOND SCAN QR. `
-              + `Leader scans once, then enters your team code to unlock Clue 3.`,
+              `Go to ${second.station.name} now. Find the shared plant slips, join the word, `
+              + 'type it, then scan the shared green SECOND SCAN QR. '
+              + 'Leader scans once, then enters your team code to unlock Clue 3.',
             basePoints: 0,
             maxAttempts: scoring.clue2?.maxAttempts || 3,
             timerSeconds: scoring.clue2?.timerSeconds || 180,
@@ -1337,6 +1345,8 @@ async function bootstrapRound1Defaults({
     event.organizerFinishCode = DEFAULT_ORGANIZER_FINISH_CODE;
   }
   await event.save();
+  // Join-words + plant slips for every campus stop (needed for offline packs).
+  await ensureEventStationPlants(event, { force: false });
 
   const round = await ensureRound(event);
   const capacity = Number(event.teamCapacity) || 20;

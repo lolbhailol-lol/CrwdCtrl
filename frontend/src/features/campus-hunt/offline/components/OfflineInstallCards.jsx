@@ -17,10 +17,10 @@ export function teamWhatsAppText(row) {
   const url = installUrl(row.token);
   const size = Number(row.teamSize) || 10;
   return [
-    `Hunt — ${row.teamCode}`,
+    `Hunt — ${row.teamCode} (leader pack)`,
     '',
-    `Your team: ~${size} people. ONE phone = leader phone.`,
-    'Leader downloads the team pack on Wi‑Fi BEFORE fest day (data off will work after).',
+    `FOR THE TEAM LEADER ONLY — 1 pack · 1 phone.`,
+    `Your team walks together (~${size} people). Only you install & play.`,
     '',
     'INSTALL TODAY (Wi‑Fi / data ON):',
     url,
@@ -29,16 +29,17 @@ export function teamWhatsAppText(row) {
     '1. Open the link in Chrome (⋮ in WhatsApp → Open in Chrome)',
     '2. Wait until you see Pack saved',
     '3. Chrome → Install app / Add to Home screen → name it Hunt',
-    '4. Turn OFF Wi‑Fi + mobile data → open Hunt icon → password → Round 1',
+    '4. Turn OFF Wi‑Fi + mobile data → open Hunt icon → password → The Hunt',
     '   If it does not open, you installed CrwdCtrl by mistake — delete that shortcut and install Hunt again on Wi‑Fi.',
     '',
     'AT THE FEST (offline OK):',
-    '• Only the leader phone — whole team walks together',
-    '• Login → Rounds → Round 1',
-    '• Leader types clue answers',
+    '• Only your phone — whole team walks with you',
+    '• Login → The Hunt',
+    '• You type clue answers',
     `• At each stop: find ${size} clues written nearby, join into one word, type it, scan place QR once`,
     '• Enter team code → next location',
     '',
+    'Do not forward this to every teammate. One pack for the leader phone only.',
     'Do not wait until start time to install. Pack must be on the phone first.',
   ].join('\n');
 }
@@ -74,7 +75,7 @@ export default function OfflineInstallCards({ installs = [] }) {
   return (
     <div className="mt-3 space-y-2 print:hidden">
       <p className="text-[11px] font-semibold text-white">
-        WhatsApp — one pack link per team (leader installs on phone before start)
+        WhatsApp — one pack per team · send to leader only
       </p>
       {installs.map((row) => (
         <div

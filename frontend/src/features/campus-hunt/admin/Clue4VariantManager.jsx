@@ -148,7 +148,7 @@ export default function Clue4VariantManager({
 
   const saveAll = async () => {
     if (!eventId || !roundId) {
-      setError('Create Round 1 first');
+      setError('Create the hunt first');
       return;
     }
     if (orderedPoints.length < 1) {
@@ -265,7 +265,7 @@ export default function Clue4VariantManager({
           Purple · Field Terminal then FOURTH SCAN
         </span>
         <span className="rounded-full bg-white/10 px-2.5 py-1 text-white/55">
-          {stations.length} places · ~{teamsPerStation} teams each · GRID codes
+          {stations.length} places · {teamsPerStation === 1 ? '1 team each' : `~${teamsPerStation} teams each`} · GRID codes
         </span>
         <span className={`rounded-full px-2.5 py-1 ${
           savedCount >= teamCapacity

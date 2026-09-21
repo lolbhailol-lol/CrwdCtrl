@@ -225,7 +225,7 @@ export default function FinishReturnBoard({
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {[
-          ['At Finale (mark)', totals.returning, THEME.textClass],
+          ['At Lobby (mark)', totals.returning, THEME.textClass],
           ['Finished', totals.done, 'text-emerald-200'],
           ['Still out', totals.out, 'text-amber-200'],
           ['Teams', `${totals.done + totals.returning + totals.out}/${totals.capacity}`, 'text-white/70'],
@@ -311,7 +311,7 @@ export default function FinishReturnBoard({
                         <p className="text-[10px] uppercase text-red-100/70">
                           {team.currentStage === 'CLUE_6_FAILED'
                             ? 'Clue 6 failed · still check in'
-                            : 'Clue 6 done · at Finale Assembly'}
+                            : 'Clue 6 done · at Mindspark Lobby'}
                         </p>
                       </div>
                       <button
