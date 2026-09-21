@@ -788,6 +788,7 @@ async function resetTeamHuntProgress(team, {
   };
   if (deviceId) $set.offlineDeviceId = String(deviceId).slice(0, 64);
 
+  // Do not $unset stats.* while $set replaces whole `stats` — Mongo conflict.
   const freshTeam = await CampusHuntTeam.findByIdAndUpdate(
     team._id,
     {
@@ -801,7 +802,6 @@ async function resetTeamHuntProgress(team, {
         actualStartAt: 1,
         scheduledStartAt: 1,
         releasedAt: 1,
-        'stats.totalCompletionMs': 1,
       },
     },
     { new: true },

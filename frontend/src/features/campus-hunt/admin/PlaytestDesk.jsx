@@ -110,10 +110,16 @@ export default function PlaytestDesk({
   /** Optimistic patch after Start over so Lobby · 265 cannot stick until parent poll. */
   const [teamPatch, setTeamPatch] = useState(null);
 
+  const teamBase = sorted.find((t) => String(t._id) === String(teamId)) || null;
+  const team = teamBase && teamPatch && String(teamPatch._id || teamPatch.id) === String(teamId)
+    ? { ...teamBase, ...teamPatch }
+    : teamBase;
+
   useEffect(() => {
     if (!teamId && sorted[0]?._id) setTeamId(String(sorted[0]._id));
   }, [sorted, teamId]);
 
+  // Clear optimistic patch once parent refresh matches Waiting · start score.
   useEffect(() => {
     if (!teamPatch || !teamBase) return;
     if (
@@ -123,11 +129,6 @@ export default function PlaytestDesk({
       setTeamPatch(null);
     }
   }, [teamBase, teamPatch]);
-
-  const teamBase = sorted.find((t) => String(t._id) === String(teamId)) || null;
-  const team = teamBase && teamPatch && String(teamPatch._id || teamPatch.id) === String(teamId)
-    ? { ...teamBase, ...teamPatch }
-    : teamBase;
   const Orange = stationForTeam(stations, team?.teamCode, '1');
   const green = stationForTeam(stations, team?.teamCode, '2');
   const blue = stationForTeam(stations, team?.teamCode, '3');
