@@ -110,12 +110,21 @@ export function buildPlayerNowGuide({
   }
 
   if (activeNum === 1) {
+    if (activeChallenge?.revealedAnswer || activeChallenge?.failureReason === 'REVEALED_ZERO_POINTS') {
+      return {
+        tone: 'clue',
+        eyebrow: 'Clue 1',
+        title: 'Type the revealed place',
+        body: '0 pts — type the answer shown, then scan Orange.',
+        steps: [],
+      };
+    }
     return {
       tone: 'clue',
       eyebrow: 'Clue 1',
       title: 'Name the place',
       body: isLeader
-        ? 'Type the campus place, submit, then scan Orange.'
+        ? '3 attempts. Type the campus place, submit, then scan Orange.'
         : 'Only the leader phone answers Clue 1.',
       steps: [],
     };
@@ -144,17 +153,26 @@ export function buildPlayerNowGuide({
       tone: 'clue',
       eyebrow: 'Clue 2',
       title: 'Join the plant word',
-      body: 'Find the plant slips at green, join into one word, type it. Faster = more points.',
+      body: '3 attempts. Find the plant slips at green, join into one word, type it. Faster = more points.',
       steps: [],
     };
   }
 
   if (activeNum === 3) {
+    if (activeChallenge?.revealedAnswer || activeChallenge?.failureReason === 'REVEALED_ZERO_POINTS') {
+      return {
+        tone: 'clue',
+        eyebrow: 'Clue 3 · Lockbox',
+        title: 'Type the revealed code',
+        body: '0 pts — type the code shown, then scan blue.',
+        steps: [],
+      };
+    }
     return {
       tone: 'clue',
       eyebrow: 'Clue 3 · Lockbox',
       title: 'Open the lockbox',
-      body: 'Rebuild the digits in order, submit, then scan blue.',
+      body: '3 attempts. Rebuild the digits in order, submit, then scan blue.',
       steps: [],
     };
   }
@@ -183,7 +201,7 @@ export function buildPlayerNowGuide({
       tone: 'clue',
       eyebrow: 'Clue 5',
       title: 'Submit the word',
-      body: 'Rebuild from fragments, submit, then scan red.',
+      body: '3 attempts. Rebuild from fragments, submit, then scan red.',
       steps: [],
     };
   }

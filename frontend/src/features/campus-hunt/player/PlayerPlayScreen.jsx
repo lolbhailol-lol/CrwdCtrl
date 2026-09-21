@@ -490,12 +490,14 @@ export default function PlayerPlayScreen({
       }
       setFeedback(sanitizePlayerCopy(resData.message || resData.destinationInstruction || ''));
     } else if (resData?.revealed) {
-      setAnswer('');
-      celebrate('Location revealed — continue to scan');
+      setAnswer(String(resData.revealedAnswer || resData.revealedLocation || '').trim());
+      celebrate('Answer revealed — type it for 0 pts');
       setAwardedFlash(null);
       setFeedback(
         resData.message
-        || `Location: ${resData.revealedLocation}. Go scan the station QR.`,
+        || (resData.revealedAnswer || resData.revealedLocation
+          ? `Answer: ${resData.revealedAnswer || resData.revealedLocation}. Type it exactly to continue (0 pts).`
+          : 'Out of attempts (0 pts). Answer shown — type it to continue.'),
       );
     } else if (resData?.timedOut) {
       setFeedback('Time is up. Continue when ready.');
@@ -1129,6 +1131,30 @@ export default function PlayerPlayScreen({
                 )}
               </div>
 
+              {activeChallenge.state === 'ACTIVE'
+                && [1, 2, 3, 5].includes(Number(activeChallenge.challengeNumber))
+                && (activeChallenge.maxAttempts != null || activeChallenge.attemptsLeft != null) && (
+                <div className="flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-black/25 px-3 py-2 text-xs">
+                  <span className="text-white/55">
+                    {activeChallenge.revealedAnswer || activeChallenge.failureReason === 'REVEALED_ZERO_POINTS'
+                      ? 'Out of attempts — type the answer below for 0 pts'
+                      : `${activeChallenge.maxAttempts || 3} attempts`}
+                  </span>
+                  {!(activeChallenge.revealedAnswer || activeChallenge.failureReason === 'REVEALED_ZERO_POINTS') && (
+                    <span
+                      className="font-semibold tabular-nums"
+                      style={{
+                        color: Number(activeChallenge.attemptsLeft) <= 1
+                          ? '#FBBF24'
+                          : clueTheme.hex,
+                      }}
+                    >
+                      {activeChallenge.attemptsLeft ?? '—'} left
+                    </span>
+                  )}
+                </div>
+              )}
+
               {activeChallenge.prompt == null && activeChallenge.challengeNumber === 1 ? (
                 <p className="text-sm text-white/50">Clue 1 is only on the Team Leader phone.</p>
               ) : (
@@ -1298,9 +1324,15 @@ export default function PlayerPlayScreen({
                 </div>
               )}
 
-              {activeChallenge.revealedLocation && (
+              {activeChallenge.revealedLocation
+                && !activeChallenge.revealedAnswer
+                && (
                 <div className="rounded-xl bg-amber-500/10 px-3 py-2 text-sm">
-                  <p className="text-amber-100/80">Location revealed (0 pts)</p>
+                  <p className="text-amber-100/80">
+                    {activeChallenge.state === 'ACTIVE'
+                      ? 'Location revealed (0 pts) — type it below'
+                      : 'Location revealed (0 pts)'}
+                  </p>
                   <p className="mt-0.5 text-lg font-semibold capitalize">
                     {activeChallenge.revealedLocation}
                   </p>
@@ -1365,7 +1397,9 @@ export default function PlayerPlayScreen({
                       ? 'Submitting…'
                       : inInstructionPhase
                         ? 'Wait for timer…'
-                        : (activeChallenge.timeExpired || activeChallenge.revealedAnswer)
+                        : (activeChallenge.timeExpired
+                          || activeChallenge.revealedAnswer
+                          || activeChallenge.failureReason === 'REVEALED_ZERO_POINTS')
                           ? 'Submit for 0 pts'
                           : 'Submit'}
                   </button>

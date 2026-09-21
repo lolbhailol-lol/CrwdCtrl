@@ -265,6 +265,7 @@ const DEFAULT_SCORING_CONFIG = {
     timerStartDelaySeconds: 20,
     awardMode: 'time_bands_total',
     allowLateSubmit: true,
+    revealOnMaxAttempts: true,
     speedBonusBands: [
       { maxSeconds: 60, bonus: 50 },
       { maxSeconds: 120, bonus: 30 },
@@ -277,6 +278,7 @@ const DEFAULT_SCORING_CONFIG = {
     maxAttempts: 3,
     timerSeconds: 0,
     awardMode: 'flat_base',
+    revealOnMaxAttempts: true,
     speedBonusBands: [],
   },
   // Clue 4 — Field Terminal (Zip Grid). No hunt timer — play on laptop, submit GRID code.
@@ -296,6 +298,7 @@ const DEFAULT_SCORING_CONFIG = {
     timerSeconds: 300,
     awardMode: 'base_plus_speed',
     allowLateSubmit: true,
+    revealOnMaxAttempts: true,
     speedBonusBands: [
       { maxSeconds: 120, bonus: 25 },
       { maxSeconds: 210, bonus: 15 },
@@ -318,7 +321,7 @@ const CLUE_HOW_TO = {
     title: 'How to play — Clue 1',
     steps: [
       'Leader reads the riddle and types the campus location on their phone.',
-      'Correct answer = 50 points (any attempt). After 3 wrong tries the location is revealed (0 points).',
+      'Correct = 50 pts. You get 3 attempts. After 3 wrong tries the answer is shown (0 pts) — type it to continue.',
       'Walk there together — leader scans the shared orange QR once to unlock Clue 2.',
     ],
   },
@@ -327,8 +330,8 @@ const CLUE_HOW_TO = {
     steps: [
       'Leader reads the brief (short countdown), then the timer starts.',
       'At the green stop: find the shared plant slips, join into one word.',
-      'Leader types that word. Faster correct submit = more points.',
-      'If time runs out, the word is shown (0 points) — type it to continue.',
+      'Leader types that word (3 attempts). Faster correct submit = more points.',
+      'If time runs out or 3 wrong tries, the word is shown (0 pts) — type it to continue.',
       'Leader scans the shared green SECOND SCAN QR once.',
       'That unlocks Lockbox (Clue 3) on the leader phone.',
     ],
@@ -337,7 +340,8 @@ const CLUE_HOW_TO = {
     title: 'How to play — Lockbox',
     steps: [
       'Lockbox pieces appear on the leader phone — read them aloud in seat order.',
-      'Rebuild the digit code together. Leader submits (limited attempts; hints cost points).',
+      'Rebuild the digit code. Leader submits (3 attempts; hints cost points).',
+      'After 3 wrong tries the code is shown (0 pts) — type it to continue.',
       'Walk to that place together — leader finds the shared blue THIRD SCAN QR.',
       'Leader scans once — Field Terminal unlocks.',
     ],
@@ -356,8 +360,8 @@ const CLUE_HOW_TO = {
     title: 'How to play — Clue 5',
     steps: [
       'Fragments appear on the leader phone — read them aloud in order and rebuild the one word.',
-      'Leader submits the word. Faster = bonus points.',
-      'If time runs out, the word is revealed (0 points) — type it to continue.',
+      'Leader submits the word (3 attempts). Faster = bonus points.',
+      'If time runs out or 3 wrong tries, the word is revealed (0 pts) — type it to continue.',
       'Walk to your 5th campus stop — leader scans the red FIFTH SCAN QR once.',
       'That unlocks Clue 6 (Mindspark Lobby) on the leader phone.',
     ],

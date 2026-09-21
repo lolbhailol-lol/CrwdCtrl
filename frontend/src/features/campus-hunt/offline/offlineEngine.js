@@ -357,13 +357,14 @@ export function submitAnswer(bundle, session, state, challengeNumber, answer, no
   if (!correct) {
     row.attempts = nextAttempts;
     const failed = nextAttempts >= maxAttempts;
-    const clue1Reveal = failed && n === 1 && cfg.revealOnMaxAttempts !== false;
-    if (clue1Reveal) {
-      row.state = 'COMPLETED';
+    // Typed clues: 3 fails → show answer (0 pts), stay ACTIVE so they type it.
+    const revealAndType = failed
+      && [1, 2, 3, 5].includes(n)
+      && cfg.revealOnMaxAttempts !== false;
+    if (revealAndType) {
       row.failureReason = 'REVEALED_ZERO_POINTS';
       row.awardedPoints = 0;
-      row.completedAt = now.toISOString();
-      next.currentStage = RESOLVED[1].completed;
+      // Keep ACTIVE — must type revealed answer to continue.
     } else if (failed) {
       row.state = 'FAILED';
       row.failureReason = 'MAX_ATTEMPTS';
@@ -374,19 +375,25 @@ export function submitAnswer(bundle, session, state, challengeNumber, answer, no
     }
     next.clueProgress[n] = row;
     bump(next);
+    const answerText = String(clue.answer || '').trim();
     return {
       state: next,
       meta: {
         correct: false,
         revealed: row.failureReason === 'REVEALED_ZERO_POINTS',
         revealedLocation: row.failureReason === 'REVEALED_ZERO_POINTS' && n === 1
-          ? (clue.answer || clue.destinationInstruction || null)
+          ? (answerText || clue.destinationInstruction || null)
+          : undefined,
+        revealedAnswer: row.failureReason === 'REVEALED_ZERO_POINTS'
+          ? (answerText || null)
           : undefined,
         attemptsLeft: Math.max(0, maxAttempts - nextAttempts),
         awardedPoints: 0,
-        message: failed
-          ? (clue1Reveal ? 'Location revealed — go scan orange.' : 'Out of attempts — continue.')
-          : `Incorrect. Attempts left: ${Math.max(0, maxAttempts - nextAttempts)}`,
+        message: revealAndType
+          ? 'Out of attempts (0 pts). Answer shown — type it exactly to continue.'
+          : failed
+            ? 'Out of attempts — continue.'
+            : `Incorrect. ${Math.max(0, maxAttempts - nextAttempts)} of ${maxAttempts} attempts left`,
       },
     };
   }

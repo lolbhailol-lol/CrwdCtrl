@@ -11,6 +11,8 @@ export default function ClueHowTo({ challenge }) {
   const howTo = challenge.howTo;
   const n = challenge.challengeNumber;
   const scoringBands = challenge.scoringBands || [];
+  const maxAttempts = challenge.maxAttempts || 3;
+  const showAttempts = [1, 2, 3, 5].includes(Number(n)) && challenge.state === 'ACTIVE';
 
   return (
     <div className="overflow-hidden rounded-xl border border-white/[0.06] bg-black/20">
@@ -43,13 +45,18 @@ export default function ClueHowTo({ challenge }) {
                 </ol>
               )}
 
+              {showAttempts && (
+                <p>
+                  {maxAttempts} attempts.
+                  {challenge.revealedAnswer || challenge.failureReason === 'REVEALED_ZERO_POINTS'
+                    ? ' Answer shown (0 pts) — type it to continue.'
+                    : ` ${challenge.attemptsLeft ?? '—'} left. Miss all → answer shown (0 pts), type it to continue.`}
+                </p>
+              )}
+
               {n === 1 && (
                 <p>
                   Correct = <span className="text-[#0ECCEE]">50 pts</span>.
-                  After 3 wrong tries, location revealed for 0 pts.
-                  {challenge.state === 'ACTIVE' && (
-                    <> Attempts left: {challenge.attemptsLeft ?? '—'}.</>
-                  )}
                 </p>
               )}
 
@@ -58,7 +65,7 @@ export default function ClueHowTo({ challenge }) {
               )}
 
               {n === 3 && <p>Correct decode = 50 pts. Hints cost points.</p>}
-              {n === 4 && <p>Base points + speed bonus in the timer bands.</p>}
+              {n === 4 && <p>Clear Zip Grid, then type GRID-XXXX (50 pts).</p>}
             </div>
           </motion.div>
         )}

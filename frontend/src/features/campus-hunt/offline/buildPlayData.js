@@ -84,7 +84,7 @@ function challengeView(bundle, state, session, n, now) {
       ? sanitizePlayerCopy(clue.destinationInstruction || '')
       : undefined,
     revealedLocation: revealed && n === 1 ? (clue.answer || null) : undefined,
-    revealedAnswer: revealed && n !== 1 ? (clue.answer || null) : undefined,
+    revealedAnswer: revealed ? (clue.answer || null) : undefined,
     state: row.state,
     attempts: row.attempts || 0,
     maxAttempts: clue.maxAttempts || cfg.maxAttempts || 3,

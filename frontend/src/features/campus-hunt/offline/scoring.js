@@ -22,6 +22,7 @@ export const DEFAULT_SCORING_CONFIG = {
     timerStartDelaySeconds: 20,
     awardMode: 'time_bands_total',
     allowLateSubmit: true,
+    revealOnMaxAttempts: true,
     speedBonusBands: [
       { maxSeconds: 60, bonus: 50 },
       { maxSeconds: 120, bonus: 30 },
@@ -33,6 +34,7 @@ export const DEFAULT_SCORING_CONFIG = {
     maxAttempts: 3,
     timerSeconds: 0,
     awardMode: 'flat_base',
+    revealOnMaxAttempts: true,
     speedBonusBands: [],
   },
   clue4: {
@@ -50,6 +52,7 @@ export const DEFAULT_SCORING_CONFIG = {
     timerSeconds: 300,
     awardMode: 'base_plus_speed',
     allowLateSubmit: true,
+    revealOnMaxAttempts: true,
     speedBonusBands: [
       { maxSeconds: 120, bonus: 25 },
       { maxSeconds: 210, bonus: 15 },

@@ -601,9 +601,9 @@ async function submitAnswer({
 
   if (!correct) {
     const failed = nextAttempts >= maxAttempts;
-    // Clue 1: after 3 fails → reveal location, 0 pts, still advance to scan
-    const clue1Reveal = failed
-      && Number(challengeNumber) === 1
+    // Typed clues: after 3 fails → show answer (0 pts), stay ACTIVE so they type it to continue.
+    const revealAndType = failed
+      && [1, 2, 3, 5].includes(Number(challengeNumber))
       && scoring.revealOnMaxAttempts !== false;
 
     const update = {
@@ -611,11 +611,10 @@ async function submitAnswer({
       submittedAt: now,
       lastRequestId: requestId || progress.lastRequestId,
     };
-    if (clue1Reveal) {
-      update.state = 'COMPLETED';
+    if (revealAndType) {
       update.failureReason = 'REVEALED_ZERO_POINTS';
       update.awardedPoints = 0;
-      update.completedAt = now;
+      // Stay ACTIVE — player must type the revealed answer for 0 pts to unlock next.
     } else if (failed) {
       update.state = 'FAILED';
       update.failureReason = 'MAX_ATTEMPTS';
@@ -639,11 +638,12 @@ async function submitAnswer({
         attemptsLeft: Math.max(0, maxAttempts - (existing?.attempts || 0)),
         awardedPoints: existing?.awardedPoints ?? 0,
         revealed: existing?.failureReason === 'REVEALED_ZERO_POINTS',
-        revealedLocation: existing?.failureReason === 'REVEALED_ZERO_POINTS'
-          ? (challenge.answer || challenge.destinationInstruction || null)
+        revealedAnswer: existing?.failureReason === 'REVEALED_ZERO_POINTS'
+          ? (challenge.answer || null)
           : undefined,
-        destinationInstruction: existing?.failureReason === 'REVEALED_ZERO_POINTS'
-          ? (challenge.destinationInstruction || '')
+        revealedLocation: existing?.failureReason === 'REVEALED_ZERO_POINTS'
+          && Number(challengeNumber) === 1
+          ? (challenge.answer || challenge.destinationInstruction || null)
           : undefined,
         message: 'Answer already processed — refresh if your stage looks wrong.',
         teamStage: freshTeam?.currentStage || team.currentStage,
@@ -654,10 +654,8 @@ async function submitAnswer({
 
     let updatedTeam = team;
     const failInc = { $inc: { 'stats.failedAttempts': 1 } };
-    if (failed || clue1Reveal) {
-      const nextStage = clue1Reveal
-        ? resolvedStageForChallenge(challengeNumber, 'completed')
-        : resolvedStageForChallenge(challengeNumber, 'failed');
+    if (failed && !revealAndType) {
+      const nextStage = resolvedStageForChallenge(challengeNumber, 'failed');
       if (nextStage && canTransition(team.currentStage, nextStage)) {
         updatedTeam = await CampusHuntTeam.findOneAndUpdate(
           { _id: team._id, currentStage: team.currentStage },
@@ -684,25 +682,24 @@ async function submitAnswer({
 
     const attemptsLeft = Math.max(0, maxAttempts - nextAttempts);
     const nextPts = scoring.attemptBands?.find((b) => Number(b.attempt) === nextAttempts + 1)?.points;
+    const revealedText = String(challenge.answer || '').trim();
 
     notifyTeam(updatedTeam);
     return {
       correct: false,
-      state: updatedProgress.state || (failed ? 'FAILED' : 'ACTIVE'),
+      state: updatedProgress.state || 'ACTIVE',
       attemptsLeft,
       awardedPoints: 0,
-      revealed: Boolean(clue1Reveal),
-      revealedLocation: clue1Reveal
-        ? (challenge.answer || challenge.destinationInstruction || null)
-        : undefined,
-      destinationInstruction: clue1Reveal
-        ? (challenge.destinationInstruction || '')
+      revealed: Boolean(revealAndType),
+      revealedAnswer: revealAndType ? (revealedText || null) : undefined,
+      revealedLocation: revealAndType && Number(challengeNumber) === 1
+        ? (revealedText || challenge.destinationInstruction || null)
         : undefined,
       nextAttemptPoints: !failed && nextPts != null ? nextPts : undefined,
-      message: clue1Reveal
-        ? `Out of attempts. Location unlocked (0 points). Leader scans the station QR once.`
+      message: revealAndType
+        ? `Out of attempts (0 pts). Answer shown — type it exactly to continue.`
         : attemptsLeft > 0
-          ? `Incorrect. ${attemptsLeft} attempt${attemptsLeft === 1 ? '' : 's'} left`
+          ? `Incorrect. ${attemptsLeft} of ${maxAttempts} attempt${attemptsLeft === 1 ? '' : 's'} left`
             + (nextPts != null ? ` (next correct = ${nextPts} pts)` : '')
           : 'Incorrect. No attempts left.',
       teamStage: updatedTeam.currentStage,
@@ -1522,8 +1519,10 @@ async function buildPlayerProgress(team, userId, isLeader) {
       // eslint-disable-next-line no-await-in-loop
       const secret = await CampusHuntChallenge.findById(ch._id).select('+answer');
       if (Number(ch.challengeNumber) === 1) {
+        // Same string as the typed answer — show as location + answer so they can type it.
         revealedLocation = secret?.answer || ch.destinationInstruction || null;
-      } else if ([2, 4, 5].includes(Number(ch.challengeNumber))) {
+        revealedAnswer = secret?.answer || null;
+      } else if ([2, 3, 4, 5].includes(Number(ch.challengeNumber))) {
         revealedAnswer = secret?.answer || null;
         if (Number(ch.challengeNumber) === 4) {
           try {
@@ -1585,11 +1584,14 @@ async function buildPlayerProgress(team, userId, isLeader) {
       ch.challengeNumber === 1
       && p?.state !== 'COMPLETED'
       && teamFresh.currentStage === 'CLUE_1_ACTIVE'
+      && p?.failureReason !== 'REVEALED_ZERO_POINTS'
     ) {
+      // Hide destination until they solve or burn all attempts (then reveal to type).
       view.destinationInstruction = undefined;
       view.revealedLocation = undefined;
+      view.revealedAnswer = undefined;
     }
-    if (ch.challengeNumber === 1 && view.locked !== true) {
+    if (view.locked !== true && [1, 2, 3, 5].includes(Number(ch.challengeNumber))) {
       view.maxAttempts = scoring.maxAttempts || 3;
       view.attemptsLeft = Math.max(0, view.maxAttempts - (p?.attempts || 0));
     }
