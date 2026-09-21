@@ -113,7 +113,7 @@ export default function PlayerPlayScreen({
     team?.actualStartAt
     || ['RELEASED', 'ACTIVE', 'COMPLETED'].includes(team?.startStatus),
   );
-  const waitingForRelease = hasStartGate && !released;
+  const waitingForRelease = !offlineMode && hasStartGate && !released;
 
   const activeChallenge = useMemo(
     () => {

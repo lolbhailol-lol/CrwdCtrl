@@ -209,18 +209,9 @@ export function isHuntWaiting(state) {
   return String(state?.currentStage || 'WAITING') === 'WAITING';
 }
 
-/** Wave / go-time from pack (Live schedule). Null = no gate in pack yet. */
-export function getScheduledStartAt(bundle) {
-  const raw = bundle?.team?.scheduledStartAt;
-  if (!raw) return null;
-  const ms = new Date(raw).getTime();
-  return Number.isFinite(ms) ? ms : null;
-}
-
 /**
  * Offline start — one secret code only.
  * Organizer says the word at the gather point; leaders type it; hunt starts.
- * No release desk / wave unlock required on the phone.
  */
 export function getHuntStartGate(bundle, now = new Date(), { goCode = '' } = {}) {
   void now;

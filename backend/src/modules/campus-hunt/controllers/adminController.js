@@ -1310,38 +1310,6 @@ async function manualReleaseTeam(req, res, next) {
   }
 }
 
-/** Offline Hunt: GO one team or everyone — unlocks Start without forcing Clue 1 online. */
-async function goUnlockStart(req, res, next) {
-  try {
-    const { goUnlockTeams } = require('../services/teamReleaseService');
-    const all = Boolean(req.body.all || req.body.everyone) || Boolean(req.params.eventId && !req.params.teamId);
-    let eventId = req.params.eventId || null;
-    let teamId = req.params.teamId || req.body.teamId || null;
-
-    if (!all && teamId && !eventId) {
-      const team = await CampusHuntTeam.findById(teamId).select('eventId');
-      if (!team) {
-        return res.status(404).json({ success: false, message: 'Team not found' });
-      }
-      eventId = team.eventId;
-    }
-
-    const result = await goUnlockTeams({
-      eventId,
-      teamId: all ? null : teamId,
-      all,
-      actor: adminActor(req),
-      reason: String(req.body.reason || '').trim() || (all ? 'GO everyone' : 'GO this team'),
-    });
-    return res.json({ success: true, data: result });
-  } catch (err) {
-    if (err.status) {
-      return res.status(err.status).json({ success: false, message: err.message, code: err.code });
-    }
-    return next(err);
-  }
-}
-
 /** After Clue 6: organizer marks team reached at Mindspark Lobby → score locked. */
 async function markTeamStartReached(req, res, next) {
   try {
@@ -4449,7 +4417,6 @@ module.exports = {
   setRoundReleasesPaused,
   setStartingPointPaused,
   manualReleaseTeam,
-  goUnlockStart,
   markTeamStartReached,
   getStartDashboard,
   createTeam,

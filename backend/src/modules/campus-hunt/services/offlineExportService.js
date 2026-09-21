@@ -414,7 +414,6 @@ async function exportOfflinePacks(eventId) {
         teamName: team.teamName,
         password,
         roster: buildRoster(team),
-        scheduledStartAt: team.scheduledStartAt || null,
         startingPoint: start
           ? { code: start.code, name: start.name, description: start.description || '' }
           : null,
@@ -970,27 +969,12 @@ async function pullOfflineBoardState(eventId, payload) {
     eventId,
     teamCode: String(body.team || '').toUpperCase(),
   }).select(
-    'teamCode currentStage currentScore startingScore finalScore offlineProgressSeq offlineResetAt scoreLockedAt scheduledStartAt startStatus',
+    'teamCode currentStage currentScore startingScore finalScore offlineProgressSeq offlineResetAt scoreLockedAt',
   );
   if (!team) {
     const err = new Error(`Team ${body.team} not found`);
     err.status = 404;
     throw err;
-  }
-
-  // If admin already released this team, phone may start immediately.
-  let scheduledStartAt = team.scheduledStartAt || null;
-  if (
-    ['RELEASED', 'ACTIVE'].includes(String(team.startStatus || ''))
-    && scheduledStartAt
-    && new Date(scheduledStartAt).getTime() > Date.now()
-  ) {
-    scheduledStartAt = new Date();
-  } else if (
-    ['RELEASED', 'ACTIVE'].includes(String(team.startStatus || ''))
-    && !scheduledStartAt
-  ) {
-    scheduledStartAt = new Date();
   }
 
   return {
@@ -1002,8 +986,6 @@ async function pullOfflineBoardState(eventId, payload) {
     seq: Number(team.offlineProgressSeq) || 0,
     offlineResetAt: team.offlineResetAt || null,
     scoreLocked: team.currentStage === 'SCORE_LOCKED' || Boolean(team.scoreLockedAt),
-    scheduledStartAt: scheduledStartAt ? new Date(scheduledStartAt).toISOString() : null,
-    startStatus: team.startStatus || 'WAITING',
   };
 }
 

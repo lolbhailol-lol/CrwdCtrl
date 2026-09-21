@@ -164,89 +164,9 @@ async function releaseDueTeams({ eventId, roundId, now = new Date(), limit = 200
   return { released, considered: due.length, errors };
 }
 
-/**
- * Offline-friendly GO unlock — does NOT force Clue 1 on the server.
- * Stamps RELEASED + scheduledStartAt=now so leader phones can Start
- * (pull on Wi‑Fi, or type the shared start word after you shout it).
- */
-async function goUnlockTeams({
-  eventId,
-  teamId = null,
-  all = false,
-  actor = null,
-  reason = '',
-  now = new Date(),
-} = {}) {
-  if (!eventId) throw releaseError('Event required', 'EVENT_REQUIRED', 400);
-  if (!all && !teamId) throw releaseError('Pick a team or GO everyone', 'TEAM_REQUIRED', 400);
-
-  const filter = {
-    eventId,
-    startStatus: { $in: ['WAITING', 'READY', 'RELEASED'] },
-  };
-  if (!all) filter._id = teamId;
-
-  const teams = await CampusHuntTeam.find(filter).select(
-    '_id teamCode startStatus scheduledStartAt currentStage',
-  );
-  if (!teams.length) {
-    return { unlocked: 0, teams: [], already: true };
-  }
-
-  const ids = teams.map((t) => t._id);
-  await CampusHuntTeam.updateMany(
-    { _id: { $in: ids } },
-    {
-      $set: {
-        startStatus: 'RELEASED',
-        scheduledStartAt: now,
-      },
-    },
-  );
-
-  await writeAudit({
-    eventId,
-    actorType: actor?.actorType || 'admin',
-    actorId: actor?.actorId || 'go-unlock',
-    actorLabel: actor?.actorLabel || 'Admin GO',
-    action: all ? 'teams_go_unlock_all' : 'team_go_unlock',
-    targetType: all ? 'event' : 'team',
-    targetId: all ? eventId : teamId,
-    reason: reason || (all ? 'GO everyone' : 'GO this team'),
-    after: {
-      startStatus: 'RELEASED',
-      scheduledStartAt: now,
-      count: ids.length,
-      teamCodes: teams.map((t) => t.teamCode),
-    },
-  });
-
-  try {
-    const { publishTeamProgress } = require('./teamProgressBus');
-    ids.forEach((id) => {
-      try { publishTeamProgress(id); } catch { /* best-effort */ }
-    });
-  } catch { /* SSE best-effort */ }
-
-  const fresh = await CampusHuntTeam.find({ _id: { $in: ids } })
-    .select('teamCode startStatus scheduledStartAt')
-    .lean();
-
-  return {
-    unlocked: fresh.length,
-    teams: fresh,
-    already: false,
-    scheduledStartAt: now.toISOString(),
-    message: all
-      ? `GO everyone — ${fresh.length} team(s) unlocked. Shout the start word for offline phones.`
-      : `GO ${fresh[0]?.teamCode || 'team'} — unlocked. Shout the start word if they have no Wi‑Fi.`,
-  };
-}
-
 module.exports = {
   releaseTeamIfDue,
   releaseDueTeams,
-  goUnlockTeams,
   validateReleaseAssignments,
   releaseError,
 };
