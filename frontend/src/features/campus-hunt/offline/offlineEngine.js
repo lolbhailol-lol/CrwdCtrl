@@ -705,12 +705,7 @@ export function scanStation(bundle, session, state, raw, now = new Date()) {
     throw huntError('Wrong stage for this poster — finish the current clue first', 409, 'WRONG_STAGE');
   }
   const expected = checkpointForKey(bundle, key);
-  // Join-word is Clue 2's answer (typed while CLUE_2_ACTIVE). Scans never re-ask it.
-  const needJoin = false;
   const cpRow = next.checkpoints[key] || { scans: {}, confirmed: false };
-  if (needJoin && !cpRow.joinWordOk) {
-    throw huntError('Type the joined word from the plant fragments first', 409, 'JOIN_WORD_REQUIRED');
-  }
   const parsed = parseStationQr(raw);
   matchExpectedCheckpoint(bundle, key, parsed);
   const memberKey = session.memberKey || 'leader';
@@ -720,34 +715,18 @@ export function scanStation(bundle, session, state, raw, now = new Date()) {
   bump(next);
 
   // Leader-only: one scan clears the stop (no separate team-code step).
-  if (!cp.confirmed && Object.keys(cp.scans || {}).length >= 1) {
-    const claimed = confirmStation(bundle, session, next, bundle.team.teamCode, now);
-    return {
-      state: claimed.state,
-      localScanKey: String(key),
-      meta: {
-        message: 'Checkpoint passed',
-        verifiedCount: 1,
-        requiredCount: 1,
-        awaitingTeamCodeConfirm: false,
-        unlockedNext: true,
-        checkpointId: expected?.id,
-        checkpointKey: String(key),
-      },
-    };
-  }
-
+  const claimed = confirmStation(bundle, session, next, bundle.team.teamCode, now);
   return {
-    state: next,
+    state: claimed.state,
     localScanKey: String(key),
     meta: {
       message: 'Checkpoint passed',
-      verifiedCount: Object.keys(cp.scans || {}).length,
+      verifiedCount: 1,
       requiredCount: 1,
+      awaitingTeamCodeConfirm: false,
+      unlockedNext: true,
       checkpointId: expected?.id,
       checkpointKey: String(key),
-      awaitingTeamCodeConfirm: !cp.confirmed,
-      unlockedNext: false,
     },
   };
 }
@@ -787,7 +766,7 @@ export async function collectMemberProof(bundle, session, state, raw) {
       message: `${payload.name || payload.slot} collected (${verifiedCount}/${required})`,
       verifiedCount,
       requiredCount: required,
-      awaitingTeamCodeConfirm: verifiedCount >= required && !cp.confirmed,
+      awaitingTeamCodeConfirm: false,
     },
   };
 }
@@ -805,7 +784,7 @@ export function confirmStation(bundle, session, state, teamCode, now = new Date(
   const required = 1;
   const cp = next.checkpoints[key] || { scans: {}, confirmed: false };
   if (Object.keys(cp.scans || {}).length < required) {
-    throw huntError('Scan the poster first, then enter your team code', 409, 'SCANS_INCOMPLETE');
+    throw huntError('Scan the poster first', 409, 'SCANS_INCOMPLETE');
   }
   cp.confirmed = true;
   cp.confirmedAt = now.toISOString();
@@ -823,6 +802,27 @@ export function confirmStation(bundle, session, state, teamCode, now = new Date(
       message: 'Checkpoint passed',
     },
   };
+}
+
+/**
+ * One-phone heal: scan was recorded but confirm never finished (older saves / interrupted).
+ * Auto-confirms with the pack team code — no second UI step.
+ */
+export function healOnePhoneStation(bundle, session, state, now = new Date()) {
+  if (!bundle || !session || session.role !== 'leader' || !state) {
+    return { state, healed: false };
+  }
+  const key = pendingCheckpointKey(state.currentStage);
+  if (!key) return { state, healed: false };
+  const cp = state.checkpoints?.[key];
+  if (!cp || cp.confirmed) return { state, healed: false };
+  if (Object.keys(cp.scans || {}).length < 1) return { state, healed: false };
+  try {
+    const claimed = confirmStation(bundle, session, state, bundle.team.teamCode, now);
+    return { state: claimed.state, healed: true, meta: claimed.meta };
+  } catch {
+    return { state, healed: false };
+  }
 }
 
 export function markReachedStart(bundle, session, state, finishCode = '', now = new Date()) {

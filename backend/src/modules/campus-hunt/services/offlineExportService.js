@@ -441,8 +441,8 @@ async function exportOfflinePacks(eventId) {
         opsNotes: {
         install: 'Share install links ~1 day before. Leaders download Hunt + pack on Wi‑Fi at home, then arrive ready. Whole team walks with that one phone — play works with no campus network.',
         startGate: 'One start code for everyone. Organizer says it at the gather point; leaders type it; hunt starts. No release desk needed on phones.',
-        checkpointFlow: 'At each of 5 stops: solve the clue on the leader phone → scan the shared place poster once (auto-unlocks). Plant join-word is Clue 2 only. Clue 6 → Mindspark Lobby finish code.',
-        posters: 'ONE shared QR per campus place × scan stage 1–5. Phone already knows the stage.',
+        checkpointFlow: 'At each of 5 stops: solve the clue on the leader phone → scan the shared place poster once (auto-unlocks next clue — no team-code step, no multi-member scan). Plant join-word is Clue 2 answer only. Clue 6 → Mindspark Lobby finish code.',
+        posters: 'ONE shared QR per campus place × scan stage 1–5. Phone already knows the stage. Leader scans once.',
       },
     };
 

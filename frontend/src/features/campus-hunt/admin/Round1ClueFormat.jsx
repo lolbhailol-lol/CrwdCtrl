@@ -15,12 +15,9 @@ import TeamPathsPanel from './TeamPathsPanel';
 import ClueOrganizerPack from './ClueOrganizerPack';
 import {
   DESTINATION_PLACE,
-  STATION_TARGET_COUNT,
-  destinationsSummary,
   deriveClueGeometry,
   resolveStarts,
   resolveStations,
-  suggestHuntLayout,
 } from './campusHuntFormat';
 import { adminBootstrapRound1 } from '../services/campusHunt.api';
 import { themeForChallengeNumber } from '../types/stageTheme';
@@ -33,86 +30,65 @@ export {
 } from './campusHuntFormat';
 
 export function buildRound1Clues(geometry) {
-  const g = geometry || deriveClueGeometry();
-  const perStation = g.teamsPerStation;
-  const perWait = g.teamsPerWait;
-  const people = g.teamSize;
-  const places = g.stationCount || STATION_TARGET_COUNT;
-  const starts = g.startCount || 1;
-  const dest = g.destinationName || DESTINATION_PLACE.name;
+  void geometry;
   return [
     {
       id: 'clue1',
       number: 1,
-      label: 'CLUE 1 · First stop',
-      short: 'FIRST STOP',
-      detail:
-        `${places} places · ${starts} gather · `
-        + `${perStation === 1 ? '1 team each' : `~${perStation} teams each`} · `
-        + `unique 5-stop path · leader scans → Clue 2`,
+      label: 'Clue 1',
+      short: 'PLACE',
+      detail: '',
       checkpointKeys: ['1'],
-      checkpointLabel: 'FIRST SCAN',
       type: 'navigation',
       showCheckpoints: false,
     },
     {
       id: 'clue2',
       number: 2,
-      label: 'CLUE 2 · Second stop',
-      short: 'SECOND STOP',
-      detail: `${places} places · ${perStation === 1 ? '1 team each' : `~${perStation} teams each`} · 2nd stop on each team’s path`,
+      label: 'Clue 2',
+      short: 'PLANT WORD',
+      detail: '',
       checkpointKeys: ['2'],
-      checkpointLabel: 'SECOND SCAN',
-      takesToSummary: destinationsSummary(2, undefined, perStation, perWait),
       type: 'timed_search',
       showCheckpoints: false,
     },
     {
       id: 'clue3',
       number: 3,
-      label: 'CLUE 3 · Lockbox',
+      label: 'Clue 3',
       short: 'LOCKBOX',
-      detail: `${places} places · ${perStation === 1 ? '1 team each' : `~${perStation} teams each`} · 3rd stop · Lockbox`,
+      detail: '',
       checkpointKeys: ['3'],
-      checkpointLabel: 'THIRD SCAN',
-      takesToSummary: destinationsSummary(3, undefined, perStation, perWait),
       type: 'decode',
       showCheckpoints: false,
     },
     {
       id: 'clue4',
       number: 4,
-      label: 'CLUE 4 · Field Terminal',
-      short: 'FIELD TERMINAL',
-      detail: `${places} places · ${perStation === 1 ? '1 team each' : `~${perStation} teams each`} · 4th stop · Field Terminal`,
+      label: 'Clue 4',
+      short: 'ZIP GRID',
+      detail: '',
       checkpointKeys: ['4'],
-      checkpointLabel: 'FOURTH SCAN',
-      takesToSummary: destinationsSummary(4, undefined, perStation, perWait),
       type: 'timed_search',
       showCheckpoints: false,
     },
     {
       id: 'clue5',
       number: 5,
-      label: 'CLUE 5 · Fifth stop',
-      short: 'FIFTH STOP',
-      detail:
-        `${places} places · ${perStation === 1 ? '1 team each' : `~${perStation} teams each`} · 5th stop · team word → scan → destination clue`,
+      label: 'Clue 5',
+      short: 'WORD',
+      detail: '',
       checkpointKeys: ['5'],
-      checkpointLabel: 'FIFTH SCAN',
-      takesToSummary: destinationsSummary(5, undefined, perStation, perWait),
       type: 'collaborative',
       showCheckpoints: false,
     },
     {
       id: 'destination',
       number: 6,
-      label: 'CLUE 6 · Destination',
-      short: 'DESTINATION',
-      detail: `All teams solve this last clue, then go to ${dest} and check in.`,
+      label: 'Clue 6',
+      short: 'LOBBY',
+      detail: '',
       checkpointKeys: ['FINISH'],
-      checkpointLabel: 'DESTINATION CHECK-IN',
-      takesToSummary: `Everyone → ${dest}`,
       type: 'navigation',
       showCheckpoints: false,
     },
@@ -185,22 +161,12 @@ function ClueBox({
               {theme.colorName}
             </span>
             <p className={`text-[11px] font-semibold uppercase tracking-wide ${theme.textClass}`}>
-              Step {index + 1} · {clue.short}
+              {clue.short}
             </p>
           </div>
-          <h3 className="mt-1 text-lg font-bold uppercase tracking-wide text-white">
+          <h3 className="mt-1 text-lg font-bold text-white">
             {clue.label}
           </h3>
-          <p className="mt-1 text-xs text-white/50">{clue.detail}</p>
-          {(clue.number >= 1 && clue.number <= 5) ? (
-            <p className="mt-1.5 text-[11px] text-white/40">
-              {destinationsSummary(clue.number, campusStations, teamsPerStation, teamsPerWait, campusStarts)}
-            </p>
-          ) : clue.number === 6 ? (
-            <p className="mt-1.5 text-[11px] text-white/40">
-              Everyone → {DESTINATION_PLACE.name}
-            </p>
-          ) : null}
         </div>
         <span className="shrink-0 text-sm text-white/50">{open ? 'Hide' : 'Edit'}</span>
       </button>
@@ -389,13 +355,8 @@ function ClueBox({
                 challengeNumber={6}
                 reloadKey={checkpointReloadKey}
               >
-                <p className="rounded-xl border border-yellow-400/25 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-100">
-                  No stage QR — after Clue 5, teams go to{' '}
-                  <span className="font-semibold">{DESTINATION_PLACE.name}</span>.
-                  Tell them the finish code (default{' '}
-                  <span className="font-mono font-semibold">MSFINISH</span>
-                  ). They type it to lock score — or mark them on{' '}
-                  <span className="font-semibold">Live → Finish desk</span>.
+                <p className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/55">
+                  No poster QR. Set start + finish codes above. Live → Finish desk to lock scores.
                 </p>
               </ClueOrganizerPack>
             </>
@@ -529,8 +490,7 @@ export default function Round1ClueFormat({
         <div>
           <h2 className="text-xl font-bold">Clues</h2>
           <p className="text-sm text-white/55">
-            {geometry.teamCapacity} teams · {geometry.stationCount} places · open a color for hint + QR
-            {' '}· plant join-words under Places
+            Open a color · edit hint / QR · set start + finish codes on Clue 6
           </p>
         </div>
         <button
@@ -539,14 +499,14 @@ export default function Round1ClueFormat({
           onClick={bootstrap}
           className="rounded-xl bg-[#0ECCEE] px-4 py-2 text-sm font-bold text-black disabled:opacity-40"
         >
-          {busy ? 'Bootstrapping…' : 'Save clues + teams (ready for Links)'}
+          {busy ? 'Saving…' : 'Save clues + teams'}
         </button>
       </div>
       {message && <p className="text-xs text-[#0ECCEE]">{message}</p>}
 
       <details className="rounded-xl border border-white/10 bg-white/4 px-4 py-3">
-        <summary className="cursor-pointer text-sm text-white/60">
-          Optional · view team paths
+        <summary className="cursor-pointer text-sm text-white/45">
+          Team paths (optional)
         </summary>
         <div className="mt-3">
           <TeamPathsPanel

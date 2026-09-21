@@ -148,11 +148,6 @@ function checkpointStatus(bundle, state, session, _now) {
         : key === 2
           ? 'SECOND SCAN'
           : 'FIRST SCAN';
-  const needJoin = false;
-  const joinWordOk = true;
-  const awaiting = session.role === 'leader'
-    && verifiedCount >= required
-    && !cp.confirmed;
   const size = teamSize(bundle);
   const plantCount = Array.isArray(expected?.plantFragments) && expected.plantFragments.length
     ? expected.plantFragments.length
@@ -164,21 +159,20 @@ function checkpointStatus(bundle, state, session, _now) {
     code: expected?.code || expected?.checkpointKey,
     locationName: expected?.locationName,
     posterLabel: { scanKind, sharedStation: true },
-    publicInstruction: sanitizePlayerCopy(joinWordOk
-      ? (expected?.publicInstruction
-        || `At ${expected?.locationName || 'this stop'}, leader scans the ${scanKind} QR once.`)
-      : `Find ${plantCount} clues written nearby. Join them into one word and type it — then scan.`),
+    publicInstruction: sanitizePlayerCopy(
+      expected?.publicInstruction
+        || `At ${expected?.locationName || 'this stop'}, leader scans the ${scanKind} QR once.`,
+    ),
     plantFragmentCount: plantCount,
-    joinedWordHint: needJoin && !joinWordOk
-      ? `Find ${plantCount} fragments → join → type`
-      : null,
-    needJoinWord: needJoin && !joinWordOk,
-    joinWordOk,
+    joinedWordHint: null,
+    needJoinWord: false,
+    joinWordOk: true,
     verifiedCount,
     requiredCount: required,
     youScanned,
-    status: cp.confirmed ? 'complete' : awaiting ? 'awaiting_claim' : 'pending',
-    awaitingTeamCodeConfirm: awaiting,
+    // One-phone: scan auto-confirms — never show team-code claim UI.
+    status: cp.confirmed ? 'complete' : 'pending',
+    awaitingTeamCodeConfirm: false,
     membersNeeded: 0,
     scanRoster: [],
     assignmentMissing: !expected,

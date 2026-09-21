@@ -735,7 +735,6 @@ export default function PlayerPlayScreen({
               />
               <HuntScoringGuide
                 startingScore={Number(team?.startingScore) || 100}
-                compact
               />
             </div>
           )}
@@ -991,6 +990,18 @@ export default function PlayerPlayScreen({
                   type="button"
                   disabled={busy}
                   onClick={() => {
+                    if (offlineMode && team?.teamCode) {
+                      void (async () => {
+                        const result = await runAction(() => confirmStationCheckpointFn(team.id, {
+                          teamCode: String(team.teamCode).toUpperCase(),
+                        }));
+                        if (result.ok) {
+                          setFeedback('Checkpoint passed');
+                          celebrate('Checkpoint passed');
+                        }
+                      })();
+                      return;
+                    }
                     void onRefresh?.({ force: true, burst: true });
                   }}
                   className="w-full rounded-2xl py-3.5 text-sm font-bold text-black disabled:opacity-50"

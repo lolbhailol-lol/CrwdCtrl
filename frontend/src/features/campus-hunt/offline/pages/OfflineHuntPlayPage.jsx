@@ -18,6 +18,7 @@ import { startOverHunt, applyServerStartOverIfNeeded } from '../startOverHunt';
 import {
   confirmStation,
   ensureClueActive,
+  healOnePhoneStation,
   hydrateState,
   isHuntWaiting,
   markReachedStart,
@@ -139,10 +140,16 @@ export default function OfflineHuntPlayPage() {
     let next = isHuntWaiting(st)
       ? st
       : tickTimers(pack, ensureClueActive(pack, st), new Date());
+    if (!isHuntWaiting(next)) {
+      const healed = healOnePhoneStation(pack, sess, next);
+      if (healed.healed) next = healed.state;
+    }
     // Never rebuild from a stale React closure — that rewound clues after solve/scan.
     if (next.seq !== st.seq || next.currentStage !== st.currentStage) {
-      // Timer soft-reveal only — don't spam the live board.
-      await persistState(next, sess, { syncBoard: false });
+      const stageOrScore = next.currentStage !== st.currentStage
+        || Number(next.score) !== Number(st.score);
+      // Timer soft-reveal: no board push. One-phone heal that unlocks: push.
+      await persistState(next, sess, { syncBoard: stageOrScore });
     } else {
       setPlayData(buildPlayData(pack, sess, next));
     }
@@ -209,6 +216,8 @@ export default function OfflineHuntPlayPage() {
         teamState = hydrateState(pack, teamState);
         if (!isHuntWaiting(teamState)) {
           teamState = tickTimers(pack, ensureClueActive(pack, teamState), new Date());
+          const healed = healOnePhoneStation(pack, sess, teamState);
+          if (healed.healed) teamState = healed.state;
         }
         await saveOfflineTeamState(sess.teamCode, teamState);
         if (cancelled) return;

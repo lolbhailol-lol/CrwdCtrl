@@ -37,7 +37,7 @@ function routeForStart(routes, point) {
 }
 
 /**
- * Clue 6 — Mindspark Lobby finish: teams type the organizer finish code.
+ * Clue 6 — start code + finish code (lean).
  */
 export default function Clue6VariantManager({
   eventId,
@@ -104,46 +104,27 @@ export default function Clue6VariantManager({
         organizerStartCode: go,
       });
 
-      const targets = points.length
-        ? points
-        : starts.map((s) => ({ code: s.code, name: s.name }));
-      const base = {
-        prompt: form.prompt.trim(),
-        answer: finish,
-        acceptedAnswers: [
-          finish,
-          destinationName,
-          String(destinationName || '').toLowerCase(),
-          'mindspark lobby',
-        ].filter(Boolean),
-        destinationInstruction: form.destinationInstruction.trim(),
-        hintText: form.hintText.trim(),
-        type: 'navigation',
-        challengeNumber: 6,
-        variantKey: 'DEFAULT',
-        active: true,
-        roundId,
-      };
-
-      await Promise.all(targets.map(async (point) => {
+      const pointList = points.length ? points : starts;
+      await Promise.all(pointList.map(async (point) => {
         const route = routeForStart(routes, point);
         if (!route) return;
         await adminUpsertChallenge(eventId, {
-          ...base,
+          roundId,
           routeId: id(route),
-          startingPointId: id(point) || undefined,
+          challengeNumber: 6,
+          variantKey: 'DEFAULT',
+          challengeType: 'NAVIGATION',
+          active: true,
+          prompt: form.prompt,
+          answer: finish,
+          destinationInstruction: form.destinationInstruction,
+          hintText: form.hintText,
+          timerSeconds: 0,
+          hintCost: 0,
         });
       }));
 
-      // Shared DEFAULT route row (no start) when routes exist without points
-      if (!targets.length && routes[0]) {
-        await adminUpsertChallenge(eventId, {
-          ...base,
-          routeId: id(routes[0]),
-        });
-      }
-
-      setMessage('Saved — teams type this finish code at Mindspark Lobby.');
+      setMessage('Saved start code + finish code');
       onChanged?.();
       await refresh();
     } catch (err) {
@@ -157,40 +138,23 @@ export default function Clue6VariantManager({
     <div className={`space-y-4 rounded-2xl border p-4 ${THEME.borderClass} ${THEME.bgClass}`}>
       <div>
         <p className={`text-[10px] font-bold uppercase tracking-wide ${THEME.textClass}`}>
-          Clue 6 · Mindspark Lobby
+          Clue 6 · Lobby
         </p>
-        <h3 className="mt-1 text-lg font-bold text-white">Finish code</h3>
-        <p className="mt-1 text-sm text-white/60">
-          Same destination for every team after Clues 1–5.
-          Tell them the finish code at the lobby — they type it to lock score.
-        </p>
+        <h3 className="mt-1 text-lg font-bold text-white">Start + finish codes</h3>
       </div>
 
       <label className="block space-y-1 text-sm text-white/70">
-        Prompt
-        <textarea
-          rows={3}
-          value={form.prompt}
-          onChange={(e) => setForm((f) => ({ ...f, prompt: e.target.value }))}
-          className={inputClass}
-        />
-      </label>
-
-      <label className="block space-y-1 text-sm text-white/70">
-        Start code (tell everyone this at the gather point)
+        Start code (gather point)
         <input
           value={startWord}
           onChange={(e) => setStartWord(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16))}
           className={`${inputClass} font-mono tracking-wider`}
           placeholder="GO"
         />
-        <span className="block text-xs text-white/40">
-          Same code for all teams. They type it on the phone → Start. Change it before sharing install links.
-        </span>
       </label>
 
       <label className="block space-y-1 text-sm text-white/70">
-        Finish code (tell teams this)
+        Finish code (lobby)
         <input
           value={form.answer}
           onChange={(e) => setForm((f) => ({ ...f, answer: e.target.value.toUpperCase() }))}
@@ -199,24 +163,37 @@ export default function Clue6VariantManager({
         />
       </label>
 
-      <label className="block space-y-1 text-sm text-white/70">
-        After submit / desk note
-        <textarea
-          rows={2}
-          value={form.destinationInstruction}
-          onChange={(e) => setForm((f) => ({ ...f, destinationInstruction: e.target.value }))}
-          className={inputClass}
-        />
-      </label>
-
-      <label className="block space-y-1 text-sm text-white/70">
-        Hint
-        <input
-          value={form.hintText}
-          onChange={(e) => setForm((f) => ({ ...f, hintText: e.target.value }))}
-          className={inputClass}
-        />
-      </label>
+      <details className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+        <summary className="cursor-pointer text-xs text-white/45">Advanced copy (optional)</summary>
+        <div className="mt-3 space-y-3">
+          <label className="block space-y-1 text-sm text-white/70">
+            Prompt
+            <textarea
+              rows={2}
+              value={form.prompt}
+              onChange={(e) => setForm((f) => ({ ...f, prompt: e.target.value }))}
+              className={inputClass}
+            />
+          </label>
+          <label className="block space-y-1 text-sm text-white/70">
+            Desk note
+            <textarea
+              rows={2}
+              value={form.destinationInstruction}
+              onChange={(e) => setForm((f) => ({ ...f, destinationInstruction: e.target.value }))}
+              className={inputClass}
+            />
+          </label>
+          <label className="block space-y-1 text-sm text-white/70">
+            Hint
+            <input
+              value={form.hintText}
+              onChange={(e) => setForm((f) => ({ ...f, hintText: e.target.value }))}
+              className={inputClass}
+            />
+          </label>
+        </div>
+      </details>
 
       <button
         type="button"
@@ -224,7 +201,7 @@ export default function Clue6VariantManager({
         onClick={() => save()}
         className={`rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-40 ${THEME.buttonClass}`}
       >
-        {busy ? 'Saving…' : 'Save finish code'}
+        {busy ? 'Saving…' : 'Save codes'}
       </button>
       {message && <p className="text-sm text-white/70">{message}</p>}
     </div>

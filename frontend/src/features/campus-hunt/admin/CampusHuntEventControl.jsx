@@ -446,7 +446,7 @@ export default function CampusHuntEventControl() {
               />
               <details className="rounded-xl border border-white/10 bg-white/4 px-4 py-3">
                 <summary className="cursor-pointer text-sm font-semibold text-white/70">
-                  Gather point & release schedule
+                  Gather point
                 </summary>
                 <div className="mt-3">
                   <StartingSystemPanel
@@ -485,9 +485,9 @@ export default function CampusHuntEventControl() {
               <section className="rounded-2xl border border-emerald-400/40 bg-emerald-500/10 p-4">
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="mr-auto">
-                    <h2 className="text-lg font-bold text-emerald-100">Start</h2>
+                    <h2 className="text-lg font-bold text-emerald-100">Event live</h2>
                     <p className="text-xs text-white/50">
-                      One tap — prepares schedule if needed, then goes live.
+                      Offline teams start with the shared start code (Clues → Clue 6). This only marks the round live for the board.
                     </p>
                   </div>
                   <label className="text-xs text-white/60">
@@ -512,29 +512,14 @@ export default function CampusHuntEventControl() {
                       : round1?.status === 'locked'
                         ? 'Reopen'
                         : round1?.status === 'live'
-                          ? 'Sync releases'
-                          : 'Start hunt'}
+                          ? 'Already live'
+                          : 'Go live'}
                   </button>
                 </div>
                 {msg && tab === 'live' ? (
                   <p className="mt-3 text-sm text-[#0ECCEE]">{msg}</p>
                 ) : null}
               </section>
-
-              <details className="rounded-xl border border-white/10 bg-white/3 p-3">
-                <summary className="cursor-pointer text-sm text-white/60">
-                  Optional · staggered schedule
-                </summary>
-                <div className="mt-3">
-                  <StartingSystemPanel
-                    eventId={eventId}
-                    roundId={round1?._id}
-                    mode="schedule"
-                    eventMeta={huntLayoutMeta}
-                    onChanged={() => refresh().catch(() => {})}
-                  />
-                </div>
-              </details>
 
               <section className="rounded-2xl border border-rose-400/25 bg-[#120a0a] p-4">
                 <h3 className="text-lg font-bold text-white">Finish desk</h3>
@@ -551,7 +536,7 @@ export default function CampusHuntEventControl() {
 
               <details className="rounded-2xl border border-white/10 bg-white/3 p-4">
                 <summary className="cursor-pointer font-semibold text-white/80">
-                  Team status table
+                  Team status
                 </summary>
                 <div className="mt-3 space-y-3">
                   <input
