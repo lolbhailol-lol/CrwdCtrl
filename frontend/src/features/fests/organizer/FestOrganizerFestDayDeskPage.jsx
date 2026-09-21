@@ -211,7 +211,7 @@ function AssistedEntryModal({ festId, competition, online, onClose, onCreated })
                   : "border-amber-400/30 bg-amber-500/10 text-amber-100"
               }`}
             >
-              {paid ? "ENTRY TICKET QR — show at gate" : "PAYMENT QR — not for gate entry"}
+              {paid ? "ENTRY TICKET QR — show at gate" : "DRAFT · PAYMENT QR — not for gate entry"}
             </div>
             <div className="rounded-3xl bg-white p-4 flex items-center justify-center min-h-[320px]">
               {paid && ticketQr ? (
@@ -390,7 +390,7 @@ function AssistedEntryModal({ festId, competition, online, onClose, onCreated })
               disabled={busy || !online}
               className="sm:col-span-2 rounded-xl bg-[#0ECCEE] text-black py-3 font-semibold disabled:opacity-50"
             >
-              {busy ? "Creating…" : "Create entry & payment QR"}
+              {busy ? "Creating draft…" : "Create draft & payment QR"}
             </button>
           </form>
         )}
@@ -627,9 +627,7 @@ export default function FestOrganizerFestDayDeskPage() {
           <div>
             <p className="text-xs uppercase tracking-wider text-[#0ECCEE]">MindSpark operations</p>
             <h1 className="text-2xl sm:text-3xl font-bold mt-1">Fest Day Desk</h1>
-            <p className="text-sm text-gray-400 mt-2">
-              Attend many people in parallel: create payment QR → next student → reopen pay/ticket from Live activity.
-            </p>
+            <p className="text-sm text-gray-400 mt-2">Select competition → enter details → show payment QR.</p>
           </div>
           <button
             type="button"
@@ -644,125 +642,17 @@ export default function FestOrganizerFestDayDeskPage() {
         <div className="mt-4 grid sm:grid-cols-2 gap-2">
           <div className="rounded-2xl border border-[#0ECCEE] bg-[#0ECCEE]/15 p-3 text-left">
             <UserRound size={18} className="text-[#0ECCEE] mb-2" />
-            <p className="font-semibold text-white text-sm">Desk assist</p>
-            <p className="text-[11px] text-gray-400 mt-1">Pick a competition below · you type · they pay</p>
+            <p className="font-semibold text-white text-sm">Single competition</p>
+            <p className="text-[11px] text-gray-400 mt-1">Choose a competition below</p>
           </div>
           <Link
             to="/mindspark/bundle?desk=1"
             className="rounded-2xl border border-emerald-400/25 bg-emerald-500/10 p-3 text-left hover:border-emerald-300/50"
           >
             <ShoppingCart size={18} className="text-emerald-300 mb-2" />
-            <p className="font-semibold text-emerald-100 text-sm">Any-3 bundle · 65%</p>
-            <p className="text-[11px] text-gray-400 mt-1">Stay on tablet with payment QR</p>
+            <p className="font-semibold text-emerald-100 text-sm">3-competition bundle · 65% off</p>
+            <p className="text-[11px] text-gray-400 mt-1">Create bundle registration</p>
           </Link>
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-[#0ECCEE]/20 bg-[#121314] p-4">
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <span className="rounded-xl bg-[#0ECCEE]/10 p-2.5 text-[#0ECCEE]">
-              <ShoppingCart size={20} />
-            </span>
-            <div>
-              <h2 className="font-semibold text-white">Bundle registrations</h2>
-              <p className="text-xs text-gray-500">One payment covering exactly three competitions</p>
-            </div>
-          </div>
-          <div className="flex gap-2 text-xs">
-            <span className="rounded-full border border-white/10 px-3 py-1.5 text-gray-300">
-              {bundleActivity.length} shown
-            </span>
-            <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1.5 text-emerald-300">
-              {bundleActivity.filter((row) => row.status === "paid").length} paid
-            </span>
-          </div>
-        </div>
-        <div className="space-y-2 max-h-[28vh] overflow-y-auto">
-          {bundleActivity.length ? (
-            bundleActivity.map((row) => (
-              <article key={row.bundleId} className="rounded-xl border border-white/10 bg-[#1A1B1D] p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-white">{row.participantName}</p>
-                    <p className="mt-0.5 text-xs text-gray-400">{row.competitionNames?.join(" + ")}</p>
-                  </div>
-                  <span
-                    className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-semibold ${statusClasses[row.status] || statusClasses.expired}`}
-                  >
-                    {statusLabels[row.status] || row.status}
-                  </span>
-                </div>
-                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-gray-500">
-                  <span className="font-semibold text-gray-300">
-                    ₹{Number(row.amount).toLocaleString("en-IN")}
-                  </span>
-                  <span>Saved ₹{Number(row.discountAmount).toLocaleString("en-IN")}</span>
-                  <span>{row.source === "desk" ? "Desk" : "Public"}</span>
-                  <span>{formatWhen(row.createdAt)}</span>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {row.activeOrderId ? (
-                    <button
-                      type="button"
-                      onClick={() => refreshOrder(row.activeOrderId)}
-                      disabled={busyOrder === row.activeOrderId || !online}
-                      className="desk-action"
-                    >
-                      {busyOrder === row.activeOrderId ? (
-                        <Loader size={14} className="animate-spin" />
-                      ) : (
-                        <RefreshCw size={14} />
-                      )}
-                      Check payment
-                    </button>
-                  ) : null}
-                  {row.status === "paid" && row.registrationIds?.[0] ? (
-                    isDeskRole ? (
-                      <button
-                        type="button"
-                        className="desk-action"
-                        onClick={() => copyId(row.registrationIds[0])}
-                      >
-                        <Copy size={14} /> Copy reg id
-                      </button>
-                    ) : (
-                      <Link
-                        to={`/fest-organizer/fests/${festId}/participants?q=${encodeURIComponent(row.registrationIds[0])}`}
-                        className="desk-action"
-                      >
-                        <ExternalLink size={14} /> Open registrations
-                      </Link>
-                    )
-                  ) : row.paymentPath ? (
-                    <a href={row.paymentPath} target="_blank" rel="noreferrer" className="desk-action">
-                      <QrCode size={14} /> Payment page
-                    </a>
-                  ) : null}
-                  {canRefund && row.status === "paid" && row.activeOrderId ? (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        refundOrder({
-                          orderId: row.activeOrderId,
-                          amount: row.amount,
-                          participantName: row.participantName,
-                        })
-                      }
-                      disabled={busyOrder === row.activeOrderId || !online}
-                      className="desk-action text-red-300"
-                    >
-                      Refund
-                    </button>
-                  ) : null}
-                </div>
-              </article>
-            ))
-          ) : (
-            <div className="rounded-xl border border-dashed border-white/10 py-8 text-center text-sm text-gray-500">
-              No bundle registrations yet. Use “Any-3 bundle” above to start one.
-            </div>
-          )}
         </div>
       </section>
 
@@ -801,7 +691,7 @@ export default function FestOrganizerFestDayDeskPage() {
                 >
                   <div className="flex justify-between gap-3">
                     <p className="font-semibold text-white">{competition.name}</p>
-                    <ExternalLink size={15} className="text-[#0ECCEE] shrink-0" />
+                    <span className="shrink-0 rounded-lg bg-[#0ECCEE]/10 px-2 py-1 text-[10px] font-bold text-[#0ECCEE]">REGISTER</span>
                   </div>
                   <p className="text-sm text-[#0ECCEE] mt-2">
                     {organizerCompetitionFeeLabel(competition)}
@@ -831,7 +721,7 @@ export default function FestOrganizerFestDayDeskPage() {
             <div>
               <h2 className="font-semibold">Live activity</h2>
               <p className="text-xs text-gray-500">
-                Pending → confirming → paid. Reopen pay QR or ticket anytime.
+                Single and bundle payments in one place
               </p>
             </div>
             {refreshing ? (
@@ -861,8 +751,8 @@ export default function FestOrganizerFestDayDeskPage() {
             </button>
           </form>
           <div className="space-y-2 max-h-[58vh] overflow-y-auto">
-            {activity.length ? (
-              activity.map((row) => {
+            {combinedActivity.length ? (
+              combinedActivity.map((row) => {
                 const displayStatus =
                   row.refundStatus === "success"
                     ? "refunded"
@@ -873,7 +763,7 @@ export default function FestOrganizerFestDayDeskPage() {
                         : row.status;
                 return (
                   <article
-                    key={row.orderId}
+                    key={`${row.activityType}-${row.orderId || row.bundleId}`}
                     className="rounded-xl border border-white/10 bg-[#1A1B1D] p-3"
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -883,6 +773,7 @@ export default function FestOrganizerFestDayDeskPage() {
                           {row.competitionName}
                           {row.teamName ? ` · ${row.teamName}` : ""}
                         </p>
+                        {row.activityType === "bundle" ? <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">65% bundle</p> : null}
                       </div>
                       <span
                         className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-semibold ${statusClasses[displayStatus] || statusClasses.expired}`}
@@ -905,7 +796,7 @@ export default function FestOrganizerFestDayDeskPage() {
                       ) : null}
                     </div>
                     <div className="flex flex-wrap gap-2 mt-3">
-                      <button
+                      {row.orderId ? <button
                         type="button"
                         onClick={() => refreshOrder(row.orderId)}
                         disabled={
@@ -923,8 +814,8 @@ export default function FestOrganizerFestDayDeskPage() {
                           : row.status === "paid"
                             ? "Refresh"
                             : "Check payment"}
-                      </button>
-                      {row.status === "paid" && (row.ticketQr || row.registrationId) ? (
+                      </button> : null}
+                      {row.activityType === "single" && row.status === "paid" && (row.ticketQr || row.registrationId) ? (
                         <button
                           type="button"
                           className="desk-action flex-1"
@@ -945,7 +836,7 @@ export default function FestOrganizerFestDayDeskPage() {
                           )}
                         </button>
                       ) : null}
-                      {!["paid", "form_started", "failed", "expired", "refunded"].includes(
+                      {row.activityType === "single" && !["paid", "form_started", "failed", "expired", "refunded"].includes(
                         displayStatus,
                       ) && row.resumeUrl ? (
                         <button
@@ -956,7 +847,23 @@ export default function FestOrganizerFestDayDeskPage() {
                           <QrCode size={14} /> Show pay QR
                         </button>
                       ) : null}
-                      {row.status === "paid" &&
+                      {row.activityType === "bundle" && row.status !== "paid" && row.paymentPath ? (
+                        <a href={row.paymentPath} target="_blank" rel="noreferrer" className="desk-action flex-1">
+                          <QrCode size={14} /> Payment page
+                        </a>
+                      ) : null}
+                      {row.activityType === "bundle" && row.status === "paid" && row.registrationIds?.[0] ? (
+                        isDeskRole ? (
+                          <button type="button" className="desk-action flex-1" onClick={() => copyId(row.registrationIds[0])}>
+                            <Copy size={14} /> Copy reg id
+                          </button>
+                        ) : (
+                          <Link to={`/fest-organizer/fests/${festId}/participants?q=${encodeURIComponent(row.registrationIds[0])}`} className="desk-action flex-1">
+                            <ExternalLink size={14} /> Open registrations
+                          </Link>
+                        )
+                      ) : null}
+                      {row.activityType === "single" && row.status === "paid" &&
                       !isDeskRole &&
                       row.registrationId &&
                       !row.ticketQr ? (
@@ -990,10 +897,7 @@ export default function FestOrganizerFestDayDeskPage() {
         </section>
       </div>
 
-      <p className="rounded-xl border border-white/10 bg-white/3 px-4 py-3 text-xs text-gray-400">
-        Multi-student: create pay QR → tap <span className="text-gray-300">Next student</span> → help the next person.
-        Find anyone again in Live activity (Show pay QR / Check payment / Show ticket). Payment QR is never valid at the gate.
-      </p>
+      <p className="text-center text-xs text-gray-500">Only a verified paid entry receives a ticket QR.</p>
 
       {selected ? (
         <AssistedEntryModal
