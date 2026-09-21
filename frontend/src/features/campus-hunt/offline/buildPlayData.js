@@ -101,7 +101,7 @@ function challengeView(bundle, state, session, n, now) {
     hintText: isLeader && row.hintUsed ? (clue.hintText || '') : undefined,
     hintCost: Number(clue.hintCost ?? cfg.hintCost) || 20,
     startedAt,
-    expiresAt: n === 4 ? null : expiresAt,
+    expiresAt: n === 4 || n === 2 ? null : expiresAt,
     timerStartsAt: n === 2 ? startedAt : null,
     instructionPhase,
     timerArmed: n === 4 ? true : timerArmed,
