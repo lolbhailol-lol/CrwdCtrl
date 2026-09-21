@@ -366,7 +366,7 @@ export default function Clue3VariantManager({
                 {String(content.answer || '————').replace(/\D/g, '') || '————'}
               </p>
               <p className="mt-0.5 text-[10px] uppercase tracking-wide text-white/35">
-                Print on one plaque
+                Print on the physical lockbox
               </p>
               <label className="mt-2 block text-xs text-white/55">
                 Phone prompt
