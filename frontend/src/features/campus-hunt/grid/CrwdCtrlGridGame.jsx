@@ -13,40 +13,81 @@ function copyText(text, onDone) {
   navigator.clipboard?.writeText(String(text)).then(() => onDone?.()).catch(() => {});
 }
 
-function ScorePills({ breakdown = [], score = 0, maxScore = 125, hintsUsed = 0, hintCost = 20, currentLevel = 1 }) {
+function ScorePills({
+  breakdown = [],
+  score = 0,
+  maxScore = 140,
+  hintsUsed = 0,
+  hintCost = 20,
+  currentLevel = 1,
+  totalLevels = 4,
+}) {
   const tones = [
     'border-emerald-400/25 bg-emerald-500/10 text-emerald-100',
+    'border-sky-400/25 bg-sky-500/10 text-sky-100',
     'border-violet-400/25 bg-violet-500/10 text-violet-100',
     'border-orange-400/25 bg-orange-500/10 text-orange-100',
   ];
+  const rows = breakdown.length
+    ? breakdown
+    : [
+      { level: 1, label: 'Easy', maxPoints: 20, pointsAwarded: 0 },
+      { level: 2, label: 'Medium', maxPoints: 30, pointsAwarded: 0 },
+      { level: 3, label: 'Difficult', maxPoints: 40, pointsAwarded: 0 },
+      { level: 4, label: 'Hard', maxPoints: 50, pointsAwarded: 0 },
+    ];
+  const cleared = rows.filter((r) => r.completed || r.failed || r.timedOut).length;
+  const progressPct = Math.min(100, Math.round((cleared / Math.max(1, totalLevels || rows.length)) * 100));
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-2.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-300">Grid score</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-300">
+          Zip progress
+        </p>
         <p className="font-mono text-xl font-black text-white">
           {score}
           <span className="text-sm font-semibold text-white/40"> / {maxScore}</span>
         </p>
       </div>
-      <div className="grid grid-cols-3 gap-2">
-        {(breakdown.length ? breakdown : [
-          { level: 1, maxPoints: 25, pointsAwarded: 0 },
-          { level: 2, maxPoints: 50, pointsAwarded: 0 },
-          { level: 3, maxPoints: 50, pointsAwarded: 0 },
-        ]).map((row, i) => {
+
+      <div className="space-y-1">
+        <div className="flex items-center justify-between text-[10px] uppercase tracking-wide text-white/45">
+          <span>
+            Round {Math.min(currentLevel, totalLevels)} of {totalLevels}
+          </span>
+          <span>
+            {cleared}/{totalLevels} done
+          </span>
+        </div>
+        <div className="h-2.5 overflow-hidden rounded-full bg-white/10">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-violet-400 to-orange-400 transition-all duration-500"
+            style={{ width: `${progressPct}%` }}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-4 gap-1.5">
+        {rows.map((row, i) => {
           let tone = tones[i] || 'border-white/10 bg-white/5 text-white/50';
           if (row.completed) tone = 'border-emerald-400/50 bg-emerald-500/20 text-emerald-50';
           else if (row.failed || row.timedOut) tone = 'border-rose-400/40 bg-rose-500/15 text-rose-100';
           else if (Number(row.level) === Number(currentLevel)) {
-            tone = `${tones[i] || tone} ring-1 ring-white/30`;
+            tone = `${tones[i] || tone} ring-1 ring-white/35`;
           }
           return (
-            <div key={row.level} className={`rounded-xl border px-2 py-2 text-center ${tone}`}>
-              <p className="text-[10px] font-bold uppercase tracking-wide">R{row.level}</p>
-              <p className="font-mono text-sm font-bold">
+            <div key={row.level} className={`rounded-xl border px-1.5 py-2 text-center ${tone}`}>
+              <p className="text-[9px] font-bold uppercase tracking-wide truncate">
+                {row.label || `R${row.level}`}
+              </p>
+              <p className="mt-0.5 font-mono text-sm font-bold tabular-nums">
                 {row.completed || row.failed || row.timedOut
-                  ? row.pointsAwarded
+                  ? `+${row.pointsAwarded}`
                   : `—/${row.maxPoints}`}
+              </p>
+              <p className="text-[9px] text-white/40">
+                {row.completed ? 'cleared' : row.failed || row.timedOut ? 'missed' : Number(row.level) === Number(currentLevel) ? 'now' : 'next'}
               </p>
             </div>
           );
@@ -236,10 +277,10 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
           <div className="mt-5 rounded-2xl border border-white/10 bg-black/30 px-4 py-4">
             <p className="text-[10px] uppercase tracking-wide text-white/45">Your grid score</p>
             <p className="font-mono text-5xl font-black text-[#0ECCEE]">{data.score ?? 0}</p>
-            <p className="mt-1 text-xs text-white/45">max {data.maxScore ?? 100}</p>
+            <p className="mt-1 text-xs text-white/45">max {data.maxScore ?? 140}</p>
           </div>
 
-          <div className="mt-4 grid grid-cols-3 gap-2 text-left">
+          <div className="mt-4 grid grid-cols-2 gap-2 text-left sm:grid-cols-4">
             {breakdown.map((row) => (
               <div
                 key={row.level}
@@ -249,7 +290,9 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
                     : 'border-rose-400/30 bg-rose-500/10'
                 }`}
               >
-                <p className="text-[10px] font-bold uppercase text-white/60">Round {row.level}</p>
+                <p className="text-[10px] font-bold uppercase text-white/60">
+                  {row.label || `Round ${row.level}`}
+                </p>
                 <p className="font-mono text-lg font-bold text-white">
                   {row.pointsAwarded}
                   <span className="text-xs text-white/40">/{row.maxPoints}</span>
@@ -325,7 +368,7 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
             </p>
             <p className="text-sm font-bold text-white">{data?.teamLabel || data?.teamCode || 'Team'}</p>
             <p className="mt-0.5 text-[11px] text-white/50">
-              Round {data?.currentLevel || 1} of {data?.totalLevels || 3}
+              Round {data?.currentLevel || 1} of {data?.totalLevels || 4}
               {puzzle?.points != null && ` · worth ${puzzle.points} pts`}
             </p>
           </div>
@@ -345,10 +388,11 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
           <ScorePills
             breakdown={data?.levelBreakdown}
             score={data?.score || 0}
-            maxScore={data?.maxScore || 125}
+            maxScore={data?.maxScore || 140}
             hintsUsed={data?.hintsUsed || 0}
             hintCost={data?.hintCost || 20}
             currentLevel={data?.currentLevel || 1}
+            totalLevels={data?.totalLevels || 4}
           />
         </div>
       </header>
@@ -413,7 +457,7 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
 
       <p className="text-center text-[11px] leading-relaxed text-white/40">
         Draw through every open cell. Hit numbers in order (1 → 2 → 3…).
-        Miss the timer → 0 for that round, keep going. Hints −20 from total.
+        Miss the timer → 0 for that round, keep going. All 4 rounds count. Hints −20 from total.
         This is a team Zip score — not account ranking.
       </p>
 

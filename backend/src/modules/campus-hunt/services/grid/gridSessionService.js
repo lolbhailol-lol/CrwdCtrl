@@ -65,7 +65,9 @@ async function reviveRound1GridSession(session, {
     || !anyLevelCleared(session)
     || sessionTimedOut(session)
     || session.status === 'completed'
-    || session.status === 'expired';
+    || session.status === 'expired'
+    || !Array.isArray(session.puzzles)
+    || session.puzzles.length !== TOTAL_LEVELS;
   const now = new Date();
 
   session.status = 'active';
@@ -142,11 +144,12 @@ function recomputeScore(session) {
 }
 
 function levelBreakdown(session) {
-  return (session.levelProgress || []).map((lp, i) => {
-    const template = LEVEL_TEMPLATES[i] || {};
+  return LEVEL_TEMPLATES.map((template, i) => {
+    const lp = session.levelProgress?.[i] || {};
     return {
       level: i + 1,
-      label: template.label || `Level ${i + 1}`,
+      label: template.label || `Round ${i + 1}`,
+      difficulty: template.difficulty || template.label || `R${i + 1}`,
       maxPoints: Number(template.points) || 0,
       pointsAwarded: Number(lp.pointsAwarded) || 0,
       completed: Boolean(lp.completed),
@@ -186,7 +189,14 @@ function finishSession(session) {
 }
 
 function advanceAfterLevel(session, fromIndex) {
-  if (fromIndex + 1 >= TOTAL_LEVELS) {
+  const puzzleCount = Array.isArray(session.puzzles) ? session.puzzles.length : TOTAL_LEVELS;
+  const total = Math.max(TOTAL_LEVELS, puzzleCount);
+  if (fromIndex + 1 >= total || fromIndex + 1 >= TOTAL_LEVELS) {
+    finishSession(session);
+    return { allDone: true };
+  }
+  // Need a puzzle for the next index — otherwise finish (legacy short packs).
+  if (!session.puzzles?.[fromIndex + 1]) {
     finishSession(session);
     return { allDone: true };
   }
@@ -373,9 +383,16 @@ async function joinByAccessCode(accessCode) {
   if (
     isRound1GridSession(session)
     && session.status !== 'completed'
-    && (session.status === 'expired' || sessionTimedOut(session))
+    && (
+      session.status === 'expired'
+      || sessionTimedOut(session)
+      || !Array.isArray(session.puzzles)
+      || session.puzzles.length !== TOTAL_LEVELS
+    )
   ) {
-    session = await reviveRound1GridSession(session);
+    session = await reviveRound1GridSession(session, {
+      forceReset: !Array.isArray(session.puzzles) || session.puzzles.length !== TOTAL_LEVELS,
+    });
   }
 
   assertSessionActive(session);
@@ -699,6 +716,14 @@ async function ensureRound1FieldTerminalGrid(team, {
 
     if (preferred.startsWith('GRID-') && existing.completionCode !== preferred) {
       existing.completionCode = preferred;
+    }
+    // Upgrade legacy 2/3-round sessions to the current 4-round Zip pack.
+    if (!Array.isArray(existing.puzzles) || existing.puzzles.length !== TOTAL_LEVELS) {
+      return reviveRound1GridSession(existing, {
+        durationMinutes,
+        preferredCompletionCode: preferred,
+        forceReset: true,
+      });
     }
     const remainingMs = existing.expiresAt
       ? new Date(existing.expiresAt).getTime() - Date.now()

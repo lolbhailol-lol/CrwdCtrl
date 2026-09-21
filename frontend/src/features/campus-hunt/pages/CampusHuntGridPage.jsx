@@ -158,17 +158,20 @@ export default function CampusHuntGridPage() {
             Zip Grid
           </h1>
           <p className="mt-3 text-sm text-white/65">
-            Connect numbers in order · fill every cell · <strong className="text-white">3 rounds</strong>
+            Connect numbers in order · fill every cell · <strong className="text-white">4 rounds</strong>
           </p>
           <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-[11px]">
             <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1 text-emerald-100">
-              R1 · 25 pts
+              Easy · 20
+            </span>
+            <span className="rounded-full border border-sky-400/30 bg-sky-500/10 px-2.5 py-1 text-sky-100">
+              Medium · 30
             </span>
             <span className="rounded-full border border-violet-400/30 bg-violet-500/10 px-2.5 py-1 text-violet-100">
-              R2 · 50 pts
+              Difficult · 40
             </span>
             <span className="rounded-full border border-orange-400/30 bg-orange-500/10 px-2.5 py-1 text-orange-100">
-              R3 · 50 pts
+              Hard · 50
             </span>
             <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-white/50">
               Hint −20
@@ -209,7 +212,7 @@ export default function CampusHuntGridPage() {
               disabled={loading || accessCode.length < 4}
               className="mt-4 w-full rounded-xl bg-gradient-to-r from-violet-400 via-[#0ECCEE] to-orange-300 py-3.5 text-sm font-black uppercase tracking-wide text-black disabled:opacity-40"
             >
-              {loading ? 'Joining…' : 'Start Zip · 3 rounds'}
+              {loading ? 'Joining…' : 'Start Zip · 4 rounds'}
             </button>
             <p className="mt-3 text-center text-[11px] leading-relaxed text-white/40">
               Difficulty climbs each round. Miss a timer → 0 for that round, keep going.

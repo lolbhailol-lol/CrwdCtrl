@@ -41,7 +41,7 @@ const OFFLINE_CLUE_HOW_TO = {
   4: {
     title: 'How to play — Field Terminal',
     steps: [
-      'Borrow a laptop · Zip Grid · device key from this phone · 3 rounds.',
+      'Borrow a laptop · Zip Grid · device key from this phone · 4 rounds.',
       'Type GRID-XXXX here → scan purple once.',
     ],
   },
