@@ -12,6 +12,7 @@ import {
   OFFLINE_DB_VERSION,
   OFFLINE_STORES,
 } from './constants';
+import { applyOfflinePlayerCopy } from './applyOfflinePlayerCopy';
 import { isNativeApp } from '../../../utils/capacitorPlatform';
 import {
   isSqliteAvailable,
@@ -115,32 +116,41 @@ export async function saveOfflineBundle(bundle) {
   if (!bundle?.team?.teamCode) {
     throw new Error('Invalid offline bundle — missing team code');
   }
+  const { bundle: refreshed } = applyOfflinePlayerCopy(bundle);
   const prev = await storeGet(OFFLINE_STORES.BUNDLE, BUNDLE_KEY);
   const batchChanged = prev?.exportBatchId
-    && bundle.exportBatchId
-    && String(prev.exportBatchId) !== String(bundle.exportBatchId);
+    && refreshed.exportBatchId
+    && String(prev.exportBatchId) !== String(refreshed.exportBatchId);
   const teamChanged = prev?.team?.teamCode
-    && String(prev.team.teamCode) !== String(bundle.team.teamCode);
+    && String(prev.team.teamCode) !== String(refreshed.team.teamCode);
   if (batchChanged || teamChanged) {
     await storeDelete(OFFLINE_STORES.STATE, String(prev.team.teamCode));
     await storeDelete(OFFLINE_STORES.SESSION, 'current');
   }
-  await storeSet(OFFLINE_STORES.BUNDLE, BUNDLE_KEY, bundle);
+  await storeSet(OFFLINE_STORES.BUNDLE, BUNDLE_KEY, refreshed);
   await appendOfflinePlayLog({
-    teamCode: bundle.team.teamCode,
+    teamCode: refreshed.team.teamCode,
     action: 'bundle_loaded',
     payload: {
-      eventId: bundle.event?.id,
-      team: bundle.team.teamCode,
-      exportBatchId: bundle.exportBatchId || null,
+      eventId: refreshed.event?.id,
+      team: refreshed.team.teamCode,
+      exportBatchId: refreshed.exportBatchId || null,
       clearedState: Boolean(batchChanged || teamChanged),
+      playerCopyRevision: refreshed.playerCopyRevision || null,
     },
   });
-  return bundle;
+  return refreshed;
 }
 
 export async function loadOfflineBundle() {
-  return storeGet(OFFLINE_STORES.BUNDLE, BUNDLE_KEY);
+  const raw = await storeGet(OFFLINE_STORES.BUNDLE, BUNDLE_KEY);
+  if (!raw) return null;
+  const { bundle, changed } = applyOfflinePlayerCopy(raw);
+  if (changed) {
+    // Soft rewrite — keep progress; only refresh player-facing copy.
+    await storeSet(OFFLINE_STORES.BUNDLE, BUNDLE_KEY, bundle);
+  }
+  return bundle;
 }
 
 export async function clearOfflineBundle() {
