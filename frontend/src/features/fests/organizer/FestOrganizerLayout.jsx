@@ -9,7 +9,7 @@ import { clearFestOrganizerSession, getFestOrganizerSession } from '../../../uti
 import { getFestPlugin } from '../plugins/registry';
 import { useDialog } from '../../../context/DialogContext';
 
-const SIMPLE_PORTAL_UNLOCKED = new Set(['Overview', 'Competitions', 'Participants']);
+const SIMPLE_PORTAL_UNLOCKED = new Set(['Overview', 'Competitions', 'Participants', 'Check-in']);
 
 /** Full cultural-fest nav (Aarohan-style) — showcaseAll shows locked teaser catalog */
 const navForFest = (festId, {
@@ -165,7 +165,7 @@ export default function FestOrganizerLayout() {
     const opsNav = nav.filter((n) => n.group === 'ops' && n.label !== 'Overview');
     const editNav = nav.filter((n) => n.group === 'edit');
     const mobilePrimary = simplePortal
-        ? ['Competitions', 'Participants']
+        ? ['Competitions', 'Participants', 'Check-in']
         : hideProShow
             ? ['Fest Day Desk', 'Competitions', 'Participants', 'Check-in', 'Connect']
             : ['Live', 'Competitions', 'Pro Show'];
@@ -209,7 +209,9 @@ export default function FestOrganizerLayout() {
             || path === `${base}/competitions`
             || path.startsWith(`${base}/competitions/`)
             || path === `${base}/participants`
-            || path.startsWith(`${base}/participants/`);
+            || path.startsWith(`${base}/participants/`)
+            || path === `${base}/scan`
+            || path.startsWith(`${base}/scan/`);
         if (!allowed) {
             navigate(base, { replace: true });
         }
