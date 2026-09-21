@@ -46,7 +46,7 @@ export function buildRound1Clues(geometry) {
       id: 'clue2',
       number: 2,
       label: 'Clue 2',
-      short: 'PLANT WORD',
+      short: 'DIGITS',
       detail: '',
       checkpointKeys: ['2'],
       type: 'timed_search',

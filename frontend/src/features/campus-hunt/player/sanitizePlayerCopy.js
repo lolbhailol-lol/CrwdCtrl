@@ -13,6 +13,10 @@ export function sanitizePlayerCopy(text) {
     .replace(/\s*scan once \+ team code/gi, 'scan once')
     .replace(/\bMindSpark Lobby\b/g, 'Mindspark Lobby')
     .replace(/\bFinale Assembly\b/g, 'Mindspark Lobby')
+    .replace(/\bplant slips?\b/gi, 'digit slips')
+    .replace(/\bplant fragments?\b/gi, 'digit slips')
+    .replace(/\bplant join[- ]?words?\b/gi, 'digit answer')
+    .replace(/\bjoined word from plant\b/gi, 'digit answer')
     .replace(/\s{2,}/g, ' ')
     .replace(/\s+([.!?])/g, '$1')
     .trim();

@@ -1,36 +1,41 @@
-/** CrwdCtrl Grid (Zip-style) — level definitions + scoring. */
+/** CrwdCtrl Grid (Zip-style) — 3 rounds, rising difficulty + scoring. */
 
 const GRID_HINT_COST = 20;
 
+/**
+ * Round design:
+ * R1 warm-up · R2 mid · R3 hard
+ * Timers are tight enough to feel urgent but finishable for a laptop team.
+ */
 const LEVEL_TEMPLATES = [
   {
     level: 1,
-    label: 'Zip · Easy',
+    label: 'Round 1 · Warm-up',
     rows: 5,
     cols: 5,
-    wallCount: 0,
-    numberCount: 5,
-    timeSeconds: 90,
+    wallCount: 1,
+    numberCount: 6,
+    timeSeconds: 70,
     points: 25,
   },
   {
     level: 2,
-    label: 'Zip · Medium',
+    label: 'Round 2 · Climb',
     rows: 6,
     cols: 6,
-    wallCount: 2,
-    numberCount: 7,
-    timeSeconds: 120,
+    wallCount: 3,
+    numberCount: 8,
+    timeSeconds: 95,
     points: 50,
   },
   {
     level: 3,
-    label: 'Zip · Hard',
-    rows: 7,
-    cols: 7,
-    wallCount: 4,
-    numberCount: 9,
-    timeSeconds: 150,
+    label: 'Round 3 · Peak',
+    rows: 8,
+    cols: 8,
+    wallCount: 6,
+    numberCount: 11,
+    timeSeconds: 130,
     points: 50,
   },
 ];

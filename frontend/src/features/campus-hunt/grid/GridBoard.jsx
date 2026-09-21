@@ -145,7 +145,7 @@ export default function GridBoard({
         display: 'grid',
         gridTemplateColumns: `repeat(${puzzle.cols}, minmax(0, 1fr))`,
         gap: '7px',
-        background: 'linear-gradient(160deg, rgba(14,204,238,0.12), rgba(168,85,247,0.1), rgba(251,146,60,0.08))',
+        background: 'linear-gradient(160deg, rgba(139,92,246,0.2), rgba(14,204,238,0.12), rgba(251,146,60,0.1))',
       }}
       onPointerLeave={handlePointerUp}
       onPointerUp={handlePointerUp}

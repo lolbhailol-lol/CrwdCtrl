@@ -81,8 +81,8 @@ export function formatTime(seconds) {
   return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
 }
 
-/** Path trail hue — LinkedIn Zip vibes */
+/** Path trail hue — violet → cyan → orange across the fill */
 export function pathHue(index, total) {
   const t = total <= 1 ? 0 : index / (total - 1);
-  return Math.round(195 + t * 85); // cyan → violet
+  return Math.round(265 + t * 90); // violet → cyan/teal
 }

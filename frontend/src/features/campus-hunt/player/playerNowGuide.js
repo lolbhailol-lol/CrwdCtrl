@@ -144,16 +144,16 @@ export function buildPlayerNowGuide({
       return {
         tone: 'clue',
         eyebrow: 'Clue 2',
-        title: 'Type the join-word',
-        body: '0 pts — type the revealed word, then scan green.',
+        title: 'Type the digit answer',
+        body: '0 pts — type the revealed answer, then scan green.',
         steps: [],
       };
     }
     return {
       tone: 'clue',
       eyebrow: 'Clue 2',
-      title: 'Join the plant word',
-      body: '3 attempts. Find the plant slips at green, join into one word, type it. Faster = more points.',
+      title: 'Find the digits',
+      body: '3 attempts. Find numbered digit slips at green, join in order, type it. Faster = more points.',
       steps: [],
     };
   }

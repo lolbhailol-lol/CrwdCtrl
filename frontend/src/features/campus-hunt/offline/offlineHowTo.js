@@ -14,18 +14,18 @@ export const OFFLINE_CLUE_HOW_TO = {
     ],
   },
   2: {
-    title: 'Clue 2 · plant word',
+    title: 'Clue 2 · digits',
     steps: [
-      'At green: join plant slips into one word.',
-      'Type it (3 tries · faster = more pts).',
-      'Time up or 3 misses → word shown (0 pts).',
+      'At green: find the numbered digit slips.',
+      'Join them in order into one answer (3 tries · faster = more pts).',
+      'Time up or 3 misses → answer shown (0 pts).',
       'Scan green once.',
     ],
   },
   3: {
     title: 'Clue 3 · lockbox',
     steps: [
-      'Rebuild the digit code on this phone.',
+      'Rebuild the lockbox code on this phone.',
       'Submit (3 tries). Miss all → code shown (0 pts).',
       'Go there · scan blue once.',
     ],
@@ -35,7 +35,7 @@ export const OFFLINE_CLUE_HOW_TO = {
     steps: [
       'Borrow a laptop with internet.',
       'Open Zip Grid · type the device key from this phone.',
-      'Type GRID-XXXX here · scan purple once.',
+      'Clear 3 rounds · type GRID-XXXX here · scan purple once.',
     ],
   },
   5: {
@@ -57,4 +57,4 @@ export const OFFLINE_CLUE_HOW_TO = {
 };
 
 /** Bump when HOW_TO / player UI copy changes — soft-rewrites already-downloaded packs. */
-export const OFFLINE_PLAYER_COPY_REVISION = 4;
+export const OFFLINE_PLAYER_COPY_REVISION = 5;

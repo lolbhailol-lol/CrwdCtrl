@@ -14,7 +14,7 @@ const { selectCompetitionTeams } = require('./startScheduleService');
 const { buildStationQrPayload } = require('./checkpointService');
 const { CLUE_HOW_TO, DEFAULT_SCORING_CONFIG } = require('../constants');
 
-/** Offline — one phone; plant join-word = Clue 2 answer only (not a scan gate). */
+/** Offline — one phone; digit join-answer = Clue 2 only (not a scan gate). */
 const OFFLINE_CLUE_HOW_TO = {
   1: {
     title: 'How to play — Clue 1',
@@ -27,7 +27,7 @@ const OFFLINE_CLUE_HOW_TO = {
   2: {
     title: 'How to play — Clue 2',
     steps: [
-      'At the green stop: find plant slips, join into one word, type it on this phone.',
+      'At the green stop: find numbered digit slips, join in order, type the answer on this phone.',
       'Leader scans the green SECOND SCAN QR once → Clue 3.',
     ],
   },
@@ -441,7 +441,7 @@ async function exportOfflinePacks(eventId) {
         opsNotes: {
         install: 'Share install links ~1 day before. Leaders download Hunt + pack on Wi‑Fi at home, then arrive ready. Whole team walks with that one phone — play works with no campus network.',
         startGate: 'One start code for everyone. Organizer says it at the gather point; leaders type it; hunt starts. No release desk needed on phones.',
-        checkpointFlow: 'At each of 5 stops: solve the clue on the leader phone → scan the shared place poster once (auto-unlocks next clue — no team-code step, no multi-member scan). Plant join-word is Clue 2 answer only. Clue 6 → Mindspark Lobby finish code.',
+        checkpointFlow: 'At each of 5 stops: solve the clue on the leader phone → scan the shared place poster once (auto-unlocks next clue — no team-code step, no multi-member scan). Digit join-answer is Clue 2 only. Clue 6 → Mindspark Lobby finish code.',
         posters: 'ONE shared QR per campus place × scan stage 1–5. Phone already knows the stage. Leader scans once.',
       },
     };

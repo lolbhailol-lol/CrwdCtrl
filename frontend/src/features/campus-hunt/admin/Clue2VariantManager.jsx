@@ -33,8 +33,8 @@ const inputClass = 'w-full rounded-lg border border-white/15 bg-[#161718] px-3 p
 const DEFAULT_SETTINGS = CLUE2_DEFAULT_SETTINGS;
 
 const SHARED_PROMPT =
-  'At the green stop: find the shared plant slips written nearby. '
-  + 'Join them into one word and type it (leader), then scan the green poster.';
+  'At the green stop: find the numbered digit slips nearby. '
+  + 'Join them in order into one answer and type it (leader), then scan the green poster.';
 
 function id(value) {
   return String(value?._id || value?.id || value || '');
@@ -212,7 +212,7 @@ export default function Clue2VariantManager({
 
     setBusy(true);
     setError('');
-    setMessage(`Saving Clue 2 with shared plant join-words…`);
+    setMessage(`Saving Clue 2 with shared digit answers…`);
 
     try {
       const clue2Scoring = coerceClueScoring(settings, DEFAULT_SETTINGS);
@@ -234,7 +234,7 @@ export default function Clue2VariantManager({
           ).trim().toUpperCase();
           if (!answer || answer.length < 3) {
             failures.push(
-              `${startLabel(point)} · ${waveId}: Set plant join-word for ${place || 'stop'}`,
+              `${startLabel(point)} · ${waveId}: Set digit answer for ${place || 'stop'}`,
             );
             continue;
           }
@@ -252,7 +252,7 @@ export default function Clue2VariantManager({
       }
 
       if (!variantsPayload.length) {
-        setError(failures[0] || 'No join-words to save — Fill COEP defaults under Places → Plant fragments');
+        setError(failures[0] || 'No digit answers to save — Fill COEP defaults under Places → Digit slips');
         setMessage('');
         return;
       }
@@ -275,7 +275,7 @@ export default function Clue2VariantManager({
         setMessage('');
       } else {
         setMessage(
-          `Saved ${saved} Clue 2 join-words · bound ${bound} teams.`
+          `Saved ${saved} Clue 2 digit answers · bound ${bound} teams.`
           + (apiErrors.length || failures.length
             ? ` (${apiErrors.length + failures.length} warnings)`
             : ''),
@@ -296,7 +296,7 @@ export default function Clue2VariantManager({
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2 text-[11px]">
         <span className="rounded-full bg-white/10 px-2.5 py-1 text-white/55">
-          {stations.length} places · {teamsPerStation === 1 ? '1 team each' : `~${teamsPerStation} teams each`} · shared plant join-word
+          {stations.length} places · {teamsPerStation === 1 ? '1 team each' : `~${teamsPerStation} teams each`} · shared digit answer
         </span>
         <span className={`rounded-full px-2.5 py-1 ${
           savedCount >= teamCapacity
@@ -383,9 +383,9 @@ export default function Clue2VariantManager({
       <section className="rounded-2xl border border-white/15 bg-white/5 p-4">
         <h2 className="text-base font-semibold text-white">3. Who goes where</h2>
         <p className="mt-1 text-xs text-white/50">
-          Second stop = next campus place after Clue 1. Same shared plant join-word for every team
-          at that place (set under Places → Plant fragments) — not a different code per team.
-          After they type the joined word they scan the shared green SECOND SCAN QR once — Clue 3 unlocks.
+          Second stop = next campus place after Clue 1. Same shared digit answer for every team
+          at that place (set under Places → Digit slips) — not a different code per team.
+          After they type the joined digits they scan the shared green SECOND SCAN QR once — Clue 3 unlocks.
         </p>
         <div className="mt-3 grid gap-2 md:grid-cols-2">
           {arrivalPlan.map((place) => (
@@ -401,9 +401,9 @@ export default function Clue2VariantManager({
               </div>
               <div className="mt-2 space-y-2">
                 <p className="rounded-lg bg-black/30 px-2 py-1.5 font-mono text-sm text-[#0ECCEE]">
-                  Join-word · {place.joinedWord || stations.find((s) => s.code === place.code)?.joinedWord || '—'}
+                  Digit answer · {place.joinedWord || stations.find((s) => s.code === place.code)?.joinedWord || '—'}
                   <span className="ml-2 font-sans text-[11px] text-white/45">
-                    (shared · from Plant fragments)
+                    (shared · from Digit slips)
                   </span>
                 </p>
                 {place.arrivals.map((row) => (
@@ -442,7 +442,7 @@ export default function Clue2VariantManager({
       {message && <p className="text-xs text-[#0ECCEE]">{message}</p>}
       {error && <p className="text-xs text-amber-200">{error}</p>}
       <p className="text-[11px] text-white/40">
-        Shared plant join-word per place (Places → Plant fragments). Teams at the same stop share one word —
+        Shared digit answer per place (Places → Digit slips). Teams at the same stop share one answer —
         not a different code per team. Green QR unlocks after the word is typed.
       </p>
     </div>

@@ -164,9 +164,9 @@ function generatePuzzle(levelIndex, seed = Date.now()) {
   const rng = mulberry32(Number(seed) + (levelIndex + 1) * 9973);
   const { rows, cols, wallCount, numberCount, timeSeconds, points, label } = template;
 
-  // Slight timer drift per generation so each play feels different by time.
-  const timeJitter = Math.floor((rng() - 0.5) * 20); // ±10s
-  const timed = Math.max(45, Number(timeSeconds) + timeJitter);
+  // Timer drift per generation — keep within a tight band so difficulty stays fair.
+  const timeJitter = Math.floor((rng() - 0.5) * 12); // ±6s
+  const timed = Math.max(50, Number(timeSeconds) + timeJitter);
 
   const walls = placeWalls(rows, cols, wallCount, rng);
   const solutionPath = buildCoveringPath(rows, cols, walls, rng);

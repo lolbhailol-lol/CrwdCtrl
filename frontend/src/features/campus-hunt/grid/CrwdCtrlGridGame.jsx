@@ -13,11 +13,16 @@ function copyText(text, onDone) {
   navigator.clipboard?.writeText(String(text)).then(() => onDone?.()).catch(() => {});
 }
 
-function ScorePills({ breakdown = [], score = 0, maxScore = 100, hintsUsed = 0, hintCost = 20 }) {
+function ScorePills({ breakdown = [], score = 0, maxScore = 125, hintsUsed = 0, hintCost = 20, currentLevel = 1 }) {
+  const tones = [
+    'border-emerald-400/25 bg-emerald-500/10 text-emerald-100',
+    'border-violet-400/25 bg-violet-500/10 text-violet-100',
+    'border-orange-400/25 bg-orange-500/10 text-orange-100',
+  ];
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">Score</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-300">Grid score</p>
         <p className="font-mono text-xl font-black text-white">
           {score}
           <span className="text-sm font-semibold text-white/40"> / {maxScore}</span>
@@ -25,16 +30,19 @@ function ScorePills({ breakdown = [], score = 0, maxScore = 100, hintsUsed = 0, 
       </div>
       <div className="grid grid-cols-3 gap-2">
         {(breakdown.length ? breakdown : [
-          { level: 1, maxPoints: 20, pointsAwarded: 0 },
-          { level: 2, maxPoints: 40, pointsAwarded: 0 },
-          { level: 3, maxPoints: 40, pointsAwarded: 0 },
-        ]).map((row) => {
-          let tone = 'border-white/10 bg-white/5 text-white/50';
-          if (row.completed) tone = 'border-emerald-400/40 bg-emerald-500/15 text-emerald-100';
-          else if (row.failed || row.timedOut) tone = 'border-rose-400/30 bg-rose-500/10 text-rose-200';
+          { level: 1, maxPoints: 25, pointsAwarded: 0 },
+          { level: 2, maxPoints: 50, pointsAwarded: 0 },
+          { level: 3, maxPoints: 50, pointsAwarded: 0 },
+        ]).map((row, i) => {
+          let tone = tones[i] || 'border-white/10 bg-white/5 text-white/50';
+          if (row.completed) tone = 'border-emerald-400/50 bg-emerald-500/20 text-emerald-50';
+          else if (row.failed || row.timedOut) tone = 'border-rose-400/40 bg-rose-500/15 text-rose-100';
+          else if (Number(row.level) === Number(currentLevel)) {
+            tone = `${tones[i] || tone} ring-1 ring-white/30`;
+          }
           return (
             <div key={row.level} className={`rounded-xl border px-2 py-2 text-center ${tone}`}>
-              <p className="text-[10px] font-bold uppercase tracking-wide">L{row.level}</p>
+              <p className="text-[10px] font-bold uppercase tracking-wide">R{row.level}</p>
               <p className="font-mono text-sm font-bold">
                 {row.completed || row.failed || row.timedOut
                   ? row.pointsAwarded
@@ -241,7 +249,7 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
                     : 'border-rose-400/30 bg-rose-500/10'
                 }`}
               >
-                <p className="text-[10px] font-bold uppercase text-white/60">Level {row.level}</p>
+                <p className="text-[10px] font-bold uppercase text-white/60">Round {row.level}</p>
                 <p className="font-mono text-lg font-bold text-white">
                   {row.pointsAwarded}
                   <span className="text-xs text-white/40">/{row.maxPoints}</span>
@@ -305,19 +313,19 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
       )}
 
       <header
-        className="rounded-3xl border border-white/10 px-4 py-3"
+        className="rounded-3xl border border-violet-400/25 px-4 py-3"
         style={{
-          background: 'linear-gradient(135deg, rgba(14,204,238,0.14), rgba(124,58,237,0.12), rgba(15,15,18,0.9))',
+          background: 'linear-gradient(135deg, rgba(139,92,246,0.22), rgba(14,204,238,0.12), rgba(6,4,15,0.95))',
         }}
       >
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#0ECCEE]">
-              CrwdCtrl Zip
+            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-violet-300">
+              Zip · number path
             </p>
             <p className="text-sm font-bold text-white">{data?.teamLabel || data?.teamCode || 'Team'}</p>
-            <p className="mt-0.5 text-[11px] text-white/45">
-              Level {data?.currentLevel || 1}/{data?.totalLevels || 3}
+            <p className="mt-0.5 text-[11px] text-white/50">
+              Round {data?.currentLevel || 1} of {data?.totalLevels || 3}
               {puzzle?.points != null && ` · worth ${puzzle.points} pts`}
             </p>
           </div>
@@ -337,16 +345,17 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
           <ScorePills
             breakdown={data?.levelBreakdown}
             score={data?.score || 0}
-            maxScore={data?.maxScore || 100}
+            maxScore={data?.maxScore || 125}
             hintsUsed={data?.hintsUsed || 0}
             hintCost={data?.hintCost || 20}
+            currentLevel={data?.currentLevel || 1}
           />
         </div>
       </header>
 
       {puzzle?.label && (
-        <p className="text-center text-xs uppercase tracking-wide text-white/50">
-          {puzzle.label} · connect 1→{puzzle.numbers?.length || 'N'} · fill every cell
+        <p className="text-center text-xs uppercase tracking-wide text-violet-200/70">
+          {puzzle.label} · connect 1→{puzzle.numbers?.length || 'N'} · fill every open cell
         </p>
       )}
 
@@ -403,8 +412,9 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
       </div>
 
       <p className="text-center text-[11px] leading-relaxed text-white/40">
-        Draw through every open cell. Hit numbers in order (1, 2, 3…).
-        Miss the timer → 0 for that level, keep going. Hints −20 from total.
+        Draw through every open cell. Hit numbers in order (1 → 2 → 3…).
+        Miss the timer → 0 for that round, keep going. Hints −20 from total.
+        This is a team Zip score — not account ranking.
       </p>
 
       {onSwitchTeam && (

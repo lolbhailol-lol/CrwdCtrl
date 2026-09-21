@@ -755,7 +755,7 @@ export default function PlayerPlayScreen({
               </p>
               <p className="mt-2 text-lg font-semibold text-white">
                 Score locked · {team.finalScore ?? team.currentScore ?? 0} pts
-                {Number(team.leaderboardRank) > 0
+                {!offlineMode && Number(team.leaderboardRank) > 0
                   ? ` · #${team.leaderboardRank}${Number(team.leaderboardSize) > 0 ? ` of ${team.leaderboardSize}` : ''}`
                   : ''}
               </p>
@@ -1434,7 +1434,7 @@ export default function PlayerPlayScreen({
                       activeChallenge.challengeNumber === 1
                         ? 'Type the place name'
                         : activeChallenge.challengeNumber === 2
-                          ? 'Joined word from plant slips'
+                          ? 'Digit answer from numbered slips'
                           : activeChallenge.challengeNumber === 3
                             ? 'Lockbox code'
                             : activeChallenge.challengeNumber === 4

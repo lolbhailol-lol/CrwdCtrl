@@ -97,7 +97,7 @@ export default function StationPlantFragmentsPanel({
       await adminUpdateCampusStations(eventId, {
         campusStations: next,
         stationCount,
-        reason: 'Plant fragments + joined words saved',
+        reason: 'Digit slips + joined answers saved',
       });
       setMsg('Saved plant fragments + joined words for all stops');
       onChanged?.();
@@ -120,12 +120,12 @@ export default function StationPlantFragmentsPanel({
   return (
     <section className="rounded-2xl border border-[#0ECCEE]/30 bg-[#0a1218] p-4">
       <p className="text-xs font-semibold uppercase tracking-widest text-[#0ECCEE]">
-        Plant fragments (shared)
+        Digit slips (shared)
       </p>
-      <h3 className="mt-1 text-lg font-bold text-white">Join-word stops</h3>
+      <h3 className="mt-1 text-lg font-bold text-white">Number find · green stop</h3>
       <p className="mt-1 text-sm text-white/55">
-        Print {n} short slips per place. Every team that visits that place finds the same slips,
-        joins them into one word, types it, then scans the poster once.
+        Print {n} short numbered slips per place. Every team that visits finds the same digits,
+        joins them in order into one answer, types it, then scans the poster once.
       </p>
 
       <div className="mt-3 flex flex-wrap gap-2">
@@ -143,7 +143,7 @@ export default function StationPlantFragmentsPanel({
           onClick={save}
           className="rounded-xl bg-[#0ECCEE] px-4 py-2.5 text-sm font-bold text-black disabled:opacity-40"
         >
-          {busy ? 'Saving…' : 'Save plant fragments'}
+          {busy ? 'Saving…' : 'Save digit slips'}
         </button>
       </div>
 

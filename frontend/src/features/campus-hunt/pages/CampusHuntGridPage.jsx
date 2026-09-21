@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import CrwdCtrlGridGame from '../grid/CrwdCtrlGridGame';
 import { joinGridGame, fetchGridSession } from '../services/campusHunt.api';
-import { CAMPUS_HUNT_PATHS } from '../config';
-import CampusHuntBackLink from '../components/CampusHuntBackLink';
 import { isPhoneOrTabletClient, LAPTOP_ONLY_RULE } from '../grid/laptopOnly';
 
 const GRID_TOKEN_KEY = 'crwdctrl_grid_token';
@@ -22,13 +19,13 @@ function LaptopOnlyGate() {
         Wrong screen
       </h2>
       <p className="mt-3 text-sm leading-relaxed text-white/65">
-        This puzzle only runs on a laptop or desktop.
+        Zip Grid only runs on a laptop or desktop.
         Open this same link there and enter your device key.
       </p>
       <p className="mt-4 rounded-2xl border border-red-400/30 bg-red-500/10 px-3 py-3 text-left text-xs leading-relaxed text-red-100/90">
         {LAPTOP_ONLY_RULE}
       </p>
-      <p className="mt-4 break-all font-mono text-xs text-[#0ECCEE]/90">
+      <p className="mt-4 break-all font-mono text-xs text-violet-300/90">
         {typeof window !== 'undefined' ? window.location.href : '/campus-hunt/grid'}
       </p>
     </div>
@@ -87,7 +84,6 @@ export default function CampusHuntGridPage() {
     return () => { cancelled = true; };
   }, [enforceLaptopGate]);
 
-  // Re-check after rotate / Desktop site toggle mid-session
   useEffect(() => {
     const recheck = () => {
       if (enforceLaptopGate()) {
@@ -129,8 +125,8 @@ export default function CampusHuntGridPage() {
 
   if (booting) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#07090d] text-white/60">
-        Loading…
+      <div className="flex min-h-screen items-center justify-center bg-[#06040f] text-white/60">
+        Loading Zip…
       </div>
     );
   }
@@ -140,31 +136,46 @@ export default function CampusHuntGridPage() {
       className="min-h-screen px-4 py-8 text-white"
       style={{
         background:
-          'radial-gradient(ellipse at top, rgba(14,204,238,0.18), transparent 45%), radial-gradient(ellipse at bottom right, rgba(139,92,246,0.16), transparent 40%), #07090d',
+          'radial-gradient(ellipse 80% 50% at 50% -10%, rgba(139,92,246,0.35), transparent 55%),'
+          + 'radial-gradient(ellipse 60% 40% at 100% 80%, rgba(14,204,238,0.18), transparent 45%),'
+          + 'radial-gradient(ellipse 50% 35% at 0% 100%, rgba(251,146,60,0.12), transparent 40%),'
+          + '#06040f',
       }}
     >
       <div className="mx-auto max-w-lg space-y-6">
-        <CampusHuntBackLink to={CAMPUS_HUNT_PATHS.leaderboard} label="Back" />
         <header className="text-center">
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#0ECCEE]">CrwdCtrl</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.32em] text-violet-300/90">
+            Field Terminal · Clue 4
+          </p>
           <h1
-            className="mt-1 text-4xl font-black uppercase tracking-tight"
+            className="mt-2 text-5xl font-black uppercase tracking-tight"
             style={{
-              background: 'linear-gradient(90deg, #0ECCEE, #a78bfa, #fb923c)',
+              background: 'linear-gradient(110deg, #c4b5fd 0%, #0ECCEE 45%, #fb923c 100%)',
               WebkitBackgroundClip: 'text',
               color: 'transparent',
             }}
           >
             Zip Grid
           </h1>
-          <p className="mt-2 text-sm text-white/60">
-            Connect the numbers in order · fill every cell · 3 levels
+          <p className="mt-3 text-sm text-white/65">
+            Connect numbers in order · fill every cell · <strong className="text-white">3 rounds</strong>
           </p>
-          <p className="mt-1 text-xs text-white/40">
-            L1 = 25 · L2 = 50 · L3 = 50 · Hint −20 · miss timer = 0 that level
-          </p>
-          <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-amber-200/70">
-            Computer required · phones blocked
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-[11px]">
+            <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1 text-emerald-100">
+              R1 · 25 pts
+            </span>
+            <span className="rounded-full border border-violet-400/30 bg-violet-500/10 px-2.5 py-1 text-violet-100">
+              R2 · 50 pts
+            </span>
+            <span className="rounded-full border border-orange-400/30 bg-orange-500/10 px-2.5 py-1 text-orange-100">
+              R3 · 50 pts
+            </span>
+            <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-white/50">
+              Hint −20
+            </span>
+          </div>
+          <p className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-amber-200/75">
+            Laptop only · no phones · no account ranking
           </p>
         </header>
 
@@ -173,15 +184,15 @@ export default function CampusHuntGridPage() {
         ) : !session ? (
           <form
             onSubmit={handleJoin}
-            className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur"
+            className="rounded-3xl border border-violet-400/25 bg-violet-500/5 p-5 backdrop-blur"
           >
             <label className="block text-xs uppercase tracking-wide text-white/50">
-              Team access code
+              Device key (from leader phone)
               <input
                 value={accessCode}
                 onChange={(e) => setAccessCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))}
                 placeholder="e.g. K7M2XP"
-                className="mt-2 w-full rounded-xl border border-white/15 bg-black/40 px-4 py-3 text-center font-mono text-2xl tracking-[0.3em] outline-none focus:border-[#0ECCEE]"
+                className="mt-2 w-full rounded-xl border border-violet-300/25 bg-black/50 px-4 py-3 text-center font-mono text-2xl tracking-[0.3em] outline-none focus:border-[#0ECCEE]"
                 autoComplete="off"
                 maxLength={6}
               />
@@ -196,12 +207,12 @@ export default function CampusHuntGridPage() {
             <button
               type="submit"
               disabled={loading || accessCode.length < 4}
-              className="mt-4 w-full rounded-xl bg-gradient-to-r from-[#0ECCEE] to-violet-400 py-3 text-sm font-black uppercase tracking-wide text-black disabled:opacity-40"
+              className="mt-4 w-full rounded-xl bg-gradient-to-r from-violet-400 via-[#0ECCEE] to-orange-300 py-3.5 text-sm font-black uppercase tracking-wide text-black disabled:opacity-40"
             >
-              {loading ? 'Joining…' : 'Play Zip'}
+              {loading ? 'Joining…' : 'Start Zip · 3 rounds'}
             </button>
             <p className="mt-3 text-center text-[11px] leading-relaxed text-white/40">
-              Phones are not allowed. Desktop site will not help — use a real laptop.
+              Difficulty climbs each round. Miss a timer → 0 for that round, keep going.
             </p>
           </form>
         ) : (
@@ -211,12 +222,6 @@ export default function CampusHuntGridPage() {
             onSwitchTeam={handleSwitchTeam}
           />
         )}
-
-        <p className="text-center text-xs text-white/35">
-          <Link to={CAMPUS_HUNT_PATHS.leaderboard} className="underline hover:text-[#0ECCEE]">
-            Back to Campus Hunt
-          </Link>
-        </p>
       </div>
     </div>
   );
